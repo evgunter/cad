@@ -2737,6 +2737,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         | E::TraceUnresolved { .. }
         | E::BoundaryGraze { .. }
         | E::BoundaryTangent { .. }
+        | E::SideSignBudget { .. }
         | E::EndNotOnLocus { .. }
         | E::CrossingUnmatched { .. }
         | E::ShortBranchUncertified { .. }

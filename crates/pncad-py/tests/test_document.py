@@ -2138,6 +2138,8 @@ class TestNodeLabels(unittest.TestCase):
             ("  ", "label_blank"),
             ("two\nlines", "label_line_break"),
             ("tab\there", "label_control_character"),
+            ("\u200b", "label_blank"),
+            ("lid\u202e", "label_direction_control"),
         ]
         for text, variant in cases:
             with self.subTest(text=text):

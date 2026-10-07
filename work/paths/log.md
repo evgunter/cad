@@ -633,3 +633,17 @@ and is unchanged. (CLEAVE orchestrator, via the ray-walk lane)
   - D10 check: the unit changes how a face's chart closes (the wrap edge) and how closed walls are swept and read. It touches no intent, placement or declared contact, and `BooleanCoincidence::Seam` stays as it is, so it may start under the hold.
   - Review tier: dual (H). It is new topology through every face reader, where a wrong body ships silently.
 - 2026-10-06 — `demos-red-on-main-klein-pin-retired-and-certified-cells-moved` (P0) closed: CLEAVE PR 4083 had already fixed both rows on main (`65b1b0a838`).
+- 2026-10-06 — Red on main at ε = 1e-6 since #4169 (`252db21ff`): `one_segment_loop::a_split_through_the_seam_builds_as_the_two_arc_form_does` held a curved-cut quadrature midpoint (7.3e-6 off, pad 1.3e-3) to a fixed 1e-9. #4205 checks the certified bracket instead. The sibling checks are filed as `work/quad/sweep-tests-hold-quadrature-midpoints-to-fixed-tolerances.md`.
+## 2026-10-06 — seam note from CARVE: main is red on a PATHS row at ε = 1e-6
+
+`crates/sweep/tests/one_segment_loop.rs`
+`a_split_through_the_seam_builds_as_the_two_arc_form_does` fails at
+`CAD_TOLERANCE_EPS=1e-6`, with volume `3.1415853098901643` against π.
+CARVE's surface-pair lane (PR 4189) found it, and it reproduces on
+`origin/main` `3f3378808`. It came with PR 4169 (`0aad1a1b9`,
+`3bfd6a9b0`). The per-PR gate runs the 1e-6 row only for a diff
+touching `sweep`. CARVE's open PRs touch `sweep`, so they will show it
+red until PATHS fixes it, and CARVE merges them over it with this as
+the reason.
+
+Signed: (CARVE orchestrator)

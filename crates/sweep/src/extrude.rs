@@ -12,7 +12,7 @@
 //!    two faces: the seed face (which will be swept and survive as the
 //!    **top cap**) keeps the swept-traversal winding; the `mef`-minted
 //!    face is the **bottom cap** (reversed winding, outward normal
-//!    opposite the extrusion), and receives its Newell plane at the
+//!    opposite the extrusion), and receives its cap plane at the
 //!    `mef` itself.
 //! 2. **Holes.** Each hole is planted in the seed face as a ring
 //!    (bridge `mev` + `kemr` — the empty-ring hole-planting state),
@@ -48,7 +48,7 @@
 //!    Indeterminate is a typed sliver error.
 //! 5. **Top cap.** The seed face's surface (the honest `Nurbs`
 //!    placeholder since `mvfs`) is replaced by the translated loop's
-//!    Newell plane.
+//!    cap plane.
 //! 6. **Rim upgrades.** With both cap planes in place, every cap–wall
 //!    rim edge (bottom and top, outer and ring loops) upgrades to
 //!    `Intersection { cap plane, side surface, witness }` through the
@@ -113,8 +113,8 @@ use topo::{
 
 use crate::swept;
 use crate::swept::{
-    CosurfaceNames, SweptChord, cap_points, decide, face_surface_key, placed_segment_spec,
-    turn_axis,
+    CapEnd, CapPlaneError, CosurfaceNames, SweptChord, cap_plane, cap_points, decide,
+    face_surface_key, placed_segment_spec, turn_axis,
 };
 
 /// The predicate names this verb's cosurface decision reports under
@@ -455,12 +455,12 @@ pub enum ExtrudeError {
         /// The strut or rim edge whose station refuted the smooth premise.
         edge: EdgeKey,
     },
-    /// A cap plane failed Newell certification (non-planar or
+    /// A cap plane could not be certified or oriented (non-planar or
     /// degenerate loop data — unreachable for validated profiles,
     /// surfaced rather than trusted).
     CapPlane {
-        /// The Newell failure.
-        source: NewellError,
+        /// The cap-plane failure.
+        source: CapPlaneError,
     },
     /// A side-wall plane failed Newell certification.
     ///
@@ -549,7 +549,7 @@ impl fmt::Display for ExtrudeError {
                  but definitely a corner at a certification station, so the construction \
                  refuses rather than choose a description for it"
             ),
-            Self::CapPlane { source } => write!(f, "a cap is not planar: {source}"),
+            Self::CapPlane { source } => write!(f, "{source}"),
             Self::SidePlane {
                 loop_index,
                 segment_index,
@@ -799,24 +799,17 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
     // check below is what the door pays, and it subsumes tier 1.
     let mut built = Body::<T>::new();
     let mut body = built.begin_surgery();
-    // Bottom cap plane: the bottom cap's loop runs the chain reversed —
-    // first cap point kept, the rest reversed (outward normal opposite
-    // the extrusion). Cap points are the loop vertices plus arc apexes
-    // (see `cap_points`). Newell over the loop the cap runs: its
-    // normal is the cap's outward normal, so the material agrees with
-    // the chart. Fitted where the cap is minted, after the chain's
-    // certifications.
+    // Bottom cap plane, fitted where the cap is minted, after the
+    // chain's certifications.
     let bottom_cap = || -> Result<FaceSurface<T>, ExtrudeError> {
-        let forward = cap_points(outer, qs, place);
-        let mut bottom_order: Vec<Point3<T>> = Vec::with_capacity(forward.len());
-        if let Some(&p0) = forward.first() {
-            bottom_order.push(p0);
-        }
-        for &p in forward.iter().skip(1).rev() {
-            bottom_order.push(p);
-        }
-        let surface = newell_plane(&bottom_order, band)
-            .map_err(|source| ExtrudeError::CapPlane { source })?;
+        let surface = cap_plane(
+            &cap_points(outer, qs, place),
+            place,
+            reverse,
+            CapEnd::Start,
+            band,
+        )
+        .map_err(|source| ExtrudeError::CapPlane { source })?;
         Ok(FaceSurface::New {
             surface,
             sense: true,
@@ -1017,8 +1010,8 @@ pub fn extrude<T: Decide + topo::AtRestPolicy>(
         .iter()
         .map(|&q| q + w)
         .collect();
-    let top_plane =
-        newell_plane(&far_loop, band).map_err(|source| ExtrudeError::CapPlane { source })?;
+    let top_plane = cap_plane(&far_loop, place, reverse, CapEnd::End, band)
+        .map_err(|source| ExtrudeError::CapPlane { source })?;
     let top_surface = body.set_face_surface(
         top_face,
         FaceSurface::New {

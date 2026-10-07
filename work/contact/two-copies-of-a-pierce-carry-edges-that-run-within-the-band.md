@@ -177,3 +177,13 @@ Decide where this belongs.
 
 Either way, rerun the batteries above. The pinned row's third clause
 then changes, and says so.
+
+## 2026-10-06 — the weld this rests on is retired (JOIN, PR 4139)
+
+`boolean::finish::weld_pierce_copies` is gone: a pinch is one vertex per
+cone (Ev, PR 4057), split before the zips (`zip::split_cones`). A
+pierce's copies now meet as one vertex only where the zips' own
+correspondence fuses them, which is where the kernel reads them as one
+cone; it no longer matters whether a face meets both. The pinned
+witness is unchanged (copies apart in ∪, one vertex in ∖), but the
+row's count of poses may move and was not re-measured.

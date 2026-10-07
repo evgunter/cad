@@ -48,7 +48,7 @@ use super::{BlendError, CornerConfig};
 
 /// **One link of an admitted open band**, whose arm is plane–plane
 /// (the band between trivalent corners) or ruled (the cylinder band
-/// between transverse caps).
+/// between plane caps).
 ///
 /// [`OpenBand::admit`] is the only way to obtain one: the token is
 /// minted for each link of a chain that door admitted, so holding one
@@ -141,7 +141,7 @@ impl Joint {
         chain: EdgeKey,
     ) -> Result<Self, BlendError> {
         // Only the plane–plane band mints the struts a joint is fused
-        // across: the ruled band is cut off at transverse caps and
+        // across: the ruled band is cut off at plane caps and
         // mints none, and a torus arm on an open arc has no band.
         match joint_verdict(body, vertex, arriving, leaving) {
             JointVerdict::Joint => {}
@@ -230,7 +230,7 @@ impl<'a, T: Decide> OpenBand<'a, T> {
         // the plane–plane link, terminating in trivalent corners the
         // corner patch fills, and the RULED link — a cylinder band
         // about a straight spine over supports sharing the ruling —
-        // terminating in transverse caps the band is cut off at. The
+        // terminating in plane caps the band is cut off at. The
         // battery's predicate 6 has already classified each end as
         // the one its arm needs; a coaxial torus arm on an open arc has
         // neither termination and refuses here.

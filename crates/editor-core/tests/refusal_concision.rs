@@ -652,12 +652,6 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "PinchUncrossed",
-            BooleanError::PinchUncrossed {
-                vertex: VertexKey::default(),
-            },
-        ),
-        (
             "NonManifoldResult",
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),

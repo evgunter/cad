@@ -55,6 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "a_ruling_lying_on_a_wall.rs"]
+mod a_ruling_lying_on_a_wall;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "at_rest_pcurve_faces.rs"]
@@ -109,6 +111,8 @@ mod offd2_r1_probes;
 mod offd_r1_probes;
 #[path = "offset_restates_a_neighbour_chart_rim.rs"]
 mod offset_restates_a_neighbour_chart_rim;
+#[path = "one_door_for_coincident_sections.rs"]
+mod one_door_for_coincident_sections;
 #[path = "one_segment_loop.rs"]
 mod one_segment_loop;
 #[path = "p1b_r1_probes.rs"]
@@ -212,6 +216,8 @@ mod band_planar_cut_off_interval;
 mod band_planar_cut_off_meters;
 #[path = "band_planar_cut_off_shapes.rs"]
 mod band_planar_cut_off_shapes;
+#[path = "band_planar_oblique_fillet.rs"]
+mod band_planar_oblique_fillet;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
@@ -386,6 +392,8 @@ mod reach_aligned_half_rods;
 mod reach_cone_split;
 #[path = "reach_continuation.rs"]
 mod reach_continuation;
+#[path = "reach_split_gate_azimuth.rs"]
+mod reach_split_gate_azimuth;
 #[path = "reach_split_gate_per_face.rs"]
 mod reach_split_gate_per_face;
 #[path = "reach_split_gate_pose.rs"]
@@ -531,8 +539,8 @@ mod split_edge_loft_charts;
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
 mod split_tangent_edge_curved;
-#[path = "split_through_a_seam_ruling.rs"]
-mod split_through_a_seam_ruling;
+#[path = "split_through_a_ruling.rs"]
+mod split_through_a_ruling;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]

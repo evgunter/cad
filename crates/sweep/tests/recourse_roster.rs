@@ -16,6 +16,12 @@
 //! them is the one that would notice a blend name decided outside the
 //! blend's funnel.
 //!
+//! Two blend decisions are taken by another crate's door and relayed
+//! under the closed type: `ContactSecondOrder` (`geom_brep`'s must-carry
+//! rule) and `CapEllipse` (`geom`'s `Curve3::ellipse`). Their names are
+//! decided nowhere in this crate's src, so the census does not see
+//! them, and nothing here lists them as another door's.
+//!
 //! The reader is `test_utils::source::predicate_census`, the tree's one
 //! home for this walk. **What it cannot read it reports** — an
 //! unreadable spelling, an indirect site whose carrier is undeclared, a
@@ -83,6 +89,7 @@ const OTHER_DOORS: &[(&str, &str)] = &[
     ("extrusion_normal_component", EXTRUDE),
     ("extrusion_obliquity", EXTRUDE),
     ("loft_stacking", LOFT),
+    ("cap_plane_orientation", CAP),
     ("tube_wall", TUBE),
     ("tube_wall_bore", TUBE),
     ("tube_wall_gap", TUBE),
@@ -99,6 +106,8 @@ const AXIS: &str = "the revolve axis's own classifications: an escalation here i
 const REVOLVE: &str = "the revolve window's classifications, typed on `RevolveError`";
 const EXTRUDE: &str = "the extrusion direction's classifications, typed on `ExtrudeError`";
 const LOFT: &str = "the loft's section stacking, typed on `LoftError`";
+const CAP: &str = "the swept caps' orientation, decided once for every verb with planar caps; \
+                   the escalation is typed as `CapPlaneError` inside that verb's `CapPlane`";
 const TUBE: &str = "the tube door's window and wall classifications, typed on `TubeError` — \
                     whose Display names which of the two tube doors a wall escalation came \
                     from";
@@ -151,7 +160,11 @@ const PAIRING: &[(BlendDecision, &str)] = &[
     ),
     (
         BlendDecision::CapTransverse,
-        sweep::blend::FILLET3_CORNER_RECOURSE,
+        sweep::blend::FILLET3_CAP_TILT_RECOURSE,
+    ),
+    (
+        BlendDecision::CapEllipse,
+        sweep::blend::FILLET3_CAP_ELLIPSE_RECOURSE,
     ),
     (
         BlendDecision::CutOffFeet,

@@ -206,7 +206,7 @@ stored kinds (plane, cylinder, line, circle, ellipse).
   curve and the old vertex on either side, cut away on the convex side
   and covered by the fill on the concave side; the two unrequested
   edges end at the feet; the old vertex goes. The ruled
-  band's transverse cut-off below is the perpendicular case.
+  band's cut-off below ends the same way at its caps.
 - *Two* — the MITRE (`CornerConfig::Turn`, `RunOutPolicy::Mitre`): each
   band is cut off by the other band's support, the two regions overlap,
   and the bands meet along their intersection — a line for a chamfer, a
@@ -263,14 +263,25 @@ band's TRANSVERSE CUT-OFF (FILLET-H7, Ev's ruling on PR 1736).** A
 ruled link (`CylinderPlaneCylinder`, `CylinderCylinderCylinder`: a
 cylinder band about a straight spine, both trimlines lines along the
 ruling) ends where its supports do, at a vertex whose two unrequested
-edges lie in one plane face perpendicular to the ruling —
-`CornerConfig::EndFace`, decided by `fillet3_cap_transverse`
-(the cap normal's departure from the ruling, in meters at the link's
-own extent, the lever the shared-ruling hypothesis is metered at). The
-band ends in that plane's section of it, an exact stored arc of the
-band's radius about the spine's crossing
+edges lie in one plane face — `CornerConfig::EndFace`, its section
+picked by `fillet3_cap_transverse` (the cap normal's departure from
+the ruling, in meters at the link's own extent, the lever the
+shared-ruling hypothesis is metered at): Zero where the cap is
+perpendicular to the ruling, definite where it is oblique. The band
+ends in that plane's section of it, an exact stored arc about the
+spine's crossing — of the circle of the band's radius, or of the
+ellipse whose minor semi-axis that radius is and whose major is the
+radius over the tilt's cosine, built through the ellipse door
+(`Curve3::ellipse`), whose own verdict on its axes is the second
+decision: the near-perpendicular tilts whose axes it cannot tell apart
+escalate as `CapEllipse` on that door's `ellipse_axes_distinct`, with
+the axes' difference `r·(sec θ − 1)` for margin
 (`RunOutPolicy::CutOffAtEndFace`; `CornerConfig::policy` maps
-the tag). The carve (`blend/open/ruled.rs`, beside the planar band's
+the tag). An oblique cap whose three face normals are dependent — a
+cap that nearly contains the ruling — refuses
+`UnsupportedCorner { DependentNormals }` under
+`fillet3_corner_independence`, as a plane–plane end does. The carve
+(`blend/open/ruled.rs`, beside the planar band's
 `blend/open/planar.rs`, both cutting off through `blend/open/end_face.rs`;
 the rim phases stay in `blend/surgery.rs`)
 mints no strut: the cap's two
@@ -287,9 +298,12 @@ was — the edges of its other cycles (a bore's ring, or the outer cycle
 where the cut runs in a ring) and those of the cut cycle other than
 the two rims it shortens (a notch in the outline). Each is metered
 before any mutation, over its own window, against a region that
-encloses the sliver: the annulus about the spine's crossing from the
-band's radius out to the farthest the sliver reaches, cut down to the
-half-plane towards the old vertex that the sliver lies in. The meter is
+encloses the sliver: the disc about the spine's crossing out to the
+farthest the sliver reaches, less the inside of the band's section
+(the circle, or the ellipse), cut down to the half-plane towards the
+old vertex that the sliver lies in and, on a round end, to the box the
+sliver spans in the section's own axes — so a tilted section's long
+major axis reaches no edge the sliver does not. The meter is
 the same ring carry-through pass under the same
 `fillet3_ring_clearance`; an edge not definitely clear of the region
 refuses `RingClearance` at the cap
@@ -297,8 +311,16 @@ refuses `RingClearance` at the cap
 curved end face refuses typed.
 Consumer: the rod with a flat milled along it (`cylinder ∖ box`), both
 creases in one call, at the prism closed form `ΔV = A_section · L`
-(`crates/sweep/tests/fillet_h7_transverse_cap.rs`). The CONCAVE
-ruled band — the material-adding side, the fill covering the region
+(`crates/sweep/tests/fillet_h7_transverse_cap.rs`), and the same rod
+cut off by a tilted plane, each crease removing its section over the
+length at the section's centroid
+(`an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse`). A body whose
+band an ellipse trims, of either band, measures through the certified
+quadrature, tessellates, and takes a boolean beside or through the
+band; with an operand wholly apart the boolean's containment door
+refuses it (`work/contact/at-infinity-probe-measures-in-closed-form-only.md`,
+pinned in `crates/sweep/tests/band_planar_oblique_fillet.rs`). The
+CONCAVE ruled band — the material-adding side, the fill covering the region
 under the arc — is pinned through the extrude door too: a rod's section
 standing on a block's top edge (the sunk rod,
 `crates/sweep/tests/review_fillet_h7_r1_probes.rs`, `ΔV = +2·A·L`). The
