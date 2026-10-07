@@ -2,11 +2,13 @@
 id: lily-walls-curved-clearance-crowds-the-band-under-k-lint
 kind: issue
 title: k-lint (dev-probe) flags 40 bool_circle_curved_clearance margins on the lily_walls demo, unseen while the probe sweep was red
-status: dispatched
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
 branch: cleave/lily-clearance
+closed: 2026-10-07
+pr: 4214
 ---
 
 
@@ -122,3 +124,9 @@ under the metre floor`.
 - **Evidence added** to
   `work/quad/projectbox-cutaway-convergence-margins-crowd-the-band-under-k-lint.md`:
   two `demo/lily` `props_quad_converged` rows at 1e-9.
+
+## Closed (PR 4214, 2026-10-07)
+
+Resolved before it was taken: #3817 skips the clearance for an arc with an end on the carrier, and
+the 46 flags were exactly that charge. Main's sweep records no flag under the name (now
+`bool_conic_curved_clearance`) at any ε. `tilted_sphere_pair_k_rows` pins the regression.
