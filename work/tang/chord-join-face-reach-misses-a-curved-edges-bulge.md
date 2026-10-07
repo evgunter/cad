@@ -2,10 +2,11 @@
 id: chord-join-face-reach-misses-a-curved-edges-bulge
 kind: issue
 title: chord_join's section reach levers a wall at its boundary vertices' distance from the base vertex, not the consumed points' from the table's pivot
-status: open
+status: closed
 opened: 2026-10-06
 priority: P3
 cost: E
+closed: 2026-10-07
 ---
 
 
@@ -56,3 +57,20 @@ distances alone. That needs the pivot before the lever,
 so `Reach` would carry the consumed points (or the face's edges) rather
 than a measured length. `face_extent` has other callers (its lever arms
 in the split lane), so whether they move with it is part of the item.
+
+## Outcome (2026-10-07)
+
+`section_reach` levers a cylinder wall at its axial extent from the
+base vertex, `splitting::rules::face_axial_extent`: each boundary
+vertex's and each certified edge's farthest `|(p − at)·a|`
+(`geom_brep::Reach::axial_lever_from` of the edge's `Reach::Span`).
+On main the face extent already folded in each curved edge's Euclidean
+reach (`edge_reach`), so the under-statement this item opened with no
+longer reached the table; the over-statement did, and is gone: the
+axial extent is never longer than the face extent from the same
+vertex. `face_extent` keeps its split-lane callers and the cone lane,
+whose pivot is filed as
+`chord-join-cone-lane-levers-from-the-base-vertex-not-the-apex`. Rows:
+`chord_join::tests::a_rims_bulge_levers_the_pose_along_the_axis`,
+`splitting::rules::tests::a_faces_axial_extent_reaches_its_rims_bulge`;
+the short-face row stays green unchanged.

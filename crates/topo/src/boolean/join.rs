@@ -3220,6 +3220,9 @@ mod frame_dispatch_tests {
         }
     }
 
+    /// A frame dispatch's answer: a conic's centre and axis, or none.
+    type Frame = Result<Option<(Point3<f64>, Vec3<f64>)>, FrameError>;
+
     /// The frame of the plane through `base` of normal `(cos β, 0, sin β)`,
     /// `sin β = k·ε/lever`, and the unit wall about `z` that `face` of
     /// `body` lies on, in both face orders, read and levered as
@@ -3232,7 +3235,7 @@ mod frame_dispatch_tests {
         base: Point3<f64>,
         k: f64,
         lever: f64,
-    ) -> Vec<(&'static str, Result<Option<(Point3<f64>, Vec3<f64>)>, FrameError>)> {
+    ) -> Vec<(&'static str, Frame)> {
         let sin_beta = k * Tol::witness().eps() / lever;
         let plane = geom::Surface::Plane {
             origin: base,
@@ -3245,22 +3248,23 @@ mod frame_dispatch_tests {
             .cloned()
             .unwrap();
         let on = super::super::rest::face_witnesses(body, face).unwrap();
-        [("plane, wall", &plane, &wall), ("wall, plane", &wall, &plane)]
-            .into_iter()
-            .map(|(label, a, b)| {
-                let (on_a, on_b) = if matches!(a, geom::Surface::Plane { .. }) {
-                    (Vec::new(), on.clone())
-                } else {
-                    (on.clone(), Vec::new())
-                };
-                let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
-                let extent =
-                    super::frame_extent((a, body, face), (b, body, face), at, span).unwrap();
-                let got =
-                    pair_section_frame(a, b, geom_brep::RadiusEvidence::None, at, extent, band());
-                (label, got)
-            })
-            .collect()
+        [
+            ("plane, wall", &plane, &wall),
+            ("wall, plane", &wall, &plane),
+        ]
+        .into_iter()
+        .map(|(label, a, b)| {
+            let (on_a, on_b) = if matches!(a, geom::Surface::Plane { .. }) {
+                (Vec::new(), on.clone())
+            } else {
+                (on.clone(), Vec::new())
+            };
+            let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
+            let extent = super::frame_extent((a, body, face), (b, body, face), at, span).unwrap();
+            let got = pair_section_frame(a, b, geom_brep::RadiusEvidence::None, at, extent, band());
+            (label, got)
+        })
+        .collect()
     }
 
     /// A unit wall about `z` whose face is the ruling `(1, 0, z0)` to
@@ -3288,7 +3292,7 @@ mod frame_dispatch_tests {
     }
 
     /// The escalation's predicate, `"served"` or `"a refusal"`.
-    fn verdict(got: &Result<Option<(Point3<f64>, Vec3<f64>)>, FrameError>) -> &'static str {
+    fn verdict(got: &Frame) -> &'static str {
         match got {
             Ok(_) => "served",
             Err(FrameError::Escalated(d)) => d.predicate.unwrap_or("unnamed"),

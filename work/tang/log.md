@@ -691,3 +691,13 @@ PR 4211's FULL review (APPROVE-WITH-FIXES, 0 MAJOR). The fixes:
 
 The review's far-pole, bar and edge-midpoint poses are rows, and so are
 two far-pole notches whose outer-point paths run through a run vertex.
+
+## 2026-10-07 — measured levers reach the consumed region (TANG implementer)
+
+chord_join's cylinder lane and the germ frame's plane×cylinder pair
+lever the axis tilt at the wall face's axial extent from the reading
+point (`face_axial_extent`, `Reach::axial_lever_from` per edge).
+Closes `chord-join-face-reach-misses-a-curved-edges-bulge` and
+`germ-frame-levers-a-plane-cylinder-tilt-at-the-radius`; filed
+`chord-join-cone-lane-levers-from-the-base-vertex-not-the-apex` and
+`germ-cylinder-pair-span-misses-a-curved-edges-bulge`.

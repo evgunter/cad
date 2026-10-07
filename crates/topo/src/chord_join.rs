@@ -1428,7 +1428,13 @@ pub(crate) fn wall_section<T: Decide>(
         normal: normal.get(),
         u_ref: normal.get(),
     };
-    let case = section_case(face, band, &plane_s, &wall, section_reach(body, at, face, &wall)?)?;
+    let case = section_case(
+        face,
+        band,
+        &plane_s,
+        &wall,
+        section_reach(body, at, face, &wall)?,
+    )?;
     Ok(Some(WallSection { wall, case }))
 }
 
@@ -1540,7 +1546,13 @@ fn bool_planar_chord_spec<T: Decide>(
         normal: p_n,
         u_ref: p_n,
     };
-    let conic = match section_case(face, band, &plane_s, wall, section_reach(body, u1, face, wall)?)? {
+    let conic = match section_case(
+        face,
+        band,
+        &plane_s,
+        wall,
+        section_reach(body, u1, face, wall)?,
+    )? {
         // A two-ruling section's chords are straight on the plane too.
         SectionCase::Straight(_) => return Ok(None),
         // A tangent germ pair inside the boolean zip means TOUCHING

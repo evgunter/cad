@@ -608,7 +608,12 @@ fn boundary_reach<T: Decide>(
                     return Err(UnboundedFace { face, vertex: lone });
                 }
                 BoundaryMember::Isolated { point, .. } => point,
-                BoundaryMember::Edge { he, half, ek, edge: data } => {
+                BoundaryMember::Edge {
+                    he,
+                    half,
+                    ek,
+                    edge: data,
+                } => {
                     if let Some(curve) = body.edge_curve_linked(ek, data).certified() {
                         extent = extent.max(edge(curve));
                     }
@@ -693,6 +698,31 @@ mod tests {
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
             |b| face_extent(b, vertex, face),
         );
+    }
+
+    /// **A face's axial extent reaches its rim's bulge past every
+    /// vertex, and not round the wall.** The wall about `z` trimmed at
+    /// `φ`, its rim one closed ellipse on the seam vertex
+    /// (`oblique_rim_wall`): from that vertex the rim reaches `2·tan φ`
+    /// along the axis, which the vertex alone (zero) misses, and
+    /// [`face_extent`]'s distance round the rim, `2/cos φ`, over-states.
+    #[test]
+    fn a_faces_axial_extent_reaches_its_rims_bulge() {
+        for phi in [0.2, core::f64::consts::FRAC_PI_4, 1.2] {
+            let (body, face, vertex) = crate::test_support_fixtures::oblique_rim_wall(phi);
+            let at = body.resolve_vertex_point(vertex, Proven);
+            let axial = face_axial_extent(&body, face, at, geom_core::Vec3::unit_z()).unwrap();
+            let euclid = face_extent(&body, vertex, face).unwrap();
+            let bulge = 2.0 * phi.tan();
+            assert!(
+                (axial - bulge).abs() <= 1e-12 * bulge,
+                "φ = {phi}: the axial extent {axial} is the bulge {bulge}"
+            );
+            assert!(
+                (euclid - 2.0 / phi.cos()).abs() <= 1e-12 * euclid,
+                "φ = {phi}: the face extent {euclid} is the distance round the rim"
+            );
+        }
     }
 
     fn entries(classes: &[PlaneSide]) -> Vec<SectorEntry> {

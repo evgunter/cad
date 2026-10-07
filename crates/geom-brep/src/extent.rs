@@ -36,10 +36,11 @@
 //! ([`Reach::Span`]) is levered by its per-carrier farthest distance
 //! from the pivot that makes that distance least on each axis. A face's
 //! caller ([`Reach::Measured`]) hands a length it measured; only the
-//! cylinder pair floors it ([`Reach::lever_between`]). Those lengths are
-//! not exact distances to the consumed points yet
-//! (`work/tang/chord-join-face-reach-misses-a-curved-edges-bulge.md`,
-//! `work/tang/germ-frame-levers-a-plane-cylinder-tilt-at-the-radius.md`).
+//! cylinder pair floors it ([`Reach::lever_between`]). The plane×cylinder
+//! row moves its section by the tilt times a point's AXIAL distance from
+//! the pivot, so its face callers measure exactly that: the face's
+//! farthest axial distance from the reading point, one span per boundary
+//! edge ([`Reach::axial_lever_from`]).
 //!
 //! The tangent-locus witness reads a ball, [`Reach::Ball`]: the one its
 //! callers, the carrier doors, hand it.
@@ -176,8 +177,8 @@ pub enum Reach<T: Real> {
     /// ([`ExtentBall::lever_from`]): the tangent-locus witness's reading,
     /// the ball its callers (the carrier doors) hand it.
     Ball(ExtentBall<T>),
-    /// A length the caller measured from `at` (chord_join's face extent,
-    /// the germ frame's radius or span), read at the foot of `at`. Its
+    /// A length the caller measured from `at` (a wall's axial extent,
+    /// the germ frame's walls' span), read at the foot of `at`. Its
     /// lever is that length ([`Self::lever_from`]), floored for the
     /// cylinder pair at the foot's distance from `at`
     /// ([`Self::lever_between`]).
@@ -207,14 +208,13 @@ impl<T: Real> Reach<T> {
     ///
     /// - [`Self::Ball`]: the ball's far side from `pivot`.
     /// - [`Self::Measured`]: the caller's length, whatever the pivot.
-    ///   What callers hand: chord_join the Euclidean distance from its
-    ///   base vertex to the face's farthest boundary vertex, which bounds
-    ///   the axial distance a tilt pinned at the vertex's foot moves the
-    ///   plane×cylinder section by; the germ frame the radius for the
-    ///   plane×cylinder pair (filed: it under-states a long wall), and
-    ///   the longer of the larger radius and the walls' span for the
-    ///   cylinder pair. The cylinder pair also reads the foot's distance
-    ///   from `at` ([`Self::lever_between`]).
+    ///   What callers hand: chord_join and the germ frame the wall face's
+    ///   farthest axial distance from `at` for the plane×cylinder pair
+    ///   ([`Self::axial_lever_from`] of each boundary edge), the exact
+    ///   distance a tilt pinned at `at`'s foot moves the section by; the
+    ///   germ frame the longer of the larger radius and the walls' span
+    ///   for the cylinder pair, which also reads the foot's distance from
+    ///   `at` ([`Self::lever_between`]).
     /// - [`Self::Span`]: per carrier, never an underestimate and exact
     ///   where the carrier allows:
     ///   - a **line** segment: its endpoints (distance to a point is
@@ -308,9 +308,7 @@ impl<T: Real> Reach<T> {
                     minor_radius,
                     ..
                 } => {
-                    along(*center)
-                        + major_radius.abs() * axis.cross(*k).norm()
-                        + minor_radius.abs()
+                    along(*center) + major_radius.abs() * axis.cross(*k).norm() + minor_radius.abs()
                 }
                 Curve3::Line { .. } | Curve3::Nurbs(_) => self
                     .span_points()
@@ -519,6 +517,70 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// **A span's axial lever is the carrier's support along the axis**
+    /// from any pivot: never short of a sampled point's axial distance,
+    /// and, round a whole conic, within sampling of the farthest. A
+    /// lever that dropped the conic's tilt off the axis (its centre's
+    /// distance alone) falls short by the support, and one that took the
+    /// distance round it (the Euclidean lever) over-reaches by the
+    /// radial part.
+    #[test]
+    fn a_spans_axial_lever_is_its_support_along_the_axis() {
+        let pivot = Point3::new(0.3, -0.2, 0.7);
+        let axis = Vec3::new(0.2, -0.3, 1.0).normalize();
+        let tilted = Vec3::new(0.6, 0.0, 0.8);
+        let carriers = [
+            Curve3::Circle {
+                center: Point3::new(1.0, 2.0, 0.0),
+                axis: tilted,
+                radius: 1.5,
+                u_ref: Vec3::new(0.0, 1.0, 0.0),
+            },
+            Curve3::Ellipse {
+                center: Point3::new(-1.0, 0.5, 0.2),
+                axis: tilted,
+                major: 2.0,
+                minor: 0.7,
+                u_ref: Vec3::new(-0.8, 0.0, 0.6),
+            },
+            Curve3::Ellipse {
+                center: Point3::new(-1.0, 0.5, 0.2),
+                axis: tilted,
+                major: 0.7,
+                minor: 2.0,
+                u_ref: Vec3::new(-0.8, 0.0, 0.6),
+            },
+        ];
+        for carrier in carriers {
+            let lever = Reach::Span {
+                carrier: carrier.clone(),
+                t0: 0.0,
+                t1: 1.0,
+            }
+            .axial_lever_from(pivot, axis);
+            let far = (0..=7200)
+                .map(|k| {
+                    let t = core::f64::consts::TAU * f64::from(k) / 7200.0;
+                    (carrier.eval(t) - pivot).dot(axis).abs()
+                })
+                .fold(0.0_f64, f64::max);
+            assert!(
+                lever >= far && lever - far < 1e-6,
+                "{carrier:?}: lever {lever} against the farthest sampled {far}"
+            );
+        }
+        let segment = Reach::Span {
+            carrier: Curve3::Line {
+                origin: Point3::new(1.0, 0.0, 0.0),
+                dir: Vec3::new(0.0, 0.0, 1.0),
+            },
+            t0: -2.0,
+            t1: 5.0,
+        };
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        assert_eq!(segment.axial_lever_from(Point3::new(0.0, 0.0, 1.0), z), 4.0);
     }
 
     /// **The minimax stays bounded at the certified scalar** where two

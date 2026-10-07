@@ -1629,6 +1629,68 @@ pub fn kill_under_a_null_strut(
     (body, face, null, toward_tip, listing)
 }
 
+/// **A wall trimmed obliquely, its rim one closed ellipse on one seam
+/// vertex**: the unit cylinder about `z` cut by the plane through the
+/// origin of normal `(−sin φ, 0, cos φ)`. The rim's centre is the origin,
+/// its major semi-axis `1/cos φ` along `(cos φ, 0, sin φ)`, and its one
+/// vertex the major end `(1, 0, tan φ)`; the rim reaches `tan φ` either
+/// side of the origin along the axis, `2·tan φ` from the vertex. Returns
+/// the body, one of the two faces the rim bounds (each is bounded by the
+/// rim alone) and the vertex.
+#[cfg(test)]
+pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKey) {
+    let tol = Tol::witness();
+    let (s, c) = phi.sin_cos();
+    let carrier = Curve3::Ellipse {
+        center: Point3::origin(),
+        axis: Vec3::new(-s, 0.0, c),
+        major: 1.0 / c,
+        minor: 1.0,
+        u_ref: Vec3::new(c, 0.0, s),
+    };
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            sense: true,
+        },
+    )
+    .unwrap();
+    let cyl = body.get_face(seed.face).unwrap().surface;
+    let plane = body.add_surface(Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::new(-s, 0.0, c),
+        u_ref: Vec3::new(c, 0.0, s),
+    });
+    let tau = core::f64::consts::TAU;
+    body.mef(
+        MefSite::Lone {
+            r#loop: seed.r#loop,
+        },
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: cyl,
+                s2: plane,
+                witness: carrier.eval(0.5 * tau),
+            },
+            carrier,
+            param_start: 0.0,
+            param_end: tau,
+        },
+        FaceSurface::Inherit,
+        tol,
+    )
+    .unwrap();
+    (body, seed.face, seed.vertex)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1836,66 +1898,4 @@ mod tests {
             "the raw prism's placeholder geometry has no mass properties"
         );
     }
-}
-
-/// **A wall trimmed obliquely, its rim one closed ellipse on one seam
-/// vertex**: the unit cylinder about `z` cut by the plane through the
-/// origin of normal `(−sin φ, 0, cos φ)`. The rim's centre is the origin,
-/// its major semi-axis `1/cos φ` along `(cos φ, 0, sin φ)`, and its one
-/// vertex the major end `(1, 0, tan φ)`; the rim reaches `tan φ` either
-/// side of the origin along the axis, `2·tan φ` from the vertex. Returns
-/// the body, one of the two faces the rim bounds (each is bounded by the
-/// rim alone) and the vertex.
-#[cfg(test)]
-pub(crate) fn oblique_rim_wall(phi: f64) -> (Body<f64>, FaceKey, crate::VertexKey) {
-    let tol = Tol::witness();
-    let (s, c) = phi.sin_cos();
-    let carrier = Curve3::Ellipse {
-        center: Point3::origin(),
-        axis: Vec3::new(-s, 0.0, c),
-        major: 1.0 / c,
-        minor: 1.0,
-        u_ref: Vec3::new(c, 0.0, s),
-    };
-    let mut body = Body::<f64>::new();
-    let seed = body.mvfs(carrier.eval(0.0), true).unwrap();
-    body.set_face_surface(
-        seed.face,
-        FaceSurface::New {
-            surface: Surface::Cylinder {
-                origin: Point3::origin(),
-                axis: Vec3::unit_z(),
-                radius: 1.0,
-                u_ref: Vec3::unit_x(),
-            },
-            sense: true,
-        },
-    )
-    .unwrap();
-    let cyl = body.get_face(seed.face).unwrap().surface;
-    let plane = body.add_surface(Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::new(-s, 0.0, c),
-        u_ref: Vec3::new(c, 0.0, s),
-    });
-    let tau = core::f64::consts::TAU;
-    body.mef(
-        MefSite::Lone {
-            r#loop: seed.r#loop,
-        },
-        EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                s1: cyl,
-                s2: plane,
-                witness: carrier.eval(0.5 * tau),
-            },
-            carrier,
-            param_start: 0.0,
-            param_end: tau,
-        },
-        FaceSurface::Inherit,
-        tol,
-    )
-    .unwrap();
-    (body, seed.face, seed.vertex)
 }
