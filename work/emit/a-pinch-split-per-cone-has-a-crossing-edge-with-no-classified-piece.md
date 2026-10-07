@@ -2,8 +2,9 @@
 id: a-pinch-split-per-cone-has-a-crossing-edge-with-no-classified-piece
 kind: issue
 title: Naming refuses Emission 'a crossing's edge has no piece the boolean classified at the crossing' on a union whose pinch split_cones splits per cone (plate and two leaning wedges, wedges first)
-status: review
+status: closed
 opened: 2026-10-07
+closed: 2026-10-07
 priority: P0
 cost: M
 branch: emit/pinch-crossing-classified
@@ -91,3 +92,15 @@ closes over B-side welds and null copies together, both as two keys
 of one point, so a chain of welds or a weld reached through a null copy
 is read as well. topo records every class it owes here; the fix is in
 the naming. The sense rule (N2 *Vertices*) is unchanged.
+
+## Closed (PR 4269, 2026-10-07)
+
+The rows build and name in every member order. `every_order_but` and the
+junction row's refusal arm are gone. The reading is a pure function of the
+fusion rows (`Fused::from_rows`), and unit rows pin the closure. Each half of
+the fix, reverted on its own, turns a row red.
+
+Across the editor-core suite, 286 vertex reads widen their key sets. All of
+them are in `union_pinch_member_order`, and none changes a vertex's identity.
+Every table the one-hop read produced digests identically under the new read.
+
