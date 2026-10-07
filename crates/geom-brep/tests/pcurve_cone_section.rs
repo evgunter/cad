@@ -8,7 +8,7 @@
 use crate::shared::tol::band;
 use geom::{Curve3, Surface};
 use geom_brep::intersect::{PlaneConeSection, plane_cone_section};
-use geom_brep::{EnvelopeStatement, Pcurve, PcurveCache, chart_pcurve};
+use geom_brep::{EnvelopeStatement, FocalImage, Pcurve, PcurveCache, chart_pcurve};
 use geom_core::{Point3, Vec3};
 
 /// A cone off the origin about a skew axis, given with either axis
@@ -89,7 +89,7 @@ fn the_image_is_exact_on_both_nappes_and_both_traversals() {
         for carrier in [section(), reversed(&section())] {
             let what = format!("axis sign {axis_sign}, carrier {carrier:?}");
             let image = chart_pcurve(&carrier, &surface, band()).unwrap();
-            let Pcurve::FocalSection { beta, sense, .. } = image else {
+            let Pcurve::FocalSection(FocalImage { beta, sense, .. }) = image else {
                 panic!("{what}: expected the cone-section image, got {image:?}");
             };
             assert!(
@@ -126,7 +126,7 @@ fn a_wrong_number_in_the_image_refuses() {
     let surface = cone(1.0);
     let carrier = section();
     let image = chart_pcurve(&carrier, &surface, band()).unwrap();
-    let Pcurve::FocalSection {
+    let Pcurve::FocalSection(FocalImage {
         u0,
         t0,
         v0,
@@ -135,7 +135,7 @@ fn a_wrong_number_in_the_image_refuses() {
         vl,
         beta,
         sense,
-    } = image
+    }) = image
     else {
         unreachable!()
     };
@@ -151,7 +151,7 @@ fn a_wrong_number_in_the_image_refuses() {
         ("sense", (u0, t0, v0, va, vb, vl, beta, -sense)),
     ];
     for (name, (u0, t0, v0, va, vb, vl, beta, sense)) in wrong {
-        let bad = Pcurve::FocalSection {
+        let bad = Pcurve::FocalSection(FocalImage {
             u0,
             t0,
             v0,
@@ -160,7 +160,7 @@ fn a_wrong_number_in_the_image_refuses() {
             vl,
             beta,
             sense,
-        };
+        });
         assert!(
             PcurveCache::certify(bad, 0.3, 4.0, &carrier, &surface, band()).is_err(),
             "{name} moved by {h} still certifies"
@@ -201,7 +201,7 @@ fn the_envelope_covers_an_admitted_slant_error() {
         let surface = cone_at(1.0, half_angle);
         let carrier = section_of(half_angle, tilt);
         let image = chart_pcurve(&carrier, &surface, band()).unwrap();
-        let Pcurve::FocalSection {
+        let Pcurve::FocalSection(FocalImage {
             u0,
             t0: vertex,
             v0,
@@ -210,14 +210,14 @@ fn the_envelope_covers_an_admitted_slant_error() {
             vl,
             beta,
             sense,
-        } = image
+        }) = image
         else {
             unreachable!()
         };
         let h = 0.25 * crate::shared::tol::eps();
         for (name, va, vb) in [("va", va + h, vb), ("vb", va, vb + h)] {
             let what = format!("alpha {half_angle}, {name} moved by eps/4");
-            let moved = Pcurve::FocalSection {
+            let moved = Pcurve::FocalSection(FocalImage {
                 u0,
                 t0: vertex,
                 v0,
@@ -226,7 +226,7 @@ fn the_envelope_covers_an_admitted_slant_error() {
                 vl,
                 beta,
                 sense,
-            };
+            });
             let (t0, t1) = (0.3, 4.0);
             let cache = PcurveCache::certify(moved.clone(), t0, t1, &carrier, &surface, band())
                 .unwrap_or_else(|e| panic!("{what}: {e}"));

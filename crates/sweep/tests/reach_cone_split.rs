@@ -185,7 +185,7 @@ fn assert_section(part: &Body<f64>, tilted: bool, what: &str) {
     if tilted {
         let images = part
             .pcurves()
-            .filter(|(_, cache)| matches!(cache.pcurve(), Pcurve::FocalSection { .. }))
+            .filter(|(_, cache)| matches!(cache.pcurve(), Pcurve::FocalSection(_)))
             .count();
         assert!(images >= 2, "{what}: {images} focal-section images");
     }

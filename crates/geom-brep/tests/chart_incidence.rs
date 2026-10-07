@@ -74,7 +74,7 @@ fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
     assert!(dist < 1e-14, "on the cone: {dist:e}");
     let got = chart_pcurve(&on, &cone(alpha), band());
     assert!(
-        matches!(got, Ok(Pcurve::FocalSection { .. })),
+        matches!(got, Ok(Pcurve::FocalSection(_))),
         "a cone section derives its section image: {got:?}"
     );
     let shift = 2.0 * Tol::witness().k() * eps();

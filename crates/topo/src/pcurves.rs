@@ -4446,7 +4446,7 @@ fn chart_edge<T: Decide>(
         Pcurve::Spiric { .. } => false,
         // A focal section's image is curved in both channels, and takes
         // the same envelope door.
-        Pcurve::FocalSection { .. } => false,
+        Pcurve::FocalSection(_) => false,
         Pcurve::Fitted(_) | Pcurve::General(_) => false,
     };
     if straight {

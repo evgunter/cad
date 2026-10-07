@@ -2183,7 +2183,7 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
         // projected ellipse's eccentricity: the offset moves the curve
         // off the section it was, so no image of the same form is
         // shifted out of this one.
-        Pcurve::FocalSection { .. } | Pcurve::Fitted(_) | Pcurve::General(_) => return None,
+        Pcurve::FocalSection(_) | Pcurve::Fitted(_) | Pcurve::General(_) => return None,
     })
 }
 
@@ -2702,7 +2702,7 @@ mod offset_fit_door_rows {
 #[cfg(test)]
 #[allow(clippy::panic)]
 mod shift_chart_v_rows {
-    use geom_brep::Pcurve;
+    use geom_brep::{FocalImage, Pcurve};
     use geom_core::{Point2, Vec2};
 
     use super::shift_chart_v;
@@ -2712,7 +2712,7 @@ mod shift_chart_v_rows {
     /// the offset cone.
     #[test]
     fn a_cone_section_image_has_no_shift() {
-        let section = Pcurve::FocalSection {
+        let section = Pcurve::FocalSection(FocalImage {
             u0: 0.1,
             t0: 0.0,
             v0: 2.0,
@@ -2721,7 +2721,7 @@ mod shift_chart_v_rows {
             vl: 0.0,
             beta: 0.2,
             sense: 1.0,
-        };
+        });
         assert!(shift_chart_v(&section, 0.3).is_none());
         let harmonic = Pcurve::Harmonic {
             p0: Point2::new(0.0, 1.0),

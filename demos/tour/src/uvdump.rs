@@ -149,7 +149,7 @@ impl Form {
             Pcurve::Fitted(_) => Form::Fitted,
             Pcurve::General(_) => Form::General,
             Pcurve::Spiric { .. } => Form::Spiric,
-            Pcurve::FocalSection { .. } => Form::FocalSection,
+            Pcurve::FocalSection(_) => Form::FocalSection,
         }
     }
 

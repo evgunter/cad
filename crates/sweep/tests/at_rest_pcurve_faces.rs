@@ -629,7 +629,7 @@ fn a_torus_face_bounded_by_a_villarceau_arc_mints_on_either_family() {
                 .pcurve(he)
                 .unwrap_or_else(|| panic!("family {family}: {he:?} has no row"));
             assert!(
-                matches!(row.pcurve(), Pcurve::FocalSection { .. }),
+                matches!(row.pcurve(), Pcurve::FocalSection(_)),
                 "family {family}: the arc's row is its focal section: {:?}",
                 row.pcurve()
             );

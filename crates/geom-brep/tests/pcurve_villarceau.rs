@@ -12,7 +12,8 @@ use crate::shared::tol::{band, eps};
 use core::f64::consts::TAU;
 use geom::{Curve3, Surface};
 use geom_brep::{
-    CERT_SAMPLES, EnvelopeStatement, Grazer, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve,
+    CERT_SAMPLES, EnvelopeStatement, FocalImage, Grazer, Pcurve, PcurveCache, PcurveCertifyError,
+    chart_pcurve,
 };
 use geom_core::{Bounds, Interval, Point3, Real, Tol, Vec3};
 
@@ -122,7 +123,7 @@ fn every_family_and_traversal_images_exactly_and_certifies() {
         assert!(off_torus(&carrier) < 1e-14, "{what}: on the torus");
         let image = chart_pcurve(&carrier, &surface, band())
             .unwrap_or_else(|e| panic!("{what}: no image: {e}"));
-        let Pcurve::FocalSection {
+        let Pcurve::FocalSection(FocalImage {
             t0,
             va,
             vb,
@@ -130,7 +131,7 @@ fn every_family_and_traversal_images_exactly_and_certifies() {
             beta,
             sense,
             ..
-        } = image
+        }) = image
         else {
             panic!("{what}: expected the focal-section image, got {image:?}");
         };
@@ -169,7 +170,7 @@ fn every_family_and_traversal_images_exactly_and_certifies() {
     // The family is the sign of `vl·sense`, whatever the traversal (a
     // reversed traversal flips both).
     let signature = |family: f64, traversal: f64| {
-        let Ok(Pcurve::FocalSection { vl, sense, .. }) =
+        let Ok(Pcurve::FocalSection(FocalImage { vl, sense, .. })) =
             chart_pcurve(&villarceau(0.4, family, traversal, 0.0), &surface, band())
         else {
             unreachable!()
@@ -189,7 +190,7 @@ fn the_rows_certify_at_the_interval_scalar() {
     let lift = <Interval as Real>::from_f64;
     let surface = torus().map_scalar(lift);
     for (what, carrier) in poses() {
-        let Ok(Pcurve::FocalSection {
+        let Ok(Pcurve::FocalSection(FocalImage {
             u0,
             t0,
             v0,
@@ -198,11 +199,11 @@ fn the_rows_certify_at_the_interval_scalar() {
             vl,
             beta,
             sense,
-        }) = chart_pcurve(&carrier, &torus(), band())
+        })) = chart_pcurve(&carrier, &torus(), band())
         else {
             panic!("{what}: no image")
         };
-        let image = Pcurve::FocalSection {
+        let image = Pcurve::FocalSection(FocalImage {
             u0: lift(u0),
             t0: lift(t0),
             v0: lift(v0),
@@ -211,7 +212,7 @@ fn the_rows_certify_at_the_interval_scalar() {
             vl: lift(vl),
             beta: lift(beta),
             sense: lift(sense),
-        };
+        });
         let cache = PcurveCache::certify(
             image,
             lift(0.3),
@@ -238,7 +239,7 @@ fn a_wrong_number_in_the_image_refuses() {
     let surface = torus();
     let carrier = villarceau(0.4, 1.0, 1.0, 0.7);
     let image = chart_pcurve(&carrier, &surface, band()).unwrap();
-    let Pcurve::FocalSection {
+    let Pcurve::FocalSection(FocalImage {
         u0,
         t0,
         v0,
@@ -247,7 +248,7 @@ fn a_wrong_number_in_the_image_refuses() {
         vl,
         beta,
         sense,
-    } = image
+    }) = image
     else {
         unreachable!()
     };
@@ -263,7 +264,7 @@ fn a_wrong_number_in_the_image_refuses() {
         ("sense", [u0, t0, v0, va, vb, vl, beta, -sense]),
     ];
     for (name, [u0, t0, v0, va, vb, vl, beta, sense]) in wrong {
-        let bad = Pcurve::FocalSection {
+        let bad = Pcurve::FocalSection(FocalImage {
             u0,
             t0,
             v0,
@@ -272,7 +273,7 @@ fn a_wrong_number_in_the_image_refuses() {
             vl,
             beta,
             sense,
-        };
+        });
         assert!(
             PcurveCache::certify(bad, 0.3, 4.0, &carrier, &surface, band()).is_err(),
             "{name} moved by {h} still certifies"
@@ -318,7 +319,7 @@ fn the_envelope_covers_an_admitted_error() {
     let mut compared = Vec::new();
     for (what, carrier) in poses().into_iter().step_by(5) {
         let image = chart_pcurve(&carrier, &surface, band()).unwrap();
-        let Pcurve::FocalSection {
+        let Pcurve::FocalSection(FocalImage {
             u0,
             t0,
             v0,
@@ -327,7 +328,7 @@ fn the_envelope_covers_an_admitted_error() {
             vl,
             beta,
             sense,
-        } = image
+        }) = image
         else {
             unreachable!()
         };
@@ -341,7 +342,7 @@ fn the_envelope_covers_an_admitted_error() {
             ("beta", [u0, t0, v0, va, vb, vl, beta + h, sense]),
         ];
         for (name, [u0, t0, v0, va, vb, vl, beta, sense]) in moved {
-            let image = Pcurve::FocalSection {
+            let image = Pcurve::FocalSection(FocalImage {
                 u0,
                 t0,
                 v0,
@@ -350,7 +351,7 @@ fn the_envelope_covers_an_admitted_error() {
                 vl,
                 beta,
                 sense,
-            };
+            });
             let (a, b) = (0.3, 0.3 + 0.5 * TAU);
             let what = format!("{what}, {name} moved by eps/4");
             let Ok(cache) = PcurveCache::certify(image.clone(), a, b, &carrier, &surface, band())
@@ -466,7 +467,7 @@ fn a_whole_turn_advances_each_channel_by_one_period() {
     let surface = torus();
     for (what, carrier) in poses() {
         let image = chart_pcurve(&carrier, &surface, band()).unwrap();
-        let Pcurve::FocalSection { vl, sense, .. } = image else {
+        let Pcurve::FocalSection(FocalImage { vl, sense, .. }) = image else {
             unreachable!()
         };
         for t in [-2.0, 0.0, 1.3] {

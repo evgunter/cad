@@ -23,7 +23,7 @@ use core::f64::consts::TAU;
 use sweep::ExtrudeSide;
 
 use geom::Surface;
-use geom_brep::{Pcurve, PcurveCache};
+use geom_brep::{FocalImage, Pcurve, PcurveCache};
 use geom_core::{Band, Point2, Tol};
 use mesh::{PatchMemo, Tessellation, tessellate, tessellate_with};
 use profile::{ProfileLoop, RawLoop};
@@ -623,7 +623,7 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
             },
             // Likewise no cone or torus chart here; `u0` is the one
             // field.
-            Pcurve::FocalSection {
+            Pcurve::FocalSection(FocalImage {
                 u0,
                 t0,
                 v0,
@@ -632,7 +632,7 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                 vl,
                 beta,
                 sense,
-            } => Pcurve::FocalSection {
+            }) => Pcurve::FocalSection(FocalImage {
                 u0: u0 + TAU,
                 t0,
                 v0,
@@ -641,7 +641,7 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                 vl,
                 beta,
                 sense,
-            },
+            }),
         };
         let (t0, t1) = cache.params();
         let he = base.get_half_edge(hek).unwrap();

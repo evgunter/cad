@@ -90,7 +90,7 @@ use std::collections::HashMap;
 use geom::{
     Curve3, CurveData, DatumValue, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface, SurfaceData,
 };
-use geom_brep::{EdgeDescription, Pcurve, SpiricImage};
+use geom_brep::{EdgeDescription, FocalImage, Pcurve, SpiricImage};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use topo::{Body, FaceKey};
@@ -1161,7 +1161,7 @@ impl KeyWriter {
                     }
                 }
             }
-            Pcurve::FocalSection {
+            Pcurve::FocalSection(FocalImage {
                 u0,
                 t0,
                 v0,
@@ -1170,7 +1170,7 @@ impl KeyWriter {
                 vl,
                 beta,
                 sense,
-            } => {
+            }) => {
                 self.u8(6);
                 for x in [u0, t0, v0, va, vb, vl, beta, sense] {
                     self.f64(*x);

@@ -1044,7 +1044,7 @@ fn trim_polygon(
             // A focal section's image is likewise a closed form of the
             // carrier's own parameter, read exactly at the chord pass's
             // parameters.
-            Pcurve::FocalSection { .. } => {}
+            Pcurve::FocalSection(_) => {}
             Pcurve::IsoLine { .. } if nurbs_chart => {}
             // The arc rim is the NURBS chart's other minted closed
             // form (M8-3) — same boundary line, rational-quadratic

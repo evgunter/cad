@@ -2990,6 +2990,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                 | C::ImageMismatch { .. }
                 | C::IntervalNotForward
                 | C::AzimuthPeriodExceeded
+                | C::TubePeriodExceeded
                 | C::ResidualExceeded { .. }
                 | C::FittedCertificate { .. } => (WRONG, DEFECT),
                 C::FittedEscalated { .. } | C::Escalated { .. } => (CLOSE, DEFECT),

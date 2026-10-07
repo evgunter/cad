@@ -1294,7 +1294,7 @@ fn the_focal_section_envelope_dominates_its_residual_on_both_instances() {
                 fuzz::replay()
             );
         };
-        let Some(image) = FocalImage::of(&derived) else {
+        let Pcurve::FocalSection(image) = derived else {
             panic!(
                 "trial {trial}: {derived:?} is no focal section — {}",
                 fuzz::replay()
@@ -1324,7 +1324,7 @@ fn the_focal_section_envelope_dominates_its_residual_on_both_instances() {
                 v
             }
         };
-        let stored = Pcurve::FocalSection {
+        let stored_image = FocalImage {
             u0: jitter(image.u0),
             t0: jitter(image.t0),
             v0: jitter(image.v0),
@@ -1334,9 +1334,7 @@ fn the_focal_section_envelope_dominates_its_residual_on_both_instances() {
             beta: jitter(image.beta),
             sense: jitter(image.sense),
         };
-        let Some(stored_image) = FocalImage::of(&stored) else {
-            unreachable!("a FocalSection reads")
-        };
+        let stored = Pcurve::FocalSection(stored_image);
         let (t0, t1) = span(&mut s);
         let reach = t0.abs().max(t1.abs());
         let v_sup = stored.chart_box(t0, t1).v_reach();
@@ -1365,7 +1363,7 @@ fn the_focal_section_envelope_dominates_its_residual_on_both_instances() {
             );
         }
         let lift = Interval::from_f64;
-        let lifted = Pcurve::FocalSection {
+        let lifted_image = FocalImage {
             u0: lift(stored_image.u0),
             t0: lift(stored_image.t0),
             v0: lift(stored_image.v0),
@@ -1375,9 +1373,7 @@ fn the_focal_section_envelope_dominates_its_residual_on_both_instances() {
             beta: lift(stored_image.beta),
             sense: lift(stored_image.sense),
         };
-        let Some(lifted_image) = FocalImage::of(&lifted) else {
-            unreachable!("a FocalSection reads")
-        };
+        let lifted = Pcurve::FocalSection(lifted_image);
         let at_iv = focal_section_envelope(
             &lifted_image,
             carrier_harmonic(&carrier.map_scalar(lift)).unwrap(),
@@ -1387,7 +1383,7 @@ fn the_focal_section_envelope_dominates_its_residual_on_both_instances() {
         )
         .hi();
         assert!(
-            at_iv.is_nan() || at_iv >= sup - noise,
+            envelope.is_finite() && at_iv >= sup - noise,
             "{}: the Interval envelope {at_iv:e} is under the sampled sup {sup:e} — {}",
             context(),
             fuzz::replay()
@@ -1427,21 +1423,13 @@ fn the_phase_remainder_carries_a_carrier_that_is_the_harmonic_part() {
         u_ref,
     );
     let derived = chart_pcurve(&exact, &surface, band()).unwrap();
-    let Some(image) = FocalImage::of(&derived) else {
+    let Pcurve::FocalSection(image) = derived else {
         panic!("{derived:?} is no focal section")
     };
     assert_eq!(image.t0, 0.0, "the vertex is the carrier's start");
     let beta = image.beta * 0.999;
-    let stored = Pcurve::FocalSection {
-        u0: image.u0,
-        t0: image.t0,
-        v0: image.v0,
-        va: image.va,
-        vb: image.vb,
-        vl: image.vl,
-        beta,
-        sense: image.sense,
-    };
+    let stored_image = FocalImage { beta, ..image };
+    let stored = Pcurve::FocalSection(stored_image);
     // `H` at the stored `β`: `O − R·e·d0 + cos t·R·d0 + sin t·(R·q·d1 + vl·r·n̂)`.
     let bb = beta * beta;
     let (e, q) = (2.0 * beta / (1.0 + bb), (1.0 - bb) / (1.0 + bb));
@@ -1457,7 +1445,7 @@ fn the_phase_remainder_carries_a_carrier_that_is_the_harmonic_part() {
     };
     let (t0, t1) = (-0.5, 0.5);
     let envelope = focal_section_envelope(
-        &FocalImage::of(&stored).unwrap(),
+        &stored_image,
         carrier_harmonic(&carrier).unwrap(),
         &surface,
         stored.chart_box(t0, t1).v_reach(),

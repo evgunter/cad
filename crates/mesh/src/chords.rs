@@ -585,7 +585,7 @@ fn nurbs_tighten(
             }
             // As the spiric: a focal-section image certifies on a cone
             // or torus chart only, so no spline chart mints one.
-            Pcurve::FocalSection { .. } => {
+            Pcurve::FocalSection(_) => {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: ek,
                     note: "NURBS-face half-edge carries a FOCAL-SECTION pcurve — that \

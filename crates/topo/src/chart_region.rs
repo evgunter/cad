@@ -2379,7 +2379,7 @@ fn pcurve_entry<T: Decide + Bounds>(
         // A focal section's image is a genuine chart curve (its azimuth
         // a Kepler anomaly) — the cone's and torus's twin of the
         // cylinder's tilted-cut sinusoid above.
-        Pcurve::FocalSection { .. } => Err("FocalSection image is not a straight segment"),
+        Pcurve::FocalSection(_) => Err("FocalSection image is not a straight segment"),
     }
 }
 

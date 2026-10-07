@@ -848,7 +848,7 @@ fn trimmed_face<T: Decide + Bounds + CertifiedEnclosure>(
                            torus, and this chart is a spline patch",
                 });
             }
-            Pcurve::FocalSection { .. } => {
+            Pcurve::FocalSection(_) => {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a NURBS-face half-edge carries a FOCAL-SECTION pcurve — that \
                            image certifies on a cone or torus chart only, and this chart \
