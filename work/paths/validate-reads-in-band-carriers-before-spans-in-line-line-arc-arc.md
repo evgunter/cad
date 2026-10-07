@@ -44,15 +44,13 @@ carrier.
 
 ## The tangent arms: measured, and split out
 
-`line_arc`'s decided-Zero arm, and `arc_arc`'s two tangent arms, take
-one candidate at the tangency point and span-check it alone. A
-clearance up to ε keeps the carriers within ε for about `√(2rε)` either
-side of it. The #4264 reviewer measured the line × arc arm: `line_arc`
-returns no contacts while the segments truly cross or touch in 10–435
-of each 300 000 random f64 draws at every ε, all in that arm, and all
-also wrong on `main`. That is a silent wrong answer, not an escalation,
-so it is filed on its own at P0:
+`line_arc`'s decided-Zero arm, and `arc_arc`'s two tangent arms, took
+one candidate at the tangency point and span-checked it alone. That
+silent miss was filed and fixed on its own, at P0:
 `validate-settles-a-tangent-pair-on-one-candidate-and-misses-a-touch-within-eps`.
-#4264 keeps the tangent arms on `main`'s escalate-on-in-band rule, so
-it does not widen that hole. This item keeps the escalation siblings
-above.
+
+A candidate that a span definitely misses now leaves the pair's ends to
+read (`seg::end_touches`). This holds in the tangent arms and in the
+secant arms, where a shallow crossing had the same hole. That fix does
+not touch the siblings above: each still escalates on an in-band
+carrier reading before any candidate is formed.
