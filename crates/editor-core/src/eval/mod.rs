@@ -1514,11 +1514,11 @@ pub enum NodeErrorKind {
     /// A body operand is not a finished body: the at-rest gate
     /// ([`topo::AtRestPolicy::gate_at_rest_kept`], tier 3) refuses the
     /// body its input node built, so a door that takes finished bodies
-    /// (the Boolean, the split, the shell) cannot take it
-    /// (`docs/DESIGN.md`, tier 3: a finished body pays the gate at the
-    /// door that built it). The input's own
-    /// door shipped a body it should have refused, so nothing an author
-    /// set on either node is the cause.
+    /// (the Boolean, the split, the shell, the blends) cannot take it.
+    /// Every door owes a finished body (`docs/DESIGN.md`, tier 3), and
+    /// not every door gates its own result (the blends do not), so the
+    /// defect is the input's door, not anything an author set on either
+    /// node.
     UnfinishedOperand {
         /// The operand node.
         input: RecipeNodeId,
@@ -2458,8 +2458,9 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::UnfinishedOperand { input, errors } => write!(
                 f,
                 "{} is not a finished body: the at-rest gate refuses it ({}), and this op \
-                 takes finished bodies. The node that built it shipped a body its own gate \
-                 should have refused",
+                 takes finished bodies. The node that built it shipped a body that does not \
+                 finish, which is a defect of that node's operation, not of anything set on \
+                 either node",
                 by.node_as(*input, "input"),
                 errors
                     .first()

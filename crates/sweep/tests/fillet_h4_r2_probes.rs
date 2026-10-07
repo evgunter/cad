@@ -54,13 +54,13 @@ const R: f64 = 0.05;
 /// does not see that on every fixture, so it is pinned here directly.
 #[test]
 fn the_band_faces_sense_bit_folds_the_stored_verdict_on_both_sides() {
-    let body = waisted(tol());
+    let body = sweep::test_support::finished("body", waisted(tol()), tol());
     for (name, rim_r, rim_y, want) in [
         ("the concave waist", 0.5, 0.5, false),
         ("the convex base", 1.0, 0.0, true),
     ] {
         let arcs = rim_arcs_at(&body, rim_r, rim_y);
-        let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, R, tol())
+        let out = fillet_edges(&body, &arcs, R, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         let [band] = out.band_faces[..] else {
             panic!("{name}: one band")

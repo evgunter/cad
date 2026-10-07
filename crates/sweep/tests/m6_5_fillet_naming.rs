@@ -332,22 +332,10 @@ fn every_every_edge_record_names_a_source_entity() {
 /// sidecar, which are cross-revision by construction.
 #[test]
 fn the_every_edge_fillet_is_deterministic() {
-    let cube0 = cube(DIE_L, Tol::witness());
+    let cube0 = sweep::test_support::finished("cube0", cube(DIE_L, Tol::witness()), Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    let a = fillet_edges(
-        &sweep::test_support::at_rest(&cube0, Tol::witness()),
-        &edges,
-        R,
-        Tol::witness(),
-    )
-    .expect("the surgery");
-    let b = fillet_edges(
-        &sweep::test_support::at_rest(&cube0, Tol::witness()),
-        &edges,
-        R,
-        Tol::witness(),
-    )
-    .expect("the surgery again");
+    let a = fillet_edges(&cube0, &edges, R, Tol::witness()).expect("the surgery");
+    let b = fillet_edges(&cube0, &edges, R, Tol::witness()).expect("the surgery again");
     assert_eq!(
         format!("{:?}", a.body),
         format!("{:?}", b.body),

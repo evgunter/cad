@@ -483,16 +483,15 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
 /// quantity of the body and takes no K-corpus row.
 #[test]
 fn a_nonpositive_setback_refuses_as_invalid_input() {
-    let pad = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
+    let pad = sweep::test_support::finished(
+        "pad",
+        prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0),
+        Tol::witness(),
+    );
     let edges = query::all_edges(&pad);
     for d in [0.0, -0.1] {
-        let err = chamfer_edges(
-            &sweep::test_support::at_rest(&pad, Tol::witness()),
-            &edges,
-            d,
-            Tol::witness(),
-        )
-        .expect_err("a nonpositive setback must not mint a body");
+        let err = chamfer_edges(&pad, &edges, d, Tol::witness())
+            .expect_err("a nonpositive setback must not mint a body");
         assert!(
             matches!(err.error, BlendError::NonpositiveSize { .. }),
             "a nonpositive setback names the request, not the corner, at d = {d}: {err:?}"

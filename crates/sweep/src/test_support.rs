@@ -234,8 +234,10 @@ pub fn assert_legal_operand(what: &str, body: &Body<f64>, tol: Tol) {
 
 pub use topo::test_support::finished;
 
-/// `body`, cloned and finished ([`finished`]): the operand a blend door
-/// takes, from a fixture held by reference.
+/// `body`, cloned and finished ([`finished`]): the operand of ONE blend
+/// door call on a fixture held by reference. Each call clones and pays
+/// tier 3, so a body handed to several doors is finished once with
+/// [`finished`] and that operand reused.
 ///
 /// # Panics
 ///

@@ -201,20 +201,10 @@ fn every_minted_face_of_a_concave_carve_faces_the_void() {
 /// half: one fixture, both verbs, both carve.
 #[test]
 fn both_verbs_carve_the_cavity_the_fillet_once_refused() {
-    let body = vented_cavity();
+    let body = sweep::test_support::finished("body", vented_cavity(), Tol::witness());
     let edges = cavity_edges(&body);
-    chamfer_edges(
-        &sweep::test_support::at_rest(&body, Tol::witness()),
-        &edges,
-        D,
-        Tol::witness(),
-    )
-    .expect("the chamfer carves its twelve concave edges");
-    fillet_edges(
-        &sweep::test_support::at_rest(&body, Tol::witness()),
-        &edges,
-        D,
-        Tol::witness(),
-    )
-    .expect("the fillet carves the same twelve, on its own arms");
+    chamfer_edges(&body, &edges, D, Tol::witness())
+        .expect("the chamfer carves its twelve concave edges");
+    fillet_edges(&body, &edges, D, Tol::witness())
+        .expect("the fillet carves the same twelve, on its own arms");
 }

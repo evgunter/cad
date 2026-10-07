@@ -215,13 +215,17 @@ fn a_sealed_void_blends_inside_its_own_shell() {
         brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0)),
         tol,
     );
-    let body = topo::subtract(&block, &void, tol)
-        .expect("the cut succeeds")
-        .body()
-        .expect("the cut keeps material")
-        .body
-        .clone()
-        .into_body();
+    let body = sweep::test_support::finished(
+        "body",
+        topo::subtract(&block, &void, tol)
+            .expect("the cut succeeds")
+            .body()
+            .expect("the cut keeps material")
+            .body
+            .clone()
+            .into_body(),
+        tol,
+    );
     assert_eq!(body.solids().count(), 1, "a sealed cavity is one solid");
     assert_eq!(body.shells().count(), 2, "of an outer and a void shell");
     let inner = |p: Point3<f64>| p.to_array().iter().all(|c| (1.0..=3.0).contains(c));
@@ -237,13 +241,7 @@ fn a_sealed_void_blends_inside_its_own_shell() {
     );
 
     let r = 0.25;
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&body, tol),
-        &void_edges,
-        r,
-        tol,
-    )
-    .expect("the void fillets");
+    let out = fillet_edges(&body, &void_edges, r, tol).expect("the void fillets");
     carried_through("void fillet", &body, &out, outer);
     assert_volume(
         "a block with a filleted void",
@@ -251,13 +249,7 @@ fn a_sealed_void_blends_inside_its_own_shell() {
         64.0 - rounded_box_volume(2.0 - 2.0 * r, r),
     );
 
-    let out = chamfer_edges(
-        &sweep::test_support::at_rest(&body, tol),
-        &void_edges,
-        r,
-        tol,
-    )
-    .expect("the void chamfers");
+    let out = chamfer_edges(&body, &void_edges, r, tol).expect("the void chamfers");
     carried_through("void chamfer", &body, &out, outer);
     assert_volume(
         "a block with a chamfered void",

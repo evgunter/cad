@@ -725,25 +725,20 @@ fn corner_edges<S: Scalar>(body: &Body<S>, a: SurfaceKind, b: SurfaceKind) -> Ve
 /// wall's corner, `RF − WALL/2` on the outer's (findings entry 1's
 /// bookkeeping — the centre of curvature lies away from the axis).
 fn roll_the_meridian_blends<S: Scalar>(
-    sharp: &Body<S>,
+    sharp: &AtRestBody<S>,
     corners: &[EdgeKey],
     m: &Meridian,
     tol: Tol,
 ) -> Body<S> {
     let (inner, outer) = corners_by_wall(sharp, corners);
     let half = WALL / 2.0;
-    let once = fillet_edges(
-        &finished("sharp", sharp.clone(), tol),
-        &[inner],
-        S::from_f64(m.rf + half),
-        tol,
-    )
-    .unwrap_or_else(|e| panic!("the inner corner rolls at RF + WALL/2: {e:?}"))
-    .body;
+    let once = fillet_edges(sharp, &[inner], S::from_f64(m.rf + half), tol)
+        .unwrap_or_else(|e| panic!("the inner corner rolls at RF + WALL/2: {e:?}"))
+        .body;
     // The outer corner's key survives the first roll: that blend's
     // surgery touches the inner wall's faces only.
     fillet_edges(
-        &finished("once", once.clone(), tol),
+        &finished("once", once, tol),
         &[outer],
         S::from_f64(m.rf - half),
         tol,
@@ -1053,10 +1048,18 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // ONE question asked of two bodies, and the pair is the finding:
     // the same corner, on a full and a partial revolve of the SAME
     // band (the full revolve rolls; the partial is wall 2).
-    let sharp_full = bulb::<S>(sharp_band::<S>(&m, tol), Revolution::Full, tol);
-    let sharp_part = bulb::<S>(
-        sharp_band::<S>(&m, tol),
-        Revolution::Partial(S::from_f64(5.0)),
+    let sharp_full = finished(
+        "sharp_full",
+        bulb::<S>(sharp_band::<S>(&m, tol), Revolution::Full, tol),
+        tol,
+    );
+    let sharp_part = finished(
+        "sharp_part",
+        bulb::<S>(
+            sharp_band::<S>(&m, tol),
+            Revolution::Partial(S::from_f64(5.0)),
+            tol,
+        ),
         tol,
     );
     let full_edges = corner_edges(&sharp_full, SurfaceKind::Cone, SurfaceKind::Cylinder);
@@ -1098,22 +1101,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // deepest point, on the corner's bisector, crosses the outer wall,
     // and the reach meter refuses it against that face.
     let (inner, _) = corners_by_wall(&sharp_full, &full_edges);
-    let near = fillet_edges(
-        &finished("sharp_full", sharp_full.clone(), tol),
-        &[inner],
-        S::from_f64(1.4),
-        tol,
-    )
-    .unwrap_or_else(|e| panic!("the inner corner rolls at r = 1.4, inside the wall: {e:?}"));
+    let near = fillet_edges(&sharp_full, &[inner], S::from_f64(1.4), tol)
+        .unwrap_or_else(|e| panic!("the inner corner rolls at r = 1.4, inside the wall: {e:?}"));
     pncad::topo::validate_geometric(&near.body, tol)
         .unwrap_or_else(|e| panic!("r = 1.4: tier 3, got {e:?}"));
     for r in [1.5, 1.6] {
-        match fillet_edges(
-            &finished("sharp_full", sharp_full.clone(), tol),
-            &[inner],
-            S::from_f64(r),
-            tol,
-        ) {
+        match fillet_edges(&sharp_full, &[inner], S::from_f64(r), tol) {
             Err(e)
                 if matches!(
                     e.error,
@@ -1129,12 +1122,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             ),
         }
     }
-    let far = fillet_edges(
-        &finished("sharp_full", sharp_full.clone(), tol),
-        &[inner],
-        S::from_f64(2.0),
-        tol,
-    );
+    let far = fillet_edges(&sharp_full, &[inner], S::from_f64(2.0), tol);
     assert!(
         matches!(&far, Err(e) if matches!(e.error, BlendError::FaceClearanceUncertified { .. })),
         "r = 2.0 refuses on clearance, got {:?}",
@@ -1149,12 +1137,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         2,
         "fillet the neck→flare corner on a partial revolve (open rim) at the radius the \
          band authors for that wall",
-        fillet_edges(
-            &finished("sharp_part", sharp_part.clone(), tol),
-            &[inner],
-            S::from_f64(m.rf + WALL / 2.0),
-            tol,
-        ),
+        fillet_edges(&sharp_part, &[inner], S::from_f64(m.rf + WALL / 2.0), tol),
         |e| {
             matches!(
                 e.error,

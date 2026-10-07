@@ -5,8 +5,10 @@
 //! - a host face carrying a strut spur in its outer cycle, and a CURVED
 //!   single face carrying both arcs over a slit, are scaffolding: the
 //!   operand does not finish, so neither reaches a blend door;
-//! - a CURVED single face carrying several arcs, the plane side
-//!   repaired, refuses at the half-band gate;
+//! - a finished CURVED single face carrying both arcs (a cylinder wall
+//!   merged into one face over its wrap edge, touching no pole), the
+//!   plane side repaired or not, refuses at the half-band gate, and the
+//!   chamfer refuses its arm;
 //! - two compositions the #935 row does not cover: two hostless rims
 //!   of one body on a SHARED mate wall in one call, and two hostless
 //!   rims sharing no wall — both against both sequential orders;
@@ -21,9 +23,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
+use geom_brep::EdgeDescriptionSpec;
 use geom_core::{Point2, Point3, Tol};
 use sweep::Revolution;
-use sweep::blend::build::fillet_edges;
+use sweep::blend::BlendError;
+use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::test_support::{assert_full_revolve_rim, bowl, lantern, revolved_about_y, rim_arcs_at};
 use topo::{
     AtRestBody, Body, EdgeKey, FaceKey, MevSite, ValidationError, mass_properties,
@@ -255,6 +259,86 @@ fn a_curved_single_face_carrying_both_arcs_over_a_slit_does_not_finish() {
     );
 }
 
+/// The two seam meridians of the cylinder wall the rim's arcs rest on.
+fn wall_meridians(body: &Body<f64>) -> [EdgeKey; 2] {
+    let found: Vec<EdgeKey> = body
+        .edges()
+        .map(|(e, _)| e)
+        .filter(|&e| {
+            let (fa, fb) = faces_of(body, e);
+            fa != fb
+                && !is_plane(body, fa)
+                && !is_plane(body, fb)
+                && body.get_face(fa).unwrap().surface == body.get_face(fb).unwrap().surface
+        })
+        .collect();
+    found
+        .try_into()
+        .unwrap_or_else(|f: Vec<_>| panic!("a full revolve's wall has two meridians, got {f:?}"))
+}
+
+/// **A finished CURVED single face carrying both arcs refuses at the
+/// half-band gate.** One of a cylinder wall's two seam meridians is
+/// killed and the other restated as the wall's wrap edge
+/// (`kef_describing`), which merges the wall into ONE face that
+/// finishes: the wall touches no pole, so no strut tip is left. The base
+/// rim's arcs then rest on a support that does not carry exactly its own
+/// rim arc, so the fillet refuses there whether or not the plane side
+/// has been repaired, and the chamfer refuses its arm. The same kill
+/// through plain `kef` leaves the survivor a slit, which tier 3 refuses.
+#[test]
+fn a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate() {
+    for repair in [false, true] {
+        let mut body = pole_cylinder();
+        if repair {
+            body = repaired(body);
+        }
+        let arcs = rim_arcs_at(&body, 1.0, 0.0);
+        assert_full_revolve_rim(&arcs, "the cylinder base");
+        let [dies, wraps] = wall_meridians(&body);
+        let (wall, _) = faces_of(&body, wraps);
+        let wall = body.get_face(wall).unwrap().surface;
+        let dying = body.get_edge(dies).unwrap().he_plus;
+
+        let mut slit = body.clone();
+        slit.kef(dying).expect("the meridian kills");
+        assert_eq!(
+            AtRestBody::validate(slit, tol()).map(drop),
+            Err(vec![ValidationError::DescriptionNotAdjacent {
+                edge: wraps
+            }]),
+            "repair = {repair}: plain kef leaves a slit, not at rest"
+        );
+
+        body.kef_describing(dying, &[(wraps, EdgeDescriptionSpec::wrap(wall))], tol())
+            .expect("the survivor restates as the wall's wrap edge");
+        assert_eq!(
+            curved_supports(&body, &arcs).len(),
+            1,
+            "repair = {repair}: ONE cylinder face carries both arcs"
+        );
+        let operand = AtRestBody::validate(body, tol())
+            .unwrap_or_else(|e| panic!("repair = {repair}: the merged wall finishes, got {e:?}"));
+        let fillet = fillet_edges(&operand, &arcs, 0.05, tol()).map(drop);
+        assert!(
+            matches!(
+                &fillet,
+                Err(r) if matches!(&r.error, BlendError::UnsupportedChain { detail, .. }
+                    if detail.contains("does not carry exactly its own rim arc"))
+            ),
+            "repair = {repair}: the half-band gate fires on the fillet: {fillet:?}"
+        );
+        let chamfer = chamfer_edges(&operand, &arcs, 0.05, tol()).map(drop);
+        assert!(
+            matches!(
+                &chamfer,
+                Err(r) if matches!(r.error, BlendError::ChamferArmUnsupported { .. })
+            ),
+            "repair = {repair}: the chamfer refuses its arm: {chamfer:?}"
+        );
+    }
+}
+
 // ------------------------------------------------------------------
 // Compositions the #935 row does not cover.
 // ------------------------------------------------------------------
@@ -358,30 +442,20 @@ fn two_hostless_rims_sharing_no_wall_compose_in_one_call() {
 /// since the two rims rest on two different plane hosts.
 #[test]
 fn a_hostless_rim_beside_a_ladder_rim_and_a_ringed_host_measured() {
-    let body = repaired(stepped());
+    let body = sweep::test_support::finished("body", repaired(stepped()), tol());
     for (r, y) in [(1.0, 0.0), (0.5, 1.5), (1.0, 1.0)] {
         let arcs = rim_arcs_at(&body, r, y);
         assert_eq!(arcs.len(), 2, "({r}, {y}) two arcs");
-        let out = fillet_edges(
-            &sweep::test_support::at_rest(&body, tol()),
-            &arcs,
-            0.05,
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("the ({r}, {y}) rim carves, got {e:?}"));
+        let out = fillet_edges(&body, &arcs, 0.05, tol())
+            .unwrap_or_else(|e| panic!("the ({r}, {y}) rim carves, got {e:?}"));
         validate_geometric(&out.body, tol()).expect("tier-3 valid");
     }
     // The ladder ring beside a hostless rim, one call.
     let mut both = rim_arcs_at(&body, 1.0, 0.0);
     both.extend(rim_arcs_at(&body, 0.5, 1.0));
     assert_eq!(both.len(), 4);
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &both,
-        0.05,
-        tol(),
-    )
-    .unwrap_or_else(|e| panic!("the ladder rim composes with the base rim, got {e:?}"));
+    let out = fillet_edges(&body, &both, 0.05, tol())
+        .unwrap_or_else(|e| panic!("the ladder rim composes with the base rim, got {e:?}"));
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 2, "one band per rim");
 }

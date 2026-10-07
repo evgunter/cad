@@ -254,17 +254,12 @@ fn volume(body: &Body<f64>) -> f64 {
 #[test]
 fn every_lantern_rim_carves_whole_to_its_closed_form() {
     let r = 0.05;
-    let source = lantern();
+    let source = sweep::test_support::finished("source", lantern(), tol());
     for (name, rim_r, rim_y, center) in rims() {
         let arcs = rim_arcs_at(&source, rim_r, rim_y);
         assert_full_revolve_rim(&arcs, name);
-        let out = fillet_edges(
-            &sweep::test_support::at_rest(&source, tol()),
-            &arcs,
-            r,
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("{name} fillets whole, got {e:?}"));
+        let out = fillet_edges(&source, &arcs, r, tol())
+            .unwrap_or_else(|e| panic!("{name} fillets whole, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name} must carve tier-3 valid, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name} leaves ONE band");

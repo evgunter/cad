@@ -328,7 +328,7 @@ pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     // "Every edge of it" — the kernel materializer.
     let edges = query::all_edges(&pad);
     let broken = chamfer_edges(
-        &finished("pad", pad.clone(), tol),
+        &finished("pad", pad, tol),
         &edges,
         S::from_f64(setback),
         tol,
@@ -560,12 +560,7 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
         .expect("the bud carries a mouth arc of radius 0.8");
     let mouth = query::rim_of(&body, seed).expect("the mouth arc names one whole rim");
     assert_eq!(mouth.len(), 1, "the bud has one mouth rim of radius 0.8");
-    pncad::sweep::blend::fillet_edges(
-        &finished("body", body.clone(), tol),
-        &mouth,
-        S::from_f64(0.05),
-        tol,
-    )
-    .expect("the sphere-cone mouth rim fillets")
-    .body
+    pncad::sweep::blend::fillet_edges(&finished("body", body, tol), &mouth, S::from_f64(0.05), tol)
+        .expect("the sphere-cone mouth rim fillets")
+        .body
 }

@@ -433,13 +433,7 @@ fn a_ringed_support_refuses_at_the_ruled_plan_when_curved_and_carves_past_it_whe
                 (-dv - 2.0 * a * ROD_L).abs() < 1e-12,
                 "{what}: ΔV = −2·A·L, measured {dv}"
             );
-            let out = fillet_edges(
-                &sweep::test_support::at_rest(&source, tol()),
-                &creases,
-                R,
-                tol(),
-            )
-            .unwrap();
+            let out = fillet_edges(&source, &creases, R, tol()).unwrap();
             assert!(
                 out.body
                     .get_face(ringed)
@@ -448,13 +442,8 @@ fn a_ringed_support_refuses_at_the_ruled_plan_when_curved_and_carves_past_it_whe
             );
             continue;
         }
-        let err = fillet_edges(
-            &sweep::test_support::at_rest(&source, tol()),
-            &creases,
-            R,
-            tol(),
-        )
-        .expect_err("a square ring on a curved support is refused");
+        let err = fillet_edges(&source, &creases, R, tol())
+            .expect_err("a square ring on a curved support is refused");
         let detail = match &err.error {
             BlendError::UnsupportedChain { detail, .. }
             | BlendError::UnsupportedGeometry { detail, .. } => *detail,

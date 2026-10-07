@@ -159,6 +159,8 @@ mod r2_mate3_probes;
 mod r2_mesh1_donut_probes;
 #[path = "rehome_rings_lune.rs"]
 mod rehome_rings_lune;
+#[path = "scaffolding_on_a_blend_support_face_does_not_finish.rs"]
+mod scaffolding_on_a_blend_support_face_does_not_finish;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]
@@ -214,8 +216,6 @@ mod a_thin_wall_bounds_the_band;
 mod axis_lap;
 #[path = "band_annulus_host_boundary.rs"]
 mod band_annulus_host_boundary;
-#[path = "band_clearance_screen_reads_every_feature.rs"]
-mod band_clearance_screen_reads_every_feature;
 #[path = "band_co_requested_boundary.rs"]
 mod band_co_requested_boundary;
 #[path = "band_planar_cut_off.rs"]

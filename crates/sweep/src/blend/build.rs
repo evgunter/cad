@@ -5,9 +5,11 @@
 //! # The ordering contract, structurally
 //!
 //! [`fillet_edges`] runs [`run_battery`] before any construction and
-//! propagates its refusal unchanged: what precedes it is the operand
-//! gate (below) and the request preamble ([`nonpositive_size_gate`],
-//! [`repeated_edge_gate`]), which reads the REQUEST and never the body.
+//! propagates its refusal unchanged. What precedes it reads and builds
+//! nothing of the request's geometry: the operand gate
+//! ([`operand_gate`], below), which reads the body for its finish, and
+//! the request preamble ([`nonpositive_size_gate`],
+//! [`repeated_edge_gate`]), which reads only the request.
 //! Nothing here mints a surface,
 //! a point, or a topology entity before a verdict exists, and the one
 //! predicate arm that answers after the battery (predicate 2's reach,
@@ -55,23 +57,15 @@
 //! decided each mint — never recovered afterwards by matching
 //! geometry, which is what N4 forbids.
 //!
-//! # KNOWN LIMITATION — the octant's chart, and oblique trihedra
+//! # The result carries no verdict
 //!
 //! The result is a tier-1/2 valid closed shell for every input the
-//! front door admits. Tier **3** additionally needs the sphere
-//! octant's three contact circles to be an iso-parameter rectangle in
-//! its chart, because check 7's `+V` invariant runs the closed-form
-//! mass properties, whose curved-face inventory is rims and meridians
-//! (`geom_brep::props::curved_face`). The chart [`octant_chart`]
-//! picks — aimed along one incident edge — achieves that exactly when
-//! the THIRD support's normal is parallel to that edge, i.e. at a
-//! RIGHT trihedron (every vertex of a box). At an oblique trihedron no
-//! chart makes a spherical triangle an iso-rectangle, so
-//! `topo::mass_properties` refuses `NotIsoRectangle` and tier 3
-//! reports `VolumeUncomputable` — a gap in the props inventory (a
-//! spherical-triangle closed form, or the certified-quadrature lane
-//! extended to sphere faces), not in the body. The assembly does not
-//! pretend otherwise: it neither gates on it nor asserts tier 3.
+//! front door admits; the door neither runs tier 3 on it nor asserts
+//! it, so a consumer that takes finished bodies pays the at-rest gate
+//! on it. An oblique trihedron is no exception to finishing: no chart
+//! [`octant_chart`] picks makes its sphere patch an iso-rectangle, and
+//! check 7 meters that spherical triangle through the sphere flux arm
+//! (`m5_pr12_fix_pass::f4_an_oblique_trihedron_builds_and_passes_tier_3`).
 
 use geom::Surface;
 use geom_brep::OutwardNormal;
@@ -127,7 +121,8 @@ pub struct Blended<T: Real> {
 
 /// **Fillet a set of a body's edges** at constant radius `radius`.
 ///
-/// The battery runs FIRST (module docs): a refusal from
+/// The battery runs before any construction (module docs), behind
+/// only the operand gate and the request preamble: a refusal from
 /// [`run_battery`] propagates unchanged, and no entity is minted
 /// before its verdict. Only then is the verdict handed to the
 /// assembly, and only then is anything built.
@@ -178,9 +173,7 @@ fn fillet_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
     radius: T,
     tol: Tol,
 ) -> Result<Filleted<T>, BlendError> {
-    let band = Band::linear(tol)?;
-    body.gate_unverdicted("the fillet's operand", band, tol)?;
-    let body: &Body<T> = body;
+    let (body, band) = operand_gate(body, BlendKind::Fillet, tol)?;
     nonpositive_size_gate(radius)?;
     repeated_edge_gate(edges)?;
 
@@ -194,6 +187,20 @@ fn fillet_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
 
     // ---- Then the assembly, which is the composition surgery. ----
     super::surgery::blend_surgery(body, &verdict, band, tol)
+}
+
+/// **Both doors' operand gate** (module docs): the band the request is
+/// read at, and the operand read through
+/// [`AtRestBody::gate_unverdicted`] where it carries no verdict. One
+/// home, for the reason the preamble below gives.
+fn operand_gate<T: Decide + topo::AtRestPolicy>(
+    body: &AtRestBody<T>,
+    verb: BlendKind,
+    tol: Tol,
+) -> Result<(&Body<T>, Band), BlendError> {
+    let band = Band::linear(tol)?;
+    body.gate_unverdicted(format_args!("the {verb}'s operand"), band, tol)?;
+    Ok((body, band))
 }
 
 /// **Both doors' shared request preamble**: a repeated edge is
@@ -399,8 +406,8 @@ pub type Chamfered<T> = Blended<T>;
 /// **Chamfer a set of a body's edges** at equal setback `distance`
 /// along both supports.
 ///
-/// The battery runs FIRST and its refusal propagates unchanged — the
-/// same ordering contract [`fillet_edges`] keeps,
+/// The battery runs before any construction and its refusal propagates
+/// unchanged — the same ordering contract [`fillet_edges`] keeps,
 /// for the same reason: nothing is minted before a verdict exists.
 ///
 /// # Errors
@@ -448,9 +455,7 @@ fn chamfer_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
     distance: T,
     tol: Tol,
 ) -> Result<Chamfered<T>, BlendError> {
-    let band = Band::linear(tol)?;
-    body.gate_unverdicted("the chamfer's operand", band, tol)?;
-    let body: &Body<T> = body;
+    let (body, band) = operand_gate(body, BlendKind::Chamfer, tol)?;
     nonpositive_size_gate(distance)?;
     repeated_edge_gate(edges)?;
 

@@ -191,18 +191,13 @@ fn lip_geometry(r: f64) -> (Meridian2, Meridian2, Meridian2, Meridian2) {
 /// the profile alone.
 #[test]
 fn the_lip_bands_removed_volume_matches_a_hand_quadrature() {
-    let source = lantern();
+    let source = sweep::test_support::finished("source", lantern(), tol());
     let before = volume(&source);
     for r in [0.02, 0.05, 0.08] {
         let arcs = rim_arcs_at(&source, LIP_R, TOP);
         assert_eq!(arcs.len(), 2, "the lip rim is seam-split");
-        let out = fillet_edges(
-            &sweep::test_support::at_rest(&source, tol()),
-            &arcs,
-            r,
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("the lip fillets at r={r}, got {e:?}"));
+        let out = fillet_edges(&source, &arcs, r, tol())
+            .unwrap_or_else(|e| panic!("the lip fillets at r={r}, got {e:?}"));
         let removed = before - volume(&out.body);
         let (corner, c, t_top, t_cone) = lip_geometry(r);
         let want = removed_volume_two_straight(corner, c, t_top, t_cone, r);
@@ -223,18 +218,13 @@ fn the_lip_bands_removed_volume_matches_a_hand_quadrature() {
 /// differential's trusted side is measured rather than assumed.
 #[test]
 fn the_same_hand_quadrature_holds_for_the_one_edge_twin() {
-    let source = bored_lantern();
+    let source = sweep::test_support::finished("source", bored_lantern(), tol());
     let before = volume(&source);
     for r in [0.02, 0.05, 0.08] {
         let arcs = rim_arcs_at(&source, LIP_R, TOP);
         assert_eq!(arcs.len(), 1, "the twin's lip rim is one closed edge");
-        let out = fillet_edges(
-            &sweep::test_support::at_rest(&source, tol()),
-            &arcs,
-            r,
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("the twin's lip fillets at r={r}, got {e:?}"));
+        let out = fillet_edges(&source, &arcs, r, tol())
+            .unwrap_or_else(|e| panic!("the twin's lip fillets at r={r}, got {e:?}"));
         let removed = before - volume(&out.body);
         let (corner, c, t_top, t_cone) = lip_geometry(r);
         let want = removed_volume_two_straight(corner, c, t_top, t_cone, r);
@@ -255,7 +245,7 @@ fn the_same_hand_quadrature_holds_for_the_one_edge_twin() {
 /// must not have widened that into half a band.
 #[test]
 fn a_strict_subset_of_a_seam_split_rims_arcs_refuses_typed() {
-    let source = lantern();
+    let source = sweep::test_support::finished("source", lantern(), tol());
     for (name, rr, ry) in [
         ("neck", 1.0, 0.0),
         ("shoulder", SHOULDER.0, SHOULDER.1),
@@ -264,14 +254,7 @@ fn a_strict_subset_of_a_seam_split_rims_arcs_refuses_typed() {
         let arcs = rim_arcs_at(&source, rr, ry);
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
         for one in &arcs {
-            match fillet_edges(
-                &sweep::test_support::at_rest(&source, tol()),
-                &[*one],
-                0.05,
-                tol(),
-            )
-            .map_err(|r| r.error)
-            {
+            match fillet_edges(&source, &[*one], 0.05, tol()).map_err(|r| r.error) {
                 Err(BlendError::UnsupportedCorner { .. }) => {}
                 Err(other) => {
                     panic!("{name}: one arc alone should refuse at the seam vertex, got {other:?}")
@@ -337,20 +320,15 @@ fn arcs_of_two_different_rims_refuse_typed() {
 /// Measured on every rim of the lantern rather than on one.
 #[test]
 fn a_seam_split_bands_birth_rows_key_uniquely() {
-    let source = lantern();
+    let source = sweep::test_support::finished("source", lantern(), tol());
     for (name, rr, ry) in [
         ("neck", 1.0, 0.0),
         ("shoulder", SHOULDER.0, SHOULDER.1),
         ("lip", LIP_R, TOP),
     ] {
         let arcs = rim_arcs_at(&source, rr, ry);
-        let out = fillet_edges(
-            &sweep::test_support::at_rest(&source, tol()),
-            &arcs,
-            0.05,
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("{name} fillets, got {e:?}"));
+        let out = fillet_edges(&source, &arcs, 0.05, tol())
+            .unwrap_or_else(|e| panic!("{name} fillets, got {e:?}"));
         let rec = out.naming.as_ref().expect("birth records");
 
         let uniq = |what: &str, mut keys: Vec<String>| {
@@ -550,14 +528,18 @@ fn a_cylinder_capped_both_ends_carves_both_seam_split_rims() {
 /// claims to have made true.
 #[test]
 fn the_seam_vertex_recourse_names_a_door_that_answers() {
-    let source = revolved_about_y(
-        vec![
-            v(0.0, 0.0, 0.0),
-            v(1.0, 0.0, 0.0),
-            v(1.0, 1.0, 0.0),
-            v(0.0, 1.0, 0.0),
-        ],
-        Revolution::Full,
+    let source = sweep::test_support::finished(
+        "source",
+        revolved_about_y(
+            vec![
+                v(0.0, 0.0, 0.0),
+                v(1.0, 0.0, 0.0),
+                v(1.0, 1.0, 0.0),
+                v(0.0, 1.0, 0.0),
+            ],
+            Revolution::Full,
+            tol(),
+        ),
         tol(),
     );
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
@@ -567,13 +549,7 @@ fn the_seam_vertex_recourse_names_a_door_that_answers() {
         "a full revolve's one seam splits the rim into two arcs"
     );
     // The refusal fires...
-    let refused = fillet_edges(
-        &sweep::test_support::at_rest(&source, tol()),
-        &arcs[..1],
-        0.1,
-        tol(),
-    )
-    .map_err(|r| r.error);
+    let refused = fillet_edges(&source, &arcs[..1], 0.1, tol()).map_err(|r| r.error);
     match refused {
         Err(e @ BlendError::UnsupportedCorner { .. }) => {
             let msg = format!("{e}");
@@ -586,13 +562,8 @@ fn the_seam_vertex_recourse_names_a_door_that_answers() {
         other => panic!("one arc alone refuses at the seam vertex, got {other:?}"),
     }
     // ...and the door it names answers.
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&source, tol()),
-        &arcs,
-        0.1,
-        tol(),
-    )
-    .expect("the recourse's own request must carve");
+    let out =
+        fillet_edges(&source, &arcs, 0.1, tol()).expect("the recourse's own request must carve");
     assert_eq!(out.band_faces.len(), 1);
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
 }
@@ -608,17 +579,12 @@ fn the_seam_vertex_recourse_names_a_door_that_answers() {
 /// unreachable for some upstream reason.
 #[test]
 fn the_waisted_bodys_convex_rims_carve_so_its_concave_row_is_not_vacuous() {
-    let source = waisted(tol());
+    let source = sweep::test_support::finished("source", waisted(tol()), tol());
     for (name, ry) in [("base", 0.0), ("top", 1.0)] {
         let arcs = rim_arcs_at(&source, 1.0, ry);
         assert_eq!(arcs.len(), 2, "{name} rim is seam-split");
-        let out = fillet_edges(
-            &sweep::test_support::at_rest(&source, tol()),
-            &arcs,
-            0.05,
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("{name} rim of the waisted body carves, got {e:?}"));
+        let out = fillet_edges(&source, &arcs, 0.05, tol())
+            .unwrap_or_else(|e| panic!("{name} rim of the waisted body carves, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1);
         validate_geometric(&out.body, tol()).expect("tier-3 valid");
     }
@@ -649,7 +615,7 @@ fn the_waisted_bodys_convex_rims_carve_so_its_concave_row_is_not_vacuous() {
 /// carving.
 #[test]
 fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
-    let source = waisted(tol());
+    let source = sweep::test_support::finished("source", waisted(tol()), tol());
     // The sentence conditions on nothing — the one home of that pin
     // names what a hedge WOULD be, not a substring of one phrasing.
     assert_promises_either_side(FILLET3_SEAM_VERTEX_RECOURSE);
@@ -664,13 +630,7 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
 
         // Half one: the tag fires, and shows the sentence.
-        let Err(one) = fillet_edges(
-            &sweep::test_support::at_rest(&source, tol()),
-            &arcs[..1],
-            0.05,
-            tol(),
-        )
-        .map_err(|r| r.error) else {
+        let Err(one) = fillet_edges(&source, &arcs[..1], 0.05, tol()).map_err(|r| r.error) else {
             panic!("{name}: one arc stops at a seam vertex and must refuse")
         };
         assert!(
@@ -709,13 +669,8 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
             "{name}: and exactly those arcs"
         );
         let arcs = whole;
-        let out = fillet_edges(
-            &sweep::test_support::at_rest(&source, tol()),
-            &arcs,
-            0.05,
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("{name}: the promised carve happens, got {e:?}"));
+        let out = fillet_edges(&source, &arcs, 0.05, tol())
+            .unwrap_or_else(|e| panic!("{name}: the promised carve happens, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));

@@ -455,19 +455,18 @@ fn an_interval_washers_rims_fillet_tier_3_valid() {
             Interval::from_f64(0.0),
         )
     };
-    let b = sweep::test_support::revolved_about_y_at(
-        vec![p(1., 0.), p(2., 0.), p(2., 1.), p(1., 1.)],
-        Revolution::Full,
+    let b = sweep::test_support::finished(
+        "b",
+        sweep::test_support::revolved_about_y_at(
+            vec![p(1., 0.), p(2., 0.), p(2., 1.), p(1., 1.)],
+            Revolution::Full,
+            tol(),
+        ),
         tol(),
     );
     for (rr, y) in [(1.0, 0.0), (2.0, 1.0)] {
         let e = rim_arcs_at(&b, rr, y);
-        match fillet_edges(
-            &sweep::test_support::at_rest(&b, tol()),
-            &e,
-            Interval::from_f64(0.2),
-            tol(),
-        ) {
+        match fillet_edges(&b, &e, Interval::from_f64(0.2), tol()) {
             Ok(out) => {
                 assert_eq!(
                     validate_geometric(&out.body, tol()),
@@ -733,7 +732,11 @@ fn a_notched_bore_ring_is_metered_edge_by_edge_against_the_outer_rims_trim() {
         ("round notch off-station 22.5", round_at(22.5), 1.4),
         ("round notch off-station 10", round_at(10.0), 1.4),
     ] {
-        let body = realized(BooleanOp::Subtract, &washer, &tool, tol());
+        let body = sweep::test_support::finished(
+            "body",
+            realized(BooleanOp::Subtract, &washer, &tool, tol()),
+            tol(),
+        );
         validate_geometric(&body, tol()).expect("fixture tier 3");
         let bottom = plane_chart_at_y(&body, 0.0);
         let rings: Vec<usize> = bottom
@@ -760,7 +763,7 @@ fn a_notched_bore_ring_is_metered_edge_by_edge_against_the_outer_rims_trim() {
                 continue;
             }
             let clear = (2.0 - r) - reach;
-            match fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rim, r, tol()) {
+            match fillet_edges(&body, &rim, r, tol()) {
                 Ok(out) => {
                     carved += 1;
                     let ok = validate_geometric(&out.body, tol());
@@ -823,7 +826,11 @@ fn a_second_ring_beside_a_ring_hosted_rim_is_metered_at_its_deepest_edge() {
         ("square hole", sq, sq_in, sq_out),
         ("round hole", rd, 2.3, 2.7),
     ] {
-        let body = realized(BooleanOp::Subtract, &f, &tool, tol());
+        let body = sweep::test_support::finished(
+            "body",
+            realized(BooleanOp::Subtract, &f, &tool, tol()),
+            tol(),
+        );
         validate_geometric(&body, tol()).expect("fixture tier 3");
         let v0 = volume(&body);
         for (rim, gap_of, sign, outward) in [
@@ -844,7 +851,7 @@ fn a_second_ring_beside_a_ring_hosted_rim_is_metered_at_its_deepest_edge() {
             assert_eq!(e.len(), 1);
             for r in [0.2, 0.28, 0.295, 0.302, 0.304, 0.305, 0.32] {
                 let gap = gap_of(r);
-                match fillet_edges(&sweep::test_support::at_rest(&body, tol()), &e, r, tol()) {
+                match fillet_edges(&body, &e, r, tol()) {
                     Ok(out) => {
                         let ok = validate_geometric(&out.body, tol());
                         let got = volume(&out.body) - v0;
@@ -997,14 +1004,12 @@ fn shell_and_offset_of_unslit_annuli_match_closed_forms() {
 /// outer cycle at `2 − r`.
 #[test]
 fn the_lone_host_trim_keeps_the_hosts_key_and_designations() {
-    let w = washer();
+    let w = sweep::test_support::finished("w", washer(), tol());
     let bottom = plane_chart_at_y(&w, 0.0)[0];
     let fd0 = w.get_face(bottom).unwrap().clone();
     for (rr, which) in [(1.0, "ring"), (2.0, "outer")] {
         let e = rim_arcs_at(&w, rr, 0.0);
-        let out = fillet_edges(&sweep::test_support::at_rest(&w, tol()), &e, 0.2, tol())
-            .unwrap()
-            .body;
+        let out = fillet_edges(&w, &e, 0.2, tol()).unwrap().body;
         let fd = out
             .get_face(bottom)
             .expect("the host keeps its key")
@@ -1120,9 +1125,13 @@ fn corner_ring_volume(k: (f64, f64), d1: (f64, f64), d2: (f64, f64), r: f64) -> 
 
 #[test]
 fn cone_and_plane_annulus_rims_carve_at_the_closed_form() {
-    let b = revolved_about_y(
-        vec![v(1., 0.), v(3., 0.), v(2.5, 1.), v(1.5, 1.)],
-        Revolution::Full,
+    let b = sweep::test_support::finished(
+        "b",
+        revolved_about_y(
+            vec![v(1., 0.), v(3., 0.), v(2.5, 1.), v(1.5, 1.)],
+            Revolution::Full,
+            tol(),
+        ),
         tol(),
     );
     // sanity: the general form reproduces the right-angle spandrel
@@ -1137,7 +1146,7 @@ fn cone_and_plane_annulus_rims_carve_at_the_closed_form() {
         ((1.5, 1.0), (1.0, 0.0), (-0.5, -1.0)),
     ] {
         let e = rim_arcs_at(&b, k.0, k.1);
-        let out = fillet_edges(&sweep::test_support::at_rest(&b, tol()), &e, r, tol())
+        let out = fillet_edges(&b, &e, r, tol())
             .unwrap_or_else(|e| panic!("{k:?}: {e:?}"))
             .body;
         assert_eq!(validate_geometric(&out, tol()), Ok(()), "{k:?}");

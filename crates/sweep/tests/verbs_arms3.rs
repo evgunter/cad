@@ -303,7 +303,7 @@ fn mouth(body: &Body<f64>) -> (Vec<EdgeKey>, VertexKey) {
 /// `TangentialEdge` at margin exactly zero.
 #[test]
 fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
-    let body = lantern();
+    let body = sweep::test_support::finished("body", lantern(), tol());
     let (arcs, vertex) = mouth(&body);
     let mut edges = body.edges_of_vertex(vertex).unwrap();
     edges.sort_unstable();
@@ -324,14 +324,7 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
     // The dihedral along a co-surface seam is zero, and the kernel says
     // so on its own metered predicate.
     for seam in seams {
-        match fillet_edges(
-            &sweep::test_support::at_rest(&body, tol()),
-            &[seam],
-            0.02,
-            tol(),
-        )
-        .map_err(|r| r.error)
-        {
+        match fillet_edges(&body, &[seam], 0.02, tol()).map_err(|r| r.error) {
             Err(BlendError::TangentialEdge { margin, .. }) => assert_eq!(
                 (
                     margin.predicate,
@@ -442,16 +435,11 @@ fn requesting_the_rim_whole_gets_past_the_seam() {
 /// chains, and closed chains reach no corner classifier at all.
 #[test]
 fn a_one_edge_rim_never_reaches_the_seam_tag() {
-    let source = lentil();
+    let source = sweep::test_support::finished("source", lentil(), tol());
     for (r, y) in [(RIM_R, 0.0), (0.6, 0.2), (0.6, -0.2)] {
         let arcs = rim_arcs_at(&source, r, y);
         assert_eq!(arcs.len(), 1, "an annular revolve's rim is ONE edge");
-        fillet_edges(
-            &sweep::test_support::at_rest(&source, tol()),
-            &arcs,
-            0.05,
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("the r={r} rim at y={y} fillets, got {e:?}"));
+        fillet_edges(&source, &arcs, 0.05, tol())
+            .unwrap_or_else(|e| panic!("the r={r} rim at y={y} fillets, got {e:?}"));
     }
 }

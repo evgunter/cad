@@ -267,16 +267,11 @@ fn r2_the_die_and_the_rod_census_retaken() {
 #[test]
 fn r2_the_in_band_verdict_at_radii_derived_here() {
     let b = band();
-    let die = cube(1.0, tol());
+    let die = sweep::test_support::finished("die", cube(1.0, tol()), tol());
     for mult in [1.2, 1.9] {
         let r = mult * b.escalate();
         let (m, _) = in_band(
-            fillet_edges(
-                &sweep::test_support::at_rest(&die, tol()),
-                &query::all_edges(&die),
-                r,
-                tol(),
-            ),
+            fillet_edges(&die, &query::all_edges(&die), r, tol()),
             &format!("the die at r = {mult}·Kε"),
         );
         assert!(
@@ -334,15 +329,14 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
     let (ratio, frac) = (1.5, 0.75);
     let r0 = 2.0 * frac * b.escalate() / (1.0 - 1.0 / ratio);
     let big_r = ratio * r0;
-    let body = rod_with_flat_at(big_r, r0, 10.0 * r0, 2.0 * big_r, tol()).expect("the rod mills");
+    let body = sweep::test_support::finished(
+        "body",
+        rod_with_flat_at(big_r, r0, 10.0 * r0, 2.0 * big_r, tol()).expect("the rod mills"),
+        tol(),
+    );
     let crease = rod_upper_crease(&body);
     let (m0, shown) = in_band(
-        fillet_edges(
-            &sweep::test_support::at_rest(&body, tol()),
-            &[crease],
-            r0,
-            tol(),
-        ),
+        fillet_edges(&body, &[crease], r0, tol()),
         "the rod at R/r = 1.5, margin 0.75·Kε",
     );
     assert!(
@@ -369,12 +363,7 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
             predicted < m0,
             "enlarging to {mult}·r₀ lowers the closed form: {predicted:e} against {m0:e}"
         );
-        let result = fillet_edges(
-            &sweep::test_support::at_rest(&body, tol()),
-            &[crease],
-            r,
-            tol(),
-        );
+        let result = fillet_edges(&body, &[crease], r, tol());
         let _ = writeln!(
             table,
             "  enlarge to {mult}·r₀ (closed form {predicted:.4e}): {}",
@@ -392,12 +381,7 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
             "reducing to {mult}·r₀ raises the closed form: {:e} against {m0:e}",
             difference(r, big_r)
         );
-        let result = fillet_edges(
-            &sweep::test_support::at_rest(&body, tol()),
-            &[crease],
-            r,
-            tol(),
-        );
+        let result = fillet_edges(&body, &[crease], r, tol());
         let _ = writeln!(
             table,
             "  reduce to {mult}·r₀ (closed form {:.4e}): {}",
@@ -446,16 +430,11 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
 /// cannot be crossed.
 #[test]
 fn r2_a_sphere_support_toward_osculation_never_reaches_the_rule() {
-    let body = dome(1.0, tol());
+    let body = sweep::test_support::finished("body", dome(1.0, tol()), tol());
     let rim = one_edge_rim_at(&body, 1.0, 0.0);
     let mut table = String::from("dome (sphere support, R = 1), equator rim:\n");
     for r in [0.1, 0.25, 0.4, 0.5, 0.6, 0.75, 0.9, 0.95, 0.99] {
-        let result = fillet_edges(
-            &sweep::test_support::at_rest(&body, tol()),
-            &[rim],
-            r,
-            tol(),
-        );
+        let result = fillet_edges(&body, &[rim], r, tol());
         let _ = writeln!(
             table,
             "  r = {r}: closed form {:.4e} — {}",
@@ -501,19 +480,14 @@ fn r2_the_rules_stations_scale_with_the_contact_edge_count() {
     use geom_core::k_stats::{self, Probe};
     use sweep::test_support::rod_d_profile_at;
     let interior = usize::try_from(CERT_SAMPLES - 2).expect("a small count");
-    let body = rod_d_profile_at::<Probe>(tol());
+    let body = sweep::test_support::finished("body", rod_d_profile_at::<Probe>(tol()), tol());
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the D-rod's two creases");
     let mut seen = Vec::new();
     for request in [&creases[..1], &creases[..]] {
         k_stats::start_recording();
-        let out = fillet_edges(
-            &sweep::test_support::at_rest(&body, tol()),
-            request,
-            Probe(ROD_FILLET),
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("{} crease(s) carve: {e}", request.len()));
+        let out = fillet_edges(&body, request, Probe(ROD_FILLET), tol())
+            .unwrap_or_else(|e| panic!("{} crease(s) carve: {e}", request.len()));
         let spent = k_stats::take_samples()
             .iter()
             .filter(|s| s.predicate == "tangent_second_order")

@@ -134,17 +134,12 @@ fn f2_an_irregular_prism_is_tier3_valid_too() {
 /// `r ∈ (0.5, 0.866]` the stronger statement is false.
 #[test]
 fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
-    let body = hexagonal_prism();
+    let body = sweep::test_support::finished("body", hexagonal_prism(), Tol::witness());
     let edges = query::all_edges(&body);
 
     for r in [0.30, 0.45, 0.499] {
-        let f = fillet_edges(
-            &sweep::test_support::at_rest(&body, Tol::witness()),
-            &edges,
-            r,
-            Tol::witness(),
-        )
-        .unwrap_or_else(|e| panic!("r = {r} is well inside the screen: {e}"));
+        let f = fillet_edges(&body, &edges, r, Tol::witness())
+            .unwrap_or_else(|e| panic!("r = {r} is well inside the screen: {e}"));
         assert_eq!(
             topo::validate_geometric(&f.body, Tol::witness()),
             Ok(()),
@@ -157,14 +152,7 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
     let apothem = 3.0_f64.sqrt() / 2.0;
     for r in [0.51, 0.6, 0.8] {
         assert!(r < apothem, "the row is only interesting below the apothem");
-        match fillet_edges(
-            &sweep::test_support::at_rest(&body, Tol::witness()),
-            &edges,
-            r,
-            Tol::witness(),
-        )
-        .map_err(|r| r.error)
-        {
+        match fillet_edges(&body, &edges, r, Tol::witness()).map_err(|r| r.error) {
             Err(e @ BlendError::FaceClearanceUncertified { margin, gap, .. }) => {
                 assert_eq!(margin.predicate, "fillet3_face_clearance");
                 assert!(

@@ -8120,6 +8120,37 @@ pub enum Unfinished {
     InsideOut(Vec<ValidationError>),
 }
 
+impl Unfinished {
+    /// What every door refusing an operand with scaffolding at rest says
+    /// after naming the operand.
+    pub const SCAFFOLDING_REFUSAL: &'static str = "is not a finished solid: it still \
+        carries what an edit left behind, such as a strut or an empty loop, so it is \
+        refused. Recourse: finish that edit first";
+    /// What every door refusing an inside-out operand says after naming
+    /// the operand.
+    pub const INSIDE_OUT_REFUSAL: &'static str = "is inside-out: its faces point into its \
+        material, so it encloses negative volume and is refused. Recourse: build it with \
+        its faces pointing outward, or revert it";
+
+    /// The refusal for this promise: [`Self::SCAFFOLDING_REFUSAL`] or
+    /// [`Self::INSIDE_OUT_REFUSAL`].
+    #[must_use]
+    pub const fn refusal(&self) -> &'static str {
+        match self {
+            Self::Scaffolding(_) => Self::SCAFFOLDING_REFUSAL,
+            Self::InsideOut(_) => Self::INSIDE_OUT_REFUSAL,
+        }
+    }
+}
+
+impl fmt::Display for Unfinished {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "the body {}", self.refusal())
+    }
+}
+
+impl std::error::Error for Unfinished {}
+
 impl<T: Real> AtRestBody<T> {
     /// **What a door owes an operand that carries no verdict** — one
     /// whose scalar runs no at-rest gate

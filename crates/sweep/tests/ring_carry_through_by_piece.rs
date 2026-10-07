@@ -361,11 +361,15 @@ fn a_curved_mates_ring_refuses_at_the_ladder_gate() {
 #[test]
 fn an_elliptical_ring_beside_a_hole_rim_refuses_unmetered() {
     let holed = sub(&cube(1.0, tol()), &bore(0.3, 0.5, 0.15, -0.2, 1.4));
-    let body = sub(&holed, &at(crate::common::tilted_bore(), 0.3, 0.0, 0.0));
+    let body = sweep::test_support::finished(
+        "body",
+        sub(&holed, &at(crate::common::tilted_bore(), 0.3, 0.0, 0.0)),
+        tol(),
+    );
     validate_geometric(&body, tol()).expect("the twice-bored cube is valid");
     let rim = rim_at(&body, 1.0, 0.15);
     for r in [0.05, 0.1] {
-        let err = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rim, r, tol())
+        let err = fillet_edges(&body, &rim, r, tol())
             .expect_err("refuses")
             .error;
         assert!(
@@ -426,7 +430,7 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
         };
         topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
             .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
-        let body = bb.body.into_body();
+        let body = sweep::test_support::finished("body", bb.body.into_body(), tol());
         validate_geometric(&body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
         let got = topo::mass_properties(&body, tol()).unwrap().volume;
         assert!(
@@ -455,7 +459,7 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
         );
         let rim = rim_at(&body, 1.0, 0.2);
         for r in [0.02, 0.05] {
-            let err = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rim, r, tol())
+            let err = fillet_edges(&body, &rim, r, tol())
                 .expect_err("refuses")
                 .error;
             assert!(

@@ -176,22 +176,10 @@ fn the_chamfer_records_every_birth_and_death() {
 /// something either form promises.
 #[test]
 fn fillet_and_chamfer_agree_on_a_right_corner() {
-    let body = cube(L, Tol::witness());
+    let body = sweep::test_support::finished("body", cube(L, Tol::witness()), Tol::witness());
     let edges = query::all_edges(&body);
-    let filleted = fillet_edges(
-        &sweep::test_support::at_rest(&body, Tol::witness()),
-        &edges,
-        D,
-        Tol::witness(),
-    )
-    .expect("fillets");
-    let chamfered = chamfer_edges(
-        &sweep::test_support::at_rest(&body, Tol::witness()),
-        &edges,
-        D,
-        Tol::witness(),
-    )
-    .expect("chamfers");
+    let filleted = fillet_edges(&body, &edges, D, Tol::witness()).expect("fillets");
+    let chamfered = chamfer_edges(&body, &edges, D, Tol::witness()).expect("chamfers");
 
     let want: Vec<(f64, f64, f64)> = {
         // Each of the 24 is a foot: one coordinate on a face of the

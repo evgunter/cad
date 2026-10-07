@@ -104,19 +104,14 @@ fn keyhole_cut(r: f64) -> f64 {
 /// so the band REMOVES `A` per unit length at each, `ΔV = −2·A·L`.
 #[test]
 fn a_keyhole_fillets_its_convex_ring_creases_at_the_closed_form() {
-    let body = keyhole_block();
+    let body = sweep::test_support::finished("body", keyhole_block(), tol());
     validate_geometric(&body, tol()).expect("the keyholed block is tier-3 valid");
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the two disc/slot junctions");
     let vol0 = volume(&body);
     for r in [0.05, 0.1] {
-        let out = fillet_edges(
-            &sweep::test_support::at_rest(&body, tol()),
-            &creases,
-            r,
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("r {r}: both convex ring creases carve, got {e}"));
+        let out = fillet_edges(&body, &creases, r, tol())
+            .unwrap_or_else(|e| panic!("r {r}: both convex ring creases carve, got {e}"));
         validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("r {r}: tier 3, {e:?}"));
         let dv = volume(&out.body) - vol0;
         let want = -2.0 * keyhole_cut(r);
@@ -133,7 +128,7 @@ fn a_keyhole_fillets_its_convex_ring_creases_at_the_closed_form() {
 /// whose onset lies below `BR`.
 #[test]
 fn a_keyhole_crease_at_the_discs_radius_meets_the_cap_meter_not_the_headroom() {
-    let body = keyhole_block();
+    let body = sweep::test_support::finished("body", keyhole_block(), tol());
     let creases = rod_creases(&body);
     for r in [BR, 1.1 * BR] {
         let foot = ((BR + r).powi(2) - (W + r).powi(2)).sqrt();
@@ -145,12 +140,7 @@ fn a_keyhole_crease_at_the_discs_radius_meets_the_cap_meter_not_the_headroom() {
             keyhole_cut(r).is_finite(),
             "r {r}: the closed form is defined"
         );
-        match fillet_edges(
-            &sweep::test_support::at_rest(&body, tol()),
-            &creases,
-            r,
-            tol(),
-        ) {
+        match fillet_edges(&body, &creases, r, tol()) {
             Err(e) => assert!(
                 matches!(
                     e.error,

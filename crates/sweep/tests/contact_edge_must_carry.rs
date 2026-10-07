@@ -600,23 +600,13 @@ fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever(
 #[test]
 fn the_contact_recourse_is_followable_at_each_site_kind() {
     let b = band();
-    let die = cube(1.0, tol());
+    let die = sweep::test_support::finished("die", cube(1.0, tol()), tol());
     in_band_refusal(
-        fillet_edges(
-            &sweep::test_support::at_rest(&die, tol()),
-            &query::all_edges(&die),
-            1.5 * b.escalate(),
-            tol(),
-        ),
+        fillet_edges(&die, &query::all_edges(&die), 1.5 * b.escalate(), tol()),
         "the die at r = 1.5·Kε",
     );
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&die, tol()),
-        &query::all_edges(&die),
-        3.0 * b.escalate(),
-        tol(),
-    )
-    .unwrap_or_else(|e| panic!("the die at r = 3·Kε builds: {e}"));
+    let out = fillet_edges(&die, &query::all_edges(&die), 3.0 * b.escalate(), tol())
+        .unwrap_or_else(|e| panic!("the die at r = 3·Kε builds: {e}"));
     let readings = contact_readings(&out.body);
     assert_eq!(readings.len(), 48, "the die's contact edges, all intrinsic");
     assert!(

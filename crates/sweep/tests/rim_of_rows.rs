@@ -192,7 +192,7 @@ fn a_partial_revolves_open_rim_refuses_naming_a_wedge_end() {
 /// concave and its base and top are convex.
 #[test]
 fn the_doors_answer_feeds_fillet_edges_and_carves_on_either_side() {
-    let source = waisted(tol());
+    let source = sweep::test_support::finished("source", waisted(tol()), tol());
     let before = volume(&source);
     for (name, r, y, convex) in [
         ("the concave waist", 0.5, 0.5, false),
@@ -202,13 +202,8 @@ fn the_doors_answer_feeds_fillet_edges_and_carves_on_either_side() {
         let seed = arcs_at(&source, r, y)[0];
         let rim = rim_of(&source, seed).unwrap_or_else(|e| panic!("{name}: one rim, got {e}"));
         assert_eq!(rim.len(), 2, "{name} is seam-split");
-        let out = fillet_edges(
-            &sweep::test_support::at_rest(&source, tol()),
-            &rim,
-            0.05,
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("{name}: the door's answer carves, got {e:?}"));
+        let out = fillet_edges(&source, &rim, 0.05, tol())
+            .unwrap_or_else(|e| panic!("{name}: the door's answer carves, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));

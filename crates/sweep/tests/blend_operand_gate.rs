@@ -86,13 +86,19 @@ fn both_blend_doors_refuse_an_inside_out_operand_at_a_dual() {
 /// **The counterclockwise wedge blends outward at both doors and both
 /// scalars** — the control, and the refusal's recourse ("build it with
 /// its faces pointing outward") followed. At `f64` the result is
-/// finished and encloses less than the wedge's +0.2349; at the dual the
-/// door's own read passes it, and the blended volume's value channel
-/// agrees with `f64`'s.
+/// finished and encloses the clockwise wedge's measured volumes with
+/// their sign turned (fillet +0.23355, chamfer +0.23331), within half a
+/// unit of those readings' fifth decimal; at the dual the door's own
+/// read passes it, and the blended volume's value channel agrees with
+/// `f64`'s.
 #[test]
 fn the_counterclockwise_wedge_blends_outward_at_both_doors() {
     let tol = Tol::witness();
-    let wedge_volume = 0.5 * 0.5 * 110f64.to_radians().sin();
+    let measured = |verb: &str| match verb {
+        "fillet" => 0.23355,
+        "chamfer" => 0.23331,
+        other => panic!("no measured volume for {other}"),
+    };
     let at_f64 = both_doors(&at_rest(&wedge::<f64>(true), tol));
     let dual =
         Dual64::gate_at_rest_kept(wedge::<Dual64>(true), tol).expect("a dual gate runs nothing");
@@ -104,8 +110,9 @@ fn the_counterclockwise_wedge_blends_outward_at_both_doors() {
             .unwrap_or_else(|e| panic!("{verb}: the result is finished: {e:?}"));
         let volume = mass_properties(&f, tol).unwrap().volume;
         assert!(
-            volume > 0.9 * wedge_volume && volume < wedge_volume,
-            "{verb}: the blended wedge encloses a little less than the wedge's {wedge_volume}, got {volume}"
+            (volume - measured(verb)).abs() <= 5e-6,
+            "{verb}: the blended wedge encloses {}, got {volume}",
+            measured(verb)
         );
         let dual_volume = mass_properties_structural(&d, tol).unwrap().volume.value;
         assert!(

@@ -164,7 +164,8 @@ fn p2_all_twelve_cavity_edges_are_concave_and_the_eight_corners_trivalent() {
 fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let pocket = brick(Point3::new(1.0, 1.0, 2.0), Point3::new(3.0, 3.0, 5.0));
-    let body = cut("pocket", &block, &pocket);
+    let body =
+        sweep::test_support::finished("body", cut("pocket", &block, &pocket), Tol::witness());
 
     let floor_corner = |p: Point3<f64>| {
         (p.z - 2.0).abs() < 1e-12
@@ -182,13 +183,8 @@ fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
 
     let floor = edges_with_corners(&body, floor_corner);
     assert_eq!(floor.len(), 4, "the pocket floor's four concave edges");
-    let floor_only = chamfer_edges(
-        &sweep::test_support::at_rest(&body, Tol::witness()),
-        &floor,
-        D,
-        Tol::witness(),
-    )
-    .unwrap_or_else(|e| panic!("the floor alone mitres at its four corners, got {e}"));
+    let floor_only = chamfer_edges(&body, &floor, D, Tol::witness())
+        .unwrap_or_else(|e| panic!("the floor alone mitres at its four corners, got {e}"));
     assert_eq!(
         floor_only.naming.as_ref().expect("births").mitres.len(),
         4,
@@ -197,13 +193,8 @@ fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
 
     let full = edges_with_corners(&body, on_pocket_vertical);
     assert_eq!(full.len(), 12, "floor, struts, and the pocket's convex rim");
-    let err = chamfer_edges(
-        &sweep::test_support::at_rest(&body, Tol::witness()),
-        &full,
-        D,
-        Tol::witness(),
-    )
-    .expect_err("even the whole pocket component meets the rim's mixed corners");
+    let err = chamfer_edges(&body, &full, D, Tol::witness())
+        .expect_err("even the whole pocket component meets the rim's mixed corners");
     assert!(
         matches!(
             err.error,

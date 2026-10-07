@@ -581,7 +581,7 @@ fn split_rim_blends_as_one_band() {
 #[test]
 fn a_joined_band_is_cut_off_at_both_ends() {
     let t = Tol::witness();
-    let body = stationed_prism(t);
+    let body = sweep::test_support::finished("body", stationed_prism(t), t);
     let half = |a: f64, b: f64| {
         body.edges()
             .map(|(k, _)| k)
@@ -603,10 +603,8 @@ fn a_joined_band_is_cut_off_at_both_ends() {
         ("chamfer", R * R / 2.0),
     ] {
         let out = match verb {
-            "fillet" => {
-                sweep::fillet::fillet_edges(&sweep::test_support::at_rest(&body, t), &req, R, t)
-            }
-            _ => sweep::chamfer::chamfer_edges(&sweep::test_support::at_rest(&body, t), &req, R, t),
+            "fillet" => sweep::fillet::fillet_edges(&body, &req, R, t),
+            _ => sweep::chamfer::chamfer_edges(&body, &req, R, t),
         }
         .unwrap_or_else(|e| panic!("{verb}: the joined band builds, got {}", e.error));
         assert_eq!(

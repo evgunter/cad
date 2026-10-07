@@ -1869,18 +1869,12 @@ impl fmt::Display for BlendError {
                 "{detail} — {at} did not resolve, so the body is not intact there. There \
                  is no way through"
             ),
-            Self::ScaffoldingOperand { .. } => write!(
-                f,
-                "the body is not a finished solid: it still carries what an edit left \
-                 behind, such as a strut or an empty loop, so it is refused. Recourse: \
-                 finish that edit first"
-            ),
-            Self::InsideOutOperand { .. } => write!(
-                f,
-                "the body is inside-out: its faces point into its material, so it encloses \
-                 negative volume and is refused. Recourse: build it with its faces pointing \
-                 outward, or revert it"
-            ),
+            Self::ScaffoldingOperand { .. } => {
+                write!(f, "the body {}", topo::Unfinished::SCAFFOLDING_REFUSAL)
+            }
+            Self::InsideOutOperand { .. } => {
+                write!(f, "the body {}", topo::Unfinished::INSIDE_OUT_REFUSAL)
+            }
             Self::SurgeryInvariant { at, detail } => write!(
                 f,
                 "{detail} — at {at}: the blend surgery contradicted its own earlier \

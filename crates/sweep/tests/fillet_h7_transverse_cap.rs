@@ -332,17 +332,11 @@ fn the_rod_with_a_flat_fillets_both_creases_at_the_prism_closed_form() {
 /// crease survives untouched.
 #[test]
 fn one_crease_alone_carves_at_half_the_prism() {
-    let source = rod_with_flat(tol());
+    let source = sweep::test_support::finished("source", rod_with_flat(tol()), tol());
     let creases = rod_creases(&source);
     let vol0 = volume(&source);
     for &e in &creases {
-        let out = fillet_edges(
-            &sweep::test_support::at_rest(&source, tol()),
-            &[e],
-            R,
-            tol(),
-        )
-        .expect("one crease carves");
+        let out = fillet_edges(&source, &[e], R, tol()).expect("one crease carves");
         assert_eq!(census(&out.body), (6, 9, 5));
         validate_geometric(&out.body, tol()).expect("tier 3");
         let cut = rod_section_cut(ROD_R, ROD_FLAT, R) * ROD_L;
@@ -825,27 +819,25 @@ fn the_cap_lever_is_the_links_extent() {
 /// upper end.
 #[test]
 fn a_curved_end_face_refuses_typed_before_metering() {
-    let body = revolved_about_y(
-        vec![
-            (Point2::new(0.5, 0.0), 0.0),
-            (Point2::new(1.0, 0.0), 0.0),
-            (Point2::new(1.0, 1.0), 0.3),
-            (Point2::new(0.5, 1.0), 0.0),
-        ],
-        sweep::Revolution::Partial(core::f64::consts::FRAC_PI_2),
+    let body = sweep::test_support::finished(
+        "body",
+        revolved_about_y(
+            vec![
+                (Point2::new(0.5, 0.0), 0.0),
+                (Point2::new(1.0, 0.0), 0.0),
+                (Point2::new(1.0, 1.0), 0.3),
+                (Point2::new(0.5, 1.0), 0.0),
+            ],
+            sweep::Revolution::Partial(core::f64::consts::FRAC_PI_2),
+            tol(),
+        ),
         tol(),
     );
     validate_geometric(&body, tol()).expect("the wedge is tier-3 valid");
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 4, "two walls × two wedge planes");
     for e in creases {
-        let err = fillet_edges(
-            &sweep::test_support::at_rest(&body, tol()),
-            &[e],
-            ROD_FILLET,
-            tol(),
-        )
-        .expect_err("a curved end");
+        let err = fillet_edges(&body, &[e], ROD_FILLET, tol()).expect_err("a curved end");
         let BlendError::UnsupportedRunOut { at, detail } = err.error else {
             panic!("the curved end is a run-out, got {:?}", err.error);
         };

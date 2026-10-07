@@ -119,16 +119,11 @@ fn probe_b_hexagonal_prism_over_refusal() {
         .collect();
     // circumradius 1 => side a = 1, apothem = sqrt(3)/2 = 0.866
     let h = 4.0; // tall so cap-cap pairs never bind
-    let body = prism(&pts, h);
+    let body = sweep::test_support::finished("body", prism(&pts, h), Tol::witness());
     let edges = query::all_edges(&body);
     assert_eq!(edges.len(), 18);
     for r in [0.30 * a, 0.45 * a, 0.499 * a, 0.51 * a, 0.6 * a, 0.8 * a] {
-        match fillet_edges(
-            &sweep::test_support::at_rest(&body, Tol::witness()),
-            &edges,
-            r,
-            Tol::witness(),
-        ) {
+        match fillet_edges(&body, &edges, r, Tol::witness()) {
             Ok(f) => {
                 let t3 = topo::validate_geometric(&f.body, Tol::witness()).is_ok();
                 println!("PROBE B: r={r:.3} builds, tier3 ok = {t3}");
@@ -484,15 +479,14 @@ fn probe_i_door_a_full_tool() {
 /// as the wall vertical-pair identity predicts?
 #[test]
 fn probe_f_skinny_triangle_refusal_boundary() {
-    let body = prism(&[(0.0, 0.0), (1.0, 0.0), (0.5, 0.15)], 2.0);
+    let body = sweep::test_support::finished(
+        "body",
+        prism(&[(0.0, 0.0), (1.0, 0.0), (0.5, 0.15)], 2.0),
+        Tol::witness(),
+    );
     let edges = query::all_edges(&body);
     for r in [0.05, 0.06, 0.07, 0.072, 0.0735, 0.075, 0.08] {
-        match fillet_edges(
-            &sweep::test_support::at_rest(&body, Tol::witness()),
-            &edges,
-            r,
-            Tol::witness(),
-        ) {
+        match fillet_edges(&body, &edges, r, Tol::witness()) {
             Ok(f) => {
                 let t2 = topo::validate_closed(&f.body).is_ok();
                 let mesh_ok = mesh::tessellate(&f.body, 5e-3, Tol::witness())

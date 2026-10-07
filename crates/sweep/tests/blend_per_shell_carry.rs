@@ -230,22 +230,20 @@ fn a_shell_carved_in_place_matches_it_carved_alone_then_unioned() {
 /// too: box b is too small for the radius.
 #[test]
 fn a_refusal_in_one_shell_names_a_face_of_that_shell() {
-    let body = union(
-        &brick(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 1.0)),
-        &brick(Point3::new(2.0, 0.0, 0.0), Point3::new(2.15, 0.15, 0.15)),
+    let body = sweep::test_support::finished(
+        "body",
+        union(
+            &brick(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 1.0, 1.0)),
+            &brick(Point3::new(2.0, 0.0, 0.0), Point3::new(2.15, 0.15, 0.15)),
+        ),
+        tol(),
     );
     let a = edges_with_corners(&body, |p| p.x < 1.5);
     let b = edges_with_corners(&body, |p| p.x > 1.5);
     let sb = shell_of_edge(&body, b[0]);
     let both: Vec<EdgeKey> = a.iter().chain(&b).copied().collect();
     for (what, req) in [("a and b", both), ("b only", b)] {
-        let err = fillet_edges(
-            &sweep::test_support::at_rest(&body, tol()),
-            &req,
-            0.1,
-            tol(),
-        )
-        .expect_err("box b is too small");
+        let err = fillet_edges(&body, &req, 0.1, tol()).expect_err("box b is too small");
         let dbg = format!("{:?}", err.error);
         assert!(
             !a.iter().any(|e| dbg.contains(&format!("{e:?}"))),

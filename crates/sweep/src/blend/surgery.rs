@@ -437,15 +437,12 @@ enum HostFoot {
 /// # One shape this door does not serve, measured
 ///
 /// **A CURVED single face carrying every arc CAN arise, and refuses.**
-/// It is reachable through `topo`'s public `kef` — kill one of a sphere
-/// wall's two seam meridians and the remaining face carries both rim
-/// arcs — and through no sweep or boolean door. It refuses at the
-/// half-band gate (on the `Struts` route, a full revolve's plane side
-/// being one face), and never carves:
-/// `work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`.
-/// The slit that `kef` leaves is scaffolding, which the door's at-rest
-/// gate refuses first; whether a finished body reaches this arm is
-/// `work/band/blend-scaffolding-arms-behind-the-operand-gate.md`.
+/// It is reachable through `topo`'s public `kef_describing` — kill one
+/// of a cylinder wall's two seam meridians and restate the other as the
+/// wall's wrap edge, and the remaining face carries both rim arcs and
+/// finishes — and through no sweep or boolean door. It refuses at the
+/// half-band gate on either route, and never carves
+/// (`fillet_h5_r2_probes::a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`).
 ///
 /// A RINGED host is served under [`Self::Struts`]: the band's host trim
 /// becomes that face's new outer boundary, and each ring is admissible

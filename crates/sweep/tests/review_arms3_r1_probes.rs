@@ -561,17 +561,10 @@ fn spinning_top() -> Body<f64> {
 /// pole-touching body.
 #[test]
 fn a_spinning_top_seam_vertex_refuses_and_the_whole_rim_carves() {
-    let body = spinning_top();
+    let body = sweep::test_support::finished("body", spinning_top(), tol());
     let arcs = rim_arcs_at(&body, 0.6, 0.45);
     assert_eq!(arcs.len(), 2, "the seam splits the rim into two arcs");
-    match fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &arcs[..1],
-        0.03,
-        tol(),
-    )
-    .map_err(|r| r.error)
-    {
+    match fillet_edges(&body, &arcs[..1], 0.03, tol()).map_err(|r| r.error) {
         Err(
             e @ BlendError::UnsupportedCorner {
                 corner: CornerConfig::SeamVertex,
@@ -589,13 +582,8 @@ fn a_spinning_top_seam_vertex_refuses_and_the_whole_rim_carves() {
     }
     // The recourse's request, taken literally: past the seam and
     // through the closed-rim door, as one annulus over both arcs.
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &arcs,
-        0.03,
-        tol(),
-    )
-    .unwrap_or_else(|e| panic!("the whole rim carves, got {e:?}"));
+    let out = fillet_edges(&body, &arcs, 0.03, tol())
+        .unwrap_or_else(|e| panic!("the whole rim carves, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("the carved top must be tier-3 valid, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one annulus band over both arcs");

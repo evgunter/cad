@@ -463,7 +463,11 @@ fn a_plane_link_on_an_annulus_hosts_outer_cycle_closes_at_the_squares_corners() 
         (half * a.cos(), half * a.sin())
     };
     let square = upright(&[polar(67.5), polar(157.5), polar(247.5), polar(337.5)]);
-    let body = boolean(BooleanOp::Intersect, &washer, &square);
+    let body = sweep::test_support::finished(
+        "body",
+        boolean(BooleanOp::Intersect, &washer, &square),
+        tol(),
+    );
     validate_geometric(&body, tol()).expect("the fixture is tier-3 valid");
     let on_square = |p: Vec3<f64>| p.x.hypot(p.z) > 2.05;
     let request = |bottom_only: bool| {
@@ -474,13 +478,8 @@ fn a_plane_link_on_an_annulus_hosts_outer_cycle_closes_at_the_squares_corners() 
         }));
         edges
     };
-    let bottom = fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &request(true),
-        0.2,
-        tol(),
-    )
-    .unwrap_or_else(|e| panic!("the bottom edges mitre at the square's corners, got {e:?}"));
+    let bottom = fillet_edges(&body, &request(true), 0.2, tol())
+        .unwrap_or_else(|e| panic!("the bottom edges mitre at the square's corners, got {e:?}"));
     validate_geometric(&bottom.body, tol()).expect("the mitred carve is tier-3 valid");
     assert_eq!(
         bottom.naming.as_ref().expect("births").mitres.len(),
@@ -493,13 +492,8 @@ fn a_plane_link_on_an_annulus_hosts_outer_cycle_closes_at_the_squares_corners() 
         13,
         "the bore rim and the square's twelve edges"
     );
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &edges,
-        0.2,
-        tol(),
-    )
-    .unwrap_or_else(|e| panic!("the whole square carves beside the bore, got {e:?}"));
+    let out = fillet_edges(&body, &edges, 0.2, tol())
+        .unwrap_or_else(|e| panic!("the whole square carves beside the bore, got {e:?}"));
     validate_geometric(&out.body, tol()).expect("the carve is tier-3 valid");
     assert_eq!(
         (
@@ -594,28 +588,27 @@ fn a_ladder_hosts_co_requested_box_edge_is_metered_exactly_by_the_ring_arm() {
 /// refusal at `r = 0.51` is `1 − 2r`; at `r = 0.49` both bands carve.
 #[test]
 fn two_coaxial_rims_on_a_shared_wall_are_read_exactly_by_the_screen() {
-    let washer = revolved_about_y(
-        vec![
-            (Point2::new(1.0, 0.0), 0.0),
-            (Point2::new(2.0, 0.0), 0.0),
-            (Point2::new(2.0, 1.0), 0.0),
-            (Point2::new(1.0, 1.0), 0.0),
-        ],
-        Revolution::Full,
+    let washer = sweep::test_support::finished(
+        "washer",
+        revolved_about_y(
+            vec![
+                (Point2::new(1.0, 0.0), 0.0),
+                (Point2::new(2.0, 0.0), 0.0),
+                (Point2::new(2.0, 1.0), 0.0),
+                (Point2::new(1.0, 1.0), 0.0),
+            ],
+            Revolution::Full,
+            tol(),
+        ),
         tol(),
     );
     let mut edges = rim_arcs_at(&washer, 1.0, 0.0);
     edges.extend(rim_arcs_at(&washer, 1.0, 1.0));
     assert_eq!(edges.len(), 2, "two one-edge bore rims");
     let r = 0.51;
-    let err = fillet_edges(
-        &sweep::test_support::at_rest(&washer, tol()),
-        &edges,
-        r,
-        tol(),
-    )
-    .expect_err("the trims cross on the wall")
-    .error;
+    let err = fillet_edges(&washer, &edges, r, tol())
+        .expect_err("the trims cross on the wall")
+        .error;
     let BlendError::FaceClearanceUncertified { margin, gap, .. } = err else {
         panic!("the screen answers; got {err:?}")
     };
@@ -629,13 +622,8 @@ fn two_coaxial_rims_on_a_shared_wall_are_read_exactly_by_the_screen() {
         (read - (1.0 - 2.0 * r)).abs() < 1e-12,
         "the wall's height less both setbacks (read {read})"
     );
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&washer, tol()),
-        &edges,
-        0.49,
-        tol(),
-    )
-    .unwrap_or_else(|e| panic!("clear trims carve, got {e:?}"));
+    let out = fillet_edges(&washer, &edges, 0.49, tol())
+        .unwrap_or_else(|e| panic!("clear trims carve, got {e:?}"));
     validate_geometric(&out.body, tol()).expect("the carve is tier-3 valid");
     assert_eq!(out.band_faces.len(), 2, "both rims' bands");
 }

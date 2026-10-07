@@ -44,7 +44,7 @@ fn edge(body: &Body<Interval>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
 #[test]
 fn the_box_rows_carve_at_the_certified_scalar_and_bracket_their_closed_forms() {
     let tol = Tol::witness();
-    let body = block::<Interval>(2.0, 1.5, 1.0, tol);
+    let body = sweep::test_support::finished("body", block::<Interval>(2.0, 1.5, 1.0, tol), tol);
     let front = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
     let up = edge(&body, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
     let across = edge(&body, [0.0, 0.0, 1.0], [0.0, 1.5, 1.0]);
@@ -62,19 +62,9 @@ fn the_box_rows_carve_at_the_certified_scalar_and_bracket_their_closed_forms() {
         for (round, (section, corner)) in [(false, chamfer), (true, fillet)] {
             let bracket = Bracket::open();
             let out = if round {
-                fillet_edges(
-                    &sweep::test_support::at_rest(&body, tol),
-                    &edges,
-                    iv(D),
-                    tol,
-                )
+                fillet_edges(&body, &edges, iv(D), tol)
             } else {
-                chamfer_edges(
-                    &sweep::test_support::at_rest(&body, tol),
-                    &edges,
-                    iv(D),
-                    tol,
-                )
+                chamfer_edges(&body, &edges, iv(D), tol)
             }
             .unwrap_or_else(|e| panic!("{what} (round {round}): carves at Interval, got {e:?}"));
             let ends = bracket

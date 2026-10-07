@@ -408,15 +408,13 @@ fn twice_split_seams(src: &Body<f64>, out: &Filleted<f64>) -> usize {
 /// fixture's geometry, not of one-call metering.
 #[test]
 fn colliding_bands_on_a_shared_wall_refuse_upfront() {
-    let body = zone();
+    let body = sweep::test_support::finished("body", zone(), tol());
     let rims = [
         one_rim(&body, ZONE_SPHERE_LO),
         one_rim(&body, ZONE_SPHERE_HI),
     ];
     for r in [0.749, 0.8] {
-        match fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rims, r, tol())
-            .map_err(|r| r.error)
-        {
+        match fillet_edges(&body, &rims, r, tol()).map_err(|r| r.error) {
             Err(
                 e @ BlendError::FaceClearanceUncertified {
                     margin,
@@ -454,13 +452,8 @@ fn colliding_bands_on_a_shared_wall_refuse_upfront() {
     // pinned by following it): at r = 0.749 the split the refusal
     // names really builds.
     let r = 0.749;
-    let first = fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &[rims[0]],
-        r,
-        tol(),
-    )
-    .expect("the bottom rim alone builds at r = 0.749");
+    let first = fillet_edges(&body, &[rims[0]], r, tol())
+        .expect("the bottom rim alone builds at r = 0.749");
     fillet_edges(
         &sweep::test_support::at_rest(&first.body, tol()),
         &[one_rim(&first.body, ZONE_SPHERE_HI)],
@@ -494,28 +487,17 @@ fn every_band_crossing_names_the_seam_its_foot_split() {
     .expect("the zone pair builds");
     foot_touches_its_seams_remnant(&zone_out);
 
-    let lantern_body = lantern();
+    let lantern_body = sweep::test_support::finished("lantern_body", lantern(), tol());
     let one = rim_arcs_at(&lantern_body, LANTERN_RIMS[1].0, LANTERN_RIMS[1].1);
-    let one_out = fillet_edges(
-        &sweep::test_support::at_rest(&lantern_body, tol()),
-        &one,
-        0.05,
-        tol(),
-    )
-    .expect("one lantern rim builds");
+    let one_out = fillet_edges(&lantern_body, &one, 0.05, tol()).expect("one lantern rim builds");
     foot_touches_its_seams_remnant(&one_out);
 
     let mut all: Vec<EdgeKey> = Vec::new();
     for (rim_r, rim_y) in LANTERN_RIMS {
         all.extend(rim_arcs_at(&lantern_body, rim_r, rim_y));
     }
-    let lantern_out = fillet_edges(
-        &sweep::test_support::at_rest(&lantern_body, tol()),
-        &all,
-        0.05,
-        tol(),
-    )
-    .expect("the lantern triple builds");
+    let lantern_out =
+        fillet_edges(&lantern_body, &all, 0.05, tol()).expect("the lantern triple builds");
     foot_touches_its_seams_remnant(&lantern_out);
 }
 

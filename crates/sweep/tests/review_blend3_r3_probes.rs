@@ -50,7 +50,7 @@ fn surfaces_of(body: &Body<f64>, e: EdgeKey) -> (Surface<f64>, Surface<f64>) {
 /// so the refusal and the recourse agree.
 #[test]
 fn the_spine_kind_sentence_refuses_the_coaxial_torus_rim_on_kind() {
-    let s = spool(Revolution::Full, tol());
+    let s = sweep::test_support::finished("s", spool(Revolution::Full, tol()), tol());
     let rims: Vec<EdgeKey> = query::all_edges(&s)
         .into_iter()
         .filter(|&e| {
@@ -73,7 +73,7 @@ fn the_spine_kind_sentence_refuses_the_coaxial_torus_rim_on_kind() {
             t_axis.cross(p_normal).norm() < 1e-12,
             "the torus axis and the plane normal are one axis: coaxial surfaces of revolution"
         );
-        let err = fillet_edges(&sweep::test_support::at_rest(&s, tol()), &[e], 0.05, tol())
+        let err = fillet_edges(&s, &[e], 0.05, tol())
             .map(|_| ())
             .expect_err("the torus–plane rim refuses");
         let BlendError::SpineUnsupported { supports, .. } = err.error else {

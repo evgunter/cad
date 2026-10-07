@@ -873,13 +873,11 @@ fn a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of() {
 /// that is when the composed row is owed.
 #[test]
 fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first() {
-    let body = dome(1.0, tol());
+    let body = sweep::test_support::finished("body", dome(1.0, tol()), tol());
     let rim = [one_edge_rim_at(&body, 1.0, 0.0)];
     let (mut built, mut clearance) = (0, 0);
     for r in [0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7] {
-        match fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rim, r, tol())
-            .map_err(|e| e.error)
-        {
+        match fillet_edges(&body, &rim, r, tol()).map_err(|e| e.error) {
             Ok(_) => built += 1,
             Err(BlendError::SpineIrregular { .. }) => panic!(
                 "r = {r} reaches the spine gate — {FILLET3_SPINE_RECOURSE} is followable now"

@@ -113,9 +113,9 @@ fn band_radial_err(body: &Body<f64>, f: FaceKey) -> f64 {
 /// cylinder, naming totality.
 fn builds(label: &str, w: f64, bottom: &[f64], top: &[f64], r: f64, joined: usize) {
     let t = Tol::witness();
-    let body = prism(w, bottom, top, t);
+    let body = sweep::test_support::finished("body", prism(w, bottom, top, t), t);
     let req: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let f = sweep::fillet::fillet_edges(&sweep::test_support::at_rest(&body, t), &req, r, t)
+    let f = sweep::fillet::fillet_edges(&body, &req, r, t)
         .unwrap_or_else(|e| panic!("{label}: fillet: {e}"));
     assert_eq!(
         topo::validate_geometric(&f.body, t),
@@ -137,7 +137,7 @@ fn builds(label: &str, w: f64, bottom: &[f64], top: &[f64], r: f64, joined: usiz
         "{label}: fillet volume"
     );
     sweep::test_support::assert_naming_totality(&body, &f, &req, label);
-    let c = sweep::chamfer::chamfer_edges(&sweep::test_support::at_rest(&body, t), &req, r, t)
+    let c = sweep::chamfer::chamfer_edges(&body, &req, r, t)
         .unwrap_or_else(|e| panic!("{label}: chamfer: {e}"));
     assert_eq!(
         topo::validate_geometric(&c.body, t),
@@ -203,18 +203,16 @@ fn a_joint_inside_a_corners_setback_refuses() {
     let step = 2.0 * band.escalate();
     let r = 0.25;
     for (what, x) in [("short of the foot", r - step), ("at the foot", r)] {
-        let body = prism(2.0, &[x], &[], t);
+        let body = sweep::test_support::finished("body", prism(2.0, &[x], &[], t), t);
         let req: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
         for (verb, err) in [
             (
                 "fillet",
-                sweep::fillet::fillet_edges(&sweep::test_support::at_rest(&body, t), &req, r, t)
-                    .unwrap_err(),
+                sweep::fillet::fillet_edges(&body, &req, r, t).unwrap_err(),
             ),
             (
                 "chamfer",
-                sweep::chamfer::chamfer_edges(&sweep::test_support::at_rest(&body, t), &req, r, t)
-                    .unwrap_err(),
+                sweep::chamfer::chamfer_edges(&body, &req, r, t).unwrap_err(),
             ),
         ] {
             assert!(

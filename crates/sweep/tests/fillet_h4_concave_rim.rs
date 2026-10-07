@@ -134,18 +134,13 @@ fn the_waist_carves_one_annulus_band_and_adds_the_pappus_fill() {
 /// concave row's red a statement about the fold and not about the body.
 #[test]
 fn the_convex_twin_of_the_same_body_cuts() {
-    let source = waisted(tol());
+    let source = sweep::test_support::finished("source", waisted(tol()), tol());
     let v0 = volume(&source);
     for (name, rim_y) in [("the base", 0.0), ("the top", 1.0)] {
         let arcs = rim_arcs_at(&source, 1.0, rim_y);
         assert_eq!(arcs.len(), 2, "{name} rim is seam-split into two arcs");
-        let out = fillet_edges(
-            &sweep::test_support::at_rest(&source, tol()),
-            &arcs,
-            WAIST_R,
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("{name} rim carves, got {e:?}"));
+        let out = fillet_edges(&source, &arcs, WAIST_R, tol())
+            .unwrap_or_else(|e| panic!("{name} rim carves, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));

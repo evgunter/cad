@@ -262,9 +262,9 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
 #[test]
 fn both_zone_rims_in_one_call_match_the_sequential_composition() {
     let r = 0.08;
-    let body = zone(0.6, Revolution::Full);
+    let body = sweep::test_support::finished("body", zone(0.6, Revolution::Full), tol());
     let rims = [zone_rim(&body, -0.5), zone_rim(&body, 1.0)];
-    let one = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rims, r, tol())
+    let one = fillet_edges(&body, &rims, r, tol())
         .unwrap_or_else(|e| panic!("the one-call shared-wall pair builds (#935), got {e:?}"));
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
     assert_eq!(one.band_faces.len(), 2, "one band per rim");
@@ -272,13 +272,8 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
     assert_eq!(props.volume_pad, 0.0);
 
     let seq = |first: f64, second: f64| {
-        let a = fillet_edges(
-            &sweep::test_support::at_rest(&body, tol()),
-            &[zone_rim(&body, first)],
-            r,
-            tol(),
-        )
-        .expect("the first sequential call");
+        let a = fillet_edges(&body, &[zone_rim(&body, first)], r, tol())
+            .expect("the first sequential call");
         let b = fillet_edges(
             &sweep::test_support::at_rest(&a.body, tol()),
             &[zone_rim(&a.body, second)],
@@ -363,30 +358,16 @@ fn near_limit_radii_refuse_typed() {
     // huge setbacks such a radius implies (the battery's own stated
     // ordering); predicate 3 is the backstop. Either is the honest
     // typed refusal.
-    let body = bored_dome();
+    let body = sweep::test_support::finished("body", bored_dome(), tol());
     let rim = bored_dome_equator(&body);
-    match fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &[rim],
-        0.45,
-        tol(),
-    )
-    .map_err(|r| r.error)
-    {
+    match fillet_edges(&body, &[rim], 0.45, tol()).map_err(|r| r.error) {
         Err(BlendError::SpineIrregular { .. } | BlendError::FaceClearanceUncertified { .. }) => {}
         other => panic!("s < r must refuse typed, got {other:?}"),
     }
     // r = 0.51 > (R − depth)/2: no spine circle exists; the poisoned
     // margin escalates (or refuses through an earlier predicate) —
     // loudly either way.
-    match fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &[rim],
-        0.51,
-        tol(),
-    )
-    .map_err(|r| r.error)
-    {
+    match fillet_edges(&body, &[rim], 0.51, tol()).map_err(|r| r.error) {
         Err(
             BlendError::Escalated { .. }
             | BlendError::SpineIrregular { .. }
@@ -396,27 +377,15 @@ fn near_limit_radii_refuse_typed() {
     }
     // The narrow-bore zone: at r = 0.35 the bottom trim circle's
     // setback (≈ 0.29) exceeds the ≈ 0.24 gap to the bore rim.
-    let narrow = zone(1.7, Revolution::Full);
+    let narrow = sweep::test_support::finished("narrow", zone(1.7, Revolution::Full), tol());
     let bottom = zone_rim(&narrow, -0.5);
-    match fillet_edges(
-        &sweep::test_support::at_rest(&narrow, tol()),
-        &[bottom],
-        0.35,
-        tol(),
-    )
-    .map_err(|r| r.error)
-    {
+    match fillet_edges(&narrow, &[bottom], 0.35, tol()).map_err(|r| r.error) {
         Err(BlendError::FaceClearanceUncertified { .. }) => {}
         other => panic!("a trim circle at the bore must refuse clearance, got {other:?}"),
     }
     // And well inside the same gap it builds and validates.
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&narrow, tol()),
-        &[bottom],
-        0.15,
-        tol(),
-    )
-    .unwrap_or_else(|e| panic!("r = 0.15 clears the bore, got {e:?}"));
+    let out = fillet_edges(&narrow, &[bottom], 0.15, tol())
+        .unwrap_or_else(|e| panic!("r = 0.15 clears the bore, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
 }
 

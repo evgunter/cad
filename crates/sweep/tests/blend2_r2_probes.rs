@@ -78,19 +78,14 @@ fn sequential(src: &Body<f64>, order: &[(f64, f64)], r: f64) -> f64 {
 /// sequential order.
 #[test]
 fn r2_p1_zone_pair_equality_off_the_fixture_radius() {
-    let body = zone();
+    let body = sweep::test_support::finished("body", zone(), tol());
     let (lo, hi) = (
         one_edge_rim_at(&body, ZONE_SPHERE_LO.0, ZONE_SPHERE_LO.1),
         one_edge_rim_at(&body, ZONE_SPHERE_HI.0, ZONE_SPHERE_HI.1),
     );
     for (r, exact) in [(0.11, false), (0.3, false)] {
-        let one = fillet_edges(
-            &sweep::test_support::at_rest(&body, tol()),
-            &[lo, hi],
-            r,
-            tol(),
-        )
-        .unwrap_or_else(|e| panic!("the pair builds at r = {r}, got {e:?}"));
+        let one = fillet_edges(&body, &[lo, hi], r, tol())
+            .unwrap_or_else(|e| panic!("the pair builds at r = {r}, got {e:?}"));
         validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
         let v1 = volume(&one.body);
         let v_ab = sequential(&body, &[ZONE_SPHERE_LO, ZONE_SPHERE_HI], r);
@@ -257,31 +252,19 @@ fn partition_check(src: &Body<f64>, out: &Filleted<f64>) {
 /// on a plane cap shared by two rims and on up to three earlier bands.
 #[test]
 fn r2_p34_cap_and_cycle_carves_keep_the_records_a_partition() {
-    let body = zone();
+    let body = sweep::test_support::finished("body", zone(), tol());
     let pair: Vec<EdgeKey> = [ZONE_SPHERE_HI, ZONE_BORE_HI]
         .into_iter()
         .map(|sel| one_edge_rim_at(&body, sel.0, sel.1))
         .collect();
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &pair,
-        0.08,
-        tol(),
-    )
-    .expect("the cap pair builds");
+    let out = fillet_edges(&body, &pair, 0.08, tol()).expect("the cap pair builds");
     partition_check(&body, &out);
 
     let all: Vec<EdgeKey> = [ZONE_SPHERE_LO, ZONE_SPHERE_HI, ZONE_BORE_LO, ZONE_BORE_HI]
         .into_iter()
         .map(|sel| one_edge_rim_at(&body, sel.0, sel.1))
         .collect();
-    let out = fillet_edges(
-        &sweep::test_support::at_rest(&body, tol()),
-        &all,
-        0.08,
-        tol(),
-    )
-    .expect("the four-rim cycle builds");
+    let out = fillet_edges(&body, &all, 0.08, tol()).expect("the four-rim cycle builds");
     partition_check(&body, &out);
 }
 
