@@ -984,12 +984,21 @@ mod tests {
             }
         }
 
-        /// The straight-edge meter on the segment `a → b`, at `T`.
-        pub(super) fn meter<T: Bounds>(&self, a: (f64, f64), b: (f64, f64)) -> T {
-            let f = T::from_f64;
-            let pa = Point3::new(f(a.0), f(a.1), f(0.0));
-            let dir = Vec3::new(f(b.0 - a.0), f(b.1 - a.1), f(0.0));
-            self.sliver::<T>().line_clearance(pa, dir, (f(0.0), f(1.0)))
+        /// The straight-edge meter on the segment `a → b`, at `f64` and at
+        /// `Interval`.
+        pub(super) fn meter(&self, a: (f64, f64), b: (f64, f64)) -> (f64, Interval) {
+            let at = |x: f64, y: f64| Point3::new(x, y, 0.0);
+            let dir = Vec3::new(b.0 - a.0, b.1 - a.1, 0.0);
+            let iv = Interval::from_f64;
+            (
+                self.sliver::<f64>()
+                    .line_clearance(at(a.0, a.1), dir, (0.0, 1.0)),
+                self.sliver::<Interval>().line_clearance(
+                    Point3::new(iv(a.0), iv(a.1), iv(0.0)),
+                    Vec3::new(iv(dir.x), iv(dir.y), iv(0.0)),
+                    (iv(0.0), iv(1.0)),
+                ),
+            )
         }
 
         /// `G` at `p`, from its definition.
@@ -1102,8 +1111,7 @@ mod tests {
             for (k, &a) in lattice.iter().enumerate() {
                 for &b in &lattice[k + 1..] {
                     let len = (b.0 - a.0).hypot(b.1 - a.1);
-                    let m: f64 = region.meter(a, b);
-                    let iv: Interval = region.meter(a, b);
+                    let (m, iv) = region.meter(a, b);
                     let near = omega
                         .iter()
                         .map(|&p| to_segment(p, a, b))
@@ -1167,9 +1175,8 @@ mod tests {
         let (u, n) = ((t.cos(), t.sin()), (-t.sin(), t.cos()));
         let at = |s: f64| (0.9 * n.0 + s * u.0, 0.9 * n.1 + s * u.1);
         let (a, b) = (at(-1.0e4), at(1.0e4));
-        let m: f64 = region.meter(a, b);
+        let (m, iv) = region.meter(a, b);
         assert!((m + 0.15).abs() < 1e-11, "f64 reads {m}, not −0.15");
-        let iv: Interval = region.meter(a, b);
         assert!(
             iv.lo() <= -0.15 && iv.lo() > -0.15 - 1e-10,
             "Interval reads {iv:?}, not −0.15"

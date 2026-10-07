@@ -13,7 +13,7 @@ test_utils::gated_to![
 ];
 
 use super::tests::Region;
-use geom_core::{Bounds, Interval};
+use geom_core::Bounds;
 use test_utils::fuzz;
 
 /// The least of `G` over `a → b`: the least of a dense run of samples,
@@ -96,8 +96,7 @@ fn the_line_meter_reads_the_least_of_g_on_random_segments() {
         // spacing of the true one; rounding grows with the distance
         // from the centre.
         let slack = scale / 4000.0 + 1e-14 * (1.0 + a.0.hypot(a.1) + scale);
-        let m: f64 = region.meter(a, b);
-        let iv: Interval = region.meter(a, b);
+        let (m, iv) = region.meter(a, b);
         let what = || {
             format!(
                 "case {case}: {a:?} → {b:?}, reach {reach}, section {:?}, floors {:?}; {}",
