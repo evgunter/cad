@@ -139,10 +139,13 @@ fn full_subdivided_axis_run_exports_tips_and_omits_the_interior() {
     );
 }
 
-/// The same profile PARTIALLY revolved keeps the interior axis vertex
-/// alive: THREE poles, every one exported at its canonical index.
+/// The same profile PARTIALLY revolved carries the axis run as ONE
+/// edge between the two wedge caps (a station on the axis is a
+/// station like any other): the run's two ends are the poles, each
+/// exported at its canonical index, and the interior vertex has no
+/// entity and exports None.
 #[test]
-fn partial_subdivided_axis_run_exports_all_three_poles() {
+fn partial_subdivided_axis_run_exports_its_two_end_poles() {
     let lp = bulge_loop(vec![
         (Point2::new(0.0, -1.0), 1.0),
         (Point2::new(0.0, 1.0), 0.0),
@@ -160,8 +163,9 @@ fn partial_subdivided_axis_run_exports_all_three_poles() {
     assert_eq!(topo::validate_closed(&t.body), Ok(()));
     assert!((pole_y(&t, 0, 0) + 1.0).abs() < 1e-12);
     assert!((pole_y(&t, 0, 1) - 1.0).abs() < 1e-12);
-    assert!(pole_y(&t, 0, 2).abs() < 1e-12);
-    assert_eq!(t.body.vertices().count(), 3);
+    assert_eq!(t.poles[0][2], None, "the axis station has no entity");
+    assert_eq!(t.body.vertices().count(), 2);
+    assert_eq!(topo::joinable_vertices(&t.body), vec![]);
 }
 
 /// Mixed on/off-axis (the dome): (0,0) —line→ (1,0) —quarter arc→

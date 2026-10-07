@@ -147,7 +147,7 @@ impl Twins {
 
         let fourth = ename(
             sq,
-            RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
+            RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3).into()),
         );
         let edit = DocEdit::InsertNode {
             node: Box::new(Node::fillet(sq, len(0.1), vec![fourth.clone()])),
@@ -324,7 +324,7 @@ fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
 
     let fourth = ename(
         sq,
-        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3).into()),
     );
     let edit = DocEdit::InsertNode {
         node: Box::new(Node::fillet(sq, len(0.1), vec![fourth])),
