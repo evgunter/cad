@@ -554,6 +554,7 @@ pub fn posed_prism(h: &Hole, pose: &Pose) -> AtRestBody<f64> {
 ///
 /// Where an Euler operator refuses, or the pyramid is not a finished
 /// body (a base wound clockwise from the apex is inside out).
+#[allow(clippy::unwrap_used)]
 pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose) -> AtRestBody<f64> {
     let tol = Tol::witness();
     let n = base.len();
