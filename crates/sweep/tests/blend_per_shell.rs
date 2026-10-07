@@ -18,7 +18,7 @@ use topo::{AtRestBody, Body, EdgeKey, FaceKey, ShellKey};
 const R: f64 = 0.1;
 
 /// Two unit boxes a unit apart along `x`, unioned: two solids.
-fn two_boxes() -> Body<f64> {
+fn two_boxes() -> AtRestBody<f64> {
     let tol = Tol::witness();
     let a = finished(
         "box a",
@@ -36,7 +36,6 @@ fn two_boxes() -> Body<f64> {
         .expect("the union keeps material")
         .body
         .clone()
-        .into_body()
 }
 
 /// The shell of edge `e`'s `plus` side.
@@ -202,8 +201,7 @@ fn a_sealed_void_blends_inside_its_own_shell() {
         .body()
         .expect("the cut keeps material")
         .body
-        .clone()
-        .into_body();
+        .clone();
     assert_eq!(body.solids().count(), 1, "a sealed cavity is one solid");
     assert_eq!(body.shells().count(), 2, "of an outer and a void shell");
     let inner = |p: Point3<f64>| p.to_array().iter().all(|c| (1.0..=3.0).contains(c));

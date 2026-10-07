@@ -234,6 +234,22 @@ pub fn assert_legal_operand(what: &str, body: &Body<f64>, tol: Tol) {
 
 pub use topo::test_support::finished;
 
+/// `body`, cloned and finished ([`finished`]): the operand of ONE blend
+/// door call on a fixture held by reference. Each call clones and pays
+/// tier 3, so a body handed to several doors is finished once with
+/// [`finished`] and that operand reused.
+///
+/// # Panics
+///
+/// As [`finished`], where the gate refuses the body, naming the
+/// caller's line.
+#[must_use]
+#[track_caller]
+pub fn at_rest<T: topo::AtRestPolicy>(body: &Body<T>, tol: Tol) -> topo::AtRestBody<T> {
+    let caller = core::panic::Location::caller();
+    finished(&format!("the blend operand at {caller}"), body.clone(), tol)
+}
+
 /// The square of side `l` with a corner at the origin, counter-clockwise
 /// from that corner, as profile vertices — the one spelling of the block
 /// outline the fixtures here build on when they need the loop rather
