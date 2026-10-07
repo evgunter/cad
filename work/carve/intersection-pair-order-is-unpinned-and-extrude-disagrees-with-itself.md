@@ -2,12 +2,14 @@
 id: intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself
 kind: issue
 title: EdgeDescription::Intersection's (s1, s2) order is unpinned, and extrude writes it one way on cap rims and another on struts
-status: dispatched
+status: closed
 opened: 2026-09-16
 refs: [2842]
 priority: P0
 cost: M
 branch: carve/surface-pair-is-unordered
+pr: 4189
+closed: 2026-10-07
 ---
 
 

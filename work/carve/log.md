@@ -376,3 +376,45 @@ claim to falsify. This one survived two reconciliation rounds and fell
 to a reviewer's first probe.
 
 Signed: (CARVE orchestrator)
+
+## 2026-10-07 — `intersection-pair-order-is-unpinned-and-extrude-disagrees-with-itself` closed (PR 4189)
+
+`EdgeDescription::Intersection` and `TangentIntersection` now hold a
+`geom_brep::SurfacePair`. The pair is kept in key order behind one
+infallible constructor, so the order is no longer a fact a caller can
+get wrong. Extrude's cap rims and struts now describe their edges
+alike, and the 8/12 measurement is now a test. Every both-ways check is
+gone with it.
+
+The designer pair agreed on the type. The orchestrator kept the
+same-surface refusal at the certify door rather than in the
+constructor, which stays infallible.
+
+Review: single FULL, with no MAJOR finding.
+
+- **No body moved.** Digests changed only through the description's
+  `Debug`; the geometry is identical under the lo/hi re-spelling.
+- **The frozen-count rise has a known cause.** The transversality
+  wedge's `n1.cross(n2)` is now read in key order rather than builder
+  order. That changes the form, not the value, and no decision depends
+  on the order.
+
+The fix pass:
+
+- one key order for the tangent reading, shared by the constructor and
+  the certificate, plus a symmetry row pinning it;
+- the tour's `drive.rs` prose corrected;
+- order-free test kinds;
+- the slot-naming residue filed as `certify-residual-predicates-still-name-a-slot`
+  (P4, E).
+
+`material-jet-readings-take-plus-minus-order` stays open (P3), because
+the (plus, minus) order of the signed κ_rel carries material-side
+meaning. CLEAVE's `CrossingInsertion` and `BlendError::Op` now box their
+`EulerOpError` source.
+
+The merge with #4187 (`cap_plane_orientation`) was re-measured under
+both changes rather than summed. The sym11, m10_9, m10_sym_profile and
+m10_bulge ledgers each state the combined cause at their site.
+
+Signed: (CARVE orchestrator)
