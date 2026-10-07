@@ -3625,9 +3625,6 @@ pub fn inline(
             continue;
         };
         match doc.var_named(name.as_str()) {
-            Some(held) if vars.agrees(var, doc.var(held)) => {
-                vars.map.insert(id, held);
-            }
             Some(_) => return Err(InlineError::VarNameConflict { name: name.clone() }),
             None => {
                 vars.declare(&mut current, id, name.clone())
