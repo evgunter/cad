@@ -44,6 +44,7 @@
 use crate::common::approx::band;
 use crate::common::oracles::sigma;
 use geom::Surface;
+use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
@@ -228,12 +229,17 @@ fn the_sphere_sphere_arm_folds_both_sense_bits() {
         axis: Vec3::new(0.0, 1.0, 0.0),
         rim: Point3::new(RIM_R, 0.0, 0.0),
     };
-    let trace = |y: f64, side: bool| SupportTrace::Round {
+    let trace = |y: f64, side: SurfaceSide| SupportTrace::Round {
         center: Point3::new(0.0, y, 0.0),
         radius: SPHERE_R,
         side,
     };
-    for (side_a, side_b) in [(true, true), (false, false), (true, false), (false, true)] {
+    for (side_a, side_b) in [
+        (Inner, Inner),
+        (Outer, Outer),
+        (Inner, Outer),
+        (Outer, Inner),
+    ] {
         let (sa, sb) = (sigma(side_a), sigma(side_b));
         let center = sheet_center(
             sheet.rim,

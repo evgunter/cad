@@ -39,11 +39,11 @@
 //!   the check judged each junction between its own two links. N = 2 in
 //!   each is the control every other suite builds; one N past each
 //!   range is `review_closed_chain_junctions_r2_probes`'.
-//! - `an_open_three_link_chain_refuses_chain_g1_at_its_first_junction`
+//! - `an_open_three_link_chain_turns_at_both_junctions`
 //!   — the open case, which no pairing ever broke: three cube edges in a
 //!   row, one junction at each inner vertex between exactly the two
-//!   links that meet there, and the 90° refusal at the FIRST junction is
-//!   the verdict that pairing owes.
+//!   links that meet there, and a turn at each junction and nowhere else
+//!   is the verdict that pairing owes.
 //! - `a_self_closed_link_counts_its_vertex_twice` — the walk's
 //!   incidence: a self-closed link beside one other link at its vertex
 //!   is a corner, not a junction.
@@ -55,7 +55,6 @@
 
 use crate::common::approx::band;
 use geom_core::Tol;
-use sweep::blend::BlendError;
 use sweep::blend::battery::{BlendRequest, Chain, ChainClosure, run_battery};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
@@ -308,12 +307,12 @@ fn n_arc_bores_and_boss_feet_carve_the_ladder_at_their_closed_forms() {
 /// chain whose two junctions are its inner vertices, each between
 /// exactly the two links that meet there; and the battery's verdict on
 /// it is the one those pairs owe — each junction a definite turn, so
-/// chain G1 breaks the chain there, and the first chain end the corner
-/// predicate reaches refuses as the turn at the FIRST junction — not a
+/// chain G1 breaks the chain into its three links, and the corner
+/// predicate reads a turn at each junction and nowhere else — not a
 /// verdict on a far-end tangent. No pairing the tree has had broke the
 /// open case; the pin here is the verdict.
 #[test]
-fn an_open_three_link_chain_refuses_a_turn_at_its_first_junction() {
+fn an_open_three_link_chain_turns_at_both_junctions() {
     let body = cube(1.0, tol());
     let edges = three_top_edges_in_a_row(&body);
     let chains = walked_chains(&body, &edges, RHO, band());
@@ -346,15 +345,13 @@ fn an_open_three_link_chain_refuses_a_turn_at_its_first_junction() {
         },
         band(),
     ) {
-        Err(BlendError::UnsupportedCorner {
-            vertex,
-            corner: sweep::blend::CornerConfig::Turn,
-            ..
-        }) => {
-            assert_eq!(
-                vertex, chain.junctions[0].vertex,
-                "refused at the first junction"
-            );
+        Ok(verdict) => {
+            assert_eq!(verdict.chains.len(), 3, "broken at both junctions");
+            let mut turns: Vec<VertexKey> = verdict.turns.iter().map(|t| t.vertex).collect();
+            let mut want = inner.clone();
+            turns.sort_unstable();
+            want.sort_unstable();
+            assert_eq!(turns, want, "a turn at each junction and nowhere else");
         }
         other => panic!("box edges meet at 90°, got {other:?}"),
     }

@@ -223,10 +223,12 @@ fn p2_the_lip_rim_removal_matches_a_hand_pappus_closed_form() {
 /// change must not admit. It is stopped one gate EARLIER than the
 /// resolver: chain G1 breaks the cycle at every definite turn between
 /// its plane–plane links, so it is six open chains and never a closed
-/// one, and each turn — two of a vertex's three edges requested —
-/// refuses as `CornerConfig::Turn`. So the seam-split resolver's own
-/// checks are only ever asked about G1-closed, torus-armed chains; the
-/// two retired refusals were never the outer fence.
+/// one, and each turn — two of a vertex's three edges requested, the
+/// cube's faces symmetric about the third — is a mitre. So the
+/// seam-split resolver's own checks are only ever asked about
+/// G1-closed, torus-armed chains; the two retired refusals were never
+/// the outer fence. The six bands remove their sections less the six
+/// corner overlaps, `(5/3 − π/2)·r³` each.
 #[test]
 fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
     let body = cube(1.0, tol());
@@ -264,13 +266,24 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
         })
         .collect();
     assert_eq!(edges.len(), 6, "the Petrie hexagon has six edges");
-    match fillet_edges(&body, &edges, 0.1, tol()).map_err(|r| r.error) {
-        Err(BlendError::UnsupportedCorner {
-            corner: sweep::blend::CornerConfig::Turn,
-            ..
-        }) => {}
-        other => panic!("a sharp-cornered hexagon cycle refuses at its turns, got {other:?}"),
-    }
+    let out = fillet_edges(&body, &edges, 0.1, tol())
+        .unwrap_or_else(|r| panic!("a sharp-cornered hexagon cycle mitres its turns, got {r}"));
+    validate_geometric(&out.body, tol()).expect("the mitred hexagon is tier-3 valid");
+    let rec = out.naming.as_ref().expect("births");
+    assert_eq!(
+        (rec.mitres.len(), out.blend_faces.len()),
+        (6, 6),
+        "six open bands, a mitre at each turn"
+    );
+    let r: f64 = 0.1;
+    let removed = 6.0 * (1.0 - core::f64::consts::PI / 4.0) * r * r
+        - 6.0 * (5.0 / 3.0 - core::f64::consts::FRAC_PI_2) * r.powi(3);
+    let props = mass_properties(&out.body, tol()).expect("certified props");
+    assert!(
+        ((1.0 - props.volume) - removed).abs() < 1e-8 + props.volume_pad,
+        "ΔV {} vs the closed form {removed}",
+        1.0 - props.volume
+    );
 }
 
 // ------------------------------------------------------------------

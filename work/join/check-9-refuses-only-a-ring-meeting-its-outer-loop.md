@@ -7,6 +7,7 @@ opened: 2026-10-06
 priority: P2
 cost: M
 refs: [a-pinch-no-kept-face-can-cross-refuses]
+branch: join/tier3-pinch-checks
 ---
 
 
