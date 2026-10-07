@@ -152,7 +152,7 @@ Questions exercised: Q1, Q2, Q3, Q4, Q5, Q7, and Q8 (partly: I read the variable
   - Not reachable with digest-minted ids in practice.
   - Confidence: unsure.
 - **S6 (Q4). The deleted comment premise.**
-  - "the remainder keeps its table either way" is gone. I grepped for other citations of "unread twin" or "keeps its table" in `crates/` and `docs/` and found none.
+  - "the remainder keeps its table either way" is gone. I ran `git grep` at the head for "unread twin" and "keeps its table" over `crates/` and `docs/`. The only hits are the historical fork-log row 84, which is process data, and an unrelated `resolve/pick.rs:861`.
   - The A4 acceptance wording now says "minted ids", and the comparator module doc follows it.
   - Confidence: sure (no finding).
 - **S7 (Q3). The `an_unread_free_variable_stays` premise.**
