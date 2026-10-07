@@ -225,3 +225,59 @@ fn a_bore_clear_of_a_keyhole_creases_sliver_carves_at_the_closed_form() {
     let want = -2.0 * keyhole_cut(0.1);
     assert!((dv - want).abs() < 1e-12, "ΔV {dv} vs {want}");
 }
+
+/// Review probe (band-dual-4271-r2): the keyhole carve at `r = BR` and
+/// `1.1·BR` against sampled membership and tier 3′.
+#[test]
+fn review_r2_keyhole_at_the_discs_radius_membership() {
+    use geom_core::{Band, Point3};
+    use topo::{ContactRecords, SolidContainment, point_in_solid, validate_pseudomanifold};
+    let body = keyhole_block();
+    let creases = rod_creases(&body);
+    let xs0 = (BR * BR - W * W).sqrt();
+    for r in [BR, 1.1 * BR] {
+        let out = fillet_edges(&body, &creases, r, tol()).expect("carves");
+        validate_pseudomanifold(&out.body, &ContactRecords::default(), tol())
+            .unwrap_or_else(|e| panic!("r {r}: tier 3' {e:?}"));
+        let cy = W + r;
+        let cx = ((BR + r).powi(2) - cy * cy).sqrt();
+        let in_hole = |x: f64, y: f64| x.hypot(y) < BR || (x > xs0 - 1e-9 && x < XS && y.abs() < W);
+        let in_sliver = |x: f64, y: f64| {
+            let y = y.abs();
+            let (dx, dy) = (x - cx, y - cy);
+            let th = dy.atan2(dx);
+            let (tb, ta) = (-core::f64::consts::FRAC_PI_2, (-cy).atan2(-cx));
+            dx.hypot(dy) > r && th > ta && th < tb && !in_hole(x, y)
+        };
+        let near = |x: f64, y: f64| {
+            let y = y.abs();
+            (x.hypot(y) - BR).abs() < 3e-3
+                || ((x - cx).hypot(y - cy) - r).abs() < 3e-3
+                || (y - W).abs() < 3e-3
+                || (x - xs0).abs() < 3e-3
+                || (x - XS).abs() < 3e-3
+                || (x.abs() - 1.0).abs() < 3e-3
+                || (y - 1.0).abs() < 3e-3
+        };
+        let band = Band::linear(tol()).unwrap();
+        let (mut n, mut nsl) = (0, 0);
+        for i in 0..60 {
+            for j in 0..60 {
+                let x = -0.99 + 1.98 * f64::from(i) / 59.0 + 1.3e-4;
+                let y = -0.99 + 1.98 * f64::from(j) / 59.0 + 0.7e-4;
+                if near(x, y) {
+                    continue;
+                }
+                let want = !in_hole(x, y) && !in_sliver(x, y);
+                nsl += usize::from(in_sliver(x, y));
+                match point_in_solid(&out.body, Point3::new(x, y, 0.5), band, tol()) {
+                    Ok(SolidContainment::In) => assert!(want, "r {r}: ({x},{y}) in, want out"),
+                    Ok(SolidContainment::Out) => assert!(!want, "r {r}: ({x},{y}) out, want in"),
+                    o => panic!("r {r}: ({x},{y}) {o:?}"),
+                }
+                n += 1;
+            }
+        }
+        eprintln!("r {r}: {n} membership points agree, {nsl} of them in the slivers");
+    }
+}

@@ -1035,4 +1035,160 @@ mod tests {
             }
         }
     }
+    /// Review probe (band-dual-4271-r2): random regions and adversarial
+    /// segments; the meter vs a dense-sampled-and-refined least `G`.
+    #[test]
+    fn review_r2_line_meter_random_stress() {
+        use geom_core::{Bounds, Interval};
+        let mut st: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut rnd = move || {
+            st ^= st << 13;
+            st ^= st >> 7;
+            st ^= st << 17;
+            (st >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let (mut worst_over, mut worst_slack, mut worst_iv_over, mut worst_iv_slack) =
+            (f64::NEG_INFINITY, 0f64, f64::NEG_INFINITY, 0f64);
+        let mut nan = 0usize;
+        let mut iv_nan = 0usize;
+        let trials: usize = std::env::var("R2_T")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(20000);
+        for t in 0..trials {
+            let round = rnd() < 0.7;
+            let reach = 0.5 + rnd();
+            let minor = reach * (0.3 + 0.69 * rnd());
+            let nf = (rnd() * 6.0) as usize;
+            let mut fl: Vec<((f64, f64), f64)> = Vec::new();
+            for _ in 0..nf {
+                let a = rnd() * std::f64::consts::TAU;
+                fl.push(((a.cos(), a.sin()), (rnd() - 0.6) * reach));
+            }
+            if nf >= 2 && rnd() < 0.2 {
+                let f0 = fl[0];
+                fl[1] = f0;
+            }
+            if nf >= 2 && rnd() < 0.2 {
+                let f0 = fl[0];
+                fl[1] = ((-f0.0.0, -f0.0.1), -f0.1 - 0.1 * rnd());
+            }
+            let mut sl = sliver(round, &[]);
+            sl.reach = reach;
+            if let Some(sec) = sl.inside.as_mut() {
+                sec.major = minor;
+                sec.minor = minor;
+            }
+            sl.floors = fl
+                .iter()
+                .map(|&((x, y), f)| (Vec3::new(x, y, 0.0), f))
+                .collect();
+            let scale = [1e-9, 1e-4, 0.05, 1.0, 3.0, 1e4][(rnd() * 6.0) as usize];
+            let mut pa = Point3::new((rnd() - 0.5) * 3.0, (rnd() - 0.5) * 3.0, 0.0);
+            let ang = rnd() * std::f64::consts::TAU;
+            let mut u = Vec3::new(ang.cos(), ang.sin(), 0.0);
+            match (rnd() * 8.0) as usize {
+                // along a floor's direction (k = ±1)
+                0 if nf > 0 => u = sl.floors[0].0,
+                // along a floor's zero set (k = 0), starting on it
+                1 if nf > 0 => {
+                    let d = sl.floors[0].0;
+                    u = Vec3::new(-d.y, d.x, 0.0);
+                    pa =
+                        Point3::new(0.0, 0.0, 0.0) + d * sl.floors[0].1 + u * ((rnd() - 0.5) * 2.0);
+                }
+                // through the centre
+                2 => pa = Point3::new(0.0, 0.0, 0.0) - u * (scale * rnd()),
+                // starting on the reach circle / minor circle, tangent
+                3 => {
+                    let b = rnd() * 6.3;
+                    pa = Point3::new(reach * b.cos(), reach * b.sin(), 0.0);
+                    u = Vec3::new(-b.sin(), b.cos(), 0.0);
+                    pa = pa - u * (scale * rnd());
+                }
+                4 => {
+                    let b = rnd() * 6.3;
+                    pa = Point3::new(minor * b.cos(), minor * b.sin(), 0.0);
+                    u = Vec3::new(-b.sin(), b.cos(), 0.0);
+                    pa = pa - u * (scale * rnd());
+                }
+                _ => {}
+            }
+            let dir = u * scale;
+            let len = dir.norm();
+            let gfn = |s: f64| g(&sl, pa + dir * (s / len));
+            // dense sample + local refine
+            let n = 4000usize;
+            let mut best = f64::INFINITY;
+            let mut bi = 0usize;
+            for m in 0..=n {
+                let v = gfn(len * m as f64 / n as f64);
+                if v < best {
+                    best = v;
+                    bi = m;
+                }
+            }
+            let (mut lo, mut hi) = (
+                len * (bi.saturating_sub(1)) as f64 / n as f64,
+                len * ((bi + 1).min(n)) as f64 / n as f64,
+            );
+            for _ in 0..200 {
+                let (m1, m2) = (lo + (hi - lo) / 3.0, hi - (hi - lo) / 3.0);
+                if gfn(m1) < gfn(m2) { hi = m2 } else { lo = m1 }
+            }
+            let truemin = best.min(gfn(0.5 * (lo + hi)));
+            let meter = sl.line_clearance(pa, dir, (0.0, 1.0));
+            if meter.is_nan() {
+                nan += 1;
+                continue;
+            }
+            let over = meter - truemin;
+            if over > worst_over {
+                worst_over = over;
+            }
+            if over > 1e-12 * (1.0 + len) {
+                eprintln!(
+                    "OVER t{t}: meter {meter} truemin {truemin} over {over:e} len {len} round {round} floors {fl:?} pa {pa:?} u {u:?}"
+                );
+            }
+            worst_slack = worst_slack.max(-over);
+            // Interval
+            let iv = |x: f64| Interval::from_bounds(x, x);
+            let isl: CapSliver<Interval> = CapSliver {
+                cap: sl.cap,
+                rims: sl.rims,
+                center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                inside: sl.inside.map(|s| SectionFrame {
+                    u: Vec3::new(iv(s.u.x), iv(s.u.y), iv(0.0)),
+                    w: Vec3::new(iv(s.w.x), iv(s.w.y), iv(0.0)),
+                    major: iv(s.major),
+                    minor: iv(s.minor),
+                }),
+                reach: iv(sl.reach),
+                floors: sl
+                    .floors
+                    .iter()
+                    .map(|&(d, f)| (Vec3::new(iv(d.x), iv(d.y), iv(0.0)), iv(f)))
+                    .collect(),
+            };
+            let im = isl.line_clearance(
+                Point3::new(iv(pa.x), iv(pa.y), iv(0.0)),
+                Vec3::new(iv(dir.x), iv(dir.y), iv(0.0)),
+                (iv(0.0), iv(1.0)),
+            );
+            let (ilo, ihi) = (im.lo(), im.hi());
+            if ilo.is_nan() || ihi.is_nan() {
+                iv_nan += 1;
+                continue;
+            }
+            worst_iv_over = worst_iv_over.max(ilo - truemin);
+            if ilo - truemin > 1e-12 * (1.0 + len) {
+                eprintln!("IV OVER t{t}: [{ilo}, {ihi}] truemin {truemin}");
+            }
+            worst_iv_slack = worst_iv_slack.max(truemin - ilo);
+        }
+        eprintln!(
+            "f64: worst over {worst_over:e}, worst slack {worst_slack:e}, nan {nan}; Interval: worst lo-over {worst_iv_over:e}, worst slack {worst_iv_slack:e}, nai {iv_nan}"
+        );
+    }
 }
