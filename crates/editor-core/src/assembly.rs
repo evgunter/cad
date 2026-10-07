@@ -1832,6 +1832,10 @@ fn attribute(
         | ValidationError::RingContactEscalated { .. }
         | ValidationError::RingOutsideOuter { .. }
         | ValidationError::RingNestingUndecided { .. }
+        | ValidationError::RingMeetsRing { .. }
+        | ValidationError::RingPairContactEscalated { .. }
+        | ValidationError::PinchCornerCrossed { .. }
+        | ValidationError::PinchCornerEscalated { .. }
         | ValidationError::ShellWinding { .. }
         | ValidationError::SolidOuterShells { .. }
         | ValidationError::ShellRoleUndecided { .. }
