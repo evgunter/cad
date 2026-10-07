@@ -1407,8 +1407,15 @@ impl<T: Real> ArcCarrier<T> {
 /// midway between the two offset circles — which is on them only to the
 /// `fillet_offset_*` classification that called them tangent
 /// ([`crate::Facts::Decided`]). Its distances from the two offset
-/// carriers sum to their gap, which no centre can undercut, so the
-/// fillet's two rims carry that gap and no more.
+/// carriers sum to their gap `g`, so the fillet's two rims carry `g`
+/// between them: the midpoint puts `g/2` on each rim, the foot puts `g`
+/// on the circle's and nothing on the line's. Where the carriers are
+/// separated by `g`, no centre lies nearer both, and that sum is the
+/// floor. Where they overlap by `g`, they really cross at two points
+/// that carry no rim error, but those sit about `√(g·ρ)` off the
+/// link, where their place is ill-conditioned in `g`. The decision
+/// says tangent, so one candidate is returned, and on that side `g` is
+/// a bound on its rims rather than the least they could be.
 struct OffsetCentres<T: Real> {
     centres: Vec<Point2<T>>,
     facts: crate::Facts,
