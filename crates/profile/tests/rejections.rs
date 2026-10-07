@@ -421,6 +421,55 @@ fn holes_touching_at_a_vertex_between_two_tangent_arcs_are_non_simple() {
     }
 }
 
+/// Two unit circles crossing at the origin at the angle `phi`, both
+/// heading +x there clockwise: a dome whose left leg runs down the
+/// first to `end` (arc length) short of the crossing, a connector to
+/// the point `end` past it on the second, the right leg down the
+/// second, and a chord closing underneath. The legs are non-adjacent
+/// and stand ≈ 2·`end` apart across the crossing.
+fn dome_across_a_shallow_crossing(phi: f64, end: f64) -> profile::Profile<f64> {
+    use geom_core::Arc2;
+    use profile::{ProfileLoop, RawLoop, Segment};
+    let quarter = std::f64::consts::FRAC_PI_2;
+    let first = Point2::new(0.0, -1.0);
+    let second = Point2::new(phi.sin(), -phi.cos());
+    let on = |c: Point2<f64>, angle: f64| Point2::new(c.x + angle.cos(), c.y + angle.sin());
+    let arc = |centre, sweep| {
+        Segment::Arc(Arc2 {
+            centre,
+            radius: 1.0,
+            sweep,
+        })
+    };
+    profile(vec![ProfileLoop::new([
+        (on(first, 2.0 * quarter), arc(first, -(quarter - end))),
+        (on(first, quarter + end), Segment::Line),
+        (
+            on(second, quarter + phi - end),
+            arc(second, -(quarter - end)),
+        ),
+        (on(second, phi), Segment::Line),
+    ])])
+}
+
+/// **Two legs whose carriers cross at a shallow angle, stopping short
+/// of the crossing on opposite sides, validate** at `f64` and at
+/// `Interval`, at every ε. The legs stand 1.6Kε apart; each span reads
+/// the crossing in band, 0.8Kε past its end, and each leg's end stands
+/// within ε of the other's carrier (the turn is 0.03 rad), so the ends
+/// settle the pair. This is the arc × arc fillet corner at a small
+/// turn, its fillet replaced by its chord.
+#[test]
+fn legs_stopping_short_either_side_of_a_shallow_crossing_validate() {
+    let t = tol().get();
+    let p = dome_across_a_shallow_crossing(0.03, 0.8 * t.k * t.eps);
+    p.validate(tol())
+        .unwrap_or_else(|e| panic!("f64: the dome validates, got {e}"));
+    common::lift::<geom_core::Interval>(&p)
+        .validate(tol())
+        .unwrap_or_else(|e| panic!("Interval: the dome validates, got {e}"));
+}
+
 #[test]
 fn near_tangent_hole_escalates_on_the_internal_clearance() {
     match err(&near_tangent_hole(tol().eps())) {

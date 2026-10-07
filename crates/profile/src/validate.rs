@@ -27,7 +27,10 @@
 //!    crossing, the pair touches wherever a segment end stands within
 //!    ε of the other segment (`circle_side` or `chord_side`, then its
 //!    span): the carriers stay within ε for ≈ √(2rε) about a tangency,
-//!    and for ≈ ε/sin φ about a crossing at angle φ.
+//!    and for ≈ ε/sin φ about a crossing at angle φ. A span that reads
+//!    a candidate in band settles it the same way when its end nearest
+//!    the candidate (`nearer_end`) stands within ε of the other carrier,
+//!    inside that stretch; otherwise the pair escalates.
 //! 4. **Declared tangency** (the #101 discipline) — every *joint*
 //!    (adjacent-segment junction at its shared vertex) is classified by
 //!    the same carrier predicates the simplicity pass uses — the
@@ -104,6 +107,7 @@
 //! | `chord_side` | ⟂ distance to chord line | direct |
 //! | `circle_side` | ‖q − c‖ − r | direct |
 //! | `line_span` | min(t, L−t) along carrier | direct |
+//! | `nearer_end` | (q − a)·û − L/2 along the chord | direct |
 //! | `arc_span` | chordal defect from apex | ×1/cos(θ/4) near full arcs |
 //! | `carrier_line_circle` | r − |h| clearance | tangency: r·φ²/2 |
 //! | `carrier_circles_identity` | d + |Δr| | direct |
@@ -792,6 +796,11 @@ pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
         "loop_orientation",
         "a loop's signed area, levered by its perimeter",
     ),
+    (
+        "nearer_end",
+        "which end of a segment a point projects nearer, as its offset along the chord from \
+         the chord's bisector",
+    ),
     ("path_arc_bulge", "an authored bulge told apart from zero"),
     (
         "path_arc_center_equidistant",
@@ -946,6 +955,7 @@ pub fn decision_subject(predicate: &str) -> Option<&'static str> {
         "contact_at_shared_vertex" => "whether a contact point is a loop vertex",
         "line_span" => "whether a point falls inside a segment",
         "loop_orientation" => "which way round a loop runs",
+        "nearer_end" => "which end of a segment a point lies nearer",
         "path_arc_bulge" => "whether an authored bulge is zero",
         "path_arc_center_equidistant" => {
             "whether an authored centre is as far from one end of its arc as from the other"
