@@ -786,6 +786,42 @@ mod tests {
         );
     }
 
+    /// **A face's turn lever covers its reading point's own distance
+    /// across the wall from the hinge.** A face read at `(1, 0, 0)` that
+    /// reaches nothing from there, against a hinge through the origin on
+    /// the plane of normal `(cos β, 0, sin β)`: the reading point stands 1
+    /// across the wall from the hinge, which the turn moves by
+    /// `(1 − cos β)`, so the lever is `(1 − cos β)/sin β`, at every tilt up
+    /// to a right angle, where it falls back to the point's distance off
+    /// the axis. Every reach but a face reads no turn.
+    #[test]
+    fn a_faces_turn_lever_covers_its_reading_points_offset_from_the_hinge() {
+        let at = Point3::new(1.0, 0.0, 0.0);
+        let face = Reach::Face {
+            at,
+            below: 0.0,
+            above: 0.0,
+            across: 0.0,
+        };
+        let a = Vec3::new(0.0, 0.0, 1.0);
+        for beta in [1e-4_f64, 0.3, 1.0, core::f64::consts::FRAC_PI_2] {
+            let (c, cos) = beta.sin_cos();
+            let n = Vec3::new(cos, 0.0, c);
+            let lever = face.turn_lever(Point3::new(0.0, 0.0, 0.0), (n, a), c, cos);
+            let want = c / (1.0 + cos);
+            assert!(
+                (lever - want).abs() <= 1e-12 * want.max(1e-12),
+                "β = {beta}: lever {lever}, the point's turn {want}"
+            );
+        }
+        let measured = Reach::Measured { at, lever: 1.0 };
+        let n = Vec3::new(0.0, 0.0, 1.0);
+        assert_eq!(
+            measured.turn_lever(Point3::new(0.0, 0.0, 0.0), (n, a), 1.0, 0.0),
+            0.0
+        );
+    }
+
     /// **The minimax stays bounded at the certified scalar** where two
     /// points coincide or nearly do along the axis: duplicate control
     /// points, a zero-length segment, and two points an enclosure's width
