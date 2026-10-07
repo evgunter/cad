@@ -93,3 +93,34 @@
 - **H9's copy qualifier** is a naming addition, owned by stage 3 (copies) and by N4's page. In stage 2 the door refusal covers the only reachable case.
 - **H10.** Today's corpus assemblies are world-gauged instances mated directly, so their mints are unchanged. The only behaviour that moves is a mate that is read only through a boolean, which stops minting. That is the D10-correct outcome. I did not check whether any corpus file has one.
 - **Untouched hits (outside the product question):** H4 retires with A12 as #4216 F plans. H5 (E3's "sink node" wording) and H12 (A9's vocabulary) are rewordings for the units that touch them. H13's guide line `:1069` should read `doc.product`, as derived.
+
+## Round 3 (against the other report)
+
+**1. Representation: hold the node, and take the other report's pose column.**
+- *A's per-space objection does not touch this design.* My world placement is per body: `PlaceInWorld { body }` makes one copy. Round 1 already says the workbench holds operands and results together and that none of them appears unless placed. We agree that "placed" is per copy and that a boolean's result shares its operands' space.
+- *What decides between the two: a placement must define the copy.* Two things need to read a copy:
+  - stage 3's mates, which name "the copy" (A says so itself: "a mate on a twice-placed body names the copy");
+  - an instantiating document, which per H11 gets one output per world placement.
+  Under D10 only an operation defines a variable ("a node is an operation: it reads variables and defines one or more"). A row outside the graph can read a body; A treats the row as a reader for deletion. But a row cannot define the copy. So a row would be a second reader kind outside the graph, with its own strand, key and load rules, and it still could not be read in turn. A node is the one way.
+- *The shape of the row is the shape stage 3 deletes.* `gauge` and `offset` are what stage 3 retires ("gauges, offsets, `Transform`-as-placement … retire"). Building the product on them hands stage 3 a second home to empty.
+- *I move on content.* The stage-2 node carries a pose slot, the same rigid-chain type `Transform` holds (the identity by default), rather than the bare identity: `PlaceInWorld { body, pose }`. That removes my round-1 interim duality. An instance's world pose then moves from its gauge into its placement, instead of the gauge saying where and the placement saying whether. Stage 3 grows `pose` into mates, as A wants for its `offset`.
+- *A's earlier argument is answered* where it is about per-copy placement (we agree) and about reusing the instance shape (the pose slot does that). It is not answered on rows: nothing in A's report needs the placement to be outside the graph.
+
+**2. Who writes everyday placements: move for the viewer, hold for Python.**
+- *Neither is "the kernel deciding".* A façade constructor and a GUI gesture both author ordinary edits that the log records. My round-1 choice 1(a) is A's "P" for the viewer, so on the viewer we agree.
+- *Where we differ is Python, and the asymmetry decides it.* A person in the viewer watches the world continuously, so every feature on the part has to move the world placement or the picture goes stale; a gesture with a visible toggle is right there. A script needs only its end state. One `doc.place(result)` before export says the product in the text the reader reads. Under P, `c = a.cut(b)` silently unplaces `a` in the façade. That is "the tip replaces its operands" respelled as façade semantics: visible in the log, invisible in the script.
+- *P's main argument is answered by the rule Ev gave:* "every script and corpus file reads as today" is the migration goal, which no longer binds. The corpus builders add one `place` per product body, and the migration check verifies membership once.
+- *So the question for Ev narrows:* not whether the kernel decides (it never does), but whether the Python façade may imply world edits. I lean no (likely).
+
+**3. Export with unplaced bodies: converge on landing it in front of Ev, not as a fork.**
+- *Both reports narrow #3441, and neither can keep it literal.* Every boolean operand is unplaced, so "refuses unplaced parts" would make every part unexportable. A change forced by the redesign is, under Ev's rule, not a choice. It still changes Ev's own words, so the PR lists it under "Ev's own text that changes" and Ev sees it there. A is right that Ev must see it; I am right that it is not a fork.
+- *Hold on refusal over notice, for the one case #3441 protected.*
+  - A placement that cannot place refuses export, naming it. For example, a world placement that reads a deleted body, or (in stage 2) an instance whose placement's pose no longer resolves.
+  - That is the deliberate copy that silently vanished, which #3441 was about.
+  - A notice listing every unplaced body would list every operand of every boolean: routine state reported as news.
+- *I accept one part of A's notice:* an unplaced mated group (copies related to each other but to nothing in the world) is worth a notice, because someone assembled it. A lone unplaced body is not.
+
+**Net.**
+- Agreed: per-copy placements, nothing implicit, order derived, stranded placement refuses, `PlacedUnderTwoRoots` retires, P in the viewer.
+- Still divided: node versus row (I hold node; it defines the copy), and the Python default (I hold explicit).
+- Converged: export's change goes to Ev as a listed edit to Ev's own words.
