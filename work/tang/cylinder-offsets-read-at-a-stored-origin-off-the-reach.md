@@ -2,10 +2,12 @@
 id: cylinder-offsets-read-at-a-stored-origin-off-the-reach
 kind: issue
 title: three cylinder-offset rows read a cylinder's stored origin against another carrier's axis, off the reach
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
+closed: 2026-10-07
+branch: tang/cylinder-offsets-at-the-reach
 ---
 
 
@@ -67,3 +69,25 @@ chord_join's cone lane) already hold one.
 Found by the class sweep of the `tang/classifiers-read-at-the-reach`
 lane (pattern: `x − a·(x·a)` with `x` an origin difference; the hit
 list is in that PR's body).
+
+## Closed
+
+By `tang/cylinder-offsets-at-the-reach`:
+
+- `cone_cylinder_section`'s `coc_coaxial` reads the apex's distance from
+  the CYLINDER's axis, and the arm's `extent` is the consumed region's
+  distance from the apex, every row's pivot.
+- `route_pose` takes no anchor from a cylinder: the cone×cylinder arm,
+  the only scalar arm a cylinder reaches, is levered from the apex.
+- `parallel_radical_plane` reads the axis offset between the axes' feet
+  at the germ sites the join connects (`geom_brep::parallel_axes_at`).
+- Held by the D10 hold, filed as
+  `declared-cylinder-pair-offsets-read-off-the-reach` (parked):
+  `chart_region_cyl_offset`, `carrier_cyl_reach`'s pivot, and
+  `cylinder_data`'s offset datum. The transfer parameter `c` beside
+  `chart_region_cyl_offset` is not a defect (that item says why).
+- The sweep's new hits are filed on their owners' slates:
+  `offset-axial-classify-reads-a-stored-origin-against-the-body-axis`
+  (OFFSET), `sheet-clip-admits-a-cylinder-at-its-stored-origin-by-an-unlevered-tilt`
+  (BAND), `step-adopt-reads-a-plane-origin-against-another-planes-normal`
+  (EXCH).

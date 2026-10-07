@@ -643,3 +643,7 @@ plane; its two fixtures, the turned dome and the prism on the slanted
 tube, build every op at their closed forms; the declared one-carrier
 arms do not read ellipses, so the D10 hold leaves their reach where it
 was. Filed: `an-ellipse-lying-on-a-wall-keeps-the-door` (P2).
+
+## 2026-10-07 — cylinder offsets read at the reach
+
+`cylinder-offsets-read-at-a-stored-origin-off-the-reach` closed: the cone×cylinder arm reads its pose at the apex against the cylinder's own axis, `route_pose` drops the cylinder's stored-origin anchor, and the join's radical plane reads its offset between the axes' feet at the germ sites. The declared-pair sites wait on the D10 hold (`declared-cylinder-pair-offsets-read-off-the-reach`, parked); the sweep's other hits are filed on OFFSET, BAND and EXCH.

@@ -1034,7 +1034,8 @@ fn parallel_radical_plane_at(offset: f64) -> Result<(), BooleanError> {
         radius,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    super::super::join::parallel_radical_plane(&wall(0.0, 0.5), &wall(offset, 0.3), band())
+    let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::point(Point3::origin()));
+    super::super::join::parallel_radical_plane(&wall(0.0, 0.5), &wall(offset, 0.3), &reach, band())
         .map(|_| ())
 }
 

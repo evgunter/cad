@@ -473,11 +473,13 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 ///
 /// `reach` is what the consumer needs the pose read over: an edge's
 /// span ([`Reach::Span`]), levered by its exact per-carrier distance
-/// from a pivot. The arms that take a scalar extent get its lever from
-/// the pair's ANCHORS (a cone's apex, a sphere's or torus's centre, a
-/// cylinder's origin), an upper bound on how far the consumed region
-/// stands from any of them (a tilt `θ` displaces the locus by
-/// `θ·extent` there). The cylinder pair reads it from its axes' feet
+/// from a pivot. The arms that take a scalar extent read their pose at
+/// an ANCHOR (a cone's apex, a sphere's or torus's centre) and get its lever from
+/// there, the exact distance of the consumed region from it (a tilt `θ`
+/// displaces the locus by `θ·extent` there). A cylinder has no anchor:
+/// its origin is any point of its axis, so a lever from it overstates
+/// the reach without bound, and the cone×cylinder arm reads its pose at
+/// the apex. The cylinder pair reads it from its axes' feet
 /// ([`cylinder_cylinder_section`]). No lever is a ball around the edge:
 /// on a two-sided trilean whose definite side is the SERVED class, a
 /// lever past the consumed extent decides an in-band reading as served
@@ -503,9 +505,11 @@ pub fn route_pose<T: Decide>(
     let extent = [a, b].into_iter().fold(T::zero(), |lever, s| match *s {
         Surface::Cone { apex: anchor, .. }
         | Surface::Sphere { center: anchor, .. }
-        | Surface::Torus { center: anchor, .. }
-        | Surface::Cylinder { origin: anchor, .. } => lever.max(reach.lever_from(anchor)),
-        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => lever,
+        | Surface::Torus { center: anchor, .. } => lever.max(reach.lever_from(anchor)),
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => lever,
     });
     let (ka, kb) = (a.kind(), b.kind());
     let arm = route(ka, kb);
@@ -1607,18 +1611,20 @@ fn axes_feet<T: Real>(
 /// distance from both axes and its least-lever points are the feet of
 /// one axial station. Geometry that would split them (an edge on
 /// neither wall) does not come through a consumer.
-pub(crate) struct ParallelAxes<T: Real> {
+pub struct ParallelAxes<T: Real> {
     /// The first axis's foot.
-    pub(crate) foot1: Point3<T>,
+    pub foot1: Point3<T>,
     /// The feet's offset ⊥ the first axis.
-    pub(crate) d_vec: Vec3<T>,
+    pub d_vec: Vec3<T>,
     /// The distance between the feet.
-    pub(crate) d: T,
+    pub d: T,
 }
 
 /// [`ParallelAxes`] of the lines `oᵢ + s·aᵢ` (`aᵢ` unit) at `reach`.
-/// Shared with the tangent-locus lane.
-pub(crate) fn parallel_axes_at<T: Real>(
+/// Shared with the tangent-locus lane and topo's radical plane of a
+/// parallel cylinder pair.
+#[must_use]
+pub fn parallel_axes_at<T: Real>(
     reach: &Reach<T>,
     line1: (Point3<T>, Vec3<T>),
     line2: (Point3<T>, Vec3<T>),
@@ -2445,6 +2451,13 @@ pub enum ConeCylinderSection<T: Real> {
 ///
 /// Trileans, in order (named lever arms per D4 ¶1):
 ///
+/// **`extent` is measured from the apex**: the farthest the consumed
+/// region stands from it, which also bounds where the minted circles
+/// may stand (`coc_station_reach`). Every row reads the pose at the
+/// apex and levers its angles from there, so a tilt `θ` the band admits
+/// moves the cylinder's axis by at most `θ·extent` across the region
+/// from where `coc_coaxial` read it.
+///
 /// 1. `coc_cylinder_radius` — margin `R` (meters): the arm states both
 ///    circles at exactly that radius, so it must be a positive length.
 /// 2. `coc_aperture_sin` and `coc_aperture_cos`, each metered at
@@ -2460,8 +2473,8 @@ pub enum ConeCylinderSection<T: Real> {
 ///    general-rung refusal, a tilted cylinder cutting a quartic. Zero
 ///    covers the antiparallel pose too, which is the same
 ///    configuration read through the cylinder's opposite orientation.
-/// 4. `coc_coaxial` — margin the axis-to-axis distance
-///    `‖(o − apex) − a·((o − apex)·a)‖` (meters): Zero ⇒ coaxial;
+/// 4. `coc_coaxial` — margin the apex's distance from the cylinder's
+///    axis, `‖(apex − o) − b·((apex − o)·b)‖` (meters): Zero ⇒ coaxial;
 ///    definite ⇒ the general-rung refusal, a parallel-but-OFFSET
 ///    cylinder cutting a quartic. A norm is never negative, so this
 ///    trilean has two live verdicts by construction.
@@ -2595,12 +2608,13 @@ pub fn cone_cylinder_section<T: Decide>(
         }
     }
 
-    // The axes are parallel: coaxial or merely parallel, by the
-    // axis-to-axis distance. `a` is unit by the surface's own
-    // invariant, so the rejection is the standard point-to-line
-    // distance and no division enters here.
-    let q = o - apex;
-    let d = (q - a * q.dot(a)).norm();
+    // The axes are parallel: coaxial or merely parallel, by the apex's
+    // distance from the CYLINDER's axis, read at the pivot every row
+    // here is levered from. Against its own axis the cylinder's origin
+    // may stand anywhere on it; `b` is unit by the surface's own
+    // invariant, so no division enters here.
+    let q = apex - o;
+    let d = (q - b * q.dot(b)).norm();
     match decide("coc_coaxial", Margin::of(d), band).map_err(SectionError::Escalated)? {
         Sign::Zero => {
             // Coaxial. On the cone `S(u, v) = apex + a·(v·cos α) +
