@@ -53,6 +53,13 @@ finds the commit that wrote it, and its PR shows whether Ev asked for it in
 Ev's own words or approved agent-written text in passing. Say which, and weigh
 it accordingly.
 
+**A redesign governs what it replaced** (Ev, PR 4220). When a ratified
+redesign (today D10) and an earlier instruction appear to contradict each
+other, the redesign text is the more important: lean towards changing the
+earlier instruction (a ratified clause, a guide, a spec goal or the code's
+behaviour), and say which one. Do not bend the redesign to fit what it
+replaced.
+
 ## 3. Understand the semantics
 
 Before designing, work out what the thing *means*: what each type, invariant
