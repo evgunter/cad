@@ -7052,7 +7052,8 @@ impl core::fmt::Display for IsoFamilyRefusal {
 /// verdict (`pcurve_chart_radial_moving`, the same margin) is re-read,
 /// because the mint takes that form for an in-band verdict too, as a
 /// tie-break. `None` for a planar chart, a spiric carrier, and an image
-/// on no family (a cylinder's oblique section, a cone's tilted one).
+/// on no family (a cylinder's oblique section, a cone's tilted one, a
+/// torus's Villarceau circle).
 ///
 /// # Errors
 ///
@@ -7092,7 +7093,7 @@ pub fn chart_iso_family<T: Decide>(
         Derivation::ConeRim { .. }
         | Derivation::SphereParallel { .. }
         | Derivation::TorusParallel { .. } => Some(IsoFamily::V),
-        Derivation::Plane | Derivation::ConeSection => None,
+        Derivation::Plane | Derivation::FocalSection => None,
     })
 }
 
