@@ -13,12 +13,16 @@
 //! and none doubled, except:
 //! - a pyramid touching the top beside a dart refuses `VertexReadTwice`;
 //! - a pyramid paired with a bare dart alone keeps that pair's reading,
-//!   which is none.
+//!   which is none;
+//! - a pyramid inside a dart beside an arch keeps each pair's own rows,
+//!   one an edge, as main did.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
 
-use common::meeting::{MEET, PLATE, Pose, apex_pyramid, at, corners, mix, nest, posed_box, poses};
+use common::meeting::{
+    MEET, PLATE, Pose, apex_pyramid, at, bearing, corners, mix, nest, posed_box, poses,
+};
 use geom_core::{Tol, Vec3};
 use topo::{
     AtRestBody, BooleanError, BooleanResult, Operand, SideCode, intersect, readback, subtract,
@@ -170,6 +174,10 @@ enum Expect {
     /// A single pair whose partner reads neither way keeps its own
     /// reading: no row.
     Unread,
+    /// Pairs alone beside a partner that reads neither way keep each
+    /// pair's own rows, as main did: one row per edge, not the germ's
+    /// (`work/tang/pairs-beside-an-unread-partner-keep-mains-rows.md`).
+    PairsOwn,
 }
 
 fn pick(x: &(AtRestBody<f64>, G)) -> (&AtRestBody<f64>, &G) {
@@ -251,6 +259,7 @@ fn check(
                             ([], _) => panic!(
                                 "{what}: {op:?}'s edge {e:?} at MEET has no row; the germ reads {want:?}"
                             ),
+                            ([_], Expect::PairsOwn) => rows += 1,
                             ([g], _) => {
                                 rows += 1;
                                 assert_eq!(
@@ -354,6 +363,24 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         let buried_b = built("a buried void", subtract(&block_b, &p(void), t()));
         let buried_island_b = built("an island in it", union(&buried_b, &p(isle), t()));
         let buried_island = u(dd(G::All, c(void)), c(isle));
+        // An arch and a dart apart, one body touching itself at MEET; a
+        // pyramid inside the dart's cone pairs with both.
+        let dart_up = [
+            bearing(200.0, 0.45, 0.5),
+            bearing(230.0, 0.6, 0.5),
+            bearing(260.0, 0.45, 0.5),
+            bearing(230.0, 0.5, 0.5),
+        ];
+        let arch_dart_b = built(
+            "an arch and a dart",
+            union(&arch_b, &apex_pyramid(&dart_up, &pose, t()), t()),
+        );
+        let arch_dart = u(c(arch), G::Fan(dart_up.to_vec()));
+        let in_dart = [
+            bearing(222.0, 0.4, 0.4),
+            bearing(238.0, 0.4, 0.4),
+            bearing(230.0, 0.448, 0.4),
+        ];
         let pyr = |b: [[f64; 3]; 3]| (p(b), c(b));
         let (cone, over) = (pyr(corners(240.0, 0.7, 0.5)), pyr(corners(50.0, 0.7, 0.5)));
         let (hang, hang_over) = (
@@ -365,8 +392,8 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             pyr(nest(isle, 0.7)),
             pyr(nest(hvoid, 0.7)),
         );
-        let (cross3, on2, cross_in) = (pyr(cross3), pyr(on2), pyr(cross_in));
-        use Expect::{Classes, Refuses, Unread};
+        let (cross3, on2, cross_in, in_dart) = (pyr(cross3), pyr(on2), pyr(cross_in), pyr(in_dart));
+        use Expect::{Classes, PairsOwn, Refuses, Unread};
         for (label, x, y, expect) in [
             ("the arches", pick(&cone), (&arches_b, &arches), Classes),
             ("one standing pyramid", pick(&cone), (&one_b, &one), Classes),
@@ -548,6 +575,12 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 Refuses,
             ),
             ("over a bare dart", pick(&over), (&dart_b, &dart_g), Unread),
+            (
+                "inside a bare dart beside a bare arch",
+                pick(&in_dart),
+                (&arch_dart_b, &arch_dart),
+                PairsOwn,
+            ),
         ] {
             rows += check(label, x, y, expect, &pose);
         }

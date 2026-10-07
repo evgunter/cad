@@ -110,3 +110,12 @@ Ev's ruling on PR 4057 (one vertex per cone) is option 2 of PR 4059's
 question, so the design question is closed: split the shared vertex per
 cone at insertion, where the two plans meet. Flip
 `a_nested_pairing_at_a_shared_vertex_refuses_typed` when the 217 build.
+
+## Another witness: a quadrilateral void in a quadrilateral arch (TANG, 2026-10-07)
+
+From PR 4256's third review. The plate is united with the quadrilateral
+arch over `bearing(40|80, 0.45|0.25, 0.5)` at `MEET`, less
+`nest_polygon(arch, 0.7)` (`topo::test_support::meeting`). Against
+`corners(50, 0.7, 0.5)` standing at `MEET`, three ops refuse
+`ClassificationInvariant` at every pose of `meeting::poses`, at
+ε = 1e-9: `y − x`, `y ∪ x` and `x ∩ y` (the pyramid as `x`).

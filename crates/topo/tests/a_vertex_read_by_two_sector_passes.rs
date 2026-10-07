@@ -33,7 +33,9 @@
 //! - a pyramid with an edge lying **along** the arch's face;
 //! - a pyramid **lying** on the plate, an edge on its top, which a
 //!   touching vertex refuses to pair with (`vtxfac::partner_side`), and
-//!   a **dart**, whose apex is a reflex edge no reading reads;
+//!   a **dart**, whose apex is a reflex edge no reading reads, and the
+//!   plate less a dart or a near-flat quadrilateral, a void below the
+//!   top that no reading reads either;
 //! - the plate alone, and the arches without it, read once.
 //!
 //! The operands' own contacts do not reach a result
@@ -49,7 +51,7 @@
 use crate::common;
 
 use common::meeting::{
-    MEET, PLATE, Pose, apex_pyramid, at, corners, leaned, mix, nest, orders, posed_box,
+    MEET, PLATE, Pose, apex_pyramid, at, bearing, corners, leaned, mix, nest, orders, posed_box,
     posed_boxes, posed_prism, poses, wedge,
 };
 use geom_core::{Band, Point3, Tol, Vec3};
@@ -90,6 +92,25 @@ fn dart() -> [[f64; 3]; 4] {
         [r * k, r * s, 0.5]
     };
     [at(30.0, 0.45), at(60.0, 0.6), at(90.0, 0.45), at(60.0, 0.5)]
+}
+
+/// A dart's base below [`MEET`], its dent towards the top's bearing 120°.
+fn dart_below() -> [[f64; 3]; 4] {
+    [
+        bearing(100.0, 0.45, -0.5),
+        bearing(120.0, 0.6, -0.5),
+        bearing(140.0, 0.45, -0.5),
+        bearing(120.0, 0.5, -0.5),
+    ]
+}
+
+/// A quadrilateral below [`MEET`] whose third corner lies `dent` off the
+/// line between its neighbours (inwards where negative).
+fn near_flat(dent: f64) -> [[f64; 3]; 4] {
+    let (c1, c3) = (bearing(100.0, 0.45, -0.5), bearing(140.0, 0.45, -0.5));
+    let out = bearing(120.0, 1.0, 0.0);
+    let c2 = [0, 1, 2].map(|k| 0.5 * (c1[k] + c3[k]) + dent * out[k]);
+    [bearing(120.0, 0.15, -0.5), c1, c2, c3]
 }
 
 /// The arch: a pyramid standing on [`MEET`].
@@ -424,6 +445,8 @@ struct Scene {
     along: AtRestBody<f64>,
     lying: AtRestBody<f64>,
     dart: AtRestBody<f64>,
+    dart_void: AtRestBody<f64>,
+    flat_voids: [AtRestBody<f64>; 2],
     blocks: AtRestBody<f64>,
     prism: AtRestBody<f64>,
     leaned: AtRestBody<f64>,
@@ -541,6 +564,21 @@ impl Scene {
                 "the plate and a dart",
                 union(&plate, &apex_pyramid(&dart(), pose, t()), t()),
             ),
+            // A void below the top whose apex is a reflex edge, read
+            // neither way, and two near-flat quadrilateral voids, a
+            // corner a hair inside the line of its neighbours.
+            dart_void: built(
+                "the plate less a dart",
+                subtract(&plate, &apex_pyramid(&dart_below(), pose, t()), t()),
+            ),
+            // The second dent is ten zero bands, -1e-8 at the default
+            // tolerance: as near flat as the run can tell from flat.
+            flat_voids: [-1e-3, -10.0 * Band::linear(t()).unwrap().zero()].map(|dent| {
+                built(
+                    "the plate less a near-flat quadrilateral",
+                    subtract(&plate, &apex_pyramid(&near_flat(dent), pose, t()), t()),
+                )
+            }),
             blocks: posed_boxes(
                 "two blocks in face contact",
                 &[PLATE, [(0.5, 2.5), (0.5, 1.5), (1.0, 1.5)]],
@@ -589,6 +627,19 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
         &s.cavity,
         pose,
     );
+    // A void below the top that reads nothing is no partner of an edge
+    // above it: the edges above class against the arch side alone.
+    builds(
+        "a standing pyramid over a dart void",
+        &s.cone,
+        &s.dart_void,
+        pose,
+    );
+    builds("a pyramid over a dart void", &s.over, &s.dart_void, pose);
+    for (flat, dent) in s.flat_voids.iter().zip(["1e-3", "ten zero bands"]) {
+        let what = format!("a standing pyramid over a quadrilateral void {dent} from flat");
+        builds(&what, &s.cone, flat, pose);
+    }
     // The crossed arch is one of three partners, each in turn, whichever
     // the pairs' order reads first.
     for b in [50.0, 170.0, 290.0] {
@@ -714,7 +765,7 @@ fn a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_o
 }
 
 /// **Every scene, at every pose, in every op and both orders, builds
-/// sound or refuses typed**: 47 scenes, 1410 op cells.
+/// sound or refuses typed**: 51 scenes, 1530 op cells.
 #[test]
 fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
     let mut held = 0;
@@ -761,6 +812,14 @@ fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
             ("crossing three levels in the arch", &s.cross3, &s.deep),
             ("on the void's face, the island in it", &s.on2, &s.deep),
             ("over the deep arch", &s.over, &s.deep),
+            ("standing over a dart void", &s.cone, &s.dart_void),
+            ("over a dart void", &s.over, &s.dart_void),
+            ("standing over a near-flat void", &s.cone, &s.flat_voids[0]),
+            (
+                "standing over a nearer-flat void",
+                &s.cone,
+                &s.flat_voids[1],
+            ),
         ] {
             held += builds(label, x, y, &pose);
         }

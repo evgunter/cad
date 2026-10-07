@@ -659,6 +659,33 @@ pub fn nest(base: [[f64; 3]; 3], s: f64) -> [[f64; 3]; 3] {
     mix(base, [[a, b, b], [b, a, b], [b, b, a]], s)
 }
 
+/// A corner relative to [`MEET`]: radius `r` at `bearing` (degrees), `z`
+/// above it.
+#[must_use]
+pub fn bearing(deg: f64, r: f64, z: f64) -> [f64; 3] {
+    let (s, c) = deg.to_radians().sin_cos();
+    [r * c, r * s, z]
+}
+
+/// [`nest`] for any number of corners: each weighs its own 0.6 and the
+/// rest 0.4 between them, scaled by `s`.
+#[must_use]
+pub fn nest_polygon(base: &[[f64; 3]], s: f64) -> Vec<[f64; 3]> {
+    let n = base.len();
+    (0..n)
+        .map(|i| {
+            [0, 1, 2].map(|k| {
+                s * (0..n)
+                    .map(|j| {
+                        let w = if i == j { 0.6 } else { 0.4 / (n as f64 - 1.0) };
+                        w * base[j][k]
+                    })
+                    .sum::<f64>()
+            })
+        })
+        .collect()
+}
+
 /// The pyramid with its apex at [`MEET`] over the planar polygon `base`
 /// (relative to it, convex or not), wound outward whichever way `base`
 /// runs, placed by `pose` ([`posed_pyramid`]).

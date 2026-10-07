@@ -38,6 +38,15 @@ at every pose of `meeting::poses`, `y ∩ x` only:
   `nest(arch, 0.7)`. This is on main too (07fb2b6ce).
 - "over the void in the arch": the same void, the arch united with the
   plate first. It builds from PR 4256 on, and was refused on main.
-- "over the deep arch": the same, with an island in the void.
+- "over the void, the island in it": the same, with an island in the
+  void.
+- "over a quad void in a quad arch" and "over a quad void in a bare quad
+  arch": a quadrilateral arch over `bearing(40|80, 0.45|0.25, 0.5)`, less
+  `nest_polygon(arch, 0.7)`. The plated one is from PR 4256 on; the bare
+  one refuses on main too. Their `x ∪ y` refuses `Emission` "seam vertex
+  parentage underdetermined", which is WIRE's
+  `a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`.
+
+All at ε = 1e-9 (`Tol::witness`).
 
 The rows accept this refusal on those cells, citing this item.

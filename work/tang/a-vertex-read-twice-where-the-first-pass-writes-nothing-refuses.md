@@ -89,7 +89,8 @@ vertex classes every edge or refuses; a vertex in pairs alone keeps
 each pair's own rows wherever its layering cannot decide.
 
 Filed: `work/tang/a-touching-vertex-beside-a-partner-along-the-face-refuses.md`
-(P3), and on EMIT
+(P3), `work/tang/pairs-beside-an-unread-partner-keep-mains-rows.md` (P2),
+and on EMIT
 `work/emit/an-intersection-into-a-void-at-a-vertex-has-no-seam-vertex-rule-in-one-order.md`
 (P2).
 The strut-hanging prisms (`meeting::wedge`, `meeting::leaned`) still

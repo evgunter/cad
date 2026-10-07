@@ -4848,8 +4848,7 @@ mod track_cover {
 /// hanging from it, islands in the voids and voids in the pyramids, or
 /// two pyramids united at their apexes there, in every op and both
 /// orders at every pose, name through [`name_boolean`] with no emission
-/// refusal. One shape has no emitter rule: `y ∩ x` where the standing
-/// pyramid crosses into a void in the arch, which main refuses too. `crates/topo/tests/a_vertex_read_again_classes_every_edge.rs`
+/// refusal. Two shapes have no emitter rule, as on main (`no_rule`). `crates/topo/tests/a_vertex_read_again_classes_every_edge.rs`
 /// reads the same scenes' rows against their germs.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -4862,7 +4861,7 @@ mod touch_reread_rows {
     use crate::node::{RecipeNodeId, StepId};
     use geom_core::Tol;
     use topo::test_support::meeting::{
-        PLATE, Pose, apex_pyramid, corners, mix, nest, posed_box, poses,
+        PLATE, Pose, apex_pyramid, bearing, corners, mix, nest, nest_polygon, posed_box, poses,
     };
     use topo::{AtRestBody, BooleanResult, intersect, subtract, union};
 
@@ -4917,6 +4916,37 @@ mod touch_reread_rows {
         t
     }
 
+    /// The cells the emitter has no rule for, each named, as on main:
+    /// - `y ∩ x` where the pyramid crosses into a void in an arch, a
+    ///   seam vertex no rule parents in that order
+    ///   (`work/emit/an-intersection-into-a-void-at-a-vertex-has-no-seam-vertex-rule-in-one-order.md`);
+    /// - `x ∪ y` over a quadrilateral void in a quadrilateral arch, a
+    ///   seam vertex whose parentage its incident edges leave
+    ///   underdetermined
+    ///   (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`).
+    fn no_rule(label: &str, what: &str, e: &NamingError) -> bool {
+        const SEAM: [&str; 5] = [
+            "over a void in the bare arch",
+            "over the void in the arch",
+            "over the void, the island in it",
+            "over a quad void in a quad arch",
+            "over a quad void in a bare quad arch",
+        ];
+        const QUADS: [&str; 2] = [
+            "over a quad void in a quad arch",
+            "over a quad void in a bare quad arch",
+        ];
+        match e {
+            NamingError::SeamVertexParentage { .. } => what == "y ∩ x" && SEAM.contains(&label),
+            NamingError::Emission { what: why } => {
+                what == "x ∪ y"
+                    && QUADS.contains(&label)
+                    && why.starts_with("seam vertex parentage underdetermined")
+            }
+            _ => false,
+        }
+    }
+
     /// Names every op on `(x, y)` in both orders; returns how many built.
     fn names(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) -> usize {
         let (xn, yn) = (RecipeNodeId::new(0, 1), RecipeNodeId::new(0, 2));
@@ -4945,11 +4975,7 @@ mod touch_reread_rows {
             };
             match name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &a, &b, t()) {
                 Ok(_) => named += 1,
-                // The emitter has no rule for this seam vertex in this
-                // order (`work/emit/an-intersection-into-a-void-at-a-vertex-has-no-seam-vertex-rule-in-one-order.md`).
-                Err(NamingError::SeamVertexParentage { .. })
-                    if what == "y ∩ x" && label.starts_with("over") && label.contains("void") => {
-                }
+                Err(e) if no_rule(label, what, &e) => {}
                 Err(e) => panic!("{label}, {}, {what}: names, got {e:?}", pose.label),
             }
         }
@@ -4990,6 +5016,24 @@ mod touch_reread_rows {
                 &[180.0, 300.0].iter().fold(arch.clone(), |u, &b| {
                     built(union(&u, &p(corners(b, 0.5, 0.4)), t()))
                 }),
+                t(),
+            ));
+            let quad = [
+                bearing(40.0, 0.45, 0.5),
+                bearing(80.0, 0.45, 0.5),
+                bearing(80.0, 0.25, 0.5),
+                bearing(40.0, 0.25, 0.5),
+            ];
+            let quad_void = nest_polygon(&quad, 0.7);
+            let quad_arch = apex_pyramid(&quad, pose, t());
+            let quad_hollow = built(subtract(
+                &built(union(&plate, &quad_arch, t())),
+                &apex_pyramid(&quad_void, pose, t()),
+                t(),
+            ));
+            let bare_quad_hollow = built(subtract(
+                &quad_arch,
+                &apex_pyramid(&quad_void, pose, t()),
                 t(),
             ));
             let cone = p(corners(240.0, 0.7, 0.5));
@@ -5047,6 +5091,12 @@ mod touch_reread_rows {
                 ("beside the void in the arch", &cone, &hollow),
                 ("crossing three levels", &cross3, &deep),
                 ("over the void, the island in it", &over, &deep),
+                ("over a quad void in a quad arch", &over, &quad_hollow),
+                (
+                    "over a quad void in a bare quad arch",
+                    &over,
+                    &bare_quad_hollow,
+                ),
             ] {
                 named += names(label, x, y, pose);
             }
