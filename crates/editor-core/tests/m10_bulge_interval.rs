@@ -124,11 +124,16 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// following from the rows' envelopes, the certificate tests no row
 /// against a window, and a cylinder has no singular set, so no joint of
 /// it decides one.
+///
+/// **`cap_plane_orientation` is new, 0/0/0/4**: each extrude's two caps
+/// decide once whether Newell's normal agrees with the profile's
+/// winding, definite and numeric, on this table and on the boss's.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
     ("arc_span", [4, 0, 0, 4]),
     ("assert_bound", [0, 0, 0, 1]),
+    ("cap_plane_orientation", [0, 0, 0, 4]),
     ("carrier_circles_identity", [3, 0, 0, 0]),
     ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
     ("carrier_endpoint_end", [32, 0, 4, 0]),
@@ -241,6 +246,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("arc_diameter_clearance", [0, 0, 0, 6]),
             ("arc_span", [6, 0, 0, 0]),
             ("assert_bound", [0, 0, 0, 1]),
+            ("cap_plane_orientation", [0, 0, 0, 4]),
             ("carrier_circles_identity", [3, 0, 0, 0]),
             ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
             ("carrier_endpoint_end", [20, 0, 4, 0]),

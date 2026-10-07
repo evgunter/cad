@@ -545,7 +545,7 @@ fn m10_9_the_pad_at_both_rule_f_dials() {
     }
     assert_eq!(
         got[0],
-        (1256, 2, 54, 1188, 3123),
+        (1256, 2, 54, 1192, 3171),
         "rule F shut: the pad's receipt"
     );
     assert_eq!(
