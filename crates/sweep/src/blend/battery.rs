@@ -36,6 +36,7 @@
 
 use geom::Surface;
 use geom::{Curve3, EllipseInvalid};
+use geom_brep::SurfaceSide;
 use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Real, Sign, Vec3};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
@@ -203,7 +204,7 @@ impl Convexity {
     /// there as `-signed(..)`, the one negation the fold keeps.
     #[must_use]
     pub fn signed<T: Real>(self, radius: T) -> T {
-        sided(self.blend_sense(), radius)
+        sided(self.ball_side(true), radius)
     }
 
     /// **The same fold as a SIDE.** A support's stored sense bit says
@@ -218,19 +219,27 @@ impl Convexity {
     /// INSIDE the sphere exactly when it rests on the sphere's material
     /// side).
     #[must_use]
-    pub fn ball_side(self, sense: bool) -> bool {
-        sense == self.blend_sense()
+    pub fn ball_side(self, sense: bool) -> SurfaceSide {
+        if sense == self.blend_sense() {
+            SurfaceSide::Inner
+        } else {
+            SurfaceSide::Outer
+        }
     }
 }
 
 /// **The conditional negation every `R ∓ r` selector spells**: `x`
-/// where `side` holds, `−x` where it does not — exact in every
-/// backend. [`Convexity::signed`] is this on the chain's verdict, and
-/// the sheet arms spell it on the ball side [`Convexity::ball_side`]
-/// derives from that verdict, so the one home is beside the bit's
-/// provenance rather than inside either consumer.
-pub(super) fn sided<T: Real>(side: bool, x: T) -> T {
-    if side { x } else { -x }
+/// with the ball on the support's inner side, `−x` on its outer side —
+/// exact in every backend. The sheet arms spell it on the side
+/// [`Convexity::ball_side`] derives from the chain's verdict, and
+/// [`Convexity::signed`] is it on a support whose chart normal is the
+/// outward one, so the one home is beside the side's provenance rather
+/// than inside either consumer.
+pub(super) fn sided<T: Real>(side: SurfaceSide, x: T) -> T {
+    match side {
+        SurfaceSide::Inner => x,
+        SurfaceSide::Outer => -x,
+    }
 }
 
 /// The request the battery judges: a body, the edges to blend, and
@@ -523,13 +532,18 @@ fn extent_of<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
 /// quantity is C8's "r vs 1/κ_max of each support along the edge": the
 /// ball must not curve more gently than the surface it rolls on, or the
 /// blend interferes with its own support near the contact (the survey's
-/// local-interference case; interference with the rest of the body is
-/// the clearance predicate's). It is evaluated at every sample, not only
-/// at the midpoint.
+/// local-interference case). It is evaluated at every sample, not only
+/// at the midpoint. A band that reaches past its supports, out through
+/// a thin support's far wall say, is predicate 2's: its reach meter
+/// (`blend::reach`) meters every band against every face that is not a
+/// support of its chain.
+///
+/// A torus support never reaches it: no arm takes one ([`arm_roster`]),
+/// and the link refuses when its arm is classified, before predicate 1.
 ///
 /// The side is `convexity.ball_side(sense)` — the link's decided
 /// convexity verdict read against the face's stored sense bit, the same
-/// bit every arm's `R ∓ r` fold reads — so it is never re-derived from a
+/// side every arm's `R ∓ r` fold reads — so it is never re-derived from a
 /// sampled normal: a dihedral too near flat to decide escalated or
 /// refused when the link resolved, before any side was read.
 ///
@@ -560,9 +574,9 @@ pub fn radius_headroom<T: Decide + Bounds>(
         });
     };
     let arm = geom_brep::min_radius_of_curvature_toward(s, p, convexity.ball_side(f.sense));
-    // `(1 − r/arm)·r`, written so an unbounded arm saturates at `r`
-    // rather than dividing by an infinity.
-    let margin = radius - radius.powi(2) / arm;
+    // An unbounded arm saturates at `r` rather than dividing by an
+    // infinity.
+    let margin = radius * (T::one() - radius / arm);
     match classify(
         BlendSite::Chain,
         BlendDecision::RadiusHeadroom,

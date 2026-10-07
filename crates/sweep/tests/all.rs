@@ -200,6 +200,8 @@ mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
 
+#[path = "a_thin_wall_bounds_the_band.rs"]
+mod a_thin_wall_bounds_the_band;
 #[path = "axis_lap.rs"]
 mod axis_lap;
 #[path = "band_annulus_host_boundary.rs"]

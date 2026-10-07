@@ -14,27 +14,20 @@
 
 use crate::common::approx::band;
 use geom::Surface;
+use geom_brep::SurfaceSide::{self, Inner, Outer};
 use geom_core::{Band, Bounds, Decide, Interval, Point2, Point3, Real, Sign};
 use sweep::blend::BlendError;
 use sweep::blend::battery::{Convexity, radius_headroom};
 use sweep::test_support::{corners, revolved_about_y_at};
 use topo::{AtRestPolicy, Body, FaceKey};
 
-/// The convexity verdict that puts the ball on the `inner` side of a
-/// face of stored sense `sense` (`inner`: the side the chart normal
-/// points away from) — the inverse of `Convexity::ball_side`.
-fn putting_ball(sense: bool, inner: bool) -> Convexity {
-    let c = if sense == inner {
-        Convexity::Convex
-    } else {
-        Convexity::Concave
-    };
-    assert_eq!(
-        c.ball_side(sense),
-        inner,
-        "the verdict puts the ball where asked"
-    );
-    c
+/// The convexity verdict that puts the ball on `side` of a face of
+/// stored sense `sense`: the one whose `Convexity::ball_side` answers it.
+fn putting_ball(sense: bool, side: SurfaceSide) -> Convexity {
+    [Convexity::Convex, Convexity::Concave]
+        .into_iter()
+        .find(|c| c.ball_side(sense) == side)
+        .unwrap_or_else(|| panic!("no verdict puts the ball on the {side:?} side"))
 }
 
 /// The faces of `body` whose surface `pick` accepts.
@@ -105,12 +98,12 @@ fn frustum<T: Decide + AtRestPolicy>() -> Body<T> {
     )
 }
 
-/// One row: on `face`, at `p`, with the ball on the `inner` side, at
+/// One row: on `face`, at `p`, with the ball on `side`, at
 /// radius `r`, the predicate passes (`want: None`) or refuses with the
 /// closed-form margin `want`.
 struct Row<'a> {
     what: &'a str,
-    inner: bool,
+    side: SurfaceSide,
     r: f64,
     want: Option<f64>,
 }
@@ -125,16 +118,22 @@ fn judge<T: Decide + Bounds>(
     let sense = body.get_face(face).unwrap().sense;
     let p = Point3::new(T::from_f64(p[0]), T::from_f64(p[1]), T::from_f64(p[2]));
     for row in rows {
-        let conv = putting_ball(sense, row.inner);
-        let got = radius_headroom(body, face, conv, p, T::from_f64(row.r), band);
-        let side = if row.inner { "inner" } else { "outer" };
+        let side = row.side;
+        let got = radius_headroom(
+            body,
+            face,
+            putting_ball(sense, side),
+            p,
+            T::from_f64(row.r),
+            band,
+        );
         match (row.want, got) {
             (None, Ok(())) => {}
             (Some(want), Err(BlendError::RadiusHeadroom { margin, .. })) => {
                 assert_eq!(
                     margin.sign,
                     Sign::Negative,
-                    "{}, {side}: definite",
+                    "{}, {side:?}: definite",
                     row.what
                 );
                 // An f64 run reads the point margin back; an interval
@@ -142,14 +141,14 @@ fn judge<T: Decide + Bounds>(
                 if let Some(m) = margin.reading.diagnostic_f64_for_error_text().value() {
                     assert!(
                         (m - want).abs() < 1e-12,
-                        "{}, {side}, r = {}: margin {m} vs (1 − r/arm)·r = {want}",
+                        "{}, {side:?}, r = {}: margin {m} vs r·(1 − r/arm) = {want}",
                         row.what,
                         row.r
                     );
                 }
             }
             (want, got) => panic!(
-                "{}, {side}, r = {}: wanted {}, got {got:?}",
+                "{}, {side:?}, r = {}: wanted {}, got {got:?}",
                 row.what,
                 row.r,
                 want.map_or("a pass".to_string(), |w| format!("a refusal at {w}"))
@@ -177,19 +176,19 @@ fn the_table<T: Decide + Bounds + AtRestPolicy>(band: Band) {
         &[
             Row {
                 what: "a rod's wall",
-                inner: true,
+                side: Inner,
                 r: 1.2,
                 want: Some(headroom(1.2, 1.0)),
             },
             Row {
                 what: "a rod's wall",
-                inner: true,
+                side: Inner,
                 r: 0.9,
                 want: None,
             },
             Row {
                 what: "a rod's wall",
-                inner: false,
+                side: Outer,
                 r: 1.2,
                 want: None,
             },
@@ -206,13 +205,13 @@ fn the_table<T: Decide + Bounds + AtRestPolicy>(band: Band) {
         &[
             Row {
                 what: "a bore",
-                inner: false,
+                side: Outer,
                 r: 0.6,
                 want: None,
             },
             Row {
                 what: "a bore",
-                inner: true,
+                side: Inner,
                 r: 0.6,
                 want: Some(headroom(0.6, 0.5)),
             },
@@ -232,13 +231,13 @@ fn the_table<T: Decide + Bounds + AtRestPolicy>(band: Band) {
         &[
             Row {
                 what: "a sphere",
-                inner: true,
+                side: Inner,
                 r: 1.2,
                 want: Some(headroom(1.2, 1.0)),
             },
             Row {
                 what: "a sphere",
-                inner: false,
+                side: Outer,
                 r: 1.2,
                 want: None,
             },
@@ -259,13 +258,13 @@ fn the_table<T: Decide + Bounds + AtRestPolicy>(band: Band) {
         &[
             Row {
                 what: "a cone",
-                inner: true,
+                side: Inner,
                 r: 0.9,
                 want: Some(headroom(0.9, 0.75)),
             },
             Row {
                 what: "a cone",
-                inner: false,
+                side: Outer,
                 r: 0.9,
                 want: None,
             },
@@ -273,6 +272,10 @@ fn the_table<T: Decide + Bounds + AtRestPolicy>(band: Band) {
         band,
     );
 
+    // The torus rows are the only evidence for its bounds: no blend arm
+    // takes a torus support (`battery::arm_roster`), so `fillet_edges`
+    // refuses before predicate 1 and no end-to-end row can reach them.
+    //
     // A ring torus (R = 1, tube 0.25): inside the tube the tube bend
     // limits at 0.25; outside it the circumferential bend of the inner
     // equator does, at R − r = 0.75 — so 0.3 passes outside, where an
@@ -286,25 +289,25 @@ fn the_table<T: Decide + Bounds + AtRestPolicy>(band: Band) {
         &[
             Row {
                 what: "a ring torus",
-                inner: true,
+                side: Inner,
                 r: 0.3,
                 want: Some(headroom(0.3, 0.25)),
             },
             Row {
                 what: "a ring torus",
-                inner: true,
+                side: Inner,
                 r: 0.2,
                 want: None,
             },
             Row {
                 what: "a ring torus",
-                inner: false,
+                side: Outer,
                 r: 0.3,
                 want: None,
             },
             Row {
                 what: "a ring torus",
-                inner: false,
+                side: Outer,
                 r: 0.8,
                 want: Some(headroom(0.8, 0.75)),
             },
@@ -323,13 +326,13 @@ fn the_table<T: Decide + Bounds + AtRestPolicy>(band: Band) {
         &[
             Row {
                 what: "a fat torus",
-                inner: true,
+                side: Inner,
                 r: 0.2,
                 want: None,
             },
             Row {
                 what: "a fat torus",
-                inner: false,
+                side: Outer,
                 r: 0.2,
                 want: Some(headroom(0.2, 0.15)),
             },
@@ -350,13 +353,13 @@ fn the_table<T: Decide + Bounds + AtRestPolicy>(band: Band) {
         &[
             Row {
                 what: "a plane",
-                inner: true,
+                side: Inner,
                 r: 10.0,
                 want: None,
             },
             Row {
                 what: "a plane",
-                inner: false,
+                side: Outer,
                 r: 10.0,
                 want: None,
             },
@@ -377,8 +380,9 @@ fn the_sided_table_replays_at_interval() {
 
 /// The read certifies over a radius BOX, and its side is what decides
 /// the box: on a rod's wall the whole of `[1.2, 1.25]` refuses with the
-/// ball inside and passes with it outside, and a box straddling the
-/// rod's radius escalates rather than picking an answer.
+/// ball inside and passes with it outside, a box straddling the rod's
+/// radius escalates rather than picking an answer, and a wide box short
+/// of it certifies.
 #[test]
 fn a_radius_box_certifies_on_each_side_of_a_rod_wall() {
     let s = sleeve::<Interval>();
@@ -389,11 +393,11 @@ fn a_radius_box_certifies_on_each_side_of_a_rod_wall() {
     );
     let sense = s.get_face(wall).unwrap().sense;
     let p = Point3::new(1.0, 0.5, 0.0).map(Interval::from_f64);
-    let read = |inner: bool, lo: f64, hi: f64| {
+    let read = |side: SurfaceSide, lo: f64, hi: f64| {
         radius_headroom(
             &s,
             wall,
-            putting_ball(sense, inner),
+            putting_ball(sense, side),
             p,
             Interval::from_bounds(lo, hi),
             band(),
@@ -401,17 +405,19 @@ fn a_radius_box_certifies_on_each_side_of_a_rod_wall() {
     };
     assert!(
         matches!(
-            read(true, 1.2, 1.25),
+            read(Inner, 1.2, 1.25),
             Err(BlendError::RadiusHeadroom { .. })
         ),
         "inside the rod, every radius of the box is past R: {:?}",
-        read(true, 1.2, 1.25)
+        read(Inner, 1.2, 1.25)
     );
-    read(false, 1.2, 1.25).expect("outside the rod, every radius of the box fits");
+    read(Outer, 1.2, 1.25).expect("outside the rod, every radius of the box fits");
     assert!(
-        matches!(read(true, 0.99, 1.01), Err(BlendError::Escalated { .. })),
+        matches!(read(Inner, 0.99, 1.01), Err(BlendError::Escalated { .. })),
         "a box straddling R inside the rod escalates: {:?}",
-        read(true, 0.99, 1.01)
+        read(Inner, 0.99, 1.01)
     );
-    read(false, 0.99, 1.01).expect("outside the rod the straddling box still fits");
+    read(Outer, 0.99, 1.01).expect("outside the rod the straddling box still fits");
+    read(Inner, 0.5, 0.9)
+        .expect("inside the rod, a box short of R certifies: r·(1 − r/R) encloses [0.05, 0.45]");
 }

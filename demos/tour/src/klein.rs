@@ -100,11 +100,14 @@
 //!    and outside the flare's cone — the turn's centre lies away from
 //!    the axis — so no support bends toward it and the curvature
 //!    headroom sets no limit at `RF ± WALL/2`. The rolled full revolve
-//!    is tier-3 valid with the authored bulb's volume. The meridian
-//!    arc stays the authoring: it is exact and free, and the roll is
-//!    the check that the two agree. On the partial revolve the open
-//!    rim's ends meet the cut faces, and that corner does not classify
-//!    (`UnsupportedCorner { Indeterminate }`, wall 2).
+//!    is tier-3 valid with the authored bulb's volume. What bounds the
+//!    inner corner's radius is the wall it stands in: past r ≈ 1.47 the
+//!    band crosses the outer wall and the reach meter refuses it
+//!    (`FaceClearance`). The meridian arc stays the authoring: it is
+//!    exact and free, and the roll is the check that the two agree. On
+//!    the partial revolve the open rim's ends meet the cut faces, and
+//!    that corner does not classify (`UnsupportedCorner {
+//!    Indeterminate }`, wall 2).
 //! 4. **Neither join can start** (walls 3, 4). `union` refuses at the
 //!    operand gate before any pair is looked at:
 //!    `CurvedEdgeUnsupported { operand: B }` — the loop is a sweep, its
@@ -245,8 +248,8 @@ use pncad::geom::NurbsCurve3;
 use pncad::geom_brep::PropsError;
 use pncad::geom_core::linalg::frame::path_start_frame;
 use pncad::geom_core::{KnotVector, Point3, Tol};
-use pncad::prelude::SurfaceKind;
 use pncad::prelude::{ConstructedLoop, Open, Start, SurfaceKindSet, circle, circle_split, query};
+use pncad::prelude::{Convexity, SurfaceKind};
 use pncad::sweep::blend::{BlendError, CornerConfig, fillet_edges};
 use pncad::sweep::{LoftError, Revolution, RevolveAxis, SkinError, revolve, sweep_body};
 use pncad::topo::readback::euler_counts;
@@ -1079,6 +1082,38 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     println!(
         "   the full revolve's neck→flare corners, rolled by `fillet_edges` at RF ± WALL/2: \
          volume {got:.9} m^3, the authored bulb's {want:.9}"
+    );
+    // Nothing bends toward the ball, so what bounds the inner corner's
+    // radius is the wall it stands in: past r ≈ 1.47 the band's
+    // deepest point, on the corner's bisector, crosses the outer wall,
+    // and the reach meter refuses it against that face.
+    let (inner, _) = corners_by_wall(&sharp_full, &full_edges);
+    let near = fillet_edges(&sharp_full, &[inner], S::from_f64(1.4), tol)
+        .unwrap_or_else(|e| panic!("the inner corner rolls at r = 1.4, inside the wall: {e:?}"));
+    pncad::topo::validate_geometric(&near.body, tol)
+        .unwrap_or_else(|e| panic!("r = 1.4: tier 3, got {e:?}"));
+    for r in [1.5, 1.6] {
+        match fillet_edges(&sharp_full, &[inner], S::from_f64(r), tol) {
+            Err(e)
+                if matches!(
+                    e.error,
+                    BlendError::FaceClearance {
+                        chain: Convexity::Convex,
+                        ..
+                    }
+                ) => {}
+            other => panic!(
+                "r = {r}: the band leaves through the outer wall, so the reach meter \
+                 refuses it (FaceClearance, Convex); got {:?}",
+                other.map(|_| ()).map_err(|e| e.error)
+            ),
+        }
+    }
+    let far = fillet_edges(&sharp_full, &[inner], S::from_f64(2.0), tol);
+    assert!(
+        matches!(&far, Err(e) if matches!(e.error, BlendError::FaceClearanceUncertified { .. })),
+        "r = 2.0 refuses on clearance, got {:?}",
+        far.map(|_| ()).map_err(|e| e.error)
     );
     // Wall 2: the SAME corner on a partial revolve. Its rim is open, so
     // the chain ends where the rim meets the revolve's cut faces, and

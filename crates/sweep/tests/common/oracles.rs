@@ -119,15 +119,18 @@ pub fn box_volume(w: f64, d: f64, h: f64) -> f64 {
     w * d * h
 }
 
-/// **The oracle's `σ` for a ball-side bit**: `+1` where the ball rests
-/// behind the chart normal (`SupportTrace`'s `side` is `true`), `−1`
+/// **The oracle's `σ` for a ball side**: `+1` where the ball rests
+/// behind the chart normal (`SupportTrace`'s `side` is `Inner`), `−1`
 /// where it rests in front — the sign the rolling-ball closed forms
 /// the blend suites re-derive are written in. A test-side scalar by
 /// design: the kernel spells the same selection as a conditional
 /// negation and never mints this number, so a suite that wants the
 /// textbook `R ∓ σr` form derives `σ` here and nowhere else.
-pub fn sigma(side: bool) -> f64 {
-    if side { 1.0 } else { -1.0 }
+pub fn sigma(side: geom_brep::SurfaceSide) -> f64 {
+    match side {
+        geom_brep::SurfaceSide::Inner => 1.0,
+        geom_brep::SurfaceSide::Outer => -1.0,
+    }
 }
 
 /// The area of a closed CCW loop of `(x, y, bulge)` vertices, each
