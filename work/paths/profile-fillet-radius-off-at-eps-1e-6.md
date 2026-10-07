@@ -98,19 +98,28 @@ more than any construction can give.
   natural draws reached 4.1x at ε = 1e-4.
 - **The fix** (`sugar.rs`, `ArcCarrier::offset_circles`) puts the decided
   centre midway between the two offset circles' nearest points on the
-  link. Each rim is then off by gap/2, and the two sum to the gap, which
-  no centre can undercut. The line×circle branch's foot was already
-  gap-optimal and is unchanged.
+  link. Each rim is then off by gap/2, and the two sum to the gap. Where
+  the offset circles are separated, as here, no centre can undercut that.
+  Where they overlap by the gap they cross at two exact centres, about
+  √(gap·ρ) off the link and ill-conditioned in the gap, and the decided
+  centre's gap is a bound rather than the floor. The line×circle
+  branch's foot puts the whole gap on the circle's rim and is unchanged.
 - **The oracle** (`review_s2.rs`, `check_corner`) now allows a corner
   whose re-derived offset gap is below kε (decided tangent, since
-  [ε, kε) escalates) that gap on its chord-read checks. It adds (g): the
-  two rims, read off the stored arc, sum to at most the gap plus 64 ulps.
+  [ε, kε) escalates) half that gap, plus its second-order term and
+  rounding, on its chord-read checks. It adds (g): read off the stored
+  arc, each arc×arc rim is at most half the gap and the two sum to at
+  most the gap, plus 32 ulps of the corner's scene.
 - **Rows:** `the_decided_tangent_fuzz_corner_builds_at_both_scalars_and_meets_the_oracle`
   covers the seed's corner, and
   `near_half_turn_and_extreme_sweep_fillets_meet_the_oracle_at_both_scalars`
   covers internal lenses on three carrier pairs, the external lens and
   the line-into-circle lens at margins ±0.1/0.5/0.9ε, 0 and past the band,
   plus line×line turns from 0.05 to π − 0.01. Both run at f64 and at
-  Interval, and both were red first at every ε on (g).
+  Interval, and both were red first at every ε on (g). The fix pass
+  added lenses on carriers of 30 and 100 to the second, and
+  `drawn_decided_tangencies_meet_the_oracle_at_both_scalars`, which draws the
+  decided class directly from a pinned seed, at random radii, rotation,
+  reflection, scale and offset.
 - The class outside the fillet is filed as
   `work/issues/decided-tangent-point-is-the-radical-foot.md`.
