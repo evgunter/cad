@@ -2619,16 +2619,36 @@ fn clean_dir<T: Decide>(
             .ok_or(desync("role half no longer resolves"))?
             .parent_loop)
     };
-    if loop_of(ea)? != loop_of(ra)? {
+    let split = loop_of(ea)?;
+    if split != loop_of(ra)? {
         return Ok(Some((ea, ra)));
     }
+    let face = body
+        .get_loop(split)
+        .ok_or(desync("role loop no longer resolves"))?
+        .face;
+    let rings = &body
+        .get_face(face)
+        .ok_or(desync("role face no longer resolves"))?
+        .rings;
     // A direction is BAD iff its arc SEPARATES a loose half from its
     // match partner (captures exactly one of a partner pair, or a
     // half with no computable partner — the capture would wall it off
     // on the new face where its partner cannot reach it). Capturing a
     // complete partner pair together is harmless: they still share a
-    // face and join there.
-    let separates = |from: HalfEdgeKey, to: HalfEdgeKey| -> Result<bool, BooleanError> {
+    // face and join there. So is a partner on another ring of the face
+    // (`RingHeld`): the mef re-homes that ring by geometry
+    // ([`ChordJoiner`]'s `rehome_rings`) to the side its segment's other
+    // end lies on, since section segments in one face do not cross. An
+    // arc clean by topology alone is preferred; a ring-held one is taken
+    // only when neither arc is.
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+    enum Capture {
+        Clean,
+        RingHeld,
+        Separates,
+    }
+    let capture = |from: HalfEdgeKey, to: HalfEdgeKey| -> Result<Capture, BooleanError> {
         let mut inside: Vec<HalfEdgeKey> = Vec::new();
         let mut he = body
             .get_half_edge(from)
@@ -2648,27 +2668,29 @@ fn clean_dir<T: Decide>(
                 return Err(desync("role arc did not close"));
             }
         }
+        let mut worst = Capture::Clean;
         for &h in &inside {
-            match loose.get(h).copied().flatten() {
+            let sib = match loose.get(h).copied().flatten() {
                 // Last loose half of its record: its partner is at
                 // another site — separated.
-                None => return Ok(true),
-                Some(sib) => {
-                    if !inside.contains(&sib) {
-                        return Ok(true);
-                    }
-                }
+                None => return Ok(Capture::Separates),
+                Some(sib) if inside.contains(&sib) => continue,
+                Some(sib) => sib,
+            };
+            let held = loop_of(sib)?;
+            if held == split || !rings.contains(&held) {
+                return Ok(Capture::Separates);
             }
+            worst = Capture::RingHeld;
         }
-        Ok(false)
+        Ok(worst)
     };
-    if !separates(ea, ra)? {
-        Ok(Some((ea, ra)))
-    } else if !separates(ra, ea)? {
-        Ok(Some((ra, ea)))
-    } else {
-        Ok(None)
-    }
+    let (fwd, back) = (capture(ea, ra)?, capture(ra, ea)?);
+    Ok(match fwd.min(back) {
+        Capture::Separates => None,
+        best if fwd == best => Some((ea, ra)),
+        _ => Some((ra, ea)),
+    })
 }
 
 /// Cut the corresponding null edges in both solids; completions must

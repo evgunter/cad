@@ -51,3 +51,35 @@ on main. Main gives the same refusal on 96 neighbouring poses, so the
 class pre-exists there too. Whether it shares the valley's cause is
 unsure. Probe: `crates/sweep/tests/review_sixx_r2_probes.rs` on branch
 `join/six-crossing-pairing-review-r2`, `SX_SHAPES=w359 SX_OTHERS=mnotch`.
+
+## Built
+
+The first wrong state is `clean_dir`'s verdict at the first chord of
+valley4's roof face (roof y's x > 0 slope). The scaffolding and the
+matching are right, and so is the segment order. The face's outer loop
+is pinched at the valley corner. The cube's two edges pierce the face
+on either side of the chord, so each pierce point is a ring of the
+face. Every loose half on both arcs has its partner on one of those
+rings. `clean_dir` read a partner that is off the arc as walled off,
+but a ring is not walled off: the mef's `rehome_rings` moves it to the
+side that holds its segment's other end.
+
+`clean_dir` now ranks each arc: clean, ring-held (every partner off the
+arc lies on another ring of the face), or separating. A clean arc is
+still preferred, so every pose that built on main keeps its order. Pin:
+`review_r2_vv_probes::a_roof_cross_valley_on_a_cube_edge_builds`.
+
+## Measured
+
+Main f7e17b0f against head, release:
+- r2 `grid`, `psi` and `tilt` over 13 shapes;
+- the `mnotch` set;
+- the pierce, pinch and corner-pairs batteries;
+- `join1_r1_reflex_battery`;
+- `rc_wide` shards 0, 3, 6 and 9 of 12.
+
+174 lines move, all of them `JoinDesync` → SOUND:
+- r2 grid 48, psi 72, tilt 48 (every valley4 refusal);
+- mnotch 6.
+
+Nothing else moves. No line goes SOUND→refusal or refusal→BAD.
