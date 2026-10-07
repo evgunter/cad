@@ -401,8 +401,7 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
     // rather than reach the dimension checker.
     *edits[0]
         .pointer_mut("/SetExpression/expr")
-        .expect("the logged edit's expression slot") =
-        wire_quantity("Angle", "rad");
+        .expect("the logged edit's expression slot") = wire_quantity("Angle", "rad");
     let tampered = format!(
         "{header}\n{}",
         serde_json::to_string(&body).expect("re-emit")

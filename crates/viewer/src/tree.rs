@@ -184,9 +184,9 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     AssertionDir, AssertionVerdict, BooleanValue, CarriedIn, Datum, Dimension, Doc, Evaluation,
-    Expr, Formula, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError, NodeErrorKind,
-    NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode, ValuePayload,
-    VarId, node_kind_noun,
+    Expr, Formula, Label, MateFault, MateRole, MeasureUnavailableAt, Node, NodeError,
+    NodeErrorKind, NodeResult, NodeStanding, ProfileProgram, RecipeNodeId, SplitSide, SpokenNode,
+    ValuePayload, VarId, node_kind_noun,
 };
 use pncad::quantity::UnitDef;
 use pncad::select::{InterrogateError, Resolution, ResolveIndeterminate, SplitHalf};

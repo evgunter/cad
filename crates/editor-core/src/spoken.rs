@@ -558,7 +558,11 @@ trait HoldsNodes {
     fn speak_var(&self, id: crate::var::VarId) -> Option<crate::doc::VarName>;
     /// A reader of `id` at `dim` as written ([`Doc::written`]), where
     /// the document holds what `id` holds.
-    fn written(&self, _id: crate::var::VarId, _dim: crate::expr::Dimension) -> Option<crate::Formula> {
+    fn written(
+        &self,
+        _id: crate::var::VarId,
+        _dim: crate::expr::Dimension,
+    ) -> Option<crate::Formula> {
         None
     }
     /// The slot of `node`'s payload at `reference` that holds `name`
@@ -580,7 +584,11 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
         self.spoken(id)
     }
 
-    fn written(&self, id: crate::var::VarId, dim: crate::expr::Dimension) -> Option<crate::Formula> {
+    fn written(
+        &self,
+        id: crate::var::VarId,
+        dim: crate::expr::Dimension,
+    ) -> Option<crate::Formula> {
         Some(Doc::written(self, &crate::Expr::var(id, dim)))
     }
 

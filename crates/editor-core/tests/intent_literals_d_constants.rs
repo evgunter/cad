@@ -11,11 +11,10 @@
 use crate::corpus::{body_of, failures};
 use crate::fixture::{insert, len, on_frame, prism_edges, square};
 use editor_core::{
-    CancelToken, Dimension, DimensionError, Distribution, DistributionRefusal, DocEdit,
-    DocumentId, EvalError, EvalOptions, Evaluation, Expr, ExtrudeSide, Formula, FreeVar,
-    LowerFault, Node, ParamValue, PersistError, ProfileDoc, ProfileProgram, Ratio, RecipeNodeId,
-    SlotId, VarDecl, VarEnv, VarId, VarName, VarNameReason, apply, eval, evaluate, load,
-    parse_formula, save,
+    CancelToken, Dimension, DimensionError, Distribution, DistributionRefusal, DocEdit, DocumentId,
+    EvalError, EvalOptions, Evaluation, Expr, ExtrudeSide, Formula, FreeVar, LowerFault, Node,
+    ParamValue, PersistError, ProfileDoc, ProfileProgram, Ratio, RecipeNodeId, SlotId, VarDecl,
+    VarEnv, VarId, VarName, VarNameReason, apply, eval, evaluate, load, parse_formula, save,
 };
 use geom_core::{Bounds, Interval, Tol};
 use topo::{Body, SurfaceField};
@@ -91,7 +90,9 @@ fn radius_token(body: &Body<f64>) -> topo::ParamSource {
 
 /// The variables a slot's defined variable reads, in order.
 fn definition_reads(doc: &ProfileDoc, blend: RecipeNodeId) -> Vec<VarId> {
-    let var = doc.slot(blend, SlotId::Radius).expect("a blend reads its radius");
+    let var = doc
+        .slot(blend, SlotId::Radius)
+        .expect("a blend reads its radius");
     let mut reads = Vec::new();
     doc.var(var)
         .and_then(|v| v.def().defined())
@@ -117,8 +118,15 @@ fn f64_of(expr: &Expr) -> f64 {
 fn a_constant_is_its_exact_value() {
     let (half, two_quarters) = (Expr::ratio(1, 2).unwrap(), Expr::ratio(2, 4).unwrap());
     assert!(two_quarters.bit_eq(&half), "2/4 is 1/2");
-    let doc = ProfileDoc::empty(DocumentId::derive("intent-literals-d-ratio"), Tol::witness());
-    let doc = declare(&doc, "w", VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)));
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-d-ratio"),
+        Tol::witness(),
+    );
+    let doc = declare(
+        &doc,
+        "w",
+        VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.25)),
+    );
     let times = |num, den| Formula::mul(named("w"), Formula::ratio(num, den).unwrap()).unwrap();
     let (doc, a) = filleted(doc, 0.0, times(1, 2));
     let (doc, b) = filleted(doc, 4.0, times(2, 4));
@@ -134,7 +142,10 @@ fn a_constant_is_its_exact_value() {
     let tenth = Expr::try_from(&tenth).expect("a constant is already stored");
     assert_eq!(f64_of(&tenth).to_bits(), 0.1f64.to_bits());
     let enclosure = eval::<Interval>(&tenth, &VarEnv::default()).unwrap();
-    assert!(enclosure.lo() < enclosure.hi(), "an enclosure, not a point: {enclosure:?}");
+    assert!(
+        enclosure.lo() < enclosure.hi(),
+        "an enclosure, not a point: {enclosure:?}"
+    );
     assert!(
         enclosure.lo() <= 0.1 && 0.1 <= enclosure.hi(),
         "it encloses 1/10: {enclosure:?}"
@@ -152,7 +163,10 @@ fn a_constant_is_its_exact_value() {
         core::f64::consts::FRAC_PI_2.to_bits()
     );
     let parsed = parse_formula("turn/4", &Default::default()).unwrap();
-    assert!(parsed.bit_eq(&Formula::from(&right)), "the text spells the same tree");
+    assert!(
+        parsed.bit_eq(&Formula::from(&right)),
+        "the text spells the same tree"
+    );
 }
 
 /// Row 13's symbolic half: `turn/4 − turn/4` is Zero as a theorem —
@@ -241,8 +255,15 @@ fn a_quarter_turn_less_a_quarter_turn_is_zero_by_theorem() {
 /// float in the definition (the tokens then agree on its bits).
 #[test]
 fn two_typed_values_in_formulas_are_two_variables() {
-    let doc = ProfileDoc::empty(DocumentId::derive("intent-literals-d-typed"), Tol::witness());
-    let doc = declare(&doc, "w", VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0625)));
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-d-typed"),
+        Tol::witness(),
+    );
+    let doc = declare(
+        &doc,
+        "w",
+        VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0625)),
+    );
     let plus = |b: Formula| Formula::add(named("w"), b).unwrap();
     let (doc, a) = filleted(doc, 0.0, plus(mm(5.0)));
     let (doc, b) = filleted(doc, 4.0, plus(mm(5.0)));
@@ -250,20 +271,31 @@ fn two_typed_values_in_formulas_are_two_variables() {
     assert_eq!(fa.len(), 2, "w and a's own 5 mm");
     assert_eq!(fa[0], fb[0], "both read w");
     assert_ne!(fa[1], fb[1], "two writings, two variables");
-    let doc = declare(&doc, "v", VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.005)));
+    let doc = declare(
+        &doc,
+        "v",
+        VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.005)),
+    );
     let (doc, c) = filleted(doc, 8.0, plus(named("v")));
     let (doc, d) = filleted(doc, 12.0, plus(named("v")));
     let ev = evaluated(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let token = |blend| radius_token(body_of(&ev, blend));
     assert_ne!(token(a), token(b));
-    assert_eq!(token(c), token(d), "sharing is said by reading one variable");
+    assert_eq!(
+        token(c),
+        token(d),
+        "sharing is said by reading one variable"
+    );
 
     let twice = Formula::add(mm(5.0), mm(5.0)).unwrap();
     let (doc, e) = filleted(doc, 16.0, twice);
     let reads = definition_reads(&doc, e);
     assert_eq!(reads.len(), 2);
-    assert_ne!(reads[0], reads[1], "one formula, two typed values, two variables");
+    assert_ne!(
+        reads[0], reads[1],
+        "one formula, two typed values, two variables"
+    );
     for var in reads {
         assert!(doc.is_typed_value(var), "each an anonymous free variable");
     }
@@ -276,8 +308,15 @@ fn two_typed_values_in_formulas_are_two_variables() {
 /// by nothing.
 #[test]
 fn a_definitions_quantities_mint_first_and_retire_after_it() {
-    let doc = ProfileDoc::empty(DocumentId::derive("intent-literals-d-order"), Tol::witness());
-    let doc = declare(&doc, "w", VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0625)));
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-d-order"),
+        Tol::witness(),
+    );
+    let doc = declare(
+        &doc,
+        "w",
+        VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0625)),
+    );
     let three = Formula::add(Formula::add(mm(1.0), named("w")).unwrap(), mm(2.0)).unwrap();
     let (doc, blend) = filleted(doc, 0.0, three);
     let formula = doc.slot(blend, SlotId::Radius).unwrap();
@@ -287,7 +326,10 @@ fn a_definitions_quantities_mint_first_and_retire_after_it() {
     let at = |var| order.iter().position(|&v| v == var).unwrap();
     assert_eq!(reads[1], w);
     assert!(at(reads[0]) < at(reads[2]), "pre-order");
-    assert!(at(reads[2]) < at(formula), "the quantities before the definition");
+    assert!(
+        at(reads[2]) < at(formula),
+        "the quantities before the definition"
+    );
     let applied = step(
         &doc,
         DocEdit::SetParam {
@@ -314,8 +356,15 @@ fn a_definitions_quantities_mint_first_and_retire_after_it() {
 /// than the one predicted.
 #[test]
 fn a_declared_definition_mints_its_own_id_first() {
-    let doc = ProfileDoc::empty(DocumentId::derive("intent-literals-d-declare"), Tol::witness());
-    let doc = declare(&doc, "w", VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0625)));
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-d-declare"),
+        Tol::witness(),
+    );
+    let doc = declare(
+        &doc,
+        "w",
+        VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0625)),
+    );
     let def = VarDecl::defined(Formula::add(named("w"), mm(1.0)).unwrap());
     let predicted = doc.spoken_declare(&n("h"), &def).id();
     let doc = declare(&doc, "h", def);
@@ -329,7 +378,11 @@ fn a_declared_definition_mints_its_own_id_first() {
 #[test]
 fn a_snapshot_holding_a_float_literal_is_unreadable() {
     let doc = ProfileDoc::empty(DocumentId::derive("intent-literals-d-load"), Tol::witness());
-    let doc = declare(&doc, "w", VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0625)));
+    let doc = declare(
+        &doc,
+        "w",
+        VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0625)),
+    );
     let doc = declare(
         &doc,
         "h",
@@ -372,9 +425,14 @@ fn turn_is_no_variable_name() {
 fn only_a_written_value_carries_a_distribution() {
     let spread = Some(Distribution::Normal { sigma: 0.01 });
     let number = Formula::number(0.5).unwrap();
-    assert!(number.as_ratio().is_some(), "0.5 is a constant until it carries a spread");
+    assert!(
+        number.as_ratio().is_some(),
+        "0.5 is a constant until it carries a spread"
+    );
     let carried = number.with_distribution(spread).unwrap();
-    let quantity = carried.as_quantity().expect("a toleranced number is a value");
+    let quantity = carried
+        .as_quantity()
+        .expect("a toleranced number is a value");
     assert_eq!(quantity.value(), 0.5);
     assert_eq!(quantity.distribution(), spread.as_ref());
     assert_eq!(
@@ -407,7 +465,9 @@ fn an_authored_leaf_refuses_outside_the_door() {
         "{refused:?}"
     );
     assert_eq!(
-        named("w").unresolvable().map(|f| matches!(f, LowerFault::Name(_))),
+        named("w")
+            .unresolvable()
+            .map(|f| matches!(f, LowerFault::Name(_))),
         Some(true)
     );
     assert_eq!(mm(5.0).unresolvable(), None);
@@ -434,7 +494,9 @@ fn a_bare_number_is_a_constant_where_it_is_exact() {
     );
     let text = editor_core::unparse(&inexact, &|_| None);
     assert!(
-        parse_formula(&text, &Default::default()).unwrap().bit_eq(&inexact),
+        parse_formula(&text, &Default::default())
+            .unwrap()
+            .bit_eq(&inexact),
         "{text} reads back as the written value"
     );
 }
@@ -447,8 +509,15 @@ fn a_bare_number_is_a_constant_where_it_is_exact() {
 /// unreported, or an inexact number is reported as lost.
 #[test]
 fn a_number_a_definition_reads_does_not_reproduce() {
-    let doc = ProfileDoc::empty(DocumentId::derive("intent-literals-d-written"), Tol::witness());
-    let doc = declare(&doc, "w", VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0625)));
+    let doc = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-d-written"),
+        Tol::witness(),
+    );
+    let doc = declare(
+        &doc,
+        "w",
+        VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0625)),
+    );
     let inexact = Formula::scalar(0.1 + 0.2).unwrap();
     let (doc, _) = filleted(doc, 0.0, Formula::mul(named("w"), inexact).unwrap());
     assert!(
@@ -456,7 +525,13 @@ fn a_number_a_definition_reads_does_not_reproduce() {
         "an inexact number is written back as itself"
     );
     let scalar = |value| VarDecl::Free(FreeVar::continuous(Dimension::Scalar, value));
-    let (doc, profile) = on_frame(doc, [0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], vec![square(4.0, 0.0, 0.5)]);
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0; 3],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(4.0, 0.0, 0.5)],
+    );
     let applied = step(
         &doc,
         DocEdit::InsertNode {

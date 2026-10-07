@@ -58,11 +58,10 @@ use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeValue,
-    FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, PartReach, PartResolver,
-    ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject,
-    VarId, VarName, apply, assemble_gathered, cascade_delete_order, parse_formula,
-    product_recorded, run_checks_on,
+    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeValue, FreeVar,
+    HeldNodes, Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError,
+    ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName,
+    apply, assemble_gathered, cascade_delete_order, parse_formula, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;

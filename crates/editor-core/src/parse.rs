@@ -667,7 +667,11 @@ fn fold(pending: Option<(Formula, usize, Make)>, rhs: Formula) -> Result<Formula
     };
     let coerced = match (scalar(&lhs, &rhs), scalar(&rhs, &lhs)) {
         (None, None) => None,
-        (l, r) => make(l.unwrap_or_else(|| lhs.clone()), r.unwrap_or_else(|| rhs.clone())).ok(),
+        (l, r) => make(
+            l.unwrap_or_else(|| lhs.clone()),
+            r.unwrap_or_else(|| rhs.clone()),
+        )
+        .ok(),
     };
     match coerced {
         Some(built) => Ok(built),
@@ -723,7 +727,11 @@ impl Parser<'_> {
             while let Some((_, Tok::Minus)) = self.peek() {
                 self.i += 1;
             }
-            let signed = self.i > first && matches!(self.peek(), Some((_, Tok::Number { .. } | Tok::Fraction(_))));
+            let signed = self.i > first
+                && matches!(
+                    self.peek(),
+                    Some((_, Tok::Number { .. } | Tok::Fraction(_)))
+                );
             let Some(level) = levels.last_mut() else {
                 unreachable!("the text's own level stays open until the text is read")
             };
@@ -823,7 +831,9 @@ impl Parser<'_> {
                 self.literal(pos, &text, integral, negative).map(Some)
             }
             Some((pos, Tok::Fraction(text))) => self.fraction(pos, &text, negative).map(Some),
-            Some((_, Tok::Ident(name))) if name == TURN && !matches!(self.peek(), Some((_, Tok::LParen))) => {
+            Some((_, Tok::Ident(name)))
+                if name == TURN && !matches!(self.peek(), Some((_, Tok::LParen))) =>
+            {
                 Ok(Some(Formula::turn()))
             }
             Some((pos, Tok::Ident(name))) => {

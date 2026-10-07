@@ -1846,17 +1846,19 @@ impl<P> Doc<P> {
                     display_unit,
                     distribution,
                 }) => Some(crate::Formula::own_leaf(
-                    crate::expr::AuthoredLeaf::Quantity(crate::expr::Quantity {
+                    crate::expr::AuthoredLeaf::Quantity(Box::new(crate::expr::Quantity {
                         value: *value,
                         unit: *display_unit,
                         distribution: *distribution,
-                    }),
+                    })),
                     *dim,
                 )),
-                crate::VarDef::Free(FreeVar::Count { value }) => Some(crate::Formula::count(*value)),
-                crate::VarDef::Defined(defined) => {
-                    self.anonymous_expansion(&crate::Formula::from(defined)).ok()
+                crate::VarDef::Free(FreeVar::Count { value }) => {
+                    Some(crate::Formula::count(*value))
                 }
+                crate::VarDef::Defined(defined) => self
+                    .anonymous_expansion(&crate::Formula::from(defined))
+                    .ok(),
             }
         })
     }

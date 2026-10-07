@@ -387,10 +387,8 @@ fn the_hole_radii_are_addressable_slots() {
     assert_eq!(
         program.loops.get(1).map(circle),
         Some(match hole_loop(HOLE_CENTRES[0]) {
-            editor_core::LoopProgram::Circle { centre, radius } => (
-                centre,
-                s.doc.unparse(&radius),
-            ),
+            editor_core::LoopProgram::Circle { centre, radius } =>
+                (centre, s.doc.unparse(&radius),),
             other => panic!("a hole is a circle, got {other:?}"),
         }),
         "the hole loop is the shared-parameter circle"

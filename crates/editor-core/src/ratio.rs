@@ -87,7 +87,10 @@ impl Ratio {
             None => (false, text),
         };
         let (mantissa, exponent) = match body.find(['e', 'E']) {
-            Some(at) => (&body[..at], body[at + 1..].parse::<i32>().map_err(|_| out())?),
+            Some(at) => (
+                &body[..at],
+                body[at + 1..].parse::<i32>().map_err(|_| out())?,
+            ),
             None => (body, 0),
         };
         let (whole, fraction) = mantissa.split_once('.').unwrap_or((mantissa, ""));
@@ -111,7 +114,9 @@ impl Ratio {
         let mut num: u128 = trimmed.parse().map_err(|_| out())?;
         let mut den: u128 = 1;
         let ten = |n: u128, times: u32| {
-            (0..times).try_fold(n, |n, _| n.checked_mul(10).filter(|&n| n <= u128::from(RATIO_BOUND)))
+            (0..times).try_fold(n, |n, _| {
+                n.checked_mul(10).filter(|&n| n <= u128::from(RATIO_BOUND))
+            })
         };
         if scale >= 0 {
             num = ten(num, scale.unsigned_abs()).ok_or_else(out)?;
@@ -121,10 +126,13 @@ impl Ratio {
             // holds more than the reduced value needs.
             for _ in 0..scale.unsigned_abs() {
                 for p in [2, 5] {
-                    if num % p == 0 {
+                    if num.is_multiple_of(p) {
                         num /= p;
                     } else {
-                        den = den.checked_mul(p).filter(|&d| d <= u128::from(RATIO_BOUND)).ok_or_else(out)?;
+                        den = den
+                            .checked_mul(p)
+                            .filter(|&d| d <= u128::from(RATIO_BOUND))
+                            .ok_or_else(out)?;
                     }
                 }
             }
@@ -190,7 +198,7 @@ impl Ratio {
     fn decimal(self) -> Option<String> {
         let mut den = self.den;
         for p in [2, 5] {
-            while den % p == 0 {
+            while den.is_multiple_of(p) {
                 den /= p;
             }
         }
@@ -271,7 +279,9 @@ mod tests {
 
     #[test]
     fn the_f64_value_is_the_decimal_parse() {
-        for text in ["0.1", "0.3", "2.5e-3", "1e-15", "123.456", "-7.77", "0.999999"] {
+        for text in [
+            "0.1", "0.3", "2.5e-3", "1e-15", "123.456", "-7.77", "0.999999",
+        ] {
             let ratio = Ratio::from_decimal(text).unwrap();
             assert_eq!(
                 ratio.eval::<f64>().to_bits(),
@@ -289,7 +299,11 @@ mod tests {
             (2, 1, "2.0"),
             (1, 3, "1/3"),
             (-2, 7, "-2/7"),
-            (1, 1 << 53, "0.00000000000000011102230246251565404236316680908203125"),
+            (
+                1,
+                1 << 53,
+                "0.00000000000000011102230246251565404236316680908203125",
+            ),
             (1, 3 << 50, "1/3377699720527872"),
         ] {
             let ratio = Ratio::new(num, den).unwrap();

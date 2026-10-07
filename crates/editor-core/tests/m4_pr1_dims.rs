@@ -64,20 +64,13 @@ fn implicit_count_to_scalar_refused() {
     );
     // …and eval refuses a Count expression outright.
     assert_eq!(
-        eval(
-            &Clone::clone(&Formula::count(3)),
-            &env()
-        )
-        .unwrap_err(),
+        eval(&Clone::clone(&Formula::count(3)), &env()).unwrap_err(),
         EvalError::CountExprInContinuousEval
     );
     // The explicit promotion works.
     let promoted = Formula::count_to_scalar(Formula::count(3)).unwrap();
     let scaled = Formula::mul(promoted, len(2.0)).unwrap();
-    assert_eq!(
-        eval(&Clone::clone(&scaled), &env()).unwrap(),
-        6.0
-    );
+    assert_eq!(eval(&Clone::clone(&scaled), &env()).unwrap(), 6.0);
 }
 
 #[test]
@@ -99,10 +92,7 @@ fn trig_needs_angle_and_produces_scalar() {
     );
     let s = Formula::sin(ang(0.0)).unwrap();
     assert_eq!(s.dim(), Dimension::Scalar);
-    assert_eq!(
-        eval(&Clone::clone(&s), &env()).unwrap(),
-        0.0
-    );
+    assert_eq!(eval(&Clone::clone(&s), &env()).unwrap(), 0.0);
 }
 
 #[test]
@@ -127,10 +117,7 @@ fn atan2_same_dimension_produces_angle() {
 fn count_arithmetic_exact_and_overflow_typed() {
     let sum = Formula::add(Formula::count(2), Formula::count(3)).unwrap();
     assert_eq!(sum.dim(), Dimension::Count);
-    assert_eq!(
-        eval_count(&Clone::clone(&sum), &env()).unwrap(),
-        5
-    );
+    assert_eq!(eval_count(&Clone::clone(&sum), &env()).unwrap(), 5);
     let big = Formula::mul(Formula::count(i64::MAX), Formula::count(2)).unwrap();
     assert_eq!(
         eval_count(&Clone::clone(&big), &env()).unwrap_err(),

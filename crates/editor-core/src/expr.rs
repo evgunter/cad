@@ -555,8 +555,9 @@ pub enum AuthoredLeaf {
     /// which the door lowers to a reader of the id it minted.
     Fresh(u16),
     /// A written quantity, which the door lowers to a reader of the
-    /// anonymous free variable it mints for it.
-    Quantity(Quantity),
+    /// anonymous free variable it mints for it (boxed, so a leaf costs
+    /// what a name costs).
+    Quantity(Box<Quantity>),
 }
 
 impl sealed::Sealed for AuthoredLeaf {}
@@ -615,7 +616,7 @@ fn unlowered(leaf: &AuthoredLeaf, dim: Dimension) -> Result<crate::LowerFault, Q
             dim,
             held: None,
         })),
-        AuthoredLeaf::Quantity(q) => Err(*q),
+        AuthoredLeaf::Quantity(q) => Err(**q),
     }
 }
 

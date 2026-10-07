@@ -5080,4 +5080,3 @@ fn formula(text: &str) -> editor_core::Formula {
     )]);
     editor_core::parse_formula(text, &names).expect("the formula parses")
 }
-

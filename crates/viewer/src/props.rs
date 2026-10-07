@@ -132,9 +132,8 @@
 
 use pncad::document::Formula;
 use pncad::document::{
-    Dimension, DimensionError, Doc, DocEdit, EvalError, FreeValue, FreeVar, Node,
-    ProfileProgram, RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarId, VectorSlot, eval,
-    eval_count,
+    Dimension, DimensionError, Doc, DocEdit, EvalError, FreeValue, FreeVar, Node, ProfileProgram,
+    RecipeNodeId, SlotId, SpokenNode, SpokenVar, UnitSym, VarId, VectorSlot, eval, eval_count,
 };
 use pncad::prelude::{M, PI, RAD};
 use pncad::quantity::{

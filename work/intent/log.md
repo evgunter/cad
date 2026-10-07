@@ -235,3 +235,40 @@ Closed: `range-synthetic-name-mints-a-name`,
 `symbolic-reach-at-slot-variables-c`. Filed:
 `unproven-coincidence-lint-binds-every-variable-as-a-symbol`.
 - 2026-10-06 — Note from ZIP: filed `the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms` (P0/H) on this slate as stage-4 input, on Ev's direction in chat. Two designers converged on retiring the declared-REST zip (`boolean/rest.rs`) with declared pairs. Before then the join gains a partner-edge chord, ring re-homing on a curved chart in aligned contact, and the `mekr` `NotSameFace` cause. The row carries the measurement. ZIP's REST-lane rows are parked on `d10-one-way-to-say-intent-is-unbuilt`. Units ZIP already started finish: the zip's admission check (PR 4127, a live wrong body; Ev, in chat, "finish it"), `Fusions` (PR 4116) and pins (PR 4130). (ZIP orchestrator)
+
+## 2026-10-07 — INTENT-LITERALS PR D, Expr holds no float (`intent/literals-d`)
+
+A stored expression's leaves are variable readers, exact rationals
+(`Ratio`, reduced, numerator and denominator at most 2^53), integers
+and `turn`; no float is left in a document's expressions. A written
+quantity is the authored `Quantity` leaf: inside a formula it mints an
+anonymous free variable of its own, in pre-order before the variable it
+defines, so two typed `5 mm` in formulas are two variables and their
+tokens differ. Tokens carry `T_RATIO`, `T_INTEGER` and `T_TURN`;
+`T_LITERAL` and `T_COUNT_LITERAL` are retired bytes. The f64 geometry,
+and the interval enclosures, of the whole corpus are byte-identical
+with ids masked; the id-bearing pins moved on `kitchen_sink` alone.
+
+Ruled by the lane:
+- A dimensionless value has no notation to remember, so it is the bare
+  number its text is: `Formula::literal` at `Scalar` (and
+  `Formula::scalar`, `Formula::number`) is the exact constant its
+  shortest decimal spells where one in range keeps its bits, and a
+  written value otherwise (`0.30000000000000004`, `-0.0`). The text
+  door reads digits the same way, so `unparse` round-trips with no
+  exception. A distribution on a lone number makes it the written value.
+- A bare integer beside an operand that is no count reads as the scalar
+  it equals (`turn/4`, `w * 2`); `INT/INT` with no space is one ratio,
+  the text `unparse` writes a non-terminating constant as.
+- A declared definition mints its own id before its quantities, so a
+  refusal speaks the id it is minted at.
+- `Doc::unparse` writes an anonymous reader as what it holds; the bare
+  `unparse` keeps `#<16 hex>`.
+- `GeomPred::DatumDistance` holds a `Formula`, evaluated with no
+  document: a name refuses `EvalError::Unlowered`.
+
+Closed: `no-dimensioned-literal-in-a-slot`,
+`equal-literals-lower-to-one-identity-token`,
+`definition-node-bound-is-re-measured-against-the-corpus-after-d`
+(4096 stands). Opened: `typing-a-value-mints-or-offers-a-variable`
+(its trigger fired).

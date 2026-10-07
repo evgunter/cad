@@ -56,11 +56,7 @@ fn bits(e: &Formula) -> Vec<u64> {
 }
 
 fn ev(e: &Formula) -> f64 {
-    eval::<f64>(
-        &Clone::clone(e),
-        &VarEnv::default(),
-    )
-    .expect("finite eval")
+    eval::<f64>(&Clone::clone(e), &VarEnv::default()).expect("finite eval")
 }
 
 #[test]
@@ -110,10 +106,7 @@ fn bare_integers_are_counts_and_bare_reals_are_scalars() {
     let five = p("5");
     assert_eq!(five.dim(), Dimension::Count);
     assert_eq!(
-        eval_count(
-            &Clone::clone(&five),
-            &VarEnv::<f64>::default()
-        ),
+        eval_count(&Clone::clone(&five), &VarEnv::<f64>::default()),
         Ok(5)
     );
     for src in ["5.0", "5.", "1e3", "2.5e-3", "0.5"] {

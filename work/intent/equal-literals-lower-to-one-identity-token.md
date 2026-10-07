@@ -2,12 +2,13 @@
 id: equal-literals-lower-to-one-identity-token
 kind: issue
 title: Two separately typed equal literals lower to one identity token (ParamSource encode, the sym tier's Lit atom), reading equal values as intent
-status: open
+status: closed
 opened: 2026-10-03
 priority: P0
 cost: E
 refs: [one-way-to-say-dependency-and-intent]
 rides_with: no-dimensioned-literal-in-a-slot
+closed: 2026-10-07
 ---
 
 

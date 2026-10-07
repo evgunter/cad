@@ -328,9 +328,7 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
         i64::from(i32::MIN) - 1,
     ] {
         let e = Formula::count_to_scalar(Formula::count(n)).unwrap();
-        let outcome = std::panic::catch_unwind(|| {
-            eval::<f64>(&Clone::clone(&e), &env)
-        });
+        let outcome = std::panic::catch_unwind(|| eval::<f64>(&Clone::clone(&e), &env));
         let r = outcome.expect("must never panic");
         assert_eq!(
             r,
@@ -343,10 +341,7 @@ fn r2_count_to_scalar_i64_min_is_typed_error_not_panic() {
         let e = Formula::count_to_scalar(Formula::count(n)).unwrap();
         #[allow(clippy::cast_precision_loss)] // |n| ≤ 2^31: exact
         let expected = n as f64;
-        assert_eq!(
-            eval::<f64>(&Clone::clone(&e), &env).unwrap(),
-            expected
-        );
+        assert_eq!(eval::<f64>(&Clone::clone(&e), &env).unwrap(), expected);
     }
 }
 
@@ -817,10 +812,7 @@ fn r6_nonfinite_doors_closed() {
     );
     // Arithmetic overflow to inf from finite literals: also refused.
     assert_eq!(
-        eval::<f64>(
-            &Formula::mul(len(f64::MAX), scl(2.0)).unwrap(),
-            &env
-        ),
+        eval::<f64>(&Formula::mul(len(f64::MAX), scl(2.0)).unwrap(), &env),
         Err(EvalError::NonFiniteResult),
         "overflow"
     );

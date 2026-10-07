@@ -182,11 +182,7 @@ fn exprs() -> Exprs {
         .unwrap(),
     )
     .unwrap();
-    let angle = Formula::add(
-        Formula::atan2(len(1.0), len(2.0)).unwrap(),
-        Formula::turn(),
-    )
-    .unwrap();
+    let angle = Formula::add(Formula::atan2(len(1.0), len(2.0)).unwrap(), Formula::turn()).unwrap();
     let scalar = Formula::mul(
         Formula::sin(ang(0.3)).unwrap(),
         Formula::mul(

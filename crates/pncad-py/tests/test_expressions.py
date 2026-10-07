@@ -36,6 +36,7 @@ from pncad import (
     EvalError,
     Formula,
     Length,
+    LiteralError,
     VarName,
     ParseError,
     PncadError,
@@ -144,6 +145,36 @@ class TestTheTextDoorBuildsCheckedTrees(unittest.TestCase):
         )
         with self.assertRaises(TypeError):
             {self.doc.parse_formula("width")}
+
+
+class TestConstantsAreExact(unittest.TestCase):
+    """A number inside a formula is an exact constant (VARIABLES-DESIGN
+    VR5): a reduced rational, or `turn`, one full rotation."""
+
+    def setUp(self):
+        self.doc = plate()
+
+    def test_a_ratio_is_its_reduced_value(self):
+        self.assertEqual(Formula.ratio(2, 4), Formula.ratio(1, 2))
+        self.assertNotEqual(Formula.ratio(1, 2), Formula.ratio(1, 3))
+        self.assertEqual(Formula.ratio(1, 3).text, "1/3")
+        self.assertEqual(Formula.ratio(1, 10).text, "0.1")
+        self.assertEqual(self.doc.parse_formula("0.1"), Formula.ratio(1, 10))
+        self.assertEqual(self.doc.eval(Formula.ratio(1, 10)), 0.1)
+
+    def test_a_ratio_out_of_range_refuses(self):
+        for num, den in [(1, 0), (2**54, 1)]:
+            with self.subTest(num=num, den=den):
+                with self.assertRaises(LiteralError) as caught:
+                    Formula.ratio(num, den)
+                self.assertEqual(caught.exception.kind, "constant_out_of_range")
+
+    def test_a_quarter_turn_is_a_right_angle(self):
+        turn = Formula.turn()
+        self.assertEqual(turn.dimension, "angle")
+        self.assertEqual(turn.text, "turn")
+        right = self.doc.eval(self.doc.parse_formula("turn/4"))
+        self.assertEqual(right.radians, math.pi / 2)
 
 
 class TestTheTextDoorRefusesTyped(unittest.TestCase):

@@ -191,11 +191,11 @@ impl Formula {
     /// The written quantity `value` in `unit`, read at `dim`, unchecked.
     fn quantity_leaf(value: f64, dim: Dimension, unit: UnitSym) -> Self {
         Self::own_leaf(
-            AuthoredLeaf::Quantity(Quantity {
+            AuthoredLeaf::Quantity(Box::new(Quantity {
                 value,
                 unit,
                 distribution: None,
-            }),
+            })),
             dim,
         )
     }
@@ -445,7 +445,7 @@ impl Formula {
                     _ => Formula::named(name.clone(), dim),
                 },
                 AuthoredLeaf::Fresh(index) => Formula::fresh(*index, dim),
-                AuthoredLeaf::Quantity(q) => Formula::own_leaf(AuthoredLeaf::Quantity(*q), dim),
+                AuthoredLeaf::Quantity(q) => Formula::own_leaf(AuthoredLeaf::Quantity(q.clone()), dim),
             })
         });
         held
@@ -478,7 +478,11 @@ impl Formula {
         let mut out = Vec::new();
         self.visit_terminals(&mut |terminal, dim| match terminal {
             Terminal::Var(var) => out.push((var, dim)),
-            Terminal::Leaf(leaf) => out.extend(leaf_fault(leaf, dim, scope, fresh).ok().map(|var| (var, dim))),
+            Terminal::Leaf(leaf) => out.extend(
+                leaf_fault(leaf, dim, scope, fresh)
+                    .ok()
+                    .map(|var| (var, dim)),
+            ),
             Terminal::Constant => {}
         });
         out
