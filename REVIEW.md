@@ -1,8 +1,7 @@
 # Review of PR 4207: "join: a pinch's cone vertices share the pierce point's key"
 
-Frozen head `04bdeebe4`, base `3e9d1a96`. Full review lane. Every build was read through
-`common/differential.rs::outcome` and tessellated with `check_mesh`. Release builds ran in
-separate target dirs for main and head. Probes are in `REVIEW-4207-probes/`: PR 4139 r1's
+Frozen head `04bdeebe4`, base `3e9d1a96`. Full review lane; every build read through `outcome`
+and tessellated with `check_mesh`, release, separate target dirs for main and head. Probes are in `REVIEW-4207-probes/`: PR 4139 r1's
 example, extended with the sets `dbl3`, `two`, `touch` and `r2p`, plus the env-gated mutants.
 
 **Verdict: APPROVE-WITH-FIXES** — MAJOR 0 · MINOR 3 · NOTE 5.
@@ -32,8 +31,9 @@ All five claims hold. The fixes are prose and filing, not code.
 - The 9 dbl lines go from `c2v1!CONEMISMATCH` to `c2v2`. Two mesh panics and two
   `Triangulation` refusals are gone.
 - `two`: 1 line goes BAD → SOUND at `c2v2, c1v1`.
-- `dbl3`: an operand of three cones on **3 keys**, 72 lines. Byte-identical to main. Every
-  line stays BAD (`UndeclaredContact VertexVertex`), so share_points does not reach it (M2).
+- `dbl3`: an operand of three cones on **3 keys**, 72 lines, byte-identical to main. 40 lines
+  stay BAD on `UndeclaredContact VertexVertex` (share_points does not reach them, M2), 24
+  refuse `JoinDesync`, and 8 are SOUND with one cone.
 - Curved faces (`cyl`, 3 600 lines): byte-identical. **Zero** rebinds fire, so this PR's code
   never runs on a curved pose. That evidence is vacuous for curved faces, not positive.
 
@@ -97,7 +97,7 @@ lines:
 - **N3 (NOTE, likely, executed).** The largest-key and first-correspondent mutants survive.
   The first is behaviourally neutral. The second means no row holds a vertex whose non-first
   correspondent alone links a class.
-- **N4 (NOTE, sure, executed).** The row runs in 0.1 s, so CI cost is not a concern.
+- **N4 (NOTE, sure, executed).** The row runs in 0.1 s; no CI cost.
 - **N5 (NOTE, sure, inspection).** The territory and D10 hold are respected. The class is
   read from null-pair records, and `edge_join.rs` and the declared paths are untouched.
 
@@ -107,7 +107,7 @@ lines:
 |---|---|---|
 | Q1 | zip.rs now holds **two** hand-rolled union-finds: PointKey at :258-275 and VertexKey in `split_cones` at :411-423. A third is `DeclaredSurfaceEq` (merge_faces.rs:1408-1432). Same find loop, three spellings, no shared home. | sure |
 | Q1/Q4 | `move_vertices`' doc (body.rs:663) still says "**The one door that moves vertices**". `share_point` changes which point a vertex sits on, a second door; it is position-neutral only by the caller's vouch. Neither doc names the other as its sibling. | likely |
-| Q2 | `share_point`'s "the caller vouches, by its own records" (body.rs:697-701) and `share_points`' "The classes are disjoint, so one index serves them all" (zip.rs:305) assert invariants nothing enforces. The second holds by construction of `point_classes`; the first holds only by measurement. | sure |
+| Q2 | `share_point`'s "the caller vouches, by its own records" (body.rs:697-701) and `share_points`' "The classes are disjoint, so one index serves them all" (zip.rs:304) assert invariants nothing enforces. The second holds by construction of `point_classes`; the first holds only by measurement. | sure |
 | Q3 | `point_key_finding` (common/pinch_cones.rs:322) passes vacuously with 0 or 1 vertex at the point. The row stays honest only because `cone_finding` runs first. | likely |
 | Q5 | zip.rs's module header (:32-37) describes the pinch as split per cone "on its own point key", and never mentions that classes are re-keyed after the zips. A reader of the header cannot find `share_points`. | likely |
 | Q7 | Classes are read before `split_cones` and the zips, then applied after both have mutated the body. That couples correctness to "keys survive the zips". I would read the classes off the zips' own fusions (`desc`) instead. Taste. | unsure |
