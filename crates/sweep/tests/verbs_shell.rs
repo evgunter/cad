@@ -1854,8 +1854,11 @@ fn a_re_slit_annular_caps_old_glue_reaches_check_9_through_an_outer_edge() {
     let back = (o_onto - o_from).dot(n_from);
     topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
         .expect("the counterpart chart lifts onto the mouth plane");
+    let carried = sealed
+        .kfmrh_carried_redescriptions(mouth[0], counterpart[0])
+        .expect("the glue's restatements");
     sealed
-        .kfmrh(mouth[0], counterpart[0])
+        .kfmrh_describing(mouth[0], counterpart[0], &carried, tol)
         .expect("the slit counterpart takes the raw glue");
     let composed = topo::validate_geometric(&sealed, tol)
         .expect_err("a ring standing on its outer loop must refuse");
@@ -2231,7 +2234,10 @@ fn r2_probe_composed_door_vs_old_battery_on_a_check_9_body() {
         topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
             .expect("the counterpart chart lifts onto the mouth plane");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
-            sealed.kfmrh(rim, source).expect("the raw glue");
+            // Lifts RechartStrandsDescriptions: the old raw glue's body, stranded descriptions and all, is the probe's input.
+            sealed
+                .lifting_rechart_refusals_for_tests(|b| b.kfmrh(rim, source))
+                .expect("the raw glue");
         }
         let new_door = topo::validate_geometric(&sealed, tol).expect_err("must refuse");
         let old_door = topo::contact_marks(&sealed, tol).expect_err("must refuse");
@@ -2312,7 +2318,12 @@ fn r2_probe_other_two_passes_dump() {
         let back = (o_onto - o_from).dot(n_from);
         topo::replace_faces_offset(&mut sealed, &counterpart, back, tol).expect("lift");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
-            sealed.kfmrh(rim, source).expect("glue");
+            let carried = sealed
+                .kfmrh_carried_redescriptions(rim, source)
+                .expect("the glue's restatements");
+            sealed
+                .kfmrh_describing(rim, source, &carried, tol)
+                .expect("glue");
         }
         corpus.push((what.into(), sealed));
     }

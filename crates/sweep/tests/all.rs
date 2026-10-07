@@ -392,6 +392,8 @@ mod reach_aligned_half_rods;
 mod reach_cone_split;
 #[path = "reach_continuation.rs"]
 mod reach_continuation;
+#[path = "reach_split_gate_azimuth.rs"]
+mod reach_split_gate_azimuth;
 #[path = "reach_split_gate_per_face.rs"]
 mod reach_split_gate_per_face;
 #[path = "reach_split_gate_pose.rs"]

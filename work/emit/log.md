@@ -2010,3 +2010,35 @@ Two nightly-only reds remain, both stale test pins, fixed on
 
 Job logs are readable from a cloud box: the GitHub MCP `get_job_logs`
 with `return_content=false` returns a signed URL that `curl` fetches.
+
+## 2026-10-06 — PR 4203: every crossing carries its sense
+
+The ruled row from PR 4134, the sense half.
+- The boolean records each operand edge piece's in/on/out class at its
+  vertex (`EdgePieceClass`). The vertex-on-face rows are the side codes
+  that pass decided (D5). The vertex-vertex rows are measured beside the
+  classification by `sectors::wedge_classes`.
+- Null-edge copies are exposed (`BooleanNaming::null_copies`), so an edge
+  that ends at a copy ends at the vertex. A side with no row refuses unless
+  the edge ends there.
+- The boolean and union name an edge × face vertex
+  `Crossing { edge, face, sense }` and an edge × edge vertex
+  `EdgeCrossing { a, a_sense, b, b_sense }`. The Split's `CrossingVertex`
+  gains `sense`.
+- Ranks run per sense.
+- Senses ride a union's fold. They flip under `RankRule::Reverse`, a
+  Split's crossings included, and a union rewrite re-reads them side by
+  side by image.
+
+`Ends` on every piece of a divided edge was built and reverted in the same
+PR. The review measured names growing about 2.41× per cut along a chain of
+trims (8.3M words at fourteen trims). It waits on
+`a-crossing-cites-its-edge-by-a-name-that-holds-that-edges-ends-so-names-grow-exponentially`.
+
+The pinned test is rebuilt as one document edited in place; it pins the
+crossing, and not the lone piece.
+
+Filed:
+- the touch and edge × edge spelling (design);
+- the unoriented-seam refusal (design);
+- the end-touch row, which main's edge joins left without a witness.
