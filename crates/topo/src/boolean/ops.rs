@@ -305,6 +305,18 @@ pub struct BooleanNaming {
     /// fallback and the declared-REST union — sorted and deduplicated;
     /// a path that never classifies (disjoint boxes) has none.
     pub covered: Vec<(FaceKey, FaceKey)>,
+    /// Every operand edge piece the classification read beside a vertex,
+    /// with its side of the other operand
+    /// ([`EdgePieceClass`](super::EdgePieceClass)), sorted: the vertex in
+    /// clone keys, as `reduction_contacts`. Read off the classification,
+    /// so a path that never classifies has none.
+    pub edge_classes: Vec<super::EdgePieceClass>,
+    /// The two vertices each of the classification's null edges joins,
+    /// `(operand, below end, above end)` in clone keys as
+    /// `edge_classes`: one point by construction, so a vertex and its
+    /// copies are one place on the operand, and an operand edge ending at
+    /// one ends at all of them. A path that never classifies has none.
+    pub null_copies: Vec<(super::Operand, VertexKey, VertexKey)>,
     /// The output stage's joins in the order made, result keys: each
     /// row's vertex and `gone` edge are dead, and its `kept` edge holds
     /// their interiors (maximal edges, `docs/DESIGN.md`'s merge stage).
@@ -648,6 +660,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
     let covered = red.covered.clone();
+    let edge_classes = red.edge_classes.clone();
+    let null_copies = super::null_copy_rows(&red.null_edges);
     let copies = Descendants::null_copies(&red.null_edges);
     let along = connected.along.clone();
     let carried = split_lineage(&red, decls, band)?;
@@ -727,6 +741,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         reduction_contacts,
         discards: fin.discards,
         covered,
+        edge_classes,
+        null_copies,
         edge_joins,
     };
     Ok(BooleanResult::Body(BooleanBody {
@@ -4802,6 +4818,8 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
                 covered: red.covered.clone(),
+                edge_classes: red.edge_classes.clone(),
+                null_copies: super::null_copy_rows(&red.null_edges),
                 edge_joins,
                 ..BooleanNaming::default()
             };
@@ -4865,6 +4883,8 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
+            edge_classes: red.edge_classes.clone(),
+            null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
             ..BooleanNaming::default()
         },
@@ -4876,6 +4896,8 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
+            edge_classes: red.edge_classes.clone(),
+            null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
             ..BooleanNaming::default()
         },

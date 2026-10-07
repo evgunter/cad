@@ -2573,6 +2573,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "BooleanDecision::VolumeBackstop",
         1,
     ),
+    ("recl.rs", "flank_rep", "Coincide::Sectors", 1),
     ("recl.rs", "parallel_same_dir", "Coincide::EdgeOnEdge", 1),
     ("recl.rs", "recl_sectors", "Coincide::TangentSide", 1),
     (

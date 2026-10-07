@@ -2,10 +2,11 @@
 id: a-frustum-split-through-a-ruling-off-its-seam-refuses-a-degenerate-section
 kind: issue
 title: a frustum split through a ruling off its seam, 0.05 or 3 rad off tangency, refuses Join(DegenerateSection) at every eps; through the seam ruling the same pose answers
-status: open
+status: dispatched
 opened: 2026-10-06
 priority: P1
 cost: M
+branch: cleave/frustum-apex
 ---
 
 

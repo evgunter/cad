@@ -2,8 +2,10 @@
 id: revolve-seam-split-volumes-miss-their-closed-forms-at-eps-1e-6
 kind: issue
 title: four revolve-seam split rows miss their closed-form volumes at eps 1e-6 on main
-status: open
+status: dispatched
 opened: 2026-10-06
+priority: P1
+branch: cleave/revseam-1e6
 ---
 
 
