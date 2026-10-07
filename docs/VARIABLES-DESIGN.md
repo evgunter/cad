@@ -93,4 +93,5 @@ door checks VR2's uniqueness, VR3's acyclicity and kinds, VR4's slot
 kinds and VR7's anonymous-is-read. The façade's slot arguments accept a
 variable, a `Formula`, or a written quantity (which mints an anonymous
 variable for that call); passing a variable is how two slots share one.
-Python mirrors it.
+Python mirrors it. Split moves a variable with its readers; inline
+carries every variable of the part under a new id.

@@ -155,7 +155,7 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
             description: geom_brep::EdgeDescriptionSpec::Chart {
                 surface: c.surface,
                 image,
-                seam: c.seam,
+                wrap: c.wrap,
                 declared: None,
             },
             carrier: curve.carrier().clone(),

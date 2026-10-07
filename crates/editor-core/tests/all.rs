@@ -208,6 +208,8 @@ mod refusal_concision_chains;
 mod refusal_concision_refactor;
 #[path = "remap_reorders_ids.rs"]
 mod remap_reorders_ids;
+#[path = "resolve_cited_line.rs"]
+mod resolve_cited_line;
 #[path = "resolve_group_membership.rs"]
 mod resolve_group_membership;
 #[path = "resolve_piece_ladder.rs"]
@@ -481,6 +483,8 @@ mod meta_minted_ids;
 mod meta_nesting_bound;
 #[path = "name_depth.rs"]
 mod name_depth;
+#[path = "name_size_against_cut_depth.rs"]
+mod name_size_against_cut_depth;
 #[path = "name_tables_by_position.rs"]
 mod name_tables_by_position;
 #[path = "name_words_corpus.rs"]

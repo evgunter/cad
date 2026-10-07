@@ -66,7 +66,7 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// kind, which the quantiles of a long tail need not.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 34, 38, 38_230]),
-    ("full", [19, 69, 111, 248_708]),
+    ("full", [19, 97, 181, 274_184]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -83,7 +83,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// INTENT-LITERALS PR D: `kitchen_sink`'s node tags, whose formulas'
 /// written quantities now mint variables of their own; [`NAME_WORDS`]
 /// held.
-const SAID_DIGEST: u64 = 0xd9c6_edee_cdde_fe36;
+const SAID_DIGEST: u64 = 0x9a6f_3099_1546_e50b;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

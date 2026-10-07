@@ -361,7 +361,7 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
         )
         .unwrap();
     let mut spec = EdgeCurveSpec::line_between(p0, p1);
-    spec.description = EdgeDescriptionSpec::seam(foreign);
+    spec.description = EdgeDescriptionSpec::wrap(foreign);
     let err = body.set_edge_curve(ek, spec, Tol::witness()).unwrap_err();
     assert!(
         matches!(

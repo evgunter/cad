@@ -314,6 +314,12 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched.
 ///
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when a chart
+/// image's flag became `wrap` (the wrap edge, D1): the digest feeds each
+/// curve's `Debug`, whose field name moved; with `wrap: ` read back as
+/// `seam: ` the feed reproduces every old constant, so no evaluation
+/// moved.
+///
 /// RE-BLESSED for INTENT-LITERALS PR D (`Expr` holds no float):
 /// `kitchen_sink` alone, whose formulas hold written quantities that
 /// now mint variables of their own, so its ids moved. No outcome or
@@ -322,10 +328,10 @@ fn both_sweeps_evaluate_in_one_document() {
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
         ("die", 0xbad8_3e67_947d_3484),
-        ("corner_table", 0x2c54_ec43_5595_dc12),
-        ("cut_cylinder", 0x5c36_b5b4_37a0_06a4),
-        ("boss_union", 0x3c93_af35_a878_6cc3),
-        ("kitchen_sink", 0x6a16_0e90_8bf4_7d95),
+        ("corner_table", 0xa3ad_d45d_6fdf_8bc0),
+        ("cut_cylinder", 0x66cc_96b0_a9c3_a570),
+        ("boss_union", 0x2c30_5ade_2025_a47c),
+        ("kitchen_sink", 0xe85e_3bdc_f138_7493),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
