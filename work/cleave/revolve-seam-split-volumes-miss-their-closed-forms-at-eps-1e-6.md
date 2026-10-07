@@ -2,11 +2,13 @@
 id: revolve-seam-split-volumes-miss-their-closed-forms-at-eps-1e-6
 kind: issue
 title: four revolve-seam split rows miss their closed-form volumes at eps 1e-6 on main
-status: dispatched
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: E
 branch: cleave/revseam-1e6
+closed: 2026-10-07
+pr: 4213
 ---
 
 
@@ -94,3 +96,9 @@ The cross-check against QUAD's
 nothing to fix here. None of that row's listed instances is in these
 two files, and both files already read `volume_pad`, so that row is
 unchanged.
+
+## Closed (PR 4213, 2026-10-07)
+
+Fixed before it was taken: `6ac174bf1a`, inside PR 4083, holds both files' volumes to their
+certified pad. The four rows pass at every ε, and every closed form lies inside `v ± volume_pad`
+(at most 1.1 % of the pad at 1e-6), corroborated by halves sums and a second construction.
