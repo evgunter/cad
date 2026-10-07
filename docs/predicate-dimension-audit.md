@@ -573,7 +573,7 @@ which is what actually moves the number.
 | ring_path.rs (`path_parity`) | split_ring_path_segment_side | a ruling segment's end's offset from a loop conic's plane, `n̂·(p − c)` | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_line_across | `m̂·d̂` (the cosine between a circle piece's plane normal and a loop ruling), levered at the piece's radius | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_rulings_apart | `‖ê × d̂‖` (the sine between a segment's ruling and a loop ruling), levered at the segment's distance from the apex | m | OK (TANG) |
-| ring_path.rs (`path_parity`) | split_ring_path_in_span | a crossing's parameter less a span end: on a circle (rad) levered at its radius, on a conic levered at its minor semi-axis, on a line a length | m | OK (TANG) |
+| ring_path.rs (`path_parity`) | split_ring_path_in_span | a crossing's distance to a span end (a circle's parameter levered at its radius, a conic's at its minor semi-axis, a line's length) times the slope `\|n̂·τ̂\|` the piece crosses the other's plane at: the carrier displacement that moves the root past the end | m | OK (TANG) |
 | chord_join.rs (`chart_ring_side`) | split_ring_chart_window | `τ − Δu` (rad) levered at the radius | m | OK |
 | chord_join.rs (`chart_ring_side`) | split_ring_chart_ray_azimuth | azimuth difference (rad) levered at the radius | m | OK (cylinder only; a sphere or a cone reads `path_ring_side`) |
 | chord_join.rs (`chart_ring_side`) | split_ring_chart_ray_height | axial height difference, bare | m | OK |

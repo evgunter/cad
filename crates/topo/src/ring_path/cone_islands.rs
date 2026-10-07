@@ -119,7 +119,7 @@ pub(crate) fn plane(o: Point3<f64>, n: Vec3<f64>) -> geom::Surface<f64> {
 
 /// The section of `cone` by the plane through `o` with normal `n`, on a
 /// cone a few `s` across.
-fn section(
+pub(crate) fn section(
     cone: &geom::Surface<f64>,
     (o, n): (Point3<f64>, Vec3<f64>),
     s: f64,

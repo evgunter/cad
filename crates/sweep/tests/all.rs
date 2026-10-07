@@ -999,9 +999,3 @@ mod rest_zip_admission;
 mod pole_ball_shells;
 #[path = "shell_curved_mouth.rs"]
 mod shell_curved_mouth;
-
-#[path = "sphere_ring_path_review_probes.rs"]
-mod sphere_ring_path_review_probes;
-
-#[path = "ring_sibling_review3_probes.rs"]
-mod ring_sibling_review3_probes;

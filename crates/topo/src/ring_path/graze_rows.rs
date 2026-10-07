@@ -1,12 +1,13 @@
-//! **A path grazing a loop arc's plane is decided on the gap, and never
-//! decides a wrong parity.** The fixture: a closed small circle on a
+//! **A path grazing a loop arc's plane is decided on the gap and its
+//! roots' in-span readings on the slope, and never decides a wrong
+//! parity.** The fixture: a closed small circle on a
 //! sphere, split into two arcs at a smooth vertex `V`, each arc carrying
 //! the circle on its own `u_ref` (and, in the sweeps, its own carrier a
 //! few ulp off the other's), and a great-circle path whose two ends lie
 //! outside the circle's cap — so the true parity is even, whatever the
-//! path does near the circle — which grazes the circle within `e` of
-//! `V`, missing it by `g`. A decided odd parity is a wrong one. The
-//! draws are fixture identifiers, not a counterexample search.
+//! path does near the circle — which grazes the circle with one root at
+//! or within its own error of `V`. A decided odd parity is a wrong one.
+//! The draws are fixture identifiers, not a counterexample search.
 
 use super::*;
 use geom_core::{Band, Point3, Tol, Vec3};
@@ -94,83 +95,92 @@ fn case(
     (path, arcs)
 }
 
-/// The grazes and vertex offsets every sweep reads, relative to `r`: the
-/// grazes run from inside every band to outside it, where the meeting is
-/// decided and the parity must read even.
-fn grazes() -> (Vec<f64>, Vec<f64>) {
-    let mut gs = vec![0.0];
-    for k in [
-        1e-16, 1e-15, 1e-14, 1e-13, 1e-12, 1e-11, 1e-10, 1e-8, 1e-6, 1e-4,
-    ] {
-        gs.extend([k, -k]);
-    }
-    let mut es = Vec::new();
-    for k in [1e-10, 3e-10, 1e-9, 3e-9, 1e-8, 3e-8, 1e-7, 3e-7, 1e-6, 1e-5] {
-        es.extend([k, -k]);
-    }
-    (gs, es)
-}
-
-/// The decided-odd parities of the graze sweep at `band`, scale `r` and
-/// offset `off`, and how many were decided at all.
-fn wrong_grazes(band: Band, r: f64, off: f64) -> (Vec<String>, usize) {
-    let (gs, es) = grazes();
-    let mut rng = Rng(0x9e3779b97f4a7c15);
-    let (mut wrong, mut decided) = (Vec::new(), 0);
-    for _ in 0..30 {
+/// The decided-odd parities of a graze whose root sits at the smooth
+/// vertex, at `band`, scale `r` and offset `off`, under carrier jitter of
+/// `jitter` metres, and how many were decided at all. The graze is sized
+/// from the band (a gap 1.01 to 10⁶ times its escalation threshold, the
+/// meeting decided), and one root is put at the vertex and then nudged
+/// by `±m·10ᵏ` of the half-chord, down to below a root's own error.
+fn wrong_at_the_vertex(
+    band: Band,
+    r: f64,
+    off: f64,
+    jitter: f64,
+    rng: &mut Rng,
+) -> (usize, usize, Option<String>) {
+    let (mut wrong, mut decided, mut first) = (0, 0, None);
+    for _ in 0..6 {
         let z = rng.unit();
         let x0 = rng.unit().cross(z).normalize();
         let q = [x0, z.cross(x0), z];
         let o = Point3::origin() + rng.unit() * off;
-        let phi = rng.range(0.3, 1.2);
-        let beta = rng.range(0.3, 2.5);
-        let jitter = (rng.unit(), 4.0 * f64::EPSILON * (off + r));
-        for &g in &gs {
-            for &e in &es {
-                let (path, arcs) = case(q, o, r, phi, beta, g * r, e * r, jitter);
-                match path_parity(&path, &arcs, None, band) {
-                    Ok(Some(true)) => {
-                        wrong.push(format!("phi {phi} beta {beta} g/r {g:e} e/r {e:e}"))
+        let (phi, beta) = (0.7f64, 1.3);
+        let jitter = (rng.unit(), jitter);
+        for gk in [1.01, 1.5, 3.0, 10.0, 100.0, 1e4, 1e6] {
+            let gap = gk * band.escalate();
+            let h = (2.0 * gap * r / phi.cos()).sqrt();
+            if h > 0.3 * r {
+                continue;
+            }
+            for sgn in [1.0, -1.0] {
+                for k in -16..=0 {
+                    for m in [1.0, 3.0] {
+                        for ss in [1.0, -1.0] {
+                            let e = sgn * h + ss * m * 10f64.powi(k) * h;
+                            let (path, arcs) = case(q, o, r, phi, beta, -gap, e, jitter);
+                            match path_parity(&path, &arcs, None, band) {
+                                Ok(Some(true)) => {
+                                    wrong += 1;
+                                    first.get_or_insert(format!("gap/esc {gk}, e/h {}", e / h));
+                                }
+                                Ok(Some(false)) => decided += 1,
+                                _ => {}
+                            }
+                        }
                     }
-                    Ok(Some(false)) => decided += 1,
-                    _ => {}
                 }
             }
         }
     }
-    (wrong, decided)
+    (wrong, decided, first)
 }
 
-/// At this run's band, scale 1, no offset: no decided parity is odd.
+/// At this run's band, scale 1, no offset, under no jitter, 4-ulp jitter
+/// and ε/2 jitter: no decided parity is odd, and some decide.
 #[test]
 fn a_graze_at_a_smooth_vertex_never_decides_a_wrong_parity() {
-    let (wrong, decided) = wrong_grazes(super::cone_islands::band(), 1.0, 0.0);
-    assert!(
-        wrong.is_empty() && decided > 0,
-        "{} decided-wrong parities ({decided} decided right); first {:?}",
-        wrong.len(),
-        wrong.first()
-    );
+    let band = super::cone_islands::band();
+    let mut rng = Rng(0x2545f4914f6cdd1d);
+    for jitter in [0.0, 4.0 * f64::EPSILON, 0.5 * band.zero()] {
+        let (wrong, decided, first) = wrong_at_the_vertex(band, 1.0, 0.0, jitter, &mut rng);
+        assert!(
+            wrong == 0 && decided > 0,
+            "jitter {jitter:e}: {wrong} decided-wrong parities ({decided} right); first {first:?}"
+        );
+    }
 }
 
 /// The same at ε 1e-6, 1e-9 and 1e-12 (the run's K), scales 1e-3, 1 and
-/// 1e3, and offsets 0 and 1e3: no decided parity is odd anywhere.
+/// 1e3, offsets 0 and 1e3, and each jitter: no decided parity is odd
+/// anywhere, and some decide at every ε.
 #[test]
 fn a_graze_at_a_smooth_vertex_never_decides_a_wrong_parity_at_any_scale() {
+    let mut rng = Rng(0x2545f4914f6cdd1d);
     for eps in [1e-6, 1e-9, 1e-12] {
         let band = Band::linear_at(Tol::witness(), eps).unwrap();
         let mut decided_here = 0;
         for r in [1e-3, 1.0, 1e3] {
             for off in [0.0, 1e3] {
-                let (wrong, decided) = wrong_grazes(band, r, off);
-                decided_here += decided;
-                assert!(
-                    wrong.is_empty(),
-                    "ε {eps:e}, r {r:e}, offset {off:e}: {} decided-wrong parities ({decided} \
-                     right); first {:?}",
-                    wrong.len(),
-                    wrong.first()
-                );
+                for jitter in [0.0, 4.0 * f64::EPSILON * (off + r), 0.5 * eps] {
+                    let (wrong, decided, first) =
+                        wrong_at_the_vertex(band, r, off, jitter, &mut rng);
+                    decided_here += decided;
+                    assert!(
+                        wrong == 0,
+                        "ε {eps:e}, r {r:e}, offset {off:e}, jitter {jitter:e}: {wrong} \
+                         decided-wrong parities ({decided} right); first {first:?}"
+                    );
+                }
             }
         }
         assert!(decided_here > 0, "ε {eps:e}: no graze decided");
@@ -213,4 +223,155 @@ fn a_graze_within_the_gaps_band_escalates_and_the_next_path_decides() {
         arrival: back.arrival,
     };
     assert_eq!(path_parity(&detour, &arcs, None, band), Ok(Some(false)));
+}
+
+/// The nudges a root is moved off a shared vertex by, relative to a unit
+/// of length along the curve: `±m·10ᵏ`, from a tenth down to below an
+/// ulp, and zero.
+fn nudges() -> Vec<f64> {
+    let mut out = vec![0.0];
+    for k in -16..=-1 {
+        for m in [1.0, 3.0] {
+            out.extend([m * 10f64.powi(k), -m * 10f64.powi(k)]);
+        }
+    }
+    out
+}
+
+/// The jitters a second arc's carrier is moved by: none, 4 ulp, and ε/2.
+fn jitters(band: Band) -> [f64; 3] {
+    [0.0, 4.0 * f64::EPSILON, 0.5 * band.zero()]
+}
+
+/// **A ruling through the smooth vertex of a cone's section reads it
+/// once.** A tilted ellipse of the cone split at a vertex into two arcs,
+/// the second's carrier jittered; a ruling segment straddling the
+/// ellipse, through the vertex or a nudge off it. It crosses the curve
+/// once, so a decided parity is odd. The segment's slope across the
+/// ellipse's plane is bounded below on a cone (a plane parallel to a
+/// ruling cuts a parabola, which no lane mints), so this arm never
+/// grazes.
+#[test]
+fn a_ruling_through_a_sections_vertex_reads_it_once() {
+    use super::cone_islands::{cone, frames, section};
+    let band = super::cone_islands::band();
+    let f = frames()[0];
+    let surface = cone(f, false);
+    let n = Vec3::new(40f64.to_radians().sin(), 0.0, 40f64.to_radians().cos());
+    let ellipse = section(&surface, (Point3::new(0.5, 0.0, 1.5), n), 1.0);
+    let geom::Curve3::Ellipse {
+        center,
+        axis,
+        major,
+        minor,
+        u_ref,
+    } = ellipse
+    else {
+        panic!("a tilted section is an ellipse")
+    };
+    let tv = 0.4;
+    let mut rng = Rng(0x0f1e2d3c4b5a6978);
+    let (mut decided, mut wrong) = (0, Vec::new());
+    for jitter in jitters(band) {
+        let dir = rng.unit();
+        let arcs = [
+            LoopArc::Conic {
+                centre: center,
+                axis,
+                u_ref,
+                a: major,
+                b: minor,
+                span: (tv - 1.0, tv),
+            },
+            LoopArc::Conic {
+                centre: center + dir * jitter,
+                axis: (axis + dir.cross(axis) * jitter).normalize(),
+                u_ref,
+                a: major,
+                b: minor,
+                span: (tv, tv + 1.0),
+            },
+        ];
+        for nudge in nudges() {
+            let x = ellipse.eval(tv + nudge);
+            let e = (x - Point3::origin()).normalize();
+            let slant = (x - Point3::origin()).norm();
+            let (from, to) = (
+                Point3::origin() + e * (slant - 0.3),
+                Point3::origin() + e * (slant + 0.3),
+            );
+            let path = Path {
+                pieces: vec![Piece::Segment {
+                    from,
+                    to,
+                    ruling: e,
+                    lever: slant,
+                }],
+                arrival: e,
+            };
+            match path_parity(&path, &arcs, None, band) {
+                Ok(Some(true)) => decided += 1,
+                Ok(Some(false)) => wrong.push((jitter, nudge)),
+                _ => {}
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty() && decided > 0,
+        "{decided} right, wrong {wrong:?}"
+    );
+}
+
+/// **A parallel through the vertex of a split ruling reads it once.** A
+/// ruling of the cone split at a vertex into two segments, the second's
+/// jittered; the arc of a parallel across it, through the vertex or a
+/// nudge off it. It crosses the ruling once, so a decided parity is odd.
+/// A ruling's slope across a parallel's plane is the cosine of the
+/// half-angle, so this arm never grazes either.
+#[test]
+fn a_parallel_through_a_split_rulings_vertex_reads_it_once() {
+    let band = super::cone_islands::band();
+    let tan = core::f64::consts::FRAC_PI_6.tan();
+    let e = Vec3::new(tan, 0.0, 1.0).normalize();
+    let slant_v = 1.5 / e.z;
+    let mut rng = Rng(0x1234fedc5678ba90);
+    let (mut decided, mut wrong) = (0, Vec::new());
+    for jitter in jitters(band) {
+        let dir = rng.unit();
+        let arcs = [
+            LoopArc::Line {
+                origin: Point3::origin(),
+                dir: e,
+                span: (slant_v - 1.0, slant_v),
+            },
+            LoopArc::Line {
+                origin: Point3::origin() + dir * jitter,
+                dir: (e + dir.cross(e) * jitter).normalize(),
+                span: (slant_v, slant_v + 1.0),
+            },
+        ];
+        for nudge in nudges() {
+            let h = 1.5 + nudge;
+            let piece = CircleArc {
+                centre: Point3::new(0.0, 0.0, h),
+                axis: Vec3::unit_z(),
+                radius: h * tan,
+                u_ref: Vec3::new((-0.3f64).cos(), (-0.3f64).sin(), 0.0),
+                span: (0.0, 0.6),
+            };
+            let path = Path {
+                pieces: vec![Piece::Arc(piece)],
+                arrival: piece.tangent(0.6),
+            };
+            match path_parity(&path, &arcs, None, band) {
+                Ok(Some(true)) => decided += 1,
+                Ok(Some(false)) => wrong.push((jitter, nudge)),
+                _ => {}
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty() && decided > 0,
+        "{decided} right, wrong {wrong:?}"
+    );
 }

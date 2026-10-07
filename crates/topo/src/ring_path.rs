@@ -422,9 +422,13 @@ impl<T: Real> LoopArc<T> {
 ///   **`split_ring_path_rulings_apart`**: the sine between them,
 ///   levered at the segment's distance from the apex).
 /// - Each meeting point counts when it lies strictly inside the piece's
-///   span and the arc's (**`split_ring_path_in_span`**: a parameter
-///   less a span end, levered at the circle's radius or a conic's
-///   minor semi-axis; a line's parameter is a length).
+///   span and the arc's (**`split_ring_path_in_span`**: the distance
+///   along the piece or the arc to a span end — a parameter levered at a
+///   circle's radius or a conic's minor semi-axis, or a line's length —
+///   times the slope the piece crosses the other's plane at. That is the
+///   carrier displacement that moves the root past the end: near a graze
+///   a root moves by the displacement over the slope, so a span end a
+///   decided arc length away can still be inside its reach.)
 pub(crate) fn path_parity<T: Decide>(
     path: &Path<T>,
     arcs: &[LoopArc<T>],
@@ -488,14 +492,13 @@ pub(crate) fn path_parity<T: Decide>(
                     for &t in &roots[..if arrival { 1 } else { 2 }] {
                         let w = p.at(t) - centre;
                         let s = branch((w.dot(v_ref) / b).atan2(w.dot(u_ref) / a), span);
-                        // RP3 probe: lever the in-span readings by the crossing's
-                        // slope (plane offset per unit length along the piece).
-                        let slope = if std::env::var("RP3_SLOPE").is_ok() {
-                            let (st, ct) = t.sin_cos();
-                            (cb * ct - ca * st).abs()
-                        } else {
-                            T::one()
-                        };
+                        // A carrier moved by δ moves the root by δ over the
+                        // slope the piece crosses the plane at, `|n̂·τ̂|`:
+                        // each in-span reading is levered by it, so its
+                        // margin is the displacement that moves the root
+                        // past the span's end.
+                        let (st, ct) = t.sin_cos();
+                        let slope = (cb * ct - ca * st).abs();
                         let [p0, p1] = in_span(t, p.span, p.radius * slope)?;
                         let [a0, a1] = in_span(s, span, b * slope)?;
                         readings.push([p0, p1, a0, a1]);
@@ -515,8 +518,11 @@ pub(crate) fn path_parity<T: Decide>(
                     }
                     let s = p.axis.dot(p.centre - origin) / across;
                     let t = p.param(origin + dir * s);
-                    let [p0, p1] = in_span(t, p.span, p.radius)?;
-                    let [a0, a1] = in_span(s, span, T::one())?;
+                    // The plane moved by δ moves the root by δ over the
+                    // slope the ruling crosses it at, `|m̂·d̂|`.
+                    let slope = across.abs();
+                    let [p0, p1] = in_span(t, p.span, p.radius * slope)?;
+                    let [a0, a1] = in_span(s, span, slope)?;
                     readings.push([p0, p1, a0, a1]);
                 }
                 (
@@ -545,7 +551,10 @@ pub(crate) fn path_parity<T: Decide>(
                     let w = from + (to - from) * (d0 / (d0 - d1)) - centre;
                     let v_ref = axis.cross(u_ref);
                     let s = branch((w.dot(v_ref) / b).atan2(w.dot(u_ref) / a), span);
-                    let [a0, a1] = in_span(s, span, b)?;
+                    // The plane moved by δ moves the root by δ over the
+                    // slope the segment crosses it at, `|n̂·d̂|`.
+                    let slope = ((d0 - d1) / (to - from).norm()).abs();
+                    let [a0, a1] = in_span(s, span, b * slope)?;
                     readings.push([Sign::Positive, Sign::Positive, a0, a1]);
                 }
                 (Piece::Segment { ruling, lever, .. }, LoopArc::Line { dir, .. }) => {
@@ -646,7 +655,3 @@ mod tests {
         }
     }
 }
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod review3_probes;
