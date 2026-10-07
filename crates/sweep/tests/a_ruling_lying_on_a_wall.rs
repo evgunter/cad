@@ -112,7 +112,7 @@ type Census = (usize, usize, usize, usize);
 
 /// What one op yields: nothing, or a body's census and its
 /// `[v-v, v-f, curve, patch]` contact record counts.
-type Want = Option<(Census, [usize; 4])>;
+type Want = Option<(Census, [usize; 6])>;
 
 /// **The prism's edge on the wall builds every op undeclared.** Two
 /// poses off the seam rulings (`0.3` and `0.5` rad) and the two seam
@@ -122,44 +122,49 @@ type Want = Option<(Census, [usize; 4])>;
 /// Inside, the union is the tube, the intersection the prism, `b ∖ t`
 /// empty, and `t ∖ b` the tube with a prism-shaped void that touches
 /// the wall along the edge: its two shells are recorded touching at
-/// the edge's ends, v-f against the wall face off a seam ruling and v-v
-/// with the ruling's split vertices on one. Across the rim, the prism's
+/// the edge's ends, v-f against the wall face off a seam ruling and,
+/// on one, v-e against the ruling the join made whole again. Across the rim, the prism's
 /// part above `z = H` is `b ∖ t`, and `t ∖ b` is a notch whose edge
 /// runs down the wall from the rim, its lower end recorded the same
-/// way. On a seam ruling the union keeps the ruling's split vertices
-/// (`work/tang/a-union-keeps-valence-two-vertices-on-the-tubes-seam-rulings.md`).
+/// way.
 #[test]
 fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
     let tol = Tol::witness();
     let t = rod_z(0.0, H);
     let tube = PI * R * R * H;
-    let nothing = [0; 4];
+    let nothing = [0; 6];
     let prism: Want = Some(((6, 12, 8, 1), nothing));
     for turn in [0.3, 0.5, 0.0, PI] {
         let on_seam = turn == 0.0 || turn == PI;
         // `[∪, t ∖ b, b ∖ t, ∩]` inside one face, then across the rim.
         let inside: [Want; 4] = if on_seam {
             [
-                Some(((4, 8, 6, 1), nothing)),
-                Some(((10, 20, 14, 2), [2, 0, 0, 0])),
+                Some(((4, 6, 4, 1), nothing)),
+                Some(((10, 18, 12, 2), [0, 0, 2, 0, 0, 0])),
                 None,
                 prism,
             ]
         } else {
             [
                 Some(((4, 6, 4, 1), nothing)),
-                Some(((10, 18, 12, 2), [0, 2, 0, 0])),
+                Some(((10, 18, 12, 2), [0, 2, 0, 0, 0, 0])),
                 None,
                 prism,
             ]
         };
-        let notch = if on_seam { [1, 0, 0, 0] } else { [0, 1, 0, 0] };
-        let across: [Want; 4] = [
-            Some(((9, 19, 12, 1), nothing)),
-            Some(((9, 19, 12, 1), notch)),
-            prism,
-            prism,
-        ];
+        let notch = if on_seam {
+            [0, 0, 1, 0, 0, 0]
+        } else {
+            [0, 1, 0, 0, 0, 0]
+        };
+        // On a seam ruling the prism's edge meets the rim at the tube's
+        // own rim vertex, one vertex fewer.
+        let rim = if on_seam {
+            (9, 18, 11, 1)
+        } else {
+            (9, 19, 12, 1)
+        };
+        let across: [Want; 4] = [Some((rim, nothing)), Some((rim, notch)), prism, prism];
         for (extent, z0, h, census, [union, t_less_b, b_less_t, common]) in [
             ("inside", 0.5, 1.0, inside, [tube, tube - AREA, 0.0, AREA]),
             (
@@ -212,11 +217,18 @@ fn a_prism_edge_on_the_tubes_wall_builds_every_op_undeclared() {
                     [
                         c.vv.len(),
                         c.a_on_b.len() + c.b_on_a.len(),
+                        c.ve.len(),
+                        c.ee.len(),
                         c.curves.len(),
                         c.patches.len()
                     ],
                     contacts,
-                    "{label}: [v-v, v-f, curve, patch] records"
+                    "{label}: [v-v, v-f, v-e, e-e, curve, patch] records"
+                );
+                assert_eq!(
+                    topo::joinable_vertices(body, geom_core::Band::linear(tol).unwrap()).unwrap(),
+                    vec![],
+                    "{label}: maximal edges"
                 );
             }
         }

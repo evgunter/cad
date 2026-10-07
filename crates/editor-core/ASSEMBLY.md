@@ -242,7 +242,10 @@ root keeps its offset; and the instance sits at the empty offset on the
 anchor. A cut group nothing places moves as it is, unless a dead
 reference unplaces it, and a cut of unplaced material alone refuses.
 Remainder-side names re-anchor through the instance qualifier by
-recorded `Rebind`s.
+recorded `Rebind`s. A variable moves with its readers: its side is the
+union of its readers' — a node slot, or another variable's definition —
+and one with no reader follows what it reads. One whose side is the
+cut's is declared in the part and deleted from the remainder.
 
 *Inline.* `refactor::inline` is the inverse: the instance's frame
 becomes a gauge under the instance's gauge holding its offset, and the
@@ -274,7 +277,7 @@ structural and name-resolution identity, not bit identity, except that
 the cut's roots come together where the first of them was (A10's
 replacement rule: one instance sits at one place in the list), so split
 keeps the root order exactly when the cut's roots are adjacent in it.
-Inline-of-split returns the document split was given, up to node ids
+Inline-of-split returns the document split was given, up to minted ids
 and that one regrouping.
 
 *Crossings.* A mate whose two `InstantiatePart` heads fall on opposite

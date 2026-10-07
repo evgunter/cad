@@ -556,7 +556,11 @@ fn a_crossing_the_join_makes_is_an_edge_edge_record() {
     let joined = skew_crossing(tol);
     assert_eq!(joined.naming.edge_joins.len(), 2, "both cut vertices join");
     assert_eq!(
-        topo::joinable_vertices(&joined.body),
+        topo::joinable_vertices(
+            &joined.body,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap(),
         vec![],
         "no joinable vertex is left"
     );
