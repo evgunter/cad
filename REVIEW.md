@@ -22,9 +22,8 @@ against four cube corners touching only at `v`; 916 poses pass r2's overlap filt
 - *Missed hang?* None found. Every moved `SOUND` body is one-key and finding-free (below).
 - *By inspection:* every vertex at the hung point is in the `vv` component. Mint copies keep their point (`mev_null` mints "no point", `null.rs:242`), and so do the cone
   splits (`zip.rs:36`), `carve` ("keys preserved", `finish.rs:286`) and `revert` (key-for-key, `revert.rs:145`).
-- *`GraftMap::points`:* it is total over the source's points (`combine.rs:451-455`) and chained in `then`
-  (`combine.rs:366`). Both graft paths (`:298-327`, `:343`) build it in `graft_solids_impl`. So it is a faithful
-  twin of `vertices`, and wider.
+- *`GraftMap::points`:* total over the source's points (`combine.rs:451-455`), chained in `then` (`:366`), built on
+  both graft paths (`:298-327`, `:343`): a faithful twin of `vertices`, and wider.
 
 **B. No wrong body ships — holds** (executed; main vs head, lines moved):
 
