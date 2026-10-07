@@ -2620,11 +2620,13 @@ pub fn ring_clearance_for_tests<T: Decide + Bounds>(
 
 /// The pre-mutation honesty pass (module docs): every ring of every
 /// touched support face must clear every blend trimline by a definite
-/// margin, in closed form; every other outer-boundary edge of a closed
-/// rim's supports must clear that support's trim; every edge a cut-off
-/// leaves on its end face must clear the sliver it removes; and
-/// every outer-boundary edge a planar band's local carve leaves on a
-/// support must clear the strip it removes.
+/// margin, in closed form, a ring carrying a planar band's requested
+/// edge excepted; every other outer-boundary edge of a closed rim's
+/// supports must clear that support's trim; every edge a cut-off
+/// leaves on its end face must clear the sliver it removes; and every
+/// edge a planar band's local carve leaves on a support's outer cycle,
+/// or on a ring carrying a requested edge, must clear the strip it
+/// removes.
 fn ring_clearance_pass<T: Decide + Bounds>(
     body: &Body<T>,
     opens: &[AdmittedOpen<'_, T>],
@@ -2636,7 +2638,16 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     // (a) Open links: every ring of each support face against the
     // link's straight trimline on that face. A ring that is itself a
     // requested rim is read at its trim circle, through
-    // `ring_pieces`' co-requested read.
+    // `ring_pieces`' co-requested read. A ring carrying a planar band's
+    // requested edge is arm (d)'s against a planar link's strip: its own
+    // edge sits on the trimline, so the unbounded read would refuse it
+    // whatever the strip. A ruled link's trimline still meters it,
+    // since arm (d) meters planar strips alone.
+    let strip_rings = supports
+        .iter()
+        .map(|s| strip_rings(body, s))
+        .collect::<Result<Vec<_>, _>>()?
+        .concat();
     for o in opens {
         let l = o.link();
         let mid = edge_midpoint(body, l.edge).ok_or_else(|| {
@@ -2665,7 +2676,8 @@ fn ring_clearance_pass<T: Decide + Bounds>(
             let fd = body
                 .get_face(face)
                 .ok_or_else(|| not_intact(EntityId::Face(face), "a link's support face"))?;
-            for &ring in &fd.rings {
+            let metered = |r: &&LoopKey| l.arm.is_ruled() || !strip_rings.contains(r);
+            for &ring in fd.rings.iter().filter(metered) {
                 let margins = ring_pieces(body, ring, face, opens, rims)?
                     .into_iter()
                     .map(|(edge, carrier, window)| {
@@ -2739,8 +2751,9 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     }
     // (d) Planar strips: the local carve moves each requested edge's
     // strip off its support and leaves every other edge of the support
-    // where it was, so each outer-boundary edge the carve neither
-    // replaces nor shortens must be clear of the strip.
+    // where it was, so each edge of the outer cycle, and of a ring
+    // carrying a requested edge, that the carve neither replaces nor
+    // shortens must be clear of the strip.
     for support in supports {
         strip_clearance(body, support, opens, band)?;
     }
@@ -2784,13 +2797,13 @@ fn ring_clearance_pass<T: Decide + Bounds>(
 /// strip between two stations; one region serving both would be the
 /// looser of the two on each.
 ///
-/// **Only the outer cycle is walked.** Every support here is an open
-/// link's, and arm (a) has already metered each of its rings, piece by
-/// piece, against the link's unbounded trimline, which encloses the
-/// strip. A requested ring edge never reaches this arm: arm (a) reads
-/// it at its own trimline ([`co_requested_trim`]), where its margin is
-/// zero, so its ring refuses there first
-/// (`band_planar_cut_off_meters::a_requested_ring_edge_refuses_at_the_ring_meter`).
+/// **The outer cycle and every ring carrying a requested edge are
+/// walked** ([`strip_rings`]). Every other ring is arm (a)'s, metered
+/// piece by piece against each link's unbounded trimline, which
+/// encloses the strip. A ring carrying a requested edge cannot be: its
+/// own edge, read at its trimline ([`co_requested_trim`]), sits at
+/// margin zero, so that read refuses however clear the strip
+/// (`band_planar_cut_off_meters::a_requested_ring_edge_builds_at_its_strip`).
 ///
 /// Not metered: requested edges, which their own strips replace and
 /// predicate 2 meters pairwise, and the edges at the two stations — on
@@ -2805,12 +2818,17 @@ fn strip_clearance<T: Decide + Bounds>(
     band: Band,
 ) -> Result<(), BlendError> {
     let face = support.face();
-    let outer = face_cycle(body, face).ok_or_else(|| {
+    let mut boundary = face_cycle(body, face).ok_or_else(|| {
         not_intact(
             EntityId::Face(face),
             "a planar support has no outer cycle that walks",
         )
     })?;
+    for ring in strip_rings(body, support)? {
+        let walk = loop_walk(body, ring)
+            .ok_or_else(|| not_intact(EntityId::Loop(ring), "a planar support's ring"))?;
+        boundary.extend(walk.into_iter().map(|(he, _, _)| he));
+    }
     for chord in support.chords() {
         let o = point_of(body, chord.from)
             .ok_or_else(|| not_intact(EntityId::Vertex(chord.from), "a station's point"))?;
@@ -2829,7 +2847,7 @@ fn strip_clearance<T: Decide + Bounds>(
         };
         let (low_d, high_d) = (along(d), -along(-d));
         let across = -along(-m);
-        for &he in &outer {
+        for &he in &boundary {
             let edge = body
                 .get_half_edge(he)
                 .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a planar support's boundary"))?
@@ -2869,6 +2887,31 @@ fn strip_clearance<T: Decide + Bounds>(
         }
     }
     Ok(())
+}
+
+/// **The rings of a planar support that carry one of its requested
+/// edges**, each once: the rings arm (d) of [`ring_clearance_pass`]
+/// meters against the strips, and arm (a) does not.
+fn strip_rings<T: Decide>(
+    body: &Body<T>,
+    support: &RequestedBoundary<T>,
+) -> Result<Vec<LoopKey>, BlendError> {
+    let face = support.face();
+    let outer = body
+        .get_face(face)
+        .ok_or_else(|| not_intact(EntityId::Face(face), "a planar support"))?
+        .outer;
+    let mut rings = Vec::new();
+    for chord in support.chords() {
+        let lp = body
+            .get_half_edge(chord.half_edge)
+            .ok_or_else(|| not_intact(EntityId::HalfEdge(chord.half_edge), "a requested edge"))?
+            .parent_loop;
+        if lp != outer && !rings.contains(&lp) {
+            rings.push(lp);
+        }
+    }
+    Ok(rings)
 }
 
 /// **Each support's boundary against that support's trim**, for one

@@ -7,7 +7,9 @@
 //!   the band's cut takes the sliver away (convex) or its fill covers
 //!   it (concave);
 //! - a support's STRIP (arm (d)): a spike of the outline whose tip
-//!   reaches into the strip between the sampled screen's points;
+//!   reaches into the strip between the sampled screen's points, on
+//!   the outer cycle or on a ring that carries the requested edge (which
+//!   is metered against the strip, so a clear one builds);
 //! - a RIM two cut-offs split from its two ends: their feet must stand
 //!   in order on it, definitely apart.
 
@@ -194,29 +196,14 @@ fn two_cut_offs_on_one_rim_build_apart_and_refuse_crossing() {
     }
 }
 
-/// **A requested edge of a support's ring refuses at the ring meter.**
-/// A pocket whose outline has a tab reaching into it: the tab's tip is
-/// a mouth edge between two corners whose three edges are all convex,
-/// so the edge alone is cut off at both ends — and the strip meter,
-/// which walks only a support's outer cycle, never reads it, because
-/// the ring meter reads the requested edge at its own trimline and
-/// refuses the ring it lies in first (filed:
-/// `work/band/a-requested-ring-edge-refuses-at-the-ring-meter.md`).
-#[test]
-fn a_requested_ring_edge_refuses_at_the_ring_meter() {
-    let outline: Vec<(Point2<f64>, f64)> = [
-        (1.0, 1.0),
-        (5.0, 1.0),
-        (5.0, 4.0),
-        (3.5, 4.0),
-        (3.5, 2.5),
-        (2.5, 2.5),
-        (2.5, 4.0),
-        (1.0, 4.0),
-    ]
-    .iter()
-    .map(|&(x, y)| (Point2::new(x, y), 0.0))
-    .collect();
+/// The pocket a tab reaches into: a `6 × 5 × 2` block less the prism
+/// over `outline` from `z = 1` to `z = 2`. The tab's tip is the mouth
+/// edge from `(3.5, 2.5)` to `(2.5, 2.5)` on the top face.
+fn tabbed_pocket(outline: &[(f64, f64)]) -> Body<f64> {
+    let outline = outline
+        .iter()
+        .map(|&(x, y)| (Point2::new(x, y), 0.0))
+        .collect();
     let body = realized(
         topo::boolean::BooleanOp::Subtract,
         &block(6.0, 5.0, 2.0, tol()),
@@ -224,11 +211,111 @@ fn a_requested_ring_edge_refuses_at_the_ring_meter() {
         tol(),
     );
     validate_geometric(&body, tol()).expect("the tabbed pocket is tier-3 valid");
+    body
+}
+
+/// The tab's tip, from its right side wall to its left.
+const TAB: [(f64, f64); 2] = [(3.5, 2.5), (2.5, 2.5)];
+
+/// **A requested edge of a support's ring builds at its strip.** A
+/// pocket whose outline has a tab reaching into it: the tab's tip is a
+/// mouth edge between two corners whose three edges are all convex, so
+/// the edge alone is cut off at both ends, and the strip it takes lies
+/// inside the tab. The ring it lies in is metered against that strip,
+/// not against its unbounded trimline (on which its own edge sits), so
+/// the band builds at the prism closed form, both verbs.
+#[test]
+fn a_requested_ring_edge_builds_at_its_strip() {
+    let body = tabbed_pocket(&[
+        (1.0, 1.0),
+        (5.0, 1.0),
+        (5.0, 4.0),
+        (3.5, 4.0),
+        TAB[0],
+        TAB[1],
+        (2.5, 4.0),
+        (1.0, 4.0),
+    ]);
     let e = edge(&body, [3.5, 2.5, 2.0], [2.5, 2.5, 2.0]);
     for verb in [Verb::Chamfer, Verb::Fillet] {
+        carve(&body, &[e], verb, verb.section(), "the tab's tip");
+    }
+}
+
+/// The tabbed pocket with a narrow spike of the pocket cut into the
+/// tab's side wall, its tip `depth` from the tip edge at `x = 3.0625`:
+/// midway between two of the screen's samples on that edge, which then
+/// reads a gap of at least `√(0.0625² + depth²)`, more than `D` for a
+/// depth above `0.078`. The spike's own samples stand a length's eighth
+/// up its sides, far from the strip.
+fn spiked_pocket(depth: f64) -> Body<f64> {
+    tabbed_pocket(&[
+        (1.0, 1.0),
+        (5.0, 1.0),
+        (5.0, 4.0),
+        (3.5, 4.0),
+        (3.5, 3.95),
+        (3.0625, 2.5 + depth),
+        (3.5, 3.9),
+        TAB[0],
+        TAB[1],
+        (2.5, 4.0),
+        (1.0, 4.0),
+    ])
+}
+
+/// **A ring edge reaching into a requested ring edge's strip refuses
+/// there, as predicate 2 does.** The spike's tip stands `0.09` from the
+/// tab's tip, inside the strip of depth `D` and past the sampled
+/// screen, so the strip meter reading the ring is what refuses, at the
+/// top face; `3ε` either side of `D` it escalates there; a spike
+/// clear of the strip builds at the prism closed form.
+#[test]
+fn a_ring_edge_in_a_requested_ring_edges_strip_refuses_at_the_strip_meter() {
+    let eps = tol().eps();
+    for verb in [Verb::Chamfer, Verb::Fillet] {
+        let body = spiked_pocket(0.09);
+        let e = edge(&body, [3.5, 2.5, 2.0], [2.5, 2.5, 2.0]);
+        let top = body
+            .get_half_edge(body.get_edge(e).expect("the edge").he_plus)
+            .map(|h| body.get_loop(h.parent_loop).expect("its loop").face);
+        let other = body
+            .get_half_edge(body.get_edge(e).expect("the edge").he_minus)
+            .map(|h| body.get_loop(h.parent_loop).expect("its loop").face);
         match verb.run(&body, &[e]) {
-            Err(BlendError::RingClearance { .. }) => {}
-            other => panic!("{verb:?}: the tab's tip refuses at its ring, got {other:?}"),
+            Err(BlendError::FaceClearanceUncertified {
+                face, cross_chain, ..
+            }) => {
+                assert!(!cross_chain, "{verb:?}: one band's strip");
+                assert!(
+                    Some(face) == top || Some(face) == other,
+                    "{verb:?}: the refusal names a support of the band"
+                );
+            }
+            other => panic!("{verb:?}: the spike refuses at the strip, got {other:?}"),
         }
+        for dh in [3.0 * eps, -3.0 * eps] {
+            let body = spiked_pocket(D + dh);
+            let e = edge(&body, [3.5, 2.5, 2.0], [2.5, 2.5, 2.0]);
+            match verb.run(&body, &[e]) {
+                Err(BlendError::Escalated {
+                    site: BlendSite::Chain,
+                    decision: BlendDecision::FaceClearance,
+                    ..
+                }) => {}
+                other => panic!(
+                    "{verb:?} depth − D = {dh:e}: the spike's tip in band escalates, got {other:?}"
+                ),
+            }
+        }
+        let body = spiked_pocket(D + 0.05);
+        let e = edge(&body, [3.5, 2.5, 2.0], [2.5, 2.5, 2.0]);
+        carve(
+            &body,
+            &[e],
+            verb,
+            verb.section(),
+            "a spike clear of the strip",
+        );
     }
 }

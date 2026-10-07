@@ -211,12 +211,14 @@ becomes that face's new outer boundary, so a ring carries through
 exactly when the trim CONTAINS it, metered before any mutation under
 `fillet3_ring_clearance` (`blend/surgery.rs`'s ring carry-through
 pass, which meters every ring of every touched support face against
-every blend trimline in closed form, every other outer-boundary edge
+every blend trimline in closed form (a ring carrying a planar band's
+requested edge excepted), every other outer-boundary edge
 of a closed rim's supports — one requested in the same call at its own
 trim — against that support's trim, and every edge a cut-off leaves
 on its end face, on either side, against the sliver it removes; every
-outer-boundary edge a planar band's local carve leaves on a support is
-metered against the strip it removes under predicate 2's
+edge a planar band's local carve leaves on a support's outer cycle, or
+on a ring carrying a requested edge, is metered against the strip it
+removes under predicate 2's
 `fillet3_face_clearance`, the closed form of its sampled screen). A
 merged cap that is an ANNULUS
 therefore carves on both its rims, one call each. A full revolve's plane
