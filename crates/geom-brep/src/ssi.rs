@@ -660,6 +660,14 @@ pub enum SsiError {
         /// What is missing, in the caller's terms.
         what: &'static str,
     },
+    /// A NURBS wall's boundary row would not re-wrap as a curve: its
+    /// control net disagrees with its knot vectors. Unreachable for a
+    /// wall that validated, and surfaced with the spline layer's own
+    /// refusal rather than swallowed (D4 ¶2).
+    ChartRow {
+        /// The spline layer's typed refusal.
+        source: geom_core::spline::SplineError,
+    },
     /// A NURBS operand's chart cannot carry a length in metres into its
     /// parameters: a chart speed along one axis is zero or has no finite
     /// bound, or the chart is constant across the traced locus. Refused
@@ -1102,6 +1110,10 @@ impl core::fmt::Display for SsiError {
             Self::UnsupportedCertificate { what } => {
                 write!(f, "ssi: {what}")
             }
+            Self::ChartRow { .. } => write!(
+                f,
+                "ssi: a NURBS wall's boundary row is not valid spline structure"
+            ),
             Self::ChartSpeed(r) => write!(f, "ssi: {}", r.what()),
             Self::TubeDegenerate(d) => write!(f, "ssi: {}", d.what()),
             Self::WrongLane { expected } => write!(
@@ -1355,6 +1367,8 @@ impl SsiError {
             | Self::TubeDegenerate(TubeDegeneracy::PcurveTangentUnusable) => {
                 defect_ending(reading).to_owned()
             }
+            // A wall that validated re-wraps every boundary row.
+            Self::ChartRow { .. } => defect_ending(reading).to_owned(),
             // Limb 1 with no residual to state: its own decision.
             Self::FootPointInconclusive { .. } => {
                 crate::certify::recourse(SsiLimb::OnLocus.check(), RefusedArm::SignCertain, reading)
@@ -3557,6 +3571,11 @@ mod ending_tests {
             ),
             ("unsupported, side", NOT_YET_ENDING, NOT_YET_ENDING),
             (
+                "chart row",
+                KERNEL_DEFECT_ENDING,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
                 "refinement exhausted, step budget, floor",
                 super::STEP_BUDGET_FLOOR_RECOURSE,
                 super::STEP_BUDGET_FLOOR_RECOURSE,
@@ -3627,7 +3646,7 @@ mod ending_tests {
     }
 
     /// How many arms [`SsiError`] has: [`arm`]'s numbering.
-    const ARMS: usize = 41;
+    const ARMS: usize = 42;
 
     /// Each arm's number. No wildcard: a new arm does not compile until
     /// it is numbered, and [`each_ssi_ending_is_its_decisions`] then
@@ -3675,6 +3694,7 @@ mod ending_tests {
             SsiError::MarchStepInBand { .. } => 38,
             SsiError::MarchShortOfFit { .. } => 39,
             SsiError::SideSignBudget { .. } => 40,
+            SsiError::ChartRow { .. } => 41,
         }
     }
 
@@ -4093,6 +4113,15 @@ mod ending_tests {
                 "unsupported, side",
                 SsiError::UnsupportedCertificate {
                     what: super::exhaust::SIDE_ENCLOSURE_REFUSED,
+                },
+            ),
+            (
+                "chart row",
+                SsiError::ChartRow {
+                    source: geom_core::spline::SplineError::ControlCountMismatch {
+                        control: 3,
+                        expected: 4,
+                    },
                 },
             ),
             (
