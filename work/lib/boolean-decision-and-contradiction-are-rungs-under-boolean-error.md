@@ -99,3 +99,7 @@ schedule and curved chart refusal, which the boolean answered as
 `ClassificationInvariant` before). `ContainError` is itself an error
 type, so the sweep's narrowing does not count it a payload rung, and
 this row gains no name.
+
+TANG's `9dea3c25` adds `SectorRead`, the two reads `BooleanError::VertexReadTwice`
+names (a pierce of a face, a pairing with a vertex). It is a payload rung of
+`BooleanError` itself, like `NeighbourOffset`, and its disposition is this row.

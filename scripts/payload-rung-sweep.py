@@ -156,6 +156,10 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
     # `RestZipUnsupported`'s sub-frontier: the same carrier, the same row.
     "NeighbourOffset": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                         "boolean-error.md"),
+    # `BooleanError::VertexReadTwice`'s two reads: the same carrier, the
+    # same row.
+    "SectorRead": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                   "boolean-error.md"),
     "RestZipFrontier": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
                         "boolean-error.md"),
     "CarrierRelation": ("false-positive", "blind spot (b): the prelude carries this very "

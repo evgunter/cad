@@ -4819,6 +4819,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "underflowed_sector_chord",
             "unrepresentable_result",
             "unsupported_declaration_class",
+            "vertex_read_twice",
             "volume_corrupt",
             "volume_undecided",
             "volume_unmeasured",
