@@ -59,10 +59,11 @@ Two more sites read a cylinder's position off the reach, found by PR
 ## The fix's shape
 
 Read each offset where the consumed extent is, as the two classifiers
-now do: the feet of a `Reach`'s point on the axes (`Reach::foot_on`),
-the tilt levered from there by an EXACT distance to the consumed
-points (`Reach::lever_between` for two axes, the apex for a cone),
-never a ball around them. The chart-region and join sites need a reach
+now do: for two cylinders, the feet of a `Reach`'s point on the axes
+(`Reach::foot_on`), the tilt levered from there (`Reach::lever_between`);
+for the cone arm, at the APEX, against the cylinder's own axis, the tilt
+levered from the apex by the consumed region's distance from it. Never
+a ball around the consumed points as a lever. The chart-region and join sites need a reach
 from their callers; the cone arm's callers (`route_pose`'s edge span,
 chord_join's cone lane) already hold one.
 
@@ -83,9 +84,16 @@ By `tang/cylinder-offsets-at-the-reach`:
   at the germ sites the join connects (`geom_brep::parallel_axes_at`).
 - Held by the D10 hold, filed as
   `declared-cylinder-pair-offsets-read-off-the-reach` (parked):
-  `chart_region_cyl_offset`, `carrier_cyl_reach`'s pivot, and
-  `cylinder_data`'s offset datum. The transfer parameter `c` beside
-  `chart_region_cyl_offset` is not a defect (that item says why).
+  `chart_region_cyl_offset`. The transfer parameter `c` beside it is
+  not a defect (that item says why).
+- `carrier_cyl_reach`'s operand-ordered pivot runs on undeclared pairs
+  too; it decides the sum and is sound, filed open as
+  `carrier-cyl-reach-pivots-on-operand-twos-foot` (P3). `cylinder_data`'s
+  offset datum is not a defect: both callers hand it operand 2's foot,
+  so it is already read at the reach.
+- The cone×cylinder rows still decide the tilt and the offset one at a
+  time; `cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time` now
+  covers that arm too, at P2.
 - The sweep's new hits are filed on their owners' slates:
   `offset-axial-classify-reads-a-stored-origin-against-the-body-axis`
   (OFFSET), `sheet-clip-admits-a-cylinder-at-its-stored-origin-by-an-unlevered-tilt`

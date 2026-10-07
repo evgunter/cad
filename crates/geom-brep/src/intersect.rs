@@ -472,11 +472,13 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// the table is a compile-time visit here too.
 ///
 /// `reach` is what the consumer needs the pose read over: an edge's
-/// span ([`Reach::Span`]), levered by its exact per-carrier distance
-/// from a pivot. The arms that take a scalar extent read their pose at
-/// an ANCHOR (a cone's apex, a sphere's or torus's centre) and get its lever from
-/// there, the exact distance of the consumed region from it (a tilt `θ`
-/// displaces the locus by `θ·extent` there). A cylinder has no anchor:
+/// span ([`Reach::Span`]), the one variant its callers hand it, levered
+/// by its per-carrier farthest distance from a pivot ([`Reach::lever_from`]:
+/// exact at a line's endpoints and a NURBS net's control points, at
+/// most √2 over for a conic). The arms that take a scalar extent read
+/// their pose at an ANCHOR (a cone's apex, a sphere's or torus's
+/// centre) and get its lever from there (a tilt `θ` displaces the locus
+/// by `θ·extent` there). A cylinder has no anchor:
 /// its origin is any point of its axis, so a lever from it overstates
 /// the reach without bound, and the cone×cylinder arm reads its pose at
 /// the apex. The cylinder pair reads it from its axes' feet
@@ -2454,9 +2456,11 @@ pub enum ConeCylinderSection<T: Real> {
 /// **`extent` is measured from the apex**: the farthest the consumed
 /// region stands from it, which also bounds where the minted circles
 /// may stand (`coc_station_reach`). Every row reads the pose at the
-/// apex and levers its angles from there, so a tilt `θ` the band admits
-/// moves the cylinder's axis by at most `θ·extent` across the region
-/// from where `coc_coaxial` read it.
+/// apex and levers its angles from there: a served pose's axes stand at
+/// most `d + θ·extent` apart across the region, `d` what `coc_coaxial`
+/// reads and `θ` the tilt `coc_axes_parallel` admits. The two are
+/// decided one at a time, not as that sum
+/// (`work/tang/cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time.md`).
 ///
 /// 1. `coc_cylinder_radius` — margin `R` (meters): the arm states both
 ///    circles at exactly that radius, so it must be a positive length.
@@ -2611,10 +2615,8 @@ pub fn cone_cylinder_section<T: Decide>(
     // The axes are parallel: coaxial or merely parallel, by the apex's
     // distance from the CYLINDER's axis, read at the pivot every row
     // here is levered from. Against its own axis the cylinder's origin
-    // may stand anywhere on it; `b` is unit by the surface's own
-    // invariant, so no division enters here.
-    let q = apex - o;
-    let d = (q - b * q.dot(b)).norm();
+    // may stand anywhere on it.
+    let d = (apex - o).reject_from(b).norm();
     match decide("coc_coaxial", Margin::of(d), band).map_err(SectionError::Escalated)? {
         Sign::Zero => {
             // Coaxial. On the cone `S(u, v) = apex + a·(v·cos α) +

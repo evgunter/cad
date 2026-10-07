@@ -2838,6 +2838,10 @@ mod pose_reach_rows {
     /// reads definite, and the arm refuses the pose. Read at the stored
     /// origin instead, the axes were coaxial, and the arm served a pose
     /// whose axes stand `1000·θ` apart at the edge.
+    ///
+    /// The refusal is the offset row's: the arm refuses the same way a
+    /// cylinder EXACTLY parallel to the cone's axis and as far off the
+    /// apex is refused, which only `coc_coaxial` can do.
     #[test]
     fn a_cone_cylinder_pose_is_read_at_the_apex() {
         let theta: f64 = 0.5 * band().zero() / 1.5;
@@ -2847,20 +2851,41 @@ mod pose_reach_rows {
             half_angle: 0.5,
             u_ref: Vec3::unit_x(),
         };
-        let cyl = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1000.0),
-            axis: Vec3::new(theta.sin(), 0.0, theta.cos()),
+        let cylinder = |origin, axis| Surface::Cylinder {
+            origin,
+            axis,
             radius: 0.5,
             u_ref: Vec3::unit_y(),
         };
+        let stored = Point3::new(0.0, 0.0, 1000.0);
+        let cyl = cylinder(stored, Vec3::new(theta.sin(), 0.0, theta.cos()));
+        let off = 1000.0 * theta.sin();
+        let parallel = cylinder(Point3::new(-off, 0.0, 0.0), Vec3::unit_z());
         let edge = Curve3::Line {
             origin: Point3::new(1.0, 0.0, 1.0),
             dir: Vec3::unit_z(),
         };
+        let refusal = |cyl: &Surface<f64>| match geom_brep::cone_cylinder_section(
+            &cone,
+            cyl,
+            (Point3::new(1.0, 0.0, 1.1) - Point3::origin()).norm(),
+            band(),
+        ) {
+            Err(geom_brep::SectionError::RoutesToGeneralRung {
+                pair: "cone×cylinder",
+                why,
+            }) => why,
+            other => panic!("the arm refuses the pose to the general rung: {other:?}"),
+        };
+        assert_eq!(
+            refusal(&cyl),
+            refusal(&parallel),
+            "the tilted cylinder is refused by the offset row"
+        );
         for (label, a, b) in [("cone, cyl", &cone, &cyl), ("cyl, cone", &cyl, &cone)] {
             let got = pose_route(a, b, &edge, 0.0, 0.1, band());
             assert!(
-                matches!(got, Ok(ref r) if !r.implemented && r.note.contains("OFF it")),
+                matches!(got, Ok(ref r) if !r.implemented && r.note == refusal(&parallel)),
                 "({label}): axes apart at the apex refuse the pose, got {got:?}"
             );
         }
