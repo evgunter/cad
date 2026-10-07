@@ -1,6 +1,81 @@
 # FORK-1 — the output signature of an operation (designer B)
 
-## For Ev
+## For Ev — round 2 (supersedes round 1 where they differ)
+
+**Recommendation** (likely). The same as round 1, with one change: an
+instantiated part (`InstantiatePart`) defines **one output per entry of
+the pinned part's product, kind for kind**, not one `Body`. A revolve's
+axis stays an ordinary `Axis` variable, refused at the door unless the
+axis is defined in the frame the profile reads.
+
+**Instance of a part — changed.** Round 1 typed it as one `Body`. That
+was wrong. Today an instance of a three-body part is one body value with
+`parts = 3`. Every operation that fuses or reshapes one body refuses it
+at evaluation (`ProductOperand`, `wire::body_operand`). That is "several
+bodies" spelled a second time beside a pattern's list.
+- Once the product is an explicit list (PR C), its shape is part data,
+  fixed by the pinned document's edits rather than by any value. So the
+  instance's outputs are static per node. A boolean reads one of them,
+  and `parts` and `ProductOperand` go.
+- Each port should be keyed by the **part's product variable**, not by
+  its position. Reordering the part's product then re-points no reader.
+  A re-pin that drops an entry strands that entry's readers, typed, as
+  any delete does.
+- **Cost, kept out of the ranking:** the insert and load doors must
+  resolve the pinned part to mint the outputs. If that resolver cannot
+  be built for stage 2's PR A, the fallback is one `Bodies` output
+  (the pick by index already exists), never one `Body`.
+
+**A revolve's axis — held.** The other answer makes `AxisInPlane` its
+own kind, so that a revolve refuses a world axis at the door. That
+answer still has to check, at the same door, that the axis's frame is
+the profile's frame: a kind with no frame in it cannot say *which*
+plane. Once that identity check exists, the kind adds only an earlier,
+differently worded refusal. Its cost is that every slot that reads an
+axis must also admit an `AxisInPlane`:
+- a tube's spine;
+- a circular pattern's centre;
+- stage 6's coaxiality, "one `Axis` variable read twice".
+
+That cost comes from the very sharing the other answer cites against
+folding the axis into the revolve. So:
+- the axis is an `Axis`;
+- a revolve's door checks that it is defined by an `AxisInPlane` on the
+  same `Frame` variable its profile reads. That is an identity of
+  variable ids, with no band and no evaluation, and the refusal is
+  `SlotVarKind`'s sibling at the door, not today's at evaluation;
+- stage 4's coincidence door can later widen "same frame" to
+  "structurally in the plane" without changing a kind.
+
+I agree with the other answer against folding the axis into the
+revolve as four slots. (likely)
+
+**Name of the list kind.** I keep `Bodies` rather than `Instances`.
+"Instance" already means a placed copy of a part (`InstantiatePart`),
+and after the change above an instance can *define* a list. A kind
+called `Instances` that an instance sometimes defines and sometimes
+does not would say two things. The pick by index is then
+`Element { of: Bodies, index: Count }`, or `Pick`, rather than
+`Instance`. (likely)
+
+**Agreed with the other answer:**
+- slots state the set of kinds they admit;
+- exactly three slots admit two kinds: `Pattern.input`,
+  `Transform.input`, and the product's entries (`Body | Bodies`);
+- the signature is computed once at insert, from the variant and, for
+  `Transform` and `InstantiatePart`, from what the node reads or pins;
+- the split's port index is `SplitHalf::output_body`'s;
+- D10's sentence becomes "defines the variables its signature states,
+  possibly none".
+
+Confidence:
+- the instance mirroring its product: likely;
+- `Axis` with a same-frame check at the door: likely;
+- the rest of round 1 is unchanged.
+
+---
+
+## For Ev — round 1
 
 **Recommendation** (likely). An operation's outputs are a **fixed list of
 named, typed ports**, set by its variant. Kinds are split by what can
