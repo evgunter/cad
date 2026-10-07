@@ -7,3 +7,4 @@ Recorded at dispatch, 2026-10-07, under protocol b43aa794e5. Even byte: Opus is 
 - FORK-3 byte 49: Fable=A Opus=B
 - FORK-4 byte 209: Fable=A Opus=B
 - FORK-5 byte 97: Fable=A Opus=B
+- FORK-6 byte 164: Opus=A Fable=B (raised by the inline lane, not by the spec)
