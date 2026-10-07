@@ -1,6 +1,26 @@
 # FORK-2b — what the product is, when no node replaces another
 
-## For Ev
+## For Ev — round 2 (the audit's hits, and "the redesign governs")
+
+**Recommendation unchanged (likely): the product is the world's space.** Round 1 is below. Under Ev's rule that the redesign text governs, one item moves out of "Choices for Ev": export writes the world and refuses only an empty world or a placement that cannot place. That changes A11 (2)'s "STEP export refuses unplaced parts" (Ev, #3441) rather than bending the redesign to keep it, and the protection it was for is kept. Choice 1 (the GUI gesture re-points the world placement) remains Ev's.
+
+**The audit's hits, one by one.**
+- **H1, A10's invariants** ("the root set is exactly the DAG's sink set"). **Retire.** Nothing is a sink in the product's sense. Replacement for A10 as a whole: "The product is the world's space: the copies placed relative to the world, gathered in the document order of their world placements. An operation places nothing. An empty world is a valid document whose product is empty; a door that needs a product refuses `EmptyProduct`." (sure)
+- **H2, A10's maintenance** (replacement, orphaned inputs, `on_insert`, `on_delete`, `on_set_members`). **Retire, with no successor.** No edit moves the product as a side effect. The spec's "membership unmoved on every corpus file" and its test 6 become a one-time migration check (one world placement per body-denoting root, in root order), not a rule. The 73 `combine_ops` and 38 `creation_ops` viewer rows are restated to read the world placements their gestures author (choice 1). (sure)
+- **H3, A4's split acceptance.** **Change.** New text: "Split-then-evaluate equals unsplit evaluation on the world space at structural and name-resolution identity, up to the order of copies: the cut's world copies become the instance's copies, each a world placement of the instance's output for it. Inline-of-split returns the document split was given, up to minted ids and order." The "first of them" splice goes, because order is derived. (likely)
+- **H6, DM4's pip delete** ("plus a plain `DeleteNode` of the orphaned transform"). **Change.** New text: "Deleting a pip is `SetMembers` without it. The transform stays a value; it is not in the product, because nothing places it in the world. Deleting it as well is tidiness, not a requirement." (likely)
+- **H7, D-2's closure.** **Change: the rule narrows and gets a new reason.** The cut must still be closed toward its ancestors, because a part cannot read its host. The half toward consumers rested on "every cut sink is a document sink", and that reason retires. New text: "A remainder read of a cut body is admitted when the cut places that body in the world, and re-points to the instance's output for that copy; a read of a cut body the cut does not place refuses (`SeveredEdge`), because a part delivers only what its world holds." This corrects round 1's "only world copies cross": world copies cross, and remainder reads may follow them. The same reasoning retires inline's `InstanceConsumed` (H8): a reader of an instance output re-points to the inlined body. (likely)
+- **H9, `PlacedUnderTwoRoots` / N4's once-per-product rule.** **Retire.** Two world placements of material that shares an instance are two copies (D10: "two placements of a part are two copies"). Each copy qualifies the names it carries by its placement, as `Instance` qualifies a pattern copy, so no name reaches the product twice. In stage 2, where a placement can only be the identity, the one surviving refusal is a door refusal of a second identity placement of the same body. Two coincident copies are not a product statement. (likely)
+- **H10, A5's minting lift through consumers.** **Retire `names::lift`'s consumer walk and the `MovedAbove`/`Vanished` arms.** A mate relates copies. Its declaration is minted on the world copies of its two members when both are in the world. When they are not (a mate relating a boolean's operands in the workbench), it is not an at-rest fact of the product and nothing is minted. The boolean's own coincidence door decides the glue (D10). New text for A5's paragraph: "A declaration is minted on the world copies of its mate's members, read through those copies' placements; a mate whose members are not both in the world mints nothing." (likely)
+- **H11, A2's "takes its A10 product".** **Change** to "takes its world space: each world copy of the pinned document, in its world coordinates". #4222's "one variable per entry of the part's product" becomes "one `Body` variable per world placement of the part", so a part placed twice in its own world hands out two outputs. (likely)
+
+**Also leaning toward the redesign:** the spec's unit C representation (`Doc::product: Vec<VarId>`, `SetProduct`, `ProductFault`) is replaced by `PlaceInWorld` and a derived product, as round 1 said. Its goal of unchanged membership survives only as the migration check above.
+
+---
+
+## Round 1 (as delivered)
+
+### For Ev
 
 **Recommendation (likely): the product is the world's space, and nothing else states it.** A body appears exactly when a copy of it is placed relative to the world. No edit moves anything into or out of the world as a side effect: a boolean is a further body, and its operands do not appear because nobody placed them in the world. The world placement replaces the explicit list. It is one statement that says both *that* a body is delivered and *where* export puts it, where the list would need a second statement for the coordinates.
 
@@ -55,7 +75,7 @@
 - Migration preserves the corpus: likely; I did not run the corpus.
 - Split's interface carries only world copies: likely; this rests on A4's two-way closure.
 
-## For the orchestrator
+### For the orchestrator (round 1)
 
 - **Assumed.** Stage 3 makes the world placement a mate bundle and lets a copy reach the world through other copies. I designed the stage-2 node as the identity case of that placement. If stage 3 chooses otherwise, `PlaceInWorld` still stands as stage 2's honest form.
 - **Cross-fork dependencies.**
@@ -66,3 +86,10 @@
 - **Ev's 2231 ruling** (option D, no declared root set) rested on the sink rule and is overtaken. The PR should say so.
 - **Spec edits if adopted.** In #4216: unit C's representation becomes `PlaceInWorld` plus a derived product, `SetProduct` and `ProductFault::Duplicate` become a door refusal of a second identity placement of one body, the corpus row becomes a migration check, and Promote's slot insert still goes.
 - No code was changed and no defect was filed off the question.
+
+## For the orchestrator — round 2
+
+- **H7 against #4222.** #4222's instance outputs make the narrowed closure buildable: a remainder reader re-points to the output for that copy. If #4222 lands an output per *product entry* instead, the text needs only "product entry" read as "world placement".
+- **H9's copy qualifier** is a naming addition, owned by stage 3 (copies) and by N4's page. In stage 2 the door refusal covers the only reachable case.
+- **H10.** Today's corpus assemblies are world-gauged instances mated directly, so their mints are unchanged. The only behaviour that moves is a mate that is read only through a boolean, which stops minting. That is the D10-correct outcome. I did not check whether any corpus file has one.
+- **Untouched hits (outside the product question):** H4 retires with A12 as #4216 F plans. H5 (E3's "sink node" wording) and H12 (A9's vocabulary) are rewordings for the units that touch them. H13's guide line `:1069` should read `doc.product`, as derived.
