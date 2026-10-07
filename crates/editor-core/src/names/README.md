@@ -240,21 +240,28 @@ The qualifier depends on what was split:
 - **Vertices** cite the edges they lie on by their lines, never by a piece's
   qualifier at any depth, so vertices are named before edge pieces are
   qualified, and
-  nothing in a piece's name lies beyond its own boundary. A crossing, where a
-  face of one operand meets an edge of the other or where an edge lying in such
-  a face ends in it, is named by its sense: whether the crossed edge, oriented
-  as the operand body stores it (a seam edge as the loop of the pair's first
-  side runs along it), enters or leaves at the vertex the closed body the
-  crossing face belongs to. For the Split that body is the half the edge runs
-  into; a side of the vertex with no portion of the edge counts as outside.
-  The sense is read at the step that mints the vertex and carried through a
-  union's collapse. Every crossing carries it, a lone one included: a
-  boolean's or union's is `Crossing { edge, face, sense }`, the Split's
-  `CrossingVertex` holds it as a field. A vertex where two edges cross carries
-  each edge's sense against the other operand's closed body. Crossings of one
-  line by one face with the same sense are ranked along the line by its
-  carrier's own parameter, in the edge's stored orientation; an equal pair
-  ties.
+  nothing in a piece's name lies beyond its own boundary. A vertex of either
+  operand is named as that vertex, wherever the other operand meets it: an
+  edge that ends on a face of the other operand ends at its own vertex, and
+  that vertex is the name. Every other vertex where a face of one operand
+  meets an edge of the other is a crossing, named by its sense: where the
+  crossed edge's two sides at the vertex lie against the closed body the
+  crossing face belongs to, the edge oriented as the operand body stores it
+  (a seam edge as the loop of the pair's first side runs along it). The sense
+  is `Enters` (outside, then inside), `Leaves` (inside, then outside),
+  `Outside` (outside on both sides: a touch from outside) or `Inside` (inside
+  on both sides: a touch from inside); a side lying on the face counts as
+  inside. For the Split that body is the half the edge runs into, and a plane
+  only enters or leaves. The sense is read at the step that mints the vertex
+  and carried through a union's collapse, where reversing an edge swaps
+  `Enters` and `Leaves` and keeps the other two. Every crossing carries it, a
+  lone one included: a boolean's or union's is `Crossing { edge, face, sense
+  }`, the Split's `CrossingVertex` holds it as a field. A vertex where two
+  edges meet is `EdgeCrossing { a, a_sense, b, b_sense }`, each edge's sense
+  read against the other operand's closed body, the two in name order in a
+  union. Crossings of one line by one face with the same sense are ranked
+  along the line by its carrier's own parameter, in the edge's stored
+  orientation; an equal pair ties.
 
 No rule reads a plane or a direction, and a union's reading of a seam pair in
 name order changes nothing. Name order spells a set; the flush rule below is
@@ -293,9 +300,11 @@ closed operand edge alone and is covered over its whole period, so its name
 reads nothing off where its vertex sits. A seam vertex cites a member edge
 whole, `FromMember(m, e)`, never a piece and never a set: the one it lies on,
 the least where several do. In a pair boolean, where an A edge and a B edge
-both hold it, A's is cited. A vertex at a member vertex is that vertex, and one
-where a single face crosses a member edge is the `Crossing` of that edge and
-that face. A reference to a member edge, or to a piece of one, that no longer
+both hold it, A's is cited. A vertex at a member vertex is that vertex; one
+where a single face crosses or touches a member edge is the `Crossing` of that
+edge and that face; and one where two member edges meet is their
+`EdgeCrossing`, read from the finished body like a `Crossing`, so every member
+order spells it alike. A reference to a member edge, or to a piece of one, that no longer
 resolves is offered every set listing that member edge.
 
 **A union's face is named for its PARENT.** Two member faces are linked when
@@ -530,8 +539,7 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   stopped or started dividing the group. At a union a cutter is compared
   without the fold's `Fragment` tail, which is the fold's and not the member's;
   a renamed cutter reads as one gone and one new; a cutter vertex fused onto
-  the parent edge is spelled as a pass-down vertex, not a seam, so a crossing
-  that became a touch reads as gone. It names none, and says why, where the
+  the parent edge is spelled as a pass-down vertex, not a seam. It names none, and says why, where the
   tables cannot say: a group no seam rows on one parent name bound (a split's,
   a pair boolean's own seam chain or merged face), tied parents whose shared
   name the seams are spelled on, a prior table that spells no seam on the
