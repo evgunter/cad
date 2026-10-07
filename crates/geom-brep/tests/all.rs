@@ -172,6 +172,8 @@ mod pcurve_p1a_meter;
 mod pcurve_p1b_r2_probes;
 #[path = "pcurve_parameter_finding.rs"]
 mod pcurve_parameter_finding;
+#[path = "pcurve_villarceau.rs"]
+mod pcurve_villarceau;
 #[path = "r1_pxn_probes.rs"]
 mod r1_pxn_probes;
 #[path = "r2_cert3_e2e.rs"]

@@ -583,13 +583,14 @@ fn nurbs_tighten(
                            torus, so no spline chart mints one",
                 });
             }
-            // As the spiric: a cone-section image certifies on a cone
-            // chart only, so no spline chart mints one.
-            Pcurve::ConeSection { .. } => {
+            // As the spiric: a focal-section image certifies on a cone
+            // or torus chart only, so no spline chart mints one.
+            Pcurve::FocalSection { .. } => {
                 return Err(TessellateError::UnsupportedCurve {
                     edge: ek,
-                    note: "NURBS-face half-edge carries a CONE-SECTION pcurve — that \
-                           image lives on a cone chart, so no spline chart mints one",
+                    note: "NURBS-face half-edge carries a FOCAL-SECTION pcurve — that \
+                           image lives on a cone or torus chart, so no spline chart mints \
+                           one",
                 });
             }
         };

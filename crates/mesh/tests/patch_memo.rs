@@ -621,19 +621,24 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                     }
                 },
             },
-            // Likewise no cone chart here; `u0` is the one field.
-            Pcurve::ConeSection {
+            // Likewise no cone or torus chart here; `u0` is the one
+            // field.
+            Pcurve::FocalSection {
                 u0,
+                t0,
                 v0,
                 va,
                 vb,
+                vl,
                 beta,
                 sense,
-            } => Pcurve::ConeSection {
+            } => Pcurve::FocalSection {
                 u0: u0 + TAU,
+                t0,
                 v0,
                 va,
                 vb,
+                vl,
                 beta,
                 sense,
             },

@@ -1,5 +1,5 @@
 //! The tilted plane × cone ellipse's exact chart image on its cone
-//! (`Pcurve::ConeSection`): derived by `chart_pcurve`, exact against
+//! (`Pcurve::FocalSection`'s cone instance): derived by `chart_pcurve`, exact against
 //! the carrier through the chart map, certified with a rounding-scale
 //! envelope, and refused when any of its numbers is wrong.
 
@@ -79,7 +79,7 @@ fn reversed(e: &Curve3<f64>) -> Curve3<f64> {
 }
 
 /// Every pairing of nappe and traversal: the image is the
-/// `ConeSection` form, maps onto the carrier at rounding scale over two
+/// cone instance of the `FocalSection` form, maps onto the carrier at rounding scale over two
 /// periods (the azimuth's branch never jumps), and certifies over a
 /// span longer than a half-turn with a rounding-scale envelope.
 #[test]
@@ -89,7 +89,7 @@ fn the_image_is_exact_on_both_nappes_and_both_traversals() {
         for carrier in [section(), reversed(&section())] {
             let what = format!("axis sign {axis_sign}, carrier {carrier:?}");
             let image = chart_pcurve(&carrier, &surface, band()).unwrap();
-            let Pcurve::ConeSection { beta, sense, .. } = image else {
+            let Pcurve::FocalSection { beta, sense, .. } = image else {
                 panic!("{what}: expected the cone-section image, got {image:?}");
             };
             assert!(
@@ -126,11 +126,13 @@ fn a_wrong_number_in_the_image_refuses() {
     let surface = cone(1.0);
     let carrier = section();
     let image = chart_pcurve(&carrier, &surface, band()).unwrap();
-    let Pcurve::ConeSection {
+    let Pcurve::FocalSection {
         u0,
+        t0,
         v0,
         va,
         vb,
+        vl,
         beta,
         sense,
     } = image
@@ -139,19 +141,23 @@ fn a_wrong_number_in_the_image_refuses() {
     };
     let h = 1e-6;
     let wrong = [
-        ("u0", (u0 + h, v0, va, vb, beta, sense)),
-        ("v0", (u0, v0 + h, va, vb, beta, sense)),
-        ("va", (u0, v0, va + h, vb, beta, sense)),
-        ("vb", (u0, v0, va, vb + h, beta, sense)),
-        ("beta", (u0, v0, va, vb, beta + h, sense)),
-        ("sense", (u0, v0, va, vb, beta, -sense)),
+        ("u0", (u0 + h, t0, v0, va, vb, vl, beta, sense)),
+        ("t0", (u0, t0 + h, v0, va, vb, vl, beta, sense)),
+        ("v0", (u0, t0, v0 + h, va, vb, vl, beta, sense)),
+        ("va", (u0, t0, v0, va + h, vb, vl, beta, sense)),
+        ("vb", (u0, t0, v0, va, vb + h, vl, beta, sense)),
+        ("vl", (u0, t0, v0, va, vb, vl + h, beta, sense)),
+        ("beta", (u0, t0, v0, va, vb, vl, beta + h, sense)),
+        ("sense", (u0, t0, v0, va, vb, vl, beta, -sense)),
     ];
-    for (name, (u0, v0, va, vb, beta, sense)) in wrong {
-        let bad = Pcurve::ConeSection {
+    for (name, (u0, t0, v0, va, vb, vl, beta, sense)) in wrong {
+        let bad = Pcurve::FocalSection {
             u0,
+            t0,
             v0,
             va,
             vb,
+            vl,
             beta,
             sense,
         };
@@ -195,11 +201,13 @@ fn the_envelope_covers_an_admitted_slant_error() {
         let surface = cone_at(1.0, half_angle);
         let carrier = section_of(half_angle, tilt);
         let image = chart_pcurve(&carrier, &surface, band()).unwrap();
-        let Pcurve::ConeSection {
+        let Pcurve::FocalSection {
             u0,
+            t0: vertex,
             v0,
             va,
             vb,
+            vl,
             beta,
             sense,
         } = image
@@ -209,11 +217,13 @@ fn the_envelope_covers_an_admitted_slant_error() {
         let h = 0.25 * crate::shared::tol::eps();
         for (name, va, vb) in [("va", va + h, vb), ("vb", va, vb + h)] {
             let what = format!("alpha {half_angle}, {name} moved by eps/4");
-            let moved = Pcurve::ConeSection {
+            let moved = Pcurve::FocalSection {
                 u0,
+                t0: vertex,
                 v0,
                 va,
                 vb,
+                vl,
                 beta,
                 sense,
             };

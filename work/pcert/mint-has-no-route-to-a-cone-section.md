@@ -2,9 +2,10 @@
 id: mint-has-no-route-to-a-cone-section
 kind: issue
 title: the mint has no route to a circle tilted off a cone's rim, so a cone face bounded by one stays uncached under C4's exemption
-status: open
+status: closed
 opened: 2026-10-02
 priority: P1
+closed: 2026-10-07
 ---
 
 Filed by PCERT's `pcert/at-rest-rows-mandatory` (PR 3759), which makes

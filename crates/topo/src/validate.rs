@@ -2984,6 +2984,7 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, Cow<'s
                     "a boundary curve's parameter range cannot carry its image on the face",
                     REPARAMETERIZE,
                 ),
+                C::CarrierGrazesChart { grazer, .. } => (WRONG, grazer.recourse()),
                 C::ChartRow { .. }
                 | C::CarrierOffChart { .. }
                 | C::ImageMismatch { .. }

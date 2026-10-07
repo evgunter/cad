@@ -4,8 +4,8 @@
 //! and the cone's reads one (a rim: ⊥ the axis, centred on it). Every
 //! carrier failing them is decided by an incidence test
 //! (`pcurve_sphere_chart_incident`, `pcurve_cone_chart_incident`): on
-//! the chart, its image or an uncovered class; off it, a carrier off
-//! the chart. A
+//! the chart, its image, an uncovered class or a grazing circle; off
+//! it, a carrier off the chart. A
 //! gate that reads a SECOND, amplified quantity after an in-band first
 //! one — or a first-order quantity for a second-order departure — must
 //! not decide off-chart on its own; these rows build on-chart carriers
@@ -15,7 +15,7 @@
 
 use crate::shared::tol::{band, eps};
 use geom::{Curve3, Surface};
-use geom_brep::{Pcurve, PcurveCertifyError, UncoveredClass, chart_pcurve};
+use geom_brep::{Grazer, Pcurve, PcurveCertifyError, UncoveredClass, chart_pcurve};
 use geom_core::{Point3, Tol, Vec3};
 
 /// The right circular cone of half-angle `alpha` about `+z` with its
@@ -74,7 +74,7 @@ fn a_cone_section_is_imaged_and_a_moved_one_is_off_the_chart() {
     assert!(dist < 1e-14, "on the cone: {dist:e}");
     let got = chart_pcurve(&on, &cone(alpha), band());
     assert!(
-        matches!(got, Ok(Pcurve::ConeSection { .. })),
+        matches!(got, Ok(Pcurve::FocalSection { .. })),
         "a cone section derives its section image: {got:?}"
     );
     let shift = 2.0 * Tol::witness().k() * eps();
@@ -166,7 +166,8 @@ fn each_harmonic_group_of_the_cone_residual_decides_alone() {
 /// `≈ tan α · ε/2` off the axis: inside the centring band on a needle
 /// cone, where it is a rim and images in closed form, and past it on a
 /// wide one, where the centring gate fails. There the incidence test,
-/// not the gate, decides — and the circle is on the cone.
+/// not the gate, decides — and the circle is on the cone, grazing it:
+/// a cone holds no circle but its rims.
 #[test]
 fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
     let e = eps();
@@ -197,12 +198,13 @@ fn a_near_rim_circle_tilted_inside_the_axial_band_is_on_the_cone() {
             assert!(
                 matches!(
                     got,
-                    Err(PcurveCertifyError::UnsupportedCarrier {
-                        class: UncoveredClass::ConeSection,
+                    Err(PcurveCertifyError::CarrierGrazesChart {
+                        grazer: Grazer::ConeCircle,
                         ..
                     })
                 ),
-                "alpha = {alpha}: an on-cone circle is never off the chart: {got:?}"
+                "alpha = {alpha}: an on-cone circle that is no rim grazes the chart, never off \
+                 it: {got:?}"
             );
         }
     }

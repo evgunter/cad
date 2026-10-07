@@ -2161,8 +2161,8 @@ fn plan_edge<T: Decide>(
 /// not bend the curve drawn in it. `None` for a fitted image, whose
 /// `v` channel is a control net rather than a closed form — refused
 /// rather than shifted point-by-point, which would author a fit this
-/// door has no certificate for — and for a cone-section image, whose
-/// offset is no plane section of the offset cone.
+/// door has no certificate for — and for a focal-section image, whose
+/// offset is no section of the offset chart.
 fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
     use geom_brep::Pcurve;
     Some(match *pcurve {
@@ -2218,11 +2218,11 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
                 },
             },
         },
-        // A cone section's image is tied to its cone through `β`, the
+        // A focal section's image is tied to its chart through `β`, the
         // projected ellipse's eccentricity: the offset moves the curve
-        // off the plane section it was, so no image of the same form
-        // is shifted out of this one.
-        Pcurve::ConeSection { .. } | Pcurve::Fitted(_) | Pcurve::General(_) => return None,
+        // off the section it was, so no image of the same form is
+        // shifted out of this one.
+        Pcurve::FocalSection { .. } | Pcurve::Fitted(_) | Pcurve::General(_) => return None,
     })
 }
 
@@ -2747,15 +2747,17 @@ mod shift_chart_v_rows {
     use super::shift_chart_v;
 
     /// The offset's `v` shift moves a harmonic image's constant term and
-    /// refuses a cone-section image, whose offset is no plane section of
+    /// refuses a focal-section image, whose offset is no plane section of
     /// the offset cone.
     #[test]
     fn a_cone_section_image_has_no_shift() {
-        let section = Pcurve::ConeSection {
+        let section = Pcurve::FocalSection {
             u0: 0.1,
+            t0: 0.0,
             v0: 2.0,
             va: -0.4,
             vb: 0.0,
+            vl: 0.0,
             beta: 0.2,
             sense: 1.0,
         };

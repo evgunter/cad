@@ -1161,16 +1161,18 @@ impl KeyWriter {
                     }
                 }
             }
-            Pcurve::ConeSection {
+            Pcurve::FocalSection {
                 u0,
+                t0,
                 v0,
                 va,
                 vb,
+                vl,
                 beta,
                 sense,
             } => {
                 self.u8(6);
-                for x in [u0, v0, va, vb, beta, sense] {
+                for x in [u0, t0, v0, va, vb, vl, beta, sense] {
                     self.f64(*x);
                 }
             }

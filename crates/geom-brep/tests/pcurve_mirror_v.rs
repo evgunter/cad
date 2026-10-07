@@ -138,12 +138,14 @@ fn kinds() -> Vec<(&'static str, Pcurve<f64>, f64, f64)> {
             0.9,
         ),
         (
-            "ConeSection",
-            Pcurve::ConeSection {
+            "FocalSection",
+            Pcurve::FocalSection {
                 u0: 0.7,
+                t0: 0.375,
                 v0: 2.5,
                 va: -0.75,
                 vb: 0.125,
+                vl: -1.0,
                 beta: 0.3,
                 sense: -1.0,
             },
@@ -181,7 +183,7 @@ fn every_variant_appears_in_the_kinds_census() {
             Pcurve::IsoLine { .. } => 3,
             Pcurve::IsoArc { .. } => 4,
             Pcurve::Spiric { .. } => 5,
-            Pcurve::ConeSection { .. } => 6,
+            Pcurve::FocalSection { .. } => 6,
         };
         seen[slot] = true;
     }

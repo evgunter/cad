@@ -1023,10 +1023,10 @@ impl<T: Real> TorusChartWindow<T> {
         self.net = Some((T::zero(), T::zero()));
     }
 
-    /// One half-edge of the open loop. A torus chart's closed-form
-    /// images are harmonic (a cone-section image certifies on a cone
-    /// only), so any other image abandons the window — which widens the
-    /// box to the whole tube, never narrows it.
+    /// One half-edge of the open loop. The window reads a torus chart's
+    /// harmonic images; any other image (a Villarceau circle's focal
+    /// section among them) abandons it — which widens the box to the
+    /// whole tube, never narrows it.
     pub(crate) fn step(&mut self, step: &WindowStep<'_, T>) {
         let Some((cache, image, forward)) = step else {
             self.ok = false;

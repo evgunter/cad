@@ -43,15 +43,16 @@
 //!   polar nor meridian) has no closed form and takes the fitted lane:
 //!   its image from [`geom_brep::FittedLane::sphere_circle_image`],
 //!   certified by [`geom_brep::PcurveCache::certify_fitted`]'s Circle
-//!   arm (`analytic_derive`). Any other carrier outside the closed-form
-//!   classes that can still lie on the chart refuses
+//!   arm (`analytic_derive`). A cone's tilted section and a torus's
+//!   Villarceau circle take their exact focal-section image
+//!   ([`geom_brep::Pcurve::FocalSection`]). Any other carrier outside
+//!   the closed-form classes that can still lie on the chart refuses
 //!   [`PcurveCertifyError::UnsupportedCarrier`] with the class named,
 //!   and its face stays uncached, excused by C4's exemption
-//!   ([`not_owed`]) until the class's route lands — the cone/torus
-//!   oblique classes have no honest route yet (no ring-computable
-//!   meters composite). A carrier
-//!   that cannot lie on its face
-//!   ([`PcurveCertifyError::CarrierOffChart`]) is a defect, and the
+//!   ([`not_owed`]) until the class's route lands. A carrier that
+//!   cannot lie on its face ([`PcurveCertifyError::CarrierOffChart`]),
+//!   or that grazes a cone or torus as none of its circles
+//!   ([`PcurveCertifyError::CarrierGrazesChart`]), is a defect, and the
 //!   pass refuses with it.
 //! - **Described NURBS charts mint** their iso lane (M6-3,
 //!   `nurbs_iso_derive`) — RATIONAL ones too since M8-3, whose ARC cap
@@ -2606,13 +2607,14 @@ pub fn mint_pcurves_of<T: AtRestPolicy>(
 /// refusal, or a panic on a torn record, leaves the body as found.
 ///
 /// A face whose rows are not owed ([`not_owed`]: a pair the chart can
-/// hold but no route covers yet — an oblique torus circle, a tilted
-/// cone section, a spline carrier on an analytic chart — or a fitted
-/// face at a scalar with no fitted door; the at-rest pass excuses
-/// exactly these, by the same predicate) contributes the rows it held,
-/// carried ([`carry_rows`]), so the mint never drops a certificate it
-/// cannot re-derive. Every OTHER refusal — a carrier off its face, an
-/// image that is not its carrier's, a general sphere circle its fitted
+/// hold but no route covers yet — a spline carrier on an analytic
+/// chart, a mirror-torus spiric, a line, ellipse or spiric offered a
+/// fitted image — or a fitted face at a scalar with no fitted door; the
+/// at-rest pass excuses exactly these, by the same predicate)
+/// contributes the rows it held, carried ([`carry_rows`]), so the mint
+/// never drops a certificate it cannot re-derive. Every OTHER refusal
+/// — a carrier off its face or grazing it, an image that is not its
+/// carrier's, a general sphere circle its fitted
 /// route refuses, a covered class whose residuals, envelope, continuity
 /// or closure refuse — is a genuine defect and propagates.
 fn mint_rows<T: AtRestPolicy>(
@@ -4442,9 +4444,9 @@ fn chart_edge<T: Decide>(
         // `_` arm there already answers from `eval` over the span
         // hull.
         Pcurve::Spiric { .. } => false,
-        // A cone section's image is curved in both channels, and takes
+        // A focal section's image is curved in both channels, and takes
         // the same envelope door.
-        Pcurve::ConeSection { .. } => false,
+        Pcurve::FocalSection { .. } => false,
         Pcurve::Fitted(_) | Pcurve::General(_) => false,
     };
     if straight {

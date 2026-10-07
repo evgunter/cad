@@ -583,7 +583,7 @@ pub(crate) fn torus_grid_steps(delta_s: f64, major: f64, minor: f64) -> (f64, f6
 /// carriers (`|n · axis| > 0.5` splits rim from meridian, every
 /// direction falling on one side), so nothing refuses HERE: a circle
 /// on a torus that is neither iso-curve — a Villarceau circle, which
-/// no construction of this kernel authors — is refused by the face
+/// no producer of this kernel mints — is refused by the face
 /// door (`geom_brep::props::require_iso_rectangle`, through
 /// [`crate::curved`]) before any grid is built on the face, and a
 /// whole-body refusal is what a mis-tightened count on such an edge

@@ -66,7 +66,7 @@ fn wall_pcurve_kinds(body: &Body<f64>, face: FaceKey) -> Vec<&'static str> {
                 Pcurve::Fitted(_) => "Fitted",
                 Pcurve::General(_) => "General",
                 Pcurve::Spiric { .. } => "Spiric",
-                Pcurve::ConeSection { .. } => "ConeSection",
+                Pcurve::FocalSection { .. } => "FocalSection",
             }
         })
         .collect()
