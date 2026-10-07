@@ -1797,6 +1797,18 @@ pub enum PairRefusalSite {
     InteriorLoopGuard,
 }
 
+/// One sector read of a vertex, named in
+/// [`BooleanError::VertexReadTwice`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SectorRead {
+    /// The vertex-on-face pass that classifies the vertex against this
+    /// face of the other operand.
+    Pierce(FaceKey),
+    /// The vertex-vertex pass that pairs the vertex with this vertex of
+    /// the other operand.
+    Pair(VertexKey),
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -2303,11 +2315,13 @@ pub enum BooleanError {
     SharedVertexCrossings {
         /// The operand whose vertex both pairs share.
         operand: Operand,
-        /// That vertex.
+        /// That vertex: a key of the operand's working copy, which the
+        /// sweep may have minted on one of its edges.
         vertex: VertexKey,
         /// Two of the other operand's vertices at its point that it
         /// crosses into, in classification order: the first two, when
-        /// it crosses into more.
+        /// it crosses into more. Keys of the other operand's working
+        /// copy, as `vertex` is.
         partners: [VertexKey; 2],
     },
     /// A vertex of `operand` pierces a face of the other solid with
@@ -2321,10 +2335,28 @@ pub enum BooleanError {
     PierceRunsNested {
         /// The piercing operand.
         operand: Operand,
-        /// Its piercing vertex.
+        /// Its piercing vertex: a key of the operand's working copy,
+        /// which the sweep may have minted on one of its edges.
         vertex: VertexKey,
         /// How many Out runs it has against the face.
         runs: usize,
+    },
+    /// A vertex of `operand` is read by two sector passes: it pierces
+    /// two faces of the other solid, or pierces one and coincides with a
+    /// vertex of it. That other solid holds its own contact at the
+    /// vertex's point: two of its faces meet there in their interiors,
+    /// or a vertex of it rests on one of its faces. A vertex-on-face pass
+    /// hangs struts at its piercing vertex, so a later pass would read
+    /// an orbit an earlier one wrote (`vtxfac::refuse_sector_rereads`).
+    VertexReadTwice {
+        /// The operand whose vertex is read twice.
+        operand: Operand,
+        /// That vertex: a key of the operand's working copy, which the
+        /// sweep may have minted on one of its edges.
+        vertex: VertexKey,
+        /// Its first pierce, then its next read: a second pierce, or a
+        /// pair.
+        reads: [SectorRead; 2],
     },
     /// The result would hold a non-manifold vertex: both operands hold
     /// several vertices at one point, and A's crosses into two of B's
@@ -2927,6 +2959,8 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PierceRunsNested`].
     PierceRunsNested,
+    /// [`BooleanError::VertexReadTwice`].
+    VertexReadTwice,
     /// [`BooleanError::NonManifoldResult`].
     NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
@@ -3138,6 +3172,7 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PierceRunsNested { .. } => BooleanErrorKind::PierceRunsNested,
+            Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -3631,6 +3666,17 @@ impl core::fmt::Display for BooleanError {
                  around others as seen along the face, which the Boolean does not yet \
                  order. There is no way through this in the kernel yet",
                 operand_word(*operand)
+            ),
+            Self::VertexReadTwice { operand, reads, .. } => write!(
+                f,
+                "a corner of the {} solid lands where the other solid touches itself \
+                 ({}), and the Boolean cannot yet classify one corner against both. \
+                 There is no way through this in the kernel yet",
+                operand_word(*operand),
+                match reads[1] {
+                    SectorRead::Pierce(_) => "two of its faces meet there",
+                    SectorRead::Pair(_) => "a corner of it rests on one of its faces",
+                }
             ),
             Self::NonManifoldResult { .. } => write!(
                 f,
@@ -4313,6 +4359,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut held = Vec::new();
     let mut edge_classes = Vec::new();
 
+    vtxfac::refuse_sector_rereads(&contacts)?;
     // Vertex-on-face classification (sonva then sonvb, as 15.5).
     for &c in &contacts.a_on_b {
         let out = vtxfac::classify_vertex_on_face(
@@ -4362,26 +4409,6 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &edge_splits,
         )?);
     }
-
-    // The VF passes hang null struts at their piercing vertices and at
-    // ring vertices they mint, and every sector read (each VF contact's
-    // piercing vertex, each VV pair's two) reads an orbit as its operand
-    // gave it: so a vertex pierces at most one face, and a paired vertex
-    // pierces none.
-    debug_assert!(
-        [(&contacts.a_on_b, true), (&contacts.b_on_a, false)]
-            .into_iter()
-            .all(|(pierced, a_side)| {
-                pierced.iter().enumerate().all(|(i, f)| {
-                    !pierced[..i].iter().any(|g| g.vertex == f.vertex)
-                        && !contacts
-                            .vv
-                            .iter()
-                            .any(|c| f.vertex == if a_side { c.a } else { c.b })
-                })
-            }),
-        "a vertex is read by two sector passes after the first may hang a strut there: {contacts:?}"
-    );
 
     // Vertex-vertex classification, every pair read before the first
     // insertion: a vertex may sit in more than one pair (an operand
@@ -6318,6 +6345,14 @@ mod tests {
                 vertex: VertexKey::default(),
                 runs: 3,
             },
+            BooleanError::VertexReadTwice {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                reads: [
+                    SectorRead::Pierce(face),
+                    SectorRead::Pair(VertexKey::default()),
+                ],
+            },
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),
                 b_vertices: [VertexKey::default(); 2],
@@ -6487,6 +6522,7 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PierceRunsNested => "PierceRunsNested",
+                BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",
