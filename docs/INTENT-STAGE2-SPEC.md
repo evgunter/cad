@@ -542,6 +542,8 @@ Each FORK changed ratified text or turned on Ev's preference, and a designer pai
 | H13 | the guide's roots examples (`assembly.md:322–341`, `:1069`, `:1227`) | C |
 | H14 | `DeleteWouldDangle` | retires in B |
 
+**Sequencing note.** #4220 places H7, H8 and H9 "with units B and F". This spec puts them in C, because each is stated over world placements, which exist only from C. The orchestrator confirmed this on 2026-10-07 as a sequencing correction that changes no design. H10 stays in F.
+
 **Inconsistencies found.**
 
 - ASSEMBLY A12 (as #4220 rewrote it) still names `reading_edges` and "operand ∪ reading edges". Both retire in F, and A12 becomes a pointer to D10.
