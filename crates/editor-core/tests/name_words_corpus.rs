@@ -79,7 +79,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// e548`): every slot holds a variable's id, so every node is minted
 /// from other bytes. [`NAME_WORDS`] held, so no name says a word more or
 /// fewer.
-const SAID_DIGEST: u64 = 0x0fc9_b773_e5ec_8b7c;
+///
+/// INTENT-LITERALS PR D: `kitchen_sink`'s node tags, whose formulas'
+/// written quantities now mint variables of their own; [`NAME_WORDS`]
+/// held.
+const SAID_DIGEST: u64 = 0xd9c6_edee_cdde_fe36;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
