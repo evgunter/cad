@@ -119,6 +119,7 @@ pub use refusal_routes::{
 pub(crate) mod rest;
 mod rim_wedge;
 pub(crate) mod sectors;
+pub(crate) mod separating;
 mod shell_witness;
 pub mod solid_contain;
 pub(crate) mod sphere_region;
@@ -223,8 +224,18 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | join::BOOL_GERM_PLANE_NORMAL
         | boxes::BOX_CYLINDER_AXIS
         | boxes::BOX_SPHERE_AXIS
-        | boxes::BOX_SPHERE_SEAM_UNIT => geom_core::DIRECTION_LENGTH_SUBJECT,
+        | boxes::BOX_SPHERE_SEAM_UNIT
+        | separating::PAIR_AXIS
+        | separating::PAIR_NORMAL => geom_core::DIRECTION_LENGTH_SUBJECT,
         boxes::BOX_SPHERE_SEAM => "whether a sphere's seam direction is square to its polar axis",
+        // `geom_core`'s lever on a dimensionless direction, which the
+        // narrow phase's normals and the cylinder box's axis read.
+        geom_core::UNIT_DIRECTION_ARM => {
+            "whether the reach a direction is read over has any length"
+        }
+        separating::PAIR_GAP => {
+            "how far apart two faces lie along a direction that turns with them"
+        }
         "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
