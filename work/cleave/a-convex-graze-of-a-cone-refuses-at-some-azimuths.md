@@ -52,6 +52,33 @@ all three ε, and `CONE_GRAZES_REFUSED` and the slab's φ = 1.2 allowance
 are gone. The filleted hole and a cove
 (`a_concave_graze_of_a_cove_refuses`) refuse the knife edge.
 
+Measured again on branch `cleave/frustum-apex`, which pairs a two-ruling section's
+crossings along each ruling: the full cone through a ruling at a = 0.3, t = 0.05 still refuses
+`Reduce(SliverSector { predicate: "sector_straight" })` at the apex vertex, margin exactly 0.0, in
+the reduction. That is before any pairing, so it is not the frustum's top↔top pairing defect
+(`a-frustum-split-through-a-ruling-off-its-seam-refuses-a-degenerate-section`). Once the
+reduction passes, a null-edge half at the apex lies on both rulings, so `ruling_pairs`
+(`splitting/join.rs`) will refuse it undecided on `split_join_ruling_side` wherever the wall
+face holds more than two halves. That is unmeasured, because nothing reaches it yet.
+At the apex itself the margin is exactly 0, so no in-band recourse (a finer ε, a sized
+rereading) can settle which ruling an apex half lies on; it has to be read off the half's
+direction of departure, not its position.
+
+A frustum's convex graze at its seam ruling refuses where the same graze off the seam lands
+whole (branch `cleave/frustum-apex` on main's #4179). Frusta of radii 1 → ½ and ½ → 1 about y,
+cut through the ruling at azimuth a turned t ∈ {1e-3, 1e-4, 1e-5} off tangency, both normals, at
+ε 1e-6. The sliver's depth is 0.559·t², within ε at every tilt. At a ∈ {0.3, 1, 2, 3, 4, 5.5}
+every pose lands whole on its material side. At the seam ruling, a = 0, all 12 refuse in the
+reduction at the seam vertex:
+
+- `ConsecutiveOnSectors` (frustum t ∈ {1e-3, 1e-4}, flared t = 1e-4);
+- `SliverSector` (flared t = 1e-3);
+- `CrossingEscalated` / `CrossingInsertion` (t = 1e-5).
+
+At ε 1e-9 the four a = 0, t = 1e-5 poses refuse `ConsecutiveOnSectors` while the off-seam ones
+land whole. Probe: `zz_probe_near` in the lane's scratch (not committed); the poses are those of
+`a_near_tangent_cut_through_a_frustum_ruling_never_answers_wrongly`.
+
 ## Found by
 
 CLEAVE DR-51's review of PR 3892, `review-tests/dr51` (74e151b6).

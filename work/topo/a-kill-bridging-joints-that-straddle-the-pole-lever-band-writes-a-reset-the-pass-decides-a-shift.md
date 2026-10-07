@@ -36,3 +36,15 @@ the pass's reading point, and where that is a shift and the second a
 reset, the azimuth periods the reset dropped are unknown keys-only: the
 kill would have to re-decide that one joint, which needs a band, or
 refuse. Pin it with a cone joint at `v` inside the band before choosing.
+
+**Since the pole joint became 3-D incidence** (PCERT's
+`pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`): a
+joint is a reset where its vertex is on the chart's singular set
+(`singular_at`, `pcurve_loop_pole_joint` over the vertex's distance to
+the nearer pole or the apex), not where a chart lever at the
+predecessor's exit reads inside the band. The straddle this row
+describes is now two vertex readings: the two bridged joints' vertices,
+within ε of each other, on either side of the band about a pole or an
+apex. An undecided incidence on an analytic chart no longer resets
+(the joint decides its periods as any other), so only `Zero` resets
+there. Not re-measured.
