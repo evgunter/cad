@@ -117,9 +117,9 @@ use crate::validate::decide;
 use geom_core::Tol;
 
 /// Why a curved face's crossings could not be paired along the face's
-/// section conic (`splitting::join`'s conic pairing): the conic's
-/// heading at a crossing — which way along it runs into the face — is
-/// what pairs them, and here it did not.
+/// section (`splitting::join`'s conic and ruling pairings): the
+/// section's heading at a crossing — which way along it runs into the
+/// face — is what pairs them, and here it did not.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ConicCrossingsCase {
     /// At a crossing the plane runs within the band of tangent to the
@@ -133,8 +133,9 @@ pub enum ConicCrossingsCase {
     /// order (`split_join_line_gap` Zero), so two crossings of the face
     /// at one point — the plane through a vertex of it — can land
     /// here, as can every crossing of the face at one point, or up/down
-    /// senses that disagree with the geometry. No shipped fixture
-    /// reaches it.
+    /// senses that disagree with the geometry. On a section of two
+    /// rulings, a ruling whose crossings do not pair off along it lands
+    /// here too. No shipped fixture reaches it.
     NotAlternating,
 }
 
@@ -339,9 +340,10 @@ pub enum SplitJoinError {
         kind: geom::SurfaceKind,
     },
     /// A curved face crossed more than twice could not have its
-    /// crossings paired along its section conic, which is the only
-    /// pairing that keeps each chord on an arc inside the face. The
-    /// case says which way the heading reading failed.
+    /// crossings paired along its section conic, or along each ruling
+    /// of a two-ruling section, which is the only pairing that keeps
+    /// each chord on an arc inside the face. The case says which way
+    /// the pairing failed.
     SectionCrossings {
         /// The curved face whose crossings were being paired.
         face: FaceKey,
@@ -803,8 +805,8 @@ impl<T: Real> SectionConic<T> {
     }
 }
 
-/// What the C5 table made of `plane × wall` for a chord that has to
-/// ride it.
+/// What the C5 table made of `plane × wall`: the curve a chord rides,
+/// and what the split pairs a curved face's crossings along.
 ///
 /// `Straight` and `Tangent` are handed BACK rather than decided here:
 /// the two chord lanes mean different things by them — the split lane
@@ -814,9 +816,11 @@ impl<T: Real> SectionConic<T> {
 pub(crate) enum SectionCase<T: Real> {
     /// A conic to select an arc of.
     Conic(SectionConic<T>),
-    /// Ruling seams: the straight chord is the honest carrier, so the
+    /// Two rulings, each a `Line`: a cone's pair through its apex or a
+    /// cylinder's parallel pair. The split pairs a face's crossings
+    /// along each, and a chord between two of them is straight, so the
     /// caller mints no spec.
-    Straight,
+    Straight([geom::Curve3<T>; 2]),
     /// The tangent locus, as the table constructed it.
     Tangent(geom::Curve3<T>),
 }
@@ -932,7 +936,9 @@ fn section_case<T: Decide>(
         return match geom_brep::plane_cone_section(plane_s, wall, extent, band).map_err(table)? {
             geom_brep::PlaneConeSection::TiltedEllipse(c)
             | geom_brep::PlaneConeSection::AxisNormalCircle(c) => conic(c),
-            geom_brep::PlaneConeSection::ApexLinePair { .. } => Ok(SectionCase::Straight),
+            geom_brep::PlaneConeSection::ApexLinePair { l1, l2 } => {
+                Ok(SectionCase::Straight([l1, l2]))
+            }
             geom_brep::PlaneConeSection::ApexTangentLine(line) => Ok(SectionCase::Tangent(line)),
             geom_brep::PlaneConeSection::ApexPoint(_) => Err(invariant(
                 "apex-point plane×cone classification under a minted chord — the plane \
@@ -944,7 +950,9 @@ fn section_case<T: Decide>(
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c)
         | geom_brep::PlaneCylinderSection::Rim(c) => conic(c),
-        geom_brep::PlaneCylinderSection::ParallelLines { .. } => Ok(SectionCase::Straight),
+        geom_brep::PlaneCylinderSection::ParallelLines { l1, l2 } => {
+            Ok(SectionCase::Straight([l1, l2]))
+        }
         // C7 (M5 PR 9): the tangent locus is CONSTRUCTED by
         // classification, never marched. What it MEANS is the caller's
         // (see the enum).
@@ -1244,8 +1252,8 @@ fn chord_spec<T: Decide>(
         });
     };
     let conic = match case {
-        // Ruling sections: the straight chord is the honest carrier.
-        SectionCase::Straight => return Ok(None),
+        // A two-ruling section: the straight chord is the honest carrier.
+        SectionCase::Straight(_) => return Ok(None),
         // C7 (M5 PR 9): the tangent ruling is described
         // `TangentIntersection { wall, aux plane }` and pushed through
         // the ordinary certification gate by the mef/mekr caller. No
@@ -1511,8 +1519,8 @@ fn bool_planar_chord_spec<T: Decide>(
     };
     let extent = face_extent(body, u1, face).map_err(unbounded)?;
     let conic = match section_case(face, band, &plane_s, wall, extent)? {
-        // Ruling seams are straight chords on the plane too.
-        SectionCase::Straight => return Ok(None),
+        // A two-ruling section's chords are straight on the plane too.
+        SectionCase::Straight(_) => return Ok(None),
         // A tangent germ pair inside the boolean zip means TOUCHING
         // operands — the M5 envelope refuses those upstream; reaching
         // here is a frontier configuration, refused typed. (The split

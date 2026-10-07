@@ -132,3 +132,59 @@ Ev ruled over five design rounds; each round is recorded in `docs/DESIGN-FORK-LO
 - D2's prefer-intrinsic authority question. Ev's 2026-07-19 rule says every definitely-transverse edge carries `Intersection`. An agent-written clause (`99cc678bfd`) exempts a *declared* conventional description. The code exempts a *derived* one.
 
 **Buildable now:** field privacy and the vouch (1), and the tier-1 naming check (2). The three agreed parts in "The question" above stand.
+
+## Built, and what waits
+
+The first step of the ruled final state is built: `kef` and `kfmrh`
+ask the move's keys through `Body::vouch_move` (`RechartDoor::Kef`,
+`RechartDoor::Kfmrh`) and refuse a strand, then an unvouched landing;
+`kef_describing` and `kfmrh_describing` take the move with its
+re-descriptions under a band (`Body::vouch_described_move`,
+`crates/topo/src/attach.rs`); `kef_carried_redescriptions` and
+`kfmrh_carried_redescriptions` restate the stored descriptions there,
+keeping the stored kind. A move onto a face wearing the "no chart yet"
+placeholder asks nothing to vouch on that side (`Body::unvouched`,
+`Landing::chartless`). The shell's rim glue takes `kfmrh_describing`
+with `loop_rekeyed`'s specs, and `rename_loop_surface` is gone.
+
+What waits:
+
+- **`kef_minting` and `kfmrh_minting` still move unasked**, so the
+  twins do not absorb them yet. Their production callers: the boolean
+  zip (`zip_seam`), `boolean/rest.rs`, the coplanar merge
+  (`merge_group`), the chord join's sliver cut (`cut_core`) and the
+  blend (`SourceFaces::kef_minted`).
+- **Four of those kills need a re-description no key swap gives.**
+  `zip_seam`'s two retiring kills (`zip.rs`, the loop over the seam
+  and the final kill) and `zip_folded`'s two (`rest.rs`) move a seam
+  edge onto a kept operand face that rests. The edge's stored
+  description names the dying side's key (the REST lane) or an aux
+  copy minted into the operand's arena (`bool_planar_chord_spec`,
+  `chord_spec`), a different surface from the one the survivor wears,
+  so `carried_spec`, `remap_description` and `loop_rekeyed`, which
+  rewrite a dead key to a live key on one surface, cannot state it.
+  Its honest description is the one `describe_edges`
+  (`crates/topo/src/boolean/ops.rs`) derives today after the zip and
+  merge: the dihedral decides `Intersection`, `TangentIntersection` or
+  a chart image. Deriving that at the kill is the restatement deriving
+  kind, `restatement-derives-each-moved-edges-kind`, held on D10.
+  Chartless section faces do not help these four: the survivor is a
+  kept face.
+- **The coplanar merge needs it too.** `merge_group` kills one shared
+  edge per absorption; the rest of a shared chain of `k` edges, `k − 1`
+  of them, lands with both halves on the survivor (the duplicates the
+  merge then deletes with `kev`). Each stored `Intersection(absorbed,
+  kept)` key-swaps to `Intersection(kept, kept)`, which does not
+  certify; the coherent statement is a chart image on the kept face,
+  a change of kind. Re-charting the absorbed face onto the kept key
+  first (`set_face_surfaces_describing` with `carried_redescriptions`)
+  meets the same edges.
+- **The rest can move now**: the zip's fuse (`kfmrh_minting` in
+  `zip_seam`) and `slit_zip`'s kill onto transient faces made
+  chartless (agreed part 2); the chord join by re-charting the null
+  face to the placeholder when it completes; the blend's carve strips
+  chartless, its later band re-chart then taking the describing door.
+- Field privacy and the vouched-move module, and tier 1's naming check
+  with D1's text, need every operator to refuse a strand, so they
+  follow the absorption.
+

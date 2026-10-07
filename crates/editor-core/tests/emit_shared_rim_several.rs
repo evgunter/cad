@@ -215,7 +215,7 @@ fn the_chord_is_named_for_the_rims_it_lies_along() {
         node: m,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&docx, m, 0, seg),
+            crate::fixture::piece(&docx, m, 0, seg).into(),
         )],
     };
     let micro = |x: f64| (x * 1e6).round() as i64;
@@ -355,7 +355,7 @@ fn a_retired_rim_piece_is_offered_its_joined_edge() {
                 node: m,
                 path: vec![RoleSeg::RimEdge(
                     CapEnd::End,
-                    crate::fixture::piece(&docx, m, 0, 2),
+                    crate::fixture::piece(&docx, m, 0, 2).into(),
                 )],
             },
             EntityKind::Edge,
@@ -555,7 +555,7 @@ fn partial_overlaps_name_each_joined_edge_for_the_rims_it_runs_along() {
             node: ids[2],
             path: vec![RoleSeg::RimEdge(
                 CapEnd::End,
-                crate::fixture::piece(&docx, ids[2], 0, 0),
+                crate::fixture::piece(&docx, ids[2], 0, 0).into(),
             )],
         },
         EntityKind::Edge,
