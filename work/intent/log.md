@@ -235,3 +235,64 @@ Closed: `range-synthetic-name-mints-a-name`,
 `symbolic-reach-at-slot-variables-c`. Filed:
 `unproven-coincidence-lint-binds-every-variable-as-a-symbol`.
 - 2026-10-06 — Note from ZIP: filed `the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms` (P0/H) on this slate as stage-4 input, on Ev's direction in chat. Two designers converged on retiring the declared-REST zip (`boolean/rest.rs`) with declared pairs. Before then the join gains a partner-edge chord, ring re-homing on a curved chart in aligned contact, and the `mekr` `NotSameFace` cause. The row carries the measurement. ZIP's REST-lane rows are parked on `d10-one-way-to-say-intent-is-unbuilt`. Units ZIP already started finish: the zip's admission check (PR 4127, a live wrong body; Ev, in chat, "finish it"), `Fusions` (PR 4116) and pins (PR 4130). (ZIP orchestrator)
+
+## 2026-10-07 — the GUI's variables (`intent/gui-variables`, PR 4247)
+
+`typing-a-value-mints-or-offers-a-variable`, with
+`viewer-param-vocabulary-names-a-variable` and
+`viewer-value-doors-read-a-defined-variable-as-absent` (both closed in
+the PR). Nine GUI choices are built provisionally and put to Ev on the
+PR (`needs_ev`). The evidence behind it:
+
+### Rows (each goes red without its guard)
+
+These are mutation-checked: each guard was removed in turn and the named row went red.
+
+| Guard | Row |
+|---|---|
+| typing mints (`slot_typed_edit` at `set_slot`) | `panel_edits::a_literal_slot_edit_routes_through_setparam…`, `gui_variables::a_value_typed_at_a_shared_slot_makes_it_its_own` |
+| kind filter in `equal_variables` | `gui_variables::a_typed_value_is_offered_the_variables_of_equal_value_and_kind` (+2) |
+| offer stands only while the slot reads the typed variable | `gui_variables::an_offer_stands_only_while_the_slot_reads_what_was_typed` |
+| typed text opens the offer | `gui_variables::typed_text_is_offered_and_a_formula_is_not` |
+| decline closes the offer | `gui_variables::declining_keeps_the_typed_variable_and_moves_no_document` |
+| proposal steps past held names | `gui_variables::a_proposed_name_is_stored_only_when_committed` |
+| probe refuses a defined variable as defined | `gui_variables::the_range_probe_says_a_defined_variable_is_defined` |
+| exists-notice reads a defined variable | `gui_variables::the_exists_notice_reads_a_defined_variable_as_holding_its_name` |
+
+Panel rows (the `app` feature suite, the real pane, with clicks through to the session):
+- `properties_pane_tests::the_offer_is_drawn_and_its_button_makes_the_slot_read_the_variable`
+- `properties_pane_tests::keep_separate_declines_the_offer_and_moves_no_document`
+- `properties_pane_tests::a_name_is_proposed_in_the_pane_and_stored_on_commit`
+
+Accepting is also covered by `gui_variables::accepting_an_offer_makes_the_slot_read_the_variable`.
+
+### Sweep
+
+Pattern: every viewer identifier in the item's list and its siblings, i.e. `(Selection|ValueGestureName|Standing|BoundsTarget|Self|Subject|GestureTarget)::Param`, `SetParam(Unit|Text)?` under `SessionOp::`/`Self::`, `*ParamGesture`, `NoSuchParam`, `ParamRow`, `param_rows`, `param_(edit|unit_edit|showing|doors|unit_ui|bounds_ui)`, `add_param_ui`, `new_param_*`, `doc_param`, `set_param*` and `begin_param_gesture`, over `crates/viewer`, `demos`, `docs` and `work`.
+
+- **Hits fixed:** every one in `crates/viewer` (src, tests, examples, README) and in 12 open items under `work/`.
+- **Hits left:** `work/*/log.md`, closed items, `docs/MODEL-AB-LOG.md` and `docs/DUAL-REVIEW-LOG.md`. These are history, not citations to keep live.
+- **Blind spot:** prose that says "parameter" for a document variable without naming an identifier.
+  - I swept that with a phrase pass ("document parameter", "add-parameter", "parameter row", "(un)declared parameter"), then a word pass in the variable-centred viewer files.
+  - The word pass excluded type parameters, function parameters and curve or ray parameters, and I reviewed every converted line. Four test files where "parameter" means a ray or curve parameter were restored whole.
+  - What is left is "parameter" meaning a feature's slot, a function argument or a curve parameter.
+
+### Runs (local, CARGO_TARGET_DIR outside the worktree)
+
+| Run | Result |
+|---|---|
+| workspace `ci` profile, default ε | 12377 passed, 604 skipped, 0 failed |
+| ε 1e-6, workspace `ci` profile | 12377 passed, 604 skipped, 0 failed |
+| ε 1e-6, workspace slow set | 259 passed, **1 failed**: `editor-core name_words_rows::a_large_table_of_names_alike_at_no_citation_is_said_in_bounded_time` (12.9 s for 1000 names). It **fails identically on bare main** (merge base `7c506747a`, same seed `0x5ae437797e2c1b75`, run alone: 13.6 s). This PR touches no editor-core code |
+| ε 1e-12, whole workspace, default profile (slow set included) | 12636 passed, 344 skipped, **1 failed**: the same row (14.2 s). It **fails identically on bare main** at 1e-12 (12.8 s, run alone) |
+| `cargo nextest run -p viewer --features app` | 1183 passed, 1 skipped, 2 failed: `gpu::tests::every_pass_builds_on_a_real_device` and `the_culled_passes_draw_every_face_that_faces_the_eye`, "NO WGPU ADAPTER" (this box has no Vulkan ICD; hosted CI has one) |
+| doctests (`cargo test --doc --workspace`) | 172 passed, 6 ignored, 0 failed |
+| Python (wheel built with maturin, `PNCAD_TY` set) | Ran 944 tests, OK |
+| `cargo clippy --workspace --all-targets --all-features -D warnings` | clean |
+| `cargo fmt --all --check` (+ benches) | clean |
+| `scripts/gates/*.sh` + `payload-rung-sweep --check` | all pass |
+| tour: fmt, clippy `-D warnings`, `nextest --release` | clean, clean, 97 passed |
+| wild: fmt, clippy `-D warnings` | clean, clean |
+| `work.py lint` | ok (0 problems, 0 warnings) |
+| editor-core `--profile default` | not run: the diff does not touch editor-core |
+| ruff (`check-python-lint.py`) | skipped locally (ruff 0.16.8 here, CI pins 0.16.1); no Python file changed |
