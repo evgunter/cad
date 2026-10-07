@@ -21,6 +21,8 @@
 //!    contact is a typed error. Tangential contact (touching without
 //!    crossing) is semantically indeterminate and escalates as
 //!    [`ProfileError::TangentialContact`] (D4 ¶3: typed, actionable).
+//!    An in-band line/circle clearance escalates unless the arc's span
+//!    and endpoints certify it clear of the whole line.
 //! 4. **Declared tangency** (the #101 discipline) — every *joint*
 //!    (adjacent-segment junction at its shared vertex) is classified by
 //!    the same carrier predicates the simplicity pass uses — the

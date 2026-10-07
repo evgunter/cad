@@ -301,6 +301,42 @@ fn arc_kissing_a_line_is_a_tangential_contact() {
     );
 }
 
+/// One circle, its lowest point an in-band height above the bottom
+/// line, carrying either of two arcs between `(3, 3)` and `(1, 3)`:
+/// the major arc dips through that point and escalates on the carrier
+/// clearance; the minor arc bulges up, away from it, and is 3 clear of
+/// the line, so the same carrier clearance is no contact of the
+/// segments' and the loop validates.
+#[test]
+fn an_in_band_line_circle_clearance_escalates_only_where_the_arc_holds_the_graze() {
+    let t = tol().get();
+    let band = t.eps * ((1.0 + t.k) / 2.0);
+    // Half-chord 1, so the bulge is the sagitta: the major arc's
+    // sagitta 3 − band puts the carrier's lowest point at y = band, and
+    // its complement on the same carrier has bulge 1/(3 − band).
+    let sagging = 3.0 - band;
+    let with_arc = |bulge: f64| {
+        profile(vec![chain(&[
+            (0.0, 0.0, 0.0),
+            (4.0, 0.0, 0.0),
+            (4.0, 3.0, 0.0),
+            (3.0, 3.0, bulge),
+            (1.0, 3.0, 0.0),
+            (0.0, 3.0, 0.0),
+        ])])
+    };
+    match err(&with_arc(-sagging)) {
+        ProfileError::Escalated { site, source } => {
+            assert_eq!(site, EscalationSite::SegmentPair(sref(0, 0), sref(0, 3)));
+            assert_eq!(source.predicate, Some("carrier_line_circle"));
+        }
+        other => panic!("the arc through the graze must escalate, got {other:?}"),
+    }
+    with_arc(1.0 / sagging)
+        .validate(tol())
+        .expect("the arc off the graze is clear of the line");
+}
+
 #[test]
 fn near_tangent_hole_escalates_on_the_internal_clearance() {
     match err(&near_tangent_hole(tol().eps())) {

@@ -411,6 +411,16 @@ annulus `[588,0,451,804]`, link `[373,9,284,484]`, bracket
 dials, so it is pinned as one tuple again. `Study::symbolic_zero` is
 `[x,x,x]` for all five.
 
+**Since the re-take, on `main`.** #4187 (`e127871b19`, pad `numeric`
++2) and #3945 (`4711ad4f53`, pad `symbolic_zero` −28 and `numeric`
+−28), both rows of the table above, put the pad past the ceiling at
+`[340,0,276,302]`. #4264 (PATHS: `line_arc` reads both spans of a
+candidate before an in-band reading escalates) leaves it there, at
+every ε. The pad's replay refuses at `line_span` in `line_arc`'s
+tangent arm, which still reads the line's span first and escalates
+on it. The PR's review head read 277: that arm also read the arc's
+span of the foot before escalating. The fix pass took that read out.
+
 ## Closed (SYM-16, PR #4155, 2026-10-06)
 
 Attributed, re-taken at `main`, and scheduled: the rule-F row runs on
