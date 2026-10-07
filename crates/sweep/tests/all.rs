@@ -258,6 +258,8 @@ mod blend_ball_side_bits;
 mod blend_band_reach;
 #[path = "blend_band_reach_chain_ends.rs"]
 mod blend_band_reach_chain_ends;
+#[path = "review_band_4254_probes.rs"]
+mod review_band_4254_probes;
 #[path = "blend_band_reach_oracle.rs"]
 mod blend_band_reach_oracle;
 #[path = "blend_band_reach_rows.rs"]
