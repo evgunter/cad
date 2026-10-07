@@ -67,3 +67,18 @@ Rows (`tests/emit_nested_union_flat.rs`): the flat sets of a union of
 unions in all 12 member orders, one table; and a divided nested merge
 refusing only as consumed in all 24 outer orders. Each change above is
 red with its revert. No golden moved.
+
+## Review round (PR 4281)
+
+- `member_edge` reads a retired constituent as an edge on its line
+  (its own stretch, else the least set listing it, through
+  `NameTable::sets_listing`, an index beside `on_line`), and its doc
+  says so. The one reader, `Flush::way_of`, asks only whether the edge
+  lies on another's line, so which collinear edge answers is not
+  observable: reading the set first, and the last set rather than the
+  first, left a 36-order probe with a pillar in the inner union and 50
+  union rows identical.
+- Rows: a union over a declared pair boolean publishes flat sets in both
+  orders (red on main); a union offers its member's run wall across a
+  station (`run_wall_offers`, red on main).
+- Filed `a-vanished-merged-name-is-diagnosed-a-cascade-through-its-retired-constituent`.

@@ -11,9 +11,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
 use crate::emit_shared_rim_several::{Bx, document, permutations};
 use crate::emit_union_rim_piece_ranks::signature;
-use crate::fixture::{flush_segs, fname, member_entity, table};
+use crate::fixture::{flush_segs, fname, insert, member_entity, table};
 
-use editor_core::{EntityKind, NodeErrorKind, RecipeNodeId, RoleSeg, SitedRef, StableName};
+use editor_core::{
+    BooleanOp, EntityKind, Node, NodeErrorKind, RecipeNodeId, RoleSeg, SitedRef, StableName,
+};
 
 /// `a` and `b` overlap and are declared flush in the inner union, so its
 /// two y-walls and two caps are merged faces and its four x-running rims
@@ -255,4 +257,103 @@ fn a_nested_unions_merged_face_divided_in_the_fold_is_never_read_as_consumed() {
         fragmented > 0,
         "no order merges the top with `d` and divides it before `c` joins"
     );
+}
+
+/// **A union over a pair boolean publishes flat sets too.** `a` and `b`
+/// in a declared `Boolean { Union }`, its merged faces and joined rims
+/// `Merged{FromA(…), FromB(…)}`, and that boolean in a union with `c`
+/// declared flush with them: in both member orders, each of the four
+/// flush families is one face set and each x-running rim one edge set of
+/// all three blocks, listing `a`'s and `b`'s through the boolean, never
+/// `FromMember(boolean, Merged{…})` as one constituent, and the table is
+/// one table.
+#[test]
+fn a_union_over_a_pair_boolean_publishes_flat_sets_in_both_orders() {
+    let (doc, ab) = document(&[A, B], &[0, 1]);
+    let (d1, inner) = insert(
+        doc.clone(),
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: ab[0],
+            b: ab[1],
+            declare: editor_core::declare_continuation(flush_pairs(
+                &doc,
+                (ab[0], ab[0]),
+                (ab[1], ab[1]),
+            )),
+        },
+    );
+    let (cx, cy, cz) = C;
+    let (d1, c) = block(d1, cx, cy, cz.0, cz.1);
+    let ev1 = run(&d1);
+    assert!(failure(&ev1, inner).is_none(), "the pair boolean refused");
+    let merged_over = |seg: RoleSeg| -> StableName {
+        let b_face = fname(ab[1], seg);
+        table(&ev1, inner)
+            .iter()
+            .map(|(n, _)| n)
+            .find(|n| match n.path.as_slice() {
+                [RoleSeg::Merged(set)] => set
+                    .iter()
+                    .any(|c| matches!(c.path.as_slice(), [RoleSeg::FromB(f)] if **f == b_face)),
+                _ => false,
+            })
+            .unwrap_or_else(|| panic!("no merged face holds {b_face:?}"))
+            .clone()
+    };
+    let pairs: Vec<(SitedRef, SitedRef)> = flush_segs(&d1, ab[1])
+        .into_iter()
+        .zip(flush_segs(&d1, c))
+        .map(|(s, t)| {
+            (
+                SitedRef::new(inner, merged_over(s)),
+                SitedRef::new(c, fname(c, t)),
+            )
+        })
+        .collect();
+    let mut sigs = Vec::new();
+    for members in [[inner, c], [c, inner]] {
+        let (docx, top) = declared_union(d1.clone(), &members, pairs.clone());
+        let ev = run(&docx);
+        let at = format!("{members:?}");
+        assert!(
+            failure(&ev, top).is_none(),
+            "{at}: the union refused: {:?}",
+            failure(&ev, top)
+        );
+        let sig = signature(&ev, top);
+        let mut sets = BTreeMap::<EntityKind, BTreeSet<&[StableName]>>::new();
+        for name in sig.keys() {
+            for seg in &name.path {
+                let RoleSeg::Merged(set) = seg else { continue };
+                for k in set {
+                    assert!(
+                        !bare_merge_through_wrappers(k),
+                        "{at}: {name:?} lists a merged name as one constituent: {k:?}"
+                    );
+                }
+                let of = |m: RecipeNodeId| {
+                    set.iter()
+                        .filter(|k| matches!(k.path.as_slice(), [RoleSeg::FromMember { member, .. }] if *member == m))
+                        .count()
+                };
+                if set.len() == 3 && of(inner) == 2 && of(c) == 1 {
+                    sets.entry(name.kind).or_default().insert(set);
+                }
+            }
+        }
+        let count = |kind| sets.get(&kind).map_or(0, BTreeSet::len);
+        assert_eq!(
+            count(EntityKind::Face),
+            4,
+            "{at}: four face sets of all three blocks"
+        );
+        assert_eq!(
+            count(EntityKind::Edge),
+            4,
+            "{at}: four edge sets of all three blocks"
+        );
+        sigs.push(sig.clone());
+    }
+    assert_eq!(sigs[0], sigs[1], "the two member orders publish one table");
 }

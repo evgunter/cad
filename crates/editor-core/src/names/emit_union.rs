@@ -385,12 +385,18 @@ fn put_entry(t: &mut NameTable, name: StableName, entry: &Entry) -> Result<(), N
 
 /// Member `member`'s edge `edge` in its own body, as its own table
 /// names it, a cited line read as the least row on it (N5), the least
-/// untied one where there is one, and a constituent of an edge set the
-/// member publishes (a nested union's joined edge, which a flat set of
-/// the fold lists by its constituents, N3) read as that set's line: a tie
-/// there is [`NamingError::MemberEdgeTied`], and a member or name the
-/// union does not have is an emission bug (every member-keyed row came
-/// from that member's table).
+/// untied one where there is one: a tie there is
+/// [`NamingError::MemberEdgeTied`], and a member or name the union does
+/// not have is an emission bug (every member-keyed row came from that
+/// member's table).
+///
+/// A constituent of an edge set the member publishes (a nested union's
+/// joined edge, which a flat set of the fold lists by its constituents,
+/// N3) is read as AN edge on its line, not as the set the citing name
+/// means: the stretch it keeps outside every set where it keeps one,
+/// else the least set listing it. Every one of those lies on the
+/// constituent's line, which is all its one reader asks of it
+/// ([`Flush::way_of`] reads only whether it lies on another edge's line).
 fn member_edge<'a, T: geom_core::Decide>(
     members: &'a [Member<'a, T>],
     member: RecipeNodeId,
@@ -407,16 +413,7 @@ fn member_edge<'a, T: geom_core::Decide>(
                 .or_else(|| rows.first().and_then(|row| m.table.lookup(row)))
         })
     };
-    let entry = by_line(edge).or_else(|| {
-        let set = m.table.iter().find_map(|(row, _)| {
-            let line = edge_line(&NameRef::new(row.clone()));
-            match line.path.as_slice() {
-                [RoleSeg::Merged(set)] if crate::names::merged::covers(set, edge) => Some(line),
-                _ => None,
-            }
-        })?;
-        by_line(set.name())
-    });
+    let entry = by_line(edge).or_else(|| by_line(m.table.sets_listing(edge).first()?.name()));
     match entry {
         Some(Entry::Unique(e)) => match e.key {
             EntityKey::Edge(k) => Ok((m.body, k)),
@@ -2397,9 +2394,9 @@ fn orient<'s>(
             // itself a bare merged face. The mint (`emit_topo`'s
             // merge-group loop) holds that at the first door; this is the
             // same rule read at the union's second door — a constituent
-            // that collapses to a merged face, bare or through its
-            // member's `FromMember`, is refused as the emission bug it
-            // is, never flattened. A fragment of a merged
+            // that collapses to a merged face, bare or through any
+            // `FromA`/`FromB`/`FromMember` wrapping, is refused as the
+            // emission bug it is, never flattened. A fragment of a merged
             // face is a fragment, not a merge (`RoleSeg::Merged`'s doc).
             //
             // The canonical form makes the constituent SET the name, as
