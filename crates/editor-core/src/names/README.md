@@ -189,19 +189,19 @@ DM4) follow this rule, and so do profile pieces:
   locators. If a value edit changes which pieces pair, the old wall's name
   vanishes; it does not follow `k` to the new pairing.
 - **Swept walls over a run.** Extrude and revolve build one wall per run of
-  profile pieces on one carrier (`crates/sweep/README.md`, "Walls"; a
-  partial revolve builds cocircular arcs one wall each, named per piece). The
+  profile pieces on one carrier (`crates/sweep/README.md`, "Walls"). The
   wall's role-path segment (`Lateral` for extrude, `Band` for revolve) holds
   the run: its piece locators in authored order, a one-piece run spelled as
   one locator; a run that wraps through the loop's start begins at its first
   piece after the start vertex. `LateralEdge` and `BandRim` are minted only
   where an entity exists, so a station inside a run has none; a cap's rim
-  is one edge per run too, and holds the run as the wall does. A run wall
+  is one edge per run too, and holds the run as the wall does, as do a
+  partial revolve's meridians and its axis edge. A run wall
   is not a merge and never `Merged`.
   Covers and offers (N3) read one constituents view shared by every row
   that holds a set of names — a `Merged` face, and a run held by
-  `Lateral`, `Band`, `BandPi` or `Meridian(end, ·)`: `Lateral([p0, p1])`
-  covers `Lateral([p0])`, so a selection made before a station was inserted
+  `Lateral`, `RimEdge(end, ·)`, `Band`, `BandPi`, `Meridian(end, ·)` or
+  `AxisEdge`: `Lateral([p0, p1])` covers `Lateral([p0])`, so a selection made before a station was inserted
   is offered the run wall, and an edit that breaks a run offers its pieces'
   walls. A `LoftWall` holds one locator per section of ONE wall, not a set
   of walls, so it has no constituents in that view.
@@ -220,10 +220,14 @@ The qualifier depends on what was split:
 - **The Split op's pieces** keep their tool plane's side (`SplitFragment`):
   there the plane is what the author drew. Several pieces of one parent on one
   side of the plane are further qualified by `Qualifier::Keeps`, the sorted set
-  of the parent's boundary edges each holds a stretch of, cited by their names
-  without piece qualifiers; equal sets tie.
+  of the parent's boundary edges each holds a stretch of, cited by their lines
+  (below); equal sets tie.
 - **Edge pieces** take `Qualifier::Ends`: the sorted pair of a piece's two end
-  vertices' names as the node publishes them. This covers every piece of a
+  vertices' names as the node publishes them. A piece is spelled on its parent
+  edge's *line*: the edge's name with every piece qualifier removed, at every
+  depth of wrapping. So a piece of an earlier piece is a piece of that line,
+  told from its siblings by its two ends, and nothing in its name records a cut
+  made elsewhere on the edge. This covers every piece of a
   parent edge, a lone piece on its side of a cut included, so no piece's name
   says how many siblings it has: a seam chain's pieces, pieces of an operand
   edge, pieces of an earlier seam, and a union's pieces of a member edge
@@ -233,8 +237,9 @@ The qualifier depends on what was split:
   face (an inner loop, a non-convex face) cuts several chords that
   `SectionEdge{side, face}` spells alike, and each takes `Ends` like any other
   edge piece (Ev, PR 3553). Pieces with equal pairs are N4's tie.
-- **Vertices** cite the edges they lie on by their heads, never by a piece's
-  qualifier, so vertices are named before edge pieces are qualified, and
+- **Vertices** cite the edges they lie on by their lines, never by a piece's
+  qualifier at any depth, so vertices are named before edge pieces are
+  qualified, and
   nothing in a piece's name lies beyond its own boundary. A crossing, where a
   face of one operand meets an edge of the other or where an edge lying in such
   a face ends in it, is named by its sense: whether the crossed edge, oriented
@@ -247,7 +252,7 @@ The qualifier depends on what was split:
   boolean's or union's is `Crossing { edge, face, sense }`, the Split's
   `CrossingVertex` holds it as a field. A vertex where two edges cross carries
   each edge's sense against the other operand's closed body. Crossings of one
-  edge by one face with the same sense are ranked along the crossed edge by its
+  line by one face with the same sense are ranked along the line by its
   carrier's own parameter, in the edge's stored orientation; an equal pair
   ties.
 
@@ -488,8 +493,8 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
 - *Which edge pieces it meets.* An edge piece's `Ends` holds no count and a
   crossing's sense is its own, so a cut elsewhere on its parent leaves the
   piece's name as it was, and so do the crossings it ends at. Only a second
-  crossing with the same sense by a face that already crosses the parent
-  renames anything: it ranks the same-sense group, so the first crossing gains
+  crossing with the same sense by a face that already crosses the line renames
+  anything: it ranks the same-sense group, so the first crossing gains
   its rank, and with it every piece whose `Ends` cite it. The rung meets an edge piece where its own ends moved or were
   renamed, or its group stopped being divided.
 - *What the group is.* The group is the one the emitter formed, read from the
@@ -506,9 +511,10 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   rung declines. That is a statement about two recorded groups, not a claimed
   flip.
 - *The cutters.* `cutters` (`GroupCutters`, `resolve::group_cutters`) reads the
-  minting node's two tables for the `Seam` rows on the group's parent (a face
-  group's seam edges, an edge group's seam vertices), matched on the
-  `Seam { a, b }` pair with any `Fragment` tail and never on the row, and names
+  minting node's two tables for the seam rows on the group's parent (a face
+  group's seam edges, an edge group's seam and crossing vertices), matched on
+  the pair — a `Seam`'s or an `EdgeCrossing`'s two sides, a `Crossing`'s edge
+  and face — with any `Fragment` tail and never on the row, and names
   every cutter whose seam with the parent only the last-good table spells
   (`gone`) or only the current one does (`new`); both empty says the two
   tables spell seams on the parent with the same cutters. A seam is a crossing,
@@ -524,6 +530,14 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   name the seams are spelled on, a prior table that spells no seam on the
   parent, and a seam on the parent spelled in a shape the reading does not
   follow.
+
+**A cited line.** A line is not a row: no table publishes an edge's name with
+its piece qualifiers removed. Where a name cites an edge by its line, N5 reads
+it as the rows of that node's table whose undivided base it is. The cascade
+rung counts a line as present while any row lies on it, so a crossing whose
+own verdict flipped reports that flip, and a line no row lies on any longer
+cascades. The offers for a vanished edge piece are the surviving pieces of its
+line. A union reads a cited line as its least member row on it.
 
 **Offers, tombstones and repair.** A collapsed fragment's undivided base, when
 it resolves, rides in the offers for either qualifier kind. `Tombstone` carries

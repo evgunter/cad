@@ -180,8 +180,9 @@ premise panics, and kept each one over a key the caller carries:
   join's halves (`corrupt_he`, `corrupt_loop`, `corrupt_face`) are typed
   `SplitJoinError::Corrupt` raises of this row's, so the chord end
   stays typed with them and moves when they do.
-- `splitting/classify.rs` `sphere_zone_reach` checks for a
-  `LoopBoundary::Empty` outer loop before it calls `props::loop_edges`,
+- `boolean/boxes.rs` `sphere_window` checks for a lone-vertex outer
+  loop (`loop_members_linked` yields one `BoundaryMember::Isolated`)
+  before it calls `props::loop_edges`,
   because `LoopEdgesError::Corrupt` answers an empty loop and a torn hop
   alike. That pre-check is this row's `LoopEdgesError::Corrupt` split
   done locally at one caller; once the split lands, the empty loop is
@@ -190,10 +191,10 @@ premise panics, and kept each one over a key the caller carries:
 - `chord_join.rs` `face_azimuth_window_traces` (`sweep-testing`): the
   surface's `Corrupt`.
 - `splitting/join.rs` `split_leave`: the face's surface (`Corrupt`).
-- `splitting/classify.rs` `sphere_zone_reach` now panics on
-  `props::loop_edges`' `LoopEdgesError::Corrupt` past a cycle outer
-  loop, and on `sphere_chart_trim`'s `CorruptFace`, both past a face
-  the gate resolved. `loop_edges` and `sphere_chart_trim` themselves
+- `boolean/boxes.rs` `sphere_window` (through `torn_outer_loop`)
+  panics on `props::loop_edges`' `LoopEdgesError::Corrupt` past a cycle
+  outer loop, and on `sphere_chart_trim`'s `CorruptFace`, both past a
+  face its caller resolved. `loop_edges` and `sphere_chart_trim` themselves
   are unchanged and still answer typed for other callers.
 
 **What `solid_contain.rs` now folds.** `cylinder_chart_trim`'s

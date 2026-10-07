@@ -453,8 +453,8 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// `work/emit/an-edge-edge-crossing-vertex-of-a-union-is-spelled-by-member-order.md`
 /// owns it.
 const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("r5poke", "U", 4, 15101828559543090631),
-    ("r5pokehi", "U", 4, 13843135683705318993),
+    ("r5poke", "U", 4, 529256286454640581),
+    ("r5pokehi", "U", 4, 6790325488204188293),
 ];
 
 /// One fused order and every entity it publishes, as sorted geometry.
@@ -838,7 +838,7 @@ fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
                         node: m,
                         path: vec![RoleSeg::RimEdge(
                             CapEnd::Start,
-                            crate::fixture::piece(&doc, m, 0, 0),
+                            crate::fixture::piece(&doc, m, 0, 0).into(),
                         )],
                     },
                     EntityKind::Edge,
@@ -861,7 +861,7 @@ fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
 }
 
 /// **A vertex name cites a member edge whole, and lies on it.** A seam
-/// vertex names the entities that cross at it; the fold wrote the member
+/// or crossing vertex names the entities that cross at it; the fold wrote the member
 /// edge a face crossed as far as it had cut it by then (`#k of n` of THAT
 /// step), which is fold history and names no published piece. Over every
 /// case and order, each edge a vertex's seam cites in the union's space
@@ -890,7 +890,12 @@ fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
                     };
                     let p = point(body, v);
                     for seg in &name.path {
-                        let RoleSeg::Seam { a, b } = seg else {
+                        let (RoleSeg::Seam { a, b }
+                        | RoleSeg::EdgeCrossing { a, b, .. }
+                        | RoleSeg::Crossing {
+                            edge: a, face: b, ..
+                        }) = seg
+                        else {
                             continue;
                         };
                         for side in [a.name(), b.name()] {
@@ -956,7 +961,7 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
         node: m,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&doc, m, 0, 0),
+            crate::fixture::piece(&doc, m, 0, 0).into(),
         )],
     };
     // x-span → the name there, for every edge along the rim line.

@@ -239,8 +239,7 @@ fn a_stale_wide_row_is_refused_complete_or_half_minted() {
             for (j, &h2) in cycle.iter().enumerate() {
                 let mut body = base.clone();
                 let wide = cache.pcurve().clone();
-                let window = wide.chart_box(lo, hi);
-                let row = PcurveCache::certify(wide, lo, hi, &carrier, &surface, window, band())
+                let row = PcurveCache::certify(wide, lo, hi, &carrier, &surface, band())
                     .expect("the carrier's own image certifies over a longer span");
                 body.attach_pcurve(h1, row);
                 if j != i {
@@ -400,8 +399,7 @@ fn a_row_shifted_a_whole_period_is_refused_at_every_position() {
             for (j, &h2) in cycle.iter().enumerate() {
                 let mut body = base.clone();
                 let image = cache.pcurve().clone();
-                let window = image.chart_box(lo, hi);
-                let row = PcurveCache::certify(image, lo, hi, &carrier, &surface, window, band())
+                let row = PcurveCache::certify(image, lo, hi, &carrier, &surface, band())
                     .expect("the row certifies one period over");
                 body.attach_pcurve(h1, row);
                 if j != i {
@@ -479,13 +477,7 @@ fn a_loop_moved_a_period_over_reads_only_its_gap_at_every_position() {
                 .carrier()
                 .clone();
             let (t0, t1) = cache.params();
-            let window = geom_brep::ChartWindow {
-                u_min: -3.0 * tau,
-                u_max: 4.0 * tau,
-                v_min: -5.0,
-                v_max: 5.0,
-            };
-            let row = PcurveCache::certify(image, t0, t1, &carrier, &surface, window, band())
+            let row = PcurveCache::certify(image, t0, t1, &carrier, &surface, band())
                 .expect("the row certifies a period over");
             moved.attach_pcurve(he, row);
         }

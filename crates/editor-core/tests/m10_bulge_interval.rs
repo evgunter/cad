@@ -115,11 +115,25 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// decision moved. On the merged tree (PCERT's restated certificate) the
 /// same fold takes four of `pcurve_loop_continuity`'s door decisions to
 /// theorems as well, on both tables.
+///
+/// **PCERT's chart-angle unit** retires the loop's chart-space angle
+/// comparisons and check 5: `pcurve_loop_continuity` (16/0/0/8; the
+/// boss's 16/0/2/6), `pcurve_trim_containment` (24/0/0/24; 0/24/0/24)
+/// and `pcurve_loop_pole_joint` (0/0/0/12 on both) leave both tables. A
+/// joint's element is decided as integers with its 3-D coincidence
+/// following from the rows' envelopes, the certificate tests no row
+/// against a window, and a cylinder has no singular set, so no joint of
+/// it decides one.
+///
+/// **`cap_plane_orientation` is new, 0/0/0/4**: each extrude's two caps
+/// decide once whether Newell's normal agrees with the profile's
+/// winding, definite and numeric, on this table and on the boss's.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
     ("arc_span", [4, 0, 0, 4]),
     ("assert_bound", [0, 0, 0, 1]),
+    ("cap_plane_orientation", [0, 0, 0, 4]),
     ("carrier_circles_identity", [3, 0, 0, 0]),
     ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
     ("carrier_endpoint_end", [32, 0, 4, 0]),
@@ -150,10 +164,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("pcurve_fidelity_branch", [0, 0, 0, 24]),
     ("pcurve_interval_forward", [0, 0, 0, 12]),
     ("pcurve_loop_branch", [0, 0, 0, 25]),
-    ("pcurve_loop_continuity", [16, 0, 0, 8]),
-    ("pcurve_loop_pole_joint", [0, 0, 0, 12]),
     ("pcurve_map_residual", [18, 0, 0, 0]),
-    ("pcurve_trim_containment", [24, 0, 0, 24]),
     ("segment_straightness", [6, 0, 0, 6]),
     ("side_cylinders_cosurface", [2, 0, 0, 0]),
     ("side_planes_cosurface", [0, 0, 0, 2]),
@@ -235,6 +246,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("arc_diameter_clearance", [0, 0, 0, 6]),
             ("arc_span", [6, 0, 0, 0]),
             ("assert_bound", [0, 0, 0, 1]),
+            ("cap_plane_orientation", [0, 0, 0, 4]),
             ("carrier_circles_identity", [3, 0, 0, 0]),
             ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
             ("carrier_endpoint_end", [20, 0, 4, 0]),
@@ -265,10 +277,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("pcurve_fidelity_branch", [0, 0, 0, 24]),
             ("pcurve_interval_forward", [0, 0, 0, 12]),
             ("pcurve_loop_branch", [0, 0, 0, 25]),
-            ("pcurve_loop_continuity", [16, 0, 2, 6]),
-            ("pcurve_loop_pole_joint", [0, 0, 0, 12]),
             ("pcurve_map_residual", [18, 0, 0, 0]),
-            ("pcurve_trim_containment", [0, 24, 0, 24]),
             ("segment_straightness", [2, 0, 0, 6]),
             ("side_cylinders_cosurface", [2, 0, 0, 0]),
             ("vertex_separation", [0, 0, 0, 8]),

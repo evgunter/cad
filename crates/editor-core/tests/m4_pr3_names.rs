@@ -9,8 +9,8 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
     MeridianEnd, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SitedRef, SplitHalf, band,
-    band_rim, band_rim_pi, evaluate, meridian_vertex,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, Sense, SitedRef, SplitHalf,
+    band, band_rim, band_rim_pi, evaluate, meridian_vertex,
 };
 use fixture::{ang, axis_in_plane, insert, len, len2, minted, on_frame_keeping, table};
 use geom_core::Tol;
@@ -97,7 +97,7 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
                 t.lookup(&minted(
                     EntityKind::Edge,
                     ext,
-                    RoleSeg::RimEdge(end, pe(&doc, ext, 0, s))
+                    RoleSeg::RimEdge(end, pe(&doc, ext, 0, s).into())
                 ))
                 .is_some()
             );
@@ -296,7 +296,7 @@ fn partial_revolve_on_axis_names_axis_edge_and_poles() {
         t.lookup(&minted(
             EntityKind::Edge,
             rev,
-            RoleSeg::AxisEdge(pe(&doc, rev, 0, 3))
+            RoleSeg::AxisEdge(pe(&doc, rev, 0, 3).into())
         ))
         .is_some()
     );
@@ -593,7 +593,7 @@ fn partial_revolve_of_an_all_on_axis_loop_names_both_poles() {
         t.lookup(&minted(
             EntityKind::Edge,
             rev,
-            RoleSeg::AxisEdge(pe(&doc, rev, 0, 1))
+            RoleSeg::AxisEdge(pe(&doc, rev, 0, 1).into())
         ))
         .is_some(),
         "the on-axis diameter is the caps' shared axis edge"
@@ -709,13 +709,20 @@ fn split_names_sections_fragments_and_crossings() {
                 .is_some(),
                 "missing strut fragment side={side:?} v={s}"
             );
+            // The strut runs up from the start cap, so it enters the
+            // half above the plane and leaves the half below it.
+            let sense = match side {
+                SplitHalf::Above => Sense::Enters,
+                SplitHalf::Below => Sense::Leaves,
+            };
             assert!(
                 t.lookup(&minted(
                     EntityKind::Vertex,
                     split,
                     RoleSeg::CrossingVertex {
                         side,
-                        edge: strut.into()
+                        edge: strut.into(),
+                        sense,
                     }
                 ))
                 .is_some(),

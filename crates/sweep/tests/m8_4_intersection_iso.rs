@@ -538,7 +538,6 @@ fn an_interior_column_intersection_mints_a_general_image() {
          described pair, so the mint reaches certify_general with an operand pair \
          rather than FittedMateMissing",
     );
-    let window = out.as_ref().unwrap().chart_box(t0, t1);
     let cache = geom_brep::PcurveCache::certify_general(
         std::sync::Arc::clone(image),
         t0,
@@ -546,7 +545,6 @@ fn an_interior_column_intersection_mints_a_general_image() {
         &carrier,
         &Surface::Nurbs(Arc::new(chart.clone())),
         Some(&mate),
-        window,
         band(),
         <f64 as topo::AtRestPolicy>::fitted_lane(),
     )
