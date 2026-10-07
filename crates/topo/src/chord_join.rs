@@ -4218,6 +4218,88 @@ mod tests {
         }
     }
 
+    /// **A face at one station is cut by a plane across the axis in a
+    /// conic.** A unit wall about `z` whose face is the rim arc at `z = 0`
+    /// from `(1, 0, 0)` a quarter turn round: it reaches nothing along the
+    /// axis, so a tilt levered along the axis alone moves it by nothing,
+    /// read Zero and minted rulings for the plane `z = 0` (the merge
+    /// later refused them). The plane turns about the rulings' hinge, and
+    /// the face reaches across the wall from there by up to its distance
+    /// from the base vertex: the plane `z = 0` and the planes 30° and 60°
+    /// off it are conics.
+    #[test]
+    fn a_face_at_one_station_is_cut_by_a_plane_across_the_axis_in_a_conic() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let carrier = geom::Curve3::Circle {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let base = carrier.eval(0.0);
+        let mut body = crate::Body::<f64>::new();
+        let seed = body.mvfs(base, true).unwrap();
+        body.set_face_surface(
+            seed.face,
+            crate::FaceSurface::New {
+                surface: geom::Surface::Cylinder {
+                    origin: Point3::origin(),
+                    axis: Vec3::unit_z(),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_x(),
+                },
+                sense: true,
+            },
+        )
+        .unwrap();
+        let cyl = body.get_face(seed.face).unwrap().surface;
+        let rim_plane = body.add_surface(geom::Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        });
+        let quarter = core::f64::consts::FRAC_PI_2;
+        body.mev(
+            crate::MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            carrier.eval(quarter),
+            EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
+                    s1: cyl,
+                    s2: rim_plane,
+                    witness: carrier.mid_point(0.0, quarter),
+                },
+                carrier,
+                param_start: 0.0,
+                param_end: quarter,
+            },
+            Tol::witness(),
+        )
+        .unwrap();
+        for degrees in [90.0_f64, 60.0, 30.0] {
+            let tilt = degrees.to_radians();
+            let normal =
+                UnitVec3::new(Vec3::new(0.0, tilt.cos(), tilt.sin()), "one station", band).unwrap();
+            let got = wall_section(&body, band, base, normal, seed.face, seed.vertex);
+            assert!(
+                matches!(
+                    got,
+                    Ok(Some(WallSection {
+                        case: SectionCase::Conic(_),
+                        ..
+                    }))
+                ),
+                "{degrees}° off the axis: a conic, got {:?}",
+                got.map(|w| w.map(|w| match w.case {
+                    SectionCase::Straight(_) => "straight",
+                    SectionCase::Tangent(_) => "tangent",
+                    SectionCase::Conic(_) => "conic",
+                }))
+            );
+        }
+    }
+
     /// The split lane's adjacency question on a conic between edge (a
     /// cylinder cap's rim, which a planar divided face carries): the
     /// belly verdict and the coplanar verdict. The rim is the upper

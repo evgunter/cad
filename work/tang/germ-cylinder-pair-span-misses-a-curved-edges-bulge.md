@@ -35,8 +35,11 @@ extent only escalates more; the under-statement is the defect.
 
 ## The shape of a fix
 
-Reach the curved edges as the plane×cylinder pair now does: each
-wall's farthest axial distance from `at`
-(`splitting::rules::face_axial_extent`, one `geom_brep::Reach::Span`
-per boundary edge), along each axis, or the curved edges' Euclidean
-reach (`splitting::rules::edge_reach`) folded into the vertex ball.
+Measure each wall's farthest distance along its own axis from `at`
+over its boundary spans, `splitting::rules::face_axial_extent`, which
+reads a conic arc over the span it holds
+(`geom_brep::Reach::axial_lever_from`), and lever the pair at the
+longer of the two (the axes drift apart by the sine times that), never
+at a whole turn of an arc the face does not hold. A spiric or spline
+edge is read at its torus's support or whole control net there, which
+`spiric-and-spline-axial-levers-read-past-the-span` covers.
