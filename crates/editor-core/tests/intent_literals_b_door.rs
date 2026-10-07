@@ -291,7 +291,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
         .map(|node| ("edge".to_owned(), edge_doc.clone(), node))
         .collect();
     for d in corpus::documents() {
-        for &id in d.doc.order() {
+        for id in d.doc.ids() {
             let node = d.doc.node(id).expect("an ordered node is held").authored();
             cases.push((d.name.to_owned(), d.doc.clone(), node));
         }
@@ -325,7 +325,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             continue;
         };
         let Some(target) = doc
-            .order()
+            .ids()
             .iter()
             .copied()
             .find(|&id| doc.node(id).is_some_and(|held| held.authored() == *node))

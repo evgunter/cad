@@ -947,7 +947,7 @@ pub fn own_spaces<P, T: Decide + AtRestPolicy>(
     tol: Tol,
 ) -> Vec<OwnSpace<T>> {
     evaluation
-        .unplaced_groups(doc)
+        .unplaced_groups()
         .into_iter()
         .map(|(group, cause)| OwnSpace {
             group,
@@ -1094,7 +1094,7 @@ pub(crate) fn product_in<P, T: Decide + AtRestPolicy>(
         }));
     }
     if !any_body_denoting {
-        let groups = evaluation.unplaced_groups(doc);
+        let groups = evaluation.unplaced_groups();
         return Err(
             if space == crate::mate::Space::World && !groups.is_empty() {
                 ProductError::Unplaced { groups }
@@ -1506,8 +1506,8 @@ mod tests {
     /// `&'static str`, empty finding lists, and one unit arm of the
     /// kernel's own refusal), so no arm is left unbuilt.
     fn every_arm() -> Vec<ProductError> {
-        let node = RecipeNodeId(test_utils::refusal::tagged(3));
-        let through = RecipeNodeId(test_utils::refusal::tagged(1));
+        let node = RecipeNodeId::new(0, test_utils::refusal::tagged(3));
+        let through = RecipeNodeId::new(0, test_utils::refusal::tagged(1));
         vec![
             ProductError::EvaluationOfAnotherDocument {
                 expected: crate::ident::DocumentId::derive("expected"),
@@ -1518,17 +1518,17 @@ mod tests {
             ProductError::Root(NodeStanding::Failed { node }),
             ProductError::Root(NodeStanding::Poisoned { node, through }),
             ProductError::PlacedUnderTwoRoots {
-                placed: RecipeNodeId(test_utils::refusal::tagged(1)),
+                placed: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 twice: super::PlacedTwice::Instance,
                 select: None,
                 first: node,
-                second: RecipeNodeId(test_utils::refusal::tagged(4)),
+                second: RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
             },
             ProductError::Naming {
                 node,
                 name: Box::new(StableName {
                     kind: EntityKind::Face,
-                    node: RecipeNodeId(test_utils::refusal::tagged(1)),
+                    node: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                     path: Vec::new(),
                 }),
             },
@@ -1687,8 +1687,8 @@ mod tests {
     #[test]
     fn a_root_without_a_value_renders_its_standing() {
         let standing = NodeStanding::Poisoned {
-            node: RecipeNodeId(test_utils::refusal::tagged(4)),
-            through: RecipeNodeId(test_utils::refusal::tagged(2)),
+            node: RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
+            through: RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
         };
         assert_eq!(
             ProductError::Root(standing).to_string(),
@@ -1702,7 +1702,7 @@ mod tests {
     #[test]
     fn the_bare_root_invalid_header_names_each_root() {
         let source = |node: u64| SourceFinding {
-            node: RecipeNodeId(test_utils::refusal::tagged(node)),
+            node: RecipeNodeId::new(0, test_utils::refusal::tagged(node)),
             output: 0,
             errors: vec![topo::ValidationError::NegativeVolume {
                 solid: topo::SolidKey::default(),
@@ -1741,10 +1741,10 @@ mod tests {
     fn the_naming_refusal_claims_rootedness_only_on_the_per_root_path() {
         let named = |node: u64, minted: u64| {
             ProductError::Naming {
-                node: RecipeNodeId(test_utils::refusal::tagged(node)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(node)),
                 name: Box::new(StableName {
                     kind: EntityKind::Face,
-                    node: RecipeNodeId(test_utils::refusal::tagged(minted)),
+                    node: RecipeNodeId::new(0, test_utils::refusal::tagged(minted)),
                     path: Vec::new(),
                 }),
             }

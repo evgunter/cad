@@ -375,7 +375,7 @@ fn an_ancestor_is_one_in_either_run_walked_within_that_run() {
     // The premises, each read per document.
     assert!(!ancestors_in(&doc, cut).contains(&r) && !ancestors_in(&doc2, cut).contains(&r));
     assert!(ancestors_in(&doc, cut).contains(&p) && !ancestors_in(&doc2, cut).contains(&p));
-    let at = |n| doc2.order().iter().position(|&m| m == n);
+    let at = |n| doc2.ids().iter().position(|&m| m == n);
     assert!(
         at(r) < at(p),
         "R is first in document order: a walk reaching it reports it"

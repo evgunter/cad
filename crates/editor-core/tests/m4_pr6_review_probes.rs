@@ -103,7 +103,7 @@ fn attack_all_ones_nan_slips_save_door() {
 fn tokens_separate_structure_from_data() {
     // These two programs never enter a document — the comparison is
     // about loop STRUCTURE — so the frame they name is scaffolding.
-    let quad = |loops: Vec<Vec<(f64, f64)>>| desc(RecipeNodeId(0), loops);
+    let quad = |loops: Vec<Vec<(f64, f64)>>| desc(RecipeNodeId::new(0, 0), loops);
     // Loop shape stays structure-distinct: (2 loops of 1 point) vs
     // (1 loop of 2 points) — different programs, never a value alias.
     let two_loops = quad(vec![vec![(0.0, 0.0)], vec![(1.0, 1.0)]]);
@@ -148,7 +148,7 @@ fn attack_duplicate_json_keys() {
 /// The node map's first two keys as the save spells them, `"<id>":`:
 /// the map is keyed by id, so they are the two smallest ids.
 fn first_two_node_keys(doc: &ProfileDoc) -> (String, String) {
-    let mut ids = doc.order().to_vec();
+    let mut ids = doc.ids().to_vec();
     ids.sort();
     let key = |i: usize| format!("\"{}\":", ids[i].0);
     (key(0), key(1))
@@ -622,7 +622,7 @@ fn attack_meta_order_canonical() {
     let (doc, _) = small();
     let name = StableName {
         kind: EntityKind::Body,
-        node: doc.order()[2],
+        node: doc.ids()[2],
         path: vec![RoleSeg::OutputBody],
     };
     let tree = |order: bool| {
@@ -668,7 +668,7 @@ fn duplicate_keys_refuse_in_every_map() {
     let doc = apply(
         &doc,
         &DocEdit::ReWitness {
-            node: doc.order()[1],
+            node: doc.ids()[1],
             witness: WitnessDatum {
                 schema: 1,
                 bytes: vec![0x11],
@@ -681,7 +681,7 @@ fn duplicate_keys_refuse_in_every_map() {
     .doc;
     let body = StableName {
         kind: EntityKind::Body,
-        node: doc.order()[2],
+        node: doc.ids()[2],
         path: vec![RoleSeg::OutputBody],
     };
     let doc = apply(
@@ -716,7 +716,7 @@ fn duplicate_keys_refuse_in_every_map() {
     // different door (`WitnessSite`).
     let witness_again = format!(
         "\"witnesses\": {{\"{}\": {{\"schema\": 9, \"bytes\": \"22\"}}, ",
-        doc.order()[1].0
+        doc.ids()[1].0
     );
 
     // (surgery pattern, expected section words)

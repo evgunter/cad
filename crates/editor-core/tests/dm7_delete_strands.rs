@@ -299,7 +299,7 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     // hole that replaces — a kind this suite thinks carries nothing
     // while `Node::payload_names` reads a name out of it.
     let mut expected: Vec<(RecipeNodeId, StableName)> = Vec::new();
-    for &id in doc.order() {
+    for id in doc.ids() {
         let Some(node) = doc.node(id) else { continue };
         match node {
             Node::Fillet { .. } => expected.push((id, f0.clone())),

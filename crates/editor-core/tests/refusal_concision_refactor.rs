@@ -17,7 +17,7 @@ use editor_core::{
 use test_utils::refusal::Admission;
 
 fn n(id: u64) -> RecipeNodeId {
-    RecipeNodeId(test_utils::refusal::tagged(id))
+    RecipeNodeId::new(0, test_utils::refusal::tagged(id))
 }
 
 /// Node `id` as a refusal raised over a document holding it as a
@@ -43,7 +43,7 @@ fn param() -> VarName {
 
 fn var() -> editor_core::SpokenVar {
     editor_core::SpokenVar::new(
-        editor_core::VarId(test_utils::refusal::tagged(8)),
+        editor_core::VarId::new(0, test_utils::refusal::tagged(8)),
         Some(param()),
     )
 }
@@ -146,14 +146,14 @@ fn split_refusals() -> Vec<SplitError> {
         },
         SplitError::AnonymousVarCrossesCut {
             var: editor_core::SpokenVar::new(
-                editor_core::VarId(test_utils::refusal::tagged(9)),
+                editor_core::VarId::new(0, test_utils::refusal::tagged(9)),
                 None,
             ),
             node: s(4, "Extrude"),
         },
         SplitError::UnresolvedVarCrossesCut {
             var: editor_core::SpokenVar::new(
-                editor_core::VarId(test_utils::refusal::tagged(9)),
+                editor_core::VarId::new(0, test_utils::refusal::tagged(9)),
                 None,
             ),
             node: s(4, "Extrude"),
@@ -169,7 +169,7 @@ fn split_refusals() -> Vec<SplitError> {
         },
         SplitError::NameOnDroppedStep {
             name: name(),
-            step: StepId(4),
+            step: StepId::new(0, 4),
         },
         SplitError::BodyNameCrossesCut { name: name() },
         SplitError::Pin {
@@ -219,13 +219,13 @@ fn inline_refusals() -> Vec<InlineError> {
         InlineError::VarNameConflict { name: param() },
         InlineError::AnonymousVarCrossesCut {
             var: editor_core::SpokenVar::new(
-                editor_core::VarId(test_utils::refusal::tagged(9)),
+                editor_core::VarId::new(0, test_utils::refusal::tagged(9)),
                 None,
             ),
         },
         InlineError::UnresolvedVarCrossesCut {
             var: editor_core::SpokenVar::new(
-                editor_core::VarId(test_utils::refusal::tagged(9)),
+                editor_core::VarId::new(0, test_utils::refusal::tagged(9)),
                 None,
             ),
             node: s(4, "Extrude"),
@@ -276,7 +276,7 @@ fn inline_refusals() -> Vec<InlineError> {
         InlineError::ForeignInstanceName { name: name() },
         InlineError::NameOnDroppedStep {
             name: name(),
-            step: StepId(4),
+            step: StepId::new(0, 4),
         },
         InlineError::StrandedPartName {
             name: name(),

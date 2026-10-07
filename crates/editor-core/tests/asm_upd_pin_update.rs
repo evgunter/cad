@@ -279,7 +279,7 @@ fn row1c_the_three_refusals_each_name_their_subject() {
     }
 
     // An id no node ever had.
-    let ghost = RecipeNodeId(9_999);
+    let ghost = RecipeNodeId::new(0, 9_999);
     match doc.apply(
         &DocEdit::UpdateReference {
             node: ghost,
@@ -294,7 +294,7 @@ fn row1c_the_three_refusals_each_name_their_subject() {
             assert!(
                 msg.contains(&format!(
                     "node {} is not live",
-                    test_utils::refusal::tag(ghost.0)
+                    test_utils::refusal::tag(ghost.0.digest())
                 )),
                 "{msg}"
             );

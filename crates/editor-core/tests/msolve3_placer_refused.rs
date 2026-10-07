@@ -644,7 +644,7 @@ fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
     );
     assert!(
         f.to_string()
-            .contains(&format!("node {}", test_utils::refusal::tag(datum.0))),
+            .contains(&format!("node {}", test_utils::refusal::tag(datum.0.digest()))),
         "and the message names that node: {f}"
     );
     // Off the chain, the datum is not poisoned by the fault: its own

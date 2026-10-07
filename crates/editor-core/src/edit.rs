@@ -4627,8 +4627,7 @@ fn check_payload_refs<P: crate::ProfilePayload>(
 
 /// [`crate::node::declared_side_fault`] asked of the pairs `pairs` a
 /// door writes onto `node`, refused typed. `carrier` speaks the node
-/// and `at` is its place in `new`'s order (`None` for a node being
-/// inserted): every door that writes a pair asks this, so a pair no
+/// and `at` is its id (`None` for a node being inserted): every door that writes a pair asks this, so a pair no
 /// door admits is one no document holds.
 fn check_declared_sides<'p, P: crate::ProfilePayload>(
     doc: &Doc<P>,
@@ -4636,12 +4635,11 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
     node: &Node<P>,
     pairs: impl IntoIterator<Item = &'p crate::DeclaredPair>,
     carrier: impl Fn() -> SpokenNode,
-    at: Option<usize>,
+    at: Option<RecipeNodeId>,
 ) -> Result<(), EditError> {
-    let placed = new.positions();
     let operands = node.inputs();
     match crate::node::declared_side_fault(pairs, Some(&operands), at, |id| {
-        placed.get(&id).copied()
+        new.nodes.contains_key(&id)
     }) {
         None => Ok(()),
         Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
@@ -4672,8 +4670,8 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
         Black,
     }
     let mut color: BTreeMap<RecipeNodeId, Color> =
-        doc.order().iter().map(|&id| (id, Color::White)).collect();
-    for &root in doc.order() {
+        doc.ids().iter().map(|&id| (id, Color::White)).collect();
+    for root in doc.ids() {
         if color.get(&root) != Some(&Color::White) {
             continue;
         }
@@ -4854,7 +4852,7 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
         return Vec::new();
     }
     let mut doomed: BTreeSet<RecipeNodeId> = BTreeSet::from([id]);
-    for &n in doc.order() {
+    for n in doc.ids() {
         let doomed_by_input = doc
             .node(n)
             .is_some_and(|node| node.inputs().iter().any(|input| doomed.contains(input)));
@@ -4862,7 +4860,7 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
             doomed.insert(n);
         }
     }
-    doc.order()
+    doc.ids()
         .iter()
         .rev()
         .copied()
@@ -4965,7 +4963,6 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // keeps its id.
     for var in new.unread_anonymous_vars() {
         new.vars.remove(&var);
-        new.var_order.retain(|&held| held != var);
         reported.push(Maintenance::AnonymousVarRemoved {
             var: doc.spoken_var(var),
         });
@@ -4983,14 +4980,10 @@ fn door<P: Clone + crate::ProfilePayload, T>(
     // A rule's shape and its listed frames are written only by the
     // insert that authors its node, but a listed frame is admitted at
     // the `tol` this edit is applied at, which need not be the one its
-    // insert was; so the whole document is checked, in document order,
-    // and where one edit breaks two nodes the refusal names the one
-    // placed first.
-    for (&node, n) in new
-        .order
-        .iter()
-        .filter_map(|id| Some((id, new.nodes.get(id)?)))
-    {
+    // insert was; so the whole document is checked, in id order, and
+    // where one edit breaks two nodes the refusal names the one placed
+    // first.
+    for (&node, n) in &new.nodes {
         let listed = |index| FrameSite::Listed { index };
         match n.placement_rule_fault(tol) {
             None => {}
@@ -5144,7 +5137,6 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     }
     new.mint = mint;
     new.nodes.insert(id, node.clone());
-    new.order.push(id);
     check_acyclic(new)?;
     crate::roots::on_insert(new, id, &node.inputs());
     // The solve's own per-mate admission (A11 rule 1), asked
@@ -5298,7 +5290,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 &rewritten,
                 pairs,
                 || doc.spoken(*node),
-                new.positions().get(node).copied(),
+                Some(*node),
             )?;
             new.nodes.insert(*node, rewritten);
             EditRecord {
@@ -5470,7 +5462,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             new.mint = mint;
             new.vars.insert(id, Var::new(def.clone()));
             new.var_names.insert(id, name.clone());
-            new.var_order.push(id);
             check_definition(new, id)?;
             EditRecord {
                 minted: None,
@@ -5611,7 +5602,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             }
             new.vars.remove(&id);
             new.var_names.remove(&id);
-            new.var_order.retain(|&held| held != id);
             // The readers stay, unresolved: each now refuses at
             // evaluation, which is structural; a variable nothing read
             // moves nothing evaluated.
@@ -5684,7 +5674,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     node,
                     moved,
                     || doc.spoken(id),
-                    new.positions().get(&id).copied(),
+                    Some(id),
                 )?;
             }
             // Appearance keys are rebind sites (the attribute rides
@@ -5973,7 +5963,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             check_gauge_ref(new, id, parent, || SpokenNode::entering(id, &promoted))?;
             new.mint = mint;
             new.nodes.insert(id, promoted);
-            new.order.push(id);
             match new.roots.iter().position(|r| r == instance) {
                 Some(at) => new.roots.insert(at, id),
                 None => new.roots.push(id),
@@ -6016,7 +6005,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 });
             }
             let dependents: Vec<RecipeNodeId> = doc
-                .order()
+                .ids()
                 .iter()
                 .copied()
                 .filter(|&id| doc.node(id).and_then(Node::gauge_ref) == Some(*gauge))
@@ -6136,7 +6125,7 @@ fn mate_that_would_start_placing<P>(
     doc: &Doc<P>,
     gauge_after: impl Fn(RecipeNodeId) -> Option<RecipeNodeId>,
 ) -> Option<RecipeNodeId> {
-    doc.order().iter().copied().find(|&id| {
+    doc.ids().iter().copied().find(|&id| {
         let Some(Node::Mate { a, b, .. }) = doc.node(id) else {
             return false;
         };
@@ -6177,7 +6166,6 @@ fn remove_unread<P: crate::ProfilePayload>(
         unreachable!("node {} is removed only while live", id)
     };
     let inputs = node.inputs();
-    new.order.retain(|&n| n != id);
     let reported = stranded_references(before, new, id);
     crate::roots::on_delete(new, id, &inputs);
     new.witnesses.remove(&id);
@@ -6496,7 +6484,7 @@ mod tests {
     /// admission is asked at exactly the edits this answers `true` for.
     #[test]
     fn exactly_the_mate_insert_writes_a_mates_datum() {
-        let id = crate::node::RecipeNodeId(1);
+        let id = crate::node::RecipeNodeId::new(0, 1);
         let name = |node| crate::names::StableName {
             kind: crate::names::EntityKind::Face,
             node,
@@ -6509,7 +6497,7 @@ mod tests {
                     crate::names::FaceName::new(name(id)).expect("a face"),
                 ),
                 b: crate::node::SitedFace::at_mint(
-                    crate::names::FaceName::new(name(crate::node::RecipeNodeId(2)))
+                    crate::names::FaceName::new(name(crate::node::RecipeNodeId::new(0, 2)))
                         .expect("a face"),
                 ),
                 class: crate::mate::ContactClass::Rest,
@@ -6554,7 +6542,7 @@ mod tests {
             },
             DocEdit::Rebind {
                 from: name(id),
-                to: name(crate::node::RecipeNodeId(2)),
+                to: name(crate::node::RecipeNodeId::new(0, 2)),
             },
             DocEdit::SetStructuralParam {
                 node: id,

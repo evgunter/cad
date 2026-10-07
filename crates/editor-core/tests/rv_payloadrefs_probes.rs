@@ -237,9 +237,9 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     let rendered = format!(
         "{}",
         SnapshotError::PayloadVarKind {
-            node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
+            node: editor_core::SpokenNode::absent(RecipeNodeId::new(0, 7)),
             var: editor_core::SpokenVar::new(
-                editor_core::VarId(3),
+                editor_core::VarId::new(0, 3),
                 Some(VarName::from_static("depth")),
             ),
             declared: editor_core::Dimension::Angle,
@@ -261,7 +261,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
         "{}",
         EditError::PayloadUnknownVarName {
             name: VarName::from_static("depth"),
-            node: editor_core::SpokenNode::absent(RecipeNodeId(7)),
+            node: editor_core::SpokenNode::absent(RecipeNodeId::new(0, 7)),
         }
     );
     assert!(

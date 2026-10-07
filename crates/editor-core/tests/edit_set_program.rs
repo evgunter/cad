@@ -820,9 +820,9 @@ fn a_node_that_holds_no_program_refuses() {
         })
     );
     assert_eq!(
-        set_program(&r.doc, RecipeNodeId(99), vec![rod_loop(false)], ids).err(),
+        set_program(&r.doc, RecipeNodeId::new(0, 99), vec![rod_loop(false)], ids).err(),
         Some(EditError::UnknownNode {
-            id: editor_core::SpokenNode::absent(RecipeNodeId(99))
+            id: editor_core::SpokenNode::absent(RecipeNodeId::new(0, 99))
         })
     );
 }
@@ -913,7 +913,7 @@ fn rod_log() -> (ProfileDoc, Vec<editor_core::DocEdit<ProfileProgram>>) {
     let empty = ProfileDoc::empty_derived("set-program-log", tol());
     let r = rod("set-program-log", &[CREASE]);
     // The log is the edits `rod` applied, so it mints the same ids.
-    let (plane, profile_node, rod_node) = (r.doc.order()[0], r.profile, r.rod);
+    let (plane, profile_node, rod_node) = (r.doc.ids()[0], r.profile, r.rod);
     let edits = [
         DocEdit::InsertNode {
             node: Box::new(fixture::xy_frame()),
@@ -991,7 +991,7 @@ fn a_log_holding_a_set_program_saves_loads_and_replays_identically() {
 #[test]
 fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
     let edit: DocEdit<ProfileProgram> = DocEdit::SetProgram {
-        node: RecipeNodeId(1),
+        node: RecipeNodeId::new(0, 1),
         loops: vec![LoopProgram::circle(0.0, 0.0, 1.0).unwrap()],
         ids: vec![vec![None]],
     };

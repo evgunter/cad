@@ -362,7 +362,7 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
     let rendered = separation[0].to_string();
     for root in &roots {
         assert!(
-            rendered.contains(&format!("root {}", test_utils::refusal::tag(root.0))),
+            rendered.contains(&format!("root {}", test_utils::refusal::tag(root.0.digest()))),
             "the finding names both roots: {rendered}"
         );
     }

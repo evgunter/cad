@@ -225,7 +225,7 @@ fn the_symbol_is_the_variables_id() {
         let (_, counts) = session(|| {
             let env = var_env_over::<Sym<f64>, _>(&doc, &leaf).unwrap();
             let by_hand = Sym::<f64>::from_f64(VALUE)
-                + Sym::param_over(ParamSymbol::new(var.0), 0.0, 0.0, 0.0);
+                + Sym::param_over(ParamSymbol::new(var.0.digest()), 0.0, 0.0, 0.0);
             decide(bound(var, &env) - by_hand)
         });
         assert_eq!(counts.symbolic_zero, 1, "{name}'s symbol is its id");
@@ -443,7 +443,7 @@ fn a_name_on_no_variable_refuses_at_load() {
     assert_eq!(
         err,
         PersistError::Snapshot(SnapshotError::NameOnMissingVar {
-            var: VarId(99),
+            var: VarId::new(0, 99),
             name: n("ghost"),
         })
     );
@@ -490,7 +490,7 @@ fn every_lane_reads_the_declaration_order_not_the_id_order() {
     let (doc, measure) = measured_twins();
     let (w, v) = (id(&doc, "w"), id(&doc, "v"));
     assert!(w > v, "the fixture's ids sort against its declarations");
-    assert_eq!(doc.var_order(), &[w, v]);
+    assert_eq!(doc.var_ids(), &[w, v]);
     assert_eq!(
         doc.free_vars().map(|(id, _)| id).collect::<Vec<_>>(),
         vec![w, v]
@@ -516,5 +516,5 @@ fn every_lane_reads_the_declaration_order_not_the_id_order() {
     // And the order survives a save.
     let text = save(&doc, &[], Tol::witness()).unwrap();
     let back = load(&text, Tol::witness()).unwrap().doc;
-    assert_eq!(back.var_order(), &[w, v]);
+    assert_eq!(back.var_ids(), &[w, v]);
 }

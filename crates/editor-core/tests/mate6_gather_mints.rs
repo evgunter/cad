@@ -130,7 +130,7 @@ fn dangling(instance: RecipeNodeId) -> StableName {
         path: vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(99),
+                node: RecipeNodeId::new(0, 99),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }
             .into(),
@@ -809,9 +809,9 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
             );
             let rendered = AssemblyError::Mint { refusals }.to_string();
             assert!(
-                rendered.contains(&format!("mate {}", test_utils::refusal::tag(first_bad.0)))
+                rendered.contains(&format!("mate {}", test_utils::refusal::tag(first_bad.0.digest())))
                     && rendered
-                        .contains(&format!("mate {}", test_utils::refusal::tag(second_bad.0))),
+                        .contains(&format!("mate {}", test_utils::refusal::tag(second_bad.0.digest()))),
                 "and both are in the one message: {rendered:?}"
             );
         }

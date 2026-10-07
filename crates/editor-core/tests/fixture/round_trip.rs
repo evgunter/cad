@@ -58,7 +58,7 @@ pub fn composed(
 ) -> (NodeMap, StepMap) {
     let mut nodes = NodeMap::new();
     let mut steps = StepMap::new();
-    for &id in doc.order() {
+    for id in doc.ids() {
         let to = match split.node_map.get(&id) {
             Some(in_part) => *inline
                 .node_map
@@ -88,7 +88,7 @@ pub fn composed(
 pub fn identity(doc: &ProfileDoc) -> (NodeMap, StepMap) {
     let mut nodes = NodeMap::new();
     let mut steps = StepMap::new();
-    for &id in doc.order() {
+    for id in doc.ids() {
         let Some(node) = doc.node(id) else { continue };
         nodes.insert(id, id);
         if let Node::Profile(p) = node {
@@ -176,7 +176,7 @@ pub fn same_up_to_ids(
 ) -> Result<(), String> {
     let mut problems = Vec::new();
     let live = |d: &ProfileDoc| -> Vec<RecipeNodeId> {
-        d.order()
+        d.ids()
             .iter()
             .copied()
             .filter(|&id| d.node(id).is_some())
@@ -229,7 +229,7 @@ pub fn same_up_to_ids(
         problems.push(format!("roots: {roots_a:?} vs {roots_b:?}"));
     }
     let position: BTreeMap<RecipeNodeId, usize> = b
-        .order()
+        .ids()
         .iter()
         .enumerate()
         .map(|(i, &id)| (id, i))

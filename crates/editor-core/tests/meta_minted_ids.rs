@@ -96,7 +96,7 @@ fn a_name_minted_above_i64_max_becomes_metadata_as_deep_as_any_name() {
         "and comes back the same name"
     );
     let (high_depth, high_refusal) = deepest_metadata(&high);
-    let (low_depth, low_refusal) = deepest_metadata(&cap(RecipeNodeId(1)));
+    let (low_depth, low_refusal) = deepest_metadata(&cap(RecipeNodeId::new(0, 1)));
     assert!(high_depth > 1, "a nested name becomes metadata too");
     assert_eq!(
         (high_depth, &high_refusal),
@@ -167,7 +167,7 @@ fn metadata_holding_a_name_minted_above_i64_max_saves_and_loads() {
 fn a_profile_program_comes_back_through_metadata_at_every_plane_id() {
     for id in [5, i64::MAX as u64, i64::MAX as u64 + 1, u64::MAX] {
         let program: ProfileProgram = ProfileProgram {
-            plane: RecipeNodeId(id),
+            plane: RecipeNodeId::new(0, id),
             loops: Vec::new(),
             ids: Vec::new(),
         };

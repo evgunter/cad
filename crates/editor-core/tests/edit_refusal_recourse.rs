@@ -216,7 +216,7 @@ fn forward_selection() -> (ProfileDoc, editor_core::StableName, editor_core::Sta
 #[test]
 fn a_split_that_cannot_rebuild_a_forward_reference_names_the_rebind_that_gets_through() {
     let (doc, forward, back) = forward_selection();
-    let cut: BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
+    let cut: BTreeSet<RecipeNodeId> = doc.ids().iter().copied().collect();
     let split = |doc: &ProfileDoc| {
         editor_core::split(
             doc,
@@ -360,7 +360,7 @@ fn every_predicate_a_subtract_logs_has_words_or_a_reason() {
     );
     let ev = run(&doc, &editor_core::EvalOptions::default());
     let logged: BTreeSet<&'static str> = doc
-        .order()
+        .ids()
         .iter()
         .filter_map(|id| ev.value(*id))
         .flat_map(|v| v.verdicts.iter().map(|verdict| verdict.predicate))
@@ -370,7 +370,7 @@ fn every_predicate_a_subtract_logs_has_words_or_a_reason() {
     for predicate in &logged {
         let text = UpstreamCause::PredicateFlip {
             predicate,
-            at: RecipeNodeId(1),
+            at: RecipeNodeId::new(0, 1),
             from: Sign::Negative,
             to: Sign::Positive,
         }

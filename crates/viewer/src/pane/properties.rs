@@ -2025,7 +2025,7 @@ mod verdict_tests {
             &pncad::document::EvalOptions::default(),
             tol,
         );
-        let by_tag = format!("node {}", test_utils::refusal::tag(block.0));
+        let by_tag = format!("node {}", test_utils::refusal::tag(block.0.digest()));
         let name = StableName {
             kind: EntityKind::Face,
             node: block,
@@ -2104,7 +2104,7 @@ mod verdict_tests {
             !said.contains("end cap"),
             "the verdict is about this face, and does not say its name again: {said}"
         );
-        let deleted_by_tag = format!("node {}", test_utils::refusal::tag(deleted.0));
+        let deleted_by_tag = format!("node {}", test_utils::refusal::tag(deleted.0.digest()));
         assert!(
             said.contains(&deleted_by_tag),
             "a deleted minting node is said by its tag over the landed document: {said}"
@@ -2131,9 +2131,9 @@ mod verdict_tests {
         });
         let labelled = format!(
             "Extrude \"base block\" ({})",
-            test_utils::refusal::tag(block.0)
+            test_utils::refusal::tag(block.0.digest())
         );
-        let by_tag = format!("node {}", test_utils::refusal::tag(block.0));
+        let by_tag = format!("node {}", test_utils::refusal::tag(block.0.digest()));
         for selection in [picked_face, Selection::Node(block)] {
             let mut session = DocSession::inline(doc.clone(), tol);
             let named = session.perform(SessionOp::SetLabel {
@@ -2205,7 +2205,7 @@ mod verdict_tests {
     fn a_selection_keeps_what_the_document_it_was_picked_in_says() {
         let tol = pncad::tolerance::witness();
         let (doc, block, _) = crate::test_support::boss_on_block("verdict-picked-in", tol);
-        let t = test_utils::refusal::tag(block.0);
+        let t = test_utils::refusal::tag(block.0.digest());
         let face = Selection::Face(FaceSelection {
             name: StableName {
                 kind: EntityKind::Face,
@@ -2290,7 +2290,7 @@ mod verdict_tests {
     fn a_deleted_selection_says_the_last_label_its_node_had() {
         let tol = pncad::tolerance::witness();
         let (doc, block, _) = crate::test_support::boss_on_block("verdict-last-label", tol);
-        let t = test_utils::refusal::tag(block.0);
+        let t = test_utils::refusal::tag(block.0.digest());
         let label = |name: &str| Some(Label::new(name).expect("a label"));
         for (what, at_pick, after) in [
             ("unlabelled, then labelled", None, "base"),

@@ -3667,7 +3667,7 @@ mod properties_pane_tests {
         // The startup body is an extrude, spoken by its kind and tag.
         let line = format!(
             "first operand: Extrude {}; second operand: —",
-            test_utils::refusal::tag(body.0)
+            test_utils::refusal::tag(body.0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
@@ -3682,7 +3682,7 @@ mod properties_pane_tests {
         });
         let line = format!(
             "pick a: face of Extrude {}; pick b: —",
-            test_utils::refusal::tag(body.0)
+            test_utils::refusal::tag(body.0.digest())
         );
         assert!(painted.contains(&line), "{line:?} in {painted:?}");
     }
@@ -4860,7 +4860,7 @@ mod properties_pane_tests {
         };
         let plinth = format!(
             "Extrude \"plinth\" ({})",
-            test_utils::refusal::tag(extrude().0)
+            test_utils::refusal::tag(extrude().0.digest())
         );
 
         let mut driven = Driven::with(vec![SessionOp::SetLabel {
@@ -5319,7 +5319,7 @@ mod properties_pane_tests {
         let said = status(&driven).expect("the commit refused");
         let plinth = format!(
             "Extrude \"plinth\" ({})",
-            test_utils::refusal::tag(extrude().0)
+            test_utils::refusal::tag(extrude().0.digest())
         );
         assert!(
             said.contains(&format!("pick a is on {plinth}")),

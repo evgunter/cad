@@ -435,7 +435,7 @@ fn snapshot_invariant_violations_refuse_typed() {
     };
     // A live node the mint log does not hold (a replay could re-mint
     // its id): the last insert's entry taken out of the log.
-    let last = *doc.order().last().expect("the fixture inserts");
+    let last = *doc.ids().last().expect("the fixture inserts");
     let unlogged = edited(&|v| {
         let log = v["snapshot"]["mint"]["log"]
             .as_array_mut()
@@ -502,7 +502,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
     let meta_edit = DocEdit::SetAppearanceMeta {
         name: editor_core::StableName {
             kind: editor_core::EntityKind::Body,
-            node: doc.order()[1],
+            node: doc.ids()[1],
             path: vec![editor_core::RoleSeg::OutputBody],
         },
         key: "k".into(),
@@ -590,7 +590,7 @@ fn metadata_convention_doors_refuse_typed() {
     let (doc, _) = small();
     let name = editor_core::StableName {
         kind: editor_core::EntityKind::Body,
-        node: doc.order()[1],
+        node: doc.ids()[1],
         path: vec![editor_core::RoleSeg::OutputBody],
     };
     // No "v" field → refused at the edit door (D7 convention).
@@ -775,7 +775,7 @@ fn unreplayable_edit_log_refuses_at_save() {
     let bad = DocEdit::SetAppearanceMeta {
         name: editor_core::StableName {
             kind: editor_core::EntityKind::Body,
-            node: doc.order()[1],
+            node: doc.ids()[1],
             path: vec![editor_core::RoleSeg::OutputBody],
         },
         key: "k".into(),
@@ -790,7 +790,7 @@ fn unreplayable_edit_log_refuses_at_save() {
     }
     // And a log referencing a node the snapshot lacks.
     let orphan = DocEdit::SetParam {
-        node: RecipeNodeId(77),
+        node: RecipeNodeId::new(0, 77),
         slot: editor_core::SlotId::Distance,
         expr: len(1.0),
     };

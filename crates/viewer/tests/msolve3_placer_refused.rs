@@ -120,8 +120,8 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
             "Mate {} failed: the mate solve refused: this mate's a reference has no \
              derived pose: Pattern {p}, on its derivation, refuses. Recourse: repair \
              Pattern {p}",
-            test_utils::refusal::tag(mate.0),
-            p = test_utils::refusal::tag(pattern.0),
+            test_utils::refusal::tag(mate.0.digest()),
+            p = test_utils::refusal::tag(pattern.0.digest()),
         ),
         "the row names the placer the evaluation typed"
     );
@@ -135,7 +135,7 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
             line: format!(
                 "Pattern {} failed: the pattern direction has no finite length (a component \
                  overflows the norm or is not a number). Recourse: {}",
-                test_utils::refusal::tag(pattern.0),
+                test_utils::refusal::tag(pattern.0.digest()),
                 geom_core::RANGE_RECOURSE
             ),
         }],

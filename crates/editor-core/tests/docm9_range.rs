@@ -749,7 +749,7 @@ fn a_parameter_field_boxes_directly() {
     .expect("the parameter boxes");
     assert_eq!(derived.axis, var(&doc, "depth"));
     assert_eq!(derived.doc.vars().len(), doc.vars().len());
-    assert_eq!(derived.doc.order(), doc.order());
+    assert_eq!(derived.doc.ids(), doc.ids());
     assert_eq!(derived.nominal, 1.0);
     let r = range_of(&doc, "depth", RangeSeed::symmetric(0.25), &budget(24, 2048));
     assert!(matches!(r.lo(), RangeSide::Certified { .. }));
@@ -779,7 +779,7 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
     // A slot already driven by an expression: naming it would shadow
     // the expression, so the query refuses instead.
     let driven = slab(1.0);
-    let extrude = *driven.order().last().expect("the extrude is last");
+    let extrude = *driven.ids().last().expect("the extrude is last");
     assert_eq!(
         derive(
             &driven,
@@ -812,7 +812,7 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
             slot: SlotId::Radius
         })
     );
-    let ghost = RecipeNodeId(9999);
+    let ghost = RecipeNodeId::new(0, 9999);
     assert_eq!(
         derive(
             &driven,
@@ -830,12 +830,12 @@ fn a_slot_the_rewrite_cannot_name_refuses_typed() {
     assert_eq!(
         derive(
             &driven,
-            &RangeField::Param(editor_core::VarId(0)),
+            &RangeField::Param(editor_core::VarId::new(0, 0)),
             seed,
             tol()
         ),
         Err(RangeRefusal::NotAContinuousParam {
-            param: editor_core::SpokenVar::new(editor_core::VarId(0), None)
+            param: editor_core::SpokenVar::new(editor_core::VarId::new(0, 0), None)
         })
     );
 }

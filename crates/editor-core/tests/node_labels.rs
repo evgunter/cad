@@ -44,7 +44,7 @@ fn refusal(doc: &ProfileDoc, edit: DocEdit<editor_core::ProfileProgram>) -> Edit
 /// A square block on its own sketch frame, `cx` along x: the frame,
 /// the profile and the extrude, in the order inserted.
 fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, [RecipeNodeId; 3]) {
-    let before = doc.order().len();
+    let before = doc.ids().len();
     let (doc, profile) = on_frame(
         doc,
         [0.0, 0.0, 0.0],
@@ -52,7 +52,7 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, [RecipeNodeId; 3]) {
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, 0.5)],
     );
-    let frame = doc.order()[before];
+    let frame = doc.ids()[before];
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
@@ -665,7 +665,7 @@ fn a_severing_split_speaks_both_ends_and_prints_no_decimal_id() {
 #[test]
 fn a_split_forward_reference_speaks_from_the_document_being_split() {
     let (doc, late, c) = forward_reference("node-labels-forward");
-    let cut: BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
+    let cut: BTreeSet<RecipeNodeId> = doc.ids().iter().copied().collect();
     let refused = split(
         &doc,
         &cut,
@@ -866,12 +866,12 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
 
     let pinned = Sensitivity {
         document: doc.id(),
-        param: editor_core::VarId(7),
+        param: editor_core::VarId::new(0, 7),
         outcome: SensitivityOutcome::Unliftable {
             node: extrude,
             refusal: LiftRefusal::PinnedSection {
                 section: profile,
-                param: editor_core::VarId(7),
+                param: editor_core::VarId::new(0, 7),
             },
         },
     };
@@ -880,7 +880,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         format!(
             "unliftable at {plate}: {} feeds the section of Profile \"sketch\" ({p}), which \
              stays f64 (C6/D9)",
-            doc.spoken_var(editor_core::VarId(7))
+            doc.spoken_var(editor_core::VarId::new(0, 7))
         )
     );
 
@@ -984,12 +984,12 @@ fn a_report_rendered_from_another_document_fails_loud() {
     );
     let entry = Sensitivity {
         document: doc.id(),
-        param: editor_core::VarId(7),
+        param: editor_core::VarId::new(0, 7),
         outcome: SensitivityOutcome::Unliftable {
             node: extrude,
             refusal: editor_core::LiftRefusal::PinnedSection {
                 section: extrude,
-                param: editor_core::VarId(7),
+                param: editor_core::VarId::new(0, 7),
             },
         },
     };
@@ -1313,7 +1313,7 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
     // A mate fault recorded against an instance names the instance once,
     // by its noun where it has one and as `this node` where it has none.
     let self_mate = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::SelfMate {
-        mate: RecipeNodeId(7),
+        mate: RecipeNodeId::new(0, 7),
         instance: body,
     })));
     let line = self_mate.line_at(body, Speaker::of(&doc));
@@ -1323,7 +1323,7 @@ fn a_memoized_refusals_inner_nodes_are_spoken_and_its_subject_named_once() {
         "{line}"
     );
     let dangling = NodeRefusal::from(NodeErrorKind::Mate(Box::new(MateFault::DanglingHead {
-        mate: RecipeNodeId(7),
+        mate: RecipeNodeId::new(0, 7),
         side: MateSide::A,
         head: body,
     })));

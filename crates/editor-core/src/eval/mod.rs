@@ -196,27 +196,22 @@ impl<T: Decide> Evaluation<T> {
         crate::mate::Space::of(self.unplaced.get(&node).copied())
     }
 
-    /// **[`Evaluation::unplaced`] in `doc`'s order**, as `(node, root,
-    /// cause)`: the one reading of the map that a list, a report or a
-    /// refusal takes. The map is keyed by id, and an id is a digest, so
-    /// its own order is no order a reader can follow.
-    ///
-    /// `doc` is the document this evaluation is of.
-    pub fn unplaced_in_order<'a, P>(
-        &'a self,
-        doc: &'a Doc<P>,
-    ) -> impl Iterator<Item = (RecipeNodeId, RecipeNodeId, crate::mate::Unplaced)> + 'a {
-        doc.order().iter().filter_map(|&node| {
-            let &(root, cause) = self.unplaced.get(&node)?;
-            Some((node, root, cause))
-        })
+    /// **[`Evaluation::unplaced`] in id order**, as `(node, root,
+    /// cause)`: the order the nodes were inserted in, the one reading of
+    /// the map that a list, a report or a refusal takes.
+    pub fn unplaced_in_order(
+        &self,
+    ) -> impl Iterator<Item = (RecipeNodeId, RecipeNodeId, crate::mate::Unplaced)> + '_ {
+        self.unplaced
+            .iter()
+            .map(|(&node, &(root, cause))| (node, root, cause))
     }
 
-    /// **Every unplaced group, by its root, with its cause**, in
-    /// `doc`'s order ([`Evaluation::unplaced_in_order`]): a root lives
-    /// in its own group's space, so each group is its root's row.
-    pub fn unplaced_groups<P>(&self, doc: &Doc<P>) -> Vec<(RecipeNodeId, crate::mate::Unplaced)> {
-        self.unplaced_in_order(doc)
+    /// **Every unplaced group, by its root, with its cause**, in id
+    /// order ([`Evaluation::unplaced_in_order`]): a root lives in its
+    /// own group's space, so each group is its root's row.
+    pub fn unplaced_groups(&self) -> Vec<(RecipeNodeId, crate::mate::Unplaced)> {
+        self.unplaced_in_order()
             .filter(|&(node, root, _)| node == root)
             .map(|(_, root, cause)| (root, cause))
             .collect()
@@ -7575,7 +7570,7 @@ mod name_feed_tests {
     fn leaf(node: u64) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
@@ -7602,7 +7597,7 @@ mod name_feed_tests {
         };
         StableName {
             kind: EntityKind::Edge,
-            node: RecipeNodeId(level as u64 + 10),
+            node: RecipeNodeId::new(0, level as u64 + 10),
             path: vec![
                 seg,
                 RoleSeg::Fragment(Qualifier::OrderAlong { rank: 1, of: 2 }),

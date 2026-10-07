@@ -478,7 +478,7 @@ fn a1_the_frame_moves_with_the_face_and_the_memo_recomputes_the_cone() {
     );
     let frame = cd
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|id| matches!(cd.doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
@@ -803,7 +803,7 @@ fn a8_a_document_with_a_derived_frame_round_trips_bit_identical() {
     assert_eq!(text, again, "save ∘ load is a fixpoint, byte for byte");
     let frames: Vec<_> = loaded
         .doc
-        .order()
+        .ids()
         .iter()
         .filter_map(|id| match loaded.doc.node(*id) {
             Some(Node::Datum(Datum::FaceFrame { at, face, .. })) => Some((*at, face.clone())),
@@ -812,7 +812,7 @@ fn a8_a_document_with_a_derived_frame_round_trips_bit_identical() {
         .collect();
     let original: Vec<_> = cd
         .doc
-        .order()
+        .ids()
         .iter()
         .filter_map(|id| match cd.doc.node(*id) {
             Some(Node::Datum(Datum::FaceFrame { at, face, .. })) => Some((*at, face.clone())),

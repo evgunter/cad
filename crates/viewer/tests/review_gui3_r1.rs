@@ -487,7 +487,7 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
                     Some(
                         format!(
                             "upstream failure at Extrude {} — that row carries the cause",
-                            test_utils::refusal::tag(extrude.0)
+                            test_utils::refusal::tag(extrude.0.digest())
                         )
                         .as_str()
                     ),

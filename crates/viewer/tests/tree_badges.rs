@@ -59,7 +59,7 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
                 Some(
                     format!(
                         "upstream failure at Extrude {} — that row carries the cause",
-                        test_utils::refusal::tag(extrude.0)
+                        test_utils::refusal::tag(extrude.0.digest())
                     )
                     .as_str()
                 ),
@@ -1704,7 +1704,7 @@ fn a_mate_row_reads_whether_it_placed_its_child() {
 fn downstream_at_mate(mate: pncad::document::RecipeNodeId) -> String {
     format!(
         "upstream failure at Mate {} — that row carries the cause",
-        test_utils::refusal::tag(mate.0)
+        test_utils::refusal::tag(mate.0.digest())
     )
 }
 

@@ -2653,7 +2653,7 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
         )
         .expect("a fused step over a bulge spec is authorable and replays");
     let doc = applied.doc;
-    let profile = *doc.order().last().expect("the inserted profile node");
+    let profile = *doc.ids().last().expect("the inserted profile node");
     let (doc, ext) = insert(
         doc,
         Node::Extrude {

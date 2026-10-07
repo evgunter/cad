@@ -142,7 +142,7 @@ fn speaks(door: &str, prefix: &str, refusal: &dyn core::fmt::Display, standing: 
 #[test]
 fn every_standing_renders_one_way_through_every_door() {
     let s = Standings::new();
-    let foreign = RecipeNodeId(9999);
+    let foreign = RecipeNodeId::new(0, 9999);
     let [failed, poisoned] = s.broken_standings();
     let cases = [
         (&s.broken, failed),
@@ -334,7 +334,7 @@ fn the_checks_root_refusal_names_the_node_the_repair_is_at() {
     assert!(
         refusal.to_string().contains(&format!(
             "the repair is upstream, at node {}",
-            test_utils::refusal::tag(s.failed.0)
+            test_utils::refusal::tag(s.failed.0.digest())
         )),
         "{refusal}"
     );
@@ -444,7 +444,7 @@ fn a_poisoned_datum_carries_through_to_the_select_refusal() {
     assert!(
         refusal
             .to_string()
-            .contains(&format!("at node {}", test_utils::refusal::tag(s.failed.0))),
+            .contains(&format!("at node {}", test_utils::refusal::tag(s.failed.0.digest()))),
         "{refusal}"
     );
 }
@@ -506,7 +506,7 @@ fn run_status_round_trips_its_json_and_keeps_its_key_bytes() {
         .into_iter()
         .zip(1..)
         .map(|(outcome, id)| VerdictRow {
-            node: RecipeNodeId(id),
+            node: RecipeNodeId::new(0, id),
             outcome,
             verdicts: Vec::new(),
         })

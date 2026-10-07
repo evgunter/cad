@@ -44,7 +44,7 @@ use fixture::{Recorder, fname, len, wall};
 /// A variable as the free mass doors' refusals speak it.
 fn sp(name: &'static str) -> editor_core::SpokenVar {
     editor_core::SpokenVar::new(
-        editor_core::VarId(0),
+        editor_core::VarId::new(0, 0),
         Some(editor_core::VarName::from_static(name)),
     )
 }
@@ -76,7 +76,7 @@ fn opts(doc: &ProfileDoc, seed: Option<&'static str>, lift: ProfileLift) -> Eval
 
 /// The variable `doc` declares as `n`, or an id it never minted.
 fn var(doc: &ProfileDoc, n: &str) -> editor_core::VarId {
-    doc.var_named(n).unwrap_or(editor_core::VarId(0))
+    doc.var_named(n).unwrap_or(editor_core::VarId::new(0, 0))
 }
 
 /// `doc`'s variable `n` as a refusal speaks it.
@@ -95,7 +95,7 @@ fn run<T: editor_core::EvalScalar>(
 /// The measure node of a document, by kind — the one sink these rows
 /// read.
 fn measure_node(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Measure { .. })))
@@ -139,7 +139,7 @@ fn two_param_web() -> ProfileDoc {
     // is a node too, so a profile's own index is no longer one less
     // than its extrude's.
     let plate = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
@@ -161,7 +161,7 @@ fn two_param_web() -> ProfileDoc {
     // Replace the measure: the assertion depends on the old node, so
     // it goes first (cascade), then the new measure is inserted.
     let assertion = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Assertion { .. })))
@@ -439,7 +439,7 @@ fn the_memo_never_serves_one_parameters_pass_to_another() {
     // hole profiles are the programs whose expressions name `hole_r`,
     // and `depth` drives the plate extrude's distance (set above).
     let r_cone = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| match doc.node(id) {
@@ -450,7 +450,7 @@ fn the_memo_never_serves_one_parameters_pass_to_another() {
         .collect::<std::collections::BTreeSet<_>>();
     let d_cone = corpus::cone(
         &doc,
-        doc.order()
+        doc.ids()
             .iter()
             .copied()
             .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))

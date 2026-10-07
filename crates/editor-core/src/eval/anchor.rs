@@ -332,7 +332,7 @@ impl ProfilePieces {
     /// names is what such a test reads.
     #[cfg(test)]
     pub(crate) fn numbered(counts: &[usize]) -> Self {
-        let step = |l: usize, k: usize| StepId((1000 * l + k) as u64);
+        let step = |l: usize, k: usize| StepId::new(0, (1000 * l + k) as u64);
         Self {
             edges: counts
                 .iter()

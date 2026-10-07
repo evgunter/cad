@@ -1057,7 +1057,7 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     // (b) The assertion's target: point it at the sketch FRAME (the
     // first node), which is not a measure. The slab is frame, profile
     // and extrude, so the measure is the fourth node.
-    let [frame, _, extrude, measure] = doc.order()[..4] else {
+    let [frame, _, extrude, measure] = doc.ids()[..4] else {
         panic!("a slab and its measure");
     };
     let target = format!("\"measure\": {}", measure.0);

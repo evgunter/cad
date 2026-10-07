@@ -1073,7 +1073,7 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
     );
     // `band_document`'s instances pin a reference no store holds, so
     // there is no part body for the heads to name: any id spells it.
-    let body = RecipeNodeId(0);
+    let body = RecipeNodeId::new(0, 0);
     let mut refused = 0_usize;
     for (x, y) in [(0, 1), (2, 3)] {
         let err = doc
@@ -1112,7 +1112,7 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
     }
     assert_eq!(refused, 2);
     assert!(
-        doc.order()
+        doc.ids()
             .iter()
             .all(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. }))),
         "the document holds its five instances and nothing else"
@@ -1122,7 +1122,7 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
     // else, since no band means no verdict for any of them.
     let poses = solve(doc, &EvalOptions::default(), tol);
     let mut instances = 0_usize;
-    for &id in doc.order() {
+    for id in doc.ids() {
         assert!(
             matches!(poses.fault(id), Some(MateFault::Band { .. })),
             "{id:?}: {:?}",
@@ -1215,7 +1215,7 @@ fn c4_poses_of_another_document_reaches_no_row() {
     }
     let tol = Tol::witness();
     let poses = solve(&doc, &r.o, tol);
-    for &id in doc.order() {
+    for id in doc.ids() {
         assert!(
             !matches!(
                 poses.fault(id),
@@ -1241,7 +1241,7 @@ fn c4_poses_of_another_document_reaches_no_row() {
         );
     }
     let ev = run(&doc, &r.o);
-    for &id in doc.order() {
+    for id in doc.ids() {
         let Some(e) = ev.node_error(id) else {
             continue;
         };

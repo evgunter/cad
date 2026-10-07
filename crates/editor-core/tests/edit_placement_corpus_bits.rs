@@ -124,7 +124,7 @@ fn every_corpus_transform_places_its_body_by_the_pinned_bits() {
     for doc in corpus::documents() {
         let transforms: Vec<_> = doc
             .doc
-            .order()
+            .ids()
             .iter()
             .copied()
             .filter(|id| matches!(doc.doc.node(*id), Some(Node::Transform { .. })))

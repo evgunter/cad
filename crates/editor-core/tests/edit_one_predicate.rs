@@ -103,7 +103,7 @@ fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
     // The sketch frame (the first node) is live and precedes any
     // assertion, so the only thing wrong with the document is that it
     // is not a measure.
-    let frame_node = doc.order()[0];
+    let frame_node = doc.ids()[0];
     match apply(
         &doc,
         &DocEdit::InsertNode {
@@ -586,7 +586,7 @@ fn a_face_referenced_crossing_round_trips() {
 fn a_crossings_references_are_bare_names_on_the_wire() {
     let reference = |node: u64| StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(node),
+        node: RecipeNodeId::new(0, node),
         path: vec![RoleSeg::Cap(editor_core::CapEnd::Start)],
     };
     let crossing = InterfaceCrossing::Mate {
@@ -885,7 +885,7 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
     // measure, in that order: the profile is the only sketch-bearing
     // node in it, and the extrude is a live node that is not one.
     let (doc, _) = with_measure();
-    let (sketch, non_sketch) = (doc.order()[1], doc.order()[2]);
+    let (sketch, non_sketch) = (doc.ids()[1], doc.ids()[2]);
     match apply(
         &doc,
         &DocEdit::ReWitness {
@@ -917,7 +917,7 @@ fn a_witness_on_a_non_sketch_node_is_refused_at_both_doors() {
 #[test]
 fn a_witness_on_a_missing_node_is_refused_at_both_doors() {
     let (doc, _) = with_measure();
-    let (sketch, gone) = (doc.order()[1], doc.order()[2]);
+    let (sketch, gone) = (doc.ids()[1], doc.ids()[2]);
     // Deleted rather than invented, so the id stays one the document
     // has minted and the load door's id walk passes it — the refusal read
     // is then the site rule's and not `NodeNotMinted`.

@@ -1900,7 +1900,7 @@ mod tests {
     fn name(node: u64, kind: EntityKind) -> StableName {
         StableName {
             kind,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: Vec::new(),
         }
     }
@@ -1960,26 +1960,20 @@ mod tests {
     }
 
     /// **Both carriers, in the contracted order**: every payload name
-    /// in document order, then every store key in the store's own
-    /// order.
+    /// in id order, then every store key in the store's own order.
     ///
-    /// The fixture makes both halves of that falsifiable. The two
-    /// nodes sit in the document in the REVERSE of their id order, so
-    /// a walk over the node map instead of `Doc::order` swaps the
-    /// first two rows; and both store keys are minted by a node that
-    /// sorts BEFORE either payload name, so a walk that merged the
-    /// two carriers into one sorted list — or ran the store first —
-    /// puts them at the front instead of the back.
+    /// The fixture makes the second half falsifiable: both store keys
+    /// are minted by a node that sorts BEFORE either payload name, so
+    /// a walk that merged the two carriers into one sorted list — or
+    /// ran the store first — puts them at the front instead of the
+    /// back.
     ///
     /// DM7's report is this walk filtered on the deleted node, so
     /// this order is the clause's payload-strands-before-store-strands
     /// order; `dm7_delete_strands` holds that end of it at the door.
     /// The fixture is built by poking `Doc`'s fields, not through
-    /// the edit doors, because the reversal has to be the row's choice:
-    /// through the doors, how a node's id sorts against the ids before
-    /// it is the mint's digest, not the author's. In-crate reach spells
-    /// that state in five lines and keeps the row's subject the walk
-    /// rather than the door.
+    /// the edit doors: in-crate reach spells that state in a few lines
+    /// and keeps the row's subject the walk rather than the door.
     #[test]
     fn name_carriers_reads_the_payloads_then_the_store() {
         let mut doc: ProfileDoc = Doc::empty_derived("carriers", Tol::witness());
@@ -1991,11 +1985,11 @@ mod tests {
 
         // Declared in id order, ordered in the document backwards.
         doc.nodes.insert(
-            RecipeNodeId(0),
+            RecipeNodeId::new(0, 0),
             Node::Boolean {
                 op: crate::BooleanOp::Union,
-                a: RecipeNodeId(98),
-                b: RecipeNodeId(99),
+                a: RecipeNodeId::new(0, 98),
+                b: RecipeNodeId::new(0, 99),
                 declare: vec![(
                     (
                         SitedRef::at_mint(first.clone()),
@@ -2006,11 +2000,11 @@ mod tests {
             },
         );
         doc.nodes.insert(
-            RecipeNodeId(1),
+            RecipeNodeId::new(0, 1),
             Node::Boolean {
                 op: crate::BooleanOp::Union,
-                a: RecipeNodeId(98),
-                b: RecipeNodeId(99),
+                a: RecipeNodeId::new(0, 98),
+                b: RecipeNodeId::new(0, 99),
                 declare: vec![(
                     (
                         SitedRef::at_mint(third.clone()),
@@ -2028,7 +2022,7 @@ mod tests {
         // so its absence below is asserted by the same equality.
         let crossed = name(11, EntityKind::Face);
         doc.nodes.insert(
-            RecipeNodeId(2),
+            RecipeNodeId::new(0, 2),
             Node::InstantiatePart {
                 doc_ref: DocRef {
                     id: DocumentId::derive("carriers-part"),
@@ -2046,7 +2040,6 @@ mod tests {
                 offset: Some(crate::placement::Placement::IDENTITY),
             },
         );
-        doc.order = vec![RecipeNodeId(2), RecipeNodeId(1), RecipeNodeId(0)];
         for key in [&painted_b, &painted_a] {
             doc.appearance
                 .insert(key.clone(), AppearanceRecord::default());
@@ -2056,29 +2049,29 @@ mod tests {
             doc.name_carriers().collect::<Vec<_>>(),
             vec![
                 NameCarrier::Payload {
-                    node: RecipeNodeId(2),
-                    name: &crossed,
-                },
-                NameCarrier::Payload {
-                    node: RecipeNodeId(1),
-                    name: &third,
-                },
-                NameCarrier::Payload {
-                    node: RecipeNodeId(1),
-                    name: &third,
-                },
-                NameCarrier::Payload {
-                    node: RecipeNodeId(0),
+                    node: RecipeNodeId::new(0, 0),
                     name: &first,
                 },
                 NameCarrier::Payload {
-                    node: RecipeNodeId(0),
+                    node: RecipeNodeId::new(0, 0),
                     name: &second,
+                },
+                NameCarrier::Payload {
+                    node: RecipeNodeId::new(0, 1),
+                    name: &third,
+                },
+                NameCarrier::Payload {
+                    node: RecipeNodeId::new(0, 1),
+                    name: &third,
+                },
+                NameCarrier::Payload {
+                    node: RecipeNodeId::new(0, 2),
+                    name: &crossed,
                 },
                 NameCarrier::Store { name: &painted_a },
                 NameCarrier::Store { name: &painted_b },
             ],
-            "the walk is `Carrier::ALL`'s order: document order over the payloads, then the \
+            "the walk is `Carrier::ALL`'s order: id order over the payloads, then the \
              store's own key order"
         );
     }
@@ -2091,7 +2084,7 @@ mod tests {
         use crate::expr::{Dimension, Expr};
         use crate::var::{Var, VarDef, VarId};
         let mut doc = ProfileDoc::empty_derived("doc-cyclic", Tol::witness());
-        let (a, b) = (VarId(1), VarId(2));
+        let (a, b) = (VarId::new(0, 1), VarId::new(0, 2));
         let read = |var| Expr::var(var, Dimension::Length);
         let one = Expr::literal(0.001, Dimension::Length).expect("a length");
         doc.vars.insert(
@@ -2101,7 +2094,6 @@ mod tests {
             )),
         );
         doc.vars.insert(b, Var::new(VarDef::Defined(read(a))));
-        doc.var_order = vec![a, b];
         (doc, a, b)
     }
 
@@ -2136,7 +2128,7 @@ mod tests {
         use crate::expr::{Dimension, Expr};
         use crate::var::{Var, VarDef, VarId};
         let mut doc = ProfileDoc::empty_derived("doc-saturate", Tol::witness());
-        let w = VarId(1);
+        let w = VarId::new(0, 1);
         doc.vars.insert(
             w,
             Var::new(VarDef::Free(super::FreeVar::continuous(
@@ -2144,10 +2136,9 @@ mod tests {
                 1.0,
             ))),
         );
-        doc.var_order.push(w);
         let mut prev = w;
         for k in 2..40 {
-            let id = VarId(k);
+            let id = VarId::new(0, k);
             let read = Expr::var(prev, Dimension::Length);
             doc.vars.insert(
                 id,
@@ -2155,11 +2146,10 @@ mod tests {
                     Expr::add(read.clone(), read).expect("adds"),
                 )),
             );
-            doc.var_order.push(id);
             prev = id;
         }
         let sizes = doc.expansion_nodes(&doc.definition_order());
-        assert_eq!(sizes[&VarId(2)], 3);
+        assert_eq!(sizes[&VarId::new(0, 2)], 3);
         assert_eq!(sizes[&prev], crate::edit::DEFINITION_NODE_BOUND + 1);
     }
 }

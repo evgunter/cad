@@ -854,7 +854,7 @@ fn a_cut_of_a_gauged_instance_and_plain_geometry_lands_on_two_anchors() {
     let gauged = set_gauge(world_doc.clone(), x, Some(g));
     let plain_cut = |doc: ProfileDoc| {
         let before: std::collections::BTreeSet<RecipeNodeId> =
-            doc.order().iter().copied().collect();
+            doc.ids().iter().copied().collect();
         let (doc, prof) = on_frame(
             doc,
             [50.0, 0.0, 0.0],
@@ -871,7 +871,7 @@ fn a_cut_of_a_gauged_instance_and_plain_geometry_lands_on_two_anchors() {
             },
         );
         let mut cut: std::collections::BTreeSet<RecipeNodeId> = doc
-            .order()
+            .ids()
             .iter()
             .copied()
             .filter(|id| !before.contains(id))
@@ -979,7 +979,7 @@ fn a_cut_group_unplaced_for_lack_of_an_offset_votes_its_gauge() {
     let (doc, x) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, x, Some(g));
     let doc = set_offset(doc, x, None);
-    let before: std::collections::BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
+    let before: std::collections::BTreeSet<RecipeNodeId> = doc.ids().iter().copied().collect();
     let (doc, prof) = on_frame(
         doc,
         [50.0, 0.0, 0.0],
@@ -997,7 +997,7 @@ fn a_cut_group_unplaced_for_lack_of_an_offset_votes_its_gauge() {
     );
     let o = p.opts();
     let mut cut: std::collections::BTreeSet<RecipeNodeId> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|id| !before.contains(id))
@@ -1488,7 +1488,7 @@ fn the_minted_gauge_is_the_one_a_user_would_insert_and_moves_nothing() {
     let by_hand = editor_core::inline(&hand, h, &resolver, Tol::witness())
         .expect("at the empty offset the part's content lands on the gauge");
     let gauge_of = |d: &ProfileDoc| {
-        d.order()
+        d.ids()
             .iter()
             .copied()
             .find(|&id| matches!(d.node(id), Some(Node::Gauge { .. })))

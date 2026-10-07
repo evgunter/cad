@@ -907,7 +907,7 @@ fn set_declare_on_a_live_union_answers_its_refusal() {
             declare: Vec::new(),
         },
     );
-    let order = doc.order().to_vec();
+    let order = doc.ids().to_vec();
     let mut pairs = Vec::new();
     loop {
         let ev = run(&doc);
@@ -932,7 +932,7 @@ fn set_declare_on_a_live_union_answers_its_refusal() {
         assert_eq!(applied.record.minted, None, "a declaration mints nothing");
         doc = applied.doc;
     }
-    assert_eq!(doc.order(), &order[..], "the union was edited in place");
+    assert_eq!(doc.ids(), &order[..], "the union was edited in place");
     let volume = topo::mass_properties(body_of(&run(&doc), union), Tol::witness())
         .expect("the fused body has mass")
         .volume;
@@ -999,7 +999,7 @@ fn a_declaration_recomputes_the_union_alone() {
     );
     assert_eq!(
         ev.reused,
-        doc.order().len() - 1,
+        doc.ids().len() - 1,
         "a node the two documents share recomputed"
     );
     assert_eq!(
@@ -1171,7 +1171,7 @@ fn a_declared_unions_document_replays_in_document_order() {
     let pairs = flush_pairs(&doc, (a, a), (b, b));
     let (doc, union) = declared_union(doc, &[a, b], pairs);
     // The union's declaration names nothing that comes after it.
-    let positions = |id: RecipeNodeId| doc.order().iter().position(|n| *n == id);
+    let positions = |id: RecipeNodeId| doc.ids().iter().position(|n| *n == id);
     let Some(Node::Union { declare, .. }) = doc.node(union) else {
         panic!("the union survived as something else")
     };
@@ -1188,14 +1188,14 @@ fn a_declared_unions_document_replays_in_document_order() {
     let loaded = editor_core::persist::load(&text, Tol::witness())
         .expect("and loads")
         .doc;
-    assert_eq!(loaded.order(), doc.order());
+    assert_eq!(loaded.ids(), doc.ids());
     let ev = run(&loaded);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     // Rebuilding by re-inserting the nodes in document order works:
     // every payload name and every site is live by the time its
     // carrier arrives.
     let mut replay = ProfileDoc::empty_derived("docm7_forward_ref_replay", Tol::witness());
-    for id in doc.order() {
+    for id in doc.ids() {
         let node = crate::fixture::as_authored(doc.node(*id).expect("a live node"));
         replay = replay
             .apply(
@@ -1208,10 +1208,10 @@ fn a_declared_unions_document_replays_in_document_order() {
             .unwrap_or_else(|e| panic!("re-inserting {id:?} refused: {e:?}"))
             .doc;
     }
-    assert_eq!(replay.order().len(), doc.order().len());
+    assert_eq!(replay.ids().len(), doc.ids().len());
     let ev = run(&replay);
-    let rebuilt = replay.order()[doc
-        .order()
+    let rebuilt = replay.ids()[doc
+        .ids()
         .iter()
         .position(|n| *n == union)
         .expect("the union")];

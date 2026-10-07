@@ -240,7 +240,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         .expect("a self-boolean refuses")
         .to_string();
     assert!(
-        rendered.contains(&format!("Chamfer {}", test_utils::refusal::tag(softened.0))),
+        rendered.contains(&format!("Chamfer {}", test_utils::refusal::tag(softened.0.digest()))),
         "the refusal names the double-picked node: {rendered}"
     );
     assert!(mispick.committed.is_empty(), "a refusal commits nothing");
@@ -484,7 +484,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
         affordance.label,
         format!(
             "Delete Extrude {} and 3 dependent features",
-            test_utils::refusal::tag(block.0)
+            test_utils::refusal::tag(block.0.digest())
         )
     );
     assert!(

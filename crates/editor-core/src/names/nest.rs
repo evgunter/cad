@@ -1795,7 +1795,7 @@ pub(super) mod tests {
             use RoleSeg as R;
             let (a, b): (&StableName, &StableName) = ($a, $b);
             let r = |n: &StableName| NameRef::new(n.clone());
-            let step = StepId(7);
+            let step = StepId::new(0, 7);
             let e = ProfileEdgeRef::Piece {
                 step,
                 role: PieceRole::Piece(2),
@@ -1834,7 +1834,7 @@ pub(super) mod tests {
                 R::FromA(r(a)),
                 R::FromB(r(b)),
                 R::FromMember {
-                    member: RecipeNodeId(3),
+                    member: RecipeNodeId::new(0, 3),
                     of: r(a),
                 },
                 R::Seam { a: r(a), b: r(b) },
@@ -1923,7 +1923,7 @@ pub(super) mod tests {
         () => {{
             let named = |kind, node: u64, path: Vec<RoleSeg>| StableName {
                 kind,
-                node: RecipeNodeId(node),
+                node: RecipeNodeId::new(0, node),
                 path,
             };
             let leaf = |node: u64| named(EntityKind::Face, node, vec![RoleSeg::Cap(CapEnd::End)]);
@@ -2010,7 +2010,7 @@ pub(super) mod tests {
     fn named(kind: EntityKind, node: u64, path: Vec<RoleSeg>) -> StableName {
         StableName {
             kind,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path,
         }
     }
@@ -2243,7 +2243,7 @@ pub(super) mod tests {
     ) -> StableName {
         (0..levels).fold(inner, |n, _| StableName {
             kind: n.kind,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![seg(NameRef::new(n))],
         })
     }
@@ -2261,7 +2261,7 @@ pub(super) mod tests {
             );
             let through = wrapped(edge, DEEP, 6, RoleSeg::FromA);
             let (a, b) = super::super::seam_pair::seam_line_pair(&through).expect("a seam pair");
-            assert_eq!((a.node.0, b.node.0), (1, 2), "the seam at the foot");
+            assert_eq!((a.node.0.digest(), b.node.0.digest()), (1, 2), "the seam at the foot");
             let face = wrapped(leaf(1), DEEP, 6, RoleSeg::FromB);
             assert!(
                 super::super::face_descends_from(&face, &leaf(1)),
@@ -2292,7 +2292,7 @@ pub(super) mod tests {
                 3,
                 vec![RoleSeg::Lateral(
                     ProfileEdgeRef::Piece {
-                        step: StepId(7),
+                        step: StepId::new(0, 7),
                         role: PieceRole::Leg,
                     }
                     .into(),
@@ -2301,7 +2301,7 @@ pub(super) mod tests {
             let copy = |r: NameRef| RoleSeg::Instance { i: 1, of: r };
             assert_eq!(
                 wrapped(piece, DEEP, 8, copy).piece_steps(),
-                [StepId(7)].into(),
+                [StepId::new(0, 7)].into(),
                 "the step at the foot of a chain of pattern copies"
             );
         });
@@ -2310,12 +2310,12 @@ pub(super) mod tests {
     #[test]
     fn a_union_collapses_a_fold_name_nested_past_every_stack_on_the_smallest_stack() {
         on_the_smallest_stack(|| {
-            let union = RecipeNodeId(9);
+            let union = RecipeNodeId::new(0, 9);
             let member = named(
                 EntityKind::Face,
                 9,
                 vec![RoleSeg::FromMember {
-                    member: RecipeNodeId(4),
+                    member: RecipeNodeId::new(0, 4),
                     of: NameRef::new(leaf(4)),
                 }],
             );
@@ -2340,7 +2340,7 @@ pub(super) mod tests {
                 1,
                 vec![RoleSeg::Lateral(
                     ProfileEdgeRef::Piece {
-                        step: StepId(i as u64),
+                        step: StepId::new(0, i as u64),
                         role: PieceRole::Leg,
                     }
                     .into(),
@@ -2378,7 +2378,7 @@ pub(super) mod tests {
             "{asked} answers asked of {WIDE} members"
         );
 
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let merged = named(
             EntityKind::Face,
             9,
@@ -2389,7 +2389,7 @@ pub(super) mod tests {
                             EntityKind::Face,
                             9,
                             vec![RoleSeg::FromMember {
-                                member: RecipeNodeId(100 + i as u64),
+                                member: RecipeNodeId::new(0, 100 + i as u64),
                                 of: NameRef::new(leaf(4)),
                             }],
                         )

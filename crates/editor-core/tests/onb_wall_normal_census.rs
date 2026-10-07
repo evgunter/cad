@@ -180,7 +180,7 @@ fn face_frames_and_the_faces_they_could_sit_on() {
     let mut on_tie_bodies = 0usize;
     for doc in corpus::documents() {
         let ev = eval(&doc.doc);
-        for id in doc.doc.order() {
+        for id in doc.doc.ids() {
             let Some(Node::Datum(Datum::FaceFrame { at, .. })) = doc.doc.node(*id) else {
                 continue;
             };

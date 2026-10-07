@@ -127,7 +127,7 @@ use profile::{ArcMode, TargetKind, Verb};
 /// The plane the corpus programs name. These programs are resolved and
 /// serialized on their own, never inserted into a document, so nothing
 /// here reads the node it points at.
-const SCAFFOLD_PLANE: editor_core::RecipeNodeId = editor_core::RecipeNodeId(0);
+const SCAFFOLD_PLANE: editor_core::RecipeNodeId = editor_core::RecipeNodeId::new(0, 0);
 
 fn point(x: f64, y: f64) -> ProgramTarget<Formula> {
     ProgramTarget::Point(len2([x, y]))
@@ -1163,7 +1163,7 @@ fn every_enumerated_slot_is_where_its_refusal_reports() {
     let node = Node::Profile(corpus());
     let slots = node.slots();
     assert!(!slots.is_empty(), "the corpus enumerates no slot");
-    let unbound = editor_core::VarId(u64::MAX);
+    let unbound = editor_core::VarId::new(0, u64::MAX);
     let mut misplaced = Vec::new();
     for slot in &slots {
         let mut broken = node.clone();

@@ -34,12 +34,12 @@ use geom_core::Tol;
 
 /// The frame, the document's first node.
 fn frame(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[0]
+    doc.ids()[0]
 }
 
 /// The profile drawn on it, the second.
 fn profile(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[1]
+    doc.ids()[1]
 }
 
 fn p() -> VarName {

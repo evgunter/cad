@@ -3220,8 +3220,8 @@ pub(crate) enum DeclaredSideFault {
     /// operands, so the carrier has no table to read its name in.
     SiteNotAnOperand,
     /// The side's name is minted by the carrier itself or by a node
-    /// after it in document order — an entity the carrier's operands
-    /// cannot hold.
+    /// inserted after it (a greater id) — an entity the carrier's
+    /// operands cannot hold.
     NameNotUpstream,
 }
 
@@ -3232,16 +3232,15 @@ pub(crate) enum DeclaredSideFault {
 /// `operands` are the carrier's operands, or `None` where the sites
 /// are not this caller's to judge — the load door's for a union, whose
 /// site a later `SetMembers` may have stranded. `at` is the carrier's
-/// place in document order, `None` for a node not yet inserted, which
-/// comes after every live one; `position` is a node's place, `None`
-/// for a node that is not live. A name whose minter is not live is a
-/// strand (DM7) and is not this rule's to judge: the doors that write
-/// a name refuse a dead minter before they ask this.
+/// id, `None` for a node not yet inserted, which comes after every
+/// live one; `live` says whether a node is live. A name whose minter
+/// is not live is a strand (DM7) and is not this rule's to judge: the
+/// doors that write a name refuse a dead minter before they ask this.
 pub(crate) fn declared_side_fault<'p>(
     pairs: impl IntoIterator<Item = &'p DeclaredPair>,
     operands: Option<&[RecipeNodeId]>,
-    at: Option<usize>,
-    position: impl Fn(RecipeNodeId) -> Option<usize>,
+    at: Option<RecipeNodeId>,
+    live: impl Fn(RecipeNodeId) -> bool,
 ) -> Option<(&'p SitedRef, DeclaredSideFault)> {
     pairs
         .into_iter()
@@ -3250,10 +3249,8 @@ pub(crate) fn declared_side_fault<'p>(
             if operands.is_some_and(|operands| !operands.contains(&side.at)) {
                 return Some((side, DeclaredSideFault::SiteNotAnOperand));
             }
-            let upstream = match (position(side.name.node), at) {
-                (None, _) | (Some(_), None) => true,
-                (Some(minter), Some(at)) => minter < at,
-            };
+            let minter = side.name.node;
+            let upstream = !live(minter) || at.is_none_or(|at| minter < at);
             (!upstream).then_some((side, DeclaredSideFault::NameNotUpstream))
         })
 }

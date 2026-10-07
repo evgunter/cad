@@ -128,7 +128,7 @@ fn every_form() -> ProfileDoc {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(
-                Node::measure(expr, vec![name(doc.order()[0]), name(doc.order()[1])])
+                Node::measure(expr, vec![name(doc.ids()[0]), name(doc.ids()[1])])
                     .expect("indices in range"),
             ),
         },
@@ -149,11 +149,11 @@ fn every_form() -> ProfileDoc {
 /// Both fixtures put their measure third and its assertion fourth:
 /// two datum points come first so the references name live nodes.
 fn measure(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[2]
+    doc.ids()[2]
 }
 
 fn assertion(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[3]
+    doc.ids()[3]
 }
 
 /// The angular half, separately: an `angle` primitive is an `Angle`
@@ -173,7 +173,7 @@ fn angular() -> ProfileDoc {
             node: Box::new(
                 Node::measure(
                     MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
-                    vec![name(doc.order()[0]), name(doc.order()[1])],
+                    vec![name(doc.ids()[0]), name(doc.ids()[1])],
                 )
                 .expect("indices in range"),
             ),
@@ -200,7 +200,7 @@ fn every_measure_form_round_trips() {
     for doc in [every_form(), angular()] {
         let text = save(&doc, &[], Tol::witness()).expect("the document saves");
         let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
-        for &id in doc.order() {
+        for id in doc.ids() {
             let (mine, theirs) = (
                 doc.node(id).expect("live"),
                 back.node(id).expect("every node survives the round trip"),
@@ -323,7 +323,7 @@ fn a_measure_indexing_past_its_refs_refuses_at_the_edit_door() {
     let err = <editor_core::AuthoredNode>::measure(
         MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 3 }),
         // No document: the node is never looked up.
-        vec![name(RecipeNodeId(0))],
+        vec![name(RecipeNodeId::new(0, 0))],
     )
     .expect_err("index 3 addresses nothing");
     assert!(matches!(

@@ -866,7 +866,7 @@ mod tests {
             &painted,
             &format!(
                 "Measure {} {GLYPH_ROOT}",
-                test_utils::refusal::tag(fixture.distance.0)
+                test_utils::refusal::tag(fixture.distance.0.digest())
             ),
         );
         assert!(
@@ -975,7 +975,7 @@ mod tests {
         assert_under(
             find(
                 &painted,
-                &format!("Measure {}", test_utils::refusal::tag(fixture.clearance.0)),
+                &format!("Measure {}", test_utils::refusal::tag(fixture.clearance.0.digest())),
             ),
             line,
         );
@@ -1001,7 +1001,7 @@ mod tests {
         assert_eq!(
             drawn,
             vec![
-                format!("Measure {}", test_utils::refusal::tag(fixture.failed.0)),
+                format!("Measure {}", test_utils::refusal::tag(fixture.failed.0.digest())),
                 "FAILED".to_owned(),
                 message.clone()
             ],
@@ -1109,7 +1109,7 @@ mod tests {
             &painted,
             &format!(
                 "Assertion {} {GLYPH_ROOT}",
-                test_utils::refusal::tag(fixture.holds.0)
+                test_utils::refusal::tag(fixture.holds.0.digest())
             ),
         );
         let state = find(&painted, state_of(&fixture, fixture.holds));
@@ -1164,7 +1164,7 @@ mod tests {
             vec![
                 format!(
                     "Assertion {} {GLYPH_ROOT}",
-                    test_utils::refusal::tag(fixture.violated.0)
+                    test_utils::refusal::tag(fixture.violated.0.digest())
                 )
                 .as_str(),
                 state,
@@ -1278,7 +1278,7 @@ mod tests {
             vec![
                 format!(
                     "Assertion {} {GLYPH_ROOT}",
-                    test_utils::refusal::tag(fixture.indeterminate.0)
+                    test_utils::refusal::tag(fixture.indeterminate.0.digest())
                 )
                 .as_str(),
                 state,
@@ -1311,7 +1311,7 @@ mod tests {
         let row = fixture.row(fixture.unavailable);
         let pointer = format!(
             "see Measure {}",
-            test_utils::refusal::tag(fixture.clearance.0)
+            test_utils::refusal::tag(fixture.clearance.0.digest())
         );
         let drawn = painted(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));
         assert_eq!(
@@ -1319,7 +1319,7 @@ mod tests {
             vec![
                 format!(
                     "Assertion {} {GLYPH_ROOT}",
-                    test_utils::refusal::tag(fixture.unavailable.0)
+                    test_utils::refusal::tag(fixture.unavailable.0.digest())
                 ),
                 state_of(&fixture, fixture.unavailable).to_owned(),
                 pointer.clone()
@@ -1352,12 +1352,12 @@ mod tests {
             vec![
                 format!(
                     "Assertion {} {GLYPH_ROOT}",
-                    test_utils::refusal::tag(fixture.poisoned.0)
+                    test_utils::refusal::tag(fixture.poisoned.0.digest())
                 ),
                 "POISONED".to_owned(),
                 format!(
                     "upstream failure at Measure {} — that row carries the cause",
-                    test_utils::refusal::tag(fixture.failed.0)
+                    test_utils::refusal::tag(fixture.failed.0.digest())
                 )
             ],
         );

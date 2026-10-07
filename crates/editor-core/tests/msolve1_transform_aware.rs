@@ -919,7 +919,7 @@ fn a7_a_document_with_no_placer_solves_bit_for_bit() {
 #[test]
 fn a8a_an_operand_that_never_existed_refuses_at_the_insert_door() {
     let s = scene("msolve1-a8a", &[], &[]);
-    let ghost = RecipeNodeId(9_999);
+    let ghost = RecipeNodeId::new(0, 9_999);
     let err = s
         .doc
         .apply(
@@ -1256,7 +1256,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     let mate = mate.unwrap();
     // Cut the LOCAL block out into its own part: it touches no
     // group, so the precondition accepts.
-    let cut = [profile, local, doc.order()[0]]
+    let cut = [profile, local, doc.ids()[0]]
         .into_iter()
         .collect::<std::collections::BTreeSet<_>>();
     let out = editor_core::split(
@@ -1271,7 +1271,7 @@ fn a8f_an_accepted_cut_carries_the_operand_through_the_remap() {
     // with it and still names the transform over its instance.
     let (moved_mate, a, b) = out
         .remainder
-        .order()
+        .ids()
         .iter()
         .find_map(|&id| match out.remainder.node(id) {
             Some(Node::Mate { a, b, .. }) => Some((id, a.clone(), b.clone())),

@@ -2161,7 +2161,7 @@ mod tests {
     /// A stand-in labeller: the number alone, so a row asserting on
     /// the pose half is asserting on text this closure did not write.
     fn numbers(id: &RecipeNodeId) -> String {
-        format!("node {}", test_utils::refusal::tag(id.0))
+        format!("node {}", test_utils::refusal::tag(id.0.digest()))
     }
 
     /// The add-profile form's plane row, on an EMPTY document, offers
@@ -2239,7 +2239,7 @@ mod tests {
         let names = |id: &RecipeNodeId| {
             format!(
                 "node {} — xy at (0, 0, 0) m",
-                test_utils::refusal::tag(id.0)
+                test_utils::refusal::tag(id.0.digest())
             )
         };
         let drawn = painted_text(|ui| {
@@ -2344,7 +2344,7 @@ mod layout_tests {
                 "salt",
                 &[],
                 &mut picked,
-                |id| format!("node {}", test_utils::refusal::tag(id.0)),
+                |id| format!("node {}", test_utils::refusal::tag(id.0.digest())),
             );
         });
         let empty = find(&painted, NO_FRAMES);
@@ -2875,8 +2875,8 @@ mod declared_union {
                 "declare this contact and commit the boolean?\n\
                  a face of Extrude {} against a face of Extrude {} — {} contact\n\
                  Declare\nDecline",
-                test_utils::refusal::tag(block.0),
-                test_utils::refusal::tag(boss.0),
+                test_utils::refusal::tag(block.0.digest()),
+                test_utils::refusal::tag(boss.0.digest()),
                 ContactClass::Rest.name()
             )
         );
@@ -3051,7 +3051,7 @@ mod datum_face_said {
     fn a_held_datum_face_says_its_deleted_node_by_its_last_label() {
         let tol = pncad::tolerance::witness();
         let (doc, block, boss) = crate::test_support::boss_on_block("datum-face-said", tol);
-        let t = test_utils::refusal::tag(block.0);
+        let t = test_utils::refusal::tag(block.0.digest());
         let face = FaceSelection {
             name: StableName {
                 kind: EntityKind::Face,
@@ -3140,7 +3140,7 @@ mod tools_respeak {
     ) -> (DocSession, Tools, String) {
         let tol = pncad::tolerance::witness();
         let (doc, block, boss) = crate::test_support::boss_on_block("tools-respeak", tol);
-        let t = test_utils::refusal::tag(block.0);
+        let t = test_utils::refusal::tag(block.0.digest());
         let mut session = DocSession::inline(doc, tol);
         let mut tools = Tools::new();
         let perform = |session: &mut DocSession, tools: &mut Tools, op| {

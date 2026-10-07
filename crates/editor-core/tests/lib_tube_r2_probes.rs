@@ -67,7 +67,7 @@ fn axis_doc(name: &str, dir: [f64; 3]) -> (ProfileDoc, RecipeNodeId) {
             })),
         },
     );
-    let spine = *doc.order().last().expect("the datum");
+    let spine = *doc.ids().last().expect("the datum");
     (doc, spine)
 }
 
@@ -113,7 +113,7 @@ fn r2_the_storage_contract_holds_at_non_dyadic_radii() {
             }),
         },
     );
-    let tube = *doc.order().last().expect("the tube");
+    let tube = *doc.ids().last().expect("the tube");
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = body_of(&ev, tube);
@@ -169,7 +169,7 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
             }),
         },
     );
-    let solid = *doc.order().last().expect("solid tube");
+    let solid = *doc.ids().last().expect("solid tube");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -186,7 +186,7 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
             }),
         },
     );
-    let hollow = *doc.order().last().expect("hollow tube");
+    let hollow = *doc.ids().last().expect("hollow tube");
     // A THIRD tube identical to the first in every parameter: the
     // sharpest collision candidate the vocabulary permits, since only
     // the minting node distinguishes the two bodies.
@@ -205,7 +205,7 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
             }),
         },
     );
-    let twin = *doc.order().last().expect("the twin tube");
+    let twin = *doc.ids().last().expect("the twin tube");
 
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
@@ -282,7 +282,7 @@ fn r2_a_hollow_rings_cavity_is_named_by_the_revolve_template() {
             }),
         },
     );
-    let tube = *doc.order().last().expect("the tube");
+    let tube = *doc.ids().last().expect("the tube");
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = body_of(&ev, tube);
@@ -332,7 +332,7 @@ fn r2_a_non_unit_axis_refuses_upstream_and_never_reaches_the_tube_door() {
             }),
         },
     );
-    let tube = *doc.order().last().expect("the tube");
+    let tube = *doc.ids().last().expect("the tube");
     let ev = eval::<f64>(&doc);
 
     // Whatever happens, it must NOT be the tube door's own verdict.
@@ -380,7 +380,7 @@ fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
             }),
         },
     );
-    let long_tube = *long_doc.order().last().expect("the tube");
+    let long_tube = *long_doc.ids().last().expect("the tube");
     let long_ev = eval::<f64>(&long_doc);
     assert!(
         matches!(long_ev.nodes.get(&long_tube), Some(NodeResult::Ok(_))),
@@ -402,7 +402,7 @@ fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
             }),
         },
     );
-    let tube = *doc.order().last().expect("the tube");
+    let tube = *doc.ids().last().expect("the tube");
     let ev = eval::<f64>(&doc);
     match ev.nodes.get(&tube) {
         Some(NodeResult::Failed(e)) => match &e.kind {

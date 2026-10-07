@@ -528,7 +528,7 @@ fn row4c_deleting_the_root_unplaces_the_survivor() {
     .expect("the root deletes");
     let mate_node = applied
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(applied.doc.node(id), Some(Node::Mate { .. })))
@@ -665,7 +665,7 @@ fn row4e_a_whole_group_cut_moves_as_selected() {
     );
     let instance = *out
         .remainder
-        .order()
+        .ids()
         .iter()
         .find(|id| doc.node(**id).is_none())
         .expect("the remainder gained an instance");
@@ -1135,7 +1135,7 @@ fn row6c_the_gather_ignores_the_mate_root() {
     let (doc, ids, store, _) = determined_pair();
     let ev = run(&doc, &with_resolver(store));
     let mates: Vec<RecipeNodeId> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))
@@ -1205,7 +1205,7 @@ fn row6e_a_non_tree_mate_declares_rather_than_determining() {
     let o = with_resolver(store);
     let roles = solve(&doc, &o, Tol::witness());
     let mates: Vec<RecipeNodeId> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))
@@ -1398,7 +1398,7 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
 #[test]
 fn row6h_the_insert_door_refuses_a_mate_head_naming_no_node() {
     let (doc, ids, _, body) = assembly("asm-r2a-mate-insert-door", 1);
-    let ghost = RecipeNodeId(9_999);
+    let ghost = RecipeNodeId::new(0, 9_999);
     let err = doc
         .apply(
             &DocEdit::InsertNode {
@@ -1462,7 +1462,7 @@ fn row6i_the_load_check_refuses_a_mate_head_the_mint_never_minted() {
     match load(&corrupt, Tol::witness()) {
         Err(editor_core::PersistError::Snapshot(editor_core::SnapshotError::NodeNotMinted {
             id,
-        })) => assert_eq!(id.id(), RecipeNodeId(99)),
+        })) => assert_eq!(id.id(), RecipeNodeId::new(0, 99)),
         other => panic!("expected NodeNotMinted, got {other:?}"),
     }
 }
@@ -1918,15 +1918,15 @@ fn row7g_a_self_contradictory_rider_names_one_mate_and_its_lever() {
     assert!(
         message.contains(&format!(
             "mate {} contradicts itself",
-            test_utils::refusal::tag(id.0)
+            test_utils::refusal::tag(id.0.digest())
         )),
         "one mate at fault is named ONCE: {message}"
     );
     assert!(
         !message.contains(&format!(
             "mates {} and {}",
-            test_utils::refusal::tag(id.0),
-            test_utils::refusal::tag(id.0)
+            test_utils::refusal::tag(id.0.digest()),
+            test_utils::refusal::tag(id.0.digest())
         )),
         "the pair sentence reads as an indexing fault here: {message}"
     );

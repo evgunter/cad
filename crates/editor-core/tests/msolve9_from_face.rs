@@ -823,7 +823,7 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     let reach = mate_reach::<f64>(&s.opts, Tol::witness());
     let bogus = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(tagged(99)),
+        node: RecipeNodeId::new(0, tagged(99)),
         path: vec![RoleSeg::Cap(CapEnd::End)],
     };
     let (named, fault) = at_the_door(
@@ -931,7 +931,7 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
     let (snapshot, _) = step_with(doc.clone(), DocEdit::DeleteNode { id: s.mate }, &reach);
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("a face-based insert replays with no store");
-    let replayed = *loaded.doc.order().last().expect("the replayed mate");
+    let replayed = *loaded.doc.ids().last().expect("the replayed mate");
     assert_eq!(
         loaded.doc.node(replayed),
         doc.node(s.mate),
@@ -1367,7 +1367,7 @@ fn c5_every_tracked_document_loads_on_the_tagged_wire_and_re_saves_identically()
         });
         let mates = loaded
             .doc
-            .order()
+            .ids()
             .iter()
             .filter(|&&id| matches!(loaded.doc.node(id), Some(Node::Mate { .. })))
             .count();

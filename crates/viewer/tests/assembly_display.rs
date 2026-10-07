@@ -459,9 +459,9 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
         format!(
             "InstantiatePart {}'s geometry is fused into Boolean {} together with InstantiatePart \
              {} — a display operation cannot address it separately",
-            test_utils::refusal::tag(a.0),
-            test_utils::refusal::tag(weld.0),
-            test_utils::refusal::tag(b.0)
+            test_utils::refusal::tag(a.0.digest()),
+            test_utils::refusal::tag(weld.0.digest()),
+            test_utils::refusal::tag(b.0.digest())
         )
     );
 
@@ -609,7 +609,7 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
         wrong_kind_says,
         format!(
             "Mate {} is not a part instance",
-            test_utils::refusal::tag(mate.0)
+            test_utils::refusal::tag(mate.0.digest())
         ),
         "the wrong-kind sentence says something IS there and is the \
          wrong thing"

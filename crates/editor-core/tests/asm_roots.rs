@@ -240,10 +240,10 @@ fn row2a_ancestor_freedom_names_both() {
     assert!(
         text.contains(&format!(
             "root Profile {}",
-            test_utils::refusal::tag(profile.0)
+            test_utils::refusal::tag(profile.0.digest())
         )) && text.contains(&format!(
             "root Extrude {}",
-            test_utils::refusal::tag(extrude.0)
+            test_utils::refusal::tag(extrude.0.digest())
         )),
         "both nodes must be spoken: {text}"
     );
@@ -307,7 +307,7 @@ fn row2c_duplicate_entry_refuses() {
         })
     );
     // And a dead entry refuses too.
-    let ghost = RecipeNodeId(9_999);
+    let ghost = RecipeNodeId::new(0, 9_999);
     assert_eq!(
         doc.apply(
             &DocEdit::SetRoots { roots: vec![ghost] },

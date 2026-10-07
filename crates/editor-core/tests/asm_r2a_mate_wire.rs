@@ -44,7 +44,7 @@ fn a_mate_bearing_document_round_trips() {
         path: vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: RecipeNodeId::new(0, 1),
                 path: vec![RoleSeg::Cap(CapEnd::Start)],
             }
             .into(),

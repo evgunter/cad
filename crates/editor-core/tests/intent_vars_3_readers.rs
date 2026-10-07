@@ -259,7 +259,7 @@ fn a_delete_leaves_its_readers_unresolved() {
     assert_ne!(forged, text, "the surgery is aimed at the reader");
     match load(&forged, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::ReaderOfUnmintedVar { node, var })) => {
-            assert_eq!((node.id(), var), (blend, VarId(1)));
+            assert_eq!((node.id(), var), (blend, VarId::new(0, 1)));
         }
         other => panic!("a reader of an unminted id refuses, got {other:?}"),
     }
@@ -375,7 +375,7 @@ fn the_symbol_survives_a_rename() {
     });
     assert_eq!(sign, Ok(Sign::Zero));
     assert_eq!(counts.symbolic_zero, 1, "one symbol before and after");
-    let by_hand = Sym::<f64>::from_f64(R) + Sym::param_over(ParamSymbol::new(w.0), 0.0, 0.0, 0.0);
+    let by_hand = Sym::<f64>::from_f64(R) + Sym::param_over(ParamSymbol::new(w.0.digest()), 0.0, 0.0, 0.0);
     let (_, counts) = session(|| {
         geom_core::k_stats::decide(
             "intent_vars_3",
@@ -490,7 +490,7 @@ fn the_door_lowers_names_before_it_mints() {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    let frame = next.order()[0];
+    let frame = next.ids()[0];
     log.push(DocEdit::InsertNode {
         node: Box::new(next.node(frame).unwrap().authored()),
     });
@@ -575,7 +575,7 @@ fn an_anonymous_variable_lives_as_long_as_its_readers() {
             var: anonymous.spoken_var(w),
         }]
     );
-    assert!(replaced.doc.var(w).is_none() && replaced.doc.var_order().is_empty());
+    assert!(replaced.doc.var(w).is_none() && replaced.doc.var_ids().is_empty());
     assert!(replaced.doc.has_minted_var(w), "the log keeps the id");
 }
 
@@ -692,7 +692,7 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, 0.5)],
     );
-    let frame = doc.order()[doc.order().len() - 2];
+    let frame = doc.ids()[doc.ids().len() - 2];
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
@@ -725,7 +725,7 @@ fn split_and_inline_carry_readers_by_id() {
     .expect("the cut alone reads h");
     let part_h = id(&out.part, "h");
     assert_ne!(part_h, id(&doc, "h"), "the part mints its own id");
-    let extrude = *out.part.order().last().expect("the carried extrude");
+    let extrude = *out.part.ids().last().expect("the carried extrude");
     assert_eq!(
         slot(&out.part, extrude, SlotId::Distance),
         &Formula::var(part_h, Dimension::Length),
@@ -795,7 +795,7 @@ fn split_and_inline_carry_readers_by_id() {
 
 /// `names`, in the order `doc` declares them.
 fn declared_names(doc: &ProfileDoc) -> Vec<String> {
-    doc.var_order()
+    doc.var_ids()
         .iter()
         .map(|&var| doc.var_name(var).expect("named").as_str().to_owned())
         .collect()
@@ -817,7 +817,7 @@ fn part_reading_d_and_e() -> (ProfileDoc, PartStore, editor_core::DocRef) {
 /// Every variable the extrudes of `doc` read.
 fn extrude_reads(doc: &ProfileDoc) -> BTreeSet<VarId> {
     let mut seen = BTreeSet::new();
-    for &node in doc.order() {
+    for node in doc.ids() {
         if let Some(Node::Extrude { distance, .. }) = doc.node(node) {
             let mut reads = Vec::new();
             distance.var_reads(&mut reads);
@@ -870,10 +870,10 @@ fn split_and_inline_declare_in_declaration_order() {
     let doc = ["p", "q", "r", "s"]
         .into_iter()
         .fold(doc, |doc, name| declare(&doc, name, 0.25));
-    let mut by_id = doc.var_order().to_vec();
+    let mut by_id = doc.var_ids().to_vec();
     by_id.sort_unstable();
     assert_ne!(
-        doc.var_order(),
+        doc.var_ids(),
         by_id.as_slice(),
         "the fixture's premise: declaration order is not id order"
     );
@@ -906,10 +906,10 @@ fn split_and_inline_declare_in_declaration_order() {
         Tol::witness(),
     )
     .expect("the part inlines");
-    let mut part_by_id = out.part.var_order().to_vec();
+    let mut part_by_id = out.part.var_ids().to_vec();
     part_by_id.sort_unstable();
     assert_ne!(
-        out.part.var_order(),
+        out.part.var_ids(),
         part_by_id.as_slice(),
         "the premise again"
     );
@@ -1053,7 +1053,7 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
     let (doc, [_, _, extrude]) = block(doc, 0.0, len(1.0));
     let w = id(&doc, "w");
     let gone = step(&doc, DocEdit::DeleteVar { var: w.into() }).doc;
-    for var in [w, VarId(12_345)] {
+    for var in [w, VarId::new(0, 12_345)] {
         match try_step(
             &gone,
             DocEdit::SetParam {

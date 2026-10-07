@@ -951,13 +951,13 @@ mod tests {
 
     /// The hand-pushed ids are chosen, not minted; the dangling one
     /// names no node.
-    const AXIS: RecipeNodeId = RecipeNodeId(10);
-    const FRAME2: RecipeNodeId = RecipeNodeId(11);
-    const T1: RecipeNodeId = RecipeNodeId(12);
-    const T2: RecipeNodeId = RecipeNodeId(13);
-    const PATTERN: RecipeNodeId = RecipeNodeId(14);
-    const DANGLING: RecipeNodeId = RecipeNodeId(40);
-    const MATE: RecipeNodeId = RecipeNodeId(50);
+    const AXIS: RecipeNodeId = RecipeNodeId::new(9, 10);
+    const FRAME2: RecipeNodeId = RecipeNodeId::new(10, 11);
+    const T1: RecipeNodeId = RecipeNodeId::new(11, 12);
+    const T2: RecipeNodeId = RecipeNodeId::new(12, 13);
+    const PATTERN: RecipeNodeId = RecipeNodeId::new(13, 14);
+    const DANGLING: RecipeNodeId = RecipeNodeId::new(14, 40);
+    const MATE: RecipeNodeId = RecipeNodeId::new(15, 50);
 
     fn xf(input: RecipeNodeId) -> crate::AuthoredNode {
         Node::transform(
@@ -1034,7 +1034,6 @@ mod tests {
         };
         let mut push = |id: RecipeNodeId, node: crate::AuthoredNode| {
             doc.nodes.insert(id, crate::test_support::stored(&node));
-            doc.order.push(id);
         };
         push(AXIS, axis_datum_node());
         push(FRAME2, xy_frame());

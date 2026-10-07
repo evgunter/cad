@@ -67,7 +67,7 @@ fn plane() -> RecipeNodeId {
 
 /// The profile of a document [`doc_of`] built: its second node.
 fn profile(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[1]
+    doc.ids()[1]
 }
 
 fn empty() -> ProfileDoc {

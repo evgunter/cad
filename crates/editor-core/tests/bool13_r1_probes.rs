@@ -220,7 +220,7 @@ fn a_positional_array_body_loads() {
     let arr = serde_json::json!([v["snapshot"], v["edits"]]);
     let text = join(&header, &arr);
     match load(&text, Tol::witness()) {
-        Ok(loaded) => assert_eq!(loaded.doc.order().len(), 3),
+        Ok(loaded) => assert_eq!(loaded.doc.ids().len(), 3),
         Err(e) => panic!("recorded expectation: a positional body loads; got {e:?}"),
     }
 }
@@ -451,6 +451,6 @@ fn the_older_shaped_document_loads_at_the_ambient_eps() {
         .collect();
     assert_eq!(tags, ["Datum", "Profile", "Extrude"]);
     let loaded = load(&text, Tol::witness()).expect("a minimal-vocabulary document loads");
-    assert_eq!(loaded.doc.order().len(), 3);
+    assert_eq!(loaded.doc.ids().len(), 3);
     assert_eq!(loaded.doc.epsilon().to_bits(), eps.to_bits());
 }

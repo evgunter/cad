@@ -345,7 +345,7 @@ fn an_inserted_instance_sits_at_the_origin_and_its_mate_clears_its_offset_replay
     let poses = solve(&loaded.doc, &o, Tol::witness());
     let mate_id = *loaded
         .doc
-        .order()
+        .ids()
         .last()
         .expect("the mate is the last node");
     assert_eq!(
@@ -417,7 +417,7 @@ fn the_compound_door_regauges_the_first_operands_whole_group_then_places() {
         "the record replays from the input to the outcome's document"
     );
     assert_eq!(
-        out.doc.order().last(),
+        out.doc.ids().last(),
         Some(&out.mate),
         "the outcome names the mate its insert minted"
     );
@@ -1470,7 +1470,7 @@ fn offsets_through(
     map: impl Fn(RecipeNodeId) -> RecipeNodeId,
     onto: &ProfileDoc,
 ) -> Vec<(Option<Placement>, Option<Placement>)> {
-    doc.order()
+    doc.ids()
         .iter()
         .filter(|id| matches!(doc.node(**id), Some(Node::InstantiatePart { .. })))
         .map(|&id| (offset_of(doc, id), offset_of(onto, map(id))))
@@ -1569,7 +1569,7 @@ fn round_trip_keeps_every_offset(
     let part_id = DocumentId::derive(&format!("{label}-part"));
     let out = editor_core::split(
         doc,
-        &doc.order().iter().copied().collect(),
+        &doc.ids().iter().copied().collect(),
         part_id,
         Tol::witness(),
         p.opts().resolver.as_ref(),
@@ -1674,7 +1674,7 @@ fn a_carry_re_states_after_every_mate_and_only_what_the_source_states() {
     let (doc, y) = insert(doc, Node::instantiate_part(p.top));
     let (doc, _) = insert(doc, seat(head(p.top_cap(y)), head(p.base_cap(g))));
     assert_eq!(offset_of(&doc, y), None, "Y sits at no offset");
-    assert_eq!(doc.order().len(), 8, "eight nodes, all cut");
+    assert_eq!(doc.ids().len(), 8, "eight nodes, all cut");
 
     let (out, back) = round_trip_keeps_every_offset(&p, &doc, "p2-carry-chain");
     let host = |i: RecipeNodeId| back.node_map[&out.node_map[&i]];

@@ -2410,8 +2410,8 @@ mod tests {
         face(
             union,
             vec![RoleSeg::FromMember {
-                member: RecipeNodeId(m),
-                of: face(RecipeNodeId(m), vec![RoleSeg::Cap(CapEnd::Start)]).into(),
+                member: RecipeNodeId::new(0, m),
+                of: face(RecipeNodeId::new(0, m), vec![RoleSeg::Cap(CapEnd::Start)]).into(),
             }],
         )
     }
@@ -2426,7 +2426,7 @@ mod tests {
 
     #[test]
     fn a_flat_merged_face_collapses_to_its_member_space_set() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         // Step 2's merge of step 1's merge with a third member, as the
         // flat mint spells it: every constituent descends to a member.
         let folded = face(
@@ -2449,7 +2449,7 @@ mod tests {
 
     #[test]
     fn a_nested_merged_face_refuses_as_an_emission_bug() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let inner = face(
             union,
             vec![RoleSeg::Merged(vec![
@@ -2488,7 +2488,7 @@ mod tests {
 
     #[test]
     fn a_seam_junction_collapses_to_its_sorted_member_space_lines() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         // Two lines of one junction, as the pair emitter spells them at
         // a step whose B operand is member 1: each line's A side is an
         // accumulation row (members 3 and 2, reached through the
@@ -2514,7 +2514,7 @@ mod tests {
 
     #[test]
     fn a_seam_after_a_fragment_is_foreign() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let line = || seam(from_a(union, member_cap(union, 2)), member_cap(union, 1));
         let name = vertex(
             union,
@@ -2538,7 +2538,7 @@ mod tests {
 
     #[test]
     fn a_run_of_seams_is_admitted_only_as_a_whole_vertex_path() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let lines = || {
             vec![
                 seam(from_a(union, member_cap(union, 3)), member_cap(union, 1)),
@@ -2569,13 +2569,13 @@ mod tests {
             kind: EntityKind::Edge,
             node: union,
             path: vec![RoleSeg::FromMember {
-                member: RecipeNodeId(m),
+                member: RecipeNodeId::new(0, m),
                 of: StableName {
                     kind: EntityKind::Edge,
-                    node: RecipeNodeId(m),
+                    node: RecipeNodeId::new(0, m),
                     path: vec![RoleSeg::LateralEdge(
                         crate::names::role::ProfileVertexRef::Piece {
-                            step: crate::node::StepId(0),
+                            step: crate::node::StepId::new(0, 0),
                             role: crate::names::PieceRole::Leg,
                         },
                     )],
@@ -2633,7 +2633,7 @@ mod tests {
     /// written, each end collapsed.
     #[test]
     fn a_swapped_seam_edge_piece_keeps_its_ends() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let ends = vec![member_vertex(union, 3), member_vertex(union, 4)];
         let swapped = seam(through_a(member_cap(union, 5)), member_cap(union, 2));
         let kept = seam(through_a(member_cap(union, 2)), member_cap(union, 5));
@@ -2661,7 +2661,7 @@ mod tests {
     /// edge on either side, so the swap does not reorient it.
     #[test]
     fn a_swapped_edge_and_face_seam_vertex_keeps_its_rank() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let line = seam(through_a(member_edge(union, 5)), member_cap(union, 2));
         let out = collapse(union, &ranked(EntityKind::Vertex, union, line, 0, 2)).unwrap();
         assert!(
@@ -2675,7 +2675,7 @@ mod tests {
     /// its carrier was chosen by side, so no rank survives a reorder.
     #[test]
     fn a_ranked_seam_vertex_between_two_edges_refuses() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let line = seam(through_a(member_edge(union, 5)), member_edge(union, 2));
         let err = collapse(union, &ranked(EntityKind::Vertex, union, line, 1, 2)).unwrap_err();
         assert!(
@@ -2705,7 +2705,7 @@ mod tests {
     /// stands, whichever side the emitter wrote first.
     #[test]
     fn a_descent_through_a_swapped_seam_edge_keeps_its_ends() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let ends = vec![member_vertex(union, 3), member_vertex(union, 4)];
         let mut out = Vec::new();
         for swap in [true, false] {
@@ -2732,7 +2732,7 @@ mod tests {
     /// rule**, not its own pair's: the group lies on the edge's line.
     #[test]
     fn a_seam_vertex_on_a_swapped_seam_edge_reads_its_rank_from_the_other_end() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         for (swap, want) in [(true, 1), (false, 0)] {
             let line = seam(through_a(seam_edge(union, swap)), member_cap(union, 7));
             let out = collapse(union, &ranked(EntityKind::Vertex, union, line, 0, 2)).unwrap();
@@ -2744,7 +2744,7 @@ mod tests {
     /// it has to be read from the other end.
     #[test]
     fn a_reversed_rank_outside_its_count_refuses() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let line = seam(through_a(seam_edge(union, true)), member_cap(union, 7));
         for (rank, of) in [(2, 2), (0, 0)] {
             let err = collapse(
@@ -2761,7 +2761,7 @@ mod tests {
 
     #[test]
     fn two_junction_lines_collapsing_to_one_refuse() {
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         // Distinct in the fold's space — member 3's face reached as the
         // A operand's row and as the B operand's — and one line in the
         // union's.
@@ -2814,14 +2814,14 @@ mod tests {
     /// pick one edge, and the fold's qualifier is not carried.
     #[test]
     fn a_tied_member_edge_piece_is_grouped_under_its_member_edge() {
-        let (union, m) = (RecipeNodeId(9), RecipeNodeId(4));
+        let (union, m) = (RecipeNodeId::new(0, 9), RecipeNodeId::new(0, 4));
         let (body, k0, k1) = two_edge_body();
         let edge = StableName {
             kind: EntityKind::Edge,
             node: m,
             path: vec![RoleSeg::LateralEdge(
                 crate::names::role::ProfileVertexRef::Piece {
-                    step: crate::node::StepId(0),
+                    step: crate::node::StepId::new(0, 0),
                     role: crate::names::PieceRole::Leg,
                 },
             )],
@@ -2871,7 +2871,7 @@ mod tests {
 
     impl CitedGroup {
         fn new() -> Self {
-            let union = RecipeNodeId(9);
+            let union = RecipeNodeId::new(0, 9);
             let mut member_body = topo::Body::<f64>::new();
             let born = member_body
                 .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
@@ -2924,7 +2924,7 @@ mod tests {
 
         fn members(&self) -> [Member<'_, f64>; 1] {
             [Member {
-                node: RecipeNodeId(5),
+                node: RecipeNodeId::new(0, 5),
                 body: &self.member_body,
                 table: &self.member_table,
             }]
@@ -3106,7 +3106,7 @@ mod tests {
     fn a_rewrites_crossing_senses_are_reread_side_by_side_along_the_edges_it_cites() {
         use crate::names::role::Sense;
 
-        let union = RecipeNodeId(9);
+        let union = RecipeNodeId::new(0, 9);
         let line = |p: [f64; 3], q: [f64; 3]| {
             let mut body = topo::Body::<f64>::new();
             let born = body
@@ -3142,7 +3142,7 @@ mod tests {
             .into_iter()
             .zip(&tables)
             .map(|((m, body), table)| Member {
-                node: RecipeNodeId(m),
+                node: RecipeNodeId::new(0, m),
                 body,
                 table,
             })

@@ -838,7 +838,7 @@ impl Fnv {
 /// digest, and every node's error.
 fn solve_digest(h: &mut Fnv, doc: &ProfileDoc, opts: &EvalOptions) {
     let poses = solve(doc, opts, Tol::witness());
-    for &id in doc.order() {
+    for id in doc.ids() {
         h.feed(format!("#{id:?}").as_bytes());
         h.feed(format!("role={:?}", poses.role(id)).as_bytes());
         h.feed(format!("fault={:?}", poses.fault(id)).as_bytes());
@@ -856,7 +856,7 @@ fn solve_digest(h: &mut Fnv, doc: &ProfileDoc, opts: &EvalOptions) {
     }
     let ev = run_at::<f64>(doc, opts, None);
     h.feed(&fixture::digest::digest(&ev).to_le_bytes());
-    for &id in doc.order() {
+    for id in doc.ids() {
         h.feed(format!("{:?}", ev.node_error(id).map(|e| &e.kind)).as_bytes());
     }
 }
@@ -1842,7 +1842,7 @@ fn structure<T: editor_core::EvalScalar>(
     doc: &ProfileDoc,
     ev: &Evaluation<T>,
 ) -> Vec<(RecipeNodeId, String)> {
-    doc.order()
+    doc.ids()
         .iter()
         .filter(|&&id| {
             matches!(
@@ -1955,7 +1955,7 @@ fn assert_interval_structure(
         .filter(|(e, l, _)| e.to_bits() == eps.to_bits() && *l == label)
         .map(|(_, _, predicate)| *predicate)
         .collect();
-    let mate_log_escalated = doc.order().iter().any(|&id| {
+    let mate_log_escalated = doc.ids().iter().any(|&id| {
         matches!(doc.node(id), Some(Node::Mate { .. }))
             && match i.result(id) {
                 Some(NodeResult::Ok(v)) => !v.escalations.is_empty(),
@@ -2028,7 +2028,7 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
             };
             let d = run_at::<Dual64>(&doc, &o, None);
             assert_eq!(structure(&doc, &d), want, "{label}: seeded {seed:?}");
-            for &id in doc.order() {
+            for id in doc.ids() {
                 if !matches!(doc.node(id), Some(Node::InstantiatePart { .. }))
                     || f.node_error(id).is_some()
                 {

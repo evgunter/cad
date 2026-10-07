@@ -223,7 +223,7 @@ fn an_older_shaped_document_lacking_newer_vocabulary_loads() {
     assert_ne!(text, OLDER_SHAPED, "the ε rewrite must land");
     let loaded = load(&text, Tol::witness()).expect("an older-shaped document loads");
     assert_eq!(
-        loaded.doc.order().len(),
+        loaded.doc.ids().len(),
         3,
         "frame, profile and extrude, as written"
     );

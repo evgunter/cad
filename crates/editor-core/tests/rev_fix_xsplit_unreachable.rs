@@ -102,7 +102,7 @@ struct Sweep {
 /// is always empty, and any remainder mate whose ends straddle the cut
 /// is NOT an A12 edge.
 fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
-    let ids: Vec<RecipeNodeId> = doc.order().to_vec();
+    let ids: Vec<RecipeNodeId> = doc.ids().to_vec();
     assert!(ids.len() <= 12, "2^n: keep the recipe small");
     // A mate is an EDGE iff BOTH its heads resolve to members — which
     // the public A12 walk reports as two edges out of the mate.
@@ -145,7 +145,7 @@ fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
             interface.crossings.len(),
             interface.crossings
         );
-        for &id in doc.order() {
+        for id in doc.ids() {
             if cut.contains(&id) {
                 continue;
             }

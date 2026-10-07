@@ -2144,7 +2144,7 @@ mod tests {
     /// weld, so an arm with no example here fails every row that reads
     /// this.
     fn every_arm(param: &'static str) -> Vec<Unavailable> {
-        let param = crate::SpokenVar::new(crate::VarId(1), Some(VarName::from_static(param)));
+        let param = crate::SpokenVar::new(crate::VarId::new(0, 1), Some(VarName::from_static(param)));
         let all = vec![
             Unavailable::TangentDegraded { var: param.clone() },
             Unavailable::MeasureRefused { var: param.clone() },
@@ -2210,7 +2210,7 @@ mod tests {
         let rendered = render_rss(
             &Rss::UnavailableBecause {
                 blockers: vec![Unavailable::Unliftable {
-                    var: crate::SpokenVar::new(crate::VarId(1), Some(VarName::from_static("w"))),
+                    var: crate::SpokenVar::new(crate::VarId::new(0, 1), Some(VarName::from_static("w"))),
                 }],
             },
             &no_vars(),

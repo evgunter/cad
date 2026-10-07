@@ -95,7 +95,7 @@ const DEGRADED_HULL_ROUNDING_PER_HALF_WIDTH: f64 = 1.0e-2;
 
 /// The variable `doc` declares as `name`, or an id it never minted.
 fn v(doc: &editor_core::ProfileDoc, name: &str) -> editor_core::VarId {
-    doc.var_named(name).unwrap_or(editor_core::VarId(0))
+    doc.var_named(name).unwrap_or(editor_core::VarId::new(0, 0))
 }
 
 fn eps() -> f64 {
@@ -485,7 +485,7 @@ fn the_two_hole_plate_stackup() {
         Some(
             format!(
                 "stackup of Measure \"web\" ({})",
-                test_utils::refusal::tag(measure.0)
+                test_utils::refusal::tag(measure.0.digest())
             )
             .as_str()
         ),
@@ -1149,7 +1149,7 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     // Taken by kind rather than by literal id — the sketch frame is a
     // node too, so counting positions no longer finds them.
     let extrudes: Vec<_> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
@@ -1184,7 +1184,7 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
             ),
         },
     );
-    let unsupported = *doc.order().last().expect("inserted");
+    let unsupported = *doc.ids().last().expect("inserted");
     let entries = sensitivities(&doc, unsupported, None, None, false, None, Tol::witness())
         .expect("a refusing measure is not a driver failure");
     assert_eq!(entries.len(), 2);

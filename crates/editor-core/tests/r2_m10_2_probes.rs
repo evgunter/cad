@@ -1346,7 +1346,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
             }),
         },
     );
-    let assertion = *doc.order().last().expect("the assertion is the last node");
+    let assertion = *doc.ids().last().expect("the assertion is the last node");
     let text = editor_core::save(&doc, &[], Tol::witness()).expect("saves");
 
     // (a) the bound's DIMENSION retyped to Angle: the measure is a
@@ -1445,7 +1445,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: d1.order()[1],
+                profile: d1.ids()[1],
                 distance: Formula::div(
                     len(13.0),
                     Formula::named(VarName::from_static("s"), Dimension::Scalar),

@@ -364,9 +364,7 @@ pub fn bracket_depth(text: &str) -> usize {
 /// Carries no oracle: it IS the mint's draw, with no document around
 /// it, so a shape whose inputs name no live node still draws.
 pub fn first_node_id(node: &crate::AuthoredNode) -> RecipeNodeId {
-    crate::Mint::empty()
-        .insert(&stored(node))
-        .expect("an empty log holds no id")
+    crate::Mint::empty().insert(&stored(node))
 }
 
 /// **A spoken node built by hand**: what a document holding `id` as a

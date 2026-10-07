@@ -352,7 +352,7 @@ pub fn invert<P: crate::ProfilePayload>(
 ) -> Option<crate::expr::ExprPath> {
     let scope = ParamScope::Root(doc.id());
     let defs = definitions_of(doc);
-    for &node in doc.order() {
+    for node in doc.ids() {
         let Some(n) = doc.node(node) else { continue };
         for slot in n.slots() {
             let Some(expr) = n.expr(slot) else { continue };
@@ -723,7 +723,7 @@ mod tests {
 
     /// A reader of the length variable `id`.
     fn p(id: u64) -> Expr {
-        Expr::var(VarId(id), Dimension::Length)
+        Expr::var(VarId::new(0, id), Dimension::Length)
     }
 
     fn root() -> ParamScope {
@@ -849,7 +849,7 @@ mod tests {
             p(3),
             p(1 << 32),
             p(u64::MAX),
-            Expr::var(VarId(6), Dimension::Angle),
+            Expr::var(VarId::new(0, 6), Dimension::Angle),
             len(0.0),
             len(-0.0),
             len(1.0),
@@ -869,7 +869,7 @@ mod tests {
                 out.extend(Expr::atan2(x.clone(), y.clone()).ok());
             }
         }
-        let angle = Expr::var(VarId(7), Dimension::Angle);
+        let angle = Expr::var(VarId::new(0, 7), Dimension::Angle);
         out.extend(Expr::sin(angle.clone()).ok());
         out.extend(Expr::cos(angle.clone()).ok());
         out.extend(Expr::tan(angle).ok());

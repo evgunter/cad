@@ -373,7 +373,7 @@ fn measured_replay(
 
     for name in box_.axes().keys() {
         name_param(
-            geom_core::ParamSymbol::new(name.0),
+            geom_core::ParamSymbol::new(name.0.digest()),
             &doc.spoken_var(*name).to_string(),
         );
     }
@@ -747,7 +747,7 @@ fn sym10_phase1_the_derived_frame_rows_refusal_rendered() {
     let box_ = ParamBox::of(&analyzed);
     for name in box_.axes().keys() {
         name_param(
-            geom_core::ParamSymbol::new(name.0),
+            geom_core::ParamSymbol::new(name.0.digest()),
             &derived.spoken_var(*name).to_string(),
         );
     }

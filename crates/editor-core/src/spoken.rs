@@ -96,7 +96,7 @@ pub struct FullId(pub MintId);
 
 impl fmt::Display for FullId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{:016x}", self.0.ordinal(), self.0.digest())
+        write!(f, "{}", self.0)
     }
 }
 
@@ -585,7 +585,7 @@ impl<P: ProfilePayload> HoldsNodes for Doc<P> {
     }
 
     fn step(&self, id: StepId) -> Option<StepAt> {
-        self.order().iter().find_map(|node| {
+        self.ids().iter().find_map(|node| {
             let Some(Node::Profile(payload)) = self.node(*node) else {
                 return None;
             };
@@ -1208,14 +1208,19 @@ mod tests {
     /// check by eye: the low four digits never reach the tag, and an id
     /// below 2^16 tags as zeros.
     #[test]
-    fn the_tag_is_the_twelve_high_hex_digits_and_the_full_id_sixteen() {
-        let wide = RecipeNodeId(0x3fa9_c1d2_a0b1_0042);
-        assert_eq!(wide.to_string(), "3fa9c1d2a0b1", "the tag is the prefix");
-        assert_eq!(wide.full().to_string(), "3fa9c1d2a0b10042");
-        assert_eq!(StepId(0x0000_0000_00ab_ffff).to_string(), "0000000000ab");
-        assert_eq!(RecipeNodeId(0xffff).to_string(), "000000000000");
-        assert_eq!(StepId(7).full(), FullId(7));
-        assert_eq!(FullId(7).to_string(), "0000000000000007");
+    fn the_tag_is_the_digests_twelve_high_hex_digits_and_the_full_id_all_of_it() {
+        let wide = RecipeNodeId::new(41, 0x3fa9_c1d2_a0b1_0042);
+        assert_eq!(wide.to_string(), "3fa9c1d2a0b1", "the tag is the digest's prefix");
+        assert_eq!(
+            RecipeNodeId::new(42, 0x3fa9_c1d2_a0b1_0042).to_string(),
+            "3fa9c1d2a0b1",
+            "the ordinal is not in the tag"
+        );
+        assert_eq!(wide.full().to_string(), "41:3fa9c1d2a0b10042");
+        assert_eq!(StepId::new(0, 0x0000_0000_00ab_ffff).to_string(), "0000000000ab");
+        assert_eq!(RecipeNodeId::new(0, 0xffff).to_string(), "000000000000");
+        assert_eq!(StepId::new(3, 7).full(), FullId(crate::MintId::new(3, 7)));
+        assert_eq!(FullId(crate::MintId::new(3, 7)).to_string(), "3:0000000000000007");
     }
 
     /// A node the document holds is spoken by its kind noun and tag;
@@ -1236,19 +1241,19 @@ mod tests {
             )
             .expect("the frame inserts")
             .doc;
-        let id = *doc.order().last().expect("the inserted frame");
+        let id = *doc.ids().last().expect("the inserted frame");
         assert_eq!(kind, "Datum frame");
         let spoken = doc.spoken(id);
         assert_eq!((spoken.id(), spoken.kind()), (id, Some("Datum frame")));
         assert_eq!(
             spoken.to_string(),
-            format!("Datum frame {}", test_utils::refusal::tag(id.0))
+            format!("Datum frame {}", test_utils::refusal::tag(id.0.digest()))
         );
         let gone = empty.spoken(id);
         assert_eq!(gone.kind(), None);
         assert_eq!(
             gone.to_string(),
-            format!("node {}", test_utils::refusal::tag(id.0))
+            format!("node {}", test_utils::refusal::tag(id.0.digest()))
         );
     }
 
@@ -1269,15 +1274,15 @@ mod tests {
             )
             .expect("the frame inserts")
             .doc;
-        let id = *doc.order().last().expect("the inserted frame");
-        let stranger = RecipeNodeId(test_utils::refusal::tagged(7));
+        let id = *doc.ids().last().expect("the inserted frame");
+        let stranger = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
         let forged = SpokenNode::forged(
             id,
             Some("Datum frame"),
             Some(Label::new("floor").expect("a label")),
         );
         let kept: HeldNodes = [forged.clone()].into_iter().collect();
-        let t = test_utils::refusal::tag(id.0);
+        let t = test_utils::refusal::tag(id.0.digest());
         let said = |by: Speaker<'_>, id| by.node(id).to_string();
         assert_eq!(
             said(Speaker::of(&doc).or_held(&kept), id),
@@ -1296,7 +1301,7 @@ mod tests {
         );
         assert_eq!(
             said(Speaker::of(&empty).or_held(&kept), stranger),
-            format!("node {}", test_utils::refusal::tag(stranger.0)),
+            format!("node {}", test_utils::refusal::tag(stranger.0.digest())),
             "neither holds it: its tag"
         );
     }

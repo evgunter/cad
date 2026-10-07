@@ -485,9 +485,9 @@ fn row2_appearance_rides_the_bridge_both_ways() {
 #[test]
 fn row3_severing_cut_refuses_naming_the_edge() {
     let doc = part("asm4-r3s", 0.0, 1.0);
-    let plane = doc.order()[PLANE_POSITION];
-    let profile = doc.order()[PROFILE_POSITION];
-    let extrude = doc.order()[BODY_POSITION];
+    let plane = doc.ids()[PLANE_POSITION];
+    let profile = doc.ids()[PROFILE_POSITION];
+    let extrude = doc.ids()[BODY_POSITION];
     // The kept consumer's edge into the cut input… The frame rides
     // along, so the ONE severed edge is the extrude's — a cut that left
     // the profile's plane behind would sever that one first, and this
@@ -662,7 +662,7 @@ fn row3_further_typed_refusals() {
     assert!(matches!(
         split(
             &doc,
-            &BTreeSet::from([RecipeNodeId(999)]),
+            &BTreeSet::from([RecipeNodeId::new(0, 999)]),
             DocumentId::derive("n"),
             Tol::witness(),
             None
@@ -714,7 +714,7 @@ fn row3_further_typed_refusals() {
             let part_doc = part("asm4-r3f-part", 0.0, 1.0);
             assert_eq!(
                 root,
-                part_doc.spoken(part_doc.order()[BODY_POSITION]),
+                part_doc.spoken(part_doc.ids()[BODY_POSITION]),
                 "the plain extrude root is named, spoken from the part"
             );
         }
@@ -1099,7 +1099,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     // NameStraddlesCut: a name declared on a KEPT union derives from a
     // kept node AND (through an embedded operand name) from a cut node.
     let doc = part("asm4-min2-straddle-kept", 0.0, 1.0);
-    let kept_e = doc.order()[BODY_POSITION];
+    let kept_e = doc.ids()[BODY_POSITION];
     let (doc, cut_f) = insert(doc, xy_frame());
     let (doc, cut_p) = insert(
         doc,
@@ -1130,7 +1130,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         node: kept_e,
         path: vec![RoleSeg::OutputBody],
     };
-    let kept_p = doc.order()[BODY_POSITION - 1];
+    let kept_p = doc.ids()[BODY_POSITION - 1];
     let (doc, kept_twin) = insert(
         doc,
         Node::Extrude {
@@ -1176,7 +1176,7 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
     // node's entity — the part document could not express the
     // reference.
     let doc = part("asm4-min2-reach-kept", 0.0, 1.0);
-    let kept_e = doc.order()[BODY_POSITION];
+    let kept_e = doc.ids()[BODY_POSITION];
     let reaching = StableName {
         kind: EntityKind::Edge,
         node: kept_e,
@@ -1248,7 +1248,7 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
         let from_a = face_from(|s| matches!(s, RoleSeg::FromA(_)));
         let reached = derivation_nodes(&from_a);
         let earliest = *doc
-            .order()
+            .ids()
             .iter()
             .find(|id| reached.contains(id))
             .expect("the name reaches live nodes");
@@ -1288,7 +1288,7 @@ fn a_reaching_name_names_the_earliest_node_outside_the_cut_in_document_order() {
 /// split takes to carry `name` into a part without carrying its
 /// minter.
 fn selecting_fillet(doc: ProfileDoc, name: StableName) -> (ProfileDoc, BTreeSet<RecipeNodeId>) {
-    let before: BTreeSet<RecipeNodeId> = doc.order().iter().copied().collect();
+    let before: BTreeSet<RecipeNodeId> = doc.ids().iter().copied().collect();
     let (doc, body) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, _fillet) = insert(
         doc,
@@ -1299,7 +1299,7 @@ fn selecting_fillet(doc: ProfileDoc, name: StableName) -> (ProfileDoc, BTreeSet<
         },
     );
     let cut = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|id| !before.contains(id))
@@ -1491,7 +1491,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
     // ForeignInstanceName: a host reference DERIVES from the instance
     // but is not the bridge's own wrapped form.
     let host = part("asm4-min2-name-host", 5.0, 1.0);
-    let kept_e = host.order()[BODY_POSITION];
+    let kept_e = host.ids()[BODY_POSITION];
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
     let foreign = StableName {
         kind: EntityKind::Face,
@@ -1501,7 +1501,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
                 inst,
                 &StableName {
                     kind: EntityKind::Face,
-                    node: RecipeNodeId(0),
+                    node: RecipeNodeId::new(0, 0),
                     path: vec![RoleSeg::OutputBody],
                 },
             )
@@ -1587,7 +1587,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             [0.0, 1.0, 0.0],
             vec![square(10.0, 0.0, 0.5)],
         );
-        let body = part_doc.order()[BODY_POSITION];
+        let body = part_doc.ids()[BODY_POSITION];
         let at_extra = StableName {
             kind: EntityKind::Edge,
             node: extra,
@@ -1607,7 +1607,7 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
             node: body,
             path: vec![RoleSeg::OutputBody],
         };
-        let profile = part_doc.order()[BODY_POSITION - 1];
+        let profile = part_doc.ids()[BODY_POSITION - 1];
         let (part_doc, twin) = insert(
             part_doc,
             Node::Extrude {

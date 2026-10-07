@@ -616,7 +616,7 @@ fn row4_set_offset_moves_undoes_and_refuses() {
 
     // A non-instance target refuses typed.
     let part_doc = part("asm2a-r4-nontarget", 0.0, 1.0);
-    let target = part_doc.order()[0];
+    let target = part_doc.ids()[0];
     match editor_core::apply(
         &part_doc,
         &DocEdit::SetOffset {
@@ -1045,7 +1045,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
         let (doc, _) = insert(doc, Node::instantiate_part(missing));
         doc
     };
-    let inner_root = broken.order()[0];
+    let inner_root = broken.ids()[0];
     let doc_ref = store.insert(broken, Tol::witness());
     let opts = with_resolver(store);
 
@@ -1079,7 +1079,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     assert!(
         rendered.contains(&format!(
             "InstantiatePart {}",
-            test_utils::refusal::tag(inner_root.0)
+            test_utils::refusal::tag(inner_root.0.digest())
         )) && !rendered.contains("did not resolve"),
         "it names the root and points, never quoting the root's own refusal: {rendered}"
     );
@@ -1188,8 +1188,8 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     assert!(
         rendered.contains(&format!(
             "repair Extrude {}",
-            test_utils::refusal::tag(extrude.0)
-        )) && rendered.contains(&format!("Transform {}", test_utils::refusal::tag(moved.0))),
+            test_utils::refusal::tag(extrude.0.digest())
+        )) && rendered.contains(&format!("Transform {}", test_utils::refusal::tag(moved.0.digest()))),
         "the instance names the root and points at the failed node: {rendered}"
     );
     let levels: Vec<_> = failure(&ev, ids[0])
@@ -1204,7 +1204,7 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     let refused = own
         .strip_prefix(&format!(
             "Extrude {} failed: ",
-            test_utils::refusal::tag(extrude.0)
+            test_utils::refusal::tag(extrude.0.digest())
         ))
         .expect("a node line opens with its node");
     assert!(
@@ -1263,7 +1263,7 @@ fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String 
         Some(NodeResult::Failed(e)) => e.spoken(doc, &ev),
         other => panic!(
             "node {} refuses on its own: {other:?}",
-            test_utils::refusal::tag(node.0)
+            test_utils::refusal::tag(node.0.digest())
         ),
     }
 }
@@ -1350,7 +1350,7 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
     // above.
     let twice = {
         let doc = part("asm2a-class-twice", 0.0, 1.0);
-        let body = *doc.order().last().expect("the part has its extrude");
+        let body = *doc.ids().last().expect("the part has its extrude");
         let moved = |doc, dx| {
             insert(
                 doc,

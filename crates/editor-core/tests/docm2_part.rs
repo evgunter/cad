@@ -676,7 +676,7 @@ fn the_two_section_planes_of_one_split_carry_distinct_sources() {
     );
     let split = *cd
         .doc
-        .order()
+        .ids()
         .iter()
         .find(|id| matches!(cd.doc.node(**id), Some(Node::Split { .. })))
         .expect("the split");
@@ -918,7 +918,7 @@ fn project_narrows_a_tie_by_the_flush_rule() {
     let ent = |body: u32, key: EntityKey| EntityRef { body, key };
     let name = |h: SplitHalf| StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(7),
+        node: RecipeNodeId::new(0, 7),
         path: vec![RoleSeg::SplitBody(h)],
     };
     let (inside, outside) = (name(SplitHalf::Above), name(SplitHalf::Below));

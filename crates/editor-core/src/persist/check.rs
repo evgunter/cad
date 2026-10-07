@@ -527,15 +527,6 @@ fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             });
         }
     }
-    // The declaration order is a permutation of the table: every live
-    // variable once, and nothing else.
-    let listed: std::collections::BTreeSet<VarId> = snapshot.var_order.iter().copied().collect();
-    if listed.len() != snapshot.var_order.len()
-        || listed.len() != snapshot.vars.len()
-        || !snapshot.vars.keys().all(|id| listed.contains(id))
-    {
-        return Some(SnapshotError::VarOrderMismatch);
-    }
     let mut held: std::collections::BTreeMap<&VarName, VarId> = std::collections::BTreeMap::new();
     for (&id, name) in &snapshot.var_names {
         if !snapshot.vars.contains_key(&id) {
@@ -559,8 +550,8 @@ fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 /// The first defined variable, in declaration order, whose definition
 /// reads what no door could have written ([`Walk::DefinitionRead`]).
 fn first_definition_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
-    snapshot.var_order.iter().find_map(|&id| {
-        let expr = snapshot.vars.get(&id)?.def().defined()?;
+    snapshot.vars.iter().find_map(|(&id, var)| {
+        let expr = var.def().defined()?;
         let var = snapshot.spoken_var(id);
         snapshot
             .var_read_faults(expr)
@@ -901,9 +892,6 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
 /// the same four names.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SnapshotError {
-    /// `order` and the node map disagree (missing, extra, or
-    /// duplicated ids).
-    OrderMismatch,
     /// A node id the mint log does not hold as a node's appears in
     /// the document — one the document never minted.
     NodeNotMinted {
@@ -968,9 +956,9 @@ pub enum SnapshotError {
         /// The missing input.
         input: SpokenNode,
     },
-    /// A node's input ref does not precede it in `order` (insertion
-    /// order is topological by construction — a forward ref means a
-    /// tampered file, and possibly a cycle).
+    /// A node's input ref does not precede it in id order (insertion
+    /// order is topological by construction, and ids order as inserted
+    /// — a forward ref means a tampered file, and possibly a cycle).
     ForwardInput {
         /// The referring node.
         node: SpokenNode,
@@ -1012,9 +1000,6 @@ pub enum SnapshotError {
         /// The variable.
         var: SpokenVar,
     },
-    /// The variables' declaration order is not a permutation of the
-    /// variable table (a missing, repeated or dead id).
-    VarOrderMismatch,
     /// A name attached to a variable id that names nothing live.
     NameOnMissingVar {
         /// The id the name is attached to.
@@ -1340,10 +1325,6 @@ fn frame_refusal(
 impl core::fmt::Display for SnapshotError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::OrderMismatch => f.write_str(
-                "the `order` list and the node map disagree — an id is missing, extra or \
-                 duplicated",
-            ),
             Self::NodeNotMinted { id } => write!(
                 f,
                 "{id} is not in the document's mint log — the document never minted it",
@@ -1377,7 +1358,7 @@ impl core::fmt::Display for SnapshotError {
             }
             Self::ForwardInput { node, input } => write!(
                 f,
-                "{node} takes input from {input}, which does not precede it in `order`"
+                "{node} takes input from {input}, which was not inserted before it"
             ),
             Self::DuplicateInput { node, input } => {
                 write!(f, "{node}: ")?;
@@ -1400,9 +1381,6 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "{var} is not in the document's mint log — the document never \
                  minted it"
-            ),
-            Self::VarOrderMismatch => f.write_str(
-                "the variables' declaration order does not list every variable exactly once",
             ),
             Self::AnonymousVarUnread { var } => write!(
                 f,
@@ -1569,17 +1547,6 @@ impl core::fmt::Display for SnapshotError {
 /// Re-checks the document invariants `apply` maintains — on a parsed
 /// snapshot (load) and on the in-memory snapshot (save) alike.
 fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
-    // order ↔ nodes agreement (and no duplicates: equal lengths plus
-    // every order id resolving implies a bijection on a BTreeMap).
-    let mut position = std::collections::BTreeMap::new();
-    for (i, &id) in doc.order.iter().enumerate() {
-        if !doc.nodes.contains_key(&id) || position.insert(id, i).is_some() {
-            return Err(SnapshotError::OrderMismatch);
-        }
-    }
-    if position.len() != doc.nodes.len() {
-        return Err(SnapshotError::OrderMismatch);
-    }
     // The recorded ε, by the same `doc::epsilon_admissible` the edit
     // door asks before it records one.
     if !crate::doc::epsilon_admissible(doc.epsilon) {
@@ -1641,7 +1608,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                     input: doc.spoken(input),
                 });
             }
-            if position.get(&input) >= position.get(&id) {
+            if input >= id {
                 return Err(SnapshotError::ForwardInput {
                     node: doc.spoken(id),
                     input: doc.spoken(input),
@@ -1803,14 +1770,11 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // — for a Boolean, whose operands never change — a site that is one
     // of its operands. A union's sites are not judged here: a later
     // `SetMembers` may have stranded one, which loads.
-    for (index, &id) in doc.order.iter().enumerate() {
-        let Some(node) = doc.nodes.get(&id) else {
-            continue;
-        };
+    for (&id, node) in &doc.nodes {
         let operands = node.inputs();
         let sites = matches!(node, Node::Boolean { .. }).then_some(operands.as_slice());
-        match crate::node::declared_side_fault(node.declared_pairs(), sites, Some(index), |n| {
-            position.get(&n).copied()
+        match crate::node::declared_side_fault(node.declared_pairs(), sites, Some(id), |n| {
+            doc.nodes.contains_key(&n)
         }) {
             None => {}
             Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
@@ -2043,7 +2007,6 @@ mod tests {
         /// census below. See [`test_utils::f6::VariantCensus`] for what
         /// that weld does and does not buy.
         const SNAPSHOT_ERROR: SnapshotError = [
-            OrderMismatch,
             NodeNotMinted,
             StepIds,
             MintLogOrder,
@@ -2057,7 +2020,6 @@ mod tests {
             LabelOnMissingNode,
             VarKind,
             VarNotMinted,
-            VarOrderMismatch,
             NameOnMissingVar,
             VarNameTwice,
             SlotDimension,
@@ -2096,7 +2058,6 @@ mod tests {
             // maps into this vocabulary.
             SnapshotError::VarKind { .. }
             | SnapshotError::VarNotMinted { .. }
-            | SnapshotError::VarOrderMismatch
             | SnapshotError::NameOnMissingVar { .. }
             | SnapshotError::VarNameTwice { .. } => Walk::Vars,
             SnapshotError::SlotDimension { .. } => Walk::SlotDimension,
@@ -2112,8 +2073,7 @@ mod tests {
                 Walk::DefinitionCycle
             }
             // `validate_snapshot`, which is where the rest live.
-            SnapshotError::OrderMismatch
-            | SnapshotError::NodeNotMinted { .. }
+            SnapshotError::NodeNotMinted { .. }
             | SnapshotError::StepIds { .. }
             | SnapshotError::MintLogOrder { .. }
             | SnapshotError::NameStepNotMinted { .. }
@@ -2162,31 +2122,30 @@ mod tests {
     /// where the older table lives).
     #[test]
     fn every_snapshot_error_arm_names_the_walk_that_produces_it() {
-        let at = |bits| crate::SpokenNode::absent(RecipeNodeId(bits));
+        let at = |bits| crate::SpokenNode::absent(RecipeNodeId::new(0, bits));
         let node = || at(5);
         let face = || crate::names::StableName {
             kind: crate::names::EntityKind::Face,
-            node: RecipeNodeId(5),
+            node: RecipeNodeId::new(0, 5),
             path: Vec::new(),
         };
         // One value per arm, welded to the roster below: a case list
         // that fell behind the enum would name fewer identifiers than
         // the roster holds and red in the comparison.
         let cases = [
-            SnapshotError::OrderMismatch,
             SnapshotError::NodeNotMinted { id: node() },
             SnapshotError::StepIds {
                 node: node(),
                 fault: crate::program::StepIdFault::Repeated {
-                    step: crate::node::StepId(2),
+                    step: crate::node::StepId::new(0, 2),
                 },
             },
             SnapshotError::MintLogOrder {
-                entry: crate::Minted::Step(crate::node::StepId(3)),
+                entry: crate::Minted::Step(crate::node::StepId::new(0, 3)),
             },
             SnapshotError::NameStepNotMinted {
                 name: crate::SpokenName::absent(face()),
-                step: crate::node::StepId(9),
+                step: crate::node::StepId::new(0, 9),
             },
             SnapshotError::DeclaredSiteNotAnOperand {
                 node: node(),
@@ -2209,22 +2168,21 @@ mod tests {
             SnapshotError::WitnessOnMissingNode { node: node() },
             SnapshotError::LabelOnMissingNode { node: node() },
             SnapshotError::VarKind {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
                 kind: crate::VarKind::Length,
                 def: crate::VarKind::Angle,
             },
             SnapshotError::VarNotMinted {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
             },
-            SnapshotError::VarOrderMismatch,
             SnapshotError::NameOnMissingVar {
-                var: crate::VarId(7),
+                var: crate::VarId::new(0, 7),
                 name: VarName::from_static("w"),
             },
             SnapshotError::VarNameTwice {
                 name: VarName::from_static("w"),
-                a: crate::VarId(7),
-                b: crate::VarId(8),
+                a: crate::VarId::new(0, 7),
+                b: crate::VarId::new(0, 8),
             },
             SnapshotError::SlotDimension {
                 node: node(),
@@ -2234,40 +2192,40 @@ mod tests {
             },
             SnapshotError::ReaderOfUnmintedVar {
                 node: node(),
-                var: crate::VarId(7),
+                var: crate::VarId::new(0, 7),
             },
             SnapshotError::SlotVarKind {
                 node: node(),
                 slot: SlotId::Distance,
-                var: crate::SpokenVar::new(crate::VarId(7), Some(VarName::from_static("depth"))),
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), Some(VarName::from_static("depth"))),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
             SnapshotError::PayloadVarKind {
                 node: node(),
-                var: crate::SpokenVar::new(crate::VarId(7), Some(VarName::from_static("depth"))),
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), Some(VarName::from_static("depth"))),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
             SnapshotError::AnonymousVarUnread {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
             },
             SnapshotError::DefinitionReadsUnmintedVar {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
-                read: crate::VarId(8),
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                read: crate::VarId::new(0, 8),
             },
             SnapshotError::DefinitionVarKind {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
-                read: crate::SpokenVar::new(crate::VarId(8), None),
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                read: crate::SpokenVar::new(crate::VarId::new(0, 8), None),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
             SnapshotError::DefinitionCycle {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
-                through: vec![crate::SpokenVar::new(crate::VarId(7), None)],
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                through: vec![crate::SpokenVar::new(crate::VarId::new(0, 7), None)],
             },
             SnapshotError::DefinitionTooLarge {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
                 nodes: 4097,
             },
             SnapshotError::EpsilonInvalid { value: 0.0 },
@@ -2406,13 +2364,6 @@ mod tests {
                 assert_eq!(value, 0.0);
             }
             other => panic!("non-positive ε must refuse at save, got {other:?}"),
-        }
-        // order naming a node the map does not hold.
-        let mut doc = ProfileDoc::empty_derived("check", Tol::witness());
-        doc.order.push(RecipeNodeId(7));
-        match save(&doc, &[], Tol::witness()) {
-            Err(PersistError::Snapshot(SnapshotError::OrderMismatch)) => {}
-            other => panic!("order mismatch must refuse at save, got {other:?}"),
         }
     }
 
@@ -2572,7 +2523,7 @@ mod tests {
                 )
                 .expect("the node inserts")
                 .doc;
-            let id = *doc.order().last().expect("the inserted node");
+            let id = *doc.ids().last().expect("the inserted node");
             (doc, id)
         };
         let doc = ProfileDoc::empty_derived("check-speak", tol);
@@ -2678,7 +2629,7 @@ mod tests {
     fn rv_name(node: u64, kind: crate::names::EntityKind) -> crate::names::StableName {
         crate::names::StableName {
             kind,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: Vec::new(),
         }
     }
@@ -2713,80 +2664,9 @@ mod tests {
         );
         match save(&doc, &[], Tol::witness()) {
             Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
-                assert_eq!(id, crate::SpokenNode::absent(RecipeNodeId(7)));
+                assert_eq!(id, crate::SpokenNode::absent(RecipeNodeId::new(0, 7)));
             }
             other => panic!("an appearance key the mint never minted must refuse, got {other:?}"),
-        }
-    }
-
-    /// **The validator's name pass answers in DOCUMENT order, not id
-    /// order.** Two payload names are corrupt at once, and the
-    /// document orders their carrying nodes in the REVERSE of their id
-    /// order, so a walk over `doc.nodes` and a walk over `doc.order`
-    /// name different offending ids. This row says which one this
-    /// door does: the pass is `Doc::name_carriers`, which walks
-    /// `Doc::order`, so the document's FIRST node answers and the id
-    /// is 60.
-    ///
-    /// **That order is not a contract.** `validate_snapshot` promises
-    /// that a corrupt document refuses typed, not WHICH of its faults
-    /// it names first; `Walk::ORDER` contracts between walks, not
-    /// within one, and a caller cannot repair a doubly corrupt file by
-    /// reading the first refusal anyway. What this row is for is that
-    /// the answer moved and nothing said so — the pass used to run
-    /// inside the per-node loop over `doc.nodes`, a `BTreeMap`, and
-    /// this document refused with 50. An unpinned order that changes
-    /// silently is how a diagnosis drifts one refactor at a time, so
-    /// the row names the order the walk has now: a later change that
-    /// moves it again has to say it is moving it.
-    #[test]
-    fn rv_the_name_pass_refuses_in_document_order() {
-        let mut doc = ProfileDoc::empty_derived("rv-name-order", Tol::witness());
-        doc.mint = doc
-            .mint
-            .clone()
-            .logged([0, 1, 2, 3].map(|id| crate::Minted::Node(RecipeNodeId(id))));
-        for id in [2u64, 3] {
-            doc.nodes.insert(
-                RecipeNodeId(id),
-                crate::test_support::stored(&Node::Datum(crate::node::Datum::Plane {
-                    origin: [0.0; 3].map(crate::test_support::len),
-                    normal: [0.0, 0.0, 1.0].map(crate::test_support::scl),
-                })),
-            );
-        }
-        for (id, derived) in [(0u64, 50u64), (1, 60)] {
-            let sited = || {
-                crate::node::SitedRef::new(
-                    RecipeNodeId(2),
-                    rv_name(derived, crate::names::EntityKind::Face),
-                )
-            };
-            doc.nodes.insert(
-                RecipeNodeId(id),
-                Node::Boolean {
-                    op: topo::BooleanOp::Union,
-                    a: RecipeNodeId(2),
-                    b: RecipeNodeId(3),
-                    declare: vec![((sited(), sited()), topo::BooleanCoincidence::REST)],
-                },
-            );
-        }
-        doc.order = vec![
-            RecipeNodeId(2),
-            RecipeNodeId(3),
-            RecipeNodeId(1),
-            RecipeNodeId(0),
-        ];
-        match save(&doc, &[], Tol::witness()) {
-            Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
-                assert_eq!(
-                    id.id(),
-                    RecipeNodeId(60),
-                    "the name pass walks `Doc::order`, so the document's FIRST node answers"
-                );
-            }
-            other => panic!("a corrupt payload name must refuse, got {other:?}"),
         }
     }
 }

@@ -245,7 +245,7 @@ fn die_authors_replays_and_diffs() {
         d.nodes,
         vec![editor_core::NodeChange::Changed(die.pip_extrude)]
     );
-    assert!(d.vars.is_empty() && !d.order_changed && !d.epsilon_changed);
+    assert!(d.vars.is_empty() && !d.epsilon_changed);
 
     // Variant 2: pip depth changed through the DOC PARAM the pip
     // extrude references — node payloads identical, param diff only.

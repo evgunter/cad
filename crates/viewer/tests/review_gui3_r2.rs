@@ -711,7 +711,7 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
                 Some(
                     format!(
                         "upstream failure at Extrude {} — that row carries the cause",
-                        test_utils::refusal::tag(bad.0)
+                        test_utils::refusal::tag(bad.0.digest())
                     )
                     .as_str()
                 ),

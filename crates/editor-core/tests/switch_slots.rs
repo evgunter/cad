@@ -42,7 +42,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
     doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: doc.order()[0],
+                plane: doc.ids()[0],
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                 ids: Vec::new(),
             })),
@@ -68,7 +68,7 @@ fn radius_slot() -> SlotId {
 #[test]
 fn profile_nodes_enumerate_program_slots() {
     let doc = circle_doc(0.5);
-    let Some(node) = doc.node(doc.order()[1]) else {
+    let Some(node) = doc.node(doc.ids()[1]) else {
         panic!("profile node");
     };
     let slots = node.slots();
@@ -103,7 +103,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
     let grown = doc
         .apply(
             &DocEdit::SetParam {
-                node: doc.order()[1],
+                node: doc.ids()[1],
                 slot: radius_slot(),
                 expr: len(0.75),
             },
@@ -122,7 +122,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let Some(v) = ev.value(doc.order()[1]) else {
+    let Some(v) = ev.value(doc.ids()[1]) else {
         panic!("profile evaluates");
     };
     let ValuePayload::Profile(pv) = &v.payload else {
@@ -147,7 +147,7 @@ fn set_expression_and_expr_at_route_into_programs() {
     let doc = doc
         .apply(
             &DocEdit::SetParam {
-                node: doc.order()[1],
+                node: doc.ids()[1],
                 slot: radius_slot(),
                 expr: sum,
             },
@@ -157,7 +157,7 @@ fn set_expression_and_expr_at_route_into_programs() {
         .unwrap()
         .doc;
     let path = ExprPath {
-        node: doc.order()[1],
+        node: doc.ids()[1],
         slot: radius_slot(),
         path: vec![0],
     };
@@ -190,7 +190,7 @@ fn program_slots_refuse_wrong_dimensions() {
     let doc = circle_doc(0.5);
     match doc.apply(
         &DocEdit::SetParam {
-            node: doc.order()[1],
+            node: doc.ids()[1],
             slot: radius_slot(),
             expr: ang(0.5),
         },
@@ -215,7 +215,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
     let doc = circle_doc(0.5);
     match doc.apply(
         &DocEdit::SetParam {
-            node: doc.order()[1],
+            node: doc.ids()[1],
             slot: radius_slot(),
             expr: len(0.0),
         },
@@ -223,7 +223,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::ProfileProgramRefused { node, refusal }) => {
-            assert_eq!(node.id(), doc.order()[1]);
+            assert_eq!(node.id(), doc.ids()[1]);
             match *refusal {
                 ProgramRefusal::Geometry {
                     loop_: 0,
@@ -269,7 +269,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: doc.order()[0],
+                    plane: doc.ids()[0],
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: Formula::named(VarName::from_static("r"), Dimension::Length),
@@ -302,7 +302,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    match ev.nodes.get(&doc.order()[1]) {
+    match ev.nodes.get(&doc.ids()[1]) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             NodeErrorKind::ProfileReplay { loop_: 0, error } => {
                 assert_eq!(error.step, 0, "the circle step names itself");
@@ -333,7 +333,7 @@ fn insert_node_checks_program_dimensions() {
         .unwrap()
         .doc;
     let bad = ProfileProgram {
-        plane: doc.order()[0],
+        plane: doc.ids()[0],
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             // An Angle where the Radius role demands Length.
@@ -441,7 +441,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
             arg: arrival,
         };
         let mut program: ProfileNode = Node::Profile(ProfileProgram {
-            plane: doc.order()[0],
+            plane: doc.ids()[0],
             loops: vec![LoopProgram::Chain(vec![
                 ProgramStep::At([len(0.0), len(0.0)]),
                 ProgramStep::ArcFilletArc {
@@ -574,7 +574,7 @@ test_utils::f6_variants! {
 type ProfileNode = AuthoredNode;
 
 fn nid(n: u64) -> RecipeNodeId {
-    RecipeNodeId(n)
+    RecipeNodeId::new(0, n)
 }
 
 fn datum_shapes() -> Vec<Datum<Formula>> {

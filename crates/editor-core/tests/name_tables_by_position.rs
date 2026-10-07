@@ -90,7 +90,7 @@ fn at_position(text: &str, at: &BTreeMap<(&str, u64), String>, unplaced: &mut us
 /// Each live node's id and each live profile step's id, as a position.
 fn positions(doc: &ProfileDoc) -> BTreeMap<(&'static str, u64), String> {
     let mut at = BTreeMap::new();
-    for (pos, id) in doc.order().iter().enumerate() {
+    for (pos, id) in doc.ids().iter().enumerate() {
         at.insert(("RecipeNodeId", id.0), format!("@{pos}"));
         if let Some(Node::Profile(program)) = doc.node(*id) {
             for (lp, steps) in program.ids.iter().enumerate() {
@@ -114,7 +114,7 @@ fn name_tables_by_position() {
         let at = positions(&d.doc);
         let ev = corpus::eval::<f64>(&d.doc);
         writeln!(dump, "== {}", d.name).unwrap();
-        for (pos, id) in d.doc.order().iter().enumerate() {
+        for (pos, id) in d.doc.ids().iter().enumerate() {
             let Some(value) = ev.value(*id) else {
                 writeln!(dump, "#{pos} no value").unwrap();
                 continue;

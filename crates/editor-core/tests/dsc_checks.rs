@@ -512,11 +512,11 @@ fn overlapping_roots_are_one_finding_naming_both() {
     // is about.
     let rendered = report.findings[0].to_string();
     assert!(
-        rendered.contains(&format!("root {}", test_utils::refusal::tag(a.0))),
+        rendered.contains(&format!("root {}", test_utils::refusal::tag(a.0.digest()))),
         "{rendered}"
     );
     assert!(
-        rendered.contains(&format!("root {}", test_utils::refusal::tag(b.0))),
+        rendered.contains(&format!("root {}", test_utils::refusal::tag(b.0.digest()))),
         "{rendered}"
     );
     // And it denies the CERTIFICATE — it never claims the two overlap,
@@ -902,7 +902,7 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
         document: editor_core::DocumentId(1),
         findings: vec![CheckFinding {
             check: CheckId::ChartCoherence,
-            root: RecipeNodeId(tagged(3)),
+            root: RecipeNodeId::new(0, tagged(3)),
             output_ix: 0,
             evidence: CheckEvidence::ChartCoherenceUnexamined {
                 unexamined: topo::Unexamined {
@@ -950,7 +950,7 @@ fn an_unexamined_loop_is_a_finding_never_a_skipped_check() {
 fn a_coherence_measurement_renders_its_length_and_its_band() {
     let finding = CheckFinding {
         check: CheckId::ChartCoherence,
-        root: RecipeNodeId(tagged(4)),
+        root: RecipeNodeId::new(0, tagged(4)),
         output_ix: 1,
         evidence: CheckEvidence::ChartCoherence {
             finding: topo::CoherenceFinding {

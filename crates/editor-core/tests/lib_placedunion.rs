@@ -76,7 +76,7 @@ fn the_fin_group_is_one_node_and_one_body() {
     let d = doc_named("heat_sink_fins");
     let groups = d
         .doc
-        .order()
+        .ids()
         .iter()
         .filter(|&&id| matches!(d.doc.node(id), Some(Node::PlacedUnion { .. })))
         .count();
@@ -252,7 +252,7 @@ fn the_die_tool_is_one_node_and_still_cuts() {
     let mut groups = 0;
     let mut unions = 0;
     let mut transforms = 0;
-    for &id in d.doc.order() {
+    for id in d.doc.ids() {
         match d.doc.node(id) {
             Some(Node::PlacedUnion { .. }) => groups += 1,
             Some(Node::Boolean {
@@ -283,7 +283,7 @@ fn every_instance_is_one_instance_segment_deep() {
     let ev = eval::<f64>(&d.doc);
     let tool = d
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(d.doc.node(id), Some(Node::PlacedUnion { .. })))

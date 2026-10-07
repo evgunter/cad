@@ -268,7 +268,7 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
         panic!("{err:?}");
     };
     let sentence = err.to_string();
-    let t = test_utils::refusal::tag(named.0);
+    let t = test_utils::refusal::tag(named.0.digest());
     assert!(
         sentence.contains(&format!(
             "Mate {t} is refused by the solve on its own datum: this mate contradicts itself"
@@ -475,13 +475,13 @@ fn a_logged_from_face_insert_replays_with_no_store_and_loads() {
     let log = vec![edit.clone()];
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("a face-based insert replays with no store");
-    assert_eq!(loaded.doc.order(), applied.doc.order());
+    assert_eq!(loaded.doc.ids(), applied.doc.ids());
     assert_eq!(loaded.edits, log);
     // And the same entry through the door with no reach at all —
     // replay's own arm — is admitted, the face declined.
     let admitted = snapshot
         .apply(&edit, Tol::witness(), &RefusingReach)
-        .map(|applied| applied.doc.order().len());
+        .map(|applied| applied.doc.ids().len());
     assert!(
         matches!(
             admitted,
@@ -506,7 +506,7 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
     };
     let (named, _) =
         at_the_door(&doc, &RefusingReach, mate(body, ids[0], ids[1], rest)).expect_err("refused");
-    assert_eq!(doc.order(), before.order());
+    assert_eq!(doc.ids(), before.ids());
     assert_eq!(doc.node(named), None);
     let (after, minted) = insert(doc, mate(body, ids[0], ids[1], seat(None)));
     assert_ne!(minted, named, "another mate, another id");
@@ -514,7 +514,7 @@ fn a1_a_refused_insert_leaves_no_entry_in_the_history() {
         !after.has_minted(named),
         "nothing was minted for the refusal"
     );
-    assert_eq!(after.order().len(), before.order().len() + 1);
+    assert_eq!(after.ids().len(), before.ids().len() + 1);
     let (unasked, _) = insert(before, mate(body, ids[0], ids[1], seat(None)));
     assert_eq!(
         after.mint(),
@@ -545,7 +545,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
     let log = vec![edit.clone()];
     let text = save(&snapshot, &log, Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("a log the door admitted loads with no store");
-    assert_eq!(loaded.doc.order(), applied.doc.order());
+    assert_eq!(loaded.doc.ids(), applied.doc.ids());
     assert_eq!(loaded.edits, log);
 
     // The hand-edited entry: a rider on a planar rest, spliced in as
@@ -604,7 +604,7 @@ fn a3_replay_round_trips_an_admitted_rider_and_refuses_a_table_gap_at_load() {
             .push(wire_entry);
     });
     let loaded = load(&doctored, Tol::witness()).expect("replay re-decides nothing");
-    let rider = *loaded.doc.order().last().expect("the rider is last");
+    let rider = *loaded.doc.ids().last().expect("the rider is last");
     let poses = solve(&loaded.doc, &opts, Tol::witness());
     assert!(
         matches!(
@@ -1238,7 +1238,7 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
         let reach = mate_reach::<f64>(&opts, Tol::witness());
         let poses = solve(&doc, &opts, Tol::witness());
         let mut mates = 0_usize;
-        for &id in doc.order() {
+        for id in doc.ids() {
             let Some(node) = doc.node(id) else {
                 continue;
             };
@@ -1252,7 +1252,7 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                     assert!(
                         twin.is_ok(),
                         "{label}: the solve admits mate {}; the door refused its twin: {:?}",
-                        test_utils::refusal::tag(id.0),
+                        test_utils::refusal::tag(id.0.digest()),
                         twin.err()
                     );
                     admitted += 1;
@@ -1263,14 +1263,14 @@ fn a2_the_door_and_the_solve_agree_on_every_mate_of_the_corpus() {
                         Ok(_) => panic!(
                             "{label}: the solve refuses mate {} on its own datum ({fault}); \
                              the door admitted its twin",
-                            test_utils::refusal::tag(id.0)
+                            test_utils::refusal::tag(id.0.digest())
                         ),
                     };
                     assert_eq!(
                         renamed(got, named, id),
                         *fault,
                         "{label}: mate {} — the door's fault is the solve's",
-                        test_utils::refusal::tag(id.0)
+                        test_utils::refusal::tag(id.0.digest())
                     );
                     refused += 1;
                 }

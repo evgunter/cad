@@ -64,7 +64,7 @@ fn box_part(label: &str, half: f64, height: f64) -> ProfileDoc {
 /// the same document.
 fn resized(part: ProfileDoc, half: f64, height: f64) -> ProfileDoc {
     let profile = part
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(part.node(id), Some(Node::Profile(_))))
@@ -132,7 +132,7 @@ fn cylinder_part(label: &str, radius: f64, height: f64) -> ProfileDoc {
 /// If `part` has no such node, or more than one.
 fn body_node(part: &ProfileDoc) -> RecipeNodeId {
     let solids: Vec<RecipeNodeId> = part
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| {

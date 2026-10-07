@@ -279,9 +279,9 @@ fn every_declaring_corpus_document_replays_in_document_order() {
     let mut declaring = 0;
     for d in crate::corpus::documents() {
         let doc = &d.doc;
-        let positions = |id: RecipeNodeId| doc.order().iter().position(|n| *n == id);
+        let positions = |id: RecipeNodeId| doc.ids().iter().position(|n| *n == id);
         let mut has_declare = false;
-        for id in doc.order() {
+        for id in doc.ids() {
             if let Some(Node::Boolean { declare, .. } | Node::Union { declare, .. }) = doc.node(*id)
             {
                 has_declare |= !declare.is_empty();
@@ -308,8 +308,8 @@ fn every_declaring_corpus_document_replays_in_document_order() {
                 .doc;
         }
         assert_eq!(
-            replay.order(),
-            doc.order(),
+            replay.ids(),
+            doc.ids(),
             "{}: the replay is the document",
             d.name
         );
