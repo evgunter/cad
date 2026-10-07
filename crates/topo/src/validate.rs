@@ -8131,9 +8131,9 @@ impl Unfinished {
     /// What every door refusing an inside-out operand says after naming
     /// the operand: true of a solid check 7 decides negative and of a
     /// shell check 10 finds bounding negative material.
-    pub const INSIDE_OUT_REFUSAL: &'static str = "is inside-out, whole or in one shell: \
-        its faces there point into its material, so it bounds negative volume and is \
-        refused. Recourse: build it with its faces pointing outward, or revert it";
+    pub const INSIDE_OUT_REFUSAL: &'static str = "is inside-out, as a whole or in one of \
+        its shells, so faces there point into its material and bound negative volume, and \
+        it is refused. Recourse: build it with its faces pointing outward, or revert it";
 }
 
 impl<T: Real> AtRestBody<T> {
