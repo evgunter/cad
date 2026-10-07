@@ -1,0 +1,151 @@
+diff --git a/crates/sweep/tests/join_pierce_runs_sweep.rs b/crates/sweep/tests/join_pierce_runs_sweep.rs
+index 75be97f52..92484e834 100644
+--- a/crates/sweep/tests/join_pierce_runs_sweep.rs
++++ b/crates/sweep/tests/join_pierce_runs_sweep.rs
+@@ -2550,3 +2550,74 @@ fn a_near_tangent_sliver_is_a_cone_of_its_own() {
+         assert!(line.starts_with("OK "), "{tag}: {line}");
+     }
+ }
++
++/// R2 probe: the pinch battery with each body's point finding.
++#[test]
++#[ignore = "r2 probe"]
++fn r2_pinch_findings() {
++    for i in 0..12 {
++        for j in 0..7 {
++            for k in 0..6 {
++                let psi = f64::from(k) * 1.05 + 0.1;
++                let m = direction(i, j);
++                let (notch, pinch) = pinch_pieces(m, psi);
++                for (tag, r, want) in pinch_runs(m, psi) {
++                    let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
++                        pierce_point_finding(&bb.body, notch343().v, tag_cones(&tag, "ab", (&notch, &pinch)))
++                    });
++                    println!("i={i} j={j} k={k} {tag}: {} {finding:?}", outcome(r, want, tol()));
++                }
++            }
++        }
++    }
++}
++
++/// R2 probe: `cubes - 1` cubes round a tilted cone plus one along the
++/// axis, at tilts the four-pairs battery does not take.
++#[test]
++#[ignore = "r2 probe"]
++fn r2_many_pairs() {
++    let v = notch343().v;
++    let cubes: usize = std::env::var("R2_CUBES").ok().and_then(|s| s.parse().ok()).unwrap_or(4);
++    let tilts: Vec<f64> = std::env::var("R2_TILTS").ok().map(|s| s.split(',').map(|x| x.parse().unwrap()).collect()).unwrap_or(vec![-0.05, -0.8]);
++    let ring = (cubes - 1) as u32;
++    for i in 0..12 {
++        for j in 0..7 {
++            let n = unit(direction(i, j));
++            let [p, q, _] = frame(n, 0.0);
++            for (t, &tilt) in tilts.iter().enumerate() {
++                for k in 0..4 {
++                    let spin = f64::from(k) * 0.7 + 0.1;
++                    let mut fs: Vec<Frame> = (0..ring)
++                        .map(|c| {
++                            let a = std::f64::consts::TAU * f64::from(c) / f64::from(ring) + 0.3 * f64::from(k);
++                            let d = [0, 1, 2].map(|x| a.cos() * p[x] + a.sin() * q[x] + tilt * n[x]);
++                            corner_diagonal_frame(d, spin + 1.3 * f64::from(c))
++                        })
++                        .collect();
++                    fs.push(corner_diagonal_frame(n, spin + 0.5));
++                    let pose = format!("many c={cubes} i={i} j={j} t={tilt} k={k}");
++                    let m = fs.len();
++                    if (0..m).any(|x| (x + 1..m).any(|y| octants_overlap(fs[x], fs[y]))) {
++                        println!("{pose}: SKIP overlap");
++                        continue;
++                    }
++                    let pinch = unite_all(fs.iter().map(|&f| cube_sized(v, f, [0.0; 3], SIDE)).collect())
++                        .filter(|b| (mass_properties(b, tol()).unwrap().volume - m as f64 * SIDE.powi(3)).abs() < 1e-9);
++                    let Some(pinch) = pinch else {
++                        println!("{pose}: SKIP no unite");
++                        continue;
++                    };
++                    let pinch_pieces: Pieces = fs.iter().map(|&f| cube_planes_sized(v, f, [0.0; 3], SIDE)).collect();
++                    let (runs, notch_pieces) = notch_against(&pinch, &pinch_pieces);
++                    for (tag, r, want) in runs {
++                        let finding = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
++                            pierce_point_finding(&bb.body, v, tag_cones(&tag, "ab", (&notch_pieces, &pinch_pieces)))
++                        });
++                        println!("{pose} {tag}: {} {finding:?}", outcome(r, want, tol()));
++                    }
++                }
++            }
++        }
++    }
++}
+diff --git a/crates/topo/src/boolean/insert.rs b/crates/topo/src/boolean/insert.rs
+index 507173b20..bbfbf05de 100644
+--- a/crates/topo/src/boolean/insert.rs
++++ b/crates/topo/src/boolean/insert.rs
+@@ -512,9 +512,9 @@ fn held_by(holders: &[Option<usize>], strut: &[bool]) -> Vec<Option<Held>> {
+         .map(|k| {
+             let chain: Vec<usize> = std::iter::successors(holders[k], |&h| holders[h]).collect();
+             chain.first().map(|&h| Held {
+-                depth: chain.len(),
++                depth: if r2m("depth1") { 1 } else { chain.len() },
+                 fan: chain.iter().copied().find(|&h| !strut[h]),
+-                by_strut: strut[h],
++                by_strut: if r2m("nostrut") { false } else { strut[h] },
+             })
+         })
+         .collect()
+@@ -616,12 +616,12 @@ fn arc_holders(n: usize, arcs: &[[usize; 2]]) -> Option<Vec<Option<usize>>> {
+         let mut holders = Vec::new();
+         for o in (0..arcs.len()).filter(|&o| o != k) {
+             match holds(o, k) {
+-                [true, true] if holds(o, k) != holds(k, o) => holders.push(o),
++                [true, true] if holds(o, k) != holds(k, o) || r2m("cover") => holders.push(o),
+                 [false, false] => {}
+                 _ => return None,
+             }
+         }
+-        out.push(holders.into_iter().min_by_key(|&o| len(arcs[o])));
++        out.push(if r2m("outer") { holders.into_iter().max_by_key(|&o| len(arcs[o])) } else { holders.into_iter().min_by_key(|&o| len(arcs[o])) });
+     }
+     Some(out)
+ }
+@@ -1046,9 +1046,18 @@ fn hang_at_shared<T: Decide>(
+                     partners: hang.partners,
+                 })?;
+             let held = held_by(&holders, &strut);
++            if std::env::var_os("R2_PROBE").is_some() {
++                let turned = runs.iter().filter(|r| r.walk != [0usize; 2] && { let [a, b] = r.walk; (b + 2 * runs.len() - a) % (2 * runs.len()) > 1 && b < a }).count();
++                let maxd = held.iter().flatten().map(|h| h.depth).max().unwrap_or(0);
++                let bys = held.iter().flatten().filter(|h| h.by_strut).count();
++                let old: Vec<_> = plans[i].runs.iter().map(|r| r[slot].held.map(|h| (h.depth, h.fan, h.by_strut))).collect();
++                let new: Vec<_> = held.iter().map(|h| h.map(|h| (h.depth, h.fan, h.by_strut))).collect();
++                eprintln!("R2PROBE slot={slot} n={} arcs={arcs:?} strut={strut:?} wrap={turned} maxdepth={maxd} by_strut={bys} changed={} new={new:?}", 2 * runs.len(), old != new);
++            }
+             if held.iter().any(Option::is_some) {
+                 hangs.push(hang);
+             }
++            if r2m("once") { continue; }
+             for (r, held) in plans[i].runs.iter_mut().zip(held) {
+                 r[slot].held = held;
+             }
+@@ -1148,6 +1157,13 @@ fn reconcile_pass<T: Decide>(
+                     what: "two readings of one vertex's orbit disagree",
+                 });
+             }
++            if r2m("guard") && slot == 1 && plans[i].runs.iter().any(|r| r[1].held.is_some()) {
++                return Err(BooleanError::SharedVertexCrossings {
++                    operand,
++                    vertex,
++                    partners: [partner, key(plans[others[0]].contact).1],
++                });
++            }
+             let mut cuts: Vec<OtherCut<T>> = Vec::new();
+             for &j in &others {
+                 for r in &plans[j].runs {
+@@ -3157,3 +3173,7 @@ mod tests {
+         );
+     }
+ }
++
++fn r2m(m: &str) -> bool {
++    std::env::var("R2_MUT").is_ok_and(|v| v == m)
++}
