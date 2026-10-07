@@ -292,7 +292,7 @@ fn draw(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
 
 /// Sweeps `n` draws at scalar `T`; returns the counterexamples, and the
 /// draws that escalated.
-fn sweep<T: Decide>(rng: &mut fuzz::Rng, n: usize) -> (Vec<String>, usize) {
+fn sweep<T: Decide>(scalar: &str, rng: &mut fuzz::Rng, n: usize) -> (Vec<String>, usize) {
     let t = Tol::witness().get();
     let band = Band::linear(Tol::witness()).expect("the run's band");
     let (mut wrong, mut escalated) = (Vec::new(), 0);
@@ -303,8 +303,7 @@ fn sweep<T: Decide>(rng: &mut fuzz::Rng, n: usize) -> (Vec<String>, usize) {
                 let d = oracle(s1, s2);
                 if d <= t.eps {
                     wrong.push(format!(
-                        "{}: {s1:?} × {s2:?}: no contact at distance {d:e}",
-                        core::any::type_name::<T>()
+                        "{scalar}: {s1:?} × {s2:?}: no contact at distance {d:e}"
                     ));
                 }
             }
@@ -318,8 +317,9 @@ fn sweep<T: Decide>(rng: &mut fuzz::Rng, n: usize) -> (Vec<String>, usize) {
 #[test]
 fn a_near_tangent_pair_reads_no_contact_only_past_eps() {
     let mut rng = fuzz::start("seg_reach_fuzz::a_near_tangent_pair_reads_no_contact_only_past_eps");
-    let (mut wrong, f64_escalated) = sweep::<f64>(&mut rng, fuzz::scaled(40_000));
-    let (wrong_i, interval_escalated) = sweep::<Interval>(&mut rng, fuzz::scaled(10_000));
+    let (mut wrong, f64_escalated) = sweep::<f64>("f64", &mut rng, fuzz::scaled(40_000));
+    let (wrong_i, interval_escalated) =
+        sweep::<Interval>("Interval", &mut rng, fuzz::scaled(10_000));
     println!("escalated: {f64_escalated} at f64, {interval_escalated} at Interval");
     wrong.extend(wrong_i);
     assert!(
