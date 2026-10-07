@@ -147,6 +147,7 @@ pub fn document() -> CorpusDoc {
             node: tab,
             slot: SlotId::Distance,
             expr: len(0.625),
+            fresh: Vec::new(),
         },
         bump_root: tab,
     }

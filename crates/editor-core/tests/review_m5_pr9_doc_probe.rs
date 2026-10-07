@@ -39,6 +39,7 @@ impl Rec {
     fn insert(&mut self, node: AuthoredNode) -> RecipeNodeId {
         let edit = DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         };
         let applied = apply(
             &self.doc,

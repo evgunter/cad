@@ -141,6 +141,7 @@ impl Scene {
             self.doc.clone(),
             DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             &reach,
         );
@@ -470,6 +471,7 @@ fn a_lever_out_of_range_refuses_typed_at_the_edit_door() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &reach,

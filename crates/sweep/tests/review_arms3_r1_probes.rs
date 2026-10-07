@@ -21,6 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
+use geom_brep::SurfaceSide::{self, Inner};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
@@ -309,7 +310,7 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
         axis: Vec3::new(0.0, 1.0, 0.0),
         rim: Point3::new(0.8, 0.0, 0.0),
     };
-    let trace = |y: f64, side: bool| SupportTrace::Round {
+    let trace = |y: f64, side: SurfaceSide| SupportTrace::Round {
         center: Point3::new(0.0, y, 0.0),
         radius: 1.0,
         side,
@@ -319,8 +320,8 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     let at_tangency = sheet_center(
         sheet.rim,
         sheet.sheet_normal(),
-        trace(-0.6, true),
-        trace(0.6, true),
+        trace(-0.6, Inner),
+        trace(0.6, Inner),
         0.4,
     );
     // The half-chord square is an EXACT zero only in real arithmetic;
@@ -335,8 +336,8 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     let past = sheet_center(
         sheet.rim,
         sheet.sheet_normal(),
-        trace(-0.6, true),
-        trace(0.6, true),
+        trace(-0.6, Inner),
+        trace(0.6, Inner),
         0.45,
     );
     assert!(
@@ -352,12 +353,12 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
         SupportTrace::Round {
             center: Point3::new(0.0, 0.0, 0.0),
             radius: 1.0,
-            side: true,
+            side: SurfaceSide::Inner,
         },
         SupportTrace::Round {
             center: Point3::new(0.0, 0.15, 0.0),
             radius: 0.9,
-            side: false,
+            side: SurfaceSide::Outer,
         },
         0.125,
     );

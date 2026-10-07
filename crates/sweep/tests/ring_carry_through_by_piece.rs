@@ -435,16 +435,18 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
                 body.vertices().count(),
                 body.shells().count(),
             ),
-            (13, 31, 20, 1),
+            (13, 30, 19, 1),
             "{what}: F, E, V, shells"
         );
         assert_eq!(
             (
                 bb.contacts.vv.len(),
-                bb.contacts.a_on_b.len() + bb.contacts.b_on_a.len()
+                bb.contacts.a_on_b.len() + bb.contacts.b_on_a.len(),
+                bb.contacts.ve.len(),
+                bb.contacts.ee.len(),
             ),
-            (1, 0),
-            "{what}: [v-v, v-f] records"
+            (0, 0, 1, 0),
+            "{what}: [v-v, v-f, v-e, e-e] records"
         );
         let rim = rim_at(&body, 1.0, 0.2);
         for r in [0.02, 0.05] {

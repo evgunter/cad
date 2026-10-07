@@ -8,7 +8,7 @@ use geom_core::{Affine3, Decide, Mat3, Real, Vec3};
 
 use crate::eval::slots::SlotValues;
 use crate::eval::{NodeErrorKind, NodeRefusal};
-use crate::expr::{Expr, VarEnv};
+use crate::expr::VarEnv;
 use crate::node::{RigidArg, SlotId};
 
 /// **A placement axis with no definite direction** — the ONE thing
@@ -538,7 +538,7 @@ impl<T: Real> Motion<T> {
 /// steps is the [`Affine3`] product, which rounds as that product does.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct Placement<S = Expr> {
+pub struct Placement<S = crate::VarId> {
     /// The steps, composed as a product (`[a, b]` is `a ∘ b`).
     pub steps: Vec<Step<S>>,
 }
@@ -546,7 +546,7 @@ pub struct Placement<S = Expr> {
 /// One step of a [`Placement`].
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum Step<S = Expr> {
+pub enum Step<S = crate::VarId> {
     /// Rotate by `angle` about the axis through the ORIGIN with
     /// direction `axis`, then translate by `translation` — proper by
     /// construction. The axis is decided at evaluation by the
@@ -643,9 +643,9 @@ impl<S> Placement<S> {
     }
 }
 
-impl<L: crate::expr::LeafSet> Placement<crate::expr::ExprTree<L>> {
-    /// Bit-semantic equality (D7): a rigid step's expressions through
-    /// [`Expr::bit_eq`], a literal step's coordinates through
+impl<S: crate::Slot> Placement<S> {
+    /// Bit-semantic equality (D7): a rigid step's slots through
+    /// [`crate::Slot::bit_eq`], a literal step's coordinates through
     /// [`Frame::bit_eq`], so `0.0` and `-0.0` are different
     /// placements.
     #[must_use]
@@ -683,11 +683,21 @@ impl<L: crate::expr::LeafSet> Placement<crate::expr::ExprTree<L>> {
 
 impl Placement {
     /// **This placement re-authored**: every rigid step's components a
-    /// formula reading what they read ([`crate::Formula::from`]).
+    /// formula reading its variable, at the dimension its address
+    /// reads it at.
     #[must_use]
     pub fn authored(&self) -> Placement<crate::Formula> {
-        let Ok(authored) = self
-            .try_map_slots(&mut |e| Ok::<_, core::convert::Infallible>(crate::Formula::from(e)));
+        let dims: std::collections::BTreeMap<crate::VarId, crate::Dimension> = self
+            .rows()
+            .into_iter()
+            .map(|(slot, &var)| (var, slot.dimension()))
+            .collect();
+        let Ok(authored) = self.try_map_slots(&mut |var| {
+            let Some(&dim) = dims.get(var) else {
+                unreachable!("a placement's slot walk and its rows list the same components")
+            };
+            Ok::<_, core::convert::Infallible>(crate::Formula::var(*var, dim))
+        });
         authored
     }
 
@@ -1077,15 +1087,17 @@ mod tests {
             ([-0.0, 2.0, 0.1], [0.0, 0.0, 1.0], 0.0),
             ([1.0, -0.0, 3.0], [1.0, 2.0, -3.0], 0.7),
         ] {
-            let placement = Placement::from(Step::Rigid {
-                translation: t.map(len),
-                axis: axis.map(scl),
-                angle: ang(angle),
-            })
-            .try_map_slots(&mut |f| Expr::try_from(f))
-            .expect("literals lower");
+            let mut doc = crate::ProfileDoc::empty_derived("rigid", geom_core::Tol::witness());
+            let placement = crate::test_support::stored_placement(
+                &mut doc,
+                &Placement::from(Step::Rigid {
+                    translation: t.map(len),
+                    axis: axis.map(scl),
+                    angle: ang(angle),
+                }),
+            );
             let got = placement
-                .eval::<f64>(&VarEnv::default(), band())
+                .eval::<f64>(&doc.var_env(), band())
                 .expect("a rigid step evaluates");
             let want = crate::eval::transform_map(
                 Vec3::from_array(t),

@@ -30,6 +30,7 @@ fn a_mate_bearing_document_round_trips() {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::instantiate_part(doc_ref)),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -72,6 +73,7 @@ fn a_mate_bearing_document_round_trips() {
                     clocking: None,
                 },
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

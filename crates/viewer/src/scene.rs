@@ -1535,6 +1535,7 @@ fn insert(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         tol,
         &pncad::document::RefusingReach,

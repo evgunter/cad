@@ -192,6 +192,7 @@ fn row1e_undo_restores_the_prior_root_list() {
                 op: editor_core::BooleanOp::Union,
                 declare: Vec::new(),
             }),
+            fresh: Vec::new(),
         },
         DocEdit::DeleteNode { id: b },
     ] {
@@ -507,6 +508,7 @@ fn row5b_root_neutral_edits_keep_the_product_order_stable() {
             node: a,
             slot: editor_core::SlotId::Distance,
             expr: len(2.0),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(doc.roots(), &roots_before[..], "the edit was root-neutral");
@@ -589,7 +591,10 @@ fn row6c_replay_rebuilds_the_root_list() {
     // serves both. Each insert's id is read back from the door it went
     // through, and the log records exactly the edits applied.
     let mut insert = |doc: &mut Doc<ProfileProgram>, node| {
-        let edit = DocEdit::InsertNode { node };
+        let edit = DocEdit::InsertNode {
+            node,
+            fresh: Vec::new(),
+        };
         let applied = doc
             .apply(&edit, Tol::witness(), &editor_core::RefusingReach)
             .expect("insert");

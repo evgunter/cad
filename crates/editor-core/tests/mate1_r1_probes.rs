@@ -140,6 +140,7 @@ fn r1_conjugation_through_a_non_identity_group_frame() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -154,6 +155,7 @@ fn r1_conjugation_through_a_non_identity_group_frame() {
         DocEdit::SetOffset {
             instance: leg,
             offset: Some(editor_core::Placement::literal(&f)),
+            fresh: Vec::new(),
         },
     );
 
@@ -287,6 +289,7 @@ fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -300,6 +303,7 @@ fn r1_oblique_circular_axis_with_a_non_identity_group_frame() {
         DocEdit::SetOffset {
             instance: leg,
             offset: Some(editor_core::Placement::literal(&f)),
+            fresh: Vec::new(),
         },
     );
 
@@ -377,6 +381,7 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the mate mints");
@@ -400,6 +405,7 @@ fn r1_no_mate_can_give_one_copy_a_pose_apart_from_its_siblings() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 1.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -482,6 +488,7 @@ fn r1_pattern_free_solves_are_bit_identical() {
                     [0.0, 0.0, 1.0],
                     sense,
                 )),
+                fresh: Vec::new(),
             },
         );
         let doc = if chain {
@@ -494,6 +501,7 @@ fn r1_pattern_free_solves_are_bit_identical() {
                         [0.25, 0.0, 1.0],
                         AxisSense::Aligned,
                     )),
+                    fresh: Vec::new(),
                 },
             );
             doc
@@ -505,6 +513,7 @@ fn r1_pattern_free_solves_are_bit_identical() {
             DocEdit::SetOffset {
                 instance: a,
                 offset: Some(editor_core::Placement::literal(&fr)),
+                fresh: Vec::new(),
             },
         );
 
@@ -587,6 +596,7 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _m1) = step(
@@ -598,6 +608,7 @@ fn r1_which_branch_does_the_consistent_loop_row_take() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -677,6 +688,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
                     [0.0, 0.0, 1.0],
                     AxisSense::Aligned,
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -737,6 +749,7 @@ fn r1_an_underqualified_nested_name_refuses_and_a_pattern_of_transform_places() 
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let m2 = m2.expect("the mate mints");
@@ -809,6 +822,7 @@ fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     // Then a second seat on copy 1 — well formed at insert, since the
@@ -823,6 +837,7 @@ fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Aligned,
             )),
+            fresh: Vec::new(),
         },
     );
     let good = good.expect("the good mate mints");
@@ -836,6 +851,7 @@ fn r1_an_out_of_range_copy_refuses_on_a_declaring_mate_too() {
             node: pattern,
             slot: editor_core::SlotId::Count,
             expr: Formula::count(1),
+            fresh: Vec::new(),
         },
     );
 
@@ -905,6 +921,7 @@ fn r1_reproduce_the_quoted_red_first_fault() {
                 [0.0, 0.0, 1.0],
                 AxisSense::Opposed,
             )),
+            fresh: Vec::new(),
         },
     );
     let mate = mate.expect("the mate mints");

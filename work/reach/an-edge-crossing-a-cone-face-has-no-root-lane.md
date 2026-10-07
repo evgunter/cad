@@ -2,11 +2,12 @@
 id: an-edge-crossing-a-cone-face-has-no-root-lane
 kind: issue
 title: A line, circle or ellipse edge that the enclosures cannot clear of a cone face refuses at the frontier: the cone cell has no root lane, though its quadric form is a degree-2 residual along a conic
-status: open
+status: review
 opened: 2026-10-03
 priority: P1
 cost: H
 refs: [ellipse-edge-crossing-a-torus-has-no-root-lane]
+pr: 4135
 ---
 
 
@@ -37,3 +38,22 @@ slack `circle_roots::RootSlack` meters). Its zero set is the DOUBLE
 cone: a root on the far nappe has to be told off by
 `geom_brep::cone_elevation`'s nappe reading, and the apex, where the
 quadric form's gradient vanishes, has to refuse.
+
+## Measured on a shape (2026-10-06)
+
+The premise above does not hold for any finished body: the pair gate
+refuses first. A widening and a narrowing frustum and a full cone
+(revolves about `y`), against a turned cube, an axis-aligned brick, a
+brick cornered at the apex, a thin brick past the apex, coaxial rods and
+a tilted rod, refuse every op in both orders with
+`CurvedPairUnsupported { site: OperandGate, kind: Cone }`
+(`reduce::boolean_arm_exists` leaves `Cone` off its roster), and so
+does `sweep_traces`. With `Cone` put on the roster as an experiment,
+the same poses then refused `CurvedPierceUnsupported` at the crossing
+layer — this cell.
+
+The cell has its lane now (the PR that sets `pr:` below), reached from
+finished bodies through `topo::sweep_split_admitting_cones`
+(`sweep-testing`). Past it, every op stops at the sector algebra
+(`boolean-sector-algebra-has-no-cone-arm`), so no op on a cone operand
+finishes and no closed-form volume row can be written yet.

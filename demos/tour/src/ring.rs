@@ -189,8 +189,16 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let mm = |v: f64| Formula::length_in(v, MM).expect("a length in millimetres");
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("hollow-ring", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach)
-            .expect("the edit applies");
+        let applied = apply(
+            doc,
+            &DocEdit::InsertNode {
+                node,
+                fresh: Vec::new(),
+            },
+            tol,
+            &RefusingReach,
+        )
+        .expect("the edit applies");
         *doc = applied.doc;
         applied.record.minted.expect("insert mints an id")
     };

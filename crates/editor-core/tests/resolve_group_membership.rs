@@ -76,7 +76,16 @@ fn set(doc: ProfileDoc, node: RecipeNodeId, slot: SlotId, to: f64) -> ProfileDoc
         SlotId::Normal(_) => scl(to),
         _ => len(to),
     };
-    step(doc, DocEdit::SetParam { node, slot, expr }).0
+    step(
+        doc,
+        DocEdit::SetParam {
+            node,
+            slot,
+            expr,
+            fresh: Vec::new(),
+        },
+    )
+    .0
 }
 
 /// The fragment names `node` minted in `ev1` that `ev2` no longer

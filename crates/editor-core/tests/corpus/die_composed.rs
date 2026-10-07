@@ -303,6 +303,7 @@ pub fn document() -> CorpusDoc {
             node: pip,
             slot: SlotId::Translation(Axis3::Y),
             expr: len(0.53125),
+            fresh: Vec::new(),
         },
         bump_root: pip,
     }

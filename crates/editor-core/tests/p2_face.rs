@@ -88,6 +88,7 @@ fn insert_mate(doc: ProfileDoc, node: AuthoredNode, o: &EvalOptions) -> (Profile
         doc,
         DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         &reach,
     );
@@ -279,7 +280,7 @@ fn a_face_side_reading_a_non_root_member_crosses_split_and_inline_unmoved() {
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
 
     // The authored twin is held to (a), (b) and (c): the top is no root.
-    let Some(face_side) = doc.node(m).map(Node::authored) else {
+    let Some(face_side) = doc.node(m).map(|n| n.authored(&doc)) else {
         panic!("the mate");
     };
     let (twin, twin_m) = {
@@ -368,7 +369,7 @@ fn a_face_side_on_a_pattern_copy_crosses_split_and_inline_unmoved() {
         .unwrap_or_else(|e| panic!("inline(split(d)) is d up to node ids:\n{e}"));
 
     // The authored twin is held to (a): it reads a copy.
-    let Some(face_side) = doc.node(m).map(Node::authored) else {
+    let Some(face_side) = doc.node(m).map(|n| n.authored(&doc)) else {
         panic!("the mate");
     };
     let (twin, twin_m) = {
@@ -438,6 +439,7 @@ fn a_face_side_reading_an_unplaced_member_refuses_mate_frame_crosses() {
     let refused = host.apply(
         &DocEdit::InsertNode {
             node: Box::new(face_mate(head(through), head(p.top_cap(k)))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &reach,
@@ -562,6 +564,7 @@ fn a_head_naming_no_part_face_refuses_no_part_face_at_the_door() {
     let refused = doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(face_mate(head(bare), head(p.top_cap(k)))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &reach,

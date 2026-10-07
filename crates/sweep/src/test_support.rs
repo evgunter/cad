@@ -1105,6 +1105,7 @@ pub fn assert_naming_totality<T: Real>(
         .chain(rec.slits.iter().map(|(e, _, _)| *e))
         .chain(rec.trims.iter().map(|(e, _, _)| *e))
         .chain(rec.arcs.iter().map(|(e, _, _)| *e))
+        .chain(rec.mitres.iter().map(|(e, _)| *e))
         .collect();
     let mut minted_vertices: Vec<topo::VertexKey> = rec
         .rim_feet
@@ -1112,6 +1113,7 @@ pub fn assert_naming_totality<T: Real>(
         .map(|(v, _)| *v)
         .chain(rec.meridian_splits.iter().map(|(v, _, _)| *v))
         .chain(rec.feet.iter().map(|(v, _, _)| *v))
+        .chain(rec.turn_feet.iter().map(|(v, _)| *v))
         .collect();
     // (e) recorded once each.
     fn once<K: Ord + Copy>(v: &mut Vec<K>, what: &str, kind: &str) {

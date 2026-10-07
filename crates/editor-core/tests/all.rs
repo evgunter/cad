@@ -86,6 +86,8 @@ mod assemble_one_local_battery;
 mod band_joined_rim_names;
 #[path = "band_planar_cut_off_names.rs"]
 mod band_planar_cut_off_names;
+#[path = "band_planar_mitre_names.rs"]
+mod band_planar_mitre_names;
 #[path = "band_run_wall_names.rs"]
 mod band_run_wall_names;
 #[path = "blend5_r1_probes.rs"]
@@ -745,6 +747,8 @@ mod emit_union_rim_piece_ranks;
 mod intent_literals_a_definitions;
 #[path = "intent_literals_b_door.rs"]
 mod intent_literals_b_door;
+#[path = "intent_literals_c_slots.rs"]
+mod intent_literals_c_slots;
 #[path = "intent_vars_2_table.rs"]
 mod intent_vars_2_table;
 #[path = "intent_vars_3_readers.rs"]

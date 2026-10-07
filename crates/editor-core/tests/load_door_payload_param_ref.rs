@@ -152,6 +152,7 @@ fn a_measure_expression_reading_an_undeclared_parameter_refuses_to_load() {
                 expr: MeasureExpr::value(Formula::named(missing.clone(), Dimension::Length)),
                 refs: Vec::new(),
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -185,6 +186,7 @@ fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_lo
         &DocEdit::DefineVar {
             var: name.clone().into(),
             def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Angle, 1.0)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -242,6 +244,7 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(bound(&missing)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -296,9 +299,10 @@ fn signed_zero_leaf(doc: &editor_core::ProfileDoc, measure: RecipeNodeId) -> boo
     editor_core::node::payload_exprs(node)
         .into_iter()
         .flatten()
-        .any(|expr| {
+        .any(|&var| {
             let mut bits = Vec::new();
-            expr.literal_bits(&mut bits);
+            doc.written(&editor_core::Expr::var(var, editor_core::Dimension::Length))
+                .literal_bits(&mut bits);
             bits.contains(&(-0.0f64).to_bits())
         })
 }
@@ -319,6 +323,7 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
             node: extrude,
             slot: SlotId::Distance,
             expr: Formula::named(name.clone(), Dimension::Length),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -392,6 +397,7 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
                 bound: Formula::named(name.clone(), Dimension::Length),
                 dir: editor_core::AssertionDir::AtLeast,
             }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
