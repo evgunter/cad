@@ -167,7 +167,8 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
     );
     let ev = run(&doc);
     let t = table(&ev, u2);
-    // Cut rims are told apart by their ends (never bare indices).
+    // Cut rims are told apart by their ends (never bare indices), and so
+    // is a lone piece: each of the notch's edges the cap cuts.
     let pieces: Vec<_> = t
         .iter()
         .filter(|(n, _)| {
@@ -178,11 +179,19 @@ fn union_names_operand_descent_seams_and_rim_pieces_by_their_ends() {
         })
         .map(|(n, _)| n.path[..n.path.len() - 1].to_vec())
         .collect();
-    assert_eq!(pieces.len(), 2, "`a`'s cut rim in two pieces: {pieces:?}");
-    assert_eq!(pieces[0], pieces[1], "both pieces of one rim");
+    let (of_a, of_n): (Vec<_>, Vec<_>) = pieces
+        .iter()
+        .partition(|p| matches!(p.as_slice(), [RoleSeg::FromA(_)]));
+    assert_eq!(of_a.len(), 2, "`a`'s cut rim in two pieces: {pieces:?}");
+    assert_eq!(of_a[0], of_a[1], "both pieces of one rim");
+    // `a` cuts four of the notch's edges, two start rims and two
+    // laterals, and keeps one piece of each: still named by its ends.
+    assert_eq!(of_n.len(), 4, "the notch's lone pieces: {pieces:?}");
     assert!(
-        matches!(pieces[0].as_slice(), [RoleSeg::FromA(_)]),
-        "the rim is `a`'s: {pieces:?}"
+        of_n.iter()
+            .all(|p| matches!(p.as_slice(), [RoleSeg::FromB(_)]))
+            && of_n.windows(2).all(|w| w[0] != w[1]),
+        "every other piece is the notch's, one of each edge: {pieces:?}"
     );
     // Seam vertices exist, with operand-name arguments.
     let seams = t

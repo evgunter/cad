@@ -486,7 +486,13 @@ fn name_split_edges_vertices<T: Decide>(
     tie.flush(t)?;
     for ((slot, base), (from_tie, edges)) in edge_groups {
         let s = &sides[slot];
-        name_edge_pieces(t, tie, from_tie, &base, (s.body, s.ix), &edges, Lone::Whole)?;
+        // A lone section chord is the whole of the section line across
+        // its face; an operand edge's fragment is always a piece of it.
+        let lone = match base.path.first() {
+            Some(RoleSeg::SectionEdge { .. }) => Lone::Whole,
+            _ => Lone::Piece,
+        };
+        name_edge_pieces(t, tie, from_tie, &base, (s.body, s.ix), &edges, lone)?;
     }
     Ok(())
 }
@@ -981,6 +987,7 @@ pub(crate) fn name_boolean<T: Decide>(
         a,
         b,
         &inv_edges,
+        &inv_vertices,
         &lineage_inv,
         &seam_set,
         &inc,
@@ -1083,6 +1090,7 @@ fn name_boolean_edges<T: Decide>(
     a: &OperandCtx<'_, T>,
     b: &OperandCtx<'_, T>,
     inv_edges: &BTreeMap<EdgeKey, EdgeKey>,
+    inv_vertices: &BTreeMap<VertexKey, VertexKey>,
     lineage_inv: &BTreeMap<EdgeKey, EdgeKey>,
     seam_set: &BTreeSet<EdgeKey>,
     inc: &Incidence,
@@ -1092,6 +1100,7 @@ fn name_boolean_edges<T: Decide>(
     bnd: geom_core::Band,
 ) -> Result<Vec<EdgeGroup>, NamingError> {
     let bug = |what| NamingError::Emission { what };
+    let fused = fused_partners(naming);
 
     // ---- Seam edges (zip-listed AND derived — see below), grouped
     // by their (fA, fB) operand pair. A derived chord between two
@@ -1422,12 +1431,26 @@ fn name_boolean_edges<T: Decide>(
             edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect(),
             root.map(EntityKey::Edge).parent(),
         );
+        // Undivided: the one edge runs between the operand edge's own two
+        // ends, as the operand's keys read the result's vertices there.
+        let whole = match edges.as_slice() {
+            [one] => {
+                let (r0, r1) = edge_ends(op.body, root_key)?;
+                let (e0, e1) = edge_ends(body, *one)?;
+                let at = |v| operand_vertex_keys(naming, inv_vertices, &fused, v);
+                let (k0, k1) = (at(e0)?, at(e1)?);
+                let side = root.operand();
+                (k0.contains(&(side, r0)) && k1.contains(&(side, r1)))
+                    || (k0.contains(&(side, r1)) && k1.contains(&(side, r0)))
+            }
+            _ => false,
+        };
         out.push(EdgeGroup {
             base,
             from_tie: inner.tied,
             edges,
             set: Vec::new(),
-            lone: if in_sets.contains(&root) {
+            lone: if in_sets.contains(&root) || !whole {
                 Lone::Piece
             } else {
                 Lone::Whole
@@ -2512,13 +2535,16 @@ fn group_count(n: usize) -> Result<u32, NamingError> {
 /// `base` when it is the whole parent ([`Lone::Whole`]), and otherwise,
 /// as each of several is, `base` + `Fragment(Ends)`, the sorted pair of
 /// its two end vertices' names as `t` publishes them, read off body
-/// `ix` of `at`. Pieces with equal pairs are N4's tie. Every end vertex
-/// is named before this runs, so `t` holds its name.
+/// `ix` of `at`: a lone piece of a divided edge is named by its ends,
+/// so no piece's name says how many siblings it has. Pieces with equal
+/// pairs are N4's tie. Every end vertex is named before this runs, so
+/// `t` holds its name.
 ///
 /// # Errors
 ///
 /// [`NamingError::Emission`] for a piece ending at a vertex `t` does
 /// not name, and the insert doors' own refusals.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn name_edge_pieces<T: geom_core::Real>(
     t: &mut NameTable,
     tie: &mut TieRows,

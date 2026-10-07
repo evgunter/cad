@@ -72,10 +72,3 @@ the flush paragraph, and N5's group-size bullet; fork-log row 73).
   - Add a row for a same-sense group.
 - **Goldens.** They move broadly: every crossing vertex, every `Ends` that
   cites one, and every lone edge piece. Re-baseline them and say what moved.
-
-**`Ends`-always deferred (2026-10-06).** PR 4203's review measured names
-growing exponentially with how deep a piece sits in a chain of cuts once
-every lone piece carries `Ends`: 1,216 words at four trims, 8.3M at
-fourteen. Ev ruled without that number. PR 4203 lands the sense alone,
-and `Ends` on every piece waits on
-`a-crossing-cites-its-edge-by-a-name-that-holds-that-edges-ends-so-names-grow-exponentially`.

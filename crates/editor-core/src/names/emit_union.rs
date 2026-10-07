@@ -67,9 +67,10 @@
 //!   otherwise cites the member edge it lies on whole, not the stretch
 //!   of it the fold had cut when it met the vertex, and a seam by its
 //!   head ([`cite_member_edges`]);
-//! - several pieces of one seam or one member edge are told apart by
-//!   their ends, over the vertex names just published (N2's `Ends`) —
-//!   which step cut the edge is fold history.
+//! - every piece of a member edge the finished body does not hold
+//!   whole, a lone one included, and several pieces of one seam, are
+//!   told apart by their ends, over the vertex names just published
+//!   (N2's `Ends`) — which step cut the edge is fold history.
 //!
 //! These names are functions of the finished body, so they are
 //! order-free as far as the boolean's output is, and every output stage
@@ -272,11 +273,12 @@ pub(crate) struct Member<'a, T: geom_core::Decide> {
 /// runs flush with a lesser member's edge there. An edge row that lies
 /// within none but runs along several member edges covering it, however
 /// the fold named it, is a piece of that SET. Each group is named
-/// `FromMember(m, e)` or `Merged` of the set, and several pieces of it
-/// by their ends over the union's published vertex names, read off the
-/// finished body: the fold's qualifiers record which step cut the edge
-/// and which member kept a flush stretch, both of which depend on member
-/// order.
+/// `FromMember(m, e)` or `Merged` of the set: a member edge alone where
+/// the finished body holds it whole ([`Flush::holds_whole`]), and
+/// otherwise each piece of it, a lone one included, by its ends over the
+/// union's published vertex names, read off the finished body: the
+/// fold's qualifiers record which step cut the edge and which member
+/// kept a flush stretch, both of which depend on member order.
 ///
 /// Returns the table without those rows, and the groups.
 fn group_member_edges<T: geom_core::Decide>(
@@ -285,8 +287,10 @@ fn group_member_edges<T: geom_core::Decide>(
     flush: &Flush<'_, T>,
 ) -> Result<(NameTable, Vec<PieceGroup>), NamingError> {
     let bug = |what| NamingError::Emission { what };
-    // Member edge, or set of them → (from a tie, its edges).
-    let mut groups: BTreeMap<Along, (bool, Vec<topo::EdgeKey>)> = BTreeMap::new();
+    // Member edge, or set of them → (from a tie, its edges, whether
+    // every row is an edge the finished body holds as the whole member
+    // edge).
+    let mut groups: BTreeMap<Along, (bool, Vec<topo::EdgeKey>, bool)> = BTreeMap::new();
     let mut out = NameTable::new();
     let rows = t
         .iter()
@@ -304,23 +308,27 @@ fn group_member_edges<T: geom_core::Decide>(
                 _ => None,
             })
             .collect::<Vec<_>>();
-        let key = match (member_edge_piece(&name), edges.as_slice()) {
+        let (key, whole) = match (member_edge_piece(&name), edges.as_slice()) {
             (Some(_), []) => return Err(bug("a union's member-edge row names no edge")),
-            (_, [k]) if flush.spans.contains_key(k) => {
-                Some(Along::Set(flush.spans[k].iter().cloned().collect()))
-            }
+            (_, [k]) if flush.spans.contains_key(k) => (
+                Some(Along::Set(flush.spans[k].iter().cloned().collect())),
+                true,
+            ),
             (Some((member, edge, _)), [k]) => {
-                Some(Along::One(flush.least_edge(*k, (member, edge))))
+                let least = flush.least_edge(*k, (member, edge));
+                let whole = flush.holds_whole(*k, &least)?;
+                (Some(Along::One(least)), whole)
             }
-            (Some((member, edge, _)), _) => Some(Along::One((member, edge))),
-            (None, [k]) => flush.least_within(*k).map(Along::One),
-            (None, _) => None,
+            (Some((member, edge, _)), _) => (Some(Along::One((member, edge))), false),
+            (None, [k]) => (flush.least_within(*k).map(Along::One), false),
+            (None, _) => (None, false),
         };
         match key {
             Some(key) => {
-                let group = groups.entry(key).or_default();
+                let group = groups.entry(key).or_insert((false, Vec::new(), true));
                 group.0 |= matches!(entry, Entry::Tied(_));
                 group.1.extend(edges);
+                group.2 &= whole;
             }
             None => put_entry(&mut out, name, &entry)?,
         }
@@ -335,9 +343,10 @@ fn group_member_edges<T: geom_core::Decide>(
         .collect();
     let groups = groups
         .into_iter()
-        .map(|(key, (from_tie, edges))| PieceGroup {
+        .map(|(key, (from_tie, edges, whole))| PieceGroup {
             lone: match &key {
                 Along::One(e) if in_sets.contains(e) => Lone::Piece,
+                Along::One(_) if !(whole && edges.len() == 1) => Lone::Piece,
                 _ => Lone::Whole,
             },
             base: match key {
@@ -605,6 +614,42 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             Some(least) if *least < own => least.clone(),
             _ => own,
         }
+    }
+
+    /// Whether finished edge `k`, a piece of member edge `edge`, is the
+    /// whole of it: its two ends at the member edge's two ends, read off
+    /// the points through [`ON_MEMBER_EDGE`], one end at each (a closed
+    /// edge's one end twice).
+    fn holds_whole(&self, k: topo::EdgeKey, edge: &MemberEntity) -> Result<bool, NamingError> {
+        let (member_body, member_edge) = member_edge(self.members, edge.0, edge.1.name())?;
+        let (m0, m1) = edge_ends(member_body, member_edge)?;
+        let (c0, c1) = edge_ends(self.body, k)?;
+        let ends = [
+            vertex_point(member_body, m0)?,
+            vertex_point(member_body, m1)?,
+        ];
+        let at = |c| -> Result<Vec<usize>, NamingError> {
+            let p = vertex_point(self.body, c)?;
+            let mut at = Vec::with_capacity(2);
+            for (i, q) in ends.iter().enumerate() {
+                let off = decide(ON_MEMBER_EDGE, Margin::of((p - *q).norm()), self.bnd).map_err(
+                    |source| NamingError::Escalated {
+                        predicate: ON_MEMBER_EDGE,
+                        source,
+                    },
+                )?;
+                if off == Sign::Zero {
+                    at.push(i);
+                }
+            }
+            Ok(at)
+        };
+        let (a0, a1) = (at(c0)?, at(c1)?);
+        Ok(if m0 == m1 {
+            c0 == c1 && !a0.is_empty()
+        } else {
+            (a0.contains(&0) && a1.contains(&1)) || (a0.contains(&1) && a1.contains(&0))
+        })
     }
 
     /// The least member edge finished edge `k` lies within, if any.
