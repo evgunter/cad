@@ -3147,6 +3147,14 @@ struct Harmonic3<T: Real> {
     l: Vec3<T>,
 }
 
+/// The amplitude of `form`'s motion off the cylinder axis `axis`, in
+/// metres (its harmonic coefficients are displacements): zero for a
+/// ruling, the radial circle's size for a carrier moving around it.
+fn radial_amplitude<T: Real>(form: &Harmonic3<T>, axis: Vec3<T>) -> T {
+    let radial = |v: Vec3<T>| v - axis * v.dot(axis);
+    radial(form.a).norm() + radial(form.b).norm() + radial(form.l).norm()
+}
+
 /// The carrier in the certified basis. Total for the analytic kinds;
 /// `Nurbs` carriers are refused at the lane check.
 fn carrier_harmonic<T: Real>(carrier: &Curve3<T>) -> Option<Harmonic3<T>> {
@@ -6794,6 +6802,32 @@ pub enum IsoFamily {
     V,
 }
 
+/// Why [`chart_iso_family`] names no family.
+#[derive(Clone, Debug, PartialEq)]
+pub enum IsoFamilyRefusal {
+    /// The chart image's derivation refused ([`chart_pcurve`]'s).
+    Image(PcurveCertifyError),
+    /// The cylinder arm read the carrier's radial amplitude in the band
+    /// (`pcurve_chart_radial_moving`): a ruling or a moving carrier,
+    /// undecided. The mint takes the ruling's form there as a structure
+    /// tie-break that its envelope keeps honest; a family cannot be
+    /// read off a tie-break.
+    Undecided(Indeterminate),
+}
+
+impl core::fmt::Display for IsoFamilyRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Image(e) => write!(f, "{e}"),
+            Self::Undecided(diag) => write!(
+                f,
+                "whether the edge runs along a cylinder's ruling or around it is undecided: \
+                 {diag}"
+            ),
+        }
+    }
+}
+
 /// The iso family `carrier`'s image on `surface`'s chart lies on, read
 /// off the class arm [`chart_pcurve`]'s derivation selects for it, so
 /// the family is the mint's own structure and never decided a second
@@ -6802,16 +6836,29 @@ pub enum IsoFamily {
 ///
 /// # Errors
 ///
-/// [`chart_pcurve`]'s.
+/// [`IsoFamilyRefusal::Image`] with [`chart_pcurve`]'s refusal, and
+/// [`IsoFamilyRefusal::Undecided`] where the cylinder arm's class
+/// reading is in the band, which the mint settles by a tie-break.
 pub fn chart_iso_family<T: Decide>(
     carrier: &Curve3<T>,
     surface: &Surface<T>,
     band: Band,
-) -> Result<Option<IsoFamily>, PcurveCertifyError> {
+) -> Result<Option<IsoFamily>, IsoFamilyRefusal> {
     if matches!(carrier, Curve3::Spiric { .. }) {
         return Ok(None);
     }
-    let (_, derivation) = derive_harmonic(carrier, surface, band)?;
+    let (_, derivation) =
+        derive_harmonic(carrier, surface, band).map_err(IsoFamilyRefusal::Image)?;
+    if let (Derivation::CylinderMeridian, Surface::Cylinder { axis, .. }, Some(form)) =
+        (derivation, surface, carrier_harmonic(carrier))
+    {
+        decide(
+            "pcurve_chart_radial_moving",
+            Margin::of(radial_amplitude(&form, *axis)),
+            band,
+        )
+        .map_err(IsoFamilyRefusal::Undecided)?;
+    }
     Ok(match derivation {
         Derivation::CylinderMeridian
         | Derivation::ConeRuling { .. }
@@ -6876,7 +6923,6 @@ fn derive_harmonic<T: Decide>(
             // channel needs a case.
             let a_r = radial(form.a);
             let b_r = radial(form.b);
-            let l_r = radial(form.l);
             // The azimuth channel. A carrier whose radial part is
             // constant (`a_r = b_r = l_r = 0`) is a meridian: β = 0,
             // α from the constant radial part. Otherwise the radial
@@ -6891,7 +6937,7 @@ fn derive_harmonic<T: Decide>(
             // scale and misread a genuinely-moving rim on a
             // near-band-radius cylinder as a meridian, which then
             // failed the residual schedule loudly (the 100ε washer).
-            let moving = a_r.norm() + b_r.norm() + l_r.norm();
+            let moving = radial_amplitude(&form, axis);
             let alpha_const = stable_azimuth(w_r.dot(cv), w_r.dot(u_ref), band);
             match decide("pcurve_chart_radial_moving", Margin::of(moving), band) {
                 // Zero — AND the in-band arm (Err): a sub-escalation
@@ -9613,5 +9659,50 @@ mod escape_tests {
         }
         let m = Margin::metered_sup(escape(1.0), arm);
         assert_eq!(decide("escape", m, band()), Ok(Sign::Positive));
+    }
+}
+
+#[cfg(test)]
+mod iso_family {
+    //! **[`chart_iso_family`]'s cylinder arm**: a ruling is `U`, a rim
+    //! `V`, an oblique line no family, and a line whose tilt off the
+    //! axis is in the band refuses — the mint's tie-break takes the
+    //! ruling's form there, which no family may be read off.
+    use super::{IsoFamily, IsoFamilyRefusal, chart_iso_family};
+    use geom::{Curve3, Surface};
+    use geom_core::{Band, Point3, Vec3};
+
+    #[test]
+    fn a_cylinder_line_tilted_in_the_band_names_no_family() {
+        let cylinder = Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let band = Band::new(1e-9, 1e-6).expect("a band");
+        let line = |tilt: f64| Curve3::Line {
+            origin: Point3::new(1.0, 0.0, 0.0),
+            dir: Vec3::new(0.0, tilt, 1.0).normalize(),
+        };
+        let rim = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.5),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        assert_eq!(
+            chart_iso_family(&line(0.0), &cylinder, band),
+            Ok(Some(IsoFamily::U))
+        );
+        assert_eq!(
+            chart_iso_family(&rim, &cylinder, band),
+            Ok(Some(IsoFamily::V))
+        );
+        assert_eq!(chart_iso_family(&line(1e-2), &cylinder, band), Ok(None));
+        assert!(matches!(
+            chart_iso_family(&line(1e-7), &cylinder, band),
+            Err(IsoFamilyRefusal::Undecided(_))
+        ));
     }
 }

@@ -104,7 +104,7 @@ pub enum JoinReading {
     /// second order.
     Regularity(Indeterminate),
     /// The class arm of an edge's chart image.
-    ChartClass(geom_brep::PcurveCertifyError),
+    ChartClass(geom_brep::IsoFamilyRefusal),
 }
 
 impl core::fmt::Display for JoinUndecided {
@@ -430,7 +430,8 @@ pub fn joinable_vertices<T: Decide>(
 ///
 /// [`BooleanError::JoinUndecided`], the kill's own refusal
 /// ([`BooleanError::Euler`]), a carrier the joined edge cannot be
-/// restated on ([`BooleanError::JoinDesync`]), or the description's.
+/// restated on ([`BooleanError::JoinCarrierUnsupported`]), or the
+/// description's.
 pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     desc: &mut Descendants,
@@ -506,13 +507,23 @@ fn joined_spec<T: Decide>(
                     t0 + period
                 }
             }
-            _ => return Err(desync("a closed join's carrier has no period")),
+            _ => {
+                return Err(BooleanError::JoinCarrierUnsupported {
+                    edge: join.kept,
+                    carrier: carrier.kind(),
+                    closed: true,
+                });
+            }
         }
     } else {
         carrier
             .param_near(gone.carrier().mid_point(g0, g1), tw)
             .and_then(|tm| carrier.param_near(far, tm))
-            .ok_or(desync("a joined edge's carrier has no parameter inverse"))?
+            .ok_or(BooleanError::JoinCarrierUnsupported {
+                edge: join.kept,
+                carrier: carrier.kind(),
+                closed: false,
+            })?
     };
     let (a, b) = if backward { (tx, t1) } else { (t0, tx) };
     let description = match kept.description() {

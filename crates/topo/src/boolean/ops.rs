@@ -3340,8 +3340,9 @@ fn carry_rows<T: Real>(
 ///
 /// # Errors
 ///
-/// [`BooleanError::JoinDesync`] where an edge rests on a curved face's
-/// interior: the planar argument that consumes the pair does not hold.
+/// [`BooleanError::CurvedRestUnrecorded`] where an edge rests on a
+/// face's interior and either is curved: the planar argument that
+/// consumes the pair does not hold.
 fn record<T: Real>(
     body: &Body<T>,
     out: &mut ContactRecords,
@@ -3446,10 +3447,7 @@ fn record<T: Real>(
                 geom::Surface::Plane { .. }
             ) || super::edge_join::certified_line(body, edge, e).is_none()
             {
-                return Err(BooleanError::JoinDesync {
-                    what: "a record's edge rests on a face's interior where the edge or the face \
-                           is curved, which no record kind stores and no structure carries",
-                });
+                return Err(BooleanError::CurvedRestUnrecorded { edge, face });
             }
         }
         // A point record both of whose cells a merge absorbed: one face
@@ -5002,6 +5000,56 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    /// **An edge resting on a face's interior is consumed only on a
+    /// line and a plane** ([`super::record`]): a brick's edge on a
+    /// brick's face records nothing, and a cylinder sheet's edges on
+    /// its curved wall refuse typed, naming the pair.
+    #[test]
+    fn an_edge_on_a_face_is_structure_only_on_a_line_and_a_plane() {
+        use crate::boolean::{BooleanError, Cell, ContactRecords, Operand};
+        use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
+        let tol = geom_core::Tol::witness();
+        let block = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let mut out = ContactRecords::default();
+        for (e, _) in block.edges() {
+            for (f, _) in block.faces() {
+                super::record(
+                    &block,
+                    &mut out,
+                    (Operand::A, Cell::Edge(e)),
+                    (Operand::B, Cell::Face(f)),
+                )
+                .unwrap();
+            }
+        }
+        assert_eq!(
+            out,
+            ContactRecords::default(),
+            "a line on a plane is structure"
+        );
+        let mut sheet = crate::Body::<f64>::new();
+        let wall = cyl_wall_sheet(
+            &mut sheet,
+            CylFrame::canonical(1.0),
+            None,
+            (0.2, 1.4),
+            (0.0, 1.0),
+            tol,
+        );
+        for (edge, _) in sheet.edges() {
+            let r = super::record(
+                &sheet,
+                &mut out,
+                (Operand::A, Cell::Edge(edge)),
+                (Operand::B, Cell::Face(wall)),
+            );
+            assert!(
+                matches!(r, Err(BooleanError::CurvedRestUnrecorded { edge: e, face }) if e == edge && face == wall),
+                "{r:?}"
+            );
+        }
+    }
     /// The door over discovered records alone.
     fn found<T: geom_core::Real>(
         body: &crate::Body<T>,
