@@ -701,3 +701,24 @@ closes with PR 4209. Step 5 (the non-isosceles overrun, a numeric probe
 before its spec) is now its own row,
 `a-non-isosceles-turn-overruns-past-the-mitre` (P2, H, design). The
 whole-face planar path step 5 was to delete went at step 2.
+
+## 2026-10-07 — the reach meters an end face away from its vertex (PR #4254)
+
+A link's reach now skips only its chain's supports and the faces its own
+window is capped by (recorded by `straight_reach` as it builds the caps,
+plus a corner patch's supports at a patch end), not every face at any
+vertex of its chain. In production a multi-link chain spans valence-2
+joints only, so the hole lived at a jointed chain's far end face; that
+witness is pinned
+(`a_jointed_chains_far_end_face_is_metered_against_the_near_link`; red
+with the chain-wide skip put back). A curved face where a straight window
+ends fails loud (`SurgeryInvariant`), so the skip's premise is structural.
+
+`band_reach_for_tests` now breaks chains at turns as production does
+(`battery::broken_at_turns`); no reach row moved under it (256 tests
+diffed). One row moved for the structural skip: a circular reach has no
+caps, so an open arc's flat is now metered (latent; open arcs refuse
+upstream). Single full review (APPROVE-WITH-FIXES, no MAJOR), taken in
+full. Filed: `tint/tipped-rod-join-escalates-at-1e-12` (main's red). Not
+chased: `point_in_solid` answering `VolumeUncertified` on 533 sample
+points of a tier-3-valid jointed-chain body (the review's probe K control).

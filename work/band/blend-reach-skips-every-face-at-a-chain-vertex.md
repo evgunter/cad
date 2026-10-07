@@ -2,10 +2,12 @@
 id: blend-reach-skips-every-face-at-a-chain-vertex
 kind: issue
 title: blend: the reach meter skips every face at a chain vertex, so an end face that folds back into the band away from the vertex is never metered
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
+pr: 4254
+closed: 2026-10-07
 ---
 
 
