@@ -59,8 +59,8 @@ use super::reduce::face_plane;
 use super::sectors::{build_sectors, side_code};
 use super::tables::{eq15_3_lump, lump_keeps_one};
 use super::{
-    BoolNullEdgeRecord, BooleanError, BooleanOp, NullEdgePairRecord, Operand, PairSite,
-    PierceRingRecord, SideCode, VfContact,
+    BoolNullEdgeRecord, BooleanError, BooleanOp, ContactRecords, NullEdgePairRecord, Operand,
+    PairSite, PierceRingRecord, SectorRead, SideCode, VfContact,
 };
 use super::{Coincide, Contradiction, DeclarationRead};
 use crate::body::{Body, WALKS_CLOSE};
@@ -71,6 +71,47 @@ use crate::live::{Proven, linked, proven};
 use crate::null::{NewVertexSide, NullEdge};
 use crate::validate::decide;
 use geom_core::Tol;
+
+/// Refuses [`BooleanError::VertexReadTwice`] where a vertex is read by
+/// two sector passes, before the first pass writes. Each pass reads its
+/// vertex's orbit as its operand gave it, and a vertex-on-face pass
+/// hangs struts at its piercing vertex: so a piercing vertex pierces
+/// one face and sits in no vertex-vertex pair. A vertex in several
+/// pairs is not refused here, since the vertex-vertex passes read every
+/// pair before the first writes.
+pub(super) fn refuse_sector_rereads(contacts: &ContactRecords) -> Result<(), BooleanError> {
+    for (operand, pierced) in [
+        (Operand::A, &contacts.a_on_b),
+        (Operand::B, &contacts.b_on_a),
+    ] {
+        let mut first = std::collections::BTreeMap::new();
+        let pairs = contacts.vv.iter().map(|c| match operand {
+            Operand::A => (c.a, SectorRead::Pair(c.b)),
+            Operand::B => (c.b, SectorRead::Pair(c.a)),
+        });
+        let reads = pierced
+            .iter()
+            .map(|c| (c.vertex, SectorRead::Pierce(c.face)))
+            .chain(pairs);
+        for (vertex, read) in reads {
+            let pierce = matches!(read, SectorRead::Pierce(_));
+            match first.get(&vertex) {
+                Some(&earlier) => {
+                    return Err(BooleanError::VertexReadTwice {
+                        operand,
+                        vertex,
+                        reads: [earlier, read],
+                    });
+                }
+                None if pierce => {
+                    first.insert(vertex, read);
+                }
+                None => {}
+            }
+        }
+    }
+    Ok(())
+}
 
 /// Output of one vertex-on-face classification.
 #[derive(Debug)]
@@ -1104,6 +1145,77 @@ fn out_runs(entries: &[Entry]) -> Vec<(usize, usize)> {
 mod tests {
     use super::*;
     use SideCode::{In, On, Out};
+
+    /// A vertex is refused at its second read when a pierce came first,
+    /// naming both reads, on either operand; a vertex in several pairs
+    /// and nowhere pierced is not, nor are two operands' vertices that
+    /// share a key.
+    #[test]
+    fn a_vertex_is_refused_at_a_second_read_after_a_pierce() {
+        use super::super::VvContact;
+        use crate::entity::{FaceKey, VertexKey};
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let (v, w, x) = (
+            VertexKey::from(key(1)),
+            VertexKey::from(key(2)),
+            VertexKey::from(key(3)),
+        );
+        let (f, g) = (FaceKey::from(key(4)), FaceKey::from(key(5)));
+        let vf = |vertex, face| VfContact { vertex, face };
+        let vv = |a, b| VvContact { a, b };
+        let refusal = |c: &ContactRecords| match refuse_sector_rereads(c) {
+            Err(BooleanError::VertexReadTwice {
+                operand,
+                vertex,
+                reads,
+            }) => Some((operand, vertex, reads)),
+            Ok(()) => None,
+            Err(e) => panic!("{e:?}"),
+        };
+        let rows = [
+            (
+                "pierced twice by A",
+                ContactRecords {
+                    a_on_b: vec![vf(v, f), vf(w, f), vf(v, g)],
+                    ..Default::default()
+                },
+                Some((
+                    Operand::A,
+                    v,
+                    [SectorRead::Pierce(f), SectorRead::Pierce(g)],
+                )),
+            ),
+            (
+                "pierced and paired, B",
+                ContactRecords {
+                    b_on_a: vec![vf(w, f)],
+                    vv: vec![vv(x, v), vv(v, w)],
+                    ..Default::default()
+                },
+                Some((Operand::B, w, [SectorRead::Pierce(f), SectorRead::Pair(v)])),
+            ),
+            (
+                "paired twice",
+                ContactRecords {
+                    vv: vec![vv(v, w), vv(v, x), vv(x, w)],
+                    ..Default::default()
+                },
+                None,
+            ),
+            (
+                "one key on each operand, pierced by A's and paired by B's",
+                ContactRecords {
+                    a_on_b: vec![vf(v, f)],
+                    vv: vec![vv(w, v)],
+                    ..Default::default()
+                },
+                None,
+            ),
+        ];
+        for (what, c, want) in rows {
+            assert_eq!(refusal(&c), want, "{what}");
+        }
+    }
 
     fn entry(is_edge: bool, class: SideCode) -> Entry {
         Entry {

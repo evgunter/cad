@@ -652,6 +652,17 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
+            "VertexReadTwice",
+            BooleanError::VertexReadTwice {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                reads: [
+                    SectorRead::Pierce(FaceKey::default()),
+                    SectorRead::Pair(VertexKey::default()),
+                ],
+            },
+        ),
+        (
             "NonManifoldResult",
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),
