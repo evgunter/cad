@@ -589,3 +589,16 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     rows on 4140; a FULL review on 4161.
   - **Unit row:** stays open for the P1 rows (b) sweeps and (c)
     curved joins, then step 3.
+- 2026-10-07 — Ev ruled on PR 4198 (merged).
+  - **Accepted as written:** the vertex decides the branch; poles and
+    apexes are never joinable; the clause is restored to "structural
+    carrier".
+  - **Replaced:** the designers' canonical cut. A closed joined edge's
+    one vertex is conventional, like a seam, with no identity of its
+    own. Uniqueness holds up to its position, and PR 3881's C12.5
+    sentence retires.
+  - **Designers' round 4:** both found the rule sound and added the
+    structural definition and the edge-interior reading at that point.
+  - Fork-log row 78 is complete.
+  - `curved-joinable-vertices-are-left-unjoined` is dispatched on
+    `fuse/curved-join`.
