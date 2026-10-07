@@ -1910,3 +1910,143 @@ member order decides whether the face is already split (ratified DM4).
   `seam_set`, `seam_edges` and the `vertex_merges` reads). It lands
   together with the join at every stage (PR 4140). Any fork in naming
   the set goes to Ev, and EMIT is told. (FUSE log, 2026-10-06.)
+
+## 2026-10-06 — covered-pair naming row parked on D10
+
+`a-pair-boolean-names-a-declared-covered-pair-by-operand-order` asks
+whether a pair boolean should name a declared covered pair the way the
+union now does. Declared pairs are on the D10 hold's ground, and stage 4
+retires them. Parked on `d10-one-way-to-say-intent-is-unbuilt`, beside
+the union member-order row (PR 4141).
+
+## 2026-10-06 — PR 4134 ([ev]): a crossing is named by its sense
+
+The designer pair (fork-log row 73; byte 120, A = Opus, B = Fable)
+converged after three rounds. They agreed on:
+- every crossing carries its sense, read against the partner's closed
+  body;
+- a `Crossing { edge, face, sense }` head;
+- `Ends` on every edge piece, after a run showed the lone-piece rule
+  renames an untouched piece whatever the crossing is named.
+
+They split on the same-sense residue: A ranked it, B tied it. Ev first
+asked whether a tie was viable as a permanent state. The answer: it loses
+no geometry, but leaves same-sense crossings, and the pieces between
+them, unreferenceable one at a time, and it departs from N4's own rule.
+Ev then took the ordinal (A). The row stays open for the build, with a
+Ruled section.
+
+The runs also found:
+- the pinned locality test is vacuous (two documents, two Split ids);
+- an in-face union case that neither first reading of the sense covered.
+
+## 2026-10-06 — PR 4134's follow-ups filed
+
+Three design rows came out of the crossing-sense fork:
+- `borders-and-keeps-spell-a-lone-piece-bare`: the lone-member rule, on
+  faces;
+- `section-face-and-hole-rim-are-ordinals-over-their-group`;
+- `an-in-face-crossing-is-spelled-as-a-seam-of-the-face-it-lies-in`.
+
+The NURBS-crossing and edge × edge rows each get a note to re-measure
+once the sense is built.
+
+## 2026-10-06 — PR 4156 ([ev]): ids carry their mint ordinal
+
+The designer pair (fork-log row 74; byte 171, A = Fable, B = Opus) crossed
+once and converged. Only `Flush` chooses anything. Seniority belongs in the
+id, so `Doc::order` can be derived rather than stored unchecked.
+
+Ev asked first why `Flush` needed it. The answer: on its own it does not;
+the case rests on the other readers of `Doc::order`, and on the stored list
+the load door cannot check. Ev then asked how `Doc::order` is built.
+
+Ev approved removing `Doc::order` and folding seniority in next to the id,
+as a custom pair type `(u32, u64)` rather than bit packing, unless
+something needs one integer. The row stays open for the build, with a
+Ruled section.
+
+## 2026-10-06 — PR 4164: `band_rim_pi` mints the rim's second half-arc
+
+The builder sits beside `band_rim` (`names/role.rs`). It is exported through `pncad::select` and as `pncad.band_rim_pi`, and declared in `pncad.pyi`. The hand spellings in the teapot demo, `blend5_rim_support`, `m4_pr3_names` and `band_run_wall_names` now use the builders, including `meridian_vertex`. Filed `meridian-edge-has-no-minting-builder`, the same class for meridian edges. Review: nothing blocking; the optional findings are folded.
+## 2026-10-06 — PR 4166: the part chooser proposes an editable label
+
+`add_part_ui` now draws `creation_label_row` above the listing, because a pick commits at once. A pick commits through `push_labelled(INSTANCE_NOUN, AddInstance)`: one undo, a blank field commits the bare op, and refused text queues nothing, as on every other create form (PR 3713). The tests are an app-level row (save beside a stored part, type over the proposal, pick) and the noun pin. Review: nothing blocking; a comment now guards the chooser's take/put-back against an early return.
+
+## 2026-10-06 — PR 4183: a label refuses direction scopes and needs a character that shows
+
+A blinded designer pair (byte 192, A = Opus, B = Fable, recorded on
+`analysis/design-fork/emit-label-invisible-chars`) converged in its first
+reports. No ratified text changed: DESIGN.md has no character rule, and
+the rule lives in `label.rs`. So it was built without an `[ev]`; the PR
+body says it extends the rule approved on #3565.
+
+`Label::new` refuses, in this order:
+- a line break;
+- a control character;
+- one of the nine bidi embedding, override or isolate characters
+  (`LabelFault::Direction`, Python tag `label_direction_control`);
+- `Blank`: every character is whitespace or Unicode
+  `Default_Ignorable_Code_Point`. The 17 ranges are verified against
+  Unicode 16 and 18 (4174 code points).
+
+Joiners, bidi marks and emoji sequences pass. The viewer clears a field
+on `Label::is_blank`, the same predicate, so a field that shows nothing
+clears rather than refusing. Review folds: ALM and control-order rows, a
+full-range direction scan, narrowed docs, and the range test's stated
+re-derivation rule.
+## 2026-10-06 — the strict-tolerance reds, traced
+
+Several PRs failed CI's strict-tolerance step today (#4164 among them).
+#4083 had already fixed the cause on main: sweep rows from #4120 and
+#4074 used fixed tolerances. On main at c1199a2a56 the workspace passes
+12078/12078 with `--profile ci` at 1e-6 and 1e-12, at CI's opt-level.
+
+Two nightly-only reds remain, both stale test pins, fixed on
+`emit/nightly-eps-stale-pins`:
+- `pocket_ring_steep_ellipse` at 1e-6 (join row closed);
+- `arc_loft` and `r1_dm1_probe`, which pinned prose that #3942 reworded,
+  at 1e-12 (exch row closed).
+
+Job logs are readable from a cloud box: the GitHub MCP `get_job_logs`
+with `return_content=false` returns a signed URL that `curl` fetches.
+
+## 2026-10-06 — PR 4203: every crossing carries its sense
+
+The ruled row from PR 4134, the sense half.
+- The boolean records each operand edge piece's in/on/out class at its
+  vertex (`EdgePieceClass`). The vertex-on-face rows are the side codes
+  that pass decided (D5). The vertex-vertex rows are measured beside the
+  classification by `sectors::wedge_classes`.
+- Null-edge copies are exposed (`BooleanNaming::null_copies`), so an edge
+  that ends at a copy ends at the vertex. A side with no row refuses unless
+  the edge ends there.
+- The boolean and union name an edge × face vertex
+  `Crossing { edge, face, sense }` and an edge × edge vertex
+  `EdgeCrossing { a, a_sense, b, b_sense }`. The Split's `CrossingVertex`
+  gains `sense`.
+- Ranks run per sense.
+- Senses ride a union's fold. They flip under `RankRule::Reverse`, a
+  Split's crossings included, and a union rewrite re-reads them side by
+  side by image.
+
+`Ends` on every piece of a divided edge was built and reverted in the same
+PR. The review measured names growing about 2.41× per cut along a chain of
+trims (8.3M words at fourteen trims). It waits on
+`a-crossing-cites-its-edge-by-a-name-that-holds-that-edges-ends-so-names-grow-exponentially`.
+
+The pinned test is rebuilt as one document edited in place; it pins the
+crossing, and not the lone piece.
+
+Filed:
+- the touch and edge × edge spelling (design);
+- the unoriented-seam refusal (design);
+- the end-touch row, which main's edge joins left without a witness.
+
+## 2026-10-07 — PR 4212: a crossing cites the edge's line (ruled)
+
+Ev approved fork-log row 77: a crossing and every piece's base cite the
+edge's line, and N5 reads a cited line as the rows whose undivided base
+it is. Both designers converged on it after round 2. The growth row
+stays open for the build, which lands `Ends` on every piece on top.
+

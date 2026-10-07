@@ -2,10 +2,13 @@
 id: refusals-with-the-longest-scoped-names-overrun-the-budget
 kind: issue
 title: Refusals forwarding the corpus's longest names overrun the 75-word budget
-status: open
+status: closed
 priority: P2
 cost: M
 opened: 2026-10-03
+pr: 3886
+branch: recipe/leaf-role-words
+closed: 2026-10-06
 ---
 
 
@@ -54,3 +57,20 @@ Weighed by two designers over two reconciliation rounds (fork-log row 69).
 ## Ruled (Ev, PR 4069, 2026-10-05)
 
 As the section above says ("sounds good!"). PR 3886 builds it in its last fix pass, with the third review's findings.
+
+## Built (2026-10-06, PR 3886)
+
+- **The gate** (`editor-core/tests/name_words_corpus.rs`): each row said through its production door with the corpus's 90th-percentile name (scoped faces: 21 words; full form: 30), the vanished row's upstream name said by its kind. Names ratcheted on their own: `NAME_WORDS` (scoped faces p50/p99/max 16/34/38, full 19/73/111) and `SAID_DIGEST` over every form of every name; the review's cap/member mutant turns the digest red. The longest names' rows are printed, not gated.
+- **At the p90 name:** Vanished 50, NodeGone 39, InBand 59, TiedDisagrees 57, Unreadable 52, PairInBand 77, CrossingUnverified 74, the pick tie 67, a fillet's stranded edge (by its slot) 16. PairInBand alone is over, admitted at 77 in `OVER_BUDGET`: two 21-word names and the band ending the funnel says (28 words) leave 7 words of lead.
+- **Resolve rows lead with the reference.** A node's resolve failure says its slot where the speaker's document holds the node (`this fillet's edge 0 is stranded: Extrude … was deleted. Recourse: rebind it`; `Node::reference_slot`, `Speaker::reference`, `resolve::AboutReference`); the properties pane says `this face …` and not the name again; the vanished-upstream clause says the embedded name by its kind; a bare refusal says the name once, in full.
+- **Trims.** "the leg of" goes (a leg is its step's only piece); ", on <node>" leaves the name. The flush pair and the pick tie say each face's node where two faces read alike (the gate `two_copies_of_one_body_read_apart_where_a_sentence_names_both`).
+- **Prose.** The band rows say the band once, through the funnel's payload, with no predicate id or query-policy explanation, under the levers a query has (`NO_DECLARATION_RECOURSE`: no "declare the coincidence"). The pick tie drops "which this refusal lists in full" and is the status line's sentence too.
+- **Found beside it, fixed:** Python's `PairInBand` carries the second face (`SelectRefusal.other`); `standing_verdict` speaks within the landed evaluation and does not repeat its subject; `CrossingUnverified` says its part-local name through the speaker, by tag.
+- **Remains:** the holder a bare `Vanished` cannot say is `a-vanished-name-carries-no-holding-node`.
+
+## Built (2026-10-06, PR 3886, fourth fix pass)
+
+- **No row is admitted over the budget.** `PairInBand` reads "select: A and B are flush? undecided: …" (5 words besides the names, was 7), so at the p90 names it renders 75; `OVER_BUDGET` is empty.
+- **Python says the in-band rows through the speaker.** `pncad-py`'s `InBand` and `PairInBand` messages are the kernel's sentence spoken from the evaluated document within its evaluation (`SelectRefusal::spoken`): no predicate id, no query-policy text, no `COINCIDENCE_RECOURSE`. So the gate's `SelectRefusal` rows measure the door Python raises through. `PairInBand` carries the two holding nodes (`SelectRefusal.at`, `.other_at`), which tell two copies' faces apart when `name == other`.
+- **The ratchet sees a word said once more by a whole kind.** `NAME_WORDS` adds each form's total words beside p50/p99/max (scoped faces 38,230, full 252,376).
+- **The slot gate strands an edge above 0**: a corpus fillet's last selected edge of several (`slot_rows`, edge 11); forcing the slot to the first match turns it red.

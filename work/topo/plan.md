@@ -55,7 +55,7 @@ What this program does **not** take is written in `program.md`'s
   board before it lands, and never taken silently.
 - **The remaining 35 `topo/src` files are unowned and NOT finished.**
   `body.rs`, `entity.rs`, `geometry.rs`, `instance.rs`, `null.rs`,
-  `lib.rs`, `contact.rs`, `separation.rs`, `ray_parity.rs`,
+  `lib.rs`, `contact.rs`, `separation.rs`, `ray_walk.rs`,
   `offset_axial.rs`, `iso.rs`, the four `sector_*`/`chart*` files, the
   eleven `review_m1_*`/`review_d21`/`r2_probes` readers,
   `test_support_impl.rs`, and `param_source.rs` (new on main with

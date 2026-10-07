@@ -2,11 +2,11 @@
 id: fillet-meridian-radius-term-is-registered-only
 kind: issue
 title: the profile fillet lowers through chord and bulge, so its extruded cylinder's Frame, Radius and FidelityU envelope terms do not close and M10-9's bracket and pad refuse at pcurve_envelope
-status: parked
+status: closed
 opened: 2026-10-02
 priority: P0
 cost: M
-blocked_on: [store-constructed-carriers]
+closed: 2026-10-06
 ---
 
 
@@ -106,3 +106,20 @@ Two designers, briefed on the problem only, from main at 63aabc993. They converg
 Both add one line to 5b's fillet arm: spell the tangent points from the centre and the authored radius (`t = centre ± r·n̂`), with the turn as a decided literal sign. Then `r² − q·q` and the rim frame's `u_ref·u_ref − 1` are zero forms. Whether FidelityU also closes is likely but not measured; if it still bounds the ceiling, it becomes PCERT's next row. The pad is unmeasured (same construction, claimed by analogy). `work/paths/copysign-stands-in-for-the-turn-side-and-hulls-at-a-decidable-tie` is the same defect class.
 
 Parked on `store-constructed-carriers`, with a seam note in `work/paths/log.md` asking PATHS to rank 5b for this P0 loss. Check after 5b lands: re-run the per-term probe (`m10_9_evidence_interval`'s split row plus `explain_depth`) on the bracket and the pad. This row closes when `m10_9_no_registrant_lies_on_any_measured_document` no longer asserts their `pcurve_envelope` refusals.
+
+## Closed (2026-10-06, PATHS 5b, #3774)
+
+5b's fillet stores the centre its resolution builds and the authored
+radius `|r|`, and registers its incoming tangency. On the merged tree,
+`m10_9_no_registrant_lies_on_any_measured_document` certifies the
+bracket and the pad whole at every ε, at 3.870e2·ε and 2.083e3·ε
+(`refused_by: None`).
+- The bracket reads 49 / 1401 / 45 / 1050 and has its ceiling at
+  7.624e2·ε, bounded by `arc_span`.
+- The pad reads 54 / 1340 / 2 / 1272 and has its ceiling at 2.7783e3·ε,
+  bounded by `line_span`.
+
+Neither over-band set at its ceiling names `pcurve_envelope`
+(`m10_9_ceilings_with_and_without_the_door`, ε = 1e-9). The per-term
+probe was not re-run, because the refusal it was meant to locate no
+longer occurs.

@@ -552,3 +552,56 @@ sink rounds its plate after the union, gated on tier 3. Full review
 (APPROVE-WITH-FIXES, no MAJOR) taken in full. Filed:
 `a-ring-of-ellipse-edges-refuses-the-ring-meter` (P3). The lane's duplicate
 filing of main's 1e-6 pinch red was dropped for JOIN's (PR 4113).
+
+## 2026-10-06 — run-out steps 1–2 landed (PR #4121): the plane–plane band cuts off at its end face
+
+Under Ev's PR 4085 ruling: chain G1 classifies plane–plane junctions (a
+definite turn breaks the chain into two ends; `Turn` refuses until the
+mitre, step 4); predicate 6 reads the request count; the planar band carves
+locally (`blend/open/end_face.rs`, shared with the ruled band), so one edge,
+any subset ending at unrequested corners, and three edges of one corner
+(patch + cut-offs) chamfer and fillet at their closed forms; an oblique
+chamfer builds, an oblique fillet refuses until step 3. The whole-face
+planar path was deleted early (step 5), shown bit-identical by both
+reviewers' and the fix pass's base/head differentials. The bracket's chord
+walls retired. Dual review, class H (DR-89): R1 NOT-MERGEABLE-AS-IS on a
+concave cut-off swallowing end-face features unmetered (tally 1); R2
+APPROVE-WITH-FIXES. The union was taken: the concave end face LOSES the
+sliver too (the README sentence from PR 4085 corrected to say so — the
+decision unchanged, Ev told), arm (d) pinned by a witness, crossing cut-off
+feet refused at plan. Filed `a-requested-ring-edge-refuses-at-the-ring-meter`.
+The row stays open for steps 3–5 (oblique fillet, mitre, overrun).
+## 2026-10-06 — `lamina-plane-annulus-keeps-its-slit` closed (PR #4136)
+
+A lamina full revolve's plane annulus is one face with its bore as a ring:
+no seam slit and no `Meridian(Seam, s)` name, as a solid's planar wall
+already was (fork-log row 36's "construct"). The blend surgery and rim
+routing follow it: a plane annulus's one-link bore routes to the annulus
+carve, `lone_host_trim` carves a lone crossing, and the ruled band's support
+gate admits a plane support with rings, metered by the ring pass. STEP's
+washer exports 6 edges (census goldens re-blessed). Full review
+(APPROVE-WITH-FIXES, no correctness defect — every carve at its closed form)
+taken in full: a sentence-level prose sweep across blend, topo, mesh and the
+README; the check-9 outer-edge witness rebuilt through a public `mekr_chord`;
+ΔV pins; the deepest-gap reading; and 14 probe rows. Reconciled with 4119's
+piece-by-piece ring readers. Filed: TESS
+`mesh-slit-annulus-rows-no-longer-build-a-slit`, CLEAVE
+`revolve-seam-split-volumes-miss-their-closed-form-at-eps-1e-6` (main's red,
+merged over); SHELL `offset-door-declared-transport-has-no-built-witness`.
+
+## 2026-10-06 — run-out step 3 landed (PR #4173): an oblique plane end face cuts a round band off in an ellipse
+
+A fillet whose plane end face is oblique to its edge ends in the end plane's
+elliptic section of its cylinder, for the planar and the ruled band on both
+convexities: built through `Curve3::ellipse`'s deciding door, the sliver
+enclosed exactly (the disc to the sliver's reach less the ellipse, cut to
+the half-plane and the section's box). `cap_transverse` picks the kind; the
+near-perpendicular window where the ellipse is not distinct from a circle
+escalates as its own `BlendDecision::CapEllipse` with a followable recourse.
+The bracket's fillet walls retired; the tour rocker's wall 2 (the same
+over-refusal on a circle end) retired into builds. Full review
+(APPROVE-WITH-FIXES; every arc on both faces to 1e-16) taken in full. Filed:
+`second-order-cap-window-escalates-small-drafts` (P3); witnesses on CONTACT's
+`at-infinity-probe-measures-in-closed-form-only` and QUAD's
+`quadrature-convergence-test-escalates-instead-of-refining`. The run-out row
+stays open for step 4 (the mitre) and the overrun.

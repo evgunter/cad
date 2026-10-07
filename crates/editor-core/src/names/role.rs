@@ -562,18 +562,26 @@ pub struct StableName {
     pub path: RolePath,
 }
 
-// The human-readable rendering: the kind (through [`EntityKind::noun`],
-// never `Debug`) plus the minting node — the half of a name a user can
-// act on. The role path is a derivation, not something a person reads
-// mid-sentence, so prose never renders it; the typed value remains the
-// machine channel for anything that needs the path. Article-free
-// ("face name minted by node 3") so a sentence supplies its own
-// article. Refusal prose that names a name forwards this rather than
-// re-spelling it.
+// The human-readable rendering: the path as a structure is the machine
+// channel; a person reads it in words ([`super::LeafRole`]), each node
+// and step by its tag, in full (`the end cap of node 000000000003`).
+// Article-led, so a sentence takes it as a noun phrase. This is
+// [`crate::Speaker::name`] said by tag, the one spelling every sentence
+// that names a name forwards.
 impl core::fmt::Display for StableName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{} name minted by node {}", self.kind.noun(), self.node)
+        crate::spoken::Speaker::TAG.name(self).fmt(f)
     }
+}
+
+/// Where the trailing run of `Fragment` segments of `path` starts: the
+/// length of what they qualify. The one reading of "a name with only
+/// fragments after it", for a group's parent, its cutters, a seam row
+/// and a name said in words alike.
+pub(crate) fn fragment_tail_start(path: &[RoleSeg]) -> usize {
+    path.iter()
+        .rposition(|s| !matches!(s, RoleSeg::Fragment(_)))
+        .map_or(0, |i| i + 1)
 }
 
 /// A sequence of role segments (N1). Usually length 1; composition
@@ -904,6 +912,31 @@ impl SplitHalf {
     }
 }
 
+/// **A crossing's sense** (N2): whether the crossed edge, as the body
+/// that holds it stores it, enters or leaves at the crossing the closed
+/// body the crossing face belongs to. A side of the crossing with no
+/// portion of the edge counts as outside that body.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub enum Sense {
+    /// The edge runs from outside the body into it.
+    Enters,
+    /// The edge runs from inside the body out of it.
+    Leaves,
+}
+
+impl Sense {
+    /// The sense of the same crossing read along the edge the other way.
+    #[must_use]
+    pub fn flipped(self) -> Self {
+        match self {
+            Self::Enters => Self::Leaves,
+            Self::Leaves => Self::Enters,
+        }
+    }
+}
+
 /// An N2 fragment discriminator against recipe-covariant references.
 /// NO values, NO bare indices: `Borders`, `Keeps` and `Ends` cite
 /// names, and `OrderAlong.rank` is an ordinal under the named
@@ -933,10 +966,10 @@ pub enum Qualifier {
     Ends(Vec<StableName>),
     /// Ordinal position of a crossing VERTEX along the edge it lies on
     /// (`name_frag_order_along` through `k_stats`): rank `rank` of `of`
-    /// crossings of one edge by one face, ordered by the crossed edge's
-    /// carrier parameter, the edge oriented as its operand body stores
-    /// it, and a seam edge as the loop of its pair's first side runs
-    /// along it (N2).
+    /// crossings of one edge by one face with one sense, ordered by the
+    /// crossed edge's carrier parameter, the edge oriented as its operand
+    /// body stores it, and a seam edge as the loop of its pair's first
+    /// side runs along it (N2).
     ///
     /// A union's seam pair is in name order (`names::canonical`), and
     /// wherever putting it there swaps the pair — at the union's
@@ -1140,16 +1173,15 @@ pub enum RoleSeg {
     },
     /// A zip-minted seam entity: the crossing of an A-operand entity
     /// and a B-operand entity, by their operand names. An edge is
-    /// face × face. A vertex is edge × edge, edge × face or
-    /// face × edge, face × face (every incident seam line agreeing on
-    /// one face pair), or edge × vertex / vertex × edge (the partner
-    /// read from the reduction's contact records). Several pieces of one
-    /// seam edge carry a `Fragment(Ends)` after it, and a vertex pair
-    /// that crosses more than once a `Fragment(OrderAlong)`. A seam
-    /// JUNCTION — the vertex where k ≥ 2 seam lines meet
-    /// and no operand edge does — is named by the sorted run of those
-    /// lines' face × face `Seam` segments, one segment per line and
-    /// nothing after them.
+    /// face × face. A vertex is face × face (every incident seam line
+    /// agreeing on one face pair), or edge × vertex / vertex × edge (the
+    /// partner read from the reduction's contact records); an edge
+    /// crossing a face is a [`RoleSeg::Crossing`], and two edges
+    /// crossing an [`RoleSeg::EdgeCrossing`]. Several pieces of one seam
+    /// edge carry a `Fragment(Ends)` after it. A seam JUNCTION — the
+    /// vertex where k ≥ 2 seam lines meet and no operand edge does — is
+    /// named by the sorted run of those lines' face × face `Seam`
+    /// segments, one segment per line and nothing after them.
     ///
     /// In a pair boolean's table `a` is the A side and `b` the B side.
     /// In a UNION's published table they are not: a union has no A
@@ -1164,11 +1196,43 @@ pub enum RoleSeg {
         /// union's table).
         b: NameRef,
     },
-    /// An F7 merged face: the sorted, FLAT set of constituent names
-    /// retires into this name (N3; canonical order = name order). A
-    /// constituent is never itself a BARE merged face, through any
+    /// A vertex where an edge of one side of a boolean or union meets a
+    /// face of the other, crossing it or ending in it, by the edge, the
+    /// face and the edge's [`Sense`] against the closed body the face
+    /// belongs to (N2). Crossings of one edge by one face with one sense
+    /// carry a `Fragment(OrderAlong)` after it when there are several.
+    Crossing {
+        /// The crossed edge.
+        edge: NameRef,
+        /// The crossing face.
+        face: NameRef,
+        /// The edge's sense at the vertex.
+        sense: Sense,
+    },
+    /// A vertex where an edge of each side of a boolean or union cross,
+    /// by the two edges, each with its [`Sense`] against the closed body
+    /// of the other side (N2). In a pair boolean's table `a` is the A
+    /// side; in a union's the two are in name order, each sense with its
+    /// edge. Several such crossings with the same senses carry a
+    /// `Fragment(OrderAlong)` along `a` in a pair boolean's table.
+    EdgeCrossing {
+        /// The A-side edge (the lesser name, in a union's table).
+        a: NameRef,
+        /// `a`'s sense against the other side's closed body.
+        a_sense: Sense,
+        /// The B-side edge (the greater name, in a union's table).
+        b: NameRef,
+        /// `b`'s sense against the other side's closed body.
+        b_sense: Sense,
+    },
+    /// An F7 merged face, or an edge a boolean's output stage joined
+    /// across several operand or member edges (`names/README.md`,
+    /// "Flush edges at a union"): the sorted, FLAT set of constituent
+    /// names retires into this name (N3; canonical order = name order). A
+    /// constituent is never itself a BARE merged name, through any
     /// `FromA`/`FromB` wrapping — a merge of a merged face lists the
-    /// faces, never the merge. The one carve-out, stated here and
+    /// faces, never the merge, and an edge set lists edges. The one
+    /// carve-out, stated here and
     /// pointed at from every other site: a FRAGMENT of a merged face
     /// (`[Merged(set), Fragment(q)]`) is a face in its own right, a
     /// legitimate constituent, and is not nesting.
@@ -1218,12 +1282,15 @@ pub enum RoleSeg {
     },
     /// A crossing vertex minted where the tool plane crossed an
     /// operand edge (argument: the operand edge's name; each half
-    /// keeps its own coincident copy — `side` names which).
+    /// keeps its own coincident copy — `side` names which), with the
+    /// edge's [`Sense`] against that half (N2).
     CrossingVertex {
         /// Which output half holds this copy.
         side: SplitHalf,
         /// The operand edge the plane crossed.
         edge: NameRef,
+        /// The edge's sense against the `side` half.
+        sense: Sense,
     },
     /// A per-half copy of an operand vertex the tool plane passed
     /// THROUGH (review R2): both halves keep a coincident copy, so
@@ -1268,7 +1335,7 @@ pub enum RoleSeg {
     /// A blend foot: where a support's two trimlines meet, retracted
     /// from the source vertex where the band ends. One such vertex
     /// yields one foot per incident support, whether the band ends at
-    /// a corner or at a transverse cap.
+    /// a corner or at a cut-off.
     FootVertex {
         /// The source vertex the band ends at.
         vertex: NameRef,
@@ -1411,7 +1478,7 @@ pub enum RoleSeg {
 /// revolve at `node` (in a full revolve's wire case, a curved wall's
 /// `[0, π)` half) — [`RoleSeg::Band`] over the one-piece run.
 ///
-/// This and its three siblings are the MINTING direction of the
+/// This and its four siblings are the MINTING direction of the
 /// vocabulary [`SegPat::tag`](crate::SegPat::tag) matches in. A
 /// selection that is ANSWERED — [`select`](fn@crate::select),
 /// [`all_faces`](fn@super::all_faces) — needs an evaluation to answer
@@ -1451,6 +1518,20 @@ pub fn band_rim(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
         kind: EntityKind::Edge,
         node,
         path: vec![RoleSeg::BandRim(vertex)],
+    }
+}
+
+/// **The `[π, 2π)` latitude rim at the profile vertex `vertex`** —
+/// [`band_rim`]'s twin on a full revolve whose profile touches the
+/// axis, where each rim is two half-arcs between the seam vertices
+/// ([`RoleSeg::BandRimPi`]); an annular profile's rim is one.
+/// An [`EntityKind::Edge`], as [`band_rim`] is.
+#[must_use]
+pub fn band_rim_pi(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
+    StableName {
+        kind: EntityKind::Edge,
+        node,
+        path: vec![RoleSeg::BandRimPi(vertex)],
     }
 }
 
@@ -1511,6 +1592,8 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         RoleSeg::FromA(_)
         | RoleSeg::FromB(_)
         | RoleSeg::Seam { .. }
+        | RoleSeg::Crossing { .. }
+        | RoleSeg::EdgeCrossing { .. }
         | RoleSeg::Merged(_)
         | RoleSeg::Fragment(_)
         | RoleSeg::SectionEdge { .. }
@@ -2214,6 +2297,22 @@ impl RoleSeg {
                 a: rewrite_ref(a, w)?,
                 b: rewrite_ref(b, w)?,
             },
+            R::Crossing { edge, face, sense } => R::Crossing {
+                edge: rewrite_ref(edge, w)?,
+                face: rewrite_ref(face, w)?,
+                sense: *sense,
+            },
+            R::EdgeCrossing {
+                a,
+                a_sense,
+                b,
+                b_sense,
+            } => R::EdgeCrossing {
+                a: rewrite_ref(a, w)?,
+                a_sense: *a_sense,
+                b: rewrite_ref(b, w)?,
+                b_sense: *b_sense,
+            },
             R::Merged(v) => R::Merged(rewrite_set(v, w)?),
             R::Fragment(q) => R::Fragment(match q {
                 Qualifier::Borders(walls) => Qualifier::Borders(rewrite_set(walls, w)?),
@@ -2229,9 +2328,10 @@ impl RoleSeg {
                 side: *side,
                 parent: rewrite_ref(parent, w)?,
             },
-            R::CrossingVertex { side, edge } => R::CrossingVertex {
+            R::CrossingVertex { side, edge, sense } => R::CrossingVertex {
                 side: *side,
                 edge: rewrite_ref(edge, w)?,
+                sense: *sense,
             },
             R::OnToolVertex { side, of } => R::OnToolVertex {
                 side: *side,
@@ -2483,7 +2583,7 @@ pub(crate) use never_in_a_boolean_table;
 mod tests {
     use super::{
         EntityKind, MeridianEnd, NameRef, PieceRole, ProfileEdgeRef, RoleSeg, SectionCircle,
-        StableName, band, band_pi, band_rim, carried, meridian_vertex,
+        StableName, band, band_pi, band_rim, band_rim_pi, carried, meridian_vertex,
     };
     use crate::node::{RecipeNodeId, StepId};
 
@@ -2506,7 +2606,7 @@ mod tests {
     }
 
     /// A builder mints EXACTLY the name a caller would spell by hand.
-    /// Four pins, one per builder, each written the long way — the
+    /// One pin per builder, each written the long way — the
     /// spelling they replace at their consumers — at both locator
     /// forms, so a builder cannot drift from the vocabulary without
     /// this file disagreeing with itself.
@@ -2547,6 +2647,20 @@ mod tests {
                     kind: EntityKind::Edge,
                     node: N,
                     path: vec![RoleSeg::BandRim(e.start())],
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn band_rim_pi_mints_the_hand_spelled_edge() {
+        for e in edges() {
+            assert_eq!(
+                band_rim_pi(N, e.start()),
+                StableName {
+                    kind: EntityKind::Edge,
+                    node: N,
+                    path: vec![RoleSeg::BandRimPi(e.start())],
                 }
             );
         }

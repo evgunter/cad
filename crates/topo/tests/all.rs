@@ -87,6 +87,8 @@ mod box_with_hole;
 mod census_g2_carrier;
 #[path = "cone_apex_cap_body.rs"]
 mod cone_apex_cap_body;
+#[path = "cone_apex_sector_joints.rs"]
+mod cone_apex_sector_joints;
 #[path = "contact1_touch_cones.rs"]
 mod contact1_touch_cones;
 #[path = "contact5_gate_and_beam.rs"]
@@ -358,5 +360,7 @@ mod door_backstop_settled_residue;
 mod pierce_strut_at_a_pinch;
 #[path = "review_cleave_mint_doors.rs"]
 mod review_cleave_mint_doors;
+#[path = "spline_reanchor_rows.rs"]
+mod spline_reanchor_rows;
 #[path = "split_tangent_edge.rs"]
 mod split_tangent_edge;

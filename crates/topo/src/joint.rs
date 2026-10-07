@@ -38,7 +38,10 @@
 //! Such a joint stores [`JointElement::Reset`], which carries only the
 //! part of the element that IS decided (the second-channel periods and
 //! the twin, the element modulo `T_u`; `T_u` is central, so that
-//! quotient is a group). The lift restarts the first channel after a
+//! quotient is a group). The joint decision writes a reset with no twin
+//! (`crate::pcurves`' `decide_joint`: at a pole either sheet names the
+//! point, so its orbit integer is 0); a kill's sum
+//! ([`JointElement::then`]) may carry one. The lift restarts the first channel after a
 //! reset: the next image is placed with no azimuth periods
 //! ([`JointElement::follow`]), and a loop's closure counts no azimuth
 //! wrap across a reset ([`Winding`]). So the pass and the at-rest

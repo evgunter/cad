@@ -336,14 +336,7 @@ fn a_tampered_branch_is_refused_at_rest() {
     let band = Band::linear(Tol::witness()).unwrap();
     // A window wide enough that trim containment is not what fires —
     // the finding must be the BRANCH, not the box.
-    let window = topo::ChartWindow {
-        u_min: -100.0,
-        u_max: 100.0,
-        v_min: -100.0,
-        v_max: 100.0,
-    };
-    let tampered =
-        topo::PcurveCache::certify(shifted, t0, t1, &carrier, &surface, window, band).unwrap();
+    let tampered = topo::PcurveCache::certify(shifted, t0, t1, &carrier, &surface, band).unwrap();
     above.attach_pcurve(victim, tampered);
     let findings = topo::pcurves::validate_pcurves(&above, band);
     assert!(
@@ -529,8 +522,15 @@ fn a_seam_closed_tube_split_mints_clean_halves() {
         let part = part.body().expect("material on both sides");
         let findings = topo::pcurves::validate_pcurves(part, band);
         assert!(findings.is_empty(), "{findings:?}");
-        let v = topo::mass_properties(part, Tol::witness()).unwrap().volume;
-        assert!((v - 0.144 * core::f64::consts::PI).abs() < 1e-8, "{v}");
+        // A curved wall's volume is a quadrature read to the band's own
+        // reporting target: within its enclosure, beyond 1e-8.
+        let m = topo::mass_properties(part, Tol::witness()).unwrap();
+        assert!(
+            (m.volume - 0.144 * core::f64::consts::PI).abs() < 1e-8 + m.volume_pad,
+            "{} ± {}",
+            m.volume,
+            m.volume_pad
+        );
     }
 }
 

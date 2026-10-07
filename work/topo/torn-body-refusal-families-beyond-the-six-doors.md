@@ -36,7 +36,7 @@ answer a torn record typed. Counts are `::Variant` occurrences in
 | `SplitFinishError::Corrupt`, `::TornComponent` | `splitting/finish.rs` | 22 | no (driver) | panic |
 | `PointInLoopError::CorruptLoop` | `splitting/containment.rs` | 16 | yes: `point_in_loop`'s loop | split; a whole-turn scaffold circle is a legal state and stays typed. `contfp` carries it as `ContainError::LoopUnreadable`. `cycle_steps`' and `loop_hull`'s eight record hops past a resolved loop are links now, and panic (PR 4048) |
 | `MassPropsError::Corrupt`, `LoopEdgesError::Corrupt` | `props.rs` (and `mesh/src/curved.rs`) | 17 | no (whole body) | an empty loop is legal tier-1 scaffolding and stays typed under its own name; key misses panic |
-| `RevertError::Corrupt` | `revert.rs` | 12 | no (whole body) | panic; reachable typed today through `VoidInsertError::Revert` on a torn cavity |
+| `RevertError::Corrupt` | `revert.rs` | 12 | no (whole body) | **done** (`topo/revert-torn-reads-panic`): every link `revert` follows panics naming its record, `revert` answers `Self`, and `RevertError`, `VoidInsertError::Revert`, `BooleanError::Revert` and the `revert` tag retire. A void cavity is a body some door left, so a torn one panics before `dst` is written |
 | `TouchVerdict::Corrupt`, `Undecided::CorruptInstance` | `census.rs` | 13 | no (the census runs on bodies tier 1 admits) | panic |
 | `SplitError::TornGroup` | `splitting/mod.rs` | 11 | no | panic |
 | `SplitJoinError::Corrupt` | `chord_join.rs` | 9 | no (driver) | panic |
@@ -63,10 +63,9 @@ Beside the named variants, the same shape under other names:
   whose row keeps a key an earlier row killed refuses typed
   (`ops::tests::a_corrupt_fusion_list_refuses_where_a_dead_end_drops`);
   the list is the boolean's own bookkeeping, so that is a kernel bug;
-- `RevertError::Corrupt`'s rows (`revert::tests::revert_refuses_each_corrupt_link_typed`,
-  `review_d18::revert_writes_no_fault_off_a_torn_next_prev_or_start`)
-  and `offset_together::tests::an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk`
-  assert today that a torn body answers typed or not at all;
+- `offset_together::tests::an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk`
+  asserts today that a torn body answers typed or not at all
+  (`revert`'s two such rows now assert its premise panic);
 - outside topo, each a kernel driver or consumer reading records of a
   body a door built: `mesh`'s `TessellateError::MissingEntity` (about
   30 raises in `chords.rs`, `curved.rs`, `memo.rs`, `planar.rs`,
@@ -130,6 +129,10 @@ each one over a key the caller carries:
 - `zip.rs` `split_across`: `ZipCorrespondence` "a pinch half-edge" /
   "a pinch loop no longer resolves", "a pinch vertex's orbit does not
   close"; the vertex itself keeps "a pinch vertex no longer resolves".
+  Since retired with `cross_pinches` (PR 4139): its successor
+  `split_cones` reads its hops through `proven` / `linked`
+  (`split_side`'s loops, `repair`'s faces) and keeps "section face no
+  longer resolves" typed over the seams it is handed.
 - `carrier_cross.rs` `boundary_crossing`: `ClassificationInvariant`
   "boundary loop lost", "does not close", "half-edge lost"; "face lost"
   stays.
@@ -177,8 +180,9 @@ premise panics, and kept each one over a key the caller carries:
   join's halves (`corrupt_he`, `corrupt_loop`, `corrupt_face`) are typed
   `SplitJoinError::Corrupt` raises of this row's, so the chord end
   stays typed with them and moves when they do.
-- `splitting/classify.rs` `sphere_zone_reach` checks for a
-  `LoopBoundary::Empty` outer loop before it calls `props::loop_edges`,
+- `boolean/boxes.rs` `sphere_window` checks for a lone-vertex outer
+  loop (`loop_members_linked` yields one `BoundaryMember::Isolated`)
+  before it calls `props::loop_edges`,
   because `LoopEdgesError::Corrupt` answers an empty loop and a torn hop
   alike. That pre-check is this row's `LoopEdgesError::Corrupt` split
   done locally at one caller; once the split lands, the empty loop is
@@ -187,10 +191,10 @@ premise panics, and kept each one over a key the caller carries:
 - `chord_join.rs` `face_azimuth_window_traces` (`sweep-testing`): the
   surface's `Corrupt`.
 - `splitting/join.rs` `split_leave`: the face's surface (`Corrupt`).
-- `splitting/classify.rs` `sphere_zone_reach` now panics on
-  `props::loop_edges`' `LoopEdgesError::Corrupt` past a cycle outer
-  loop, and on `sphere_chart_trim`'s `CorruptFace`, both past a face
-  the gate resolved. `loop_edges` and `sphere_chart_trim` themselves
+- `boolean/boxes.rs` `sphere_window` (through `torn_outer_loop`)
+  panics on `props::loop_edges`' `LoopEdgesError::Corrupt` past a cycle
+  outer loop, and on `sphere_chart_trim`'s `CorruptFace`, both past a
+  face its caller resolved. `loop_edges` and `sphere_chart_trim` themselves
   are unchanged and still answer typed for other callers.
 
 **What `solid_contain.rs` now folds.** `cylinder_chart_trim`'s

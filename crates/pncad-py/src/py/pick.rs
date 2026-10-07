@@ -155,16 +155,15 @@ fn tied(py: Python<'_>, hits: &[s::PickHit]) -> PyResult<Py<PyAny>> {
 
 /// Raise `HitTestError` carrying the refusal's stable tag and payload.
 ///
-/// The message is the kernel's own sentence, its nodes spoken from the
-/// evaluated document; the machine payload is
-/// `variant` plus the four fields, each present on every arm and
-/// `None` where that arm does not carry it.
-fn hit_test_err(py: Python<'_>, err: &s::HitTestError, doc: &pncad::document::ProfileDoc) -> PyErr {
+/// The message is the kernel's own sentence, `said`; the machine
+/// payload is `variant` plus the four fields, each present on every arm
+/// and `None` where that arm does not carry it.
+fn hit_test_err(py: Python<'_>, err: &s::HitTestError, said: String) -> PyErr {
     let [node, through, kind, body, hits] = hit_test_fields(py, err);
     typed_err(
         py,
         ErrorClass::HitTest,
-        err.spoken(doc),
+        said,
         &[
             (
                 "variant",
@@ -237,7 +236,9 @@ fn hit_test_value(
     unnamed: s::UnnamedEntity,
     doc: &pncad::document::ProfileDoc,
 ) -> Py<PyAny> {
-    hit_test_err(py, &s::HitTestError::from(unnamed), doc)
+    // The lookup's refusal names a node and a body, never a name.
+    let err = s::HitTestError::from(unnamed);
+    hit_test_err(py, &err, pncad::document::spoken_by(&err, doc))
         .value(py)
         .clone()
         .into_any()
@@ -712,7 +713,10 @@ pub(crate) fn pick_face(
     match s::pick_face(&evaluation.inner, &borrowed, &ray.0) {
         Ok(None) => Ok(None),
         Ok(Some(hit)) => Ok(Some(projected(py, &hit)?)),
-        Err(err) => Err(hit_test_err(py, &err, evaluation.doc())),
+        Err(err) => {
+            let said = err.spoken(evaluation.doc(), &evaluation.inner);
+            Err(hit_test_err(py, &err, said))
+        }
     }
 }
 

@@ -293,6 +293,7 @@ fn pair_verdict<T: Decide>(
                 let source = undecided.diag();
                 SelectRefusal::PairInBand {
                     pair: Box::new((na.clone(), nb.clone())),
+                    at: (at_a, at_b),
                     predicate: source.predicate.unwrap_or("carrier_pair_relation"),
                     source,
                 }

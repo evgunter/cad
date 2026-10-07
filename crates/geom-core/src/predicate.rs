@@ -1823,10 +1823,31 @@ impl Indeterminate {
     }
 }
 
+impl<'a> IndeterminateUnder<'a> {
+    /// What this sentence says after its payload ([`Indeterminate::payload`]):
+    /// the reading's advice and its ending, for a sentence that says the
+    /// payload in a place of its own.
+    #[must_use]
+    pub fn tail(self) -> UnderTail<'a> {
+        UnderTail(self)
+    }
+}
+
+/// What an [`IndeterminateUnder`] says after its payload
+/// ([`IndeterminateUnder::tail`]).
+#[derive(Debug, Clone, Copy)]
+pub struct UnderTail<'a>(IndeterminateUnder<'a>);
+
 impl fmt::Display for IndeterminateUnder<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let levers = self.recourse;
-        write!(f, "{}", self.diag.payload())?;
+        write!(f, "{}{}", self.diag.payload(), self.tail())
+    }
+}
+
+impl fmt::Display for UnderTail<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let UnderTail(under) = self;
+        let levers = under.recourse;
         // Each reading's own first lever joins the door's, so everything
         // the reader can act on sits under the one `Recourse:` label
         // the ending carries: an undecided enclosure can be subdivided,
@@ -1835,40 +1856,40 @@ impl fmt::Display for IndeterminateUnder<'_> {
         // sign, a decided nonzero sign is sign-certain, and a zero on
         // the side a gate rejects stays there at every smaller
         // tolerance, so no tolerance arm rides with either (D4 ¶1 (i)).
-        let margin = self.diag.margin;
-        let band = self.diag.band;
+        let margin = under.diag.margin;
+        let band = under.diag.band;
         match (margin.placement(band), margin.kind()) {
             (Placement::Past, _) => write!(
                 f,
                 " — a decided sign this decision cannot use; {}",
-                self.diag.ending(levers)
+                under.diag.ending(levers)
             ),
             (Placement::ZeroBand, _)
                 if margin.tag().is_some()
-                    && margin.tightens_below(band, self.diag.passes()).is_none() =>
+                    && margin.tightens_below(band, under.diag.passes()).is_none() =>
             {
                 write!(
                     f,
                     " — a decided zero no smaller tolerance moves onto a side this decision \
                      passes; {}",
-                    self.diag.ending(levers)
+                    under.diag.ending(levers)
                 )
             }
             (Placement::ZeroBand | Placement::Undecided, MarginKind::Value)
             | (Placement::ZeroBand, _) => {
-                write!(f, " — a near-coincidence; {}", self.diag.ending(levers))
+                write!(f, " — a near-coincidence; {}", under.diag.ending(levers))
             }
             (Placement::Undecided, _) => write!(
                 f,
                 " — {}",
-                self.diag.ending(&format!(
+                under.diag.ending(&format!(
                     "subdivide the parameter box for a tighter enclosure, or {levers}"
                 ))
             ),
             (Placement::Invalid, _) => write!(
                 f,
                 " — {}",
-                self.diag.ending(&format!(
+                under.diag.ending(&format!(
                     "check the operation's inputs upstream, then {levers}"
                 ))
             ),

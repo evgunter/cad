@@ -481,7 +481,7 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates`.
   The orchestrator reproduced it on main alone. It is JOIN's
   (`bool_join_nearest` in `join::nearer`), filed by the 3953 lane as
-  `work/join/a-pinch-face-tessellation-witness-refuses-bool-join-nearest-at-eps-1e-6.md`.
+  `work/join/pinch-tessellate-row-escalates-at-eps-1e-6.md` (the 3953 lane's duplicate file was folded into it).
   PR 3953 is held on it rather than merged on red. PR 3955 landed
   first.
 
@@ -505,3 +505,100 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   fallback; lane 2 covers correctness, readers, mutants and timing.
 - PR 3953 and PR 4108 are still held on JOIN's eps-1e-6 red on main
   (`work/join/pinch-tessellate-row-escalates-at-eps-1e-6.md`, open P0).
+
+- 2026-10-06 — The 4140 dual review is in, with no BLOCKER.
+  - **Lane 1:** three MAJORs. `held_by_ends` was a door-time search,
+    contrary to the merge-stage clause. The REST-lane join had no
+    witness. The curved arm was filed as a fork, but it is not one:
+    PR 3881's ratified body decides it.
+  - **Lane 2:** MINORs only. Its census golden accounting showed no
+    contact lost.
+  - **Fix pass (2809d22f9):** the join writes the chord rows itself
+    from `Locus::OnEdge`, so `held_by_ends` is gone and no Ev
+    question was needed. It adds witnesses for every stage path and
+    lineage arm, makes `record()` exhaustive, re-blesses perf12 and
+    merges main. A focused re-check of the new carriage is running.
+- 2026-10-06 — PR 4161 (step 4, merged-set edge names) is open on
+  `fuse/set-names`, based on 4140's branch. The FULL review found
+  no BLOCKER, and every order-freedom probe held.
+  - **README:** its N3-parity claim overreached. Ruled as wording, not
+    a fork: the readings of the 3881 naming bullet are listed in the
+    PR body.
+  - **Fix pass (660c1c9b):** accepted. It merges 4140's head next.
+- 2026-10-06 — Main has a second PR-CI red: demo-tour's Klein pin
+  (`klein.rs:876`). The 3953 lane bisected it to PR 3774 (PATHS 5b),
+  and it is filed on PATHS as
+  `a-klein-wall-radius-pin-fires-on-main-since-paths-5b` (P0). PR 3953
+  and PR 4108 stay held on both main reds.
+- 2026-10-06 — Both main reds are fixed on main. JOIN's 1e-6 row was
+  folded and closed in PR 4083 (cleave/ray-walk), and the Klein
+  tripwire was retired in 65b1b0a8 (SHELL, PR 4168). The PATHS row the
+  orchestrator filed is closed against that commit. PR 3953 and
+  PR 4108 are told to merge main and land when green.
+- 2026-10-06 — PR 4108 lands (one home for where a shell stands,
+  `stands.rs`), green after main's reds were fixed. The row closes.
+  RESTFRONT's `check-ten-falls-silent-on-a-shell-whose-every-vertex-touches-another`
+  is answered by it, so its owner may close it (noted on RESTFRONT's
+  log).
+  The 4108 lane's merge of main resolved PR 4083's ray-walk tally into
+  `stands.rs` by hand: a `Blocked` witness arm, ranked evidence, and
+  check 10 inheriting "the next witness decides". It is green at
+  7330 tests. Two P3 rows were filed from its report: the zero-outer
+  `OperandOuterShells` arm may be unreachable, and the two-void
+  `shell` row runs about 6% slower at 4 threads.
+- 2026-10-06 — PR 3953 lands (two dangling null edges with one
+  segment). Every one-arc lens case builds in every op and passes 3′.
+  The P0 row closes.
+- 2026-10-06 — Dispatched `sweeps-build-one-rim-edge-per-segment-not-per-run`
+  (P1) on `fuse/sweep-runs`. It is the extrude half and partial
+  revolve's direct construction; the lane stops on anything that needs
+  a curved-join key.
+- 2026-10-06 — `curved-joinable-vertices-are-left-unjoined` is put to
+  a designer pair (blinding byte on
+  `analysis/design-fork/fuse-curved-join-key-2026-10-06`). PR 3881's
+  ruling says curved edges join where the carrier is structurally one,
+  "keyed by the surfaces and the intersection branch". The ratified
+  `EdgeDescription::Intersection` selects its branch by a witness
+  point, so the key the ruling names does not exist yet. Giving it one
+  would change ratified text, so the orchestrator treats it as a fork,
+  not a unit.
+- 2026-10-06 — The curved-join key is put to Ev as PR 4198 (`[ev]`,
+  fork-log row 78, `needs_ev: true` on
+  `curved-joinable-vertices-are-left-unjoined`). After three rounds the
+  designers converged on these points:
+  - the shared vertex decides the branch, with no new key;
+  - poles and apexes are never joinable (they are most of the counted
+    population);
+  - a joined closed edge keeps a canonical vertex at the curved face's
+    chart cut;
+  - the maximal-edges clause is restored to Ev's approved "structural
+    carrier". Its D10 rewording (adca520953, inside PR 4002) had no
+    sign-off.
+  Left to Ev: the same-kind tie-break's flavour.
+- 2026-10-06 — Steps 2 and 4 of the PR 3881 build land on main
+  together. PR 4161 (merged-set edge names) merged into
+  `fuse/join-every-stage`, then PR 4140 landed.
+  - **What landed:** every boolean output has maximal edges for the
+    planar inventory, and contact records carry through the join by
+    substitution, written by the op. A joined union edge is named for
+    its member set, order-free.
+  - **CI:** green on every check at 9ecc703f8, after two merges of
+    main. One re-pin: main's new `name_words_corpus` stats shrink,
+    because rim pieces retire.
+  - **Reviews:** a dual review plus a focused re-check of the carriage
+    rows on 4140; a FULL review on 4161.
+  - **Unit row:** stays open for the P1 rows (b) sweeps and (c)
+    curved joins, then step 3.
+- 2026-10-07 — Ev ruled on PR 4198 (merged).
+  - **Accepted as written:** the vertex decides the branch; poles and
+    apexes are never joinable; the clause is restored to "structural
+    carrier".
+  - **Replaced:** the designers' canonical cut. A closed joined edge's
+    one vertex is conventional, like a seam, with no identity of its
+    own. Uniqueness holds up to its position, and PR 3881's C12.5
+    sentence retires.
+  - **Designers' round 4:** both found the rule sound and added the
+    structural definition and the edge-interior reading at that point.
+  - Fork-log row 78 is complete.
+  - `curved-joinable-vertices-are-left-unjoined` is dispatched on
+    `fuse/curved-join`.

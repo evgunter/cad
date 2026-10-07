@@ -408,6 +408,26 @@ fn digest() -> String {
 /// `num` 662 → 652, `decisions` 700 → 716) and the early walk freezes
 /// 46 fewer nodes (`frozen` 719 → 673 at 1e-9). Every verdict, pad and
 /// f64 row is unchanged.
+///
+/// **Re-cut at all three ε when `skin::segment_curve` began building an
+/// arc's NURBS from the evaluation's own points and the spoke
+/// `a − centre`** (PATHS 5b) instead of the stored radius and an
+/// endpoint `atan2`. Only the two arc lofts move: `arc_loft_1e9eps`'s
+/// `v`, `a`, `vpad` and `apad` in their last bits (its volume by 4, 5
+/// and 7 ulps at ε = 1e-6 / 1e-9 / 1e-12), and the `frozen` column of
+/// the two `validate_geometric` rows — `sym_arc_loft` 654 → 607 /
+/// 568 → 539 / 638 → 606 and `sym_thin_strip` 708 → 704 / 673 → 674 /
+/// 706 → 699. Decisions, discharges, shapes, refusals and every verdict
+/// hash are unchanged.
+///
+/// **Re-cut at all three ε when the loop's chart-space angle
+/// comparisons and check 5 retired** (PCERT's chart-angle unit,
+/// `topo::pcurves`' `decide_joint`). Only the two `validate_geometric`
+/// rows move, the same at every ε: each body takes 64 fewer decisions at
+/// tier 3, because those decisions no longer exist (`sym_arc_loft`
+/// 708 → 644, `sz` 56 → 48, `num` 652 → 596; `sym_thin_strip`
+/// 716 → 652, `sz` 64 → 48, `num` 652 → 604). Every verdict, pad,
+/// `frozen` count and f64 row is unchanged.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

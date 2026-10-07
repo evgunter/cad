@@ -232,14 +232,16 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         topo::validate::validate_geometric(body, Tol::witness()),
         Ok(())
     );
-    let merged_rows = ev
-        .value(u)
-        .unwrap()
-        .name_table
-        .iter()
-        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
-        .count();
-    assert_eq!(merged_rows, 4, "caps + flush y-walls glue");
+    let merged = |kind| {
+        ev.value(u)
+            .unwrap()
+            .name_table
+            .iter()
+            .filter(|(n, _)| n.kind == kind && matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+            .count()
+    };
+    assert_eq!(merged(EntityKind::Face), 4, "caps + flush y-walls glue");
+    assert_eq!(merged(EntityKind::Edge), 4, "the rims between them join");
 
     // Decoupled variant (no coincident planes): untouched — nothing
     // to declare, transversal union works as before.
@@ -391,7 +393,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     let ev = run(&doc);
     match ev.nodes.get(&u) {
         Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::DeclareResolve { error } => match error.as_ref() {
+            NodeErrorKind::DeclareResolve { error, .. } => match error.as_ref() {
                 editor_core::resolve::ResolveError::Vanished {
                     name,
                     diagnosis,
@@ -491,31 +493,24 @@ fn declared_l_corner_caps_merge_at_the_recipe_door_tier3_green() {
         topo::validate_pseudomanifold(body, contacts, Tol::witness()),
         Ok(())
     );
-    // Review F6: this shape is the corpus's PURE-seam-vertex pin —
-    // the merged caps keep, on their boundary, the vertices where the
-    // two blocks' walls cross, each named from ONE seam line (single
-    // Seam-headed path, no junction composition); the bent seam's
+    // Review F6: the merged caps keep, on their boundary, the vertices
+    // where the two blocks' walls cross, each named as the one crossing
+    // of two wall edges (no junction composition); the bent seam's
     // corner, the one vertex the merge deletes, is not among them.
     // Assert they exist.
-    let pure_seam_vertices = ev
+    let wall_crossings = ev
         .value(u)
         .unwrap()
         .name_table
         .iter()
         .filter(|(n, _)| {
             n.kind == EntityKind::Vertex
-                && matches!(n.path.first(), Some(RoleSeg::Seam { .. }))
-                && n.path
-                    .iter()
-                    .filter(|seg| matches!(seg, RoleSeg::Seam { .. }))
-                    .count()
-                    == 1
+                && matches!(n.path.as_slice(), [RoleSeg::EdgeCrossing { .. }])
         })
         .count();
     assert!(
-        pure_seam_vertices >= 2,
-        "expected the pure-seam-vertex naming arm to fire (single-line \
-         seam vertices), got {pure_seam_vertices}"
+        wall_crossings >= 2,
+        "expected the wall edges' crossings to be named, got {wall_crossings}"
     );
 }
 
@@ -642,7 +637,7 @@ fn declare_doors_node_gone_and_ambiguous() {
     let ev = run(&doc);
     match ev.nodes.get(&u2) {
         Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::DeclareResolve { error } => match error.as_ref() {
+            NodeErrorKind::DeclareResolve { error, .. } => match error.as_ref() {
                 editor_core::resolve::ResolveError::Ambiguous {
                     name,
                     candidates,
@@ -940,7 +935,7 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
         use editor_core::resolve::ResolveError;
         match ev.nodes.get(&node) {
             Some(NodeResult::Failed(e)) => match &e.kind {
-                NodeErrorKind::DeclareResolve { error } => match &**error {
+                NodeErrorKind::DeclareResolve { error, .. } => match &**error {
                     ResolveError::NodeGone { .. } => "node_gone",
                     ResolveError::Vanished { .. } => "vanished",
                     ResolveError::Ambiguous { .. } => "ambiguous",

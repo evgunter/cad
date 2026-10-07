@@ -50,14 +50,14 @@ page is mostly about.
 | `vase` | full revolve, axis-touching profile: sphere-zone belly + cone lip |
 | `sheave` | rope-groove sheave — full revolve of a polyline+arc profile: hub, web, **tapered (cone) rim shoulders**, semicircular groove whose OFF-axis arc sweeps a **ring-torus zone**; all four analytic wall kinds (plane/cylinder/cone/torus) on one part; genus 1; volume checked against the closed-form Pappus value |
 | `chute` | quarter-turn chute — a C-channel profile swept through a **270° partial revolve**; wedge caps showing the profile, curved trough; Pappus-exact volume |
-| `rocker` | **the fillet construction, in 2-D and in 3-D**: a rocker plate whose six profile corners are all authored through the PATHS fillet doors, covering arc×line, line×line, line×arc and — at the eye slot's rounded tip — **arc×arc**, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); then a **keyhole** through the arm whose two convex disc/slot creases are rounded on the SOLID by `fillet_edges` at r = 1/4, selected as lines between a cylinder and a plane on the keyhole's struts, the volume moving by exactly the closed-form `−2·A(r)·depth`; larger radii the keyhole would take are pinned as live walls (`RadiusHeadroom` at the outline's 1/2; `RingClearance` from the derived onset r* = 0.3097, pinned at ±1 %); genus 2 |
+| `rocker` | **the fillet construction, in 2-D and in 3-D**: a rocker plate whose six profile corners are all authored through the PATHS fillet doors, covering arc×line, line×line, line×arc and — at the eye slot's rounded tip — **arc×arc**, where two tangent circles of the authored radius fit and the S8 rule **picks the one nearest the authored corner** (asserted, and narrated with both centres); then a **keyhole** through the arm whose two convex disc/slot creases are rounded on the SOLID by `fillet_edges` at r = 1/4, selected as lines between a cylinder and a plane on the keyhole's struts, the volume moving by exactly the closed-form `−2·A(r)·depth`; larger radii carve at their closed forms up to 0.49, and the outline's 1/2 is pinned as a live wall (`RadiusHeadroom`); genus 2 |
 | `diefillet` | the die blank: `Node::Fillet(cube, all edges, r = 0.12)` — the battery first, then plane–plane cylinder blends with sphere-octant corner patches |
 | `diepips` | the die's pips as ONE group cut — `cube ∖ (21 disjoint balls)`, S13's closed-group extent arm, each ball charted with its pole along the face it is cut by |
 | `diecomposed` | **the composed die**: the filleted blank, the 21 pips and the filleted pip rims in one body — `cube ∖ pips`, then `Node::Fillet` twice IN PLACE, selected by `select_where(CurveKind = Line)` for the twelve box edges and by `select_where(AdjacentKinds = {Plane} × {Sphere})` for all 21 rims as closed rings |
 | `diechamferblank` | the same blank one verb over: `chamfer_edges(cube, all twelve edges, d = 0.12)` — the fillet's battery minus the two rolling-ball predicates, then a ruled strip where the cylinder would go |
 | `diechamfer` | **the chamfered die** — `diecomposed`'s recipe with its twelve box edges BROKEN rather than rolled, at the setback the fillet used as its radius, so the two montage panels differ in the verb and in nothing else |
 | `budfillet` | the *Calochortus* bud as a bored solid of revolution, with three arms of the coaxial curved-support family rolled in ONE `fillet_edges` call: sphere×cone at the mouth, cone×plane at the lip, cylinder×plane at the bore's base. Off the sheet on its own stated grounds — at montage scale the fillets barely move the silhouette, so the evidence is numbers a picture cannot fake |
-| `tiltedcut` | a cylinder with **CUT engraved in its cap** — three glyphs of lines and arcs, each extruded and subtracted as a blind pocket whose volume is its **closed-form area × depth** — then cut by a tilted plane: the section edges carry an **exact `Curve3::Ellipse`** (a = r/cos φ, b = r), the cut walls tessellate **watertight** through the pcurve-driven trimmed lane, and each half's volume is a **certified quadrature enclosure** asserted to bracket πr²H/2 (less the pockets above). Four live wall probes: the lettering on the elliptical section face, on a cap after the cut, and a C with one arc per side all refuse |
+| `tiltedcut` | a cylinder with **CUT engraved in its cap** — three glyphs of lines and arcs, each extruded and subtracted as a blind pocket whose volume is its **closed-form area × depth** — then cut by a tilted plane: the section edges carry an **exact `Curve3::Ellipse`** (a = r/cos φ, b = r), the cut walls tessellate **watertight** through the pcurve-driven trimmed lane, and each half's volume is a **certified quadrature enclosure** asserted to bracket πr²H/2 (less the pockets above). The lettering where it is wanted is built live and held to the same area × depth oracle: a C and a U on the two halves' elliptical section faces, and a C in a half's cap after the cut. The scene itself still engraves the whole cylinder before cutting |
 | `bossplate` | a three-arc cylindrical boss unioned into a plate — the seam is three exact `Circle` arcs, V = 16 + π·0.25·0.6 on the nose, and the shared-chord assertion pins that the curved wall and the ringed top face consume ONE chord set per seam edge, the claim no other scene makes |
 | `snowman` | **two coaxial balls of revolution under every boolean, and the union's waist rolled**: a 0.3 ball below and a 0.2 head above, centres 0.4 apart, each one `revolve` of a semicircle sketched in one plane. Four bodies in one cell under one camera: the union with its waist `fillet_edges`-rolled at r = 0.05 into an exact TORUS band (`BlendArm::SphereSphereTorus` — the ball rides at R + r from both centres, so the spine is a level circle), the plain union beside it, the bottom ball with the head subtracted (a spherical bite), and the lens they share. Every volume meets a closed form to a relative 1e-12 (the radii are a person's, so none is bit-exact): the two caps the radical plane cuts, and for the rolled union the band's ΔV by Pappus on its meridian section, `π∮ρ²dy` over three arcs. The waist is selected BY DESCRIPTION, and the description is ambiguous: `(Sphere, Sphere)` names the waist arcs and every seam meridian of both balls, and with no crease or convexity atom (GS-Q2) the scene separates them through `rim_of`'s `CoSurface` refusal — filed as `tquery/adjacent-kinds-cannot-tell-a-crease-from-a-co-surface-seam`. Coaxial is what a snowman is and what the scene draws; its tests pin the poses beside it under every op — a head moved 0.05 off the axis along x (in the seam plane) builds at its closed form through the Gauss–Bonnet sphere arm, one spun 0.9 rad about the axis builds at the coaxial closed form, and one moved 0.05 along z — its tilted section a pierce ring through both balls' faces — builds at the two-ball lens; every chord in them takes the arc its paired germs leave along |
 | `tube_along_arc` | **the tube door, with its intent parameters STORED rather than reconstructed**: a ring-torus tube built from spine centre / axis / reference direction / major radius / angular window / minor radius. A `revolve` reaches the same walls but RECONSTRUCTS the tube radius from the profile's bulge arcs; this door keeps what it was given, and the scene asserts `minor_radius.to_bits()` against the authored value on **both** half-tube walls. Deliberately a WINDOWED tube, not the full donut, so all three parameters are visible — the ring's radius, the pipe's radius, and the window as the gap its two planar wedge caps close. No semantic fork: census, sense derivation, the `R > r > 0` convention and the pcurve mint are the revolve's own code; volume by Pappus π·r²·R·(t₁ − t₀) |
@@ -879,25 +879,22 @@ the draws moved.
   each joint's measured lateral range dimensioned on it; the tip panel
   is 48 px/mm on the target pin and the asserted 1 mm position band.
 * **The certified half is on the sheet, unlike the plate's.** The
-  widest box that certifies this chain whole is `6.751e-8` of the study
-  since the extrude closes with the pcurve mint (PCERT): the placed
-  rows' angular comparisons are the wall. Before the mint it was
-  `0.111`, a millimetre-scale enclosure per joint, and the follow-on
-  `work/pcert/pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`
-  restores that. In teal beside each joint's cloud, it grows `1 : 3 : 6 : 10`
+  widest box that certifies this chain whole is `0.111` of the study, a
+  millimetre-scale enclosure per joint, bounded by the wedge's
+  transversality margin (`chaintol`'s header, "What sets the wall"). In
+  teal beside each joint's cloud, it grows `1 : 3 : 6 : 10`
   across the chain (the worst-case lever sum, every joint at its own
   extreme at once) while the advisory σ grows `1 : 2.24 : 3.74 : 5.48`
   (the quadrature sum). E11's trade, in one picture. Each side of a box
-  under 5 px is drawn at a 5 px floor about its pin (at `6.751e-8`
-  that is both sides, a sub-picometre box); the legend says which
+  under 5 px is drawn at a 5 px floor about its pin (along the chain the
+  enclosure is microns, so that side is floored); the legend says which
   sides are floored, the table prints the true half-widths, and the
   "times the certified box" ratio is `1 / CERTIFIABLE_FRACTION`.
   `check_certified` reads all of it back out of the sheet.
-* **The teal is drawn only at the ε it was measured at.** `6.751e-8` is a
-  default-ε measurement and the box MOVES with ε (`6.747e-5` at `1e-6`,
-  measured: the wall is an enclosure escalating against the band; before
-  the mint it was `0.111` against `0.1083`, for the reason `chaintol`'s
-  header, "What sets the wall", gives), so at
+* **The teal is drawn only at the ε it was measured at.** `0.111` is a
+  default-ε measurement and the box MOVES with ε (`0.1083` at `1e-6`,
+  measured, for the reason `chaintol`'s header, "What sets the wall",
+  gives), so at
   another ε it is a different box, and `chaintol` (`demo-tour certified`)
   declares that frontier at the same ε. The sheet asks the run's ε and, away from the default, prints
   the frontier where the legend would have gone and draws no band. A

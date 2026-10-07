@@ -9,8 +9,8 @@ use editor_core::ExtrudeSide;
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, LoopProgram,
     MeridianEnd, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SitedRef, SplitHalf, band,
-    band_rim, evaluate, meridian_vertex,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, Sense, SitedRef, SplitHalf,
+    band, band_rim, band_rim_pi, evaluate, meridian_vertex,
 };
 use fixture::{ang, axis_in_plane, insert, len, len2, minted, on_frame_keeping, table};
 use geom_core::Tol;
@@ -264,22 +264,8 @@ fn partial_revolve_offset_names_bands_rims_caps_meridians() {
         );
     }
     for s in 0..4 {
-        assert!(
-            t.lookup(&minted(
-                EntityKind::Face,
-                rev,
-                RoleSeg::Band(pe(&doc, rev, 0, s).into())
-            ))
-            .is_some()
-        );
-        assert!(
-            t.lookup(&minted(
-                EntityKind::Edge,
-                rev,
-                RoleSeg::BandRim(pv(&doc, rev, 0, s))
-            ))
-            .is_some()
-        );
+        assert!(t.lookup(&band(rev, pe(&doc, rev, 0, s))).is_some());
+        assert!(t.lookup(&band_rim(rev, pv(&doc, rev, 0, s))).is_some());
         for m in [MeridianEnd::Start, MeridianEnd::End] {
             assert!(
                 t.lookup(&minted(
@@ -290,12 +276,8 @@ fn partial_revolve_offset_names_bands_rims_caps_meridians() {
                 .is_some()
             );
             assert!(
-                t.lookup(&minted(
-                    EntityKind::Vertex,
-                    rev,
-                    RoleSeg::MeridianVertex(m, pv(&doc, rev, 0, s))
-                ))
-                .is_some()
+                t.lookup(&meridian_vertex(m, rev, pv(&doc, rev, 0, s)))
+                    .is_some()
             );
         }
     }
@@ -333,12 +315,8 @@ fn partial_revolve_on_axis_names_axis_edge_and_poles() {
     for v in [1, 2] {
         for m in [MeridianEnd::Start, MeridianEnd::End] {
             assert!(
-                t.lookup(&minted(
-                    EntityKind::Vertex,
-                    rev,
-                    RoleSeg::MeridianVertex(m, pv(&doc, rev, 0, v))
-                ))
-                .is_some()
+                t.lookup(&meridian_vertex(m, rev, pv(&doc, rev, 0, v)))
+                    .is_some()
             );
         }
     }
@@ -352,41 +330,65 @@ fn full_lamina_revolve_names_seam_chain_and_full_rims() {
     );
     let ev = run(&doc);
     let t = table(&ev, rev);
-    // Square torus: 1 body + 4 bands + (4 rims + 4 seam meridians) +
-    // 4 meridian vertices.
-    assert_eq!(t.len(), 17);
+    // Square torus: 1 body + 4 bands + (4 rims + 2 seam meridians, the
+    // cylinders'; a plane annulus has none) + 4 meridian vertices.
+    assert_eq!(t.len(), 15);
     for s in 0..4 {
-        assert!(
-            t.lookup(&minted(
-                EntityKind::Face,
-                rev,
-                RoleSeg::Band(pe(&doc, rev, 0, s).into())
-            ))
-            .is_some()
-        );
-        assert!(
-            t.lookup(&minted(
-                EntityKind::Edge,
-                rev,
-                RoleSeg::BandRim(pv(&doc, rev, 0, s))
-            ))
-            .is_some()
-        );
-        assert!(
+        assert!(t.lookup(&band(rev, pe(&doc, rev, 0, s))).is_some());
+        assert!(t.lookup(&band_rim(rev, pv(&doc, rev, 0, s))).is_some());
+        // Sides 0 and 2 sweep the plane annuli, 1 and 3 the cylinders.
+        assert_eq!(
             t.lookup(&minted(
                 EntityKind::Edge,
                 rev,
                 RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 0, s).into())
             ))
-            .is_some()
+            .is_some(),
+            s % 2 == 1,
+            "side {s}: a seam meridian on a cylinder only"
         );
         assert!(
-            t.lookup(&minted(
-                EntityKind::Vertex,
+            t.lookup(&meridian_vertex(
+                MeridianEnd::Seam,
                 rev,
-                RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(&doc, rev, 0, s))
+                pv(&doc, rev, 0, s)
             ))
             .is_some()
+        );
+    }
+}
+
+/// The flange's three plane annuli — the bottom, the step and the top —
+/// carry no `Meridian(Seam, ·)`; its three cylinders do, the step
+/// annulus's ring (the hub rim) included. 1 body + 6 bands + 6 rims +
+/// 3 seam meridians + 6 meridian vertices = 22.
+#[test]
+fn full_flange_revolve_names_a_seam_meridian_on_its_cylinders_only() {
+    let (doc, rev) = revolve_doc(
+        vec![
+            (1.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 0.5),
+            (2.0, 0.5),
+            (2.0, 2.0),
+            (1.0, 2.0),
+        ],
+        std::f64::consts::TAU,
+    );
+    let ev = run(&doc);
+    let t = table(&ev, rev);
+    assert_eq!(t.len(), 22);
+    for s in 0..6 {
+        // Even sides sweep the plane annuli, odd ones the cylinders.
+        assert_eq!(
+            t.lookup(&minted(
+                EntityKind::Edge,
+                rev,
+                RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 0, s).into())
+            ))
+            .is_some(),
+            s % 2 == 1,
+            "side {s}: a seam meridian on a cylinder only"
         );
     }
 }
@@ -395,8 +397,8 @@ fn full_lamina_revolve_names_seam_chain_and_full_rims() {
 fn full_holed_revolve_names_the_cavity_loop() {
     // VERBS-RING: a holed profile fully revolved — the hollow ring.
     // The hole's cavity shell names exactly like a second lamina
-    // loop: bands, full rims, seam meridians, meridian vertices, all
-    // under loop index 1.
+    // loop: bands, full rims, its cylinders' seam meridians, meridian
+    // vertices, all under loop index 1.
     let doc = ProfileDoc::empty_derived("m4_pr3_names", Tol::witness());
     let (doc, plane, p) = on_frame_keeping(
         doc,
@@ -425,21 +427,24 @@ fn full_holed_revolve_names_the_cavity_loop() {
     );
     let ev = run(&doc);
     let t = table(&ev, rev);
-    // Two square-torus shells: 1 body + 2·(4 bands + 4 rims + 4 seam
+    // Two square-torus shells: 1 body + 2·(4 bands + 4 rims + 2 seam
     // meridians + 4 meridian vertices).
-    assert_eq!(t.len(), 33);
+    assert_eq!(t.len(), 29);
     for l in 0..2 {
         for s in 0..4 {
             assert!(t.lookup(&band(rev, pe(&doc, rev, l, s))).is_some());
             assert!(t.lookup(&band_rim(rev, pv(&doc, rev, l, s))).is_some());
-            assert!(
+            // A seam meridian on a cylinder only; the loop's sides
+            // alternate between cylinders and plane annuli.
+            let has = |s: u32| {
                 t.lookup(&minted(
                     EntityKind::Edge,
                     rev,
-                    RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, l, s).into())
+                    RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, l, s).into()),
                 ))
                 .is_some()
-            );
+            };
+            assert_ne!(has(s), has((s + 1) % 4), "loop {l} side {s}");
             assert!(
                 t.lookup(&meridian_vertex(
                     MeridianEnd::Seam,
@@ -472,11 +477,38 @@ fn full_wire_revolve_names_pi_band_and_poles() {
             .any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Meridian(MeridianEnd::Pi, _)))),
         "no Meridian(Pi) role minted"
     );
-    assert!(
-        t.iter()
-            .any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandRimPi(_)))),
-        "no BandRimPi role minted"
+    // Each off-axis rim is two half-arcs between the seam vertices, and
+    // the builder spells the second exactly as emission minted it.
+    let mut rims_pi: Vec<_> = t
+        .iter()
+        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandRimPi(_))))
+        .map(|(n, _)| n.clone())
+        .collect();
+    rims_pi.sort();
+    let mut built = vec![
+        band_rim_pi(rev, pv(&doc, rev, 0, 1)),
+        band_rim_pi(rev, pv(&doc, rev, 0, 2)),
+    ];
+    built.sort();
+    assert_eq!(
+        rims_pi, built,
+        "the BandRimPi arcs are the two rims' builders"
     );
+    for v in [1, 2] {
+        let whole = [
+            band_rim(rev, pv(&doc, rev, 0, v)),
+            band_rim_pi(rev, pv(&doc, rev, 0, v)),
+        ];
+        assert!(
+            whole.iter().all(|n| t.lookup(n).is_some()),
+            "rim {v} resolves at both halves"
+        );
+        assert_ne!(
+            t.lookup(&whole[0]),
+            t.lookup(&whole[1]),
+            "rim {v}'s halves are two edges"
+        );
+    }
     // No poles: both on-axis profile vertices are disc centres, and a
     // plane wall is built whole, so neither is a vertex.
     let poles = t
@@ -532,14 +564,7 @@ fn full_revolve_of_an_all_on_axis_loop_names_both_poles() {
         );
     }
     // The on-axis diameter sweeps to nothing: no segment-1 roles.
-    assert!(
-        t.lookup(&minted(
-            EntityKind::Face,
-            rev,
-            RoleSeg::Band(pe(&doc, rev, 0, 1).into())
-        ))
-        .is_none()
-    );
+    assert!(t.lookup(&band(rev, pe(&doc, rev, 0, 1))).is_none());
 }
 
 /// M9-D1: the same all-on-axis meridian, partially revolved — the
@@ -573,14 +598,7 @@ fn partial_revolve_of_an_all_on_axis_loop_names_both_poles() {
         .is_some(),
         "the on-axis diameter is the caps' shared axis edge"
     );
-    assert!(
-        t.lookup(&minted(
-            EntityKind::Face,
-            rev,
-            RoleSeg::Band(pe(&doc, rev, 0, 0).into())
-        ))
-        .is_some()
-    );
+    assert!(t.lookup(&band(rev, pe(&doc, rev, 0, 0))).is_some());
 }
 
 // ---- Split: sections, fragments, crossings, pass-through. ----
@@ -691,13 +709,20 @@ fn split_names_sections_fragments_and_crossings() {
                 .is_some(),
                 "missing strut fragment side={side:?} v={s}"
             );
+            // The strut runs up from the start cap, so it enters the
+            // half above the plane and leaves the half below it.
+            let sense = match side {
+                SplitHalf::Above => Sense::Enters,
+                SplitHalf::Below => Sense::Leaves,
+            };
             assert!(
                 t.lookup(&minted(
                     EntityKind::Vertex,
                     split,
                     RoleSeg::CrossingVertex {
                         side,
-                        edge: strut.into()
+                        edge: strut.into(),
+                        sense,
                     }
                 ))
                 .is_some(),

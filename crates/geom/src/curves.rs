@@ -190,8 +190,9 @@ pub enum Curve3<T: Real> {
     /// Conventions (D2: carried as data, unchecked by the evaluators,
     /// decided at the mint):
     /// - `axis`, `u_ref` unit and orthogonal; `R > r > 0` (the ring
-    ///   torus) and `|offset| < R − r` (the TWO-oval regime, where
-    ///   `ρ² − offset² > 0` for every `v`). Off-regime data yields a
+    ///   torus), `0 < |offset| < R − r` (the TWO-oval regime, where
+    ///   `ρ² − offset² > 0` for every `v`; at `offset = 0` each oval is
+    ///   a meridian circle, and the carrier is that `Circle`). Off-regime data yields a
     ///   negative radicand, which is poison by [`Real::sqrt`]'s
     ///   totality policy — never a panic.
     /// - `v = 0` is the seam at the outer-equator point `ρ = R + r`;
@@ -327,8 +328,10 @@ impl CurveKind {
 pub enum EllipseInvalid {
     /// The semi-axes coincide (|major − minor| ≤ ε): this configuration
     /// is a `Circle`, and D3's one-kind-per-configuration discipline
-    /// refuses to mint it as a degenerate `Ellipse`.
-    CircularAxes,
+    /// refuses to mint it as a degenerate `Ellipse`. It carries the
+    /// funnel's rejection of the decided zero, so a caller that meant
+    /// the axes to differ can escalate with the margin it was refused on.
+    CircularAxes(Indeterminate),
     /// `major` is definitely smaller than `minor`: the caller swapped
     /// the axes (the frame convention is major-first; swap `u_ref` to
     /// the true major direction and reorder).
@@ -362,7 +365,7 @@ impl EllipseInvalid {
 impl core::fmt::Display for EllipseInvalid {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::CircularAxes => write!(
+            Self::CircularAxes(_) => write!(
                 f,
                 "ellipse construction: the semi-axes coincide — this configuration is a \
                  Circle, one kind per configuration (D3); construct the Circle carrier, or {}",
@@ -403,6 +406,10 @@ pub enum SpiricInvalid {
     /// `R ≤ r`: not a ring torus (a horn or spindle torus, whose
     /// axis-parallel sections are not two ovals).
     NotARing,
+    /// `offset = 0`: the cutting plane contains the axis, so each oval
+    /// is a meridian circle of the torus — a [`Curve3::Circle`], the
+    /// more exact kind (C1).
+    ThroughAxis,
     /// `|offset| ≥ R − r`: the cutting plane reaches the inner
     /// equator, so the section is a node, one oval with folds, or
     /// empty — not the two-oval regime this kind carries.
@@ -412,7 +419,7 @@ pub enum SpiricInvalid {
     FrameNotOrthogonal,
     /// A constructor predicate landed in the ambiguity band or was
     /// poisoned (`spiric_minor_positive`, `ring_torus_convention`,
-    /// `spiric_two_ovals`, `spiric_frame_orthogonal`).
+    /// `spiric_off_axis`, `spiric_two_ovals`, `spiric_frame_orthogonal`).
     Escalated(Indeterminate),
 }
 
@@ -428,6 +435,11 @@ impl core::fmt::Display for SpiricInvalid {
                 f,
                 "spiric construction: major ≤ minor — not a ring torus, whose axis-parallel \
                  sections are the two ovals this kind carries"
+            ),
+            Self::ThroughAxis => write!(
+                f,
+                "spiric construction: offset = 0 — the cutting plane contains the axis, so \
+                 the section is two meridian circles, which are Circle carriers"
             ),
             Self::NotTwoOvals => write!(
                 f,
@@ -726,11 +738,14 @@ impl<T: Decide> Curve3<T> {
             Ok(Sign::Zero | Sign::Negative) => return Err(EllipseInvalid::MinorNotPositive),
             Err(diag) => return Err(EllipseInvalid::Escalated(diag)),
         }
-        match geom_core::k_stats::decide("ellipse_axes_distinct", Margin::of(major - minor), band) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero) => return Err(EllipseInvalid::CircularAxes),
-            Ok(Sign::Negative) => return Err(EllipseInvalid::AxesSwapped),
-            Err(diag) => return Err(EllipseInvalid::Escalated(diag)),
+        let axes = Margin::of(major - minor);
+        if let Err(diag) = geom_core::k_stats::decide_positive("ellipse_axes_distinct", axes, band)
+        {
+            return Err(match diag.margin.rejected_sign() {
+                Some(Sign::Zero) => EllipseInvalid::CircularAxes(diag),
+                Some(Sign::Negative) => EllipseInvalid::AxesSwapped,
+                Some(Sign::Positive) | None => EllipseInvalid::Escalated(diag),
+            });
         }
         Ok(Curve3::Ellipse {
             center,
@@ -742,15 +757,18 @@ impl<T: Decide> Curve3<T> {
     }
 
     /// The one deciding door into [`Curve3::Spiric`]: refuses a
-    /// non-positive minor radius, a non-ring torus, a stand-off at or
-    /// past the inner equator, and a cutting plane not parallel to the
-    /// axis, each through a named trilean:
+    /// non-positive minor radius, a non-ring torus, a plane through the
+    /// axis, a stand-off at or past the inner equator, and a cutting
+    /// plane not parallel to the axis, each through a named trilean:
     ///
     /// - `spiric_minor_positive` — margin `minor_radius` (m): Positive
     ///   required; else [`SpiricInvalid::MinorNotPositive`].
     /// - `ring_torus_convention` ([`crate::ring_torus`], the convention's
     ///   one home) — margin `major_radius − minor_radius` (m):
     ///   Positive required; else [`SpiricInvalid::NotARing`].
+    /// - `spiric_off_axis` — margin `offset` (m): definitely nonzero
+    ///   required; else [`SpiricInvalid::ThroughAxis`] (one kind per
+    ///   configuration, most exact first: that oval is a `Circle`).
     /// - `spiric_two_ovals` — margin `(major_radius − minor_radius) −
     ///   |offset|` (m), the length the two-oval regime closes by,
     ///   decided BEFORE any root is taken: Positive required; else
@@ -787,6 +805,11 @@ impl<T: Decide> Curve3<T> {
         match crate::ring_torus(major_radius, minor_radius, band).map(|d| d.sign) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::NotARing),
+            Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
+        }
+        match decide("spiric_off_axis", Margin::of(offset), band) {
+            Ok(Sign::Positive | Sign::Negative) => {}
+            Ok(Sign::Zero) => return Err(SpiricInvalid::ThroughAxis),
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
         match decide("spiric_two_ovals", Margin::of(ring - offset.abs()), band) {
@@ -865,6 +888,63 @@ impl<T: Real> Curve3<T> {
                 major_radius,
                 minor_radius,
                 offset: T::zero() - offset,
+            },
+            Curve3::Nurbs(_) => return None,
+        })
+    }
+}
+
+impl<T: Real> Curve3<T> {
+    /// **The same carrier moved by `by`**: every point shifted, every
+    /// size and direction kept. What a deciding door decides is sizes
+    /// and directions alone, so the moved carrier is one the door that
+    /// built this one admits. `None` for a NURBS, whose control points
+    /// a move would rewrite.
+    #[must_use]
+    pub fn translated(&self, by: Vec3<T>) -> Option<Self> {
+        Some(match self.clone() {
+            Curve3::Line { origin, dir } => Curve3::Line {
+                origin: origin + by,
+                dir,
+            },
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => Curve3::Circle {
+                center: center + by,
+                axis,
+                radius,
+                u_ref,
+            },
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => Curve3::Ellipse {
+                center: center + by,
+                axis,
+                major,
+                minor,
+                u_ref,
+            },
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => Curve3::Spiric {
+                center: center + by,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
             },
             Curve3::Nurbs(_) => return None,
         })
@@ -1280,10 +1360,22 @@ impl<T: SpanLocate> Curve3<T> {
     ///   preconditions verbatim. It answers the point's minor angle on
     ///   EITHER oval: which oval the carrier names is the mint's
     ///   decision, not this arithmetic's.
-    /// - **`Ellipse`, `Nurbs`**: `None`. The eccentric anomaly is not
-    ///   the polar angle of the point, and a spline's inversion is
-    ///   Newton on the foot-point condition (`project`) — a different
-    ///   machine with a different refusal, not a branch policy.
+    /// - **`Ellipse`**: the circle arm's anchored difference on the
+    ///   eccentric anomaly θ, which is the polar angle of the point
+    ///   AFTER each frame coordinate is divided by its semi-axis:
+    ///   `x = (w·u_ref)·minor`, `y = (w·v_ref)·major` are
+    ///   `major·minor·(cos θ, sin θ)` on the carrier, and
+    ///   `near + atan2(y·cos near − x·sin near, x·cos near + y·sin near)`
+    ///   is θ on the branch within half a turn of `near`. Scaling both
+    ///   coordinates by `major·minor` rather than dividing keeps a zero
+    ///   semi-axis from entering a quotient; the circle arm's tie and
+    ///   midpoint-anchor preconditions hold verbatim. Off the carrier it
+    ///   answers about the point's scaled polar angle, which is not its
+    ///   foot: the on-carrier precondition below is what makes it the
+    ///   point's parameter.
+    /// - **`Nurbs`**: `None`. A spline's inversion is Newton on the
+    ///   foot-point condition (`project`) — a different machine with a
+    ///   different refusal, not a branch policy.
     ///
     /// **Anchoring at `near` is what removes the branch cut.** `atan2`
     /// returns its principal value in `(−π, π]`, so `near + δ` is by
@@ -1397,7 +1489,20 @@ impl<T: SpanLocate> Curve3<T> {
                 let across = w_rho * (-s) + w_h * c;
                 Some(near + across.atan2(along))
             }
-            Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
+            Curve3::Ellipse {
+                center,
+                axis,
+                major,
+                minor,
+                u_ref,
+            } => {
+                let w = p - *center;
+                let x = w.dot(*u_ref) * *minor;
+                let y = w.dot(axis.cross(*u_ref)) * *major;
+                let (s, c) = near.sin_cos();
+                Some(near + (y * c - x * s).atan2(x * c + y * s))
+            }
+            Curve3::Nurbs(_) => None,
         }
     }
 }
@@ -1415,7 +1520,8 @@ mod tests {
     /// **A reversed carrier is the same locus run back**: its point at
     /// `t` is the original's at `−t`, on every kind it reverses — a
     /// carrier that flipped the wrong vector would meet the original at
-    /// most at isolated parameters.
+    /// most at isolated parameters. A translated one's point at `t` is
+    /// the original's, moved.
     #[test]
     fn a_reversed_carrier_runs_the_same_locus_back() {
         let n = Vec3::new(2.0, 2.0, 1.0) / 3.0;
@@ -1447,9 +1553,13 @@ mod tests {
         ];
         for curve in curves {
             let back = curve.reversed().expect("a closed-form carrier reverses");
+            let by = Vec3::new(-1.25, 0.5, 3.0);
+            let moved = curve.translated(by).expect("a closed-form carrier moves");
             for t in [-2.5, -0.3, 0.0, 0.7, 1.9, 4.0] {
                 let d = (back.eval(t) - curve.eval(-t)).norm();
                 assert!(d < 1e-14, "{curve:?} at {t}: {d}");
+                let d = (moved.eval(t) - (curve.eval(t) + by)).norm();
+                assert!(d < 1e-14, "{curve:?} moved, at {t}: {d}");
             }
         }
     }
@@ -1708,12 +1818,15 @@ mod tests {
         assert!(mk(2.0, 1.0).is_ok());
         // … exactly-degenerate (major = minor, margin 0) refuses as the
         // circular coincidence …
-        assert_eq!(mk(1.0, 1.0).unwrap_err(), EllipseInvalid::CircularAxes);
+        let err = mk(1.0, 1.0).unwrap_err();
+        assert!(matches!(err, EllipseInvalid::CircularAxes(_)), "{err:?}");
         // … a sub-ε separation (dyadic 2⁻³¹ ≈ 4.7e-10, exact under
         // subtraction) still refuses as the coincidence …
-        assert_eq!(
-            mk(1.0 + 2.0f64.powi(-31), 1.0).unwrap_err(),
-            EllipseInvalid::CircularAxes
+        let err = mk(1.0 + 2.0f64.powi(-31), 1.0).unwrap_err();
+        let zero = |d: &Indeterminate| d.margin.rejected_sign() == Some(Sign::Zero);
+        assert!(
+            matches!(err, EllipseInvalid::CircularAxes(ref d) if zero(d)),
+            "{err:?}"
         );
         // … in-band escalates typed …
         let err = mk(1.0 + 5e-9, 1.0).unwrap_err();
@@ -1841,7 +1954,7 @@ mod tests {
         .expect("the elbow's numbers are a ring torus cut short of its inner equator")
     }
 
-    /// **The constructor's four refusals, each on the number that
+    /// **The constructor's five refusals, each on the number that
     /// breaks its predicate**, and the acceptance the fixture relies
     /// on. The ellipse constructor's row shape.
     #[test]
@@ -1860,6 +1973,13 @@ mod tests {
         assert_eq!(
             mk(0.2, 0.225, 0.05, Vec3::unit_x()).err(),
             Some(SpiricInvalid::NotARing)
+        );
+        // A plane through the axis cuts two meridian circles, and a
+        // circle is a `Circle`: the more exact kind, refused here so no
+        // spiric is ever one.
+        assert_eq!(
+            mk(1.2, 0.225, 0.0, Vec3::unit_x()).err(),
+            Some(SpiricInvalid::ThroughAxis)
         );
         // Exactly at the inner equator: the node, refused as the
         // regime boundary it is.

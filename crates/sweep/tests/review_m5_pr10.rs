@@ -300,7 +300,7 @@ fn review_skin_on_refuses_unclamped_params() {
 /// A consumer stands on this executed behaviour: the `demos/tour`
 /// klein bottle's top loop is a half-turn sweep that builds only off
 /// it, and its exact spine refuses (klein's wall 9,
-/// `work/carve/a-half-turn-spine-sweeps-only-off-its-exact-tangents`).
+/// `work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`).
 /// Flip this row and that scene refuses with it.
 #[test]
 fn review_half_turn_path_builds_on_the_float_knife_edge() {
