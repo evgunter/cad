@@ -333,6 +333,7 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
         &DocEdit::DefineVar {
             var: VarName::from_static("fins").into(),
             def: editor_core::VarDecl::Free(FreeVar::Count { value: fins }),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

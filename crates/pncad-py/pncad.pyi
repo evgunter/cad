@@ -54,7 +54,8 @@ chooses to gate rather than having the kernel choose for it.
 A continuous parameter can say how much it VARIES: `Distribution`'s
 four forms annotate one, `analyzed_box` derives the interval the
 analysis varies each parameter over, and the box prices its tail and
-its leaves. Annotation is opt-in — a parameter with none is fixed —
+its leaves. Annotation is opt-in — a parameter with none is fixed, a
+constant of the analysis and no axis of it —
 and a `band` states limits with no shape, so it refuses to be priced
 rather than being read as a uniform.
 
@@ -752,6 +753,11 @@ class SplitError(PncadError):
     no gauge, `gauge` the gauge the cut anchors on. `mate_frame_crosses`:
     `node` is the mate, and `root` the cut root a promote would land at
     the empty chain, where that is the recourse."""
+    moving: Optional[str]
+    staying: Optional[str]
+    """`definition_straddles_cut`: `param` is the tied variable, `moving`
+    a variable it reads that the cut moves, `staying` one that stays or
+    that the document no longer holds."""
 
 class InlineError(PncadError):
     """The `inline` refactoring refused.
@@ -1878,7 +1884,7 @@ class TubeWindow:
     @staticmethod
     def full() -> TubeWindow: ...
     @staticmethod
-    def arc(t0: Formula, t1: Formula) -> TubeWindow: ...
+    def arc(t0: _AngleArg, t1: _AngleArg) -> TubeWindow: ...
     def __repr__(self) -> str: ...
 
 class SketchPlane:
@@ -2022,9 +2028,9 @@ class Placement:
     @staticmethod
     def rigid(
         *,
-        translation: tuple[Formula, Formula, Formula],
-        axis: tuple[Formula, Formula, Formula],
-        angle: Formula,
+        translation: tuple[_LengthArg, _LengthArg, _LengthArg],
+        axis: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
+        angle: _AngleArg,
     ) -> Placement:
         """One rigid step: rotate by `angle` about the axis through the
         origin with direction `axis`, then translate — `Node.transform`'s
@@ -2080,7 +2086,7 @@ class PatternKind:
 
     @staticmethod
     def linear(
-        direction: tuple[Formula, Formula, Formula], spacing: Formula
+        direction: tuple[_ScalarArg, _ScalarArg, _ScalarArg], spacing: _LengthArg
     ) -> PatternKind:
         """Stepped along `direction`, `spacing` apart. The spacing is
         a size: the direction says which way the copies step, so a
@@ -2090,7 +2096,7 @@ class PatternKind:
         it."""
 
     @staticmethod
-    def circular(axis: NodeId, step: Formula) -> PatternKind:
+    def circular(axis: NodeId, step: _AngleArg) -> PatternKind:
         """Stepped around `axis`, an upstream `datum_axis` node. The
         step is signed by the right-hand rule about the axis and lies
         within a turn: zero raises EvaluationError (`degenerate_step`),
@@ -2119,7 +2125,7 @@ class PartSelect:
         with no material refuses at `evaluate` (`empty_half`)."""
 
     @staticmethod
-    def instance(index: Formula) -> PartSelect:
+    def instance(index: _CountArg) -> PartSelect:
         """The `index`-th instance of a `Node.pattern` value, from
         zero. A count `Formula` — `Formula.count(3)` — and the node's
         `Instance` slot, which `DocEdit.bind_instance_param` binds to a
@@ -2289,7 +2295,7 @@ class Node:
     @staticmethod
     def sketch_frame(
         plane: Optional[SketchPlane] = None,
-        elevation: Optional[Formula] = None,
+        elevation: Optional[_LengthArg] = None,
     ) -> Node:
         """The sketch frame a profile is drawn on, as a node.
 
@@ -2300,7 +2306,7 @@ class Node:
 
     @staticmethod
     def polygon(
-        points: list[tuple[Formula, Formula]],
+        points: list[tuple[_LengthArg, _LengthArg]],
         plane: NodeId,
     ) -> Node: ...
     @overload
@@ -2311,7 +2317,7 @@ class Node:
     def profile(outline: list[ClosedLoop], plane: NodeId) -> Node: ...
     @staticmethod
     def extrude(
-        profile: NodeId, distance: Formula, side: ExtrudeSide = ExtrudeSide.Along
+        profile: NodeId, distance: _LengthArg, side: ExtrudeSide = ExtrudeSide.Along
     ) -> Node:
         """Extrude a profile to one side of its sketch plane.
 
@@ -2325,17 +2331,17 @@ class Node:
         `set_var_value` per value."""
 
     @staticmethod
-    def revolve(profile: NodeId, axis: NodeId, angle: Formula) -> Node:
+    def revolve(profile: NodeId, axis: NodeId, angle: _AngleArg) -> Node:
         """Revolve a profile about a datum axis. `angle` mints a
         literal in the node's `revolve_angle` slot, driven afterwards
         by `DocEdit.set_param` as an extrude's `distance` is."""
     @staticmethod
     def tube(
         spine: NodeId,
-        u_ref: tuple[Formula, Formula, Formula],
-        major_radius: Formula,
+        u_ref: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
+        major_radius: _LengthArg,
         window: TubeWindow,
-        minor_radius: Formula,
+        minor_radius: _LengthArg,
     ) -> Node:
         """A solid ring torus, or an elbow of one, from its intent parameters.
 
@@ -2352,11 +2358,11 @@ class Node:
     @staticmethod
     def hollow_tube(
         spine: NodeId,
-        u_ref: tuple[Formula, Formula, Formula],
-        major_radius: Formula,
+        u_ref: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
+        major_radius: _LengthArg,
         window: TubeWindow,
-        minor_radius: Formula,
-        wall: Formula,
+        minor_radius: _LengthArg,
+        wall: _LengthArg,
     ) -> Node:
         """`Node.tube`'s sibling with a WALL, which is REQUIRED.
 
@@ -2370,9 +2376,9 @@ class Node:
         """
 
     @staticmethod
-    def loft(profiles: list[NodeId], v_degree: Formula) -> Node: ...
+    def loft(profiles: list[NodeId], v_degree: _CountArg) -> Node: ...
     @staticmethod
-    def chamfer(target: NodeId, distance: Formula, selection: list[str]) -> Node:
+    def chamfer(target: NodeId, distance: _LengthArg, selection: list[str]) -> Node:
         """Equal-setback flat chamfers on named edges of `target`.
 
         `Node.fillet`'s twin: `selection` is edge names as TEXT and the
@@ -2385,7 +2391,7 @@ class Node:
         """
 
     @staticmethod
-    def shell(target: NodeId, thickness: Formula, open: list[str]) -> Node:
+    def shell(target: NodeId, thickness: _LengthArg, open: list[str]) -> Node:
         """Hollow `target` to a wall of `thickness`, opening the faces in
         `open` into rims.
 
@@ -2405,14 +2411,14 @@ class Node:
 
     @staticmethod
     def datum_axis(
-        origin: tuple[Formula, Formula, Formula],
-        direction: tuple[Formula, Formula, Formula],
+        origin: tuple[_LengthArg, _LengthArg, _LengthArg],
+        direction: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
     ) -> Node: ...
     @staticmethod
     def datum_axis_in_plane(
         plane: NodeId,
-        origin: tuple[Formula, Formula],
-        direction: tuple[Formula, Formula],
+        origin: tuple[_LengthArg, _LengthArg],
+        direction: tuple[_ScalarArg, _ScalarArg],
     ) -> Node:
         """An axis written IN a sketch frame — a revolve's axis.
 
@@ -2422,11 +2428,11 @@ class Node:
         """
     @staticmethod
     def datum_plane(
-        origin: tuple[Formula, Formula, Formula],
-        normal: tuple[Formula, Formula, Formula],
+        origin: tuple[_LengthArg, _LengthArg, _LengthArg],
+        normal: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
     ) -> Node: ...
     @staticmethod
-    def datum_point(position: tuple[Formula, Formula, Formula]) -> Node:
+    def datum_point(position: tuple[_LengthArg, _LengthArg, _LengthArg]) -> Node:
         """A datum point: a position, and nothing else.
 
         There is no direction, because a point has none —
@@ -2437,7 +2443,7 @@ class Node:
         non-finite coordinate raises `LiteralError` here.
         """
     @staticmethod
-    def datum_face_frame(at: NodeId, face: str, spin: Formula) -> Node:
+    def datum_face_frame(at: NodeId, face: str, spin: _AngleArg) -> Node:
         """A sketch frame DERIVED from a face — "sketch on this face".
 
         `at` is the body-denoting node the face is read out of, and a
@@ -2459,9 +2465,9 @@ class Node:
 
     @staticmethod
     def datum_frame(
-        origin: tuple[Formula, Formula, Formula],
-        u: tuple[Formula, Formula, Formula],
-        v: tuple[Formula, Formula, Formula],
+        origin: tuple[_LengthArg, _LengthArg, _LengthArg],
+        u: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
+        v: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
     ) -> Node:
         """An oriented plane — a sketch frame, written as its origin
         and its two in-plane directions.
@@ -2484,7 +2490,7 @@ class Node:
         """
 
     @staticmethod
-    def fillet(target: NodeId, radius: Formula, selection: list[str]) -> Node:
+    def fillet(target: NodeId, radius: _LengthArg, selection: list[str]) -> Node:
         """Constant-radius blends on named edges of `target`.
 
         `selection` is edge names as TEXT — the strings
@@ -2506,9 +2512,9 @@ class Node:
     @staticmethod
     def transform(
         input: NodeId,
-        translation: tuple[Formula, Formula, Formula],
-        rotation_axis: tuple[Formula, Formula, Formula],
-        rotation_angle: Formula,
+        translation: tuple[_LengthArg, _LengthArg, _LengthArg],
+        rotation_axis: tuple[_ScalarArg, _ScalarArg, _ScalarArg],
+        rotation_angle: _AngleArg,
     ) -> Node:
         """A rigid placement: rotate about `rotation_axis` through the
         WORLD ORIGIN by `rotation_angle`, then translate. A pure
@@ -2565,7 +2571,7 @@ class Node:
         question at `evaluate`."""
 
     @staticmethod
-    def pattern(input: NodeId, count: Formula, kind: PatternKind) -> Node:
+    def pattern(input: NodeId, count: _CountArg, kind: PatternKind) -> Node:
         """One prototype, `count` placements stepped by `kind`, N
         BODIES OUT — the replicated family with nothing fused.
 
@@ -2596,7 +2602,7 @@ class Node:
         `instance_out_of_range`."""
 
     @staticmethod
-    def placed_union(input: NodeId, count: Formula, kind: PatternKind) -> Node:
+    def placed_union(input: NodeId, count: _CountArg, kind: PatternKind) -> Node:
         """The group boolean over a PARAMETRIC rule: one prototype,
         `count` placements stepped by `kind`, ONE body out.
 
@@ -2772,6 +2778,20 @@ class Node:
         operand, the product gather skips an assertion as it skips a
         declaration, and nothing downstream changes shape because one
         is `Violated`. Read it with `Value.assertion`."""
+
+_SlotArg: TypeAlias = Var | Formula | WrittenLength | WrittenAngle | Length | Angle | float | int
+"""What a slot takes: a variable the document holds (every slot handed
+it reads that one variable), a `Formula`, or a value — written, keeping
+its unit, or bare (canonical units; a `float` is dimensionless, an `int`
+a count). A value or a formula mints the slot's own anonymous variable.
+A door whose slot's dimension is fixed takes the one row of it that
+measures that dimension, so a bare number at a length slot is a type
+error rather than a refusal; `DocEdit.set_param`, whose slot is a
+word, takes them all and refuses at the edit door."""
+_LengthArg: TypeAlias = Var | Formula | WrittenLength | Length
+_AngleArg: TypeAlias = Var | Formula | WrittenAngle | Angle
+_ScalarArg: TypeAlias = Var | Formula | float
+_CountArg: TypeAlias = Var | Formula | int
 
 class Formula:
     """A dimension-checked expression — the recipe's arithmetic, as a
@@ -3022,9 +3042,8 @@ class AnalyzedParam:
     offset interval the analysis varies it over, and the distribution
     that interval came from.
 
-    An unannotated continuous parameter is still an axis — a
-    width-zero one at its nominal, with `distribution` `None`. That is
-    the typed spelling of FIXED."""
+    A parameter with no tolerance is no axis: the analysis reads it as
+    a constant at its nominal (VR8)."""
 
     @property
     def dimension(self) -> str: ...
@@ -3059,10 +3078,11 @@ class AnalyzedBox:
     def tail_mass(self, name: VarName) -> Optional[float]:
         """What this box's interval for `name` leaves OUTSIDE.
 
-        `None` when the document declares no such continuous
-        parameter; `0.0` for an unannotated axis, which is fixed and
-        leaves nothing out. Raises MeasureUnavailable when the axis
-        carries a band whose support escapes the interval.
+        `None` when the box carries no such axis — a name the
+        document does not declare, or a parameter with no tolerance,
+        a constant of the analysis (VR8). Raises MeasureUnavailable
+        when the axis carries a band whose support escapes the
+        interval.
 
         The three inputs — the name, the distribution and the interval
         — come from ONE axis of one box, so they cannot disagree. The
@@ -3076,10 +3096,9 @@ class AnalyzedBox:
         `(lo, hi)` — the leaf-pricing door.
 
         The offsets are quantities in the axis's own dimension; another
-        dimension is a QuantityOpMismatch. `None` when the document
-        declares no such continuous parameter. An unannotated axis is a
-        point mass at its nominal, so it answers `1.0` for any interval
-        containing offset zero and `0.0` otherwise. A band raises
+        dimension is a QuantityOpMismatch. `None` when the box carries
+        no such axis — a name the document does not declare, or a
+        parameter with no tolerance (VR8). A band raises
         MeasureUnavailable unless the interval covers its whole support
         or misses it entirely."""
     def __len__(self) -> int: ...
@@ -3395,7 +3414,7 @@ class DocEdit:
         for a name not minted before `node`."""
 
     @staticmethod
-    def set_param(node: NodeId, slot: str, expr: Formula) -> DocEdit:
+    def set_param(node: NodeId, slot: str, expr: _SlotArg) -> DocEdit:
         """Replace a CONTINUOUS slot's expression on a live node — an
         extrude's `distance`, a fillet's `radius`, a revolve's
         `revolve_angle` — after the constructor that minted it.
@@ -3952,7 +3971,7 @@ class Doc:
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
-        elevation: Optional[Formula] = None,
+        elevation: Optional[_LengthArg] = None,
         *,
         label: Optional[str] = None,
     ) -> NodeId:
@@ -4011,6 +4030,11 @@ class Doc:
         hold."""
     def var(self, name: VarName) -> Var | None:
         """The variable this document names `name`, or None."""
+    def slot(self, node: NodeId, slot: str) -> Var | None:
+        """The variable a node's slot reads, or None for a node or a
+        slot the document does not hold. Every slot reads one: a value
+        written there is its own anonymous variable, and passing the
+        handle to another slot is how two slots share it."""
     def var_name(self, var: Var) -> VarName | None:
         """The name this document holds for `var`, or None — for an
         anonymous variable, or one the document no longer holds."""
@@ -4050,9 +4074,11 @@ class Doc:
         Raises ParseError, carrying `variant` and the byte offset
         `pos`."""
 
-    def eval(self, expr: Formula) -> Length | Angle | float:
+    def eval(self, expr: Formula | Var) -> Length | Angle | float:
         """This expression's value under the document's current
-        parameter values (`eval`).
+        parameter values (`eval`). A `Var` evaluates as the lone reader
+        of it at its own dimension (`eval_var`): how a slot's value is
+        read off `Doc.slot`'s handle.
 
         A Length for a length expression, an Angle for an angle, a
         bare float for a dimensionless one.
@@ -4070,8 +4096,9 @@ class Doc:
         at another) are that lowering's refusals. Other refusals:
         `unresolved_var`, `non_finite_result`."""
 
-    def eval_count(self, expr: Formula) -> int:
-        """This count expression's exact value (`eval_count`).
+    def eval_count(self, expr: Formula | Var) -> int:
+        """This count expression's exact value (`eval_count`); a count
+        `Var`'s, as its lone reader (`eval_var_count`).
 
         Exact integer arithmetic: an overflow raises EvalError
         (`count_overflow`) rather than wrapping, because a wrapped
@@ -4359,6 +4386,8 @@ class SegTag:
     TrimEdge: Final[SegTag]
     FootVertex: Final[SegTag]
     EndArc: Final[SegTag]
+    Mitre: Final[SegTag]
+    TurnFoot: Final[SegTag]
     BandFace: Final[SegTag]
     BandTrim: Final[SegTag]
     BandFoot: Final[SegTag]

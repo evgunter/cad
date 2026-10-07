@@ -1,4 +1,4 @@
-//! Slot evaluation: every expression a node carries, evaluated in the
+//! Slot evaluation: every variable a node's slots read, looked up in the
 //! node's deterministic slot order through ONE door — the single place
 //! expression failures acquire their (node, slot) context (spec D2)
 //! and the single source of values for BOTH the content key and the op
@@ -18,13 +18,14 @@
 //! - [`crate::Placement::eval`], over a placement's own rows
 //!   ([`eval_rows`]), for a caller holding a placement and no node.
 //!
-//! A slot's expression is evaluated in exactly one loop
+//! A slot's variable is read in exactly one loop
 //! ([`eval_rows`]), and a refusal at any of them arrives in one shape.
 
 use geom_core::Decide;
 
-use crate::expr::{EvalError, Expr, VarEnv, eval, eval_count};
+use crate::expr::{EvalError, VarEnv, eval_var, eval_var_count};
 use crate::node::{Node, SlotId};
+use crate::var::VarId;
 
 /// An evaluated slot: continuous scalar or exact count.
 #[derive(Debug, Clone, Copy)]
@@ -59,15 +60,15 @@ pub(crate) fn eval_slots<T: Decide, P: crate::ProfilePayload>(
 /// structural slot as an exact count, every other as a scalar. The
 /// first failure returns with its slot.
 pub(crate) fn eval_rows<'e, T: Decide>(
-    rows: impl IntoIterator<Item = (SlotId, &'e Expr)>,
+    rows: impl IntoIterator<Item = (SlotId, &'e VarId)>,
     env: &VarEnv<T>,
 ) -> Result<SlotValues<T>, (SlotId, EvalError)> {
     rows.into_iter()
-        .map(|(slot, expr)| {
+        .map(|(slot, &var)| {
             let val = if slot.is_structural() {
-                SlotVal::Count(eval_count(expr, env).map_err(|e| (slot, e))?)
+                SlotVal::Count(eval_var_count(var, env).map_err(|e| (slot, e))?)
             } else {
-                SlotVal::Scalar(eval(expr, env).map_err(|e| (slot, e))?)
+                SlotVal::Scalar(eval_var(var, slot.dimension(), env).map_err(|e| (slot, e))?)
             };
             Ok((slot, val))
         })

@@ -77,8 +77,13 @@ and set a slot from a `Formula`. Create-or-replace by name goes.
 definitions to free ids, with constants as exact rationals: two slots
 reading one variable lower equal, two typed `5 mm` lower distinct, and
 a rename moves no token. The symbolic tier's parameter symbols and the
-error-propagation lane's seeds are keyed by `VarId`. Every free
-continuous variable is a parameter axis, anonymous or not.
+error-propagation lane's seeds are keyed by `VarId`. A variable is an
+analysis axis only if it carries a tolerance — a band or a
+distribution — named or anonymous alike. A free variable without one
+is a constant in every analysis lane: the box, the dual seeds, the
+symbolic tier (which binds its exact nominal, not a symbol), Monte
+Carlo and the stackup's entries. A query that names a variable itself
+(`range`, an explicit seed) widens it whatever it carries.
 
 **VR9 — Scope, persistence, the façade.** A variable belongs to its
 document; `ParamScope::Root` / `Part` prefix its tokens. Persistence
@@ -88,4 +93,5 @@ door checks VR2's uniqueness, VR3's acyclicity and kinds, VR4's slot
 kinds and VR7's anonymous-is-read. The façade's slot arguments accept a
 variable, a `Formula`, or a written quantity (which mints an anonymous
 variable for that call); passing a variable is how two slots share one.
-Python mirrors it.
+Python mirrors it. Split moves a variable with its readers; inline
+carries every variable of the part under a new id.

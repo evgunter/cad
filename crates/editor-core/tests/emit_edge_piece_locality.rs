@@ -101,6 +101,7 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
             node: tr,
             slot: SlotId::Translation(Axis3::Y),
             expr: len(-4.0),
+            fresh: Vec::new(),
         },
     );
     let (ev, ev2) = (run(&doc), run(&doc2));
@@ -194,6 +195,7 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossings_name() {
             node: tool,
             slot: SlotId::Normal(Axis3::X),
             expr: scl(nx),
+            fresh: Vec::new(),
         },
     );
     let (doc2, _) = step(
@@ -202,6 +204,7 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossings_name() {
             node: tool,
             slot: SlotId::Normal(Axis3::Y),
             expr: scl(ny),
+            fresh: Vec::new(),
         },
     );
     let (ev, ev2) = (run(&doc), run(&doc2));

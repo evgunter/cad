@@ -1028,32 +1028,6 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
         &dumps,
     );
 
-    // The load door's checker. Its slot arm spells the slot address
-    // out, so only the dimensions are at issue there.
-    assert_f6(
-        &SnapshotError::SlotDimension {
-            node: held(5, "Extrude"),
-            slot: SlotId::Profile {
-                loop_: 0,
-                step: 2,
-                arg: StepArg::PointX,
-            },
-            expected: Dimension::Length,
-            found: Dimension::Count,
-        },
-        &["needs a length expression", "got a count"],
-        &dumps,
-    );
-    assert_f6(
-        &SnapshotError::SlotDimension {
-            node: held(5, "Extrude"),
-            slot: SlotId::Radius,
-            expected: Dimension::Length,
-            found: Dimension::Angle,
-        },
-        &["needs a length expression", "got an angle"],
-        &dumps,
-    );
     assert_f6(
         &SnapshotError::AssertionBound {
             node: held(5, "Assertion"),
@@ -1092,7 +1066,6 @@ test_utils::f6_variants! {
         VarOrderMismatch,
         NameOnMissingVar,
         VarNameTwice,
-        SlotDimension,
         ReaderOfUnmintedVar,
         SlotVarKind,
         PayloadVarKind,
@@ -1331,18 +1304,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 b: editor_core::VarId(tagged(8)),
             },
             vec!["width is held by two variables, #0000000000070000 and #0000000000080000"],
-        ),
-        (
-            SnapshotError::SlotDimension {
-                node: node(),
-                slot: SlotId::Distance,
-                expected: Dimension::Length,
-                found: Dimension::Angle,
-            },
-            vec![
-                "Extrude \"base plate\" (000000000005): slot distance",
-                "needs a length expression",
-            ],
         ),
         (
             SnapshotError::ReaderOfUnmintedVar {
@@ -2699,6 +2660,8 @@ test_utils::f6_variants! {
         MergedChordOffRim,
         MergedChordConstituents,
         MemberEdgeTied,
+        ConventionalVertex,
+        ClosedCarrierUnread,
         Band,
         Escalated,
     ];
@@ -2838,6 +2801,24 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["merged face", "holds 2 faces", "no rule picks"],
         ),
         (
+            NamingError::ClosedCarrierUnread {
+                edge: topo::EdgeKey::default(),
+                carrier: geom::CurveKind::Nurbs,
+            },
+            vec!["closed on its", "no period"],
+        ),
+        (
+            NamingError::ConventionalVertex {
+                vertex: topo::VertexKey::default(),
+                body: 3,
+            },
+            vec![
+                "conventional vertex",
+                "output body 3",
+                "a-conventional-vertex",
+            ],
+        ),
+        (
             NamingError::MemberEdgeTied {
                 member: RecipeNodeId(tagged(37)),
                 edge: Box::new(StableName {
@@ -2883,24 +2864,17 @@ fn naming_error_display_names_its_content_not_its_struct() {
 test_utils::f6_variants! {
     /// `ProgramFault`'s census — see [`NODE_PICK_ERROR`]. The load
     /// door's own refusal over a persisted profile program. A step
-    /// argument's DIMENSION is not here: a program slot is a slot like
-    /// any other, refused by the document-wide slot walk
-    /// ([`SnapshotError::SlotDimension`]), so what is left is the
-    /// replay probe's lattice coordinate.
+    /// argument's KIND is not here: a program slot is a slot like any
+    /// other, refused by the document-wide slot read walk
+    /// ([`SnapshotError::SlotVarKind`]), so what is left is the replay
+    /// probe's lattice coordinate.
     const PROGRAM_FAULT: ProgramFault = [Lattice];
 }
 
 /// **A slot refusal addresses its slot in the slot vocabulary's own
 /// words** ([`SlotId::label`], [`StepArg::label`]), not in the enum's
 /// — for every slot address alike, because one predicate decides them
-/// (`Node::slot_dimension_fault`) and one arm renders them.
-///
-/// **And the sentence is ONE clause.** The rule's own answer carries
-/// its `Display` (`SlotDimensionFault`), and each door forwards it
-/// into its own subject, so the last case below reads the load door's
-/// rendering as the edit door's under "node 7: ". A door that
-/// restated the sentence — as the two of them did, three times over,
-/// with a program slot spelled two ways — reds there.
+/// (`Node::formula_dimension_fault`) and one arm renders them.
 ///
 /// **What the ban list holds.** What a reverted arm would leak is a
 /// `SlotId` or a `StepArg` identifier. Those are read off the very
@@ -2925,67 +2899,35 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
         "{".to_string(),
     ];
     let also_banned = as_strs(&banned);
-    let node = || held(7, "Extrude");
-
-    assert_f6(
-        &SnapshotError::SlotDimension {
-            node: node(),
-            slot: profile_slot,
-            expected: Dimension::Length,
-            found: Dimension::Angle,
-        },
-        &[
-            "Extrude 000000000007: slot loop 1 step 3 · centre x",
-            "needs a length expression",
-            "got an angle",
-        ],
-        &also_banned,
-    );
-    assert_f6(
-        &SnapshotError::SlotDimension {
-            node: node(),
-            slot: scalar_slot,
-            expected: Dimension::Length,
-            found: Dimension::Count,
-        },
-        &["slot radius", "needs a length expression", "got a count"],
-        &also_banned,
-    );
-    assert_f6(
-        &SnapshotError::SlotDimension {
-            node: node(),
-            slot: component_slot,
-            expected: Dimension::Length,
-            found: Dimension::Scalar,
-        },
-        &["slot origin x", "got a scalar"],
-        &also_banned,
-    );
-    // One clause, two subjects: whatever the sentence says, the two
-    // doors say it in the same words about the same address. The edit
-    // door adds its recourse after it.
-    for slot in [profile_slot, scalar_slot, component_slot] {
-        let at_load = SnapshotError::SlotDimension {
-            node: node(),
-            slot,
-            expected: Dimension::Length,
-            found: Dimension::Angle,
-        };
-        let at_edit = EditError::SlotDimensionMismatch {
-            slot,
-            expected: Dimension::Length,
-            found: Dimension::Angle,
-        };
-        let at_load = at_load.to_string();
-        let clause = at_load
-            .strip_prefix("Extrude 000000000007: ")
-            .unwrap_or_else(|| panic!("the load door names the node first: {at_load}"));
-        assert_eq!(at_edit.problem().to_string(), clause);
-        assert_eq!(
-            at_edit.to_string(),
-            format!(
-                "{clause}. Recourse: write it from length literals and parameters declared length"
-            )
+    for (slot, found, words) in [
+        (
+            profile_slot,
+            Dimension::Angle,
+            &[
+                "slot loop 1 step 3 · centre x",
+                "needs a length expression",
+                "got an angle",
+            ][..],
+        ),
+        (
+            scalar_slot,
+            Dimension::Count,
+            &["slot radius", "needs a length expression", "got a count"][..],
+        ),
+        (
+            component_slot,
+            Dimension::Scalar,
+            &["slot origin x", "got a scalar"][..],
+        ),
+    ] {
+        assert_f6(
+            &EditError::SlotDimensionMismatch {
+                slot,
+                expected: Dimension::Length,
+                found,
+            },
+            words,
+            &also_banned,
         );
     }
 }
@@ -3095,10 +3037,21 @@ fn maintenance_display_says_what_the_edit_did() {
         (
             Maintenance::AnonymousVarRemoved {
                 var: editor_core::SpokenVar::new(editor_core::VarId(tagged(7)), None),
+                distribution: None,
             },
             vec![
                 "nothing reading #0000000000070000",
                 "went with its last reader",
+            ],
+        ),
+        (
+            Maintenance::AnonymousVarRemoved {
+                var: editor_core::SpokenVar::new(editor_core::VarId(tagged(7)), None),
+                distribution: Some(editor_core::Distribution::Normal { sigma: 0.001 }),
+            },
+            vec![
+                "nothing reading #0000000000070000",
+                "the tolerance it carried went with it",
             ],
         ),
     ];
@@ -3461,6 +3414,26 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
                 cut_node: held(1, "Extrude"),
                 kept_node: held(2, "Extrude"),
                 promote: false,
+            }
+            .to_string(),
+        ),
+        (
+            "SplitError::DefinitionStraddlesCut",
+            SplitError::DefinitionStraddlesCut {
+                var: spoken.clone(),
+                moving: editor_core::SpokenVar::new(editor_core::VarId(8), None),
+                staying: editor_core::SpokenVar::new(editor_core::VarId(9), None),
+                staying_held: true,
+            }
+            .to_string(),
+        ),
+        (
+            "SplitError::DefinitionStraddlesCut (deleted)",
+            SplitError::DefinitionStraddlesCut {
+                var: spoken.clone(),
+                moving: editor_core::SpokenVar::new(editor_core::VarId(8), None),
+                staying: editor_core::SpokenVar::new(editor_core::VarId(9), None),
+                staying_held: false,
             }
             .to_string(),
         ),

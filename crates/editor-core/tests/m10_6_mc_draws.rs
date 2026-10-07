@@ -84,6 +84,7 @@ fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
                 )
                 .expect("a measure over a value leaf takes no references"),
             ),
+            fresh: Vec::new(),
         },
         tol,
         &editor_core::RefusingReach,

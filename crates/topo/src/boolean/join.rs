@@ -246,6 +246,10 @@ enum IslandClosing<'a, T: geom_core::Real> {
     /// A wall face: closed along the section plane its chords lie in,
     /// on the face's chart.
     Wall((Point3<T>, UnitVec3<T>)),
+    /// A sphere face: closed by the segment's curve, an arc of the
+    /// section plane's circle
+    /// ([`crate::chord_join::sphere_island_winding`]).
+    Sphere((Point3<T>, UnitVec3<T>), &'a SegmentCurve<T>),
 }
 
 /// Per-solid joining state: the shared chord core plus the F9 side
@@ -780,11 +784,13 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
                 // two rulings, both in that plane, and the plane cuts
                 // each wall in exactly its two rulings, so each side's
                 // chord is the plane × cylinder ruling arm's straight
-                // chord on its own wall. The frame dispatch admitted the
-                // pair only with parallel axes; coaxial walls have no
-                // such plane and keep the refusal below.
+                // chord on its own wall, read at the germ sites it
+                // joins. The frame dispatch admitted the pair only with
+                // parallel axes; coaxial walls have no such plane and
+                // keep the refusal below.
                 (Sf::Cylinder { .. }, Sf::Cylinder { .. }) => {
-                    match parallel_radical_plane(&ga, &gb, band)? {
+                    let reach = geom_brep::Reach::Ball(germ_reach(&red.a)?);
+                    match parallel_radical_plane(&ga, &gb, &reach, band)? {
                         Some(radical) => GermLane::Rulings(radical),
                         None => return Err(no_arm()),
                     }
@@ -1579,6 +1585,13 @@ const BOOL_JOIN_CC_AXIS_OFFSET: &str = "bool_join_cc_axis_offset";
 /// `own`'s), and it stands `x = (d² + r₁² − r₂²) / 2d` along it from
 /// `own`'s axis, `d = |w|`.
 ///
+/// `w` is read between the axes' feet at `reach`, where the chords are
+/// consumed ([`geom_brep::parallel_axes_at`]). The axes are parallel
+/// only within the band, so the offset moves along them by the tilt
+/// times the distance from where it is read; read at a stored origin
+/// standing far along an axis, it names a plane the walls do not meet
+/// in at the reach.
+///
 /// The offset's length is decided ([`BOOL_JOIN_CC_AXIS_OFFSET`]), metres
 /// against the band: a zero offset is a coaxial pair, whose walls meet
 /// nowhere or everywhere and name no plane, and is `None`; an offset in
@@ -1592,6 +1605,7 @@ const BOOL_JOIN_CC_AXIS_OFFSET: &str = "bool_join_cc_axis_offset";
 pub(super) fn parallel_radical_plane<T: Decide>(
     own: &geom::Surface<T>,
     partner: &geom::Surface<T>,
+    reach: &geom_brep::Reach<T>,
     band: Band,
 ) -> Result<Option<(Point3<T>, UnitVec3<T>)>, BooleanError> {
     let (
@@ -1603,6 +1617,7 @@ pub(super) fn parallel_radical_plane<T: Decide>(
         },
         geom::Surface::Cylinder {
             origin: o2,
+            axis: a2,
             radius: r2,
             ..
         },
@@ -1612,8 +1627,9 @@ pub(super) fn parallel_radical_plane<T: Decide>(
             what: "a cylinder pair's radical plane asked of a pair that is not two cylinders",
         });
     };
-    let delta = *o2 - *o1;
-    let w = delta - *a1 * delta.dot(*a1);
+    let geom_brep::ParallelAxes {
+        foot1, d_vec: w, ..
+    } = geom_brep::parallel_axes_at(reach, (*o1, *a1), (*o2, *a2));
     let normal = match UnitVec3::new(w, BOOL_JOIN_CC_AXIS_OFFSET, band) {
         Ok(n) => n,
         Err(geom_core::UnitVec3Error::Degenerate | geom_core::UnitVec3Error::UnderflowedLength) => {
@@ -1634,7 +1650,7 @@ pub(super) fn parallel_radical_plane<T: Decide>(
     };
     let d = w.norm();
     let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (d + d);
-    Ok(Some((*o1 + normal.get() * x, normal)))
+    Ok(Some((foot1 + normal.get() * x, normal)))
 }
 
 /// The Boolean's refusal for a germ pair's frame refusal, the pair
@@ -2325,17 +2341,23 @@ fn choose_roles<T: Decide>(
             .map(RoleLane::Decided)
             .ok_or(desync("every chord arc separates a loose scaffolding pair"));
     }
-    // Ring lane: decided by the run's winding. A planar face's run is
-    // closed by the segment's curve, so it waits on that curve
-    // ([`RoleLane::resolve`]); a wall face's closes along its section
+    // Ring lane: decided by the run's winding. A planar or sphere
+    // face's run is closed by the segment's curve, so it waits on that
+    // curve ([`RoleLane::resolve`]); a wall face's closes along its section
     // plane on its chart, decided here, before the curve is computed in
     // the order it decides. An along-edge segment reads no section: a
     // curved face there refuses typed, before any chord is computed.
     enum RingFace<T: geom_core::Real> {
         Plane(Vec3<T>),
         Wall((Point3<T>, UnitVec3<T>)),
+        Sphere((Point3<T>, UnitVec3<T>)),
     }
+    let on_sphere = body
+        .get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+        .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. }));
     let ring = match closure {
+        RingClosure::Wall(section) if on_sphere => RingFace::Sphere(section),
         RingClosure::Wall(section) => RingFace::Wall(section),
         RingClosure::Planar => RingFace::Plane(
             face_outward_normal(body, face)
@@ -2396,6 +2418,7 @@ fn choose_roles<T: Decide>(
     }
     match ring {
         RingFace::Plane(normal) => Ok(RoleLane::Ring { face, normal }),
+        RingFace::Sphere(section) => Ok(RoleLane::SphereRing { face, section }),
         RingFace::Wall(section) => {
             let ccw = ring_run_ccw(body, face, (ea, ra), IslandClosing::Wall(section), band)?;
             ring_order(body, (ea, ra), loose, ccw).map(RoleLane::Decided)
@@ -2413,6 +2436,11 @@ enum RoleLane<T: geom_core::Real> {
     Decided((HalfEdgeKey, HalfEdgeKey)),
     /// A ring of the planar `face`, with its outward `normal`.
     Ring { face: FaceKey, normal: Vec3<T> },
+    /// A ring of the sphere `face`, whose chords lie in `section`.
+    SphereRing {
+        face: FaceKey,
+        section: (Point3<T>, UnitVec3<T>),
+    },
 }
 
 impl<T: Decide> RoleLane<T> {
@@ -2422,7 +2450,7 @@ impl<T: Decide> RoleLane<T> {
     fn curve_order(&self, given: (HalfEdgeKey, HalfEdgeKey)) -> (HalfEdgeKey, HalfEdgeKey) {
         match *self {
             RoleLane::Decided(order) => order,
-            RoleLane::Ring { .. } => given,
+            RoleLane::Ring { .. } | RoleLane::SphereRing { .. } => given,
         }
     }
 
@@ -2447,16 +2475,12 @@ impl<T: Decide> RoleLane<T> {
         curve: &SegmentCurve<T>,
         band: Band,
     ) -> Result<(HalfEdgeKey, HalfEdgeKey), BooleanError> {
-        let RoleLane::Ring { face, normal } = self else {
-            return Ok(self.curve_order((ea, ra)));
+        let (face, closing) = match self {
+            RoleLane::Ring { face, normal } => (face, IslandClosing::Planar(normal, curve)),
+            RoleLane::SphereRing { face, section } => (face, IslandClosing::Sphere(section, curve)),
+            RoleLane::Decided(_) => return Ok(self.curve_order((ea, ra))),
         };
-        let ccw = ring_run_ccw(
-            body,
-            face,
-            (ea, ra),
-            IslandClosing::Planar(normal, curve),
-            band,
-        )?;
+        let ccw = ring_run_ccw(body, face, (ea, ra), closing, band)?;
         ring_order(body, (ea, ra), loose, ccw)
     }
 }
@@ -2505,7 +2529,9 @@ fn ring_order<T: Decide>(
 ///
 /// A wall face ([`IslandClosing::Wall`]) asks the same question on its
 /// own chart, [`crate::chord_join::chart_island_winding`], with the run
-/// closed along the plane this solid's chords lie in.
+/// closed along the plane this solid's chords lie in; a sphere face
+/// ([`IslandClosing::Sphere`]) asks it without a chart,
+/// [`crate::chord_join::sphere_island_winding`], closed by the curve.
 fn ring_run_ccw<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -2519,6 +2545,26 @@ fn ring_run_ccw<T: Decide>(
             let wound =
                 crate::chord_join::chart_island_winding(body, face, (h1, h2), section, band)
                     .map_err(BooleanError::Join)?;
+            return ring_winding_order(wound);
+        }
+        IslandClosing::Sphere(section, curve) => {
+            let closing = curve
+                .run_closing(h1, face)
+                .map_err(BooleanError::Join)?
+                .ok_or(BooleanError::Join(SplitJoinError::SectionInvariant {
+                    face,
+                    what: "a sphere ring run is closed by a straight chord (the section lanes \
+                           mint an arc on a sphere)",
+                }))?;
+            let wound = crate::chord_join::sphere_island_winding(
+                body,
+                face,
+                (h1, h2),
+                section,
+                &closing,
+                band,
+            )
+            .map_err(BooleanError::Join)?;
             return ring_winding_order(wound);
         }
         IslandClosing::Planar(normal, curve) => (normal, curve),
@@ -4449,6 +4495,11 @@ mod radical_plane_rows {
         }
     }
 
+    /// The reach of the single point `p`.
+    fn at(p: Point3<f64>) -> geom_brep::Reach<f64> {
+        geom_brep::Reach::Ball(geom_brep::ExtentBall::point(p))
+    }
+
     /// **Both rulings lie in the radical plane, and it is parallel to
     /// both axes.** The rulings are found apart from the plane: the
     /// cross-section circles' two meeting points, on the axes' common
@@ -4479,7 +4530,7 @@ mod radical_plane_rows {
             let across = axis.cross(toward);
             let rulings = [o1 + toward * x + across * h, o1 + toward * x - across * h];
             for (label, own, partner) in [("ab", &c1, &c2), ("ba", &c2, &c1)] {
-                let (p, n) = parallel_radical_plane(own, partner, band())
+                let (p, n) = parallel_radical_plane(own, partner, &at(o1), band())
                     .unwrap()
                     .expect("offset axes name a plane");
                 let n = n.get();
@@ -4580,24 +4631,75 @@ mod radical_plane_rows {
     fn a_coaxial_pair_has_no_plane_and_an_offset_in_band_escalates() {
         let eps = Tol::witness().get().eps;
         let z = Vec3::new(0.0, 0.0, 1.0);
-        let at = |x: f64| Point3::new(x, 0.0, 0.0);
+        let on_x = |x: f64| Point3::new(x, 0.0, 0.0);
+        let reach = at(Point3::origin());
+        let pair = |offset| (wall(on_x(0.0), z, 0.5), wall(on_x(offset), z, 0.3));
         for (label, offset) in [("coaxial", 0.0), ("in the zero band", eps / 4.0)] {
-            let got =
-                parallel_radical_plane(&wall(at(0.0), z, 0.5), &wall(at(offset), z, 0.3), band());
+            let (own, partner) = pair(offset);
+            let got = parallel_radical_plane(&own, &partner, &reach, band());
             assert!(
                 matches!(got, Ok(None)),
                 "{label}: {:?}",
                 got.map(|p| p.is_some())
             );
         }
-        let got =
-            parallel_radical_plane(&wall(at(0.0), z, 0.5), &wall(at(4.0 * eps), z, 0.3), band());
+        let (own, partner) = pair(4.0 * eps);
+        let got = parallel_radical_plane(&own, &partner, &reach, band());
         match got {
             Err(BooleanError::Escalated {
                 decision: BooleanDecision::Coincidence(Coincide::Section, DeclarationRead::Moot),
                 diag,
             }) => assert_eq!(diag.predicate, Some(BOOL_JOIN_CC_AXIS_OFFSET)),
             other => panic!("in band: {:?}", other.map(|p| p.is_some())),
+        }
+    }
+
+    /// **The plane is read at the reach, wherever an origin is stored.**
+    /// A radius-0.5 wall about `z` and a radius-0.3 one whose axis
+    /// passes `(d, 0, 0)` tilted half the zero band toward `y`, read at
+    /// the origin; the partner's origin is stored up to 1000 m along its
+    /// axis. Offset (`d = 0.6`), the plane holds the walls' two meeting
+    /// points in `z = 0` at every stored origin; read at a stored origin
+    /// 1000 m up, the offset carried `1000·θ` across it and the plane
+    /// turned off those points by some hundreds of `zero`. Coaxial (`d = 0`),
+    /// the walls name no plane at every stored origin; read 1000 m up
+    /// the offset was `500·zero`, definite, and named one.
+    #[test]
+    fn the_plane_is_read_at_the_reach_wherever_an_origin_is_stored() {
+        let zero = band().zero();
+        let theta = 0.5 * zero;
+        let tilted = Vec3::new(0.0, theta.sin(), theta.cos());
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let reach = at(Point3::origin());
+        let (r1, r2, d): (f64, f64, f64) = (0.5, 0.3, 0.6);
+        let x = (d * d + r1 * r1 - r2 * r2) / (2.0 * d);
+        let h = (r1 * r1 - x * x).sqrt();
+        let meets = [Point3::new(x, h, 0.0), Point3::new(x, -h, 0.0)];
+        for along in [0.0, 10.0, -10.0, 1000.0, -1000.0] {
+            let own = wall(Point3::origin(), z, r1);
+            let partner = wall(Point3::new(d, 0.0, 0.0) + tilted * along, tilted, r2);
+            for (label, a, b) in [("ab", &own, &partner), ("ba", &partner, &own)] {
+                let (p, n) = parallel_radical_plane(a, b, &reach, band())
+                    .unwrap()
+                    .expect("offset axes name a plane");
+                for q in meets {
+                    let off = (q - p).dot(n.get()).abs();
+                    assert!(
+                        off < zero,
+                        "stored {along} m along ({label}): the plane holds the walls' meeting \
+                         point {q:?} at the reach, {off:e} off"
+                    );
+                }
+            }
+            let partner = wall(Point3::origin() + tilted * along, tilted, r2);
+            for (label, a, b) in [("ab", &own, &partner), ("ba", &partner, &own)] {
+                let got = parallel_radical_plane(a, b, &reach, band());
+                assert!(
+                    matches!(got, Ok(None)),
+                    "stored {along} m along ({label}): coaxial at the reach, no plane: {:?}",
+                    got.map(|p| p.is_some())
+                );
+            }
         }
     }
 }

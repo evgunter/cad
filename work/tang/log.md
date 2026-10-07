@@ -654,3 +654,43 @@ plane; its two fixtures, the turned dome and the prism on the slanted
 tube, build every op at their closed forms; the declared one-carrier
 arms do not read ellipses, so the D10 hold leaves their reach where it
 was. Filed: `an-ellipse-lying-on-a-wall-keeps-the-door` (P2).
+
+## 2026-10-07 — cylinder offsets read at the reach
+
+`cylinder-offsets-read-at-a-stored-origin-off-the-reach` closed: the cone×cylinder arm reads its pose at the apex against the cylinder's own axis, `route_pose` drops the cylinder's stored-origin anchor, and the join's radical plane reads its offset between the axes' feet at the germ sites. The declared-pair sites wait on the D10 hold (`declared-cylinder-pair-offsets-read-off-the-reach`, parked); the sweep's other hits are filed on OFFSET, BAND and EXCH.
+## 2026-10-07 — a vertex read by two sector passes refuses typed (TANG implementer)
+
+`a-vertex-read-by-two-sector-passes-panics-instead-of-refusing` (P1)
+closes. `vtxfac::refuse_sector_rereads` replaces the `debug_assert!` in
+`boolean_reduce`. It runs before any vertex-on-face pass writes, in
+every build, and refuses `VertexReadTwice`, naming the vertex and its
+two reads. The rows rebuild the arch: standing pyramids on the plate,
+a `meeting::wedge` prism beside one, and two blocks in face contact.
+They cover every op, both orders and every pose. On the merge base
+each one panicked. Filed:
+`a-vertex-read-twice-where-the-first-pass-writes-nothing-refuses` (P1).
+## 2026-10-07 — a ring on a sphere face winds its island (TANG implementer)
+
+`a-ring-on-a-sphere-face-has-no-island-winding` (P2) closes. The
+sphere ring lane winds its island without a chart: the cap of the
+section plane the run lies in, the closing arc's lean, and an
+outer-loop point read directly or by a great-circle path's crossing
+parity. Ring re-homing on a sphere reads the same parity. The probe
+pose, its mirror, a ring near a pole, tilted poles, the item's box
+corner and box edge, and a ring on the whole section circle build ∩
+and box ∖ ball at their slice integrals in both orders, at tiers 3 and
+3′; the ball's side of ∪ and ball ∖ box stop at FLUX's ringed-sphere
+volume. The lens union against a crease ball builds every op. Filed:
+`a-ring-on-a-cone-or-torus-face-has-no-island-winding` (P2).
+
+## 2026-10-07 — the sphere ring lane's review fix pass (TANG implementer)
+
+PR 4211's FULL review (APPROVE-WITH-FIXES, 0 MAJOR). The fixes:
+- re-homing and the winding read outer-loop edge midpoints as
+  references, so a loop whose every vertex is on the run still decides;
+- the cap of the run is read at every arc's ends, midpoint and in-span
+  extremes;
+- `RingOffCylinderChart` is renamed `RingIslandUnread`.
+
+The review's far-pole, bar and edge-midpoint poses are rows, and so are
+two far-pole notches whose outer-point paths run through a run vertex.

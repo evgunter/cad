@@ -68,6 +68,7 @@ fn edit(
             node: p,
             loops: vec![LoopProgram::Chain(steps)],
             ids: vec![ids],
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

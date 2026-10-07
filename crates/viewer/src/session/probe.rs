@@ -232,6 +232,7 @@ fn probe_edit(
 ) -> Option<DocEdit<ProfileProgram>> {
     match target {
         BoundsTarget::Slot { node, slot } => props::slot_edit(
+            doc,
             *node,
             *slot,
             // A sample the slot's dimension cannot carry is a sample

@@ -95,6 +95,7 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
     doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

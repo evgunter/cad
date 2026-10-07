@@ -53,7 +53,7 @@ test_utils::f6_variants! {
         EmptyCut, UnknownCutNode, PartIdCollides, SeveredEdge, OperandSeveredFromMate,
         TornGroup, SeveredGauge, TwoAnchors, PlacingMateLeft, DeadGaugeReference,
         NoMaterial, UnplaceableRoot, UnplacedAlone, WouldStartPlacing, MateFrameCrosses,
-        UncutVarReference, AnonymousVarCrossesCut, UnresolvedVarCrossesCut,
+        UncutVarReference, DefinitionStraddlesCut, UnresolvedVarCrossesCut,
         PartNameReachesRemainder,
         NameStraddlesCut, NameOnDroppedStep, BodyNameCrossesCut, Pin, PartEdit,
         RemainderEdit,
@@ -63,7 +63,7 @@ test_utils::f6_variants! {
 test_utils::f6_variants! {
     const INLINE: InlineError = [
         UnknownNode, NotAnInstance, InstanceConsumed, Unresolved, EpsilonSeam,
-        PartCarriesMetadata, VarNameConflict, AnonymousVarCrossesCut, UnresolvedVarCrossesCut,
+        PartCarriesMetadata, VarNameConflict, UnresolvedVarCrossesCut,
         UnplaceableFrame, MatePlaced, Unplaced,
         MovedMemberOffset, PartDeadGauge, MateFrameCrosses, MatePairSplits,
         InstanceBodyNameReferenced, ForeignInstanceName, NameOnDroppedStep,
@@ -144,12 +144,29 @@ fn split_refusals() -> Vec<SplitError> {
             kept_node: s(6, "Gauge"),
             promote: true,
         },
-        SplitError::AnonymousVarCrossesCut {
-            var: editor_core::SpokenVar::new(
-                editor_core::VarId(test_utils::refusal::tagged(9)),
+        SplitError::DefinitionStraddlesCut {
+            var: var(),
+            moving: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(7)),
+                Some(VarName::from_static("depth")),
+            ),
+            staying: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(6)),
                 None,
             ),
-            node: s(4, "Extrude"),
+            staying_held: true,
+        },
+        SplitError::DefinitionStraddlesCut {
+            var: var(),
+            moving: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(7)),
+                Some(VarName::from_static("depth")),
+            ),
+            staying: editor_core::SpokenVar::new(
+                editor_core::VarId(test_utils::refusal::tagged(6)),
+                None,
+            ),
+            staying_held: false,
         },
         SplitError::UnresolvedVarCrossesCut {
             var: editor_core::SpokenVar::new(
@@ -217,12 +234,6 @@ fn inline_refusals() -> Vec<InlineError> {
             key: "author".to_owned(),
         },
         InlineError::VarNameConflict { name: param() },
-        InlineError::AnonymousVarCrossesCut {
-            var: editor_core::SpokenVar::new(
-                editor_core::VarId(test_utils::refusal::tagged(9)),
-                None,
-            ),
-        },
         InlineError::UnresolvedVarCrossesCut {
             var: editor_core::SpokenVar::new(
                 editor_core::VarId(test_utils::refusal::tagged(9)),

@@ -1450,17 +1450,20 @@ enum JoinedCover {
 }
 
 /// **The operand edges joined edge `e` lies along** (`names/README.md`,
-/// "Flush edges"): the straight edges of either operand between two
-/// faces that `e`'s two faces descend from (a merged face from each of
-/// its constituents) that lie on `e`'s line and overlap it over a
-/// length ([`Segment::cover`], through [`ON_MEMBER_EDGE`]). One that
-/// holds `e` whole makes `e` a piece of it, the least such in key order
-/// with A's before B's; otherwise several that overlap it and together
-/// cover it name it as a set, since a set name says the edge lies on
-/// its constituents. Anything else — a curved `e`, or one that runs
-/// along a seam for part of its length — is named from its two faces,
-/// never from the lineage of the key the join kept, which holds only
-/// part of it.
+/// "Flush edges"): the edges of either operand between two faces that
+/// `e`'s two faces descend from (a merged face from each of its
+/// constituents), straight where `e` is and curved where `e` is, that
+/// lie on `e`'s carrier and overlap it over a length, read through
+/// [`ON_MEMBER_EDGE`] along `e`'s line ([`Segment::cover`]) or its
+/// curved carrier ([`Track::cover`]). One that holds `e` whole makes
+/// `e` a piece of it, the least such in key order with A's before B's;
+/// otherwise several that overlap it and together cover it name it as a
+/// set, since a set name says the edge lies on its constituents.
+/// Anything else — one that runs along a seam for part of its length —
+/// is named from its two faces, never from the lineage of the key the
+/// join kept, which holds only part of it. A closed `e`, two pieces the
+/// join made one, lies within a closed rim only and is covered over its
+/// whole period, so where its vertex sits says nothing.
 #[allow(clippy::too_many_arguments)]
 fn joined_cover<T: Decide>(
     e: EdgeKey,
@@ -1473,9 +1476,6 @@ fn joined_cover<T: Decide>(
     bnd: geom_core::Band,
 ) -> Result<JoinedCover, NamingError> {
     let bug = |what| NamingError::Emission { what };
-    if topo::query::edge_carrier_kind(body, e) != Some(topo::query::CurveKind::Line) {
-        return Ok(JoinedCover::Faces);
-    }
     let Some([f0, f1]) = inc.edge_faces.get(&e).map(Vec::as_slice) else {
         return Err(bug("a joined edge without exactly two adjacent faces"));
     };
@@ -1486,6 +1486,10 @@ fn joined_cover<T: Decide>(
         })
     };
     let (d0, d1) = (descents(*f0)?, descents(*f1)?);
+    let straight = |body: &Body<T>, k: EdgeKey| {
+        topo::query::edge_carrier_kind(body, k) == Some(topo::query::CurveKind::Line)
+    };
+    let line = straight(body, e);
     let mut candidates: BTreeSet<OpSide<EdgeKey>> = BTreeSet::new();
     for &g0 in &d0 {
         for &g1 in d1
@@ -1495,20 +1499,50 @@ fn joined_cover<T: Decide>(
             let (op, k0) = g0.of(a, b);
             let (_, k1) = g1.of(a, b);
             for r in rims_between(op.body, k0, k1)? {
-                if topo::query::edge_carrier_kind(op.body, r) == Some(topo::query::CurveKind::Line)
-                {
+                if straight(op.body, r) == line {
                     candidates.insert(g0.with(r));
                 }
             }
         }
     }
-    let mut ends = Vec::with_capacity(candidates.len());
+    let mut arcs = Vec::with_capacity(candidates.len());
     for r in candidates {
         let (op, k) = r.of(a, b);
         let (v0, v1) = edge_ends(op.body, k)?;
-        ends.push((r, vertex_point(op.body, v0)?, vertex_point(op.body, v1)?));
+        let (p0, p1) = (vertex_point(op.body, v0)?, vertex_point(op.body, v1)?);
+        // A segment is read by its ends alone.
+        let mid = if line {
+            p0
+        } else {
+            op.body
+                .get_edge(k)
+                .and_then(|d| op.body.get_curve_geom(d.curve))
+                .and_then(topo::CurveGeom::certified)
+                .map(|c| {
+                    let (r0, r1) = c.params();
+                    c.carrier().mid_point(r0, r1)
+                })
+                .ok_or(bug("a joined edge's cover has no certified curve"))?
+        };
+        arcs.push((
+            r,
+            CarrierArc {
+                p0,
+                mid,
+                p1,
+                closed: v0 == v1,
+            },
+        ));
     }
-    let cover = Segment::of_edge(body, e)?.cover(ends, ON_MEMBER_EDGE, bnd)?;
+    let cover = if line {
+        Segment::of_edge(body, e)?.cover(
+            arcs.into_iter().map(|(r, arc)| (r, arc.p0, arc.p1)),
+            ON_MEMBER_EDGE,
+            bnd,
+        )?
+    } else {
+        Track::of_edge(body, e)?.cover(arcs, ON_MEMBER_EDGE, bnd)?
+    };
     if let Some(&r) = cover.within.first() {
         return Ok(JoinedCover::One(r));
     }
@@ -2372,69 +2406,95 @@ impl<T: Decide> Segment<T> {
     /// **How this segment lies along `candidates`**, each a key and its
     /// two end points: the candidates on its line that overlap it over
     /// a length, those of them it lies within, and whether together
-    /// they cover it end to end. Every verdict goes through
-    /// `predicate`.
+    /// they cover it end to end ([`walk_cover`]). Every verdict goes
+    /// through `predicate`.
     pub(super) fn cover<K>(
         &self,
         candidates: impl IntoIterator<Item = (K, Point3<T>, Point3<T>)>,
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<Cover<K>, NamingError> {
-        let mut out = Cover {
-            within: Vec::new(),
-            along: Vec::new(),
-            covered: false,
-        };
-        let mut spans: Vec<(Point3<T>, Point3<T>)> = Vec::new();
+        let mut read = Vec::new();
         for (k, p0, p1) in candidates {
-            if !self.on_line(p0, predicate, bnd)? || !self.on_line(p1, predicate, bnd)? {
+            let stretch =
+                if self.on_line(p0, predicate, bnd)? && self.on_line(p1, predicate, bnd)? {
+                    match self.ahead(p0, p1, predicate, bnd)? {
+                        Sign::Positive => vec![(p1, p0)],
+                        _ => vec![(p0, p1)],
+                    }
+                } else {
+                    Vec::new()
+                };
+            read.push((k, stretch, true));
+        }
+        walk_cover(read, (self.q0, self.q1), |p, q| {
+            Ok(self.ahead(p, q, predicate, bnd)? == Sign::Positive)
+        })
+    }
+}
+
+/// **The flush rule's walk** (`names/README.md`, "Flush edges"), one
+/// for a straight edge ([`Segment::cover`]) and a curved one
+/// ([`Track::cover`]): over an edge's span from `start` to `end`, where
+/// `ahead(p, q)` says `p` lies strictly past `q` along the edge. Each
+/// candidate comes as the stretches of the span's parameter it holds
+/// (a segment's one; an arc's, and that arc a period back) and whether
+/// it may hold the edge whole. A candidate one of whose stretches
+/// overlaps the span over a length runs along it; one that also holds
+/// it end to end, the edge lies within; and the walk from the start,
+/// each step to the farthest end of a stretch that starts at or before
+/// the cursor and reaches past it, says whether they cover it.
+fn walk_cover<K, S: Copy>(
+    candidates: impl IntoIterator<Item = (K, Vec<(S, S)>, bool)>,
+    (start, end): (S, S),
+    ahead: impl Fn(S, S) -> Result<bool, NamingError>,
+) -> Result<Cover<K>, NamingError> {
+    let mut out = Cover {
+        within: Vec::new(),
+        along: Vec::new(),
+        covered: false,
+    };
+    let mut spans: Vec<(S, S)> = Vec::new();
+    for (k, stretches, may_hold) in candidates {
+        let (mut overlaps, mut within) = (false, false);
+        for (lo, hi) in stretches {
+            if !ahead(hi, start)? || !ahead(end, lo)? {
                 continue;
             }
-            let (lo, hi) = match self.ahead(p0, p1, predicate, bnd)? {
-                Sign::Positive => (p1, p0),
-                _ => (p0, p1),
-            };
-            if self.ahead(hi, self.q0, predicate, bnd)? != Sign::Positive
-                || self.ahead(self.q1, lo, predicate, bnd)? != Sign::Positive
-            {
-                continue;
-            }
-            if self.ahead(lo, self.q0, predicate, bnd)? != Sign::Positive
-                && self.ahead(self.q1, hi, predicate, bnd)? != Sign::Positive
-            {
-                out.within.push(k);
-            } else {
-                out.along.push(k);
-            }
+            overlaps = true;
+            within |= may_hold && !ahead(lo, start)? && !ahead(end, hi)?;
             spans.push((lo, hi));
         }
-        // Walk from the start, each step to the farthest end of a span
-        // that starts at or before the cursor and reaches past it.
-        let mut at = self.q0;
-        loop {
-            if self.ahead(self.q1, at, predicate, bnd)? != Sign::Positive {
-                out.covered = true;
-                break;
-            }
-            let mut next: Option<Point3<T>> = None;
-            for &(lo, hi) in &spans {
-                if self.ahead(lo, at, predicate, bnd)? != Sign::Positive
-                    && self.ahead(hi, at, predicate, bnd)? == Sign::Positive
-                    && match next {
-                        None => true,
-                        Some(n) => self.ahead(hi, n, predicate, bnd)? == Sign::Positive,
-                    }
-                {
-                    next = Some(hi);
+        if within {
+            out.within.push(k);
+        } else if overlaps {
+            out.along.push(k);
+        }
+    }
+    let mut at = start;
+    loop {
+        if !ahead(end, at)? {
+            out.covered = true;
+            break;
+        }
+        let mut next: Option<S> = None;
+        for &(lo, hi) in &spans {
+            if !ahead(lo, at)?
+                && ahead(hi, at)?
+                && match next {
+                    None => true,
+                    Some(n) => ahead(hi, n)?,
                 }
-            }
-            match next {
-                Some(n) => at = n,
-                None => break,
+            {
+                next = Some(hi);
             }
         }
-        Ok(out)
+        match next {
+            Some(n) => at = n,
+            None => break,
+        }
     }
+    Ok(out)
 }
 
 /// What [`Segment::cover`] found: the candidates the segment lies
@@ -2444,6 +2504,179 @@ pub(super) struct Cover<K> {
     pub(super) within: Vec<K>,
     pub(super) along: Vec<K>,
     pub(super) covered: bool,
+}
+
+/// A candidate for [`Track::cover`]: an edge's two end points, the
+/// point halfway along it, and whether it is closed (one vertex at
+/// both ends, structurally).
+#[derive(Clone)]
+pub(super) struct CarrierArc<T: Decide> {
+    pub(super) p0: Point3<T>,
+    pub(super) mid: Point3<T>,
+    pub(super) p1: Point3<T>,
+    pub(super) closed: bool,
+}
+
+/// **An edge's span along its certified carrier** — [`Segment`]'s twin
+/// for a curved edge, the reading the flush rule takes on a curved
+/// carrier (`names/README.md`, "Flush edges"). Positions are carrier
+/// parameters, as offsets from the edge's start in its direction;
+/// lengths between them are metered in metres through the carrier's
+/// speed at the edge's middle. A closed edge is its carrier's whole
+/// period: nothing [`Track::cover`] says of it depends on where its
+/// vertex sits, which has no identity of its own (`docs/DESIGN.md`,
+/// maximal edges).
+pub(super) struct Track<T: Decide> {
+    carrier: geom::Curve3<T>,
+    t0: T,
+    mid: T,
+    len: T,
+    period: Option<T>,
+    closed: bool,
+    speed: T,
+}
+
+impl<T: Decide> Track<T> {
+    /// Edge `e` of `body` along its certified carrier, from its
+    /// `he_plus` start to its end.
+    pub(super) fn of_edge(body: &Body<T>, e: EdgeKey) -> Result<Self, NamingError> {
+        let bug = |what| NamingError::Emission { what };
+        let curve = body
+            .get_edge(e)
+            .and_then(|d| body.get_curve_geom(d.curve))
+            .and_then(topo::CurveGeom::certified)
+            .ok_or(bug("a joined edge's cover has no certified curve"))?;
+        let carrier = curve.carrier().clone();
+        let (t0, t1) = curve.params();
+        let period = match carrier {
+            geom::Curve3::Circle { .. }
+            | geom::Curve3::Ellipse { .. }
+            | geom::Curve3::Spiric { .. } => Some(T::from_f64(std::f64::consts::TAU)),
+            _ => None,
+        };
+        let (v0, v1) = edge_ends(body, e)?;
+        let closed = v0 == v1;
+        let len = match (closed, period) {
+            (true, Some(p)) => p,
+            (true, None) => {
+                return Err(NamingError::ClosedCarrierUnread {
+                    edge: e,
+                    carrier: carrier.kind(),
+                });
+            }
+            (false, _) => t1 - t0,
+        };
+        let mid = geom::mid_param(t0, t1);
+        let speed = carrier.deriv(mid).norm();
+        Ok(Track {
+            carrier,
+            t0,
+            mid,
+            len,
+            period,
+            closed,
+            speed,
+        })
+    }
+
+    fn sign(
+        &self,
+        x: T,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<Sign, NamingError> {
+        decide(predicate, Margin::levered(x, self.speed), bnd)
+            .map_err(|source| NamingError::Escalated { predicate, source })
+    }
+
+    /// `p`'s offset from the start along the carrier, in `[0, period)`
+    /// on a periodic one, where `p` lies on the carrier (its distance
+    /// from the carrier's point at its recovered parameter decided
+    /// zero through `predicate`); `None` off it.
+    fn offset(
+        &self,
+        p: Point3<T>,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<Option<T>, NamingError> {
+        let Some(u) = self.carrier.param_near(p, self.mid) else {
+            return Ok(None);
+        };
+        let gap = decide(
+            predicate,
+            Margin::of((p - self.carrier.eval(u)).norm()),
+            bnd,
+        )
+        .map_err(|source| NamingError::Escalated { predicate, source })?;
+        if gap != Sign::Zero {
+            return Ok(None);
+        }
+        let off = u - self.t0;
+        Ok(Some(match self.period {
+            Some(per) => off - per * (off / per).floor(),
+            None => off,
+        }))
+    }
+
+    /// The stretches of offsets `arc` holds: one on an open carrier;
+    /// on a periodic one the arc from the end it starts at through its
+    /// middle, and that arc a period back, so a stretch through the
+    /// start reads whole on one side or the other. `None` where the arc
+    /// is off the carrier.
+    fn stretches(
+        &self,
+        arc: &CarrierArc<T>,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<Option<Vec<(T, T)>>, NamingError> {
+        let (Some(a0), Some(am), Some(a1)) = (
+            self.offset(arc.p0, predicate, bnd)?,
+            self.offset(arc.mid, predicate, bnd)?,
+            self.offset(arc.p1, predicate, bnd)?,
+        ) else {
+            return Ok(None);
+        };
+        let Some(per) = self.period else {
+            return Ok(Some(vec![match self.sign(a1 - a0, predicate, bnd)? {
+                Sign::Negative => (a1, a0),
+                _ => (a0, a1),
+            }]));
+        };
+        if arc.closed {
+            return Ok(Some(vec![(T::zero(), per), (T::zero() - per, T::zero())]));
+        }
+        let fwd = |x: T| x - per * (x / per).floor();
+        let (d1, dm) = (fwd(a1 - a0), fwd(am - a0));
+        // The middle is half the arc from either end, so this verdict
+        // is never near its band.
+        let (lo, n) = match self.sign(d1 - dm, predicate, bnd)? {
+            Sign::Positive => (a0, d1),
+            _ => (a1, per - d1),
+        };
+        Ok(Some(vec![(lo, lo + n), (lo - per, lo + n - per)]))
+    }
+
+    /// **How this edge lies along `candidates`** — [`Segment::cover`]
+    /// over the carrier's parameter ([`walk_cover`]): the candidates on
+    /// the carrier that overlap the edge over a length, those it lies
+    /// within, and whether together they cover it end to end. A closed
+    /// edge lies within a closed candidate only, and is covered over
+    /// its whole period.
+    pub(super) fn cover<K>(
+        &self,
+        candidates: impl IntoIterator<Item = (K, CarrierArc<T>)>,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<Cover<K>, NamingError> {
+        let mut read = Vec::new();
+        for (k, arc) in candidates {
+            let stretches = self.stretches(&arc, predicate, bnd)?.unwrap_or_default();
+            read.push((k, stretches, arc.closed || !self.closed));
+        }
+        walk_cover(read, (T::zero(), self.len), |p, q| {
+            Ok(self.sign(p - q, predicate, bnd)? == Sign::Positive)
+        })
+    }
 }
 
 /// Whether result edge `chord` lies on operand edge `rim` of
@@ -3714,6 +3947,7 @@ mod split_carries_candidates {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(node),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &RefusingReach,
@@ -3954,5 +4188,143 @@ mod split_edge_lineage {
             lost_within_its_half >= 1,
             "the premise, a piece whose lineage leaves its own half"
         );
+    }
+}
+
+#[cfg(test)]
+mod track_cover {
+    //! **The flush rule along a curved carrier** ([`Track::cover`]).
+    //! A closed edge's vertex is conventional and has no identity of
+    //! its own (`docs/DESIGN.md`, maximal edges), so the same circle
+    //! with its vertex anywhere, its candidates in either order, reads
+    //! the same cover.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use std::f64::consts::TAU;
+
+    use geom_core::{Band, Point3, Tol, Vec3};
+    use topo::Body;
+
+    use super::{CarrierArc, Cover, Track};
+    use crate::names::discriminate::ON_MEMBER_EDGE;
+
+    fn circle() -> geom::Curve3<f64> {
+        geom::Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// A body whose one edge is `circle()` from `t0` to `t1`: closed
+    /// (`t1 = t0 + τ`, one vertex at `t0`) or an arc between two.
+    fn track(t0: f64, t1: f64) -> Track<f64> {
+        let tol = Tol::witness();
+        let c = circle();
+        let mut body = Body::<f64>::new();
+        let born = body.mvfs(c.eval(t0), true).unwrap();
+        let spec = geom_brep::EdgeCurveSpec::arc_of_circle(c.clone(), t0, t1).unwrap();
+        let e = if (t1 - t0 - TAU).abs() < 1e-12 {
+            let made = body
+                .mef(
+                    topo::MefSite::Lone {
+                        r#loop: born.r#loop,
+                    },
+                    spec,
+                    topo::FaceSurface::Inherit,
+                    tol,
+                )
+                .unwrap();
+            made.edge
+        } else {
+            body.mev(
+                topo::MevSite::Lone {
+                    r#loop: born.r#loop,
+                },
+                c.eval(t1),
+                spec,
+                tol,
+            )
+            .unwrap()
+            .edge
+        };
+        Track::of_edge(&body, e).unwrap()
+    }
+
+    fn arc(t0: f64, t1: f64) -> CarrierArc<f64> {
+        let c = circle();
+        CarrierArc {
+            p0: c.eval(t0),
+            mid: c.eval(0.5 * (t0 + t1)),
+            p1: c.eval(t1),
+            closed: (t1 - t0 - TAU).abs() < 1e-12,
+        }
+    }
+
+    fn read(t: &Track<f64>, arcs: Vec<(u8, CarrierArc<f64>)>) -> (Vec<u8>, Vec<u8>, bool) {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let Cover {
+            mut within,
+            mut along,
+            covered,
+        } = t.cover(arcs, ON_MEMBER_EDGE, band).unwrap();
+        within.sort_unstable();
+        along.sort_unstable();
+        (within, along, covered)
+    }
+
+    /// Two arcs meeting at 1 and 4 that close the circle, one arc off
+    /// it on a larger one, and the closed circle itself: read from
+    /// three vertex positions (inside each arc, and at their joint),
+    /// both orders.
+    #[test]
+    fn a_closed_edge_reads_alike_wherever_its_vertex_sits() {
+        let off = CarrierArc {
+            p0: Point3::new(2.0, 0.0, 0.0),
+            mid: Point3::new(0.0, 2.0, 0.0),
+            p1: Point3::new(-2.0, 0.0, 0.0),
+            closed: false,
+        };
+        for vertex in [2.0, 5.5, 1.0, 4.0] {
+            let t = track(vertex, vertex + TAU);
+            let forward = vec![
+                (0, arc(1.0, 4.0)),
+                (1, arc(4.0, 1.0 + TAU)),
+                (2, off.clone()),
+            ];
+            let backward = vec![
+                (2, off.clone()),
+                (1, arc(4.0, 1.0 + TAU)),
+                (0, arc(1.0, 4.0)),
+            ];
+            for arcs in [forward, backward] {
+                assert_eq!(
+                    read(&t, arcs),
+                    (vec![], vec![0, 1], true),
+                    "vertex at {vertex}"
+                );
+            }
+            assert_eq!(read(&t, vec![(0, arc(1.0, 4.0))]), (vec![], vec![0], false));
+            assert_eq!(
+                read(&t, vec![(0, arc(1.0, 4.0)), (3, arc(0.0, TAU))]),
+                (vec![3], vec![0], true),
+                "a closed edge lies within the closed rim alone"
+            );
+        }
+    }
+
+    /// An open arc lies within an arc that holds it, whichever way that
+    /// arc runs, also across the carrier's parameter seam.
+    #[test]
+    fn an_open_arc_lies_within_the_arc_that_holds_it() {
+        let t = track(5.0, 7.0);
+        assert_eq!(read(&t, vec![(0, arc(4.0, 7.5))]), (vec![0], vec![], true));
+        assert_eq!(read(&t, vec![(0, arc(7.5, 4.0))]), (vec![0], vec![], true));
+        assert_eq!(
+            read(&t, vec![(0, arc(4.0, 6.0)), (1, arc(6.0, 8.0))]),
+            (vec![], vec![0, 1], true)
+        );
+        assert_eq!(read(&t, vec![(0, arc(2.0, 3.0))]), (vec![], vec![], false));
     }
 }

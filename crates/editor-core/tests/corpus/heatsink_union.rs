@@ -100,6 +100,7 @@ pub fn document() -> CorpusDoc {
         node: fins,
         slot: SlotId::Count,
         expr: Formula::named(VarName::from_static("fins"), Dimension::Count),
+        fresh: Vec::new(),
     });
     CorpusDoc {
         name: "heat_sink_fins",
@@ -115,6 +116,7 @@ pub fn document() -> CorpusDoc {
             node: fin,
             slot: SlotId::Distance,
             expr: len(0.6875),
+            fresh: Vec::new(),
         },
         bump_root: fin,
     }

@@ -82,6 +82,7 @@ pub fn document() -> CorpusDoc {
             node: bend,
             slot: SlotId::TubeWindowEnd,
             expr: ang(T1_BUMPED),
+            fresh: Vec::new(),
         },
         bump_root: bend,
     }

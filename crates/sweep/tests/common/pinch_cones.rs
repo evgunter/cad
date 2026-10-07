@@ -317,12 +317,43 @@ pub fn cone_finding(
     }
 }
 
-/// Where `body`'s vertices at `at` do not all share one point key, the
-/// finding, else `None`.
+/// Where `body` does not hold a pinch at `at` whose vertices share one
+/// point key, the finding, else `None`: fewer than two vertices there is
+/// a finding too, so a pinch row cannot pass on a point it lost.
+/// [`shared_point_finding`] is the reading for a point that may hold one.
 pub fn point_key_finding(body: &Body<f64>, at: V3) -> Option<String> {
+    let at_v = vertices_at(body, at);
+    if at_v.len() < 2 {
+        return Some(format!(
+            "{} vertices at {at:?}: no pinch to share a key",
+            at_v.len()
+        ));
+    }
+    shared_point_finding(body, at)
+}
+
+/// Where `body`'s vertices at `at`, if several, do not all share one
+/// point key, the finding, else `None`. A point holding one vertex or
+/// none passes: [`cone_finding`] counts them.
+pub fn shared_point_finding(body: &Body<f64>, at: V3) -> Option<String> {
     let at_v = vertices_at(body, at);
     let point = |k| body.get_vertex(k).unwrap().point;
     at_v.iter()
         .any(|&k| point(k) != point(at_v[0]))
         .then(|| format!("the vertices at {at:?} do not share one point: {at_v:?}"))
+}
+
+/// Where a class `zip::share_points` rebound on this thread since the
+/// last drain held keys at different points, the finding, else `None`;
+/// with the number of classes drained. The rebind reads no position, so
+/// this pins its premise: the seams tie only keys holding one point,
+/// bit for bit.
+pub fn shared_point_spread_finding() -> (usize, Option<String>) {
+    let classes = topo::take_shared_points();
+    let bits = |p: &[String; 3]| p.clone().map(|c| c.parse::<f64>().unwrap().to_bits());
+    let finding = classes
+        .iter()
+        .find(|c| c.iter().any(|p| bits(p) != bits(&c[0])))
+        .map(|c| format!("a rebound class holds keys at different points: {c:?}"));
+    (classes.len(), finding)
 }
