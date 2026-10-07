@@ -296,10 +296,8 @@ pub(crate) fn on_delete<P: crate::ProfilePayload>(
 /// spelled it its own way could disagree with the root set about
 /// what a live consumer is without anything noticing.
 ///
-/// The walk is [`Doc::order`], so the answer is the document's FIRST
-/// consumer rather than its lowest-id one — the same choice the save
-/// validator's name pass makes, and the order the maintainers below
-/// splice in. A node is not its own consumer: the DAG is acyclic, so
+/// The walk is id order, so the answer is the document's FIRST
+/// consumer — the order the maintainers below splice in. A node is not its own consumer: the DAG is acyclic, so
 /// the guard is a statement rather than a filter.
 ///
 /// Linear in the document per call, so the recomputing maintainer is

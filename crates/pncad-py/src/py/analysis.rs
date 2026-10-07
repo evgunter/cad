@@ -1156,7 +1156,7 @@ fn sample_offset(
     dist: &Distribution,
     u: f64,
 ) -> PyResult<Py<PyAny>> {
-    let spoken = pncad::document::SpokenVar::new(pncad::document::VarId(0), Some(param.0.clone()));
+    let spoken = pncad::document::SpokenVar::new(pncad::document::VarId::new(0, 0), Some(param.0.clone()));
     match a::sample_offset(&spoken, &dist.inner, u) {
         Ok(offset) => quantity(py, offset, dist.dim),
         Err(err) => Err(measure_err(py, &err)),

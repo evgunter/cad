@@ -1535,3 +1535,139 @@ fn a_declaration_adds_no_inputs() {
     assert_eq!(sites.len(), 8, "two sites per pair, four pairs");
     assert!(sites.iter().all(|at| *at == a || *at == b), "{sites:?}");
 }
+
+/// The union's entities on the corner two L-placed blocks share: the
+/// vertical edge at x = 2, y = 0 and its two vertices, each lying
+/// within an entity of both blocks.
+fn shared_corner(ev: &Evaluation<f64>, union: RecipeNodeId) -> Vec<StableName> {
+    let body = body_of(ev, union);
+    let on_corner = |p: [f64; 3]| (p[0] - 2.0).abs() < 1e-9 && p[1].abs() < 1e-9;
+    let mut out: Vec<StableName> = table(ev, union)
+        .iter()
+        .filter_map(|(name, entry)| {
+            let Entry::Unique(at) = entry else {
+                return None;
+            };
+            let held = match at.key {
+                editor_core::EntityKey::Edge(k) => {
+                    let edge = body.get_edge(k)?;
+                    let p = body.half_edge_start_point(edge.he_plus)?.to_array();
+                    let q = body.half_edge_start_point(edge.he_minus)?.to_array();
+                    on_corner(p) && on_corner(q)
+                }
+                editor_core::EntityKey::Vertex(k) => {
+                    let vertex = body.get_vertex(k)?;
+                    on_corner(body.get_point(vertex.point)?.to_array())
+                }
+                _ => false,
+            };
+            held.then(|| name.clone())
+        })
+        .collect();
+    out.sort();
+    out
+}
+
+/// The flush families two L-placed blocks share — the y = 0 wall, the
+/// x = 2 wall and both caps — as a declared pair list.
+fn corner_pairs(doc: &ProfileDoc, a: RecipeNodeId, b: RecipeNodeId) -> Vec<(SitedRef, SitedRef)> {
+    let families = |ext| {
+        [
+            wall(doc, ext, 0),
+            wall(doc, ext, 1),
+            RoleSeg::Cap(CapEnd::Start),
+            RoleSeg::Cap(CapEnd::End),
+        ]
+    };
+    families(a)
+        .into_iter()
+        .zip(families(b))
+        .map(|(x, y)| (SitedRef::new(a, fname(a, x)), SitedRef::new(b, fname(b, y))))
+        .collect()
+}
+
+/// **Re-drawing another member never takes a held flush stretch**
+/// (`names/README.md`, the flush rule: an entity several members hold
+/// is named for the first minted of them). Two blocks placed in an L,
+/// `a` = [0, 2] × [0, 1] and `b` = [1, 2] × [0, 2], share the vertical
+/// edge at x = 2, y = 0 and its two end vertices (designer B's fixture
+/// on the name-order fork), and the union names all three through `a`,
+/// the senior block. The union is then re-pointed, through the doors,
+/// from `b` to a re-drawing of it (identical geometry, a later id),
+/// declarations and all: the three names it held there are still the
+/// union's names for them, still through `a`. A salt node inserted
+/// first moves every digest, so the answer is not the digests' luck.
+///
+/// The re-drawing is minted before the union, because the doors admit
+/// a declared side minted before its carrier only
+/// (`DeclaredNameNotUpstream`); what decides the corner is the order of
+/// the two members, which is the same either way.
+#[test]
+fn redrawing_another_member_never_takes_a_held_flush_stretch() {
+    let tol = Tol::witness();
+    for salt in 0..6u32 {
+        let doc = ProfileDoc::empty_derived("redraw-flush", tol);
+        let (doc, _) = insert(
+            doc,
+            Node::Datum(editor_core::Datum::Point {
+                position: [len(f64::from(salt)), len(0.0), len(0.0)],
+            }),
+        );
+        let (doc, a) = block(doc, (0.0, 2.0), (0.0, 1.0), 0.0, 1.0);
+        let (doc, b) = block(doc, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+        let (doc, redrawn) = block(doc, (1.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+        let pairs = corner_pairs(&doc, a, b);
+        let (doc, union) = declared_union(doc, &[a, b], pairs);
+        let ev = run(&doc);
+        assert!(
+            failure(&ev, union).is_none(),
+            "salt {salt}: {:?}",
+            failure(&ev, union)
+        );
+        let held = shared_corner(&ev, union);
+        assert_eq!(
+            held.len(),
+            3,
+            "salt {salt}: the corner edge and its two ends: {held:?}"
+        );
+        let senior = |name: &StableName| matches!(name.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == a);
+        assert!(
+            held.iter().all(senior),
+            "salt {salt}: the corner is named through the senior block: {held:?}"
+        );
+
+        let (doc, _) = step(
+            doc,
+            DocEdit::SetDeclare {
+                node: union,
+                pairs: Vec::new(),
+            },
+        );
+        let (doc, _) = step(
+            doc,
+            DocEdit::SetMembers {
+                node: union,
+                members: vec![a, redrawn],
+            },
+        );
+        let pairs = corner_pairs(&doc, a, redrawn);
+        let (doc, _) = step(
+            doc,
+            DocEdit::SetDeclare {
+                node: union,
+                pairs: editor_core::declare_continuation(pairs),
+            },
+        );
+        let ev = run(&doc);
+        assert!(
+            failure(&ev, union).is_none(),
+            "salt {salt}: {:?}",
+            failure(&ev, union)
+        );
+        assert_eq!(
+            shared_corner(&ev, union),
+            held,
+            "salt {salt}: the re-drawn member took none of the held corner"
+        );
+    }
+}

@@ -1744,8 +1744,8 @@ pub struct InlineOutcome {
 /// VERBATIM (they name another document's nodes — the walk_names seam
 /// rule). The path is walked by `StableName::rewrite_path`, which
 /// puts it back in canonical form: the map need not preserve id order
-/// (it follows document order, and a loaded document's order is not
-/// its id order), so every name-ordered position may come out
+/// (it follows the carry order, which moves a gauge ahead of the nodes
+/// that sit on it), so every name-ordered position may come out
 /// reordered.
 ///
 /// Public because a name held outside the document — a caller's own
@@ -3845,9 +3845,9 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
 
 /// **A remap that reorders ids republishes the canonical form.**
 ///
-/// The split's node map follows document order, which a loaded
-/// document need not keep in id order, so two ids can come out in the
-/// other order. Every name-ordered position then has to be put back in
+/// A map need not keep two ids in their order (a split carries a
+/// gauge ahead of the nodes that sit on it), so two ids can come out
+/// in the other order. Every name-ordered position then has to be put back in
 /// order, and a crossing ranked along a union seam whose sides swap
 /// reads its rank from the other end — the form the emitters would mint
 /// for the same entity under the new ids.

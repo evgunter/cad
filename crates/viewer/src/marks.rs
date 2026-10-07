@@ -726,7 +726,7 @@ pub fn focus(index: &PickIndex, doc: &Doc<ProfileProgram>, selection: &Selection
         // selection with no geometry of its own, and the useful
         // question about it is exactly "what does this number move".
         Selection::Param(var) => doc
-            .order()
+            .ids()
             .iter()
             .copied()
             .filter(|&id| drives(doc, id, *var))

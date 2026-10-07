@@ -325,7 +325,7 @@ pub(crate) fn operand_flow_bearing(source: FlowSource) -> bool {
 /// meant to; here the document is in hand, so the answer is a real
 /// address: the first slot of the first node whose expression lowers to
 /// `token` under this document's ROOT scope, scanned in the document's
-/// own deterministic node order ([`Doc::order`](crate::doc::Doc::order)).
+/// own deterministic node order ([`Doc::ids`](crate::doc::Doc::ids)).
 ///
 /// **What the answer is, precisely.** A token is the identity of an
 /// expression, not of a slot: every slot holding that expression lowers

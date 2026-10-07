@@ -3166,7 +3166,7 @@ impl DocSession {
 /// instantiates no part declares no cross-instance rest and has
 /// nothing for the gate to answer about.
 fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
-    doc.order()
+    doc.ids()
         .iter()
         .filter_map(|&id| doc.node(id))
         .any(puts_an_instance)
@@ -3334,7 +3334,7 @@ mod tests {
         assert!(outcome.committed.is_empty(), "nothing is committed");
         assert_eq!(session.history().len(), before, "nothing is recorded");
         assert!(
-            session.committed_doc().order().is_empty(),
+            session.committed_doc().ids().is_empty(),
             "neither frame landed"
         );
     }

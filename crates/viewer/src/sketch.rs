@@ -559,7 +559,7 @@ pub fn frame_placement(
 /// tree lists nodes that way, so the picker and the tree name the
 /// document's frames in one order.
 pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .filter(|id| admits(doc.node(*id), NodeKindWanted::Frame))
@@ -1453,7 +1453,7 @@ pub fn committed(
     except: Option<RecipeNodeId>,
 ) -> CommittedProfiles {
     let mut out = CommittedProfiles::default();
-    for &node in doc.order() {
+    for node in doc.ids() {
         if Some(node) == except || !admits(doc.node(node), NodeKindWanted::Profile) {
             continue;
         }

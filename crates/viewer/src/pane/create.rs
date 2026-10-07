@@ -1984,10 +1984,10 @@ mod tests {
         FaceSelection {
             name: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(test_utils::refusal::tagged(node)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(node)),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             },
-            node: RecipeNodeId(test_utils::refusal::tagged(node)),
+            node: RecipeNodeId::new(0, test_utils::refusal::tagged(node)),
             body: 0,
         }
     }
@@ -2029,12 +2029,12 @@ mod tests {
             painted_text(|ui| seats_row(ui, tool.seats(), &doc, &Theme::DEFAULT))
         };
         assert_eq!(painted(&tool), "no picks yet");
-        tool.pick(&doc, RecipeNodeId(test_utils::refusal::tagged(3)));
+        tool.pick(&doc, RecipeNodeId::new(0, test_utils::refusal::tagged(3)));
         assert_eq!(
             painted(&tool),
             "first operand: node 000000000003; second operand: —"
         );
-        tool.pick(&doc, RecipeNodeId(test_utils::refusal::tagged(5)));
+        tool.pick(&doc, RecipeNodeId::new(0, test_utils::refusal::tagged(5)));
         assert_eq!(
             painted(&tool),
             "first operand: node 000000000003; second operand: node 000000000005"
@@ -2200,8 +2200,8 @@ mod tests {
     #[test]
     fn the_plane_row_offers_the_mint_beside_the_frames_that_exist() {
         let frames = [
-            RecipeNodeId(test_utils::refusal::tagged(2)),
-            RecipeNodeId(test_utils::refusal::tagged(5)),
+            RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
+            RecipeNodeId::new(0, test_utils::refusal::tagged(5)),
         ];
         let mut picked: Option<ProfilePlane> = None;
         let drawn = painted_after_clicking("pick one", |ui| {
@@ -2233,7 +2233,8 @@ mod tests {
     /// test of the labelling function alone cannot see.
     #[test]
     fn the_plane_row_draws_the_name_it_is_handed() {
-        let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(
+        let mut picked = Some(ProfilePlane::Existing(RecipeNodeId::new(
+            0,
             test_utils::refusal::tagged(4),
         )));
         let names = |id: &RecipeNodeId| {
@@ -2246,7 +2247,7 @@ mod tests {
             profile_plane_row(
                 ui,
                 &Theme::DEFAULT,
-                &[RecipeNodeId(test_utils::refusal::tagged(4))],
+                &[RecipeNodeId::new(0, test_utils::refusal::tagged(4))],
                 &names,
                 &mut picked,
             )
@@ -2261,7 +2262,8 @@ mod tests {
     /// case `frame_picker`'s `text` argument exists for.
     #[test]
     fn the_plane_row_names_a_pick_the_document_no_longer_holds() {
-        let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(
+        let mut picked = Some(ProfilePlane::Existing(RecipeNodeId::new(
+            0,
             test_utils::refusal::tagged(9),
         )));
         let drawn =
@@ -2562,10 +2564,10 @@ mod tone_tests {
         FaceSelection {
             name: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(test_utils::refusal::tagged(1)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             },
-            node: RecipeNodeId(test_utils::refusal::tagged(2)),
+            node: RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
             body: 0,
         }
     }
@@ -2594,7 +2596,7 @@ mod tone_tests {
                 ui,
                 theme,
                 &FaceFrameFault::NotOneBody {
-                    at: SpokenNode::absent(RecipeNodeId(test_utils::refusal::tagged(4))),
+                    at: SpokenNode::absent(RecipeNodeId::new(0, test_utils::refusal::tagged(4))),
                 },
                 false,
             );
@@ -2658,7 +2660,7 @@ mod tone_tests {
             error: pncad::select::ResolveError::NodeGone {
                 name: latched().name,
                 edit: editor_core::RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(test_utils::refusal::tagged(1)),
+                    node: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 },
             },
             offers: Vec::new(),
@@ -2666,7 +2668,7 @@ mod tone_tests {
         assert!(selection_says_unresolved(&gone, Some(&latched())));
         // Another face, or nothing latched: the form must say it.
         let other = FaceSelection {
-            node: RecipeNodeId(test_utils::refusal::tagged(9)),
+            node: RecipeNodeId::new(0, test_utils::refusal::tagged(9)),
             ..latched()
         };
         assert!(!selection_says_unresolved(&gone, Some(&other)));
@@ -2677,7 +2679,7 @@ mod tone_tests {
         // A node selected: the header is about the node.
         assert!(!selection_says_unresolved(
             &Standing::Node {
-                node: RecipeNodeId(test_utils::refusal::tagged(2)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
                 present: false,
             },
             Some(&latched())

@@ -3614,7 +3614,7 @@ mod properties_pane_tests {
             app_frame(&ctx, app, &mut frame, None, events)
         };
         // The startup document's last node is its body (`plate_with_hole`).
-        let body = *app.session.doc().order().last().expect("a startup body");
+        let body = *app.session.doc().ids().last().expect("a startup body");
         app.tools.open(tool);
         clicked(&mut app, picks(body));
         let mut landed = Vec::new();
@@ -3692,7 +3692,7 @@ mod properties_pane_tests {
     /// there, which the `live()` gate on that line keeps unsaid.
     #[test]
     fn a_deleted_node_is_not_said_to_carry_no_parameters() {
-        let painted = painted_with(Selection::Node(RecipeNodeId(999)));
+        let painted = painted_with(Selection::Node(RecipeNodeId::new(0, 999)));
         assert!(painted.iter().any(|text| text == "deleted"), "{painted:?}");
         assert!(
             !painted
@@ -3707,7 +3707,7 @@ mod properties_pane_tests {
     /// "select a feature" prompt, and nothing else.
     #[test]
     fn an_undeclared_parameter_is_said_once_in_the_pane() {
-        let var = pncad::document::VarId(0x0123_4567_89ab_cdef);
+        let var = pncad::document::VarId::new(0, 0x0123_4567_89ab_cdef);
         let verdict = format!("{var} is no longer declared");
         let mut with = painted_with(Selection::Param(var));
         let mut without = painted_with(Selection::None);
@@ -3912,7 +3912,7 @@ mod properties_pane_tests {
     fn startup_node(at: usize) -> RecipeNodeId {
         let (doc, _) = crate::scene::plate_with_hole(pncad::tolerance::witness())
             .expect("the startup document");
-        doc.order()[at]
+        doc.ids()[at]
     }
 
     /// The startup plate's extrude, and its one slot.
@@ -4607,7 +4607,7 @@ mod properties_pane_tests {
 
         let doc = driven.app.session.doc();
         let instances: Vec<_> = doc
-            .order()
+            .ids()
             .iter()
             .filter(|id| {
                 doc.node(**id)
@@ -4807,11 +4807,11 @@ mod properties_pane_tests {
             said(&mut driven),
             "the form says why it withholds the button"
         );
-        let nodes = driven.app.session.doc().order().len();
+        let nodes = driven.app.session.doc().ids().len();
         driven.click(crate::pane::create::ADD_DATUM);
         driven.quiet();
         assert_eq!(
-            driven.app.session.doc().order().len(),
+            driven.app.session.doc().ids().len(),
             nodes,
             "the withheld button committed a datum"
         );

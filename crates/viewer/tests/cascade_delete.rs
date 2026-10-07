@@ -128,7 +128,7 @@ fn die_shaped(tol: Tol) -> Die {
 
 /// The live node ids, sorted — a document's identity for these rows.
 fn live(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
-    let mut ids = doc.order().to_vec();
+    let mut ids = doc.ids().to_vec();
     ids.sort_unstable();
     ids
 }
@@ -180,7 +180,7 @@ fn a_mid_chain_delete_takes_exactly_the_downstream_cone() {
         );
     }
     assert_eq!(
-        after.order().len(),
+        after.ids().len(),
         before.len() - expected.len(),
         "nothing else moved"
     );

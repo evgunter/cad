@@ -3,69 +3,30 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
   "snapshot": {
     "id": "1c20a55875fd2760f4d43eb67ee0d135",
     "mint": {
-      "chain": "fac3e14e20912977eba7041fe055b2f3611b5f4b026690f63f1221e064965f96",
+      "chain": "ac52f34ad69d613cbaaea17696b98cd3ee0d62d8014d9a7bf0f3e59cab55889f",
       "log": [
         {
-          "step": 833916641093927717
+          "node": "1:e4b910a32c253755"
         },
         {
-          "step": 3173453712732343952
+          "node": "2:a6dbda3247182970"
         },
         {
-          "node": 3190658467070647254
+          "step": "3:589d2955c5c624d9"
         },
         {
-          "node": 16481222604345390933
+          "step": "4:e98c9e215f2e0c55"
         },
         {
-          "node": 18069533855610644855
+          "node": "5:8ce1da495b6c13cc"
         },
         {
-          "node": 18103597484650391489
+          "node": "6:ac52f34ad69d613c"
         }
       ]
     },
     "nodes": {
-      "3190658467070647254": {
-        "Datum": {
-          "AxisInPlane": {
-            "plane": 16481222604345390933,
-            "origin": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "mm"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "mm"
-                }
-              }
-            ],
-            "direction": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
-            ]
-          }
-        }
-      },
-      "16481222604345390933": {
+      "1:e4b910a32c253755": {
         "Datum": {
           "Frame": {
             "origin": [
@@ -140,22 +101,9 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
           }
         }
       },
-      "18069533855610644855": {
-        "Revolve": {
-          "profile": 18103597484650391489,
-          "axis": 3190658467070647254,
-          "angle": {
-            "Literal": {
-              "value": 6.283185307179586,
-              "dim": "Angle",
-              "unit": "pi rad"
-            }
-          }
-        }
-      },
-      "18103597484650391489": {
+      "2:a6dbda3247182970": {
         "Profile": {
-          "plane": 16481222604345390933,
+          "plane": "1:e4b910a32c253755",
           "loops": [
             {
               "Circle": {
@@ -214,23 +162,69 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
           ],
           "ids": [
             [
-              833916641093927717
+              "3:589d2955c5c624d9"
             ],
             [
-              3173453712732343952
+              "4:e98c9e215f2e0c55"
             ]
           ]
         }
+      },
+      "5:8ce1da495b6c13cc": {
+        "Datum": {
+          "AxisInPlane": {
+            "plane": "1:e4b910a32c253755",
+            "origin": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              },
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Length",
+                  "unit": "mm"
+                }
+              }
+            ],
+            "direction": [
+              {
+                "Literal": {
+                  "value": 0.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              },
+              {
+                "Literal": {
+                  "value": 1.0,
+                  "dim": "Scalar",
+                  "unit": ""
+                }
+              }
+            ]
+          }
+        }
+      },
+      "6:ac52f34ad69d613c": {
+        "Revolve": {
+          "profile": "2:a6dbda3247182970",
+          "axis": "5:8ce1da495b6c13cc",
+          "angle": {
+            "Literal": {
+              "value": 6.283185307179586,
+              "dim": "Angle",
+              "unit": "pi rad"
+            }
+          }
+        }
       }
     },
-    "order": [
-      16481222604345390933,
-      18103597484650391489,
-      3190658467070647254,
-      18069533855610644855
-    ],
     "roots": [
-      18069533855610644855
+      "6:ac52f34ad69d613c"
     ],
     "vars": {},
     "epsilon": 1e-9,

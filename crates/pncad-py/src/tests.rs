@@ -362,7 +362,7 @@ fn analysis_refusal_tags_are_stable() {
     use pncad::document::{Distribution, VarName};
 
     let bore = pncad::document::SpokenVar::new(
-        pncad::document::VarId(9),
+        pncad::document::VarId::new(0, 9),
         Some(VarName::from_static("bore")),
     );
     let refusal = box_mass(
@@ -446,7 +446,7 @@ fn the_measure_node_fault_tag_is_stable() {
 
     let one_reference = vec![SitedRef::at_mint(StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(0),
+        node: RecipeNodeId::new(0, 0),
         path: vec![RoleSeg::OutputBody],
     })];
     let fault = Node::<ProfileProgram>::measure(
@@ -554,7 +554,7 @@ fn readback_refusal_tags_are_stable() {
     use pncad::select::{EntityKind, InterrogateError as E, ReadbackError as R};
     use pncad::topo::{EntityId, VertexKey};
 
-    let node = RecipeNodeId(0);
+    let node = RecipeNodeId::new(0, 0);
     assert_eq!(
         tag(&E::Standing(S::NotEvaluated { node })),
         "node_not_evaluated"
@@ -626,7 +626,7 @@ fn picking_refusal_tags_are_stable() {
         HitTestError as H, MeshPickError as M, NameLookupError as L, NodePickError as N,
     };
 
-    let node = RecipeNodeId(0);
+    let node = RecipeNodeId::new(0, 0);
     let standings = [
         (S::NotEvaluated { node }, "node_not_evaluated"),
         (S::Failed { node }, "node_failed"),
@@ -731,7 +731,7 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
     use pncad::mesh::TessellateError;
     use pncad::select::{MeshPickError as M, NodePickError as N};
 
-    let node = RecipeNodeId(0);
+    let node = RecipeNodeId::new(0, 0);
     // The one arm that carries them, at numbers no two of which are
     // equal: a slot swapped for another shows up as a moved number
     // rather than as three zeroes agreeing.
@@ -788,7 +788,7 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         UnitVec3,
     };
 
-    let id = RecipeNodeId;
+    let id = |n| RecipeNodeId::new(0, n);
     let carries = |fault: &F, want: &[&str]| {
         assert_eq!(
             mate_payload(fault).present(),
@@ -1291,8 +1291,8 @@ fn every_door_keeps_its_word_for_each_standing() {
         HitTestError, InterrogateError, NameLookupError, NodePickError, ResolveIndeterminate,
     };
 
-    let node = RecipeNodeId(0);
-    let through = RecipeNodeId(1);
+    let node = RecipeNodeId::new(0, 0);
+    let through = RecipeNodeId::new(0, 1);
     let arms = [
         S::NotEvaluated { node },
         S::NotInDocument { node },
@@ -1427,7 +1427,7 @@ fn resolution_status_tags_are_stable() {
     // all three are spellable here; the failure arms are not (this
     // function's own doc comment says why).
     use pncad::document::NodeStanding;
-    let node = pncad::document::RecipeNodeId(0);
+    let node = pncad::document::RecipeNodeId::new(0, 0);
     for (standing, word) in [
         (NodeStanding::Failed { node }, "target_failed"),
         (
@@ -1566,7 +1566,7 @@ fn select_refusal_tags_are_stable() {
 
     let name = Box::new(pncad::prelude::StableName {
         kind: EntityKind::Edge,
-        node: RecipeNodeId(0),
+        node: RecipeNodeId::new(0, 0),
         path: Vec::new(),
     });
     assert_eq!(
@@ -1586,7 +1586,7 @@ fn select_refusal_tags_are_stable() {
     );
     assert_eq!(
         select_refusal_tag(&SelectRefusal::NotADatum {
-            datum: RecipeNodeId(0),
+            datum: RecipeNodeId::new(0, 0),
             found: "body",
         }),
         "not_a_datum"
@@ -1594,7 +1594,7 @@ fn select_refusal_tags_are_stable() {
     assert_eq!(
         select_refusal_tag(&SelectRefusal::DatumHasNoValue(
             pncad::document::NodeStanding::Failed {
-                node: RecipeNodeId(0)
+                node: RecipeNodeId::new(0, 0)
             }
         )),
         "datum_has_no_value"
@@ -1602,7 +1602,7 @@ fn select_refusal_tags_are_stable() {
     assert_eq!(
         select_refusal_tag(&SelectRefusal::NodeHasNoValue(
             pncad::document::NodeStanding::Failed {
-                node: RecipeNodeId(0)
+                node: RecipeNodeId::new(0, 0)
             }
         )),
         "node_has_no_value"
@@ -1673,7 +1673,7 @@ fn declare_error_tags_are_stable() {
     use pncad::select::declare_all;
 
     let doc = pncad::document::ProfileDoc::empty_derived("declare-error-tags", Tol::witness());
-    let empty = declare_all(&doc, pncad::document::RecipeNodeId(1), &[], Tol::witness())
+    let empty = declare_all(&doc, pncad::document::RecipeNodeId::new(0, 1), &[], Tol::witness())
         .expect_err("declaring no findings refuses");
     assert_eq!(declare_error_tag(&empty), "no_findings");
 }
@@ -2183,12 +2183,12 @@ fn the_persist_doors_nested_arms_carry_their_own_word() {
     assert_eq!(distribution_fault_tag(&distribution), "non_finite");
 
     let snapshot = SnapshotError::NodeNotMinted {
-        id: pncad::document::SpokenNode::absent(RecipeNodeId(7)),
+        id: pncad::document::SpokenNode::absent(RecipeNodeId::new(0, 7)),
     };
     assert_eq!(snapshot_error_tag(&snapshot), "node_not_minted");
 
     let replayed = EditError::UnknownNode {
-        id: pncad::document::SpokenNode::absent(RecipeNodeId(7)),
+        id: pncad::document::SpokenNode::absent(RecipeNodeId::new(0, 7)),
     };
     let carrier = PersistError::EditReplay {
         index: 3,
@@ -2584,8 +2584,8 @@ fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
 
     let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
     let carried = |error| NodeErrorKind::FrameDirection {
-        profile: RecipeNodeId(test_utils::refusal::tagged(7)),
-        frame: RecipeNodeId(test_utils::refusal::tagged(3)),
+        profile: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
+        frame: RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
         refusal: DirectionRefusal {
             role: "datum frame x axis",
             error,
@@ -2654,7 +2654,7 @@ fn edit_inner_variant_tags_are_stable() {
         .expect_err("a zero sigma breaks an E2 invariant");
     assert_eq!(
         pair(&EditError::InvalidDistribution {
-            var: pncad::document::SpokenVar::new(pncad::document::VarId(9), None),
+            var: pncad::document::SpokenVar::new(pncad::document::VarId::new(0, 9), None),
             fault,
         }),
         ("invalid_distribution", Some("sigma_not_positive"))
@@ -2669,7 +2669,7 @@ fn edit_inner_variant_tags_are_stable() {
         pair(&EditError::MetaUnversioned {
             name: pncad::document::SpokenName::absent(StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(7),
+                node: RecipeNodeId::new(0, 7),
                 path: vec![RoleSeg::OutputBody],
             }),
             key: "fit".to_owned(),
@@ -2681,7 +2681,7 @@ fn edit_inner_variant_tags_are_stable() {
     // `PlacementRule` does one carrier over.
     assert_eq!(
         pair(&EditError::Roots(RootFault::Duplicate {
-            root: pncad::document::SpokenNode::absent(RecipeNodeId(1))
+            root: pncad::document::SpokenNode::absent(RecipeNodeId::new(0, 1))
         })),
         ("root_duplicate", None)
     );
@@ -2719,14 +2719,14 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
 
-    let id = |n: u64| RecipeNodeId(n);
+    let id = |n: u64| RecipeNodeId::new(0, n);
     let sp = |n: u64| pncad::document::SpokenNode::absent(id(n));
     let param = || VarName::from_static("bore");
-    let spv = || pncad::document::SpokenVar::new(pncad::document::VarId(9), Some(param()));
+    let spv = || pncad::document::SpokenVar::new(pncad::document::VarId::new(0, 9), Some(param()));
     let named = || {
         pncad::document::SpokenName::absent(StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(7),
+            node: RecipeNodeId::new(0, 7),
             path: vec![RoleSeg::OutputBody],
         })
     };
@@ -2764,7 +2764,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::StepIdsRefused {
             node: sp(1),
-            fault: StepIdFault::Repeated { step: StepId(2) },
+            fault: StepIdFault::Repeated { step: StepId::new(0, 2) },
         },
         &["node"],
     );
@@ -3005,7 +3005,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     );
     carries(
         &E::UnknownVar {
-            var: pncad::document::VarId(9).into(),
+            var: pncad::document::VarId::new(0, 9).into(),
             door: pncad::document::CarryForwardDoor::Value,
         },
         &[],
@@ -3078,7 +3078,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         E::DeclareNamesMissingNode { name: named() },
         E::NameStepNeverMinted {
             name: named(),
-            step: StepId(9),
+            step: StepId::new(0, 9),
         },
         E::RebindTargetMissingNode { name: named() },
         E::RebindUnknownName { name: named() },
@@ -3739,7 +3739,7 @@ fn check_registry_tags_are_stable() {
 
     assert_eq!(
         checks_error_tag(&ChecksError::Root(pncad::document::NodeStanding::Failed {
-            node: RecipeNodeId(3)
+            node: RecipeNodeId::new(0, 3)
         })),
         "root_without_value"
     );
@@ -3763,7 +3763,7 @@ fn check_registry_tags_are_stable() {
     );
     assert_eq!(
         check_evidence_tag(&CheckEvidence::NotSeparated {
-            other_root: RecipeNodeId(4),
+            other_root: RecipeNodeId::new(0, 4),
             other_output: 0
         }),
         "not_separated"
@@ -3841,7 +3841,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     carries(&E::StaleExpectation { expected: 1 }, &["expected"]);
     carries(
         &E::NotSeparated {
-            other_root: RecipeNodeId(4),
+            other_root: RecipeNodeId::new(0, 4),
             other_output: 2,
         },
         &["other_root", "other_output"],
@@ -3888,11 +3888,12 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
     // The numbers and the sentence themselves, not just which fields
     // are set: the counterpart names the root it names, and the
     // separation arm's prose crosses as the kernel wrote it.
-    let pair = check_payload(&E::NotSeparated {
-        other_root: RecipeNodeId(4),
+    let separated = E::NotSeparated {
+        other_root: RecipeNodeId::new(0, 4),
         other_output: 2,
-    });
-    assert_eq!(pair.other_root, Some(RecipeNodeId(4)));
+    };
+    let pair = check_payload(&separated);
+    assert_eq!(pair.other_root, Some(RecipeNodeId::new(0, 4)));
     assert_eq!(pair.other_output, Some(2));
     assert_eq!(
         check_payload(&unavailable).reason.as_deref(),
@@ -4531,10 +4532,10 @@ fn the_edit_and_snapshot_maps_agree_on_the_var_read_words() {
     use crate::tags::{edit_error_tag, snapshot_error_tag};
     use pncad::document::{Dimension, EditError, RecipeNodeId, SlotId, SnapshotError, VarName};
 
-    let spoken = pncad::document::SpokenNode::absent(RecipeNodeId(5));
+    let spoken = pncad::document::SpokenNode::absent(RecipeNodeId::new(0, 5));
     let name = || VarName::from_static("width");
 
-    let var = || pncad::document::SpokenVar::new(pncad::document::VarId(7), Some(name()));
+    let var = || pncad::document::SpokenVar::new(pncad::document::VarId::new(0, 7), Some(name()));
     let pairs: [(&str, &str, EditError, SnapshotError); 2] = [
         (
             "slot",
@@ -4635,7 +4636,7 @@ fn the_class_table_predicts_the_mint_refusal_in_its_own_words() {
             why: "the table's own reason"
         }),
         mint_refusal_tag(&MintRefusal::NoAtRestRecord {
-            mate: RecipeNodeId(0),
+            mate: RecipeNodeId::new(0, 0),
             class: ContactClass::Tangent,
             why: "the table's own reason",
         }),
@@ -6599,14 +6600,14 @@ fn a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do() {
     };
     use pncad::select::{EntityKind, InterrogateError};
 
-    let instance = RecipeNodeId(0);
+    let instance = RecipeNodeId::new(0, 0);
     let part = DocRef {
         id: DocumentId::derive("face-refusal-words"),
         pin: ContentPin([0u8; 32]),
     };
     let face = FaceName::new(pncad::prelude::StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(1),
+        node: RecipeNodeId::new(0, 1),
         path: vec![],
     })
     .expect("a face");
@@ -10459,18 +10460,16 @@ fn the_unplaced_tag_is_the_kernels_word() {
     for cause in [
         Unplaced::NoOffset,
         Unplaced::DeadGauge {
-            gauge: RecipeNodeId(7),
+            gauge: RecipeNodeId::new(0, 7),
         },
     ] {
         assert_eq!(crate::tags::unplaced_tag(&cause), cause.word(), "{cause:?}");
     }
 }
 
-/// **A split's node map reaches Python in document order**: the map is
-/// keyed by id, and the cut below is grown until its ids do not run in
-/// document order, so the map's own order is NOT the document's — the
-/// disorder is asserted, not assumed — and the list the helper hands
-/// Python follows the source document and the part alike.
+/// **A split's node map reaches Python in document order**: the list
+/// the helper hands Python follows the source document and the part
+/// alike, each in id order, which is the order its nodes were placed.
 #[test]
 fn a_split_node_map_reaches_python_in_document_order() {
     use pncad::document::{Datum, DocumentId, Node, ProfileDoc, RecipeNodeId, split};
@@ -10493,22 +10492,18 @@ fn a_split_node_map_reaches_python_in_document_order() {
             }),
         )
     };
-    let (doc, cut) = (3..12u32)
-        .map(|n| {
-            (0..n).fold(
-                {
-                    let (doc, instance) = material();
-                    (doc, vec![instance])
-                },
-                |(doc, mut cut), i| {
-                    let (doc, id) = insert(doc, frame(f64::from(i)));
-                    cut.push(id);
-                    (doc, cut)
-                },
-            )
-        })
-        .find(|(_, cut)| !ascending(cut))
-        .expect("some frame count puts the ids out of document order");
+    let (doc, cut) = (0..4u32).fold(
+        {
+            let (doc, instance) = material();
+            (doc, vec![instance])
+        },
+        |(doc, mut cut), i| {
+            let (doc, id) = insert(doc, frame(f64::from(i)));
+            cut.push(id);
+            (doc, cut)
+        },
+    );
+    assert!(ascending(&cut), "ids run in document order");
     let out = split(
         &doc,
         &cut.iter().copied().collect(),
@@ -10517,8 +10512,6 @@ fn a_split_node_map_reaches_python_in_document_order() {
         None,
     )
     .expect("a cut of free frames splits");
-    let keyed: Vec<RecipeNodeId> = out.node_map.keys().copied().collect();
-    assert_ne!(keyed, cut, "the map's own order is not the document's");
     let listed = crate::node_map::in_document_order(&out.node_map, &out.part);
     assert_eq!(
         listed.iter().map(|&(from, _)| from).collect::<Vec<_>>(),
@@ -10527,7 +10520,7 @@ fn a_split_node_map_reaches_python_in_document_order() {
     );
     assert_eq!(
         listed.iter().map(|&(_, to)| to).collect::<Vec<_>>(),
-        out.part.order(),
+        out.part.ids(),
         "the targets, as the part holds them"
     );
 }

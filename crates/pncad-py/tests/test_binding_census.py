@@ -2298,6 +2298,9 @@ NOT_BOUND = {
     # each door's message is spoken from the evaluated document, and a
     # `MateFault` an edit door refused carries the nodes it kept.
     "FullId": SHAPE,
+    # The pair an id is: Python reads it whole through the same repr,
+    # and orders nothing by it.
+    "MintId": SHAPE,
     "HeldNodes": SHAPE,
     "held_by": SHAPE,
     # The name tables a speaker says names within: the binding speaks

@@ -1983,7 +1983,6 @@ mod tests {
         let painted_a = name(0, EntityKind::Face);
         let painted_b = name(1, EntityKind::Face);
 
-        // Declared in id order, ordered in the document backwards.
         doc.nodes.insert(
             RecipeNodeId::new(0, 0),
             Node::Boolean {

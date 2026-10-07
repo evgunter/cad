@@ -35,7 +35,7 @@ use viewer::tree::RowStatus;
 /// function against itself.
 fn mate_nodes(session: &DocSession) -> Vec<RecipeNodeId> {
     let doc = session.doc();
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(pncad::document::Node::Mate { .. })))
@@ -356,9 +356,7 @@ fn fused_geometry_refuses_both_display_ops_typed() {
 }
 
 /// **A fused instance's refusal lists the others in document order**,
-/// whatever their ids: the union takes instances until the ones after
-/// the first do not run in id order, so a list read off an id-ordered
-/// set would differ.
+/// which is id order.
 #[test]
 fn a_fused_instances_refusal_lists_the_others_in_document_order() {
     let tol = Tol::witness();
@@ -387,10 +385,11 @@ fn a_fused_instances_refusal_lists_the_others_in_document_order() {
         );
         (doc, members, union)
     };
-    let (doc, members, union) = (3..12)
-        .map(fused)
-        .find(|(_, m, _)| m[1..].windows(2).any(|w| w[0] > w[1]))
-        .expect("some member count puts the later instances out of id order");
+    let (doc, members, union) = fused(4);
+    assert!(
+        members.windows(2).all(|w| w[0] < w[1]),
+        "ids run in document order"
+    );
     match display::display_check(&doc, members[0]) {
         Err(AdmissionFault::FusedGeometry {
             instance,
@@ -526,7 +525,7 @@ fn hide_refuses_an_id_the_document_does_not_hold() {
     let bench = asm::bench("hidewrong", tol);
     let mut session = asm::open_bench(&bench, tol);
     let outcome = session.perform(SessionOp::SetInstanceHidden {
-        instance: RecipeNodeId(9_999),
+        instance: RecipeNodeId::new(0, 9_999),
         hidden: true,
     });
     assert!(
@@ -580,7 +579,7 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
         "a node that IS in the document and is not an instance is the \
          wrong-kind refusal, naming itself"
     );
-    let absent = RecipeNodeId(test_utils::refusal::tagged(9_999));
+    let absent = RecipeNodeId::new(0, test_utils::refusal::tagged(9_999));
     assert_eq!(
         display::instance_check(doc, absent),
         Err(AdmissionFault::NoSuchNode {
@@ -693,7 +692,7 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     );
     // And an id the document does not hold refuses for being ABSENT.
     let outcome = session.perform(SessionOp::BeginFreeMove {
-        instance: RecipeNodeId(9_999),
+        instance: RecipeNodeId::new(0, 9_999),
     });
     assert!(
         matches!(

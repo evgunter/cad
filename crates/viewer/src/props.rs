@@ -963,7 +963,7 @@ pub struct DefinedRow {
 /// Every defined variable, declaration order.
 pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
     let env = doc.var_env::<f64>();
-    doc.var_order()
+    doc.var_ids()
         .iter()
         .filter_map(|&var| {
             let expr = doc.var(var)?.def().defined()?;

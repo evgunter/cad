@@ -378,7 +378,7 @@ impl core::error::Error for DisplayFault {}
 /// names its head node; participation is about what the document
 /// says, not about what currently resolves).
 pub fn mates_naming(doc: &Doc<ProfileProgram>, instance: RecipeNodeId) -> Vec<RecipeNodeId> {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .filter(|&id| match doc.node(id) {
@@ -547,7 +547,7 @@ pub fn drawn_targets(
                 instance: doc.spoken(instance),
                 root: doc.spoken(root),
                 others: doc
-                    .order()
+                    .ids()
                     .iter()
                     .filter(|&&i| i != instance && instances.contains(&i))
                     .map(|&i| doc.spoken(i))

@@ -253,11 +253,11 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
     for &kind in TargetKind::ALL {
         steps.push(Step::LineTo(sketch::fresh_target(kind)));
     }
-    let node = RecipeNodeId(1);
+    let node = RecipeNodeId::new(0, 1);
     for step in steps {
         let verb = step.verb();
         let program = editor_core::test_support::stored_program(&ProfileProgram {
-            plane: RecipeNodeId(0),
+            plane: RecipeNodeId::new(0, 0),
             loops: vec![shape(&ProfileShape::Path { steps: vec![step] })],
             ids: Vec::new(),
         });
@@ -565,7 +565,7 @@ fn a_driven_argument_refuses_to_load() {
         other => panic!("a driven argument loaded: {other:?}"),
     }
     assert!(matches!(
-        sketch::held_loops(session.committed_doc(), RecipeNodeId(0)),
+        sketch::held_loops(session.committed_doc(), RecipeNodeId::new(0, 0)),
         Err(HeldRefusal::NotAProfile { .. })
     ));
 }

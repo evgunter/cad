@@ -108,7 +108,7 @@ pub struct Evaluation<T: Decide> {
     pub prior_refused: Option<Mispaired>,
     /// Deterministic topological order of the live nodes (spec D2:
     /// a pure function of the document; Kahn's algorithm, ties to the
-    /// earlier node in [`Doc::order`]). Always the FULL order, even when
+    /// lesser id, the node inserted first). Always the FULL order, even when
     /// canceled — order is data, not schedule.
     pub order: Vec<RecipeNodeId>,
     /// Per-node results. On cancelation this holds the completed

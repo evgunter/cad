@@ -4839,9 +4839,9 @@ fn regauges_for<P: Clone + crate::ProfilePayload>(
 /// that wants the refusal asks [`apply`] for it, so the typed verdict
 /// has one home.
 ///
-/// One forward pass suffices because [`Doc::order`] is insertion
-/// order and an insertion's inputs must already be live, making the
-/// list topological: a consumer is always seen after every input it
+/// One forward pass suffices because id order ([`Doc::ids`]) is
+/// insertion order and an insertion's inputs must already be live,
+/// making the list topological: a consumer is always seen after every input it
 /// could inherit doom from.
 pub fn cascade_delete_order<P: crate::ProfilePayload>(
     doc: &Doc<P>,

@@ -57,7 +57,8 @@
 //!   history;
 //! - an entity of the finished body that belongs to several members at
 //!   once (a flush stretch, a corner on another member's rim) is named
-//!   for the least member entity that holds it, every edge lying within
+//!   for the least member entity that holds it — the first minted, as
+//!   ids order ordinal first (`names/README.md`, N1) — every edge lying within
 //!   a member edge is named as a piece of it, and an edge lying within
 //!   none but along several that cover it (a flush rim the output stage
 //!   joined) is named for that set ([`Flush`], [`group_member_edges`])
@@ -432,7 +433,9 @@ fn entity_name(union: RecipeNodeId, (member, of): &MemberEntity) -> StableName {
 /// its name for the stretch says which member was folded first. The
 /// union has no A and B; it names the stretch for the least member
 /// entity that holds it, in the order of the [`RoleSeg::FromMember`]
-/// names it publishes. A stretch the output stage joined across several
+/// names it publishes, which compares the member first: the member
+/// minted first holds the stretch, so a member added or re-drawn later
+/// never takes it. A stretch the output stage joined across several
 /// member edges lies within none of them, and is named for the set of
 /// those it runs along.
 ///

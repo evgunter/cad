@@ -836,7 +836,7 @@ impl NodeId {
 
     fn __hash__(&self) -> u64 {
         let _tol = Tol::witness();
-        self.0.0
+        self.0.0.digest()
     }
 }
 
@@ -1479,7 +1479,7 @@ impl Doc {
 
     /// The document's evaluation order.
     fn order(&self) -> Vec<NodeId> {
-        self.inner.order().iter().copied().map(NodeId).collect()
+        self.inner.ids().iter().copied().map(NodeId).collect()
     }
 
     /// **The document's named free parameters**, by name, in
@@ -1520,7 +1520,7 @@ impl Doc {
     #[getter]
     fn definitions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let out = PyDict::new(py);
-        for &id in self.inner.var_order() {
+        for id in self.inner.var_ids() {
             let Some(expr) = self.inner.var(id).and_then(|v| v.def().defined()) else {
                 continue;
             };
@@ -3391,7 +3391,7 @@ impl Var {
     }
 
     fn __hash__(&self) -> u64 {
-        self.0.0
+        self.0.0.digest()
     }
 }
 
