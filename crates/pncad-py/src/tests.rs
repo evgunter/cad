@@ -3386,7 +3386,6 @@ fn import_report_row_tags_are_stable() {
             NormalizationKind::DegenerateApexCone,
             "degenerate_apex_cone",
         ),
-        (NormalizationKind::FullPeriodTorus, "full_period_torus"),
         (
             NormalizationKind::SeamlessPeriodicBand,
             "seamless_periodic_band",
@@ -5280,7 +5279,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "euler",
             "far_section_not_forward",
             "far_stacking_escalated",
-            "one_segment_loop",
             "pcurve",
             "reversed_stacking",
             "seam_structure",
@@ -5551,7 +5549,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "degenerate_apex_cone",
             "edge_free_sphere",
-            "full_period_torus",
             "seamless_periodic_band",
             "surface_promotion",
         ],
@@ -5825,7 +5822,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "multiple_axis_runs",
             "non_finite_axis",
             "non_manifold_axis_contact",
-            "one_segment_loop",
             "op",
             "pcurve",
             "pinned_run_station",
@@ -6048,6 +6044,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "body_name_crosses_cut",
             "dead_gauge_reference",
+            "definition_straddles_cut",
             "empty_cut",
             "mate_frame_crosses",
             "name_on_dropped_step",
@@ -6497,9 +6494,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("not_a_gauge", 2),
     ("not_an_instance", 3),
     ("null_scaffold_edge", 2),
-    // One fact: revolve and loft refuse a one-segment loop for the same
-    // missing seam on the period their one wall wraps.
-    ("one_segment_loop", 2),
     ("op", 3),
     ("part_unresolved", 3),
     // ONE concept, and pinned as one: the variable-read convention

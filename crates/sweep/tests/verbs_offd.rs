@@ -190,11 +190,12 @@ fn the_cylinder_wall_offsets_at_both_signs() {
     }
 }
 
-/// The untouched wall's declared meridian's PARAMETER range follows the
-/// moved cap: the vessel's angle-π meridian, a segment from `y = 0` to
-/// `y = 0.4`, now ends at `y = 0.4 + d`, and its authoritative sketch
-/// datum says so — the door re-states the segment rather than patching
-/// the carrier around it.
+/// The untouched wall's declared meridians' PARAMETER range follows the
+/// moved cap: the vessel's angle-0 and angle-π meridians — segments from
+/// `y = 0` to `y = 0.4`, each parting the wall's two π-bands and so
+/// each a declared image at rest (no wrap edge, D1) — now end at
+/// `y = 0.4 + d`, and their authoritative sketch data say so — the door
+/// re-states the segment rather than patching the carrier around it.
 #[test]
 fn the_untouched_walls_declared_meridian_is_re_anchored() {
     let d = 0.05;
@@ -223,8 +224,8 @@ fn the_untouched_walls_declared_meridian_is_re_anchored() {
         .collect();
     assert_eq!(
         meridians.len(),
-        1,
-        "the wall's one declared meridian, got {meridians:?}"
+        2,
+        "the wall's two declared meridians, got {meridians:?}"
     );
     assert!(
         meridians

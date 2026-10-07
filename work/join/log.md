@@ -1050,3 +1050,52 @@ which now carries the evidence.
   Its declared rows need contact records naming both copies.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-07 — PR 4207 landed; three units in review
+
+- **PR 4207** merged. A pinch's cone vertices now share one point key, by
+  descent through the seam records (FULL review, fixes in). It took three
+  main merges to land. One carried main's red `payload-rung-sweep`
+  (`SectorRead`, TANG's `9dea3c25`). Main fixed it in #4241 first, so my
+  PR 4242 closed as superseded.
+- **PR 4240** (tier-3 corner slice and check 9 on every ring pair) is
+  under a FULL review. Its batteries are byte-identical to main over
+  66k lines.
+- **PR 4249** (`hang_in_turned`: the 217 In/Out lines build) is under a
+  DUAL review, adjudication byte 147, parity 1, so A = R2. The 102 `ba`
+  nested-plan lines are filed as
+  `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings`.
+- **PR 4250** (near-tangent): the premise was false, and I accepted that
+  on an orchestrator read. The exact link holds two cones at a 1e-7 tilt,
+  and the kernel's two solids are right. The test counter stepped over
+  the sliver at its fixed 1e-5 step. `round_vertex` now shrinks the step
+  until each sample is provably in its cell. The row closes when 4250
+  lands.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07: 4250 landed; reviews of 4240 and 4249 back
+
+- **PR 4250 landed.** It is the test-oracle fix for the near-tangent
+  case. `a-near-tangent-pierce-reads-two-cones-where-its-link-holds-one`
+  is closed.
+- **PR 4240** (FULL review): APPROVE-WITH-FIXES, 0/4/5. All four MINORs
+  were taken; the fix pass is with the implementer.
+  - The skip compared edges, so a closed arc at a pinch could hide a
+    crossing. It now compares sides.
+  - The ring-pair loop was quadratic. It gets a broad phase.
+  - The reflex, straight and curved arms get crossed pins.
+  - The ring-pair escalation gets its own variant naming both rings.
+- **PR 4249** (DR-101): both lanes APPROVE-WITH-FIXES, and both found
+  the same MAJOR. With three pairs at one vertex, 18–22 lines go from
+  refusal to `BAD`, because the cones sit on two point keys. That is
+  the parked separate-keys class (D10).
+  - Ruling: refuse typed there, detected structurally from the point
+    classes, until D10 lifts.
+  - The fix pass is with the implementer.
+  - **My error:** 4249 is an M unit, and I dispatched it as a
+    concurrent pair without rule 1's arm draw. DR-101 is excluded from
+    the tally and the pair count. From now on, the class letter is
+    checked against rule 1 before any dual dispatch.
+
+Signed (JOIN orchestrator).

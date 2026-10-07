@@ -28,8 +28,9 @@ pub enum AdoptionCandidate {
     Intersection,
     /// Tangential contact locus of the two adjacent surfaces.
     TangentIntersection,
-    /// The parameterization seam of one closed surface.
-    Seam,
+    /// A wrap edge: the edge both of whose uses bound one face, across
+    /// which that face's periodic chart closes (D1).
+    Wrap,
     /// A NURBS wall's own `u ∈ {0, 1}` boundary iso-curve (M7-3): the
     /// loft/sweep wall–wall seam class, offered when the parsed
     /// carrier bitwise-matches an adjacent wall's boundary column.
@@ -44,7 +45,7 @@ impl fmt::Display for AdoptionCandidate {
         f.write_str(match self {
             Self::Intersection => "intersection",
             Self::TangentIntersection => "tangent intersection",
-            Self::Seam => "seam",
+            Self::Wrap => "wrap edge",
             Self::IsoCurve => "boundary iso-curve",
             Self::MappedCurve => "mapped curve",
         })

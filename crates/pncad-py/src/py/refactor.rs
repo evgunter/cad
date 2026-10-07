@@ -332,6 +332,16 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
+        E::DefinitionStraddlesCut { var, .. } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(&var.to_string()),
+            none(),
+            none(),
+        ),
         E::UnresolvedVarCrossesCut { var, node: n } => (
             id(n),
             none(),
@@ -381,6 +391,15 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
         | E::UnplaceableRoot { anchor: g, .. } => id(g),
         _ => none(),
     };
+    // A definition tied across the cut: the variable it reads that
+    // moves, and the one that stays (or that the document no longer
+    // holds), as `UncutVarReference` carries both of its nodes.
+    let (moving, staying) = match err {
+        E::DefinitionStraddlesCut {
+            moving, staying, ..
+        } => (text(&moving.to_string()), text(&staying.to_string())),
+        _ => (none(), none()),
+    };
     typed_err(
         py,
         ErrorClass::Split,
@@ -399,6 +418,8 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             ("name", name),
             ("id", doc_id),
             ("gauge", gauge),
+            ("moving", moving),
+            ("staying", staying),
         ],
     )
 }

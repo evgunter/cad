@@ -419,11 +419,15 @@ a chart can hold has a route into a certified row, and a face no route
 covers refuses at the producer rather than reaching rest uncached. The
 lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
 plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
-closed from the carrier's own parameter), `ConeSection` (a tilted
-plane×cone ellipse on its cone: the slant harmonic, the azimuth the
-Kepler true anomaly of the ellipse's projection, whose focus is the
-axis; its envelope is the harmonic closed form plus one remainder
-term), `Fitted`, `General`
+closed from the carrier's own parameter), `FocalSection` (a conic
+whose projection onto the plane normal to the chart's axis has its
+focus on the axis, in two instances: a tilted plane×cone ellipse on its
+cone, its second channel the harmonic slant, and a Villarceau circle on
+its torus, its second channel the tube angle, linear in the parameter;
+the azimuth is the projection's Kepler true anomaly, and, as for
+`Harmonic`, the envelope alone is the certified statement — the
+harmonic closed form of the Kepler decomposition plus its remainder,
+drift and frame terms — with the schedule its cross-check), `Fitted`, `General`
 (the general curve-in-UV at the honest fitted grade). Carrier-primary
 stands: the 3-D carrier is the authoritative machinery and the edge's
 parameter stays chart-neutral. The description form every conventional

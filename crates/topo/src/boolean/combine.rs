@@ -824,7 +824,7 @@ fn graft_solids_impl<T: geom_core::Decide>(
                     "surface",
                 ),
                 image: Some(c.pcurve.clone()),
-                seam: c.seam,
+                wrap: c.wrap,
                 declared: match curve.authority() {
                     geom_brep::EdgeAuthority::Declared(mc) => Some(mc),
                     geom_brep::EdgeAuthority::Derived => None,
