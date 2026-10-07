@@ -416,20 +416,23 @@ its own space (A11 (2)): nothing outside it is compared with it, and it
 is not part of that body. The viewer's free-move probe is display state,
 never persisted (`crates/viewer/src/display.rs`).
 
-**A10 — Explicit product roots.** `Doc::roots` is an ordered list of
-node ids, document data. Invariants (`roots::check`): coverage (every
-live node is ancestor-of-or-equal-to some root) and ancestor-freedom
-(no root is a strict ancestor of another); together the root set is
-exactly the DAG's sink set and the list adds only the solid order.
-Maintenance: a new sink appends; a node that replaces roots (an insert
-consuming them, or split's instance) goes where the first of them was;
-removing it puts what it replaced back at its position (a delete's
-orphaned inputs in document order, an inline's spliced roots in the
-part's root order); `DocEdit::SetRoots` states the list outright.
-`product::product` gathers, in list order, every body-denoting root
-(`Body`/`Boolean` solids, `Instances` as placed solids with no boolean
-implied, `Split` as both pieces); non-body roots contribute nothing, and
-a door needing a body refuses `ProductError::NoBodyRoots`.
+**A10 — Explicit product.** `Doc::product` is an ordered,
+duplicate-free list of live `Body` variables, document data. A
+body-defining operation is one with a `Body` output; an operation
+defining no body, among them a mate, measure, assertion, select or
+gauge, is never listed and moves nothing. The edit that inserts,
+deletes or re-points a body-defining operation applies one default:
+the operation's body enters where the earliest listed body it reads
+sits and the other listed bodies it reads leave, or appends when it
+reads none; a deleted listed body leaves and its orphaned operands take
+its place in document order. Split and inline state their own list
+edits: the part's product is the cut's listed bodies in list order, the
+instance takes the first one's place, and inline splices the part's
+product back there; a cut holding no listed body refuses.
+`DocEdit::SetProduct` states the list outright. Nothing re-derives the
+list from the graph. An empty product is a valid document; only the
+gather refuses, `EmptyProduct`. `product::product` gathers the listed
+bodies in list order.
 
 ## The constructive-solve boundary
 
