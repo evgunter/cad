@@ -655,3 +655,49 @@ The minors were taken in full:
 
 The tour rocker's wall 1 retired. Filed:
 `rocker-crease-radius-stays-at-the-eye-after-wall-1-retired` (P3).
+
+## 2026-10-07 — run-out step 4 landed (PR #4209): two requested edges at an isosceles corner meet in a mitre
+
+Under Ev's PR 4085 ruling and INTENT's option (b), two requested edges at a
+trivalent vertex whose third edge L is unrequested now meet in a mitre, chamfer
+or fillet, on both convexities, where `fillet3_turn_isosceles` decides the
+trihedron isosceles.
+- **The verdict.** The margin is the larger of the levered face-angle cosine
+  difference and the gap between the two feet on L. The feet term came from
+  the dual review: it is stricter, never looser, so Zero puts the midpoint
+  foot within band of both trimlines at acute angles too. A definite verdict
+  refuses `UnsupportedRunOut { TURN_NOT_ISOSCELES }` (renamed from
+  `TURN_OVERRUN`, whose text was false at supplementary angles); in band it
+  escalates.
+- **The geometry.** The mitre is a chord, or `cylinder_cylinder_section`'s
+  ellipse; L splits at the turn foot.
+- **Names and coincidences.** The new roles are `Mitre` and `TurnFoot`, with
+  content tags 49/50, because main's `Crossing`/`EdgeCrossing` took 47/48
+  while the PR was open. The Zero verdict is recorded as
+  `DecidedCoincidence::IsoscelesTurn`, a typed seam until D10 has a door
+  (`work/intent/value-decided-coincidences-have-no-recording-door.md`).
+- **Clearance.** The mitre needs no new reach code: each link's window
+  closes at the other band's support plane. Void and island rows refuse with
+  the meter and go red without it.
+
+Class-H dual review (DR row in this PR; both APPROVE-WITH-FIXES, tally 0),
+taken in full:
+- the oblique-turn cap pad pinned;
+- the turn-feet arm of `shared_rims_clear` pinned where the screen passes;
+- `core`'s window padded at a planar end;
+- in-band `SectionError` escalates `MitreSection`;
+- the frustum checked against exact and point-membership oracles;
+- one turn reading per vertex.
+
+The bracket's wall 3 stays (its section-face corners are not isosceles). The
+run-out row stays open for step 5: the overrun at a non-isosceles turn,
+including the supplementary chamfer whose feet coincide, then deleting the
+residue.
+
+## 2026-10-07 — the run-out row closes at step 4; step 5 split
+
+Per the ruling's build order, `a-plane-plane-blend-cannot-end-at-an-unrequested-corner`
+closes with PR 4209. Step 5 (the non-isosceles overrun, a numeric probe
+before its spec) is now its own row,
+`a-non-isosceles-turn-overruns-past-the-mitre` (P2, H, design). The
+whole-face planar path step 5 was to delete went at step 2.

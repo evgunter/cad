@@ -658,6 +658,17 @@ was. Filed: `an-ellipse-lying-on-a-wall-keeps-the-door` (P2).
 ## 2026-10-07 — cylinder offsets read at the reach
 
 `cylinder-offsets-read-at-a-stored-origin-off-the-reach` closed: the cone×cylinder arm reads its pose at the apex against the cylinder's own axis, `route_pose` drops the cylinder's stored-origin anchor, and the join's radical plane reads its offset between the axes' feet at the germ sites. The declared-pair sites wait on the D10 hold (`declared-cylinder-pair-offsets-read-off-the-reach`, parked); the sweep's other hits are filed on OFFSET, BAND and EXCH.
+## 2026-10-07 — a vertex read by two sector passes refuses typed (TANG implementer)
+
+`a-vertex-read-by-two-sector-passes-panics-instead-of-refusing` (P1)
+closes. `vtxfac::refuse_sector_rereads` replaces the `debug_assert!` in
+`boolean_reduce`. It runs before any vertex-on-face pass writes, in
+every build, and refuses `VertexReadTwice`, naming the vertex and its
+two reads. The rows rebuild the arch: standing pyramids on the plate,
+a `meeting::wedge` prism beside one, and two blocks in face contact.
+They cover every op, both orders and every pose. On the merge base
+each one panicked. Filed:
+`a-vertex-read-twice-where-the-first-pass-writes-nothing-refuses` (P1).
 ## 2026-10-07 — a ring on a sphere face winds its island (TANG implementer)
 
 `a-ring-on-a-sphere-face-has-no-island-winding` (P2) closes. The

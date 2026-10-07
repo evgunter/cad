@@ -440,12 +440,11 @@ fn the_co_requested_rod_refuses_and_carves_on_its_closed_form_clearance() {
 /// **An open plane–plane link on an annulus rim's host closes on the
 /// host's outer cycle.** The squared washer's bottom face is ONE plane
 /// face: the square's bottom edges are its outer cycle and the bore rim
-/// its ring, with no seam meeting either. Every vertex of an open chain
-/// must be a joint or a corner whose three edges are all requested, so
-/// the bottom edges alone (a chain turning at an unrequested corner)
-/// refuse at a chain vertex before any meter runs, while every edge of
-/// the square closes its corners and carves beside the bore's band, the
-/// ring pass reading the bore's widened trim against each trimline.
+/// its ring, with no seam meeting either. The bottom edges alone turn
+/// at the square's corners, whose walls are square to the bottom, so
+/// they meet in four mitres; every edge of the square closes its
+/// corners in patches. Either carves beside the bore's band, the ring
+/// pass reading the bore's widened trim against each trimline.
 #[test]
 fn a_plane_link_on_an_annulus_hosts_outer_cycle_closes_at_the_squares_corners() {
     let washer = revolved_about_y(
@@ -475,17 +474,13 @@ fn a_plane_link_on_an_annulus_hosts_outer_cycle_closes_at_the_squares_corners() 
         }));
         edges
     };
-    let err = fillet_edges(&body, &request(true), 0.2, tol())
-        .expect_err("the bottom edges turn at unrequested corners")
-        .error;
-    assert!(
-        matches!(
-            err,
-            BlendError::UnsupportedCorner { .. }
-                | BlendError::UnsupportedRunOut { .. }
-                | BlendError::ChainNotG1 { .. }
-        ),
-        "the bottom edges alone: refused at a chain vertex, got {err:?}"
+    let bottom = fillet_edges(&body, &request(true), 0.2, tol())
+        .unwrap_or_else(|e| panic!("the bottom edges mitre at the square's corners, got {e:?}"));
+    validate_geometric(&bottom.body, tol()).expect("the mitred carve is tier-3 valid");
+    assert_eq!(
+        bottom.naming.as_ref().expect("births").mitres.len(),
+        4,
+        "a mitre at each of the square's corners"
     );
     let edges = request(false);
     assert_eq!(
