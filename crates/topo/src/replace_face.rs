@@ -2829,18 +2829,20 @@ mod pose_reach_rows {
         }
     }
 
-    /// **The scalar arms lever at the FARTHEST anchor.** A cone (apex at
+    /// **The cone×cylinder pose is read at the apex.** A cone (apex at
     /// the origin, axis `z`) and a cylinder whose stored origin stands on
     /// the cone's axis 1000 m up, its axis tilted `θ` so that the edge
     /// near the apex reads the tilt in the zero band from the apex (lever
-    /// 1.5) but definite from the cylinder's origin (lever 1000). Levered
-    /// at the farther anchor, `coc_axes_parallel` reads the axes apart
-    /// and the cone×cylinder arm refuses the pose; levered at the nearer
-    /// one (or without the cylinder's anchor), it read them parallel and
-    /// coaxial at the stored origin, and served a pose whose axes stand
-    /// `1000·θ` apart at the edge.
+    /// 1.5). Its axis passes `1000·θ` from the apex, which `coc_coaxial`
+    /// reads definite, and the arm refuses the pose. Read at the stored
+    /// origin instead, the axes were coaxial, and the arm served a pose
+    /// whose axes stand `1000·θ` apart at the edge.
+    ///
+    /// The refusal is the offset row's: the arm refuses the same way a
+    /// cylinder EXACTLY parallel to the cone's axis and as far off the
+    /// apex is refused, which only `coc_coaxial` can do.
     #[test]
-    fn the_scalar_arms_lever_at_the_farthest_anchor() {
+    fn a_cone_cylinder_pose_is_read_at_the_apex() {
         let theta: f64 = 0.5 * band().zero() / 1.5;
         let cone = Surface::Cone {
             apex: Point3::origin(),
@@ -2848,22 +2850,95 @@ mod pose_reach_rows {
             half_angle: 0.5,
             u_ref: Vec3::unit_x(),
         };
-        let cyl = Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 1000.0),
-            axis: Vec3::new(theta.sin(), 0.0, theta.cos()),
+        let cylinder = |origin, axis| Surface::Cylinder {
+            origin,
+            axis,
             radius: 0.5,
             u_ref: Vec3::unit_y(),
         };
+        let stored = Point3::new(0.0, 0.0, 1000.0);
+        let cyl = cylinder(stored, Vec3::new(theta.sin(), 0.0, theta.cos()));
+        let off = 1000.0 * theta.sin();
+        let parallel = cylinder(Point3::new(-off, 0.0, 0.0), Vec3::unit_z());
         let edge = Curve3::Line {
             origin: Point3::new(1.0, 0.0, 1.0),
             dir: Vec3::unit_z(),
         };
+        let refusal = |cyl: &Surface<f64>| match geom_brep::cone_cylinder_section(
+            &cone,
+            cyl,
+            (Point3::new(1.0, 0.0, 1.1) - Point3::origin()).norm(),
+            band(),
+        ) {
+            Err(geom_brep::SectionError::RoutesToGeneralRung {
+                pair: "cone×cylinder",
+                why,
+            }) => why,
+            other => panic!("the arm refuses the pose to the general rung: {other:?}"),
+        };
+        assert_eq!(
+            refusal(&cyl),
+            refusal(&parallel),
+            "the tilted cylinder is refused by the offset row"
+        );
         for (label, a, b) in [("cone, cyl", &cone, &cyl), ("cyl, cone", &cyl, &cone)] {
             let got = pose_route(a, b, &edge, 0.0, 0.1, band());
             assert!(
-                matches!(got, Ok(ref r) if !r.implemented),
-                "({label}): the axes read apart refuse the pose, got {got:?}"
+                matches!(got, Ok(ref r) if !r.implemented && r.note == refusal(&parallel)),
+                "({label}): axes apart at the apex refuse the pose, got {got:?}"
             );
+        }
+    }
+
+    /// **The cone×cylinder tilt is levered at the edge's distance from
+    /// the apex.** A cone (apex at the origin, axis `z`) and a radius-½
+    /// cylinder coaxial through the apex, its origin stored 1000 m along
+    /// its axis, tilted so the edge (`(1, 0, 1)` to `(1, 0, 1.1)`, whose
+    /// far end stands `L ≈ 1.487` from the apex) reads `k·zero`. At
+    /// `k = 0.8` the arm serves the coaxial circles; at `k = 1.3` it
+    /// escalates on the axis row. A lever half as long serves both, one
+    /// 1.42 times as long escalates both, and one from the stored origin
+    /// refuses both.
+    #[test]
+    fn a_cone_cylinder_tilt_is_levered_at_the_edges_distance_from_the_apex() {
+        let edge = Curve3::Line {
+            origin: Point3::new(1.0, 0.0, 1.0),
+            dir: Vec3::unit_z(),
+        };
+        let lever = (Point3::new(1.0, 0.0, 1.1_f64) - Point3::origin()).norm();
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        for (k, serves) in [(0.8, true), (1.3, false)] {
+            let theta: f64 = k * band().zero() / lever;
+            let axis = Vec3::new(theta.sin(), 0.0, theta.cos());
+            let cyl = Surface::Cylinder {
+                origin: Point3::origin() + axis * 1000.0,
+                axis,
+                radius: 0.5,
+                u_ref: Vec3::unit_y(),
+            };
+            for (label, a, b) in [("cone, cyl", &cone, &cyl), ("cyl, cone", &cyl, &cone)] {
+                let got = pose_route(a, b, &edge, 0.0, 0.1, band());
+                if serves {
+                    assert!(
+                        matches!(got, Ok(ref r) if r.implemented),
+                        "k = {k} ({label}): the tilt is in the zero band, served: {got:?}"
+                    );
+                } else {
+                    assert!(
+                        matches!(
+                            got,
+                            Err(geom_brep::SectionError::Escalated(ref d))
+                                if d.predicate == Some("coc_axes_parallel")
+                        ),
+                        "k = {k} ({label}): the tilt is in band, escalated: {got:?}"
+                    );
+                }
+            }
         }
     }
 

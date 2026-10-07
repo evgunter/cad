@@ -6044,6 +6044,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "body_name_crosses_cut",
             "dead_gauge_reference",
+            "definition_straddles_cut",
             "empty_cut",
             "mate_frame_crosses",
             "name_on_dropped_step",
