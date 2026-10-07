@@ -2,10 +2,12 @@
 id: radius-headroom-reads-a-ball-outside-a-concave-support-as-inside
 kind: issue
 title: blend: fillet3_radius_headroom refuses r >= R on a hole's wall, where the ball rolls outside the cylinder and its curvature sets no limit
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
+pr: 4092
+closed: 2026-10-07
 ---
 
 

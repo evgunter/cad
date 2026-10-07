@@ -288,8 +288,8 @@ pub(super) fn orbit_corners<T: Decide>(
                 unreachable!(
                     "{operand:?}'s vertex {vertex:?} has the null edge {:?} in its orbit: a \
                      gated operand holds none, and the boolean reads a vertex's sectors once, \
-                     before it hangs one there (no vertex pierces two faces or both pierces \
-                     and pairs)",
+                     before it hangs one there (`vtxfac::refuse_sector_rereads` refuses a \
+                     vertex that pierces two faces or both pierces and pairs)",
                     he_data.edge
                 )
             });

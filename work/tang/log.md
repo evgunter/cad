@@ -499,6 +499,57 @@ started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
 
+## 2026-10-06 — the section classifiers read their gap at the reach (TANG implementer)
+
+`plane_cylinder_section` and `cylinder_cylinder_section` take an
+`ExtentBall` and read their gap at the feet of its centre, the tilt
+levered from the foot nearer it, so a verdict no longer moves with a
+cylinder's stored origin or with operand order, and the witness reads
+the same rows through the same helpers. Every caller hands a ball. One
+issue filed: three sibling offset rows that read a cylinder's stored
+origin against another carrier's axis.
+
+**Closed in the PR.** `plane-cylinder-section-reads-its-gap-at-the-stored-origin`.
+
+**Fix pass 1** (the single FULL review: two MAJORs). `route_pose` takes
+the exact scalar reach back for its scalar arms and the ball for the
+cylinder pair only. The germ frame reads the smaller face's ball. Each
+fix comes with its probe row, red before and green after. The crossing
+lane reads its gap between the feet. The frame asks the table's own
+`cc_axes_parallel`, which closes JOIN's
+`cylinder-axes-parallel-is-spelled-at-two-sites`. Two issues filed:
+`chord-join-face-reach-misses-a-curved-edges-bulge` and
+`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time`.
+
+**Fix pass 2** (the second full review: three MAJORs, one class). Every
+caller's ball lever had decided an in-band tilt as served. The
+classifiers now take a `Reach`, a reading point and a lever that is a
+distance to consumed points or the length the caller levered by
+before, never a ball around them. `germ_reach` and its unlogged F21 check are gone. The
+frame's coplanarity row is the table's `cc_axes_coplanar`. Rows A, B and
+C were red on the ball levers and are green; every lever mutant is
+killed.
+
+**Fix pass 3** (the third full review: one MAJOR). A NURBS ruling's span
+was read at its control-point mean, which levered it longer than main.
+A line or NURBS span is now read on each axis at the point whose
+farthest distance to it is least, and that distance is exact
+(`minimax_on_axis`, 1-D Helly). A measured lever is floored at the
+pivot's distance from where it was measured. Stored-origin rows pin
+both topo callers. Filed: `germ-frame-levers-a-plane-cylinder-tilt-at-the-radius`.
+
+**Fix pass 4** (the fourth full review: one MAJOR). The measured lever's
+floor over-levered chord_join's plane×cylinder row past main on a face
+shorter than the radius. It moves to `Reach::lever_between`, the
+cylinder pair's foot-to-foot gap, which is the one reading that needs
+it. A short-face row pins the lane. The interval minimax stays bounded
+where axial points coincide.
+
+**Fix pass 5** (the fifth full review: approve with fixes, no MAJOR).
+Rows now pin the germ frame's reading face, the walls' span at half its
+length, and `route_pose`'s farthest anchor. The docs state the rule
+positively. Filed: `extent-ball-and-reach-are-two-statements-of-one-extent`.
+
 ## 2026-10-06 — in-face rings pair along the wall: fixed upstream by PR 4008; the sweep row lands (TANG implementer)
 
 `in-face-pierce-rings-pair-across-the-gap` (P0) closes with no kernel
@@ -565,6 +616,17 @@ the record of the dispatch.
 **Dispatched:**
 `plane-cylinder-section-reads-its-gap-at-the-stored-origin`, tier SINGLE
 FULL. It is classifier geometry, and the hold does not cover it.
+
+## 2026-10-06 — holes meeting at one vertex build in every member order
+
+`three-wedges-meeting-at-a-point-on-a-face-refuse-in-every-member-order`
+is closed (PR 4129), and closes JOIN's
+`ring-struts-of-three-or-more-runs-hang-in-run-order` in place. A pierce with three or more Out runs hangs its ring
+struts in angular order. The seam-junction name takes a vertex with
+operand edges on both sides. Under the D10 hold the item's own
+fixture splits two ways: its flush 60° sectors, and three solids on
+one contact line, now filed open at P1 as
+`three-solids-touching-along-one-line-refuse-their-union`.
 ## 2026-10-06 — a rim lying across a seam ruling splits there (TANG implementer)
 
 `a-rim-lying-on-a-wall-across-its-seam-ruling-keeps-the-door` (P1)
@@ -592,3 +654,40 @@ plane; its two fixtures, the turned dome and the prism on the slanted
 tube, build every op at their closed forms; the declared one-carrier
 arms do not read ellipses, so the D10 hold leaves their reach where it
 was. Filed: `an-ellipse-lying-on-a-wall-keeps-the-door` (P2).
+
+## 2026-10-07 — a vertex read by two sector passes refuses typed (TANG implementer)
+
+`a-vertex-read-by-two-sector-passes-panics-instead-of-refusing` (P1)
+closes. `vtxfac::refuse_sector_rereads` replaces the `debug_assert!` in
+`boolean_reduce`. It runs before any vertex-on-face pass writes, in
+every build, and refuses `VertexReadTwice`, naming the vertex and its
+two reads. The rows rebuild the arch: standing pyramids on the plate,
+a `meeting::wedge` prism beside one, and two blocks in face contact.
+They cover every op, both orders and every pose. On the merge base
+each one panicked. Filed:
+`a-vertex-read-twice-where-the-first-pass-writes-nothing-refuses` (P1).
+## 2026-10-07 — a ring on a sphere face winds its island (TANG implementer)
+
+`a-ring-on-a-sphere-face-has-no-island-winding` (P2) closes. The
+sphere ring lane winds its island without a chart: the cap of the
+section plane the run lies in, the closing arc's lean, and an
+outer-loop point read directly or by a great-circle path's crossing
+parity. Ring re-homing on a sphere reads the same parity. The probe
+pose, its mirror, a ring near a pole, tilted poles, the item's box
+corner and box edge, and a ring on the whole section circle build ∩
+and box ∖ ball at their slice integrals in both orders, at tiers 3 and
+3′; the ball's side of ∪ and ball ∖ box stop at FLUX's ringed-sphere
+volume. The lens union against a crease ball builds every op. Filed:
+`a-ring-on-a-cone-or-torus-face-has-no-island-winding` (P2).
+
+## 2026-10-07 — the sphere ring lane's review fix pass (TANG implementer)
+
+PR 4211's FULL review (APPROVE-WITH-FIXES, 0 MAJOR). The fixes:
+- re-homing and the winding read outer-loop edge midpoints as
+  references, so a loop whose every vertex is on the run still decides;
+- the cap of the run is read at every arc's ends, midpoint and in-span
+  extremes;
+- `RingOffCylinderChart` is renamed `RingIslandUnread`.
+
+The review's far-pole, bar and edge-midpoint poses are rows, and so are
+two far-pole notches whose outer-point paths run through a run vertex.

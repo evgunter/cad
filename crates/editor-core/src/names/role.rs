@@ -1061,8 +1061,9 @@ pub enum RoleSeg {
     /// A side-wall face swept from a run of profile pieces on one
     /// carrier (N1, "Swept walls over a run").
     Lateral(PieceRun),
-    /// A cap–wall rim edge (cap end × profile segment).
-    RimEdge(CapEnd, ProfileEdgeRef),
+    /// A cap–wall rim edge: the cap end, and the run of profile pieces
+    /// its wall sweeps (N1, "Swept walls over a run").
+    RimEdge(CapEnd, PieceRun),
     /// A strut (join) edge swept from a profile vertex.
     LateralEdge(ProfileVertexRef),
     /// A cap vertex over a profile vertex.
@@ -1090,8 +1091,7 @@ pub enum RoleSeg {
     /// Full, wire case: a CURVED wall's π…2π band face. A plane wall is
     /// built whole and named by [`RoleSeg::Band`] alone.
     BandPi(PieceRun),
-    /// A meridian edge (per meridian, per wall run: a partial revolve's
-    /// stations split its meridian chains, so there it is per piece).
+    /// A meridian edge (per meridian, per wall run).
     Meridian(MeridianEnd, PieceRun),
     /// A meridian vertex: the copy of a profile vertex on a wedge
     /// cap plane (partial) or the surviving meridian vertex (full).
@@ -1100,8 +1100,9 @@ pub enum RoleSeg {
     RevolveCap(MeridianEnd),
     /// An on-axis (pole) vertex at a profile vertex on the axis.
     Pole(ProfileVertexRef),
-    /// The shared axis edge of an on-axis profile segment (partial).
-    AxisEdge(ProfileEdgeRef),
+    /// The shared axis edge of a run of on-axis profile pieces
+    /// (partial).
+    AxisEdge(PieceRun),
 
     // ---- Booleans ----
     /// An entity surviving from operand A (argument: its name in the
@@ -1360,6 +1361,22 @@ pub enum RoleSeg {
         /// The source edge whose blend the arc bounds.
         edge: NameRef,
     },
+    /// **The mitre where two blend bands meet at a turn**: two of a
+    /// source vertex's three edges blended in one call, the bands meeting
+    /// along their intersection. Keyed by the vertex alone: a trivalent
+    /// vertex has at most one turn, and the request fixes its two edges.
+    Mitre {
+        /// The source vertex the two bands turn at.
+        vertex: NameRef,
+    },
+    /// **Where a turn's unrequested edge now ends**: the mitre's lower
+    /// end, on that edge. One name whether the trihedron is isosceles or
+    /// not; the trimlines' crossing on the shared face is the turn's
+    /// [`RoleSeg::FootVertex`] on that face.
+    TurnFoot {
+        /// The source vertex the two bands turn at.
+        vertex: NameRef,
+    },
     /// The one blend face a chain of several source edges is carved
     /// into — a CLOSED chain's torus band, or an open fillet's cylinder
     /// or chamfer's flat strip carved across joints where consecutive
@@ -1606,6 +1623,8 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
@@ -2267,7 +2286,7 @@ impl RoleSeg {
             inert_seg!() => self.clone(),
             // The locators.
             R::Lateral(run) => R::Lateral(run.try_map(|e| w.edge(e))?),
-            R::RimEdge(c, e) => R::RimEdge(*c, w.edge(*e)?),
+            R::RimEdge(c, run) => R::RimEdge(*c, run.try_map(|e| w.edge(e))?),
             R::LateralEdge(v) => R::LateralEdge(w.vertex(*v)?),
             R::CapVertex(c, v) => R::CapVertex(*c, w.vertex(*v)?),
             R::LoftWall(es) => {
@@ -2283,7 +2302,7 @@ impl RoleSeg {
             R::Meridian(m, run) => R::Meridian(*m, run.try_map(|e| w.edge(e))?),
             R::MeridianVertex(m, v) => R::MeridianVertex(*m, w.vertex(*v)?),
             R::Pole(v) => R::Pole(w.vertex(*v)?),
-            R::AxisEdge(e) => R::AxisEdge(w.edge(*e)?),
+            R::AxisEdge(run) => R::AxisEdge(run.try_map(|e| w.edge(e))?),
             // The carried names.
             R::FromA(n) => R::FromA(rewrite_ref(n, w)?),
             R::FromB(n) => R::FromB(rewrite_ref(n, w)?),
@@ -2351,6 +2370,12 @@ impl RoleSeg {
             R::EndArc { vertex, edge } => R::EndArc {
                 vertex: rewrite_ref(vertex, w)?,
                 edge: rewrite_ref(edge, w)?,
+            },
+            R::Mitre { vertex } => R::Mitre {
+                vertex: rewrite_ref(vertex, w)?,
+            },
+            R::TurnFoot { vertex } => R::TurnFoot {
+                vertex: rewrite_ref(vertex, w)?,
             },
             R::BandFace(v) => R::BandFace(rewrite_set(v, w)?),
             R::BandTrim { edge, support } => R::BandTrim {
@@ -2563,6 +2588,8 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::TrimEdge { .. }
             | $crate::names::RoleSeg::FootVertex { .. }
             | $crate::names::RoleSeg::EndArc { .. }
+            | $crate::names::RoleSeg::Mitre { .. }
+            | $crate::names::RoleSeg::TurnFoot { .. }
             | $crate::names::RoleSeg::BandFace(_)
             | $crate::names::RoleSeg::BandTrim { .. }
             | $crate::names::RoleSeg::BandFoot(_)

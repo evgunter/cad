@@ -64,7 +64,7 @@ fn the_selection_reaches_the_wire_canonical() {
         node: body,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&doc, body, 0, seg as usize),
+            crate::fixture::piece(&doc, body, 0, seg as usize).into(),
         )],
     };
     doc = apply(

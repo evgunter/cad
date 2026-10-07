@@ -1604,10 +1604,10 @@ fn split() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
-                "RingOffCylinderChart",
-                J::RingOffCylinderChart {
+                "RingIslandUnread",
+                J::RingIslandUnread {
                     face,
-                    kind: geom::SurfaceKind::Sphere,
+                    kind: geom::SurfaceKind::Cone,
                 },
             ),
             (
@@ -2253,6 +2253,24 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
                 margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
                 gap: MarginDiag::value(0.2),
                 cross_chain: true,
+            },
+        ),
+        (
+            "FaceClearance",
+            E::FaceClearance {
+                at: topo::EntityId::Face(face),
+                chain: sweep::blend::Convexity::Concave,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+                bounded: false,
+            },
+        ),
+        (
+            "FaceClearance(bounded, another band)",
+            E::FaceClearance {
+                at: topo::EntityId::Edge(edge),
+                chain: sweep::blend::Convexity::Convex,
+                margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
+                bounded: true,
             },
         ),
         (
@@ -3971,13 +3989,6 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 S::OpenFacesDisconnect {
                     shell,
                     components: 2,
-                },
-            ),
-            (
-                "OpenFaceRingUnsupported",
-                S::OpenFaceRingUnsupported {
-                    face,
-                    kind: geom::SurfaceKind::Torus,
                 },
             ),
             (

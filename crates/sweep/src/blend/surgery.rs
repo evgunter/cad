@@ -139,8 +139,11 @@
 //! conventional chart image, in-band refuses [`BlendError::Escalated`]
 //! at the link, and a transverse station refuses
 //! [`BlendError::SurgeryInvariant`]: the routing sends every contact
-//! whose surfaces cross at an angle to the plain intersection instead. Everything else in this
-//! module is structural: cycle walks, key equality, stored senses.
+//! whose surfaces cross at an angle to the plain intersection instead.
+//! After the ring check and before any mutation it runs predicate 2's
+//! reach (`blend::reach`), whose decisions are that module's. Everything
+//! else in this module is structural: cycle walks, key equality, stored
+//! senses.
 //!
 //! # Out of scope, refused typed
 //!
@@ -216,12 +219,15 @@ use super::admit::{
     AdmittedOpen, CornerFaces, CornerLinks, CutOffRow, Joint, OpenBand, RequestedBoundary,
 };
 use super::arms::EdgeBlend;
-use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link, face_clearance_margin};
+use super::battery::{
+    BatteryVerdict, Chain, ChainClosure, Convexity, Link, Turn, face_clearance_margin,
+};
 use super::build::{Blended, face_cycle, face_cycle_edges, fan_at};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
-use super::open::end_face::{CapSliver, shared_rims_clear};
+use super::open::end_face::{CapSliver, EndCut, foot_param, shared_rims_clear};
 use super::open::planar::{
-    BlankPlan, Corner, CutOffPlan, JointPlan, blank_phase, corner_plan, cut_off_plan, joint_plan,
+    BlankPlan, Corner, CutOffPlan, JointPlan, TurnPlan, blank_phase, corner_plan, cut_off_plan,
+    joint_plan, turn_plan,
 };
 use super::open::ruled::{RuledPlan, ruled_phase};
 use super::{BlendDecision, BlendError, BlendKind, BlendSite, CornerConfig, classify};
@@ -580,6 +586,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     // shape rather than by a check three functions deep. ----
     let mut ends: Vec<CornerLinks<'_, T>> = Vec::new();
     let mut cut_offs: Vec<CutOffPlan<'_, T>> = Vec::new();
+    let mut turning: Vec<(&Turn<T>, Vec<AdmittedOpen<'_, T>>)> = Vec::new();
     for o in &planar {
         for v in [o.link().start, o.link().end] {
             if is_joint(v) {
@@ -587,6 +594,13 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             }
             if let Some((_, section)) = verdict.end_faces.iter().find(|(e, _)| *e == v) {
                 cut_offs.push(cut_off_plan(source, *o, v, section.clone())?);
+                continue;
+            }
+            if let Some(turn) = verdict.turns.iter().find(|t| t.vertex == v) {
+                match turning.iter_mut().find(|(t, _)| t.vertex == v) {
+                    Some((_, links)) => links.push(*o),
+                    None => turning.push((turn, vec![*o])),
+                }
                 continue;
             }
             match ends.iter_mut().find(|c| c.vertex() == v) {
@@ -597,6 +611,20 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     }
     ends.sort_by_key(CornerLinks::vertex);
     cut_offs.sort_by_key(|c| c.end.vertex);
+    // ---- Turns: the verdict lists each once; both of its links end
+    // here, in edge order since `planar` is. ----
+    let mut turns: Vec<TurnPlan<'_, T>> = Vec::with_capacity(turning.len());
+    for (turn, links) in turning {
+        let [a, b] = links[..] else {
+            return Err(not_intact(
+                EntityId::Vertex(turn.vertex),
+                "a turn the verdict admitted does not end exactly two admitted planar links",
+            ));
+        };
+        let at = foot_param(source, turn.edge, turn.vertex, turn.foot)?;
+        turns.push(turn_plan(source, turn, [a, b], at, kind, band)?);
+    }
+    turns.sort_by_key(|t| t.turn.vertex);
     let mut corners: Vec<Corner<'_, T>> = Vec::new();
     for links in ends {
         let v = links.vertex();
@@ -677,6 +705,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             &corner_rows,
             &joint_rows,
             &cut_rows,
+            &verdict.turns,
         )?);
     }
 
@@ -688,14 +717,26 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         ruled_plans.push(RuledPlan::plan(source, *o, &opens, &verdict.end_faces)?);
     }
 
-    // ---- Two cut-offs on one rim: the second split must land on the
-    // piece the first leaves. ----
+    // ---- Two splits on one rim — two cut-offs', or a cut-off's and a
+    // turn's on its third edge — the second must land on the piece the
+    // first leaves. The support screen does not subsume this: a foot
+    // stands `setback / sin φ` along the rim from its vertex, `φ` the
+    // angle there between the rim and the band's edge, so at an oblique
+    // angle the feet cross while the two edges are still further apart
+    // than their setbacks
+    // (`band_planar_mitre::a_turn_foot_and_a_cut_off_foot_cross_where_the_screen_passes`). ----
     shared_rims_clear(
         source,
         ruled_plans
             .iter()
             .flat_map(RuledPlan::ends)
-            .chain(cut_offs.iter().map(|c| &c.end)),
+            .chain(cut_offs.iter().map(|c| &c.end))
+            .flat_map(EndCut::feet)
+            .chain(
+                turns
+                    .iter()
+                    .map(|t| (t.turn.edge, t.turn.vertex, t.turn.foot)),
+            ),
         band,
     )?;
 
@@ -706,6 +747,11 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         .chain(cut_offs.iter().map(|c| (&c.end.sliver, c.link.convexity())))
         .collect();
     ring_clearance_pass(source, &opens, &rims, &slivers, &supports, band)?;
+    // ---- Predicate 2's reach: every band against every face of the
+    // body that is not a support of its chain, in any shell. After the
+    // exact meters above, which judge a support's own rings and edges
+    // where both would refuse.
+    super::reach::band_reach(source, &verdict.chains, radius, kind, band)?;
 
     // ---- Mutation, on a clone. From here on every step is an Euler
     // operator or a certified setter; refusals map to Op/Certify. ----
@@ -728,6 +774,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         opens: &planar,
         corners: &corners,
         cut_offs: &cut_offs,
+        turns: &turns,
         joints: &joints,
         supports: &supports,
     };
@@ -901,6 +948,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             trims,
             feet,
             arcs,
+            mitres,
+            turn_feet,
             bands,
             rim_trims,
             rim_feet,
@@ -944,6 +993,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             .map(|(_, v)| v)
             .chain(feet.iter().map(|(_, v, _)| v))
             .chain(arcs.iter().map(|(_, v, _)| v))
+            .chain(mitres.iter().map(|(_, v)| v))
+            .chain(turn_feet.iter().map(|(_, v)| v))
             .chain(rim_feet.iter().map(|(_, v)| v));
         for v in vertex_sources {
             assert!(
@@ -2557,8 +2608,8 @@ impl<T: Bounds> CircleFrame<T> {
 /// It lives here rather than in `test_support` because its signature
 /// carries the surgery's own `Decide + Bounds` compound, which the
 /// `Bounds` scope rule ratifies for the edge-blend seam alone —
-/// `battery.rs`, `build.rs`, this file and the two open bands under
-/// `open/` — and for no other file in the crate.
+/// `battery.rs`, `build.rs`, `reach.rs`, this file and the two open
+/// bands under `open/` — and for no other file in the crate.
 #[cfg(any(test, feature = "test-support"))]
 pub fn ring_clearance_for_tests<T: Decide + Bounds>(
     face: FaceKey,
@@ -3167,6 +3218,7 @@ fn edge_midpoint<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<Point3<T>> 
 // ------------------------------------------------------------------
 
 /// A recorded new edge awaiting its intrinsic description.
+#[derive(Clone)]
 pub(super) enum ContactCarrier<T: Real> {
     /// A straight trimline where the band meets its support
     /// TANGENTIALLY — the rolling ball's contact line (carrier rebuilt

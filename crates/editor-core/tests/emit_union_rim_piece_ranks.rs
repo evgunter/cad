@@ -846,7 +846,7 @@ fn a_member_flush_with_two_others_names_its_rim_by_the_body() {
                         node: m,
                         path: vec![RoleSeg::RimEdge(
                             CapEnd::Start,
-                            crate::fixture::piece(&doc, m, 0, 0),
+                            crate::fixture::piece(&doc, m, 0, 0).into(),
                         )],
                     },
                     EntityKind::Edge,
@@ -969,7 +969,7 @@ fn fam010_names_a_rim_the_same_way_in_both_orders() {
         node: m,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&doc, m, 0, 0),
+            crate::fixture::piece(&doc, m, 0, 0).into(),
         )],
     };
     // x-span → the name there, for every edge along the rim line.

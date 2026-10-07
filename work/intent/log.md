@@ -272,3 +272,22 @@ Closed: `no-dimensioned-literal-in-a-slot`,
 `definition-node-bound-is-re-measured-against-the-corpus-after-d`
 (4096 stands). Opened: `typing-a-value-mints-or-offers-a-variable`
 (its trigger fired).
+## 2026-10-07 — FORK-6: split moves a variable with its readers (orchestrator's ruling)
+
+The inline lane (`inline-merges-variables-by-equal-value`) stopped at a
+case the ruling did not decide: split copied a named variable the cut
+alone reads into the part and left an unread twin in the remainder, so
+under "never merge by value" inline-of-split always refused and A4's
+acceptance broke. One Opus and one Fable designer weighed it (fork-log
+row 84; reports on `design/intent-s2-fork6-A` and `-B`) and converged
+after one round. Ruled: a variable's side is the union of its readers'
+sides (node slots and remaining definitions); all cut, or no readers
+and every read moving, it moves (`DeleteVar` in the remainder,
+declared in the part under its name); readers or reads on both sides
+refuse `UncutVarReference`; otherwise it stays (VR7). The move is not
+a VR7 deletion: nothing is stranded and the name exists once before
+and once after. The promise is inline(split(d)) = d up to minted ids
+and A10's regrouping; split(inline(h)) keeps an unread free named part
+variable in the host. Not sent to Ev: no ratified decision moves. A4's
+acceptance is kept and re-worded as VR1 forces ("minted ids"), and A4
+Split and VR9 each gain a descriptive line, landing with the lane's PR.

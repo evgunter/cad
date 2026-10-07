@@ -355,6 +355,8 @@ impl RoleSeg {
             | RoleSeg::FromTarget(n)
             | RoleSeg::BlendFace(n)
             | RoleSeg::CornerFace(n)
+            | RoleSeg::Mitre { vertex: n }
+            | RoleSeg::TurnFoot { vertex: n }
             | RoleSeg::BandTrim { edge: n, .. }
             | RoleSeg::BandFoot(n)
             | RoleSeg::BandCut(n)
@@ -407,6 +409,8 @@ impl RoleSeg {
             | RoleSeg::FromTarget(n)
             | RoleSeg::BlendFace(n)
             | RoleSeg::CornerFace(n)
+            | RoleSeg::Mitre { vertex: n }
+            | RoleSeg::TurnFoot { vertex: n }
             | RoleSeg::BandTrim { edge: n, .. }
             | RoleSeg::BandFoot(n)
             | RoleSeg::BandCut(n)
@@ -1812,7 +1816,7 @@ pub(super) mod tests {
                 R::OutputBody,
                 R::Cap(CapEnd::Start),
                 R::Lateral(e.into()),
-                R::RimEdge(CapEnd::End, e2),
+                R::RimEdge(CapEnd::End, e2.into()),
                 R::LateralEdge(v),
                 R::CapVertex(CapEnd::Start, v),
                 R::LoftWall(vec![e, e2]),
@@ -1827,10 +1831,12 @@ pub(super) mod tests {
                 R::Band(PieceRun::new(vec![e2, e]).unwrap()),
                 R::BandPi(PieceRun::new(vec![e, e2, e]).unwrap()),
                 R::Meridian(MeridianEnd::Pi, PieceRun::new(vec![e, e2]).unwrap()),
+                R::RimEdge(CapEnd::Start, PieceRun::new(vec![e2, e]).unwrap()),
+                R::AxisEdge(PieceRun::new(vec![e, e2]).unwrap()),
                 R::MeridianVertex(MeridianEnd::Pi, v),
                 R::RevolveCap(MeridianEnd::End),
                 R::Pole(v),
-                R::AxisEdge(e2),
+                R::AxisEdge(e2.into()),
                 R::FromA(r(a)),
                 R::FromB(r(b)),
                 R::FromMember {
@@ -1891,6 +1897,8 @@ pub(super) mod tests {
                     vertex: r(a),
                     edge: r(b),
                 },
+                R::Mitre { vertex: r(a) },
+                R::TurnFoot { vertex: r(b) },
                 R::BandFace(vec![a.clone(), b.clone()]),
                 R::BandTrim {
                     edge: r(a),

@@ -4,6 +4,7 @@ kind: issue
 title: the mint has no route to a torus general circle, so a torus face bounded by one stays uncached under C4's exemption
 status: open
 opened: 2026-10-02
+priority: P1
 ---
 
 Filed by PCERT's `pcert/at-rest-rows-mandatory` (PR 3759), which makes

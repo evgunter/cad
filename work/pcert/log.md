@@ -596,3 +596,67 @@ coincidence is now a margined verdict (no declarations), checked by the
 - Main meanwhile landed TOPO's R build (Ev's ruling on PR 4024: a stored per-half-edge joint element, `loop_lift`). That re-architected the code 3945 changes: 45 conflict hunks in `pcurves.rs`.
 - TOPO filed the coordination row on my slate. My call: 3945 lands second and re-ports onto R, with one decider and R's storage, not identity-at-every-joint.
 - The re-ported head gets a fresh dual pair. Most of the code under review will be new against 78e55c70, so a delta review would not cover it.
+
+## 2026-10-06 — PR 3945 round-2 dual review adjudicated (the re-port onto R)
+
+- Frozen head da1afd1f, a fresh pair because most of the code is new against 78e55c70. The later commit bbee7652 changes only a `work/` item.
+- Both reviews delivered: R1 (comment 6015903724) and R2 (comment 6014803528). Both verdicts are APPROVE-WITH-FIXES with no MAJOR. Isolation held: R1 read no comments, and R2 read only those before the cutoff. Both reproduced the `pinch_faces` ε=1e-6 red on main 62bdd557.
+- **Correspondence pre-note (rule 7), before the blinded coding returns.**
+  - Bilateral MINORs:
+    - `split_cache` turns a `decide_joint` refusal into a stored identity;
+    - near-pole orbit-point mutants survive (R1 MB/…, R2 m1);
+    - the README's C4 closure sentence is narrower than `Winding::closes`.
+  - Unilateral, R1 only:
+    - the further survivors: a Reset/Shift swap with the same deck, and the site mint's new-half vertex;
+    - `chart_boundary`'s `is_zero` leans on a winding the decider's docs concede can be off by one orbit step near a pole or a narrow cone apex;
+    - the unit's closure note is stale;
+    - NOTEs: claim 1 is overstated (kills, revert and graft write elements by algebra or copy), and `chaintol`'s rows 3–4 moved without being listed, with a guard that can't tell the predicate names apart.
+  - Unilateral, R2 only: `Reset` is written on an undecided reading on spline charts. That corrects my brief's premise; no code change.
+  - Tally candidates: none, since neither review raised a MAJOR.
+- The fix list (the union) has gone to the implementer. The blinded coder is session_01TeTFymE7xDPjooubHwkkPD; the byte is recorded privately.
+
+## 2026-10-07 — PR 3945 merged (4711ad4f): the chart's angle checks are integers, on R
+
+- **What landed:**
+  - Check 5 and the caller's `ChartWindow` are retired.
+  - One decider, `decide_joint`, decides each joint's deck element on TOPO's R storage. Tier 3 checks every stored element against it.
+  - On a sphere the deck element is one orbit integer in half periods, with a quarter period of room. On other surfaces it is whole periods.
+  - Poles are decided as 3-D incidence. `Reset` is written only on a decided incidence or an undecided spline gate.
+  - A room fence: `chart_boundary` builds only where every joint's winding was decided with room.
+  - `split_cache` and `turn_element` refuse rather than store a guess.
+  - `chaintol` is back to `[1.0, 0.370, 0.185, 0.111]`, with `dihedral_wedge` as its wall.
+- **Review:**
+  - Two concurrent pairs. Round 1 on 78e55c70 found a bilateral MAJOR: the zero-margin sphere twin. Round 2 on the R re-port, da1afd1f, found no MAJOR.
+  - Two confirming reviews, each APPROVE-WITH-FIXES 0/2, both fixed.
+  - DR-95, tally 0. It was renumbered from DR-94 at merge, because SSI #4104 took 94 first.
+- **Path:** the usage cap stalled the unit, and main landed R in the meantime. That forced the re-port, plus four merges of main, the last one combining our pins with CARVE #4187's cap orientation.
+- **Rows closed by the PR:**
+  - the unit itself;
+  - `at-rest-trim-containment-…`;
+  - the 3945/R coordination row.
+- **Left open:** TOPO's kill-straddle row, with a note appended.
+- **Next in PCERT:**
+  - `fillet-meridian-radius-term-is-registered-only` (P0) stays parked on PATHS 5b.
+  - pctail's wide-arc row is P2.
+- **Fillet-meridian P0 closed by PATHS 5b (#3774):** the filleted bracket and the pad now certify whole at M10-9's scale at every ε. So all three regressions disclosed at 3759/3812 are resolved:
+  - chaintol, by 3945;
+  - the bracket and the pad, by 5b;
+  - the shallow-arc grid stays as pctail's P2.
+- **Priorities set on the remaining slate.** The three C4 route rows (torus general circle, cone section, spline carrier) are P1, per Ev's 3617 ruling that every uncovered class gets a route wired. The spiric / no-fitted classes, the fitted-kind option and the line-seam refusal are P2. The torus general circle goes next, as the nearest analogue of the sphere route (3733).
+
+## 2026-10-07 — torus general circle: designer pair concurs, implementer dispatched
+
+- **Designers:** an Opus/Fable pair (byte 220, on `analysis/design-fork/pcert-torus-general-circle-2026-10-07`). Both recommend the same final state, so this is not a fork and gets no fork-log row.
+- **The geometry corrects the row's premise:**
+  - A ring torus holds only parallels, meridians and Villarceau circles.
+  - The class's "circle ⊥ the axis centred off it" lies on no torus; it only grazes the tube crest.
+  - A right circular cone holds no circle but its rims, so `UncoveredClass::ConeSection` is a grazer too.
+- **Adopted:**
+  - A Villarceau circle gets an exact closed-form image (a Kepler azimuth with the focus on the axis, and an affine minor angle), certified as `MapResidualClosedForm`.
+  - `Pcurve::ConeSection` is generalised into one focal-section image with one lemma. Opus leaned to a sibling variant; Fable to generalising. The orchestrator picked generalising, with a stop-and-report if any field would be meaningless for one instance.
+  - Torus incidence goes through the existing `ConicTorusHarmonics` (degree 2, not the issue's degree 4), then structural Villarceau gates.
+  - A grazer (on cone or torus) refuses typed.
+  - `UncoveredClass::TorusGeneralCircle` and `::ConeSection` are deleted.
+- **Rejected:** a fitted Hermite image for every band-close torus circle. It certifies at the fallback grade a curve that has a closed form, and it is conditional on the fitted door.
+- **Folded in:** the cone lane's schedule `Record::Verdict` is brought in line with C4's witness-lane cross-check.
+- **Implementer:** session_01Jf5pbwHG7dwojg183pt2vs, branch `pcert/torus-villarceau-route` from 9645b375. It is an H unit, so it gets a dual review.

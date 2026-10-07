@@ -1056,9 +1056,16 @@ fn transverse_frame(reach: f64) -> Result<(), BooleanError> {
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let face = crate::entity::FaceKey::default();
-    pair_section_frame(&c, &s, geom_brep::RadiusEvidence::None, None, band())
-        .map(|_| ())
-        .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
+    pair_section_frame(
+        &c,
+        &s,
+        geom_brep::RadiusEvidence::None,
+        Point3::new(0.0, 0.0, 0.0),
+        None,
+        band(),
+    )
+    .map(|_| ())
+    .map_err(|e| frame_refusal(e, (face, &c), (face, &s)))
 }
 
 /// The arc `[0, 1]` of the unit circle about `z` against the plane
@@ -2066,6 +2073,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::Band
         | BooleanErrorKind::CurvedBooleanUnsupported
         | BooleanErrorKind::CurvedPierceUnsupported
+        | BooleanErrorKind::CrossingAtConeApex
         | BooleanErrorKind::CurvedEdgeUnsupported
         | BooleanErrorKind::CrossingCarrierUnsupported
         | BooleanErrorKind::PointSplitCarrierUnsupported
@@ -2087,7 +2095,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::InvalidDeclaration
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
-        | BooleanErrorKind::PierceRunsUnordered
+        | BooleanErrorKind::PierceRunsNested
+        | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
@@ -2422,6 +2431,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ),
     (
         "conic_quadric/mod.rs",
+        "cone_roots",
+        "BooleanDecision::ArcConeRoots",
+        2,
+    ),
+    (
+        "conic_quadric/mod.rs",
         "conic_quadric_roots",
         "BooleanDecision::ArcCylinderRoots",
         1,
@@ -2615,6 +2630,12 @@ const SITES: &[(&str, &str, &str, usize)] = &[
     ("reduce.rs", "esc", "BooleanDecision::Containment", 1),
     (
         "reduce.rs",
+        "line_cone_roots",
+        "BooleanDecision::ConeRoots",
+        1,
+    ),
+    (
+        "reduce.rs",
         "line_wall_roots_of",
         "BooleanDecision::SphereRoots",
         1,
@@ -2661,7 +2682,7 @@ const SITES: &[(&str, &str, &str, usize)] = &[
         "reduce.rs",
         "wall_crossing",
         "BooleanDecision::Containment",
-        1,
+        2,
     ),
     ("reduce.rs", "wall_crossing", "BooleanDecision::Crossing", 1),
     (

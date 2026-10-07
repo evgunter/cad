@@ -480,6 +480,19 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   continuity margins come: `Assertion` calls +14 on every walk and
 ///   `Door/Decision` +14, `Plain` and `Early` `Decision` forms −27 and
 ///   −31. Every digest moves; the freezes hold.
+/// - **The chart-angle unit (PCERT,
+///   `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`).**
+///   The loop's chart-space angle comparisons and check 5 retire, so
+///   the walks lose exactly those decisions' forms and nothing they
+///   shared: `Plain/Decision` 1143 → 1047 calls (16228 → 15720 forms),
+///   `Early/Decision` 432 → 352 (9117 → 8689), `Door/Decision`
+///   448 → 392 (6768 → 6474), each `Assertion` line 16 calls down with
+///   its forms unmoved, and every freeze unmoved. The two `Report` lines
+///   go: the 40 residuals they rendered were among the retired
+///   decisions', and nothing else blocks on the plate under the shipped
+///   rules (8 still do with the canonical root off, against 48 before).
+///   The digests of the three `Decision` lines move; the
+///   `Assertion` lines' hold.
 /// - **The cap orientation (CARVE).** Each extruded cap decides
 ///   `cap_plane_orientation` once: `Assertion` calls +6 on both walks
 ///   and `Door` +4 on each line here, +4 per walk on the slab at every
@@ -490,6 +503,12 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   one-segment loop (#4169): measured with this change applied at
 ///   that merge's first parent and at the merge, where #4169 alone
 ///   leaves the line at 6768.
+/// - **The two composed** (the chart-angle unit merged over the cap
+///   orientation): the calls add, `Decision` 1047 / 352 / 396 and every
+///   `Assertion` line 654 / 654 / 396; `Plain/Decision`'s forms fall
+///   15720 → 15710 and `Early/Decision`'s 8689 → 8633 with the cap's own
+///   10 and 56, the `Assertion` forms are the cap's, and
+///   `Door/Decision` builds 7099 forms. No `Report` line.
 /// - **A slot holds a variable (INTENT-LITERALS PR C).** A formula
 ///   written at a slot lowers to an anonymous defined variable, which
 ///   the environment binds through the non-finite door: one more
@@ -497,14 +516,12 @@ const PLATE_MAX_TERMS: usize = 28;
 ///   other line holds; the untoleranced variables bind as constants
 ///   (VR8), as the literals did.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 1144 forms 16218 frozen 252 digest bd9749ef30223b01504dad8525914580\n\
-     Plain/Assertion calls 670 forms 4173 frozen 360 digest 91787fb61a160072b143278440ea302f\n\
-     Plain/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 432 forms 9061 frozen 0 digest e7dbcea0ef62fc2fc894a3fe531ba637\n\
-     Early/Assertion calls 670 forms 5136 frozen 0 digest da78941ae02f7d0e7e82b8880eda52ac\n\
-     Early/Report calls 40 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 452 forms 7393 frozen 0 digest c4b3d232553b6e9e006a25c72bb24418\n\
-     Door/Assertion calls 412 forms 0 frozen 0 digest 00000000000000000000000000000000";
+     Plain/Decision calls 1048 forms 15710 frozen 252 digest f546be30341cc967d13ab3e347fb52fe\n\
+     Plain/Assertion calls 654 forms 4173 frozen 360 digest 91787fb61a160072b143278440ea302f\n\
+     Early/Decision calls 352 forms 8633 frozen 0 digest dfd56c276c08ef0be8256716c68484b9\n\
+     Early/Assertion calls 654 forms 5136 frozen 0 digest da78941ae02f7d0e7e82b8880eda52ac\n\
+     Door/Decision calls 396 forms 7099 frozen 0 digest 4b490dcb93367447183d6428998bbfbd\n\
+     Door/Assertion calls 396 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**
 /// For the slab and the plate at their nominals, every (walk, origin)
@@ -666,21 +683,22 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
             .and_then(|l| l.split_whitespace().nth(2))
             .and_then(|n| n.parse::<u64>().ok())
     };
-    let sets: [(&str, SymRules, u64); 4] = [
-        ("shipped", SymRules::shipped(), 40),
+    // `None`: nothing blocked, so no `Plain/Report` line is written.
+    let sets: [(&str, SymRules, Option<u64>); 4] = [
+        ("shipped", SymRules::shipped(), None),
         (
             "without_canonical_root",
             SymRules::without_canonical_root(),
-            48,
+            Some(8),
         ),
-        ("without_the_reads", SymRules::without_the_reads(), 40),
+        ("without_the_reads", SymRules::without_the_reads(), None),
         (
             "both new dials off",
             SymRules {
                 decision_read: false,
                 ..SymRules::without_canonical_root()
             },
-            48,
+            Some(8),
         ),
     ];
     let mut seen: Option<(&str, Vec<String>)> = None;
@@ -698,7 +716,7 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
         );
         assert_eq!(
             report_calls(&ledger),
-            Some(blocked),
+            blocked,
             "{name}: the plain walk renders a different number of blocked residuals"
         );
         match &seen {
