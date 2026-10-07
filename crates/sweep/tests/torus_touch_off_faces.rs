@@ -24,9 +24,9 @@ use sweep::Revolution;
 use topo::{Body, BooleanError, BooleanOp};
 
 use super::extent_scan_off_face_tangency::{
-    Pose, assert_every_op, assert_every_op_refuses, ball, ball_volume, boolean, built, cap_volume,
-    dir, rod_z,
+    Pose, assert_every_op, assert_every_op_refuses, ball, boolean, built, dir, rod_z,
 };
+use crate::common::oracles::{ball_volume, cap_volume};
 
 /// The donut of the torus doors at scale `l`: the circle of radius
 /// `0.5·l` about `(2l, 0)` in the xy-plane, revolved about y.

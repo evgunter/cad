@@ -3540,6 +3540,8 @@ fn a_blend_escalation_reads_as_prose_for_every_decision() {
         BlendDecision::CapTransverse,
         BlendDecision::CapEllipse,
         BlendDecision::CutOffFeet,
+        BlendDecision::TurnIsosceles,
+        BlendDecision::MitreSection,
     ] {
         let refused = BlendError::Escalated {
             site: BlendSite::Link {
@@ -4772,6 +4774,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "containment",
             "continuation_contradicted",
             "coplanar_neighbours",
+            "crossing_at_cone_apex",
             "crossing_carrier_unsupported",
             "crossing_insertion",
             "curved_boolean_unsupported",
