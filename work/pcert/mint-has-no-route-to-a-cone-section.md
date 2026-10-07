@@ -2,7 +2,7 @@
 id: mint-has-no-route-to-a-cone-section
 kind: issue
 title: the mint has no route to a circle tilted off a cone's rim, so a cone face bounded by one stays uncached under C4's exemption
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P1
 ---

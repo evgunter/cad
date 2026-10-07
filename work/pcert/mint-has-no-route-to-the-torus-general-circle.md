@@ -2,7 +2,7 @@
 id: mint-has-no-route-to-the-torus-general-circle
 kind: issue
 title: the mint has no route to a torus general circle, so a torus face bounded by one stays uncached under C4's exemption
-status: open
+status: dispatched
 opened: 2026-10-02
 priority: P1
 ---
