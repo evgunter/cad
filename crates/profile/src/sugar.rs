@@ -1371,19 +1371,21 @@ impl<T: Real> ArcCarrier<T> {
                 margin: r2 - least_lever,
             });
         }
-        if external == Sign::Zero || internal == Sign::Zero {
-            // Decided tangent: midway between the two offset circles'
-            // nearest points on the link, half their gap from each.
-            let reach = if external == Sign::Zero {
-                r1 - r2
-            } else {
-                (r1 + r2).copysign(r1 - r2)
-            };
-            let along = (dist + reach) / T::from_f64(2.0);
-            return Ok(OffsetCentres::tangent(self.center + link * (along / dist)));
-        }
         let along = (dist_squared + rho1.powi(2) - rho2.powi(2)) / (dist + dist);
         let base = self.center + link * (along / dist);
+        if external == Sign::Zero || internal == Sign::Zero {
+            // Decided tangent: the radical foot lies on the link, so its
+            // radial projections onto the two offset circles are their
+            // nearest points, and the centre is midway between them.
+            let near = |centre: Point2<T>, offset: T| {
+                let spoke = base - centre;
+                centre + spoke * (offset / spoke.norm())
+            };
+            let (on_self, on_other) = (near(self.center, r1), near(other.center, r2));
+            return Ok(OffsetCentres::tangent(
+                on_self + (on_other - on_self) * T::from_f64(0.5),
+            ));
+        }
         let half = (rho1.powi(2) - along.powi(2)).sqrt();
         let offset = left_normal(link) * (half / dist);
         Ok(OffsetCentres::crossing(vec![base + offset, base - offset]))

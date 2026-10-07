@@ -2,9 +2,9 @@
 id: profile-fillet-radius-off-at-eps-1e-6
 kind: issue
 title: profile: the fuzzed offset-carrier fillet recovers its radius 2.6e-7 off at CAD_TOLERANCE_EPS=1e-6 (seed 0x063fda568e08fb0f, iter 380)
-status: dispatched
-branch: claude/clever-bardeen-4itqb3
+status: closed
 opened: 2026-09-04
+closed: 2026-10-07
 refs: [1877]
 priority: P0
 cost: H
@@ -77,3 +77,40 @@ sweep lands `(5.6e-7, -2.0e-7)` from `t2`. The construction's tangent point
 radius (chord and stored sweep) reports that inconsistency. Measured on
 `claude/clever-bardeen-4itqb3` with
 `CAD_FUZZ_SEED=0x063fda568e08fb0f CAD_TOLERANCE_EPS=1e-6`.
+
+## Outcome
+
+Both halves were true: the construction was off, and the oracle asked for
+more than any construction can give.
+
+- **The corner has no exact fillet.** At iteration 380 the two offset
+  circles (radii ρ₁ = 0.33105, ρ₂ = 0.01824, centres d = 0.31281 apart)
+  miss internal tangency by 5.27e-7, inside the 1e-6 band, so
+  `fillet_offset_circles_internal` decides them tangent. No centre is at
+  both offset radii, so the two rims must carry at least that gap between
+  them, and the old 1e-9 bar on the recovered radius could not hold at
+  this ε.
+- **The decided centre carried more than the gap.** It was the
+  radical-line foot `(d² + ρ₁² − ρ₂²)/2d` along the link, which sits
+  gap·ρ₂/d off one offset circle and gap·ρ₁/d off the other. Here that is
+  3.07e-8 and 5.58e-7, which sum to 1.117x the gap. On near-equal carriers
+  with a small fillet the factor (ρ₁ + ρ₂)/d is unbounded. The fuzz's
+  natural draws reached 4.1x at ε = 1e-4.
+- **The fix** (`sugar.rs`, `ArcCarrier::offset_circles`) puts the decided
+  centre midway between the two offset circles' nearest points on the
+  link. Each rim is then off by gap/2, and the two sum to the gap, which
+  no centre can undercut. The line×circle branch's foot was already
+  gap-optimal and is unchanged.
+- **The oracle** (`review_s2.rs`, `check_corner`) now allows a corner
+  whose re-derived offset gap is below kε (decided tangent, since
+  [ε, kε) escalates) that gap on its chord-read checks. It adds (g): the
+  two rims, read off the stored arc, sum to at most the gap plus 64 ulps.
+- **Rows:** `the_decided_tangent_fuzz_corner_builds_at_both_scalars_and_meets_the_oracle`
+  covers the seed's corner, and
+  `near_half_turn_and_extreme_sweep_fillets_meet_the_oracle_at_both_scalars`
+  covers internal lenses on three carrier pairs, the external lens and
+  the line-into-circle lens at margins ±0.1/0.5/0.9ε, 0 and past the band,
+  plus line×line turns from 0.05 to π − 0.01. Both run at f64 and at
+  Interval, and both were red first at every ε on (g).
+- The class outside the fillet is filed as
+  `work/issues/decided-tangent-point-is-the-radical-foot.md`.

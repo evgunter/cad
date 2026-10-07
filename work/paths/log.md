@@ -657,3 +657,6 @@ Signed: (CARVE orchestrator)
 - 2026-10-07 — `profile-fillet-radius-off-at-eps-1e-6` (P0) is dispatched on `claude/clever-bardeen-4itqb3`. The seed still reds on main `e1efb472c` with the same message.
   - D10 check: it is fillet construction accuracy, the tangent point `t2` lying off its own circle by about ε/2. It does not rework how declared tangent joints are recorded or verified, so it may start under the hold, and the lane stops if the fix needs to.
   - Review tier: dual (H). The fillet construction feeds every filleted profile.
+- 2026-10-07 — `profile-fillet-radius-off-at-eps-1e-6` (P0) closes on `claude/clever-bardeen-4itqb3`. The seed's corner has no exact fillet: its offset circles miss tangency by 5.27e-7, inside the 1e-6 band. The decided centre was the radical-line foot, which carried that gap amplified by (ρ₁ + ρ₂)/d (1.117x here, unbounded on near-equal carriers).
+  - The centre now sits midway between the offset circles, so the rims carry the gap and no more. The oracle allows a decided-tangent corner its own gap and pins the rims to it.
+  - The D10 hold did not bind: no joint's recording or verification changed. The sibling sites are filed as `decided-tangent-point-is-the-radical-foot`.
