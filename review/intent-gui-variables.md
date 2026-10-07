@@ -116,51 +116,31 @@ None of these is shown to users. Confidence: **sure** (they exist); whether they
 
 ## Claims exercised
 
-- **C1: holds.**
-  - Typing writes one `SetParam`.
-  - The old variable is retired and one `Undo` restores it (my probe).
-  - Retyping the standing value commits nothing (probe).
-  - Drag in place is guarded: mutating the gesture's `slot_edit` to `slot_typed_edit` turns
-    `gesture_table::a_drag_on_another_field_cannot_steer_the_open_one` and
-    `…free_move_probe_do_not_disturb_each_other` red.
-  - The probe's samples use `slot_edit`, checked by inspection.
-  - The offer half fails: MAJOR-1.
-- **C2: partly holds.**
-  - Kind/own exclusion, accepting (one step) and declining (no step) all hold.
-  - It fails on a drag (MAJOR-1), on redo (MINOR-1) and on bit-equality (MINOR-3), and
-    the op itself does not check the offer (NOTE-1).
-  - Load clears the offer through `clear_for_new_document` → `Derived::none()` (inspection).
-- **C3: proposal and commit hold** (the rows plus the M8 mutant). It fails on MAJOR-2;
-  see also NOTE-2.
-- **C4: holds.**
-  - `viewer-module-kinds.sh` OK.
-  - `viewer-vocab-declared-once.sh` OK.
-  - `work.py lint` OK.
-  - The backticked identifiers added to the 13 edited `work/` files resolve, apart from
-    the glob `variable_*`.
-  - Open items cite no old name.
-  - There is kernel citation rot (MINOR-4) and leftover "param" names (NOTE-3).
-- **C5: holds.** The M6 mutant (probe answers `NoSuchVariable` for a defined variable)
-  is killed. `named_variable` reads `doc.var`, checked by inspection.
-- **C6: sound.**
-  - The rewritten `panel_edits` row pins `SetParam`, a new variable, and the old one gone;
-    the M1 mutant kills it.
-  - `DeclineOffer` with nothing on offer is a no-op, and declining at slot `b` leaves `a`'s
-    offer open (inspection).
-  - The table entries match their siblings: `SetSlotVariable` is fenced like `SetSlot`
-    during a value gesture; `DeclineOffer` is permitted like `Select`.
-- **C7: mostly holds.** I re-ran 8 mutations:
-  - M1: typing moves in place;
-  - M2: own variable not excluded;
-  - M3: no reads-check in `offered`;
-  - M4: kind filter dropped;
-  - M5: `close_offer` is a no-op;
-  - M6: probe says the variable is absent;
-  - M7: `is_typed_value` filter dropped;
-  - M8: the proposal ignores held names.
-
-  Seven were killed; M5 was also killed by the `keep_separate` app row. **M7 survives**
-  (MINOR-2). I did not try to make the `the_offer_…` app row red with a mutant.
+- **C1: holds**, apart from the offer half (MAJOR-1).
+  - Typing writes one `SetParam`; the old variable is retired; one `Undo` restores it, and
+    retyping the standing value commits nothing (my probes).
+  - Drag in place is guarded: swapping the gesture's `slot_edit` for `slot_typed_edit`
+    turns two `gesture_table` rows red. The probe's samples use `slot_edit` (inspection).
+- **C2: partly holds.** Kind/own exclusion, accept (one step) and decline (no step) hold.
+  Load clears the offer via `clear_for_new_document` → `Derived::none()` (inspection).
+  It fails on a drag (MAJOR-1), on redo (MINOR-1) and on bit-equality (MINOR-3), and the
+  op does not check the offer (NOTE-1).
+- **C3: proposal and commit hold** (the rows plus mutant M8). Fails on MAJOR-2; see NOTE-2.
+- **C4: holds.** `viewer-module-kinds.sh`, `viewer-vocab-declared-once.sh` and
+  `work.py lint` pass. The backticked identifiers added to the 13 edited `work/` files
+  resolve (apart from the glob `variable_*`), and open items cite no old name. Leftovers:
+  MINOR-4, NOTE-3.
+- **C5: holds.** Mutant M6 (the probe answers `NoSuchVariable` for a defined variable) is
+  killed; `named_variable` reads `doc.var` (inspection).
+- **C6: sound.** The rewritten `panel_edits` row pins `SetParam`, a new variable and the
+  old one gone (M1 kills it). `DeclineOffer` with nothing on offer is a no-op, and
+  declining at `b` leaves `a`'s offer open. The table entries match their siblings:
+  `SetSlotVariable` is fenced like `SetSlot`, `DeclineOffer` permitted like `Select`.
+- **C7: mostly holds.** I re-ran 8 mutations: M1 typing moves in place; M2 own variable not
+  excluded; M3 no reads-check in `offered`; M4 kind filter dropped; M5 `close_offer` a
+  no-op (also killed by the `keep_separate` app row); M6 probe says absent; M7
+  `is_typed_value` filter dropped; M8 proposal ignores held names. Seven were killed;
+  **M7 survives** (MINOR-2). I did not mutate against the `the_offer_…` app row.
 
 **Runs** (private `CARGO_TARGET_DIR`; lavapipe installed; the GPU rows
 `every_pass_builds_on_a_real_device` and `the_culled_passes_…` PASS):
@@ -170,9 +150,7 @@ None of these is shown to users. Confidence: **sure** (they exist); whether they
   uncommitted probe file caused. I removed the probe afterwards. I did not see the
   "pre-existing failure on bare main" that the body mentions in the viewer suites.
 
-The probes used are in `review/intent-gui-variables-probes.rs` (the `tests/` module) and
-`review/intent-gui-variables-app-probe.diff` (the app row). They are not wired into any
-build.
+Probes: `review/intent-gui-variables-probes.rs` and `…-app-probe.diff` (not built).
 
 ## Style
 
