@@ -433,16 +433,21 @@ fn snapshot_invariant_violations_refuse_typed() {
         edit(&mut v);
         format!("{header}\n{v}\n")
     };
-    // A live node the mint log does not hold (a replay could re-mint
-    // its id): the last insert's entry taken out of the log.
+    // A live node the mint log does not hold as a node's: the last
+    // insert's entry retagged a step's, so the log still counts up.
     let last = *doc.ids().last().expect("the fixture inserts");
     let unlogged = edited(&|v| {
         let log = v["snapshot"]["mint"]["log"]
             .as_array_mut()
             .expect("the file carries its mint log");
-        let before = log.len();
-        log.retain(|entry| entry["node"].as_u64() != Some(last.0));
-        assert_eq!(log.len() + 1, before, "the log held the node once");
+        let spelled = serde_json::Value::from(last.0.to_string());
+        let held = log.iter_mut().filter(|entry| entry["node"] == spelled).count();
+        assert_eq!(held, 1, "the log held the node once");
+        for entry in log.iter_mut() {
+            if entry["node"] == spelled {
+                *entry = serde_json::json!({ "step": spelled.clone() });
+            }
+        }
     });
     match load(&unlogged, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
@@ -450,20 +455,6 @@ fn snapshot_invariant_violations_refuse_typed() {
         }
         other => panic!("expected NodeNotMinted, got {other:?}"),
     }
-    // order/nodes disagreement: the order cut to its first entry.
-    let unordered = edited(&|v| {
-        let order = v["snapshot"]["order"]
-            .as_array_mut()
-            .expect("the file carries its order");
-        order.truncate(1);
-    });
-    assert!(
-        matches!(
-            load(&unordered, Tol::witness()),
-            Err(PersistError::Snapshot(SnapshotError::OrderMismatch))
-        ),
-        "order mismatch must refuse"
-    );
 }
 
 #[test]

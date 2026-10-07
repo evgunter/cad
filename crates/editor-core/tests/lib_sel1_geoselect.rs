@@ -454,11 +454,8 @@ fn a_non_datum_reference_refuses() {
             &no_params(),
             Tol::witness()
         ),
-        Err(SelectRefusal::DatumHasNoValue(
-            NodeStanding::NotInDocument {
-                node: RecipeNodeId::new(0, 9999)
-            }
-        ))
+        Err(SelectRefusal::DatumHasNoValue(NodeStanding::NotInDocument { node }))
+            if node == RecipeNodeId::new(0, 9999)
     ));
 }
 

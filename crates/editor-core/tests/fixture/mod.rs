@@ -508,10 +508,8 @@ pub fn union_over(
     members: &[RecipeNodeId],
     declare: Vec<editor_core::DeclaredPair>,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let positions = doc.positions();
-    let at = |id: &RecipeNodeId| positions.get(id).copied();
     let mut inserted = members.to_vec();
-    inserted.sort_by_key(at);
+    inserted.sort();
     let (doc, union) = insert(
         doc,
         Node::Union {

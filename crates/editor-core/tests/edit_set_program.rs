@@ -590,12 +590,12 @@ fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
     );
 }
 
-/// The least step id `doc`'s mint log does not hold.
+/// A step id `doc`'s mint log does not hold: ordinal 0, which no mint
+/// draws.
 fn never_minted(doc: &ProfileDoc) -> StepId {
-    (0..)
-        .map(StepId)
-        .find(|s| !doc.mint().has_step(*s))
-        .expect("a u64 the log does not hold")
+    let step = StepId::new(0, 0);
+    assert!(!doc.mint().has_step(step), "no mint draws ordinal 0");
+    step
 }
 
 /// **A name may spell a step a `SetProgram` dropped, never one the
@@ -613,7 +613,7 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
     let reshaped = accepted(&r.doc, r.profile, vec![rod_loop(true)], ids).doc;
     let dropped = wall_by(r.rod, old[5], PieceRole::Leg);
     let (_, frame) = frame_on(reshaped.clone(), r.rod, dropped.clone());
-    assert!(frame.0 > 0, "a name on a dropped step inserts");
+    assert!(frame.0.ordinal() > 0, "a name on a dropped step inserts");
 
     let next = never_minted(&reshaped);
     let unminted = wall_by(r.rod, next, PieceRole::Leg);
@@ -1073,8 +1073,8 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
         edit(&mut v);
         format!("{header}\n{v}\n")
     };
-    let ids = |v: &mut serde_json::Value, node: RecipeNodeId, k: usize, to: u64| {
-        v["snapshot"]["nodes"][node.0.to_string()]["Profile"]["ids"][0][k] = to.into();
+    let ids = |v: &mut serde_json::Value, node: RecipeNodeId, k: usize, to: editor_core::MintId| {
+        v["snapshot"]["nodes"][node.0.to_string()]["Profile"]["ids"][0][k] = to.to_string().into();
     };
     let refused = |text: String| match load(&text, tol()) {
         Err(PersistError::Snapshot(e)) => e,
@@ -1092,8 +1092,7 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
 
     // Two profiles share an id: the later profile in id order holds
     // the repeat. That pins the load door's current walk (the node map,
-    // in id order), not a contract; `persist::check`'s
-    // `rv_the_name_pass_refuses_in_document_order` is its sibling.
+    // in id order), not a contract.
     let shared = edited(&|v| ids(v, other, 0, mine[0].0));
     assert_eq!(
         step_fault(shared, profile.max(other)),
@@ -1137,12 +1136,18 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
         }
         other => panic!("a name on a never-minted step refuses, got {other:?}"),
     }
-    // A program id the log does not hold, taken out of the log.
+    // A program id the log does not hold as a step's: its entry
+    // retagged a node's, so the log still counts up from one.
     let unlogged = edited(&|v| {
         let log = v["snapshot"]["mint"]["log"]
             .as_array_mut()
             .expect("the file carries its mint log");
-        log.retain(|entry| entry["step"].as_u64() != Some(theirs[1].0));
+        let spelled = serde_json::Value::from(theirs[1].0.to_string());
+        for entry in log.iter_mut() {
+            if entry["step"] == spelled {
+                *entry = serde_json::json!({ "node": spelled.clone() });
+            }
+        }
     });
     assert_eq!(
         step_fault(unlogged, other),
@@ -1164,15 +1169,19 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
     twice.insert(1, written[0].clone());
     let mut swapped = written.clone();
     swapped.swap(0, 1);
-    let first: editor_core::Minted =
-        serde_json::from_value(written[0].clone()).expect("a log entry");
-    for (label, log) in [
-        ("an entry twice", twice),
-        ("two entries out of order", swapped),
+    let mut gap = written.clone();
+    gap.remove(1);
+    let entry = |at: usize| -> editor_core::Minted {
+        serde_json::from_value(written[at].clone()).expect("a log entry")
+    };
+    for (label, log, names) in [
+        ("an entry twice", twice, entry(0)),
+        ("two entries out of order", swapped, entry(1)),
+        ("an entry missing", gap, entry(2)),
     ] {
         match refused(set_log(log)) {
             editor_core::SnapshotError::MintLogOrder { entry } => {
-                assert_eq!(entry, first, "{label}");
+                assert_eq!(entry, names, "{label}");
             }
             other => panic!("{label} refuses as a snapshot fault, got {other:?}"),
         }
@@ -1190,55 +1199,6 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
             assert!(detail.contains("missing field `mint`"), "{detail}");
         }
         other => panic!("a file without a mint is unreadable, got {other:?}"),
-    }
-}
-
-/// **An insert whose draw the log already holds refuses**, typed as
-/// `NodeIdCollides`, and moves nothing. An honest log cannot reach it
-/// short of a 64-bit digest collision, so the log is doctored: the id
-/// the next insert would mint is written into it under a step's tag,
-/// which the load door admits (the log keeps dropped steps' ids), and
-/// one log means the tag does not let the draw through. The refusal
-/// ends as every mint-log fault does, a damaged file or a defect.
-#[test]
-fn an_insert_whose_draw_the_log_holds_refuses_node_id_collides() {
-    let doc = ProfileDoc::empty_derived("node-id-collides", tol());
-    let (doc, plane) = insert(doc, fixture::xy_frame());
-    let next = Node::Profile(fixture::desc(plane, vec![fixture::square(0.0, 0.0, 1.0)]));
-    let (_, drawn) = insert(doc.clone(), next.clone());
-    let text = save(&doc, &[], tol()).expect("saves");
-    let (header, body) = text.split_once('\n').expect("an id line, then the body");
-    let mut body: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
-    let log = body["snapshot"]["mint"]["log"]
-        .as_array_mut()
-        .expect("the file carries its mint log");
-    let at = log
-        .iter()
-        .position(|entry| {
-            let bits = entry["node"].as_u64().or(entry["step"].as_u64());
-            bits.expect("a tagged entry") > drawn.0
-        })
-        .unwrap_or(log.len());
-    log.insert(at, serde_json::json!({ "step": drawn.0 }));
-    let doctored = load(&format!("{header}\n{body}\n"), tol())
-        .expect("a log holding a step id no program holds loads")
-        .doc;
-    match doctored.apply(
-        &DocEdit::InsertNode {
-            node: Box::new(next),
-        },
-        tol(),
-        &editor_core::RefusingReach,
-    ) {
-        Err(ref e @ EditError::NodeIdCollides { ref id }) => {
-            assert_eq!(id.id(), drawn, "the refusal names the id the insert drew");
-            let text = e.to_string();
-            assert!(
-                text.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING),
-                "a mint-log fault ends as a damaged file or a defect: {text}"
-            );
-        }
-        other => panic!("the draw the log holds refuses, got {other:?}"),
     }
 }
 

@@ -1196,7 +1196,7 @@ fn a_declared_unions_document_replays_in_document_order() {
     // carrier arrives.
     let mut replay = ProfileDoc::empty_derived("docm7_forward_ref_replay", Tol::witness());
     for id in doc.ids() {
-        let node = crate::fixture::as_authored(doc.node(*id).expect("a live node"));
+        let node = crate::fixture::as_authored(doc.node(id).expect("a live node"));
         replay = replay
             .apply(
                 &DocEdit::InsertNode {

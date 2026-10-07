@@ -626,7 +626,7 @@ fn a_mates_alignment_compares_by_bits() {
     let cap = |node, end| {
         head(editor_core::StableName {
             kind: editor_core::EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![editor_core::RoleSeg::Cap(end)],
         })
     };

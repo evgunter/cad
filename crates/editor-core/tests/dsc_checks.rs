@@ -271,7 +271,7 @@ fn stale_expectation_on_a_nonexistent_root() {
     // The key names no root output at all (wrong id): same staleness,
     // attributed at the entry's own key.
     let (doc, root) = disjoint_union();
-    let ghost = RecipeNodeId(root.0 + 999);
+    let ghost = RecipeNodeId::new(root.0.ordinal() + 999, root.0.digest());
     let cfg = ChecksConfig {
         expected_components: BTreeMap::from([((root, 0), 2), ((ghost, 0), 1)]),
         ..ChecksConfig::default()

@@ -282,13 +282,13 @@ fn every_declaring_corpus_document_replays_in_document_order() {
         let positions = |id: RecipeNodeId| doc.ids().iter().position(|n| *n == id);
         let mut has_declare = false;
         for id in doc.ids() {
-            if let Some(Node::Boolean { declare, .. } | Node::Union { declare, .. }) = doc.node(*id)
+            if let Some(Node::Boolean { declare, .. } | Node::Union { declare, .. }) = doc.node(id)
             {
                 has_declare |= !declare.is_empty();
                 for r in declare.iter().flat_map(|((x, y), _)| [x, y]) {
-                    assert!(positions(r.at) < positions(*id), "{}: site forward", d.name);
+                    assert!(positions(r.at) < positions(id), "{}: site forward", d.name);
                     assert!(
-                        positions(r.name.node) < positions(*id),
+                        positions(r.name.node) < positions(id),
                         "{}: name forward",
                         d.name
                     );

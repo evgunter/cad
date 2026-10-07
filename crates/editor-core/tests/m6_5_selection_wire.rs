@@ -43,7 +43,7 @@ fn the_selection_reaches_the_wire_canonical() {
             side: ExtrudeSide::Along,
         },
     );
-    let steps: Vec<u64> = (0..4)
+    let steps: Vec<editor_core::MintId> = (0..4)
         .map(|seg| match crate::fixture::piece(&doc, body, 0, seg) {
             editor_core::ProfileEdgeRef::Piece { step, .. } => step.0,
             other => panic!("a square's side is a step's piece, got {other:?}"),
@@ -85,7 +85,7 @@ fn the_selection_reaches_the_wire_canonical() {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     assert!(text.contains("\"selection\""), "the field reaches the wire");
     let sel = text.find("\"selection\"").expect("the selection block");
-    let spelled = |seg: usize| format!("\"step\": {}", step_of(seg));
+    let spelled = |seg: usize| format!("\"step\": \"{}\"", step_of(seg));
     let at_low = text[sel..].find(&spelled(low)).expect("the lower id");
     let at_high = text[sel..].find(&spelled(high)).expect("the higher id");
     assert!(

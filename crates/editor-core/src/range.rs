@@ -590,12 +590,16 @@ pub struct DerivedRange {
 /// … that `doc` does not declare.
 ///
 /// Fresh, so the rewritten slot never reads a parameter the caller
-/// authored; one identifier (a fixed prefix, the node's full hex id and
-/// underscores), so the parser reads it back. The slot's label is not
+/// authored; one identifier (a fixed prefix, the node's mint ordinal
+/// and hex digest, and underscores), so the parser reads it back. The slot's label is not
 /// part of it: a label is prose for a person, and what a person is
 /// shown of the answer names the slot ([`CertifiedRange::field`]).
 fn synthetic_name(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> VarName {
-    let base = format!("query_certified_range_{}", node.full());
+    let base = format!(
+        "query_certified_range_{}_{:016x}",
+        node.0.ordinal(),
+        node.0.digest()
+    );
     let mut spelled = base.clone();
     let mut n = 0_usize;
     while doc.var_named(spelled.as_str()).is_some() {
@@ -604,7 +608,7 @@ fn synthetic_name(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> VarName {
     }
     match VarName::new(spelled) {
         Ok(name) => name,
-        Err(fault) => unreachable!("a fixed prefix and hex digits are one identifier: {fault}"),
+        Err(fault) => unreachable!("a fixed prefix and digits are one identifier: {fault}"),
     }
 }
 

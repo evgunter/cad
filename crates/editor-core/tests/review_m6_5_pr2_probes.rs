@@ -117,8 +117,8 @@ fn p2_surgery_supports_wrap_names_the_target_table_carries() {
     let (fillet, target) = {
         let mut found = None;
         for id in doc.doc.ids() {
-            if let Some(Node::Fillet { target, .. }) = doc.doc.node(*id) {
-                found = Some((*id, *target));
+            if let Some(Node::Fillet { target, .. }) = doc.doc.node(id) {
+                found = Some((id, *target));
             }
         }
         found.expect("the composed die has a fillet node")

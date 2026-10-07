@@ -41,7 +41,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use editor_core::{InlineOutcome, Node, NodeMap, ProfileDoc, RecipeNodeId, SplitOutcome, StepMap};
+use editor_core::{InlineOutcome, MintId, Node, NodeMap, ProfileDoc, RecipeNodeId, SplitOutcome, StepMap};
 
 /// **The split document's ids carried through split then inline**: a
 /// kept node keeps its id (the remainder is the document edited), and a
@@ -98,30 +98,42 @@ pub fn identity(doc: &ProfileDoc) -> (NodeMap, StepMap) {
     (nodes, steps)
 }
 
-/// `text` with every `RecipeNodeId(n)` the map holds read as its image
-/// and every `StepId(n)` the step map holds as its image.
-fn renamed(text: &str, ids: &BTreeMap<u64, u64>, steps: &BTreeMap<u64, u64>) -> String {
+/// `text` with every `RecipeNodeId(..)` the map holds read as its image
+/// and every `StepId(..)` the step map holds as its image, each id as
+/// `Debug` spells it.
+fn renamed(text: &str, ids: &BTreeMap<MintId, MintId>, steps: &BTreeMap<MintId, MintId>) -> String {
+    const OPEN: &str = "Id(MintId { ordinal: ";
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
-    while let Some(at) = rest.find("Id(") {
-        let (head, tail) = rest.split_at(at + 3);
-        out.push_str(head);
-        let digits = tail.bytes().take_while(u8::is_ascii_digit).count();
-        let number = tail[..digits].parse::<u64>().ok();
-        let table = if head.ends_with("RecipeNodeId(") {
+    while let Some(at) = rest.find(OPEN) {
+        let (head, tail) = rest.split_at(at + OPEN.len());
+        let table = if head.ends_with(&format!("RecipeNode{OPEN}")) {
             Some(ids)
-        } else if head.ends_with("StepId(") {
+        } else if head.ends_with(&format!("Step{OPEN}")) {
             Some(steps)
         } else {
             None
         };
-        match (number, table) {
-            (Some(n), Some(table)) if tail[digits..].starts_with(')') => {
-                out.push_str(&table.get(&n).copied().unwrap_or(n).to_string());
+        let Some(end) = tail.find(" })") else {
+            out.push_str(head);
+            rest = tail;
+            continue;
+        };
+        let read = tail[..end].split_once(", digest: ").and_then(|(o, d)| {
+            Some(MintId::new(o.parse().ok()?, d.parse().ok()?))
+        });
+        match (read, table) {
+            (Some(id), Some(table)) => {
+                let to = table.get(&id).copied().unwrap_or(id);
+                out.push_str(&head[..head.len() - "MintId { ordinal: ".len()]);
+                out.push_str(&format!("{to:?}"));
+                rest = &tail[end + " }".len()..];
             }
-            _ => out.push_str(&tail[..digits]),
+            _ => {
+                out.push_str(head);
+                rest = tail;
+            }
         }
-        rest = &tail[digits..];
     }
     out.push_str(rest);
     out
@@ -134,8 +146,8 @@ fn renamed(text: &str, ids: &BTreeMap<u64, u64>, steps: &BTreeMap<u64, u64>) -> 
 fn same_payload(
     a: &editor_core::Node<editor_core::ProfileProgram>,
     b: &editor_core::Node<editor_core::ProfileProgram>,
-    ids: &BTreeMap<u64, u64>,
-    steps: &BTreeMap<u64, u64>,
+    ids: &BTreeMap<MintId, MintId>,
+    steps: &BTreeMap<MintId, MintId>,
     out: &mut Vec<String>,
 ) {
     let want = renamed(&format!("{a:?}"), ids, steps);
@@ -190,8 +202,8 @@ pub fn same_up_to_ids(
             ));
         }
     }
-    let ids: BTreeMap<u64, u64> = map.iter().map(|(k, v)| (k.0, v.0)).collect();
-    let step_ids: BTreeMap<u64, u64> = steps.iter().map(|(k, v)| (k.0, v.0)).collect();
+    let ids: BTreeMap<MintId, MintId> = map.iter().map(|(k, v)| (k.0, v.0)).collect();
+    let step_ids: BTreeMap<MintId, MintId> = steps.iter().map(|(k, v)| (k.0, v.0)).collect();
     let mut covered = BTreeSet::new();
     for id in live(a) {
         let Some(&to) = map.get(&id) else {

@@ -686,7 +686,7 @@ fn the_two_section_planes_of_one_split_carry_distinct_sources() {
             .surfaces()
             .filter_map(|(k, s)| {
                 b.surface_source(k)
-                    .filter(|src| src.node == split.0)
+                    .filter(|src| src.node == split.0.digest())
                     .map(|src| (src.clone(), s.clone()))
             })
             .collect();

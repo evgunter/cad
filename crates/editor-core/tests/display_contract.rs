@@ -1080,7 +1080,6 @@ test_utils::f6_variants! {
     /// load door's whole persisted-refusal vocabulary, so a new
     /// invariant that earns an arm earns a rendered case with it.
     const SNAPSHOT_ERROR: SnapshotError = [
-        OrderMismatch,
         NodeNotMinted,
         DanglingInput,
         ForwardInput,
@@ -1089,7 +1088,6 @@ test_utils::f6_variants! {
         LabelOnMissingNode,
         VarKind,
         VarNotMinted,
-        VarOrderMismatch,
         NameOnMissingVar,
         VarNameTwice,
         SlotDimension,
@@ -1175,10 +1173,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
     };
     let absent = |n| SpokenNode::absent(RecipeNodeId::new(0, tagged(n)));
     let cases = [
-        (
-            SnapshotError::OrderMismatch,
-            vec!["`order` list", "disagree"],
-        ),
         (
             SnapshotError::NodeNotMinted { id: node() },
             vec!["Extrude \"base plate\" (000000000005) is not in the document's mint log"],
@@ -1309,10 +1303,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 "h expands",
                 "to 4097 expression nodes, past the bound of 4096",
             ],
-        ),
-        (
-            SnapshotError::VarOrderMismatch,
-            vec!["declaration order", "exactly once"],
         ),
         (
             SnapshotError::NameOnMissingVar {
@@ -3182,7 +3172,6 @@ test_utils::f6_variants! {
         NotThisProfiles,
         Repeated,
         NotMinted,
-        Collides,
     ];
 }
 
@@ -3235,12 +3224,6 @@ fn a_step_id_fault_names_the_id_or_the_count() {
                 "not in the document's mint log",
                 "never minted it",
             ],
-        ),
-        (
-            StepIdFault::Collides {
-                step: StepId::new(0, tagged(7)),
-            },
-            vec!["drew step id 000000000007", "mint log already holds"],
         ),
     ];
     assert_f6_every_variant(&cases, &STEP_ID_FAULT, &[]);

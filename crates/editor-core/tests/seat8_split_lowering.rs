@@ -362,7 +362,7 @@ fn minted_indices(body: &Body<f64>, node: RecipeNodeId) -> Vec<u32> {
         .chain(body.curves().map(|(k, _)| body.curve_source(k)))
         .chain(body.points().map(|(k, _)| body.point_source(k)));
     for source in sources.flatten() {
-        if source.node == node.0 {
+        if source.node == node.0.digest() {
             let SourceExpr::Minted { index } = source.expr else {
                 panic!("a split stamps minted sources only, found {source:?}");
             };

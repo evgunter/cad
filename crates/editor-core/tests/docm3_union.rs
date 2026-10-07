@@ -1176,13 +1176,13 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
     for corpus in crate::corpus::documents() {
         let doc = &corpus.doc;
         for id in doc.ids() {
-            let Some(node) = doc.node(*id) else { continue };
+            let Some(node) = doc.node(id) else { continue };
             seen.insert(crate::corpus::node_kind(node));
             let has_list = node.list_input().is_some();
             let members = node.list_input().map(<[RecipeNodeId]>::to_vec);
             let outcome = doc.apply(
                 &DocEdit::SetMembers {
-                    node: *id,
+                    node: id,
                     members: members.unwrap_or_else(|| doc.ids()[..2].to_vec()),
                 },
                 tol,

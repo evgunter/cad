@@ -531,13 +531,13 @@ pub(crate) enum Seen<'a, T: geom_core::Real> {
     /// Node `id` of document `doc` and its outcome.
     Node {
         doc: &'a str,
-        id: u64,
+        id: editor_core::MintId,
         outcome: Outcome,
     },
     /// Point `i` of the body node `id` carries, in arena order.
     Point {
         doc: &'a str,
-        id: u64,
+        id: editor_core::MintId,
         i: usize,
         key: topo::PointKey,
         p: &'a geom_core::Point3<T>,
@@ -546,7 +546,7 @@ pub(crate) enum Seen<'a, T: geom_core::Real> {
 
 /// A node's outcome as the fence observes it.
 pub(crate) enum Outcome {
-    Poisoned { through: u64 },
+    Poisoned { through: editor_core::MintId },
     Failed,
     Ok { kind: &'static str },
 }
@@ -639,11 +639,13 @@ where
         Seen::FixtureRefused(_) => d.text("refused"),
         Seen::Document(name) => d.text(name),
         Seen::Node { id, outcome, .. } => {
-            d.u64(id);
+            d.u64(u64::from(id.ordinal()));
+            d.u64(id.digest());
             match outcome {
                 Outcome::Poisoned { through } => {
                     d.text("poisoned");
-                    d.u64(through);
+                    d.u64(u64::from(through.ordinal()));
+                    d.u64(through.digest());
                 }
                 Outcome::Failed => d.text("failed"),
                 Outcome::Ok { kind } => d.text(kind),
@@ -826,7 +828,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
 /// preimages, and this number — taken on main before the change and on
 /// the branch after it — did not.
 fn id_free_corpus_digest() -> (u64, u64) {
-    type Nodes = std::collections::BTreeMap<u64, (String, Vec<[u64; 3]>)>;
+    type Nodes = std::collections::BTreeMap<editor_core::MintId, (String, Vec<[u64; 3]>)>;
     let mut docs: Vec<(String, Nodes)> = Vec::new();
     let mut fixture = Digest::new();
     walk::<f64>(|seen| match seen {

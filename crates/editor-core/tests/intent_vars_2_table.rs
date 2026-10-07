@@ -467,29 +467,21 @@ fn an_unread_unnamed_variable_refuses_at_load() {
     assert_eq!(var.name(), None);
 }
 
-/// `VarOrderMismatch`: a declaration order that drops a variable.
-#[test]
-fn a_declaration_order_missing_a_variable_refuses_at_load() {
-    let err = load_doctored(|snap, w, _| {
-        let order = snap["var_order"].as_array_mut().expect("the order");
-        let before = order.len();
-        order.retain(|id| id != &serde_json::json!(w.0));
-        assert_eq!(order.len(), before - 1, "w was listed");
-    });
-    assert_eq!(err, PersistError::Snapshot(SnapshotError::VarOrderMismatch));
-}
-
 /// **The document's variables have ONE order, the author's**: the
-/// declaration order, which every lane lists, draws and tie-breaks in.
-/// The twins' ids sort AGAINST their declaration (the first declare of
-/// a kind from an empty chain draws the larger id — asserted, so the
-/// row cannot pass by an id order that happens to agree), and every
-/// lane still says `w` first.
+/// declaration order, which is id order, and which every lane lists,
+/// draws and tie-breaks in. The twins' digests sort AGAINST their
+/// declaration (the first declare of a kind from an empty chain draws
+/// the larger digest — asserted, so the row cannot pass by reading the
+/// digest), and every lane still says `w` first.
 #[test]
-fn every_lane_reads_the_declaration_order_not_the_id_order() {
+fn every_lane_reads_the_declaration_order_not_the_digest_order() {
     let (doc, measure) = measured_twins();
     let (w, v) = (id(&doc, "w"), id(&doc, "v"));
-    assert!(w > v, "the fixture's ids sort against its declarations");
+    assert!(
+        w.0.digest() > v.0.digest(),
+        "the fixture's digests sort against its declarations"
+    );
+    assert!(w < v, "and its ids as declared");
     assert_eq!(doc.var_ids(), &[w, v]);
     assert_eq!(
         doc.free_vars().map(|(id, _)| id).collect::<Vec<_>>(),
@@ -506,7 +498,7 @@ fn every_lane_reads_the_declaration_order_not_the_id_order() {
         vec![w, v]
     );
     // Equal laws, so equal relative widths: the tie goes to the
-    // earlier-declared variable, never to the lower id.
+    // earlier-declared variable, never to the lower digest.
     assert_eq!(root.split_axis(&root), Some(w));
     let entries = sensitivities(&doc, measure, None, None, false, None, Tol::witness()).unwrap();
     assert_eq!(

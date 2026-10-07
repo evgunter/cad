@@ -1,8 +1,7 @@
 //! **Every corpus document's name tables with every id read as a
 //! position**, written to a file for a comparison across two trees.
 //!
-//! A node id is replaced by the node's position in [`Doc::order`]
-//! (`@3`), and a step id by its profile's position, loop and step
+//! A node id is replaced by the node's position in id order (`@3`), and a step id by its profile's position, loop and step
 //! (`@3/0/2`), so two trees that mint different ids for one recipe
 //! print one text wherever the names mean the same thing. Nothing is
 //! blanked: which member holds a flush stretch (`FromMember`'s
@@ -24,8 +23,6 @@
 //!     --test all --run-ignored only -E 'test(name_tables_by_position)'
 //! diff /path/<a>.txt /path/<b>.txt
 //! ```
-//!
-//! [`Doc::order`]: editor_core::Doc::order
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -36,18 +33,20 @@ use editor_core::{Node, ProfileDoc};
 
 use crate::corpus;
 
-/// `text` with every `RecipeNodeId(n)`, `StepId(n)` and bare `node: n`
-/// field spelled as the position `at` gives it. An id `at` does not hold is left as it was
-/// and counted in `unplaced`.
+/// `text` with every `RecipeNodeId(..)`, `StepId(..)` and bare `node: n`
+/// field (a geometry source's digest) spelled as the position `at` gives
+/// it, an id read by its digest. An id `at` does not hold is left as it
+/// was and counted in `unplaced`.
 fn at_position(text: &str, at: &BTreeMap<(&str, u64), String>, unplaced: &mut usize) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     'scan: while !rest.is_empty() {
         for tag in ["RecipeNodeId", "StepId"] {
-            let open = format!("{tag}(");
+            let open = format!("{tag}(MintId {{ ordinal: ");
             if let Some(tail) = rest.strip_prefix(open.as_str())
-                && let Some(close) = tail.find(')')
-                && let Ok(bits) = tail[..close].parse::<u64>()
+                && let Some(close) = tail.find(" })").map(|at| at + " }".len())
+                && let Some((_, digest)) = tail[..close - " }".len()].split_once(", digest: ")
+                && let Ok(bits) = digest.parse::<u64>()
             {
                 match at.get(&(tag, bits)) {
                     Some(pos) => out.push_str(pos),
@@ -91,11 +90,11 @@ fn at_position(text: &str, at: &BTreeMap<(&str, u64), String>, unplaced: &mut us
 fn positions(doc: &ProfileDoc) -> BTreeMap<(&'static str, u64), String> {
     let mut at = BTreeMap::new();
     for (pos, id) in doc.ids().iter().enumerate() {
-        at.insert(("RecipeNodeId", id.0), format!("@{pos}"));
+        at.insert(("RecipeNodeId", id.0.digest()), format!("@{pos}"));
         if let Some(Node::Profile(program)) = doc.node(*id) {
             for (lp, steps) in program.ids.iter().enumerate() {
                 for (k, step) in steps.iter().enumerate() {
-                    at.insert(("StepId", step.0), format!("@{pos}/{lp}/{k}"));
+                    at.insert(("StepId", step.0.digest()), format!("@{pos}/{lp}/{k}"));
                 }
             }
         }

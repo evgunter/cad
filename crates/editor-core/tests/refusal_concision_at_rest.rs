@@ -119,7 +119,7 @@ const KERNEL_KEYED: &[&str] = &[
 fn minted() -> MintedDeclaration {
     let name = |node| StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(node),
+        node: RecipeNodeId::new(0, node),
         path: vec![RoleSeg::OutputBody],
     };
     MintedDeclaration {
