@@ -1787,4 +1787,56 @@ mod focal_section_term_rows {
         };
         check("cone_remainder_reads_sin_t0", &p, &s, h, 1.0, 2.0);
     }
+
+    /// The sense drift's `π` on a cone: a near-parabolic section
+    /// (`β = 0.95`) whose short span sits where the true anomaly runs
+    /// furthest ahead of the eccentric one, with `sense` off by `1e-6`.
+    /// There the azimuth's drift is `|ν|`, well past `E_max + 1`.
+    #[test]
+    fn the_sense_drift_reads_pi_on_a_cone() {
+        let alpha = 0.5_f64;
+        let n = Vec3::unit_z();
+        let s = Surface::Cone {
+            apex: Point3::origin(),
+            axis: n,
+            half_angle: alpha,
+            u_ref: Vec3::unit_x(),
+        };
+        let (beta, v0) = (0.95_f64, 2.0_f64);
+        let bb = beta * beta;
+        let e = 2.0 * beta / (1.0 + bb);
+        let exact = Pcurve::FocalSection(FocalImage {
+            u0: 0.0,
+            t0: 0.0,
+            v0,
+            va: -e * v0,
+            vb: 0.0,
+            vl: 0.0,
+            beta,
+            sense: 1.0,
+        });
+        // The carrier is the exact image's own map, an ellipse: its
+        // harmonic form read off three of its points.
+        let at = |t: f64| {
+            let q = exact.eval(t);
+            s.eval(q.x, q.y)
+        };
+        let (p0, p1, p2) = (at(0.0), at(FRAC_PI_2), at(PI));
+        let c = Point3::origin() + ((p0 - Point3::origin()) + (p2 - Point3::origin())) * 0.5;
+        let h = Harmonic3 {
+            c,
+            a: (p0 - p2) * 0.5,
+            b: p1 - c,
+            l: Vec3::new(0.0, 0.0, 0.0),
+        };
+        let p = with(&exact, |i| i.sense = 1.0 + 1e-6);
+        check(
+            "the_sense_drift_reads_pi_on_a_cone",
+            &p,
+            &s,
+            h,
+            -1.57,
+            -1.56,
+        );
+    }
 }

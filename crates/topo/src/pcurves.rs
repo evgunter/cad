@@ -7068,11 +7068,10 @@ mod room_fence_tests {
     }
 }
 
-/// A closed Villarceau edge's joint with itself, at the unit level. No
-/// producer offers a torus face holding a whole Villarceau circle: the
-/// circle crosses both equators, and every face of a revolved torus is cut
-/// along its profile's parallels, so a closed Villarceau loop has no face
-/// to bound end to end, and these rows decide its joint directly.
+/// A closed Villarceau edge's joint with itself, at the unit level, over
+/// every pose and branch: the end-to-end row, a whole circle closing one
+/// edge on a torus face through `mvfs` and `mef`, is
+/// `tests/a_whole_villarceau_circle_bounds_a_torus_face.rs`.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod villarceau_joint_tests {

@@ -100,7 +100,11 @@ fn poison_vec<T: Real>() -> Vec3<T> {
 /// point and unit axis: `q = p − anchor`, `h = q·axis`,
 /// `w = q − axis·h`. Shared by every axisymmetric form below (fixed
 /// order, D9).
-fn axial_radial<T: Real>(p: Point3<T>, anchor: Point3<T>, axis: Vec3<T>) -> (T, Vec3<T>) {
+pub(crate) fn axial_radial<T: Real>(
+    p: Point3<T>,
+    anchor: Point3<T>,
+    axis: Vec3<T>,
+) -> (T, Vec3<T>) {
     let q = p - anchor;
     let h = q.dot(axis);
     let w = q - axis * h;

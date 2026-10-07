@@ -26,8 +26,19 @@ on an analytic chart:
   (`geom_brep::certify`, the `Curve3::Nurbs` gate before the resolver),
   and an `Intersection` description takes the fitted lane, which `f64`
   holds.
-- `NoFittedClass`, `MirrorTorusSpiric`: their carriers need a fitted
-  image or a spiric's mirror torus, which no strut door states.
+- `NoFittedClass`, `MirrorTorusSpiric`: a strut's own door cannot state
+  them, and neither can the `mvfs` → `set_face_surface` → `mef` route
+  that builds a whole Villarceau loop
+  (`crates/topo/tests/a_whole_villarceau_circle_bounds_a_torus_face.rs`).
+  Tried on PR 4227 with a whole spiric oval on its mirror torus:
+  described in the torus's chart, the edge does not certify (a curved
+  chart's description is its chart image, which is what an uncovered
+  class lacks, `CertifyError::ChartImageUnavailable`); described on its
+  cutting plane, `mef` mints the loop, but neither a new face on the
+  mirror torus (`mef` with `FaceSurface::New`) nor a move onto it
+  (`set_face_surface`, `set_face_surfaces_describing`) is admitted,
+  since no certified edge names that chart (`RechartUnvouched`). Every
+  public door keeps a curved face's edges described in its own chart.
 - `FittedLaneUnsupported`: only at a scalar without the fitted door.
 
 A fixture needs either a producer path to one of these (the issue

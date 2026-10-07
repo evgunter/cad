@@ -602,12 +602,8 @@ fn each_villarceau_gate_alone_refuses_typed() {
         };
         let got = chart_pcurve(&carrier, &surface, band());
         assert!(
-            matches!(
-                got,
-                Err(PcurveCertifyError::CarrierOffChart { .. }
-                    | PcurveCertifyError::CarrierGrazesChart { .. })
-            ),
-            "the {gate} gate failed alone by 3·K·ε: {got:?}"
+            matches!(got, Err(PcurveCertifyError::CarrierOffChart { .. })),
+            "the {gate} gate failed alone by 3·K·ε: the incidence test refuses it first: {got:?}"
         );
     }
 }

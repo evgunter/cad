@@ -4832,9 +4832,9 @@ fn run_focal_section_checks<T: Decide>(
 ///   (`sin α·max(v_sup, |v0|)` on a cone, `R + r` on a torus):
 ///   `L·||sense| − 1|·(E_max + π + 1)`. Two parts of it are required by
 ///   the split and covered by slack elsewhere, so no row isolates them:
-///   the `+ 1` is `d1`'s share, and `|ν − E| + q·|sin E| ≤ 3.06 < π` over
-///   every `β` and `E` (sampled densely), so the azimuth term's `π`
-///   already holds it; and the cone's `|v0|` arm bounds only that share
+///   the `+ 1` is `d1`'s share, and `|ν − E| + q·|sin E| < π` over every
+///   `β` and `E` (its sup tends to `π` as `|β| → 1`), so the azimuth
+///   term's `π` already holds it; and the cone's `|v0|` arm bounds only that share
 ///   (`d1`'s coefficient is `sin α·v0·q`), while the point itself moves
 ///   by `sin α·|v(t)| ≤ sin α·v_sup` per radian.
 /// - **The focal decomposition.** With `d0 = ρ̂(u0)` and
@@ -7902,9 +7902,8 @@ fn sphere_circle_incidence<T: Decide>(
 const INCIDENCE_SAMPLES: u32 = 64;
 
 /// The exact distance of `p` from an analytic curved chart: the sphere's
-/// `|‖p − c‖ − R|`, the double cone's `|ρ·cos α − |z|·sin α|` (`ρ` and
-/// `z` the radial and axial parts from the apex; the foot's slant
-/// `ρ·sin α + |z|·cos α` is never negative, so it lies on the cone), the
+/// `|‖p − c‖ − R|`, the double cone's `|elevation|`
+/// ([`crate::implicit::cone_elevation`], exact on the double cone), the
 /// torus's `|√((ρ − R)² + h²) − r|`.
 fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
     match *surface {
@@ -7914,12 +7913,7 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
             axis,
             half_angle,
             ..
-        } => {
-            let w = p - apex;
-            let z = w.dot(axis);
-            let (sin_a, cos_a) = half_angle.sin_cos();
-            ((w - axis * z).norm() * cos_a - z.abs() * sin_a).abs()
-        }
+        } => crate::implicit::cone_elevation(apex, axis, half_angle, None, p).abs(),
         Surface::Torus {
             center,
             axis,
@@ -7927,9 +7921,8 @@ fn chart_distance<T: Real>(surface: &Surface<T>, p: Point3<T>) -> T {
             minor_radius,
             ..
         } => {
-            let q = p - center;
-            let h = q.dot(axis);
-            (((q - axis * h).norm() - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius
+            let (h, w) = crate::implicit::axial_radial(p, center, axis);
+            ((w.norm() - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius
         }
         .abs(),
         Surface::Plane { .. }
@@ -7961,9 +7954,15 @@ fn chart_incidence<T: Decide>(
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
     let step = T::tau() / T::from_f64(f64::from(INCIDENCE_SAMPLES));
+    // A poisoned distance is carried to the decision, which escalates on
+    // it, rather than dropped by `max` and read as on the chart.
     let farthest = (0..INCIDENCE_SAMPLES).fold(T::zero(), |far, i| {
-        let t = step * T::from_f64(f64::from(i));
-        far.max(chart_distance(surface, carrier.eval(t)))
+        let d = chart_distance(surface, carrier.eval(T::from_f64(f64::from(i)) * step));
+        if far.is_poison() || d.is_poison() {
+            d + far
+        } else {
+            far.max(d)
+        }
     });
     match decide(name, Margin::of(farthest), band).map_err(incidence_escalated)? {
         Sign::Positive => Ok(Incidence::Off),

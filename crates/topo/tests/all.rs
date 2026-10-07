@@ -350,6 +350,8 @@ mod lane2_r2_probes;
 #[path = "replace_face_band_probes.rs"]
 mod replace_face_band_probes;
 
+#[path = "a_whole_villarceau_circle_bounds_a_torus_face.rs"]
+mod a_whole_villarceau_circle_bounds_a_torus_face;
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
 #[path = "cleave_mint_doors.rs"]
