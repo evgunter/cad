@@ -597,6 +597,20 @@ fn adopt_edges(
             ));
         }
 
+        // An edge both of whose uses bound one face is that face's wrap
+        // edge (D1), whichever rung describes it — a closed spline
+        // wall's boundary column as much as an analytic generator —
+        // and tier 3 refuses it described otherwise. Certification
+        // then decides whether the chart closes across it.
+        let (f_plus, f_minus) = sides.faces();
+        if f_plus == f_minus {
+            for (_, description) in &mut candidates {
+                if let EdgeDescriptionSpec::Chart { wrap, .. } = description {
+                    *wrap = true;
+                }
+            }
+        }
+
         // A band-minted generator: the mint's D1 statement is that
         // this edge is the band face's wrap edge, so the only honest
         // description is a wrap — the conventional mapped-curve rung
