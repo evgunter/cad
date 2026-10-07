@@ -611,3 +611,17 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     bounds-roster line was main's red since #4173 and was ported in.
   - **Rows:** `sweeps-build-one-rim-edge-per-segment-not-per-run`
     closes. Step 3 waits only on the curved join (`fuse/curved-join`).
+- 2026-10-07 — Curved-join lane: the naming half is split out.
+  - **Finding:** no editor-core document produces a closed join
+    today. The one construction that would (a sphere cut-in:
+    lens ∩ tilted brick) already fails emit on main with
+    `Naming(MissingUpstream)` at the cap node, with curved joins
+    disabled too, so the failure predates this lane.
+  - **Ruled (orchestrator):** the PR lands without the edge-derived
+    name. "No identity" holds by refusal instead: name minting at a
+    conventional vertex refuses typed and never mints a member- or
+    position-citing name. The ranking skips and the order-row helper
+    come along only if they need no new vocabulary.
+  - **Filed rows:** one FUSE row for the name, the new RoleSeg and the
+    six-order document witness, blocked on an EMIT issue row for the
+    `MissingUpstream` failure.
