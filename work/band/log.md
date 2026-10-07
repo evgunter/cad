@@ -631,3 +631,27 @@ The class-H dual review (DR row in this PR; both APPROVE-WITH-FIXES, tally
 The cost of the 42-link request fell from about 4 s to 0.3 s at
 `Interval`. Filed: `blend-reach-takes-an-open-arc-link-over-the-whole-turn`
 (P3), plus a second seed on VACUITY's pick-face guard. This unholds PR 4092.
+
+## 2026-10-07 — sided radius headroom landed (PR #4092): r is limited only where a support bends toward the ball
+
+Predicate 1 (`fillet3_radius_headroom`) reads each support's curvature on the
+side the ball rolls (`geom_brep::SurfaceSide`, `min_radius_of_curvature_toward`).
+A ball outside a bore, boss or dimple is no longer limited by that radius.
+Bodies built at the Pappus closed forms to 1e-12.
+
+The full review's MAJOR (a convex band past a thin wall's far face, which
+the old two-sided limit happened to refuse) was held on the P0 and is now
+closed by PR 4143's reach meter, without touching the headroom. The
+reviewer's `thin_flare` is a row: `r = 1.5` and `1.6` refuse `FaceClearance`
+on the far face at a definite negative margin at all three eps rows, and
+`r = 1.4` builds. The Klein inner corner gives the same refusals, held in
+its scene.
+
+The minors were taken in full:
+- the cone-foot row closed as unreachable (spine regularity refuses first);
+- the torus arms stated unreachable through `fillet_edges`;
+- `SurfaceSide` replaces the bool;
+- the margin tightened to `r·(1 − r/arm)`.
+
+The tour rocker's wall 1 retired. Filed:
+`rocker-crease-radius-stays-at-the-eye-after-wall-1-retired` (P3).
