@@ -256,8 +256,9 @@ impl Selection {
     }
 
     /// **The nodes this selection names**: the node itself, or for a
-    /// picked entity the node that minted its name, the feature it is
-    /// ([`FaceSelection::feature`]) and the node whose body was hit.
+    /// picked entity the node that minted its name, the feature that
+    /// made the entity ([`FaceSelection::feature`]) — a different node
+    /// where the name was carried — and the node whose body was hit.
     /// The session keeps them spoken as the selection is made
     /// (`DocSession::selection_said`), so a sentence about a selection
     /// whose node was deleted since says the last label it had.

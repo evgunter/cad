@@ -17,7 +17,8 @@
 //! `Outer` it cannot make a second piece that the count would see.
 //!
 //! In a solid with two or more decided `Outer`s, every shell is read
-//! where it stands ([`witness_insides`], check 10's own witness loop).
+//! where it stands ([`witness_insides`], the crate's witness ladder,
+//! which check 10 reads too).
 //! The shells whose closed surface a shell lies inside nest, so the
 //! innermost of them is the one inside all the others:
 //!
@@ -50,7 +51,7 @@
 //! first. Ownership moves and nothing else: every face, edge and vertex
 //! keeps its key, so contact and lineage records keyed by them stand.
 //!
-//! [`shell_role`]: crate::validate::shell_role
+//! [`shell_role`]: crate::props::shell_role
 
 use geom_core::{Band, Decide, Tol};
 
@@ -58,7 +59,7 @@ use crate::body::Body;
 use crate::boolean::PointInSolidError;
 use crate::entity::{FaceKey, ShellKey, SolidKey};
 use crate::props::{QuadLane, ShellRole};
-use crate::validate::{Insides, ShellRead, witness_insides};
+use crate::stands::{Insides, ShellRead, witness_insides};
 
 /// Why the sort could not read which piece a shell belongs to
 /// (closed enum, D4 ¶3). Every arm refuses before any shell of the body
@@ -73,15 +74,18 @@ pub enum PieceSortError {
         /// The shell.
         shell: ShellKey,
     },
-    /// Every vertex of the shell lies on another shell, so no witness
-    /// of it says where it stands.
+    /// Every witness of the shell ([`crate::stands`]: its vertices,
+    /// edge midpoints and planar face interiors) lies on another shell,
+    /// so none says where it stands.
     WitnessTouching {
         /// The shell.
         shell: ShellKey,
     },
-    /// The point-in-solid walk refused at a witness of the shell. No
-    /// row reaches it: on the shells a verb builds today, a walk that
-    /// refuses here has refused that verb earlier, in its own probes.
+    /// The point-in-solid walk refused at a witness of the shell other
+    /// than in band, or no witness decided and one read in band (its
+    /// reading). No row reaches it: on the shells a verb builds today, a
+    /// walk that refuses here has refused that verb earlier, in its own
+    /// probes.
     Probe {
         /// The shell.
         shell: ShellKey,
@@ -126,8 +130,8 @@ impl core::fmt::Display for PieceSortError {
                 geom_core::KERNEL_LIMIT_RECOURSE,
             ),
             Self::WitnessTouching { .. } => (
-                "every corner of a shell of the body touches another shell, so the piece \
-                 it belongs to could not be read"
+                "every point of a shell of the body that could say where it stands lies on \
+                 another shell, so the piece it belongs to could not be read"
                     .to_owned(),
                 geom_core::NOT_YET_ENDING,
             ),
@@ -475,19 +479,86 @@ mod tests {
         ));
     }
 
-    /// **A shell every corner of which touches another refuses**: a
-    /// cavity whose corners all lie on the outer cube around it, beside
-    /// a second cube.
+    /// **An undecided shell beside one decided `Outer` stays under its
+    /// solid** (the residue the sort leaves by design): a sheet whose
+    /// signed volume stays in band, far from a cube, is a second piece
+    /// that no reader can name, and the sort is silent there, as check
+    /// 10 is.
     #[test]
-    fn a_shell_touching_at_every_corner_refuses_witness_touching() {
+    fn an_in_band_shell_beside_one_piece_stays_under_its_solid() {
+        let tol = Tol::witness();
+        let t = (1.0 + tol.k()) * tol.eps();
+        let mut body = one_solid(&[
+            ([(0.0, 1.0), (0.0, 1.0), (0.0, 1.0)], false),
+            ([(6.0, 7.0), (0.0, 1.0), (0.0, t)], false),
+        ]);
+        let before: Vec<_> = body.shells().map(|(k, _)| k).collect();
+        sort(&mut body).expect("silent beside one decided Outer");
+        assert_eq!(filed_with(&body, before[1]), before, "nothing moved");
+    }
+
+    /// The solid holding `shell` after the sort, and its shells.
+    fn filed_with(
+        body: &Body<f64>,
+        shell: crate::entity::ShellKey,
+    ) -> Vec<crate::entity::ShellKey> {
+        body.solids()
+            .map(|(_, s)| s.shells.clone())
+            .find(|shells| shells.contains(&shell))
+            .expect("every shell is filed")
+    }
+
+    /// **A cavity every corner of which touches its owner is read at an
+    /// edge midpoint**: a square tunnel-shaped cavity spanning the
+    /// slab's full thickness, so its eight corners lie on the slab's top
+    /// and bottom faces, and the midpoint of each upright edge is inside
+    /// the slab's material. Beside it, a second cube to sort.
+    #[test]
+    fn a_cavity_touching_at_every_corner_is_read_at_an_edge_midpoint() {
+        let mut body = one_solid(&[
+            ([(0.0, 3.0), (0.0, 3.0), (0.0, 1.0)], false),
+            ([(5.0, 6.0), (0.0, 1.0), (0.0, 1.0)], false),
+            ([(1.0, 2.0), (1.0, 2.0), (0.0, 1.0)], true),
+        ]);
+        let order: Vec<_> = body.shells().map(|(k, _)| k).collect();
+        sort(&mut body).expect("the cavity is read past its corners");
+        assert_eq!(filed_with(&body, order[2]), vec![order[0], order[2]]);
+        assert_eq!(filed_with(&body, order[1]), vec![order[1]]);
+    }
+
+    /// **A cavity every corner and edge of which touches its owner is
+    /// read at a face interior**: the lower half of a cube, carved out
+    /// of it, so five of its faces lie on the cube's and its top face's
+    /// interior is inside the cube's material.
+    #[test]
+    fn a_cavity_touching_at_every_edge_is_read_at_a_face_interior() {
         let mut body = one_solid(&[
             ([(0.0, 2.0), (0.0, 2.0), (0.0, 2.0)], false),
             ([(5.0, 6.0), (0.0, 1.0), (0.0, 1.0)], false),
             ([(0.0, 2.0), (0.0, 2.0), (0.0, 1.0)], true),
         ]);
+        let order: Vec<_> = body.shells().map(|(k, _)| k).collect();
+        sort(&mut body).expect("the cavity is read at its top face");
+        assert_eq!(filed_with(&body, order[2]), vec![order[0], order[2]]);
+        assert_eq!(filed_with(&body, order[1]), vec![order[1]]);
+    }
+
+    /// **A shell every witness of which lies on another refuses**: a
+    /// cavity the very shape of the cube it is filed with, so each
+    /// corner, edge midpoint and face interior of either lies on the
+    /// other.
+    #[test]
+    fn a_shell_lying_wholly_on_another_refuses_witness_touching() {
+        let mut body = one_solid(&[
+            ([(0.0, 2.0), (0.0, 2.0), (0.0, 2.0)], false),
+            ([(5.0, 6.0), (0.0, 1.0), (0.0, 1.0)], false),
+            ([(0.0, 2.0), (0.0, 2.0), (0.0, 2.0)], true),
+        ]);
+        let cube = body.shells().next().unwrap().0;
         assert!(matches!(
             sort(&mut body),
-            Err(PieceSortError::WitnessTouching { .. })
+            Err(PieceSortError::WitnessTouching { shell }) if shell == cube
         ));
+        assert_eq!(body.solids().count(), 1, "nothing moved");
     }
 }

@@ -2,10 +2,13 @@
 id: names-render-a-faces-leaf-role-in-words
 kind: issue
 title: The names layer renders a face's leaf role in words through one public renderer, and StableName's Display carries it (Ev, #3571)
-status: open
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: M
+branch: recipe/leaf-role-words
+pr: 3886
+closed: 2026-10-06
 ---
 
 
@@ -40,6 +43,15 @@ EDIT: `names/`, `resolve/mod.rs`. Also EMIT, on `role.rs`. The viewer half is AU
 
 Filed by the AUTHOR orchestrator on Ev's ruling.
 
+## Built (2026-10-02, PR 3886)
+
+- `names::words` holds the one public renderer (`LeafRole`, `leaf_role`, `role_leaf`), re-exported on `pncad::select`. Its descent comes from `attribute`'s `SegOrigin`, which now says how each carry was carried (`CarriedAs`). `resolve`'s `role_words`, `piece_words`, `descent_leaf` and `Cutter` are gone.
+- `Speaker::name` and `StableName`'s `Display` are one sentence: kind, minting node, then the leaf role in words, adding the leaf's node where it differs. `SpokenName` keeps the nodes and steps its words say.
+- A profile step is said as `loop L step S`, both from zero, as the profile pane numbers it. Where no document is at hand, it is said by its tag.
+- Blend, shell and split faces are each said over what they were made against, one level down. Fragments and non-whole carries are said around the leaf.
+- `SelectRefusal`'s `named`, the three kind refusals in `eval`, `MeasureRefUnreadable` and `CrossingUnverified` all forward the name's sentence.
+- Remains: the viewer half is DOORS' `face-pick-cannot-name-which-face`, which this row unblocks.
+
 ## A name's words tell it apart, within a readable sentence
 
 Measured on PR 3886's build over the corpus (every name in every node's table): 316 groups of distinct faces read alike, and a refusal naming two real names runs to 134 words against the 75-word budget. 314 of the 316 are copies of one master: a `Transform` passes names through, so which copy a face is shows only in the carry that brought it into the body, and the renderer reads every carry as silent.
@@ -54,3 +66,71 @@ The words of a name:
 ## Ruled (Ev, PR 3906, 2026-10-03)
 
 The shared core as recommended (joins said, one sentence shape, table-scoped detail, corpus gates), and on the one split the full form for a speaker holding no table. PR 3886 builds it in its fix pass.
+
+## Built (2026-10-03, PR 3886)
+
+The fix pass builds the #3906 ruling.
+
+- **Shape.** A name in words is `<role> of <feature>[, <join>…][, on <node>]` (`names::words`), and `StableName`'s `Display`, `Speaker::name` and `SpokenName` all say it; the "name minted by" frame is gone. A carry through a boolean's B or a union's member is a join ("joined at Boolean X", "joined at Union U from Transform M"), outermost first; A and a fillet's target are silent (`CarriedAs::Primary`/`Secondary`). A cited name keeps its feature. Every number counts from zero; a cut is a "part", a profile piece a "piece". A step is said with its profile wherever the feature does not read that profile alone. The sentence is built from an explicit stack.
+- **Detail.** A speaker holding the evaluation (`Speaker::within`, `NameTables`) says each name at the least detail that tells it apart in the table of the node that holds it: citations opened one at a time, fewest-rivals first, then needless openings shut. A speaker holding no table says the full form.
+- **Gates** (`editor-core/tests/name_words_corpus.rs`, slow set): the full form is injective over every corpus table, from the document and by tag; the scoped words are unique per body (no admissions); `respoken_after_a_dropped_step`. The budget gate is a ratchet: seven of the eight forwarding rows overrun 75 words with the corpus's longest scoped names, filed as `refusals-with-the-longest-scoped-names-overrun-the-budget`.
+- **Review fixes.** A dropped step lets go of its row in `HeldNodes::respoken`; `PairInBand`'s prose meets the refusal standard on its own; `SelectionRefusal::Unresolved`/`NotAFace` carry the name and say it through the speaker; the stranded sentence names the node that went.
+- **Remains.** The viewer's pick readout speaking within the landed evaluation is DOORS' `face-pick-cannot-name-which-face`. A strand row's kept step at its old row is `a-strand-row-says-a-kept-steps-old-row`.
+
+## Built (2026-10-03, PR 3886, second fix pass)
+
+- **Speakers holding the evaluation now say names within it.** The kernel refusals raised against an evaluation are `NodeError`, `ResolveError`, `SelectRefusal` and `HitTestError`. Their `spoken` now takes the evaluation (`spoken(doc, evaluation)`, through `spoken_within`), so no caller can say them in full by default. Two families of caller use it:
+  - The viewer's tree rows, pick refusal, picking-paths notice, index badge and tool notices speak through `Speaker::of(landed).within(evaluation)`.
+  - The Python surface's node failure, poisoning, select, resolve and hit-test errors pass the evaluation they were raised against.
+- **Production gate.** The budget rows are said through those `spoken` doors. The resolve rows forward a name the evaluation does not hold, so they are said in full. Measured: 263, 136, 106, 81, 76, 145, 127 and 133 words. The rows are ratcheted, and a second ratchet (`SAID_WORDS`) pins the words of every corpus name. Re-filed with these numbers as `refusals-with-the-longest-scoped-names-overrun-the-budget`, `needs_ev`.
+- **Scoped uniqueness** is gated per whole table, ties and every body included. Documents built outside the corpus are a test of their own.
+- **The scoped detail** is re-checked against every name of the table before it is given (`unique_detail`). The docs say it is greedy, not the least.
+- **Words.** A Boolean join is said by its operation ("cut in at Subtract 1669"). `head` has words for every segment, and no silent arm: a path no operation mints, and a seam junction, say each segment.
+- **The strand row** says a kept step at its new row; `a-strand-row-says-a-kept-steps-old-row` is closed.
+- **No role path reaches the status line's pick refusal.** `idpass::NameAndPath` keeps the path for the picking-paths bug report (`Disagreement`, `IdAnswer`) alone.
+- **Remains.**
+  - The DOORS face composer (`face-pick-cannot-name-which-face`) speaks within the landed evaluation when it lands.
+  - The budget is Ev's question.
+  - Six rows' unmarked recourses are WIRE's `refusals-forwarding-a-name-state-no-marked-recourse`.
+
+## Built (2026-10-06, PR 3886, third fix pass)
+
+Ev's ruling on #4069 (`refusals-with-the-longest-scoped-names-overrun-the-budget`, its own `## Built`) and the third review's findings.
+
+- **A name's final words differ from every other name's in its table.** `names::words::table_details` works out every name's detail at once: each name searched greedily against the names it reads alike with at no citation opened, then every name said at its own detail, and each group that still reads alike said in full until none does. The review's two collision probes are unit rows (`two_names_at_their_own_details_never_read_alike`), red against the old per-name search.
+- **Worked out once per table.** The details live in the `NameTable` (a cache like its seal: a clone starts empty, a write empties it), so a tree that says a failed row each frame searches nothing again. The words themselves are said fresh from the document each time, so a rename reads at once. Cost row: `a_failed_row_said_within_the_largest_table_is_cheap_again` (552 names: about 24 ms the first time, 14 µs after, debug build).
+- **`head` says every field.** `BandCross` and `BandSlit` say their band (`a_band_crossing_and_slit_say_their_band`).
+- **Words.** "the leg of" goes; ", on <node>" leaves the name (the sentence says a holder where two faces read alike). By tag a B join says what the name holds, "through operand B of node X"; with the document, the operation, spelled by `verbs::VerbKind::noun`. The composite carry arms read "<name> from operand A". The gate checks each operation's join (`each_boolean_join_says_its_operation`).
+- **A content ratchet.** `SAID_DIGEST` beside `NAME_WORDS`; the cap/member mutant moves it.
+- **One rule for a dropped step.** The strand row and `HeldNodes::respoken` both say a dropped step by its tag (`SpokenName::steps_respoken`), so no sentence mixes the two programs' rows. The strand sentence says which cause applies (`Took`: the node that made it deleted, a step it names dropped, or a kept step's piece undrawn).
+- **No role path on the status line.** `idpass::NameAndPath` is gone: the picking-paths notice says names in words, and the path is the `Disagreement`'s `Debug`, for a log; no viewer surface prints it.
+- **Remains.** `a-vanished-name-carries-no-holding-node` (a bare `Vanished`, and the picking-paths tie, carry no holder). The DOORS face composer (`face-pick-cannot-name-which-face`) as before.
+
+## Built (2026-10-06, PR 3886, fourth fix pass)
+
+The fourth review's findings. The probes it named are rows of `editor-core/tests/name_words_rows.rs`.
+
+- **A strand row names the node the edit deleted.** After a delete the row says "this edit deleted <node>, which minted the name": a name's words say the node that made its leaf, which a name carried through a Boolean's A or B, or a fillet's target, is not (`edit::took_from`; `a_strand_row_names_the_node_the_delete_took`, red before). The docs that read a name's node as the node holding it say the minter: `SpokenName::minter`, `NameTables`, `ResolveError`'s `NodeGone` note.
+- **A resolve row names the slot that failed.** A reference is (site, name), so the failure carries its place among `Node::payload_names` (`NodeErrorKind::{DeclareResolve, BlendSelectionResolve, ShellOpenResolve, MeasureRefResolve}::reference`), and `Node::reference_slot` says the slot at that place where it holds the name (a union's member-space name included). The declared-pair doors carry it on each side (`eval::wire::Side`). Rows: a measure's second reference and a Boolean's declared pair's second side, each holding the cap at a split that cut it (`a_resolve_row_names_the_slot_that_failed`), and the corpus gate's fillet edge above 0.
+- **The full form reads one way only.** A cited name whose words run on past its node (a qualifier's list, a join) is bracketed, so a list's "and" and a join after a citation cannot attach to it. The two shapes are static rows (`a_list_ending_in_a_list_or_a_join_reads_one_way`, red without the brackets); full-form and table fuzzers back it (`the_full_form_says_no_two_names_alike`, `a_tables_words_say_no_two_of_its_names_alike`). 39 corpus names cite a run-on name, so `SAID_DIGEST` moves (word counts do not).
+- **A table's first saying is no longer quadratic in renderings.** `table_details` says each name of an alike group once per detail the group's searches ask, shared between them (`words::Alike`); what stays quadratic is string comparison. 1,000 names alike at no citation: 1.3 s in release, was 15.5 s (`a_large_table_of_names_alike_at_no_citation_is_said_in_bounded_time`). The details found are the same as before.
+- **The census checks a table's mixed rows.** The scoped uniqueness check now covers the names a node passes through beside its own (a Split's intact upstream names and its halves); none read alike.
+- **Filed:** CHROME `the-tree-calls-a-boolean-boolean-where-a-join-says-subtract` (one node, two nouns on one screen) and `a-face-frames-tree-label-could-say-which-face`.
+
+## Built (2026-10-06, PR 3886, fifth fix pass)
+
+The fifth review's findings.
+
+- **Wraps and joins are said in the order the path takes them.** A join beneath a wrap (a split's half, a copy, a band cut, a part) is said inside it, bracketed: "instance 1's copy of (the start cap of Extrude e548, cut in at Subtract 1669)" is a copy of a cut-in cap; without the bracket it is a cut-in copy. The same for a part: "the part of (the side wall …, cut in at Subtract …) bordering …". Static row `a_join_beneath_a_wrap_reads_apart_from_one_above_it`. The full-form fuzzer now draws the review's richer names (every wrap, join and list-bearing role, nested up to four deep) next to the old shapes, and the table fuzzer draws them too. 105 corpus names moved, all of them a join beneath a wrap; `SAID_DIGEST` moved, word counts did not.
+- **The full form's claim is scoped.** Two names read alike in full only where they differ in a node the words never say: a primary carry's node, or the node of a split, copy, band cut or part. The module docs, `Detail::Full` and `table_details` now say this. `table_details` asserts in debug (and release keeps debug assertions) when its loop ends with names still alike. The fuzzer counts these pairs separately. Filed as `two-names-differing-only-in-an-unsaid-carry-node-read-alike` (P3).
+- **The rows run where they can break.** The `name_words_rows` marker also names `names/attribute.rs`, `eval/wire.rs`, `eval/mod.rs`, `resolve/`, `node.rs` and `edit.rs`. The two fuzz rows left the slow set.
+- New rows:
+  - A fillet's edge and a shell's open face above slot 0, through evaluation (`a_resolve_row_names_a_payload_slot_above_zero`). The fillet row asserts its slot is above 0, so a reference that lost its slot turns it red.
+  - A union's declared pair's second side (`a_union_resolve_row_names_its_declared_pairs_second_side`).
+  - The strand row after deleting a union (`a_strand_row_names_a_deleted_union`).
+- **Python reads a real in-band pair.** `test_document.TestDetectDeclareDoors.test_an_in_band_pair_refuses_naming_both_faces_and_their_nodes` floats one slab by the band's midpoint and reads `reason`, `at`, `other_at`, `name`, `other`, `predicate` and the kernel's sentence.
+- **Style.**
+  - `Took` has one spelling, `Took::said(name)`, which names the deleted node. Its `Display` is gone.
+  - `FaceFrameResolve` stays without `reference`, since a frame's payload is one name. The call site now says so.
+  - The viewer's minter/feature lines are reworded.
+  - PairInBand reads "X and Y may coincide (margin … ) — …" (74 words at p90). To say the payload in its own place, `geom_core::IndeterminateUnder::tail` was added.

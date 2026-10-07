@@ -2,11 +2,14 @@
 id: skin-coincident-section-check-is-an-unbanded-f64-compare
 kind: issue
 title: skin.rs refuses coincident loft sections by a bare f64 strict comparison (params[j-1] < params[j] → DegenerateSection) — per-pair and named, but unbanded
-status: open
+status: closed
 opened: 2026-09-16
 refs: [2752]
 priority: P0
 cost: H
+branch: carve/one-door-for-coincident-sections
+pr: 4186
+closed: 2026-10-06
 ---
 
 Found by BOOL-6 (PR 2752) while placing the per-slab stacking fold's
@@ -33,3 +36,15 @@ skin's unbanded `params[j-1] < params[j]` takes it and refuses
 them)" }` about sections that do NOT coincide — the normalised
 accumulation underflows. So the item is two things: the compare is
 unbanded, and its `what` is false in the regime it actually serves.
+
+## Built (2026-10-06)
+
+The loft's stacking fold owns whether two adjacent sections are apart.
+`loft_body` and `sweep_body` validate the sections, run the fold, then
+skin, so every slab short of the band, down to exact coincidence and
+the normalised-chord underflow, refuses as `DegenerateStacking` naming
+its slab. The skin's `params[j-1] < params[j]` no longer claims the
+sections coincide. It is the parameterization's own precondition,
+`SkinError::NoParameterStep`, and through `loft_body` it is reached
+only by sections the fold found apart. Pinned in
+`crates/sweep/tests/one_door_for_coincident_sections.rs`.

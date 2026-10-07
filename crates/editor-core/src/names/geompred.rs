@@ -265,6 +265,10 @@ pub enum SelectRefusal {
     PairInBand {
         /// The face-name pair whose margin was indeterminate.
         pair: Box<(StableName, StableName)>,
+        /// The nodes whose outputs hold the pair's two faces — the
+        /// flush query's two nodes, which may hold names alike (two
+        /// copies of one body), so the sentence says each.
+        at: (RecipeNodeId, RecipeNodeId),
         /// The verify-door funnel site — `bool_plane_*` on the
         /// planar rung, `carrier_sphere_*` / `carrier_cyl_*` /
         /// `carrier_torus_*` on the curved ones, since detection
@@ -311,44 +315,29 @@ pub enum SelectRefusal {
 
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
 // the PROBLEM in the query's own vocabulary — candidate, tie, band,
-// datum, comparand — and NAMES the candidate the refusal is about, as
-// the refusals themselves promise to. A name renders as its kind plus
-// its minting node, the product layer's spelling: a role path is a
-// derivation, not something a person reads mid-sentence.
+// datum, comparand — and NAMES the candidate the refusal is about, in
+// its words.
 //
-// The in-band arms forward the funnel's whole `Indeterminate` Display,
-// recourse tail included, rather than its bare payload: a selection
-// margin IS a decidability question, so the three-lever coincidence
-// sentence is the right one here (unlike a contact site, where it is
-// not). The arms that wrap another layer's refusal forward that
-// layer's words.
+// The in-band arms say the band once, through the funnel's own payload
+// and ending, under the levers a query has: the geometry, and the
+// tolerance where one decides. A query takes no declaration. The arms
+// that wrap another layer's refusal forward that layer's words.
 impl crate::spoken::Say for SelectRefusal {
     fn say(
         &self,
         f: &mut core::fmt::Formatter<'_>,
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
-        let named = |f: &mut core::fmt::Formatter<'_>, name: &StableName| {
-            write!(
-                f,
-                "the {} minted by {}",
-                name.kind.noun(),
-                by.node(name.node)
-            )
-        };
+        let named =
+            |f: &mut core::fmt::Formatter<'_>, name: &StableName| write!(f, "{}", by.name(name));
         match self {
-            Self::InBand {
-                name,
-                predicate,
-                source,
-            } => {
-                f.write_str("select: ")?;
+            Self::InBand { name, source, .. } => {
+                f.write_str("select: the query cannot decide whether ")?;
                 named(f, name)?;
                 write!(
                     f,
-                    " is neither certified in nor out — '{predicate}' left it inside the \
-                     ambiguity band, and a query neither drops a candidate silently nor \
-                     selects on a razor-thin cliff: {source}"
+                    " is in or out: {}",
+                    source.under(geom_core::NO_DECLARATION_RECOURSE)
                 )
             }
             Self::TiedDisagrees {
@@ -400,18 +389,31 @@ impl crate::spoken::Say for SelectRefusal {
                  dimension {dim}"
             ),
             Self::PairInBand {
-                pair,
-                predicate,
-                source,
+                pair, at, source, ..
             } => {
-                f.write_str("select: the pair (")?;
-                named(f, &pair.0)?;
-                f.write_str(", ")?;
-                named(f, &pair.1)?;
+                f.write_str("select: ")?;
+                // A name does not say the node holding it, so two copies
+                // of one body hold names alike: then each face is said
+                // with its node.
+                let (one, two) = (by.name(&pair.0).to_string(), by.name(&pair.1).to_string());
+                if one == two {
+                    write!(
+                        f,
+                        "{one} on {} and {two} on {}",
+                        by.node(at.0),
+                        by.node(at.1)
+                    )?;
+                } else {
+                    write!(f, "{one} and {two}")?;
+                }
+                // The margin is said as the sentence's own aside, so the
+                // sentence is the claim and the names' joins do not cut
+                // it off from the margin.
                 write!(
                     f,
-                    ") is neither certified in nor out — '{predicate}' left its margin inside \
-                     the ambiguity band, and detection reports only definite findings: {source}"
+                    " may coincide ({}){}",
+                    source.payload(),
+                    source.under(geom_core::NO_DECLARATION_RECOURSE).tail()
                 )
             }
             Self::BadValue(error) => {
@@ -445,11 +447,17 @@ impl core::fmt::Display for SelectRefusal {
 
 impl SelectRefusal {
     /// **The refusal as the frame holding the evaluated document says it**:
-    /// each node as `doc` holds it now ([`crate::Doc::spoken`]). The door
-    /// reads an evaluation alone, so the refusal holds ids, never a label.
+    /// each node as `doc` holds it now ([`crate::Doc::spoken`]), each
+    /// name within the table `evaluation` holds it in
+    /// ([`crate::Speaker::within`]). The door reads an evaluation alone,
+    /// so the refusal holds ids, never a label.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &crate::doc::Doc<P>) -> String {
-        crate::spoken::spoken_by(self, doc)
+    pub fn spoken<P: crate::ProfilePayload>(
+        &self,
+        doc: &crate::doc::Doc<P>,
+        evaluation: &dyn crate::NameTables,
+    ) -> String {
+        crate::spoken::spoken_within(self, doc, evaluation)
     }
 }
 
@@ -690,6 +698,7 @@ mod census {
             },
             SelectRefusal::PairInBand {
                 pair: Box::new((*name(), *name())),
+                at: (RecipeNodeId(7), RecipeNodeId(8)),
                 predicate: "bool_plane_side_of",
                 source: in_band(),
             },

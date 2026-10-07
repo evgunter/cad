@@ -378,7 +378,7 @@ fn a_chart_whose_faces_disagree_refuses_at_both_doors() {
                 panic!("{order} d={d}: a chart on both nappes must refuse, got {got:?}");
             };
             assert!(
-                faces.contains(&face) && what.contains("chart"),
+                faces.contains(&face) && what.contains("faces of one cone"),
                 "{order} d={d}: the refusal names the disagreeing member and the chart \
                  reading ({face:?}, {what})"
             );

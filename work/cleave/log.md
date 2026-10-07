@@ -625,3 +625,7 @@ Signed (CLEAVE orchestrator).
     - the graze root takes the decided sign directly (exact under `Interval`);
     - one row names the three copies of the residue root solve;
     - tests are tightened (side, landing, tiers).
+- **PR 4177 merged** (recl flanker; single FULL review, fix pass done). Its row is closed, and the
+  `UnitVec3::levered` margin gap is filed on FLUX.
+- **PR 4179 merged** (in-band graze; single FULL review, fix pass done). Its row is closed. The
+  residue-root class is filed on HONE, and the convex-graze row is narrowed to the apex pose.

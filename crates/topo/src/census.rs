@@ -233,10 +233,9 @@
 //!   ([`crate::boolean::VeContact`]): a coincidence an op decided Zero
 //!   and recorded (D10). The reduction never mints one: it
 //!   splits the *other* edge at every on-edge event
-//!   (`split_other_at_point`) and records a v-v pair instead. The join
-//!   (`BooleanBody::join_edges`) mints one, from the v-v record whose
-//!   vertex it joined away; it is a door of its own, and no op's output
-//!   stage calls it yet. An edge split moves the record onto the piece
+//!   (`split_other_at_point`) and records a v-v pair instead. Every
+//!   boolean output stage's join mints one, from the v-v record whose
+//!   vertex it joined away. An edge split moves the record onto the piece
 //!   the vertex rests on; carried into a later op, it backs the event
 //!   there.
 //! - **The face rung**: a declared face pair holding the vertex on one
@@ -267,7 +266,7 @@ use std::collections::BTreeSet;
 
 use bvh::{Aabb, Bvh};
 use geom_core::k_stats::Magnitude;
-use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{Band, Bounds, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
 use crate::body::Body;
 use crate::boolean::boxes::{edge_box, face_box, sweep_pad};
@@ -2108,7 +2107,7 @@ fn ee_cross_backed<T: Decide>(
     // Pass 1: one collected outcome per unordered candidate pair.
     let mut backed = false;
     let mut same_side = false;
-    let mut undecided: Vec<geom_core::Indeterminate> = Vec::new();
+    let mut undecided: Vec<Indeterminate> = Vec::new();
     for &(fa, fb) in &declared.faces {
         if fa >= fb {
             continue; // unordered walk (both orientations are stored)
@@ -2661,11 +2660,8 @@ pub(crate) fn face_reach_in<T: Decide>(
             }
             Some((lo, hi))
         }
-        crate::boolean::boxes::FaceBoxRule::WholeBall { center, radius } => {
-            Some(span_pts(crate::boolean::boxes::ball_extent(
-                &crate::boolean::boxes::SpanBox::point(frame.point(center)),
-                radius,
-            )))
+        crate::boolean::boxes::FaceBoxRule::SphereWindow => {
+            Some(crate::boolean::boxes::sphere_reach(body, f, band, frame))
         }
         crate::boolean::boxes::FaceBoxRule::TorusWindow {
             center,
@@ -4669,6 +4665,22 @@ fn touch_verdict<T: Decide>(
     }
 }
 
+/// The role of `shell` the cross-solid gate reads: the one shell-role
+/// reader ([`crate::props::shell_role`]) through the scalar's own lane,
+/// so the gate drops exactly the shells check 10, the result sort and
+/// the shell classification read as `Void`. `None` where it does not
+/// read.
+pub(crate) fn gate_role<T: Decide + crate::props::AtRestPolicy>(
+    body: &Body<T>,
+    shell: crate::entity::ShellKey,
+    band: Band,
+    tol: Tol,
+) -> Option<crate::props::ShellRole> {
+    crate::props::shell_role(body, shell, band, tol, T::quad_lane())
+        .ok()
+        .map(|(role, _)| role)
+}
+
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
 /// census must DECIDE or REFUSE — it must never silently not-examine
 /// (A5's letter). Two cross-solid candidate classes have no examining
@@ -5193,22 +5205,16 @@ fn sweep_cross_solid_backstop<T: Decide + crate::props::AtRestPolicy + Bounds>(
             .or_insert(h);
     }
     // The shells the gate reads: every shell but a VOID. A solid's only
-    // shell is its outer one; among several, a shell's role is the sign
-    // of its own volume (`crate::validate::shell_role`, tier 3's check
-    // 10 read), and a shell whose role does not read is kept — the
-    // conservative direction, since keeping a shell only sends more
+    // shell is its outer one; among several, a shell's role is read
+    // ([`gate_role`]), and a shell whose role does not read is kept —
+    // the conservative direction, since keeping a shell only sends more
     // pairs to the probe. Why voids may be dropped is the loop's
     // argument below.
     let gate_shells: Vec<(SolidKey, Hull<T>)> = shell_boxes
         .iter()
         .filter(|&(&shell, &(solid, _))| {
             let lone = body.get_solid(solid).is_some_and(|d| d.shells.len() < 2);
-            lone || crate::boolean::SolidFaces::of_shell(body, shell)
-                .ok()
-                .and_then(|sel| {
-                    crate::validate::shell_role(body, shell, sel.faces(), band, tol, None).ok()
-                })
-                != Some(crate::props::ShellRole::Void)
+            lone || gate_role(body, shell, band, tol) != Some(crate::props::ShellRole::Void)
         })
         .map(|(_, &b)| b)
         .collect();
@@ -5821,8 +5827,22 @@ fn confirm_edge_edge<T: Decide>(
         errors.push(stale);
         return;
     }
+    if interiors_meet(ea, eb, band, errors) == Some(false) {
+        errors.push(stale);
+    }
+}
+
+/// Whether two line edges' interiors meet, crossing or overlapping:
+/// the question an edge-edge record's confirm pass asks. `None` where
+/// a decision escalated (pushed).
+fn interiors_meet<T: Decide>(
+    ea: &EdgeGeo<T>,
+    eb: &EdgeGeo<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<bool> {
     let ncross = ea.dir.cross(eb.dir);
-    let meet = match gap_is_zero(
+    match gap_is_zero(
         "pm_census_ee_parallel",
         Margin::levered(ncross.norm(), ea.len.min(eb.len)),
         band,
@@ -5831,9 +5851,75 @@ fn confirm_edge_edge<T: Decide>(
         Some(false) => crossing_in_both_interiors(ea, eb, ncross, band, errors),
         Some(true) => Some(collinear_overlap(ea, eb, band, errors).is_some()),
         None => None,
-    };
-    if meet == Some(false) {
-        errors.push(stale);
+    }
+}
+
+/// A segment's census geometry, for the questions an op asks of two
+/// segments before any body holds them as edges.
+fn segment<T: Real>((p0, p1): (Point3<T>, Point3<T>)) -> EdgeGeo<T> {
+    let chord = p1 - p0;
+    EdgeGeo {
+        key: EdgeKey::default(),
+        v0: VertexKey::default(),
+        v1: VertexKey::default(),
+        p0,
+        dir: chord.normalize(),
+        len: chord.norm(),
+        f_plus: FaceKey::default(),
+        f_minus: FaceKey::default(),
+    }
+}
+
+/// [`interiors_meet`] over two segments: whether their interiors cross
+/// or overlap, decided as the confirm pass of an edge-edge record
+/// decides it, so a record placed by this answer is one the census
+/// confirms.
+///
+/// # Errors
+///
+/// The first escalated decision.
+pub(crate) fn segment_interiors_meet<T: Decide>(
+    a: (Point3<T>, Point3<T>),
+    b: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let mut errors = Vec::new();
+    let meet = interiors_meet(&segment(a), &segment(b), band, &mut errors);
+    escalation(meet, errors)
+}
+
+/// Whether `q` lies on a segment's interior, decided as the census's
+/// vertex-on-edge pass decides it.
+///
+/// # Errors
+///
+/// The first escalated decision.
+pub(crate) fn on_segment_interior<T: Decide>(
+    q: Point3<T>,
+    s: (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    let mut errors = Vec::new();
+    let on = on_edge_interior(q, &segment(s), band, &mut errors);
+    escalation(on, errors)
+}
+
+/// A census answer, or the escalation it pushed.
+///
+/// # Panics
+///
+/// Where the question answered `None` and pushed no escalation: its
+/// contract is `None` exactly where a decision escalated, so a `None`
+/// with nothing pushed is a broken invariant, never a "no".
+fn escalation(answer: Option<bool>, errors: Vec<ValidationError>) -> Result<bool, Indeterminate> {
+    for e in errors {
+        if let ValidationError::CensusEscalated { cause } = e {
+            return Err(cause);
+        }
+    }
+    match answer {
+        Some(answer) => Ok(answer),
+        None => unreachable!("a census question answers `None` only where it pushed an escalation"),
     }
 }
 

@@ -137,8 +137,12 @@ fn declared_crosslap_rest_union_builds() {
 #[test]
 fn declared_crosslap_records_both_contact_patches_as_discarded() {
     let glued = glued();
-    let seams: std::collections::BTreeSet<topo::EdgeKey> =
-        glued.naming.seam_edges.iter().copied().collect();
+    let seams: std::collections::BTreeSet<topo::EdgeKey> = glued
+        .naming
+        .seam_edges
+        .iter()
+        .map(|&e| glued.naming.joined_edge(e))
+        .collect();
     let edges = crate::boolean_discards::bordered_edges(&glued);
     for operand in [topo::Operand::A, topo::Operand::B] {
         let settled = glued

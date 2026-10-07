@@ -74,6 +74,7 @@ mod arcs;
 pub(crate) mod boxes;
 mod carrier_cross;
 pub mod carrier_eq;
+mod carrier_touch;
 mod circle_roots;
 mod circle_torus;
 pub(crate) mod combine;
@@ -162,6 +163,7 @@ pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, orient
 pub use reduce::PlantedDegradation;
 pub use reduce::{SweepStrategy, SweepTrace};
 pub use shell_witness::ShellOrientation;
+pub use zip::Fusions;
 // LIB-SEL2 (SELECT-DESIGN §3b; #304 review MINOR-1): THE flush-pair
 // verify door — descriptions, oriented sources and the verification
 // arm in one function, shared by the REST lane's verify-at-use and
@@ -210,14 +212,19 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
-        "bool_sector_within" => Coincide::Sectors.subject(),
+        "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" => {
+            Coincide::Sectors.subject()
+        }
         "bool_ee_collinear" => Coincide::EdgeOnEdge.subject(),
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
         "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
-        crate::query::DATUM_UNIT_NORM | join::BOOL_GERM_PLANE_NORMAL | boxes::BOX_CYLINDER_AXIS => {
-            geom_core::DIRECTION_LENGTH_SUBJECT
-        }
+        crate::query::DATUM_UNIT_NORM
+        | join::BOOL_GERM_PLANE_NORMAL
+        | boxes::BOX_CYLINDER_AXIS
+        | boxes::BOX_SPHERE_AXIS
+        | boxes::BOX_SPHERE_SEAM_UNIT => geom_core::DIRECTION_LENGTH_SUBJECT,
+        boxes::BOX_SPHERE_SEAM => "whether a sphere's seam direction is square to its polar axis",
         "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
@@ -702,6 +709,8 @@ pub struct CarriedContacts {
     /// coincidence an op decided and recorded (D10), which asserts no
     /// class.
     pub ve: Vec<VeContact>,
+    /// Edge-edge records within the operand, carried back in, as `ve`.
+    pub ee: Vec<EeContact>,
 }
 
 /// A carried vertex-vertex declaration: the pair AND the class it
@@ -733,8 +742,8 @@ pub struct CarriedVf {
 impl CarriedContacts {
     /// True iff nothing is carried.
     pub fn is_empty(&self) -> bool {
-        let Self { vv, vf, ve } = self;
-        vv.is_empty() && vf.is_empty() && ve.is_empty()
+        let Self { vv, vf, ve, ee } = self;
+        vv.is_empty() && vf.is_empty() && ve.is_empty() && ee.is_empty()
     }
 }
 
@@ -2211,10 +2220,11 @@ pub enum BooleanError {
     /// several vertices at one point (its own contact's) and the other
     /// operand's vertex there crosses into more than one of their
     /// neighborhoods, and one pair has no run in the shared vertex's
-    /// orbit that holds none of another pair's cuts: two dangling null
-    /// edges with one segment, or a null edge both of whose ways round
-    /// hold one (`insert::reconcile_shared`). A dangling null edge whose
-    /// segment holds another's whole builds: the inner hangs at its tip.
+    /// orbit that holds none of another pair's cuts: a null edge both
+    /// of whose ways round hold one (`insert::reconcile_shared`). A
+    /// dangling null edge whose segment holds another's whole builds:
+    /// the inner hangs at its tip, and of two with one segment the Out
+    /// one holds (`insert::holds_whole`).
     /// It also refuses where the shared vertex is B's and B's walk order
     /// nests one of its pairs' runs inside another's: the reconcile turns
     /// runs to clear the other pairs' cuts, and a nested run turned would
@@ -2244,22 +2254,6 @@ pub enum BooleanError {
         vertex: VertexKey,
         /// How many Out runs it has against the face.
         runs: usize,
-    },
-    /// The result pinches at `vertex`: two cones of its boundary meet
-    /// there, and the seam zips would fuse the point to itself
-    /// (`zip::cross_pinches`). One vertex holds two cones only where a
-    /// face's boundary crosses from one to the other there, and the
-    /// pre-pass crosses only two corners of one ring, or the corners of
-    /// two faces of one surface and sense, one of them ringless. Here
-    /// none offer. On every residue line measured (that row's table),
-    /// the one face through the point twice passes it on its outer
-    /// loop, round a hole touching that loop there, and crossing it
-    /// would leave a ring meeting the outer loop. Which body is right
-    /// there is open
-    /// (`work/join/a-pinch-no-kept-face-can-cross-refuses.md`).
-    PinchUncrossed {
-        /// The pinch vertex, in the joined body's keys.
-        vertex: VertexKey,
     },
     /// The result would hold a non-manifold vertex: both operands hold
     /// several vertices at one point, and A's crosses into two of B's
@@ -2826,8 +2820,6 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PierceRunsUnordered`].
     PierceRunsUnordered,
-    /// [`BooleanError::PinchUncrossed`].
-    PinchUncrossed,
     /// [`BooleanError::NonManifoldResult`].
     NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
@@ -3032,7 +3024,6 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PierceRunsUnordered { .. } => BooleanErrorKind::PierceRunsUnordered,
-            Self::PinchUncrossed { .. } => BooleanErrorKind::PinchUncrossed,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -3516,12 +3507,6 @@ impl core::fmt::Display for BooleanError {
                  more than two such wedges round one point. There is no way through this in \
                  the kernel yet",
                 operand_word(*operand)
-            ),
-            Self::PinchUncrossed { .. } => write!(
-                f,
-                "the result would pinch at one point, where two parts of its boundary meet, \
-                 and the Boolean cannot yet join the faces that pass through that point. \
-                 There is no way through this in the kernel yet"
             ),
             Self::NonManifoldResult { .. } => write!(
                 f,
@@ -4261,10 +4246,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let orbits: Vec<_> = classified
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unused_mut))]
+    let mut orbits: Vec<_> = classified
         .iter()
         .map(|(_, a_sectors, b_sectors, ..)| (a_sectors.as_slice(), b_sectors.as_slice()))
         .collect();
+    #[cfg(any(test, feature = "test-support"))]
+    insert::reverse_when_asked(&mut plans, &mut orbits);
     insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
     null_edges.extend(out.edges);
@@ -5191,6 +5179,22 @@ fn validate_declarations<T: Decide>(
                 return Err(bad(operand, "carried v-on-e edge key does not resolve"));
             }
         }
+        for touch in &c.ee {
+            if touch.a == touch.b {
+                return Err(bad(operand, "carried e-e pair names one edge twice"));
+            }
+            for e in [touch.a, touch.b] {
+                let Some(d) = body.get_edge(e) else {
+                    return Err(bad(operand, "carried e-e edge key does not resolve"));
+                };
+                // Edge-split lineage reads each edge as the segment
+                // between its ends (`ops::ee_lineage`), which only a
+                // line edge is.
+                if edge_join::certified_line(body, e, d).is_none() {
+                    return Err(bad(operand, "carried e-e edge is not a certified line"));
+                }
+            }
+        }
         Ok(())
     };
     carried(a, &decls.carried_a, Operand::A)?;
@@ -5982,9 +5986,6 @@ mod tests {
                 vertex: VertexKey::default(),
                 runs: 3,
             },
-            BooleanError::PinchUncrossed {
-                vertex: VertexKey::default(),
-            },
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),
                 b_vertices: [VertexKey::default(); 2],
@@ -6153,7 +6154,6 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PierceRunsUnordered => "PierceRunsUnordered",
-                BooleanErrorKind::PinchUncrossed => "PinchUncrossed",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",

@@ -119,8 +119,8 @@
 //! 5. **The loop is ONE swept body, and its section is not spelled
 //!    the natural way** (walls 5 and 8). `sweep_body` carries the
 //!    annulus around the U-turn — the loft's stacking statement is a
-//!    fold over adjacent section pairs, each decided against its own
-//!    base section's normal (issue 368). Two findings shape it:
+//!    fold over adjacent section pairs, each decided against both its
+//!    sections' normals (issue 368). Two findings shape it:
 //!    - the walls are `circle_split(.., 4, ..)`, not `circle` ([`annulus`]
 //!      carries the gap comment). The `circle` loop is wall 5 (tier 3
 //!      refuses `QuadratureBudget` at the default ε and finer,
@@ -598,7 +598,7 @@ fn annulus<S: Scalar>(m: &Meridian, cx: f64, lofted: bool, tol: Tol) -> Vec<Cons
 /// `sweep_body` takes them so; the body comes out at `S`.
 ///
 /// GAP (library finding,
-/// `work/carve/a-half-turn-spine-sweeps-only-off-its-exact-tangents`):
+/// `work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`):
 /// the scene's loop rides a float knife edge (finding 11).
 /// `sweep_places` carries every station by ONE minimal rotation from
 /// the base tangent, and the loop's spine turns exactly a half turn,
