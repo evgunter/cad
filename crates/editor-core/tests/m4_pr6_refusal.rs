@@ -151,7 +151,7 @@ fn with_distance(text: &str, wire: serde_json::Value) -> String {
 /// A stored wire leaf read at `dim`: a reader of a variable, whose id
 /// nothing reads before the rebuild has checked the tree's dimensions.
 fn wire_leaf(dim: &str) -> serde_json::Value {
-    serde_json::json!({ "Var": { "var": 1, "dim": dim } })
+    serde_json::json!({ "Var": { "var": "1:0000000000000001", "dim": dim } })
 }
 
 /// A written quantity on an edit log's wire, of `dim` in `unit`.
