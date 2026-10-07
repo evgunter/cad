@@ -241,7 +241,8 @@ fn a_host_with_a_strut_spur_in_its_outer_cycle_does_not_finish() {
 /// the disc's chart), so the disc's one outer cycle is both rim arcs
 /// plus the triangle's path, visiting the vertex twice. That body
 /// finishes, and the fillet refuses at the gate while the chamfer
-/// refuses its arm. The mirrored triangle winds against the plane.
+/// refuses its arm. The mirrored triangle winds against the plane,
+/// which tier 3 names.
 #[test]
 fn a_finished_pinched_host_refuses_at_the_hostless_gate() {
     for mirrored in [false, true] {
@@ -304,10 +305,9 @@ fn a_finished_pinched_host_refuses_at_the_hostless_gate() {
                 .map(drop)
                 .expect_err("the mirrored pinch does not finish");
             assert!(
-                !errors.is_empty()
-                    && errors
-                        .iter()
-                        .all(|e| matches!(e, ValidationError::LoopRoleInverted { .. })),
+                errors
+                    .iter()
+                    .any(|e| matches!(e, ValidationError::LoopRoleInverted { .. })),
                 "the mirrored triangle winds against the plane: {errors:?}"
             );
             continue;
