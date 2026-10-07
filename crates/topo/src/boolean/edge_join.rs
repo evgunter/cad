@@ -38,11 +38,11 @@
 //!
 //! **The closed join.** Two edges that share both ends join into one
 //! closed edge: the kill leaves the kept edge a self-loop at the far
-//! vertex, which becomes its *conventional vertex* (DESIGN.md, maximal
-//! edges): a vertex whose only edge is one closed edge, at both its
-//! ends ([`is_conventional_vertex`]). It has no identity of its own, so
-//! the join substitutes it, as well as the killed vertex, onto the kept
-//! edge.
+//! vertex. Where no other edge ends there, that vertex is the edge's
+//! *conventional vertex* (DESIGN.md, maximal edges): a vertex whose only
+//! edge is one closed edge, at both its ends ([`is_conventional_vertex`]).
+//! It has no identity of its own, so the join substitutes it, as well as
+//! the killed vertex, onto the kept edge.
 
 use std::collections::{BTreeMap, BTreeSet};
 
