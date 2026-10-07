@@ -447,14 +447,14 @@ pub struct Pose {
 impl Pose {
     /// The turn by `angle` about `axis`, then the shift `t`.
     pub fn turn(label: &'static str, axis: [f64; 3], angle: f64, t: [f64; 3]) -> Self {
-        let l = axis.iter().map(|a| a * a).sum::<f64>().sqrt();
+        let l = axis.iter().map(|a| a.powi(2)).sum::<f64>().sqrt();
         let [x, y, z] = axis.map(|a| a / l);
         let (s, c) = angle.sin_cos();
         let d = 1.0 - c;
         let r = [
-            [c + x * x * d, x * y * d - z * s, x * z * d + y * s],
-            [y * x * d + z * s, c + y * y * d, y * z * d - x * s],
-            [z * x * d - y * s, z * y * d + x * s, c + z * z * d],
+            [c + x.powi(2) * d, x * y * d - z * s, x * z * d + y * s],
+            [y * x * d + z * s, c + y.powi(2) * d, y * z * d - x * s],
+            [z * x * d - y * s, z * y * d + x * s, c + z.powi(2) * d],
         ];
         Self { label, r, t }
     }
