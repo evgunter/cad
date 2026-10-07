@@ -6,7 +6,8 @@
 //!
 //! Each scene is a pyramid against a body holding its own contact at
 //! `MEET` (`a_vertex_read_by_two_sector_passes` builds the same ones),
-//! nested to three levels on either side of the plate's top, and a
+//! nested to three levels on either side of the plate's top, an island
+//! in a void buried in a block (no face through `MEET`), and a
 //! dart, whose apex is a reflex edge no corner reading reads. Every
 //! scene classes every edge at `MEET` in every op, with no row wrong
 //! and none doubled, except:
@@ -37,6 +38,8 @@ fn tet(base: [[f64; 3]; 3], pose: &Pose) -> AtRestBody<f64> {
 enum G {
     /// The plate below its top.
     Half,
+    /// A block around `MEET`.
+    All,
     /// The cone over a convex base (apex at the origin).
     Cone(Vec<[f64; 3]>),
     /// The cone over a possibly non-convex planar polygon, by fan.
@@ -63,6 +66,7 @@ impl G {
     fn has(&self, d: [f64; 3]) -> bool {
         match self {
             G::Half => d[2] < 0.0,
+            G::All => true,
             G::Cone(b) => {
                 // a convex cone over a triangle; a larger convex base by fan
                 (1..b.len() - 1).any(|i| {
@@ -338,6 +342,18 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         let dart_g = G::Fan(dart.clone());
         let dart_one_b = built("a dart on the plate", union(&plate_b, &dart_b, t()));
         let dart_one = u(plate.clone(), dart_g.clone());
+        // A void buried in a block, `MEET` inside it, an island in the
+        // void: the vertex there is in pairs alone, its outermost cone a
+        // void.
+        let block_b = posed_box(
+            "a block around MEET",
+            [(1.0, 2.0), (0.5, 1.5), (0.3, 1.5)],
+            &pose,
+            t(),
+        );
+        let buried_b = built("a buried void", subtract(&block_b, &p(void), t()));
+        let buried_island_b = built("an island in it", union(&buried_b, &p(isle), t()));
+        let buried_island = u(dd(G::All, c(void)), c(isle));
         let pyr = |b: [[f64; 3]; 3]| (p(b), c(b));
         let (cone, over) = (pyr(corners(240.0, 0.7, 0.5)), pyr(corners(50.0, 0.7, 0.5)));
         let (hang, hang_over) = (
@@ -513,6 +529,12 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 Classes,
             ),
             ("over the deep arch", pick(&over), (&deep_b, &deep), Classes),
+            (
+                "crossing an island in a buried void",
+                pick(&cross_in),
+                (&buried_island_b, &buried_island),
+                Classes,
+            ),
             (
                 "over a dart",
                 pick(&over),
