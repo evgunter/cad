@@ -153,7 +153,9 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // classification this module's own walk dispatches on.
 pub(crate) use contain::{driver_face_stale, loop_circle};
 pub use discard::{DiscardRow, HeldEdge, lineage_root};
-pub use edge_join::{EdgeJoin, joinable_vertices};
+pub use edge_join::{
+    EdgeJoin, JoinReading, JoinUndecided, is_conventional_vertex, joinable_vertices,
+};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -2675,6 +2677,40 @@ pub enum BooleanError {
         /// The precise sub-frontier.
         what: RestZipFrontier,
     },
+    /// The output stage's join could not decide whether a valence-2
+    /// vertex is a regular point of its edges' carrier: a reading in
+    /// the margin band (D4 ¶3).
+    JoinUndecided(edge_join::JoinUndecided),
+    /// **A curved join on a carrier the stage cannot run on.** The join
+    /// restates the kept edge over both edges' span on its own carrier:
+    /// a closed join over the carrier's period, an open one through the
+    /// killed edge's far end, recovered on the carrier
+    /// (`Curve3::param_near`). A carrier with no period, or no
+    /// parameter inverse there (a spline), cannot be run on, and the
+    /// join refuses rather than leave the vertex standing
+    /// (`work/fuse/joining-a-spline-carrier-is-unbuilt`).
+    JoinCarrierUnsupported {
+        /// The edge the join keeps.
+        edge: EdgeKey,
+        /// Its carrier's kind.
+        carrier: geom::CurveKind,
+        /// Whether the join closes (it wants a period) or runs on (it
+        /// wants a parameter inverse).
+        closed: bool,
+    },
+    /// **A record whose edge rests on a face's interior, the edge or
+    /// the face curved.** A record carried through a join or a merge
+    /// that lands on an edge and a face is consumed as structure only
+    /// on a line and a plane, which meet by lying one in the other or
+    /// by a pierce the boolean cut; a circle can rest on a plane at
+    /// one point, which no record kind stores
+    /// (`work/fuse/a-record-on-a-curved-edge-resting-on-a-face-refuses`).
+    CurvedRestUnrecorded {
+        /// The edge.
+        edge: EdgeKey,
+        /// The face it rests on.
+        face: FaceKey,
+    },
     /// The A/B lockstep invariant failed during joining, finishing, or
     /// the combine door (a kernel bug or corrupt reduction, loudly).
     JoinDesync {
@@ -2953,6 +2989,12 @@ pub enum BooleanErrorKind {
     Join,
     /// [`BooleanError::RestZipUnsupported`].
     RestZipUnsupported,
+    /// [`BooleanError::JoinUndecided`].
+    JoinUndecided,
+    /// [`BooleanError::JoinCarrierUnsupported`].
+    JoinCarrierUnsupported,
+    /// [`BooleanError::CurvedRestUnrecorded`].
+    CurvedRestUnrecorded,
     /// [`BooleanError::JoinDesync`].
     JoinDesync,
     /// [`BooleanError::TornComponent`].
@@ -3146,6 +3188,9 @@ impl BooleanError {
             Self::Pcurves { .. } => BooleanErrorKind::Pcurves,
             Self::Join(_) => BooleanErrorKind::Join,
             Self::RestZipUnsupported { .. } => BooleanErrorKind::RestZipUnsupported,
+            Self::JoinUndecided(_) => BooleanErrorKind::JoinUndecided,
+            Self::JoinCarrierUnsupported { .. } => BooleanErrorKind::JoinCarrierUnsupported,
+            Self::CurvedRestUnrecorded { .. } => BooleanErrorKind::CurvedRestUnrecorded,
             Self::JoinDesync { .. } => BooleanErrorKind::JoinDesync,
             Self::TornComponent { .. } => BooleanErrorKind::TornComponent,
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
@@ -3665,6 +3710,29 @@ impl core::fmt::Display for BooleanError {
                  contact ({}); it zips planar contacts whose seam splits cleanly. {}",
                 what.what(),
                 what.ending()
+            ),
+            Self::JoinUndecided(e) => write!(f, "{e}"),
+            Self::JoinCarrierUnsupported {
+                edge,
+                carrier,
+                closed,
+            } => write!(
+                f,
+                "the Boolean cannot yet join edge {edge:?} across a vertex on its {} carrier: \
+                 the join runs the edge on along its carrier {}, which this carrier has no \
+                 reading for (work/fuse/joining-a-spline-carrier-is-unbuilt)",
+                carrier.name(),
+                if *closed {
+                    "over a whole period"
+                } else {
+                    "through the other edge's far end"
+                }
+            ),
+            Self::CurvedRestUnrecorded { edge, face } => write!(
+                f,
+                "the Boolean cannot yet record edge {edge:?} resting on the interior of face \
+                 {face:?} where one of them is curved: no contact record stores such a rest \
+                 (work/fuse/a-record-on-a-curved-edge-resting-on-a-face-refuses)"
             ),
             Self::JoinDesync { what } => write!(
                 f,
@@ -6470,6 +6538,9 @@ mod tests {
                 BooleanErrorKind::Pcurves => "Pcurves",
                 BooleanErrorKind::Join => "Join",
                 BooleanErrorKind::RestZipUnsupported => "RestZipUnsupported",
+                BooleanErrorKind::JoinUndecided => "JoinUndecided",
+                BooleanErrorKind::JoinCarrierUnsupported => "JoinCarrierUnsupported",
+                BooleanErrorKind::CurvedRestUnrecorded => "CurvedRestUnrecorded",
                 BooleanErrorKind::JoinDesync => "JoinDesync",
                 BooleanErrorKind::TornComponent => "TornComponent",
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",

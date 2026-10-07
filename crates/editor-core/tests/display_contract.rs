@@ -2660,6 +2660,8 @@ test_utils::f6_variants! {
         MergedChordOffRim,
         MergedChordConstituents,
         MemberEdgeTied,
+        ConventionalVertex,
+        ClosedCarrierUnread,
         Band,
         Escalated,
     ];
@@ -2797,6 +2799,24 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 several: 2,
             },
             vec!["merged face", "holds 2 faces", "no rule picks"],
+        ),
+        (
+            NamingError::ClosedCarrierUnread {
+                edge: topo::EdgeKey::default(),
+                carrier: geom::CurveKind::Nurbs,
+            },
+            vec!["closed on its", "no period"],
+        ),
+        (
+            NamingError::ConventionalVertex {
+                vertex: topo::VertexKey::default(),
+                body: 3,
+            },
+            vec![
+                "conventional vertex",
+                "output body 3",
+                "a-conventional-vertex",
+            ],
         ),
         (
             NamingError::MemberEdgeTied {
@@ -3394,6 +3414,26 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
                 cut_node: held(1, "Extrude"),
                 kept_node: held(2, "Extrude"),
                 promote: false,
+            }
+            .to_string(),
+        ),
+        (
+            "SplitError::DefinitionStraddlesCut",
+            SplitError::DefinitionStraddlesCut {
+                var: spoken.clone(),
+                moving: editor_core::SpokenVar::new(editor_core::VarId(8), None),
+                staying: editor_core::SpokenVar::new(editor_core::VarId(9), None),
+                staying_held: true,
+            }
+            .to_string(),
+        ),
+        (
+            "SplitError::DefinitionStraddlesCut (deleted)",
+            SplitError::DefinitionStraddlesCut {
+                var: spoken.clone(),
+                moving: editor_core::SpokenVar::new(editor_core::VarId(8), None),
+                staying: editor_core::SpokenVar::new(editor_core::VarId(9), None),
+                staying_held: false,
             }
             .to_string(),
         ),
