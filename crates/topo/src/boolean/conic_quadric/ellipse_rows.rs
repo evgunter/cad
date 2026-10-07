@@ -513,6 +513,7 @@ mod fuzz_rows {
                     }
                     CircleRoots::Uncertain | CircleRoots::OnSurface => uncertain += 1,
                     CircleRoots::CountDisagrees => panic!("{label}: CountDisagrees"),
+                    CircleRoots::AtApex => panic!("{label}: no apex on a sphere or a wall"),
                 }
             }
             println!(

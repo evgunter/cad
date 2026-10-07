@@ -237,6 +237,7 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 5.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
 
@@ -288,6 +289,7 @@ fn row2_one_part_two_instances_one_evaluation() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 9.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
 
@@ -319,6 +321,7 @@ fn row2_one_part_two_instances_one_evaluation() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 20.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(run(&doc, &opts).part_evaluations, 2);
@@ -357,6 +360,7 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 0.0, 9.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
@@ -366,6 +370,7 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 9.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &opts);
@@ -441,6 +446,7 @@ fn row3_instance_qualified_names_are_distinct_and_resolve_to_their_own_copy() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 5.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &opts);
@@ -561,6 +567,7 @@ fn row4_set_offset_moves_undoes_and_refuses() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 7.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let after = run(&moved, &opts);
@@ -592,6 +599,7 @@ fn row4_set_offset_moves_undoes_and_refuses() {
         &DocEdit::SetOffset {
             instance: ids[0],
             offset: Some(editor_core::Placement::literal(&mirror)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -616,7 +624,7 @@ fn row4_set_offset_moves_undoes_and_refuses() {
 
     // A non-instance target refuses typed.
     let part_doc = part("asm2a-r4-nontarget", 0.0, 1.0);
-    let target = part_doc.order()[0];
+    let target = part_doc.ids()[0];
     match editor_core::apply(
         &part_doc,
         &DocEdit::SetOffset {
@@ -624,6 +632,7 @@ fn row4_set_offset_moves_undoes_and_refuses() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 1.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -763,6 +772,7 @@ fn row6_the_assembly_pin_moves_exactly_when_its_content_does() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 1.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     assert_ne!(content_pin(&moved, Tol::witness()).expect("pins"), pin0);
@@ -794,6 +804,7 @@ fn row6_placement_is_part_of_the_content_key() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 4.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let second = evaluate::<f64>(
@@ -849,6 +860,7 @@ fn row7_instantiate_and_placement_round_trip() {
                 )
                 .expect("a literal axis has a definite direction"),
             )),
+            fresh: Vec::new(),
         },
     );
 
@@ -896,13 +908,14 @@ fn row7_the_validator_refuses_gauge_states_the_edits_cannot_produce() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 1.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
 
     // Point the instance's gauge at the profile node — a state no edit
     // door can produce.
-    let corrupt = text.replacen("\"gauge\": null", &format!("\"gauge\": {}", other.0), 1);
+    let corrupt = text.replacen("\"gauge\": null", &format!("\"gauge\": \"{}\"", other.0), 1);
     assert_ne!(corrupt, text, "the corruption really landed");
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::NotAGauge { node, gauge })) => {
@@ -1045,7 +1058,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
         let (doc, _) = insert(doc, Node::instantiate_part(missing));
         doc
     };
-    let inner_root = broken.order()[0];
+    let inner_root = broken.ids()[0];
     let doc_ref = store.insert(broken, Tol::witness());
     let opts = with_resolver(store);
 
@@ -1079,7 +1092,7 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     assert!(
         rendered.contains(&format!(
             "InstantiatePart {}",
-            test_utils::refusal::tag(inner_root.0)
+            test_utils::refusal::tag(inner_root.0.digest())
         )) && !rendered.contains("did not resolve"),
         "it names the root and points, never quoting the root's own refusal: {rendered}"
     );
@@ -1188,8 +1201,11 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     assert!(
         rendered.contains(&format!(
             "repair Extrude {}",
-            test_utils::refusal::tag(extrude.0)
-        )) && rendered.contains(&format!("Transform {}", test_utils::refusal::tag(moved.0))),
+            test_utils::refusal::tag(extrude.0.digest())
+        )) && rendered.contains(&format!(
+            "Transform {}",
+            test_utils::refusal::tag(moved.0.digest())
+        )),
         "the instance names the root and points at the failed node: {rendered}"
     );
     let levels: Vec<_> = failure(&ev, ids[0])
@@ -1204,7 +1220,7 @@ fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
     let refused = own
         .strip_prefix(&format!(
             "Extrude {} failed: ",
-            test_utils::refusal::tag(extrude.0)
+            test_utils::refusal::tag(extrude.0.digest())
         ))
         .expect("a node line opens with its node");
     assert!(
@@ -1263,7 +1279,7 @@ fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String 
         Some(NodeResult::Failed(e)) => e.spoken(doc, &ev),
         other => panic!(
             "node {} refuses on its own: {other:?}",
-            test_utils::refusal::tag(node.0)
+            test_utils::refusal::tag(node.0.digest())
         ),
     }
 }
@@ -1350,7 +1366,7 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
     // above.
     let twice = {
         let doc = part("asm2a-class-twice", 0.0, 1.0);
-        let body = *doc.order().last().expect("the part has its extrude");
+        let body = *doc.ids().last().expect("the part has its extrude");
         let moved = |doc, dx| {
             insert(
                 doc,

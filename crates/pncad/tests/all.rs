@@ -300,7 +300,8 @@ fn corner_config_is_matchable(corner: CornerConfig) -> &'static str {
         // A straight band's cut-off — a configuration that CARVES,
         // whose policy is the cut-off the tag's map assigns.
         CornerConfig::EndFace => "end_face",
-        // Two of three edges requested: the mitre, named and refused.
+        // Two of three edges requested: the mitre, built where the
+        // faces are symmetric about the third.
         CornerConfig::Turn => "turn",
         CornerConfig::Indeterminate => "indeterminate",
     }
@@ -347,6 +348,8 @@ fn blend_decision_is_matchable(decision: BlendDecision) -> &'static str {
         BlendDecision::CapTransverse => "cap_transverse",
         BlendDecision::CapEllipse => "cap_ellipse",
         BlendDecision::CutOffFeet => "cut_off_feet",
+        BlendDecision::TurnIsosceles => "turn_isosceles",
+        BlendDecision::MitreSection => "mitre_section",
     }
 }
 
@@ -942,11 +945,11 @@ fn the_resolution_payloads_are_matchable_through_the_select_list() {
     assert_eq!(
         upstream(ResolveIndeterminate {
             standing: NodeStanding::Poisoned {
-                node: RecipeNodeId(7),
-                through: RecipeNodeId(4)
+                node: RecipeNodeId::new(0, 7),
+                through: RecipeNodeId::new(0, 4)
             }
         }),
-        ("target_poisoned", RecipeNodeId(4))
+        ("target_poisoned", RecipeNodeId::new(0, 4))
     );
 }
 
@@ -1436,9 +1439,9 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
     }
 }
 
-/// Which normalization a record reports, matched EXHAUSTIVELY: a sixth
+/// Which normalization a record reports, matched EXHAUSTIVELY: a fifth
 /// kind minted kernel-side stops this compiling rather than arriving
-/// under one of these five words.
+/// under one of these four words.
 ///
 /// `SurfacePromotion` carries the discriminant the refusal side
 /// carries too, and it is read here through the same `PromotedKind`
@@ -1447,7 +1450,6 @@ fn normalization_kind_is_readable(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
         NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
-        NormalizationKind::FullPeriodTorus => "full_period_torus",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { to, residual } => {
             named::<&f64>(residual);
@@ -2100,6 +2102,7 @@ fn insert(
         &doc,
         &pncad::document::DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         pncad::tolerance::Tol::witness(),
         &pncad::document::RefusingReach,
@@ -2233,11 +2236,10 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
 
     // Replaying the LIFTED program reproduces the AUTHORED loop bit
     // for bit — the lift re-spells the verbs, it does not re-lower.
-    let steps = lifted
-        .try_map_slots(&mut |formula| pncad::document::Expr::try_from(formula))
-        .expect("a lifted recording reads no name")
-        .resolve(&VarEnv::<f64>::default(), 0)
-        .expect("literal arguments resolve");
+    let steps =
+        pncad::document::resolve_written_loops(std::slice::from_ref(&lifted), Tol::witness())
+            .expect("literal arguments resolve")
+            .remove(0);
     let replayed = pncad::profile::replay(&steps, Tol::witness())
         .expect("the lifted program replays")
         .into_loop();
@@ -2505,7 +2507,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
         })
     ));
     assert!(matches!(
-        door(RecipeNodeId(u64::MAX)),
+        door(RecipeNodeId::new(0, u64::MAX)),
         Err(ExportError::Standing(NodeStanding::NotInDocument { .. }))
     ));
     assert!(matches!(
@@ -2523,7 +2525,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
     // Each standing renders one way: the door's subject, then the
     // standing's own sentence (`editor-core`'s `node_standing` rows
     // hold the other doors to the same shape).
-    for node in [RecipeNodeId(u64::MAX), cut, downstream] {
+    for node in [RecipeNodeId::new(0, u64::MAX), cut, downstream] {
         let standing = ev.usable(node).expect_err("no value");
         let refusal = door(node).expect_err("refuses");
         assert_eq!(
@@ -3417,6 +3419,7 @@ fn asm2a_assembly(
                     offset: Some(pncad::document::Placement::literal(
                         &pncad::document::Frame::translation([dx, 0.0, 0.0]),
                     )),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &pncad::document::RefusingReach,
@@ -3517,6 +3520,7 @@ fn step_export_refuses_an_unplaced_part_naming_it_and_the_cause() {
         &DocEdit::SetOffset {
             instance: ids[1],
             offset: None,
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -3866,6 +3870,7 @@ fn asm_r2b_child_crossing_probe() {
                 None,
                 Some(pncad::document::Placement::IDENTITY),
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -3880,7 +3885,7 @@ fn asm_r2b_child_crossing_probe() {
         .iter()
         .copied()
         .chain(
-            doc.order()
+            doc.ids()
                 .iter()
                 .copied()
                 .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. }))),
@@ -3998,6 +4003,7 @@ fn asm2b_outer(
                     offset: Some(pncad::document::Placement::literal(
                         &pncad::document::Frame::translation([100.0, 0.0, 0.0]),
                     )),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &pncad::document::RefusingReach,
@@ -4775,7 +4781,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   which `Doc::mint` answers. The doors read it and a consumer never
 ///   writes it; what a consumer holds is the ids themselves
 ///   (`RecipeNodeId`, `StepId`), carried.
-const NOT_CARRIED: [&str; 95] = [
+const NOT_CARRIED: [&str; 96] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4861,6 +4867,9 @@ const NOT_CARRIED: [&str; 95] = [
     "entity_name",
     "from_value",
     "var_env_over",
+    // The analysis's axis rule (VR8), which `analyzed_box` and the
+    // stackup's entry set read; a caller asks the box.
+    "is_axis",
     "rebind_suggestions",
     "remap_name",
     "Unmapped",
@@ -6589,6 +6598,7 @@ fn step_export_refuses_an_unplaced_group_in_a_part_below_naming_its_route() {
         &DocEdit::SetOffset {
             instance: ids[1],
             offset: None,
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -6672,6 +6682,7 @@ fn step_export_says_a_deeper_route_hop_as_its_document_holds_it_where_the_outer_
         &pncad::document::DocEdit::SetOffset {
             instance: ids[1],
             offset: None,
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -6800,6 +6811,7 @@ fn asm2a_placed_instance(
             offset: Some(pncad::document::Placement::literal(
                 &pncad::document::Frame::translation([dx, 0.0, 0.0]),
             )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &pncad::document::RefusingReach,
@@ -6823,23 +6835,20 @@ fn asm2a_save(
     }
 }
 
-/// **Both unplaced refusals list in document order, not id order**: a
-/// sub-assembly whose instances after the first are unplaced lists them
-/// as it holds them, and an outer document instancing it several times
-/// lists the groups below by the instance each arrived through, in the
-/// outer document's order, and within one instance in the
-/// sub-assembly's. Each document takes instances until its ids do not
-/// run in document order, so a list in id order would differ.
+/// **Both unplaced refusals list in document order**, which is id
+/// order: a sub-assembly whose instances after the first are unplaced
+/// lists them as it holds them, and an outer document instancing it
+/// several times lists the groups below by the instance each arrived
+/// through, in the outer document's order, and within one instance in
+/// the sub-assembly's.
 #[test]
 fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
     use pncad::document::{DocEdit, RecipeNodeId, Unplaced};
     let ascending = |ids: &[RecipeNodeId]| ids.windows(2).all(|w| w[0] < w[1]);
     let dir = WsDir::new("place-step-order");
     let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "place-step-order-part");
-    let (mut sub, ids) = (3..12)
-        .map(|n| asm2a_assembly("place-step-order-sub", doc_ref, n))
-        .find(|(_, ids)| !ascending(&ids[1..]))
-        .expect("some instance count puts the unplaced ids out of document order");
+    let (mut sub, ids) = asm2a_assembly("place-step-order-sub", doc_ref, 4);
+    assert!(ascending(&ids), "ids run in document order");
     let unplaced = &ids[1..];
     for &instance in unplaced {
         sub = pncad::document::apply(
@@ -6847,6 +6856,7 @@ fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
             &DocEdit::SetOffset {
                 instance,
                 offset: None,
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &pncad::document::RefusingReach,
@@ -6862,10 +6872,8 @@ fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
         id: sub.id(),
         pin: pncad::document::content_pin(&sub, Tol::witness()).expect("pin"),
     };
-    let (outer, outer_ids) = (2..12)
-        .map(|n| asm2a_assembly("place-step-order-outer", sub_ref, n))
-        .find(|(_, ids)| !ascending(ids))
-        .expect("some instance count puts the outer ids out of document order");
+    let (outer, outer_ids) = asm2a_assembly("place-step-order-outer", sub_ref, 3);
+    assert!(ascending(&outer_ids), "ids run in document order");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
     let opts = StepOptions::default();
 
@@ -6902,12 +6910,11 @@ fn step_export_lists_unplaced_parts_and_groups_below_in_document_order() {
     }
 }
 
-/// **The product door reads unplaced groups in document order, not id
-/// order**: with every instance unplaced it refuses
+/// **The product door reads unplaced groups in document order**, which
+/// is id order: with every instance unplaced it refuses
 /// `ProductError::Unplaced` listing the groups as the document holds
 /// them, and with the first placed, the own spaces it gathers beside
-/// the world (what the at-rest gate walks) come in that order too. The
-/// instance count grows until the ids do not run in document order.
+/// the world (what the at-rest gate walks) come in that order too.
 #[test]
 fn the_product_reads_unplaced_groups_in_document_order() {
     use pncad::document::{DocEdit, ProductError, RecipeNodeId, Unplaced};
@@ -6915,16 +6922,15 @@ fn the_product_reads_unplaced_groups_in_document_order() {
     let dir = WsDir::new("place-product-order");
     let (doc_ref, _) = asm2a_part_and_body(&dir, "part.pncad", "place-product-order-part");
     let ws = pncad::workspace::Workspace::open(&dir.0).expect("the scan is clean");
-    let (doc, ids) = (3..12)
-        .map(|n| asm2a_assembly("place-product-order", doc_ref, n))
-        .find(|(_, ids)| !ascending(&ids[1..]) && !ascending(ids))
-        .expect("some instance count puts the ids out of document order");
+    let (doc, ids) = asm2a_assembly("place-product-order", doc_ref, 4);
+    assert!(ascending(&ids), "ids run in document order");
     let unplace = |doc: pncad::document::ProfileDoc, instance| {
         pncad::document::apply(
             &doc,
             &DocEdit::SetOffset {
                 instance,
                 offset: None,
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &pncad::document::RefusingReach,

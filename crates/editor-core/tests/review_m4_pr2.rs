@@ -959,7 +959,7 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
     );
     // Edit one operand's extrude distance: the cone invalidates.
     let extrude_id = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
@@ -970,6 +970,7 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
             node: extrude_id,
             slot: SlotId::Distance,
             expr: len(1.75),
+            fresh: Vec::new(),
         },
     );
     let e3 = evaluate::<Interval>(&doc2, Some(&e2), &CancelToken::new(), &opts, Tol::witness());
@@ -996,6 +997,7 @@ fn edit_back_restores_bit_identical_bodies() {
             node: d.pz_transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
             expr: len(1.25),
+            fresh: Vec::new(),
         },
     );
     let e1 = run(&moved, Some(&e0), false);
@@ -1012,6 +1014,7 @@ fn edit_back_restores_bit_identical_bodies() {
             node: d.pz_transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
             expr: len(1.0),
+            fresh: Vec::new(),
         },
     );
     let e2 = run(&back, Some(&e1), false);

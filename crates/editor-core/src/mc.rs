@@ -402,7 +402,7 @@ pub fn monte_carlo(
     // every derived list in this kernel takes, so two runs report their
     // rows in one order and a golden over the report is stable.
     let sinks: Vec<(RecipeNodeId, bool)> = doc
-        .order()
+        .ids()
         .iter()
         .filter_map(|&id| match doc.node(id) {
             Some(Node::Measure { .. }) => Some((id, true)),

@@ -18,8 +18,10 @@ use crate::common::census::{genus_of, rings_of};
 use crate::common::charts::{charts, moves_by};
 use crate::common::oracles::box_volume;
 use crate::common::shell_operands::{
-    hollow_box, outer_and_void, roles_by_solid, tube, two_void_box, vessel,
+    capped_vessel, hollow_box, hollow_capped_vessel, outer_and_void, roles_by_solid, tube,
+    two_void_box, vessel,
 };
+use crate::common::stations::cut_stations;
 use crate::common::torus_walls::{klein_elbow, props_door};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
@@ -1047,36 +1049,6 @@ fn the_open_face_designation_gates_refuse_typed() {
     .expect_err("the remainder is disconnected");
     assert!(
         matches!(e, ShellError::OpenFacesDisconnect { components: 2, .. }),
-        "got {e}"
-    );
-
-    // A curved designation: its rim would be a curved face with a ring.
-    let v = vessel(1.0, 2.0);
-    let wall = v
-        .faces()
-        .find(|(_, f)| {
-            matches!(
-                v.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
-        .map(|(k, _)| k)
-        .unwrap();
-    let e = topo::shell_open(
-        &finished("the operand", v.clone(), Tol::witness()),
-        0.2,
-        &[wall],
-        Tol::witness(),
-    )
-    .expect_err("a curved rim has no closed-form reading");
-    assert!(
-        matches!(
-            e,
-            ShellError::OpenFaceRingUnsupported {
-                kind: geom::SurfaceKind::Cylinder,
-                ..
-            }
-        ),
         "got {e}"
     );
 }
@@ -2156,18 +2128,37 @@ fn the_simultaneous_door_names_its_scope() {
     );
 
     // **The third gate: a corner whose planes do not determine a
-    // point.** A footprint with a STRAIGHT vertex extrudes into two
-    // side faces that are COPLANAR and share an edge — and MEASURED
-    // here, `extrude` gives them one surface key, so the corner where
-    // that edge meets a cap has exactly TWO distinct planes. Two
-    // planes determine a line, not a point: solved on what it has, the
-    // door would place the corner anywhere along that line. Refused
-    // instead, naming the shape and the count.
+    // point.** A footprint with a STRAIGHT vertex extrudes into one
+    // wall over the run, with one rim edge on each cap; a station cut
+    // back into both rims (the shape a boolean's cut leaves) is a
+    // corner with exactly TWO distinct planes, the cap and the wall.
+    // Two planes determine a line, not a point: solved on what it has,
+    // the door would place the corner anywhere along that line.
+    // Refused instead, naming the shape and the count.
     let mut straight = prism(
         corners(&[(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
         0.4,
         tol,
     );
+    for z in [0.0, 0.4] {
+        let rim = straight
+            .edges()
+            .find(|(_, e)| {
+                let p = |h| {
+                    let v = straight.get_half_edge(h).unwrap().start;
+                    *straight
+                        .get_point(straight.get_vertex(v).unwrap().point)
+                        .unwrap()
+                };
+                let (a, b) = (p(e.he_plus), p(e.he_minus));
+                [a, b]
+                    .iter()
+                    .all(|q| q.y.abs() < 1e-12 && (q.z - z).abs() < 1e-12)
+            })
+            .map(|(k, _)| k)
+            .expect("the run's rim on this cap");
+        straight = cut_stations(straight, rim, &[Point3::new(0.5, 0.0, z)], tol);
+    }
     let moves = moves_by(charts(&straight), -0.05);
     let e = topo::offset_planes_together(&mut straight, &moves, band(), tol)
         .expect_err("a coplanar-adjacent corner determines no point");
@@ -2175,7 +2166,7 @@ fn the_simultaneous_door_names_its_scope() {
         panic!("the corner gate must name the shape, got {e}");
     };
     println!("[scope] coplanar-adjacent corner: {planes} planes — {what}");
-    assert_eq!(*planes, 2, "the two coplanar side faces share one key");
+    assert_eq!(*planes, 2, "the cap and the run's one wall");
     assert!(
         what.contains("fewer than three distinct planes"),
         "the refusal must say what is missing, got {what}"
@@ -2661,7 +2652,18 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
             .filter(|&t| body.get_face(t).is_some()),
     );
     for rim in &record.rims {
-        named.push(rim.rim);
+        // On a void designation the rim is a cavity twin, which the
+        // twin channel already names; so is a void band's every branch.
+        if rim.side == RimShell::Outer {
+            named.push(rim.rim);
+            // A seamed band keeps every face of its chart as a rim face.
+            named.extend(
+                rim.sources
+                    .iter()
+                    .copied()
+                    .filter(|&f| f != rim.rim && body.get_face(f).is_some()),
+            );
+        }
         named.extend(rim.holes.iter().map(|h| h.face));
     }
     let (named, dups) = sorted_dedup(&named);
@@ -2732,9 +2734,14 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
     // ---- rims.
     let mut designated_seen: Vec<FaceKey> = Vec::new();
     for rim in &record.rims {
+        let host_of = |f: FaceKey| match rim.side {
+            RimShell::Outer => Some(f),
+            RimShell::Void => record.inner_of(f),
+        };
         assert_eq!(
-            rim.rim, rim.sources[0],
-            "{what}: the rim is the FIRST designated face of its chart"
+            Some(rim.rim),
+            host_of(rim.sources[0]),
+            "{what}: the rim is the FIRST designated face of its chart, or its twin on a void"
         );
         for &src in &rim.sources {
             assert!(
@@ -2753,6 +2760,72 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
             );
         }
         let data = body.get_face(rim.rim).expect("the rim resolves");
+        if record.dead.loops.contains(&rim.ring) {
+            // A seamed band: the ring was absorbed into the band's outer
+            // loops, so its rows each lie on one of the band's faces —
+            // the designated chart's own on the outer shell, its twins on
+            // a void.
+            let faces: Vec<&topo::Face> = rim
+                .sources
+                .iter()
+                .filter_map(|&f| host_of(f))
+                .filter_map(|f| body.get_face(f))
+                .collect();
+            assert_eq!(
+                faces.len(),
+                rim.sources.len(),
+                "{what}: every branch survives"
+            );
+            assert!(
+                faces.iter().all(|f| f.rings.is_empty()),
+                "{what}: a seamed band carries no ring"
+            );
+            let band_e: Vec<topo::EdgeKey> = faces
+                .iter()
+                .flat_map(|f| loop_edges(body, f.outer))
+                .collect();
+            let band_v: Vec<topo::VertexKey> = faces
+                .iter()
+                .flat_map(|f| loop_vertices(body, f.outer))
+                .collect();
+            let bounding_e = boundary_edges(source, &rim.sources);
+            let bounding_v = boundary_vertices(source, &rim.sources);
+            for pair in &rim.ring_edges {
+                assert!(
+                    band_e.contains(&pair.0),
+                    "{what}: {pair:?} bounds no band face"
+                );
+                assert!(
+                    bounding_e.contains(&pair.1),
+                    "{what}: {pair:?} names no chart boundary"
+                );
+                assert!(
+                    match rim.side {
+                        RimShell::Outer => record.inner_edges.contains(pair),
+                        RimShell::Void => pair.0 == pair.1,
+                    },
+                    "{what}: {pair:?} reads neither as a twin row nor as the chart's own"
+                );
+            }
+            for pair in &rim.ring_vertices {
+                assert!(
+                    band_v.contains(&pair.0),
+                    "{what}: {pair:?} is no band corner"
+                );
+                assert!(
+                    bounding_v.contains(&pair.1),
+                    "{what}: {pair:?} names no chart corner"
+                );
+                assert!(
+                    match rim.side {
+                        RimShell::Outer => record.inner_vertices.contains(pair),
+                        RimShell::Void => pair.0 == pair.1,
+                    },
+                    "{what}: {pair:?} reads neither as a twin row nor as the chart's own"
+                );
+            }
+            continue;
+        }
         assert!(
             data.rings.contains(&rim.ring),
             "{what}: the row's ring is not a ring of the rim"
@@ -2760,6 +2833,7 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
         assert_ring_rows(
             what,
             "rim",
+            rim.side,
             source,
             body,
             record,
@@ -2780,6 +2854,7 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
             assert_ring_rows(
                 what,
                 "hole",
+                rim.side,
                 source,
                 body,
                 record,
@@ -2829,6 +2904,7 @@ fn assert_dead_arena<K: Ord + Copy + core::fmt::Debug>(
 fn assert_ring_rows(
     what: &str,
     which: &str,
+    side: RimShell,
     source: &Body<f64>,
     body: &Body<f64>,
     record: &topo::ShellNaming,
@@ -2850,8 +2926,12 @@ fn assert_ring_rows(
     let bounding_e = boundary_edges(source, sources);
     for &pair in edges {
         assert!(
-            record.inner_edges.contains(&pair),
-            "{what}: the {which} row {pair:?} is not verbatim in inner_edges"
+            match side {
+                RimShell::Outer => record.inner_edges.contains(&pair),
+                RimShell::Void => pair.0 == pair.1,
+            },
+            "{what}: the {which} row {pair:?} is neither verbatim in inner_edges (outer) nor \
+             the chart's own (void)"
         );
         assert!(
             bounding_e.contains(&pair.1),
@@ -2862,8 +2942,12 @@ fn assert_ring_rows(
     let bounding_v = boundary_vertices(source, sources);
     for &pair in vertices {
         assert!(
-            record.inner_vertices.contains(&pair),
-            "{what}: the {which} vertex row {pair:?} is not verbatim in inner_vertices"
+            match side {
+                RimShell::Outer => record.inner_vertices.contains(&pair),
+                RimShell::Void => pair.0 == pair.1,
+            },
+            "{what}: the {which} vertex row {pair:?} is neither verbatim in inner_vertices \
+             (outer) nor the chart's own (void)"
         );
         assert!(
             bounding_v.contains(&pair.1),
@@ -2893,6 +2977,20 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
                 Some(geom::Surface::Plane { origin, .. }) if (origin.z - 0.6).abs() < 1e-12)
         })
         .collect();
+    let (capped, _, _) = capped_vessel(0.5, 0.6, 60.0);
+    let hollow = hollow_box();
+    let ceiling = plane_face_at(&hollow, 4.0 - 0.25);
+    let (hollow_cap, void_cap, _) = hollow_capped_vessel();
+    let capped_chart: Vec<FaceKey> = capped
+        .faces()
+        .filter(|(_, f)| {
+            matches!(
+                capped.get_surface(f.surface),
+                Some(geom::Surface::Sphere { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
     vec![
         (
             "the sealed box",
@@ -2916,6 +3014,14 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
         ),
         ("the annular cup", tube_body, tube_chart, 0.05),
         ("the holed square cup", slab, slab_chart, 0.05),
+        ("the capped cup", capped, capped_chart, 0.05),
+        ("the hollow box's void ceiling", hollow, vec![ceiling], 0.05),
+        (
+            "the hollow capped vessel's void cap",
+            hollow_cap,
+            void_cap,
+            0.05,
+        ),
     ]
 }
 

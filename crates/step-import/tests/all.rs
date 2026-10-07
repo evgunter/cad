@@ -148,6 +148,8 @@ mod tier_gate;
 mod verbs_chamfer_roundtrip;
 #[path = "wall_column_structure.rs"]
 mod wall_column_structure;
+#[path = "whole_torus_one_face.rs"]
+mod whole_torus_one_face;
 #[path = "wild.rs"]
 mod wild;
 

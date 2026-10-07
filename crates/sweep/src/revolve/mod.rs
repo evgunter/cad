@@ -33,11 +33,10 @@
 //!   every wall is the **angle-0 meridian half-plane**, which is where
 //!   the profile sits. A full revolve's surviving meridian edges are
 //!   therefore exactly the `u = 0` iso-curves: they re-describe as
-//!   the seam image `{ surface }` — except meridians
+//!   their walls' wrap edges (D1) — except meridians
 //!   of **plane** walls (a segment ⊥ axis sweeps a plane annulus; a
-//!   plane chart is not periodic, so `Seam` is malformed on it and the
-//!   edge is described where it rests, as an ordinary image in that
-//!   wall's chart). What exempts it from an intrinsic description is
+//!   plane chart closes in no direction, so the edge is described
+//!   where it rests, as an ordinary image in that wall's chart). What exempts it from an intrinsic description is
 //!   UNDER-DETERMINATION, not prefer-intrinsic: one surface on both
 //!   sides determines no locus, which is D2's conventional split, and
 //!   prefer-intrinsic has nothing to demand where there is no
@@ -93,7 +92,7 @@
 //! that is the start point's antipode), a partial revolve's on-axis
 //! edges upgrade to `Intersection { start cap, end cap }` when the caps
 //! are definitely transverse (θ ≠ π), and a full revolve's meridians
-//! become `Seam` on periodic walls and images at rest in the wall's
+//! become wrap edges on periodic walls and images at rest in the wall's
 //! chart on a lamina's plane annulus (a wire's plane walls carry no
 //! meridian at all). No edge KEEPS its `MappedCurve` past this
 //! pass: the mint's scaffolding is for edges whose surfaces do not
@@ -102,11 +101,17 @@
 //! one meter `|C(t) − S(P(t))| ≤ ε`. Cosurface verdicts are decided for
 //! the whole loop — including the wrap pair — before any wall is minted
 //! (the PR 4 SHOULD-1 lesson): a run of segments on one carrier is ONE
-//! wall (crate README, "Walls: one per run"; a full revolve collapses
-//! the run to one segment before it builds, a partial one keeps each
-//! station on its wedge caps). A partial revolve keeps each arc of a
-//! cocircular run its own wall (`swept::CurvedRuns::Split`), and those
-//! walls share one surface key, as a circle's cut walls do.
+//! wall (crate README, "Walls: one per run"): both cases collapse the
+//! run to one segment before they build (`runs::Collapsed`), so a
+//! station inside a run has no entity — a wedge cap carries the run as
+//! one meridian edge, and a run of on-axis segments is one axis edge.
+//!
+//! **A one-segment loop** (D1's full turn) is swept whole, far end
+//! first (`turn::sweep_turn`): one torus wall whose strut, the latitude
+//! circle through the loop's one vertex, is its wrap edge in `v`. A full
+//! revolve then closes the wall on itself in `u` as well — one face,
+//! its meridian and its latitude circle each a wrap edge at one vertex
+//! (`full::build_turn_lamina`).
 //!
 //! # K-telemetry
 //!
@@ -118,8 +123,10 @@ mod axis;
 mod chain;
 mod full;
 mod partial;
+mod runs;
 mod surfaces;
 pub mod tube;
+mod turn;
 mod upgrade;
 
 use core::fmt;
@@ -203,16 +210,16 @@ pub struct Revolved<T: Real> {
     /// Latitude edges (partial: wedge arcs; full: full-period rims,
     /// self-loops at the surviving meridian vertices), per loop, per
     /// canonical vertex (`None`: on-axis vertex, or a station inside a
-    /// run — partial: the wedge caps' meridian chains carry it; full:
-    /// it has no entity).
+    /// run, which has no entity).
     pub rims: Vec<Vec<Option<EdgeKey>>>,
     /// Pole vertices, per loop, per canonical vertex: the ONE body
     /// vertex an on-axis profile vertex revolves to (the rotation
     /// fixes it, so every meridian chain meets there). `None` at
     /// off-axis vertices — those have one copy per chain, addressed
     /// through `rims` and the meridian chains — at vertices strictly
-    /// INTERIOR to a full revolve's omitted axis run, which that case
-    /// deletes outright (no body entity exists to name), and at a full
+    /// INTERIOR to an axis run, which a full revolve deletes outright
+    /// and a partial revolve collapses into the run's one axis edge
+    /// (either way no body entity exists to name), and at a full
     /// revolve's tip where a plane wall meets the axis (the disc is
     /// built whole, its centre no vertex).
     /// A multi-segment axis run authors through the recipe layer as
@@ -285,9 +292,10 @@ pub enum RevolvedKind {
         start_cap: FaceKey,
         /// The end cap — on the sketch plane rotated by θ.
         end_cap: FaceKey,
-        /// Start-chain meridian edges, per loop, per canonical segment.
-        /// For an on-axis segment this is the shared axis edge (the
-        /// same key appears in `end_meridians`).
+        /// Start-chain meridian edges, per loop, per canonical segment:
+        /// a run's segments read its one meridian. For an on-axis
+        /// segment this is the shared axis edge of its run (the same
+        /// key appears in `end_meridians`).
         start_meridians: Vec<Vec<EdgeKey>>,
         /// End-chain meridian edges, per loop, per canonical segment.
         end_meridians: Vec<Vec<EdgeKey>>,
@@ -502,17 +510,6 @@ pub enum RevolveError {
         /// Canonical index of the segment.
         segment_index: usize,
     },
-    /// A one-segment loop (D1's full turn: a circle as one arc at one
-    /// vertex), clear of the axis. Its wall is one torus face wrapping
-    /// the tube's own angle, cut only by the latitude strut at the
-    /// vertex — and a seam here is a `u_ref` meridian, so no chart
-    /// describes that cut: the description, pcurve and flux layers read
-    /// the strut's two halves as one image. Refused rather than built
-    /// inside out.
-    OneSegmentLoop {
-        /// Canonical index of the loop.
-        loop_index: usize,
-    },
     /// Full revolve of a profile whose axis contact is not a single
     /// contiguous run of on-axis segments: an isolated on-axis vertex
     /// (or a run-detached one) revolves to a non-manifold solid (D1).
@@ -610,11 +607,11 @@ pub enum RevolveError {
         /// The edge whose station refuted the smooth premise.
         edge: EdgeKey,
     },
-    /// A station INSIDE a wall run (two walls one carrier holds) sits
-    /// pinned on the axis, so the run's wall would have no strut there
-    /// (defense-in-depth, the `CapPlane` posture: a wall through an
-    /// on-axis station carries on past the axis, which the half-plane
-    /// checks refuse first for every validated profile).
+    /// A station INSIDE a run of walls (two segments one carrier
+    /// holds) sits pinned on the axis (defense-in-depth, the `CapPlane`
+    /// posture: a wall through an on-axis station carries on past the
+    /// axis, which the half-plane checks refuse first for every
+    /// validated profile).
     PinnedRunStation {
         /// Canonical index of the loop.
         loop_index: usize,
@@ -728,12 +725,6 @@ impl fmt::Display for RevolveError {
                 "the arc at loop {loop_index} segment {segment_index} would sweep a horn or \
                  spindle torus (its circle reaches the axis), which is not supported. \
                  Recourse: keep the arc's circle clear of the axis"
-            ),
-            Self::OneSegmentLoop { loop_index } => write!(
-                f,
-                "loop {loop_index} is one full-turn arc: its torus wall would wrap the tube's \
-                 own angle, cut only by the strut at its vertex, and no face here represents \
-                 that cut. Recourse: author the circle as two or more arcs"
             ),
             Self::NonManifoldAxisContact {
                 loop_index,
@@ -897,12 +888,6 @@ pub fn revolve<T: Decide + topo::AtRestPolicy>(
     for (li, segs) in loops.iter().enumerate() {
         classes.push(axis::classify_loop(segs, &frame, li, reverse, band)?);
     }
-    // After the axis classes, which refuse a full turn that reaches the
-    // axis by what is wrong with it.
-    if let Some(loop_index) = loops.iter().position(|segs| profile::is_full_turn(segs)) {
-        return Err(RevolveError::OneSegmentLoop { loop_index });
-    }
-
     let mut out = if full {
         full::build_full(&frame, &loops, &classes, theta, band, tol)
     } else {

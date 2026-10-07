@@ -1274,6 +1274,28 @@ pub mod bounds_allowlist {
     //! `settle_deferred`) carry the bound as a reachability ride to it and
     //! read no bracket of their own.
     //!
+    //! `topo::validate`'s `ring_pairs` — check 9's broad phase over the
+    //! rings of one face — falls under this entry on the same terms as
+    //! `census::Trees`: it boxes each ring through the certified box
+    //! constructor (`edge_box`, hulled over the ring's edges at the sweep
+    //! pad), builds the C10 tree over those boxes and drives its queries,
+    //! deciding nothing; the contact arms that follow decide every pair the
+    //! boxes do not clear, through `Decide`. Its one box-level answer is
+    //! the pruning grant, in the disjointness direction the #571 rule
+    //! allows: a box miss can only clear a pair, never make one meet. The
+    //! weakest bound that works is `Decide + Bounds`: sole `Decide` reads
+    //! no box, and sole `Bounds` cannot call the arms. It reads no bound
+    //! its callers do not already carry (`tier3_local_checks_marked`, under
+    //! the at-rest validator's own entry).
+    //!
+    //! `topo::face_boxes` — `FaceBoxes::of`, the blend's candidate prune
+    //! for predicate 2's reach meter — falls under this entry on the
+    //! census's terms: it boxes every face through `face_box` and builds
+    //! the C10 tree, deciding nothing. Sole `Bounds` fails (`face_box`'s
+    //! cylinder rule decides the axis length through the funnel) and sole
+    //! `Decide` fails (the boxes are `f64` brackets, read through
+    //! `Bounds::lo`/`hi`).
+    //!
     //! `Separation::of`, `Separation::certify` and `image` carry **no**
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure), and their box NON-overlap answer is a GRANT
     //! (`certify`'s own doc: *"`Ok(())` is the certificate"*, and

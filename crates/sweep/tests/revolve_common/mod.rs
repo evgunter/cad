@@ -87,7 +87,7 @@ pub fn authority(body: &Body<f64>, edge: EdgeKey) -> EdgeAuthority<f64> {
 
 /// The chart image an edge's conventional description draws, or a
 /// panic naming what it found instead. Read `.surface` for the chart,
-/// `.seam` for D1's seam obligation.
+/// `.wrap` for D1's wrap edge.
 pub fn chart_image(body: &Body<f64>, edge: EdgeKey) -> geom_brep::ChartCurve<f64> {
     match description(body, edge) {
         EdgeDescription::Chart(c) => c,
@@ -103,7 +103,7 @@ pub fn chart_image(body: &Body<f64>, edge: EdgeKey) -> geom_brep::ChartCurve<f64
 pub fn assert_declared_image_in(body: &Body<f64>, edge: EdgeKey, chart: topo::SurfaceKey) {
     let c = chart_image(body, edge);
     assert_eq!(c.surface, chart, "the image must be drawn in {chart:?}");
-    assert!(!c.seam, "a declared image is not the chart's seam");
+    assert!(!c.wrap, "a declared image is not the chart's seam");
     assert!(
         authority(body, edge).is_declared(),
         "a sketch entity under the sweep map determined this locus"
@@ -116,7 +116,7 @@ pub fn assert_declared_image_in(body: &Body<f64>, edge: EdgeKey, chart: topo::Su
 pub fn assert_seam_of(body: &Body<f64>, edge: EdgeKey, chart: topo::SurfaceKey) {
     let c = chart_image(body, edge);
     assert_eq!(c.surface, chart, "the seam must be that of {chart:?}");
-    assert!(c.seam, "the seam obligation must be carried");
+    assert!(c.wrap, "the seam obligation must be carried");
     assert!(
         !authority(body, edge).is_declared(),
         "a seam is derived by the kernel, not declared"

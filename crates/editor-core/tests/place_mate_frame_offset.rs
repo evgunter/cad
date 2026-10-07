@@ -92,6 +92,7 @@ fn seated(
         doc,
         DocEdit::InsertNode {
             node: Box::new(seat(head(p.top_cap(top)), head(p.base_cap(base)), offset)),
+            fresh: Vec::new(),
         },
         &reach,
     );
@@ -148,6 +149,7 @@ fn a_face_side_with_an_in_plane_offset_follows_the_face_through_a_part_edit() {
             node: base_body,
             slot: SlotId::Distance,
             expr: len(2.0),
+            fresh: Vec::new(),
         },
     );
     let new_ref = p.store.insert(grown, Tol::witness());
@@ -252,6 +254,7 @@ fn a_parameter_drives_an_offset_and_the_solved_pose_moves() {
             &unmated,
             &DocEdit::InsertNode {
                 node: Box::new(seat(head(p.top_cap(top)), head(p.base_cap(base)), offset)),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &reach,
@@ -327,6 +330,7 @@ fn an_authored_side_is_the_part_base_with_one_literal_step_bit_for_bit() {
                     clocking: None,
                 },
             }),
+            fresh: Vec::new(),
         },
     );
     let placed = solve(&doc, &o, tol).placement(&doc, top).expect("placed");
@@ -364,6 +368,7 @@ fn an_improper_literal_step_refuses_at_the_door_and_at_load() {
                         translation: [0.0; 3],
                     }),
                 )),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &reach,
@@ -496,6 +501,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
                 head(p.top_upper_cap(top)),
                 slid_by_the_parameter(),
             )),
+            fresh: Vec::new(),
         },
         &reach,
     );
@@ -521,6 +527,7 @@ fn the_offset_and_its_parameter_cross_split_and_inline() {
                 head(p.base_cap(base)),
                 literal([0.0, 0.5, 0.0]),
             )),
+            fresh: Vec::new(),
         },
         &reach,
     );
@@ -576,6 +583,7 @@ fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
             node: m,
             slot: axis(editor_core::Axis3::X),
             expr: scl(0.0),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &reach,
@@ -598,6 +606,7 @@ fn a_slot_edit_at_a_frame_step_is_admitted_as_the_insert_is() {
             node: m,
             slot: axis(editor_core::Axis3::Z),
             expr: scl(0.0),
+            fresh: Vec::new(),
         },
     );
     assert!(refused(&err), "{err:?}");
@@ -626,7 +635,7 @@ fn a_mates_alignment_compares_by_bits() {
     let cap = |node, end| {
         head(editor_core::StableName {
             kind: editor_core::EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![editor_core::RoleSeg::Cap(end)],
         })
     };

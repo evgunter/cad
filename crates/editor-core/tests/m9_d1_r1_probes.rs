@@ -1,7 +1,8 @@
 //! M9-D1 review probes (R1), naming level: the narrowed refusal and
 //! the None-export honesty, attacked with profiles the shipped rows
 //! don't cover — a SUBDIVIDED axis run (interior on-axis vertex: the
-//! full case deletes it, the partial keeps it as a third pole) and a
+//! full case deletes it, the partial collapses the run to one axis
+//! edge, so neither has an entity there) and a
 //! MIXED on/off-axis dome. Every row stands on `check_total`: a
 //! silently mis-named or unnamed vertex cannot pass.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -12,7 +13,6 @@ use editor_core::Formula;
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload, evaluate,
-    vertex_position,
 };
 use fixture::{ang, insert, len, len2, scl, table};
 use geom_core::Tol;
@@ -95,6 +95,7 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
     doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(node),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -165,7 +166,7 @@ fn export_poles_by_canonical_vertex(
     revolution: sweep::Revolution<f64>,
 ) -> Vec<bool> {
     let profile = *doc
-        .order()
+        .ids()
         .iter()
         .find(|id| matches!(doc.node(**id), Some(Node::Profile(_))))
         .expect("the doc's profile node");
@@ -218,31 +219,20 @@ fn full_subdivided_axis_run_names_no_vertex_for_the_interior() {
     );
 }
 
-/// **PARTIAL revolve of the same run: the interior on-axis vertex IS a
-/// pole.** The partial case keeps the axis run, the rotation fixes
-/// every point of it, and both meridian chains meet at the interior
-/// vertex — structurally what the run tips are — so it takes
-/// `Pole(v1)` and the export says `Some`.
+/// **PARTIAL revolve of the same run: the interior vertex is a
+/// station.** The two wedge caps carry the axis run as one shared axis
+/// edge, so the interior vertex has no entity, as in the full case: no
+/// name, and the export says `None`; the run's tips are poles.
 #[test]
-fn partial_subdivided_axis_run_names_the_interior_vertex_a_pole() {
+fn partial_subdivided_axis_run_names_no_vertex_for_the_interior() {
     let (doc, rev) = subdivided_axis_run(std::f64::consts::FRAC_PI_2);
     let ev = run(&doc);
     let t = table(&ev, rev);
-    for v in 0..3 {
-        assert!(
+    for (v, named) in [(0, true), (1, false), (2, true)] {
+        assert_eq!(
             t.lookup(&outer_pole(&doc, rev, v)).is_some(),
-            "pole {v} unnamed"
-        );
-    }
-    // The interior vertex is the run's midpoint, not a third tip.
-    let at = |v| {
-        vertex_position(&ev, rev, &outer_pole(&doc, rev, v)).expect("a named pole has a position")
-    };
-    let (a, b, c) = (at(0), at(1), at(2));
-    for (mid, ends) in [(b.x, a.x + c.x), (b.y, a.y + c.y), (b.z, a.z + c.z)] {
-        assert!(
-            (2.0 * mid - ends).abs() < 1e-12,
-            "the interior pole is off the run's midpoint"
+            named,
+            "pole {v}"
         );
     }
     assert_eq!(
@@ -251,7 +241,7 @@ fn partial_subdivided_axis_run_names_the_interior_vertex_a_pole() {
             &ev,
             sweep::Revolution::Partial(std::f64::consts::FRAC_PI_2)
         ),
-        vec![true, true, true],
+        vec![true, false, true],
         "the export's arm must agree with what the emitter named"
     );
 }

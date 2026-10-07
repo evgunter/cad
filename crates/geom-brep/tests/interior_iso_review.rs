@@ -128,8 +128,6 @@ fn certify_line<T: Decide>(
     p0: (f64, f64),
     pl: (f64, f64),
 ) -> Result<PcurveCache<T>, PcurveCertifyError> {
-    let (u0, u1) = chart.knots_u().domain();
-    let (v0, v1) = chart.knots_v().domain();
     let f = T::from_f64;
     PcurveCache::certify(
         Pcurve::IsoLine {
@@ -140,12 +138,6 @@ fn certify_line<T: Decide>(
         T::one(),
         &Curve3::Nurbs(Arc::new(lift_curve::<T>(carrier))),
         &Surface::Nurbs(Arc::new(lift_surface::<T>(chart))),
-        geom_brep::ChartWindow {
-            u_min: f(u0),
-            u_max: f(u1),
-            v_min: f(v0),
-            v_max: f(v1),
-        },
         band(),
     )
 }
@@ -540,14 +532,12 @@ fn out_of_domain_body<T: Decide + Bounds>(lane: &str) {
                 p0: Point2::new(f(u), f(v0)),
                 pl: Vec2::new(T::zero(), f(v1 - v0)),
             };
-            let window = pc.chart_box(T::zero(), T::one());
             let r = PcurveCache::certify(
                 pc,
                 T::zero(),
                 T::one(),
                 &Curve3::Nurbs(Arc::new(lift_curve::<T>(&row))),
                 &Surface::Nurbs(Arc::new(lift_surface::<T>(&s))),
-                window,
                 band(),
             );
             let Err(PcurveCertifyError::IsoUnsupported { what }) = r else {

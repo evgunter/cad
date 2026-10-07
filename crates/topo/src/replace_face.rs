@@ -1553,65 +1553,26 @@ fn mint_offset<T: Decide>(
         .map_err(|error| ReplaceFaceError::Offset { face, error })
 }
 
-/// **The reach a pose is read over** at the C5 gate: an UPPER bound on
-/// how far the edge's carrier stands from either surface's ANCHOR (a
-/// cone's apex, a sphere's or torus's centre, a cylinder's origin; a
-/// plane has none). An arm's angular trilean meters a tilt `θ` as the
-/// locus displacement `θ·extent`, and about an anchor that displacement
-/// is largest at the carrier point farthest from it, so this is the
-/// extent at which the pose question means something for THIS edge.
-///
-/// The bound is per carrier, and never an underestimate — an
-/// underestimated lever would read a tilted pose as served:
-///
-/// - a **line** segment: its endpoints (distance to a point is convex
-///   along a line, so a segment attains its maximum at an end);
-/// - a **circle** or **ellipse**: centre distance plus the radius, or
-///   the larger semi-axis MAGNITUDE (the mint certifies an ellipse
-///   stored with `minor > major` or a negative `major`), whatever the
-///   parameter span — a closed rim, whose two endpoints coincide, is
-///   exactly the case sampling misses;
-/// - a **spiric** (a curve on a torus): centre distance plus `R + r`;
-/// - a **NURBS** carrier: its control points (the convex-hull property
-///   of positive weights).
-///
-/// A cylinder's origin is any point of its axis, so it can overstate
-/// the reach; an overstated lever reads more poses as definitely off
-/// the served class, which refuses rather than admits.
-fn pose_reach<T: Real>(surfaces: [&Surface<T>; 2], carrier: &Curve3<T>, t0: T, t1: T) -> T {
-    let mut reach = T::zero();
-    for s in surfaces {
-        let anchor = match *s {
-            Surface::Cone { apex, .. } => apex,
-            Surface::Sphere { center, .. } | Surface::Torus { center, .. } => center,
-            Surface::Cylinder { origin, .. } => origin,
-            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => continue,
-        };
-        let far = match carrier {
-            Curve3::Line { origin, dir } => (*origin + *dir * t0 - anchor)
-                .norm()
-                .max((*origin + *dir * t1 - anchor).norm()),
-            Curve3::Circle { center, radius, .. } => (*center - anchor).norm() + radius.abs(),
-            Curve3::Ellipse {
-                center,
-                major,
-                minor,
-                ..
-            } => (*center - anchor).norm() + major.abs().max(minor.abs()),
-            Curve3::Spiric {
-                center,
-                major_radius,
-                minor_radius,
-                ..
-            } => (*center - anchor).norm() + major_radius.abs() + minor_radius.abs(),
-            Curve3::Nurbs(n) => n
-                .control()
-                .iter()
-                .fold(T::zero(), |m, &p| m.max((p - anchor).norm())),
-        };
-        reach = reach.max(far);
-    }
-    reach
+/// **Whether the arm serves this pose** at the C5 gate: the moved
+/// surface against the untouched one, read over the edge's carrier on
+/// `[t0, t1]` ([`geom_brep::Reach::Span`]). Every arm is levered by the
+/// carrier's exact per-carrier distance from its pivot, never by a ball
+/// around the edge: a looser lever decides an in-band pose as served
+/// ([`geom_brep::intersect::route_pose`]).
+fn pose_route<T: Decide>(
+    moved: &Surface<T>,
+    other: &Surface<T>,
+    carrier: &Curve3<T>,
+    t0: T,
+    t1: T,
+    band: Band,
+) -> Result<geom_brep::intersect::PairRoute, geom_brep::SectionError> {
+    let reach = geom_brep::Reach::Span {
+        carrier: carrier.clone(),
+        t0,
+        t1,
+    };
+    geom_brep::intersect::route_pose(moved, other, &reach, band)
 }
 
 /// The cone offset's `v` shift `d·cot α`; zero on every other kind (no
@@ -1973,9 +1934,8 @@ fn plan_edge<T: Decide>(
         // The kind pair routes; the arm is asked whether it serves
         // THIS pose — the moved surface against the untouched one,
         // read over the edge's own reach.
-        let reach = pose_reach([new_surface, other_surface], &carrier, t0, t1);
-        let posed = geom_brep::intersect::route_pose(new_surface, other_surface, reach, band)
-            .map_err(|e| match e {
+        let posed = pose_route(new_surface, other_surface, &carrier, t0, t1, band).map_err(
+            |e| match e {
                 geom_brep::SectionError::Escalated(source)
                 | geom_brep::SectionError::RadiusEscalated { diag: source, .. } => {
                     ReplaceFaceError::Escalated { source }
@@ -1998,7 +1958,8 @@ fn plan_edge<T: Decide>(
                     "{edge:?}: `route_pose` answers only an escalation or a misdispatch, and \
                  returned {other:?}"
                 ),
-            })?;
+            },
+        )?;
         if !posed.implemented {
             return Err(ReplaceFaceError::NeighborPoseUnroutable {
                 edge,
@@ -2011,17 +1972,16 @@ fn plan_edge<T: Decide>(
     };
 
     let new_description = match description {
-        // A seam names a surface and nothing else — its image is
-        // DERIVED from the transported carrier against the new chart,
-        // exactly as it was derived from the old one, so there is no
-        // parameter to shift. Stated rather than left to the
-        // fall-through so the contrast with the line below is on the
-        // page.
-        EdgeDescription::Chart(ref c) if c.surface == old_key && c.seam => {
+        // A wrap edge on the moved chart is stated anew there: its
+        // image is DERIVED from the transported carrier against the
+        // new chart (`image: None`), as a construction states one,
+        // rather than shifted, and the flag travels: its two halves
+        // still bound the one face.
+        EdgeDescription::Chart(ref c) if c.surface == old_key && c.wrap => {
             EdgeDescriptionSpec::Chart {
                 surface: old_key,
                 image: None,
-                seam: true,
+                wrap: true,
                 declared: carried_declaration()?,
             }
         }
@@ -2037,7 +1997,7 @@ fn plan_edge<T: Decide>(
                            exact shift for it",
                 },
             )?),
-            seam: false,
+            wrap: false,
             declared: carried_declaration()?,
         },
         EdgeDescription::Intersection { s1, s2, .. }
@@ -2161,8 +2121,8 @@ fn plan_edge<T: Decide>(
 /// not bend the curve drawn in it. `None` for a fitted image, whose
 /// `v` channel is a control net rather than a closed form — refused
 /// rather than shifted point-by-point, which would author a fit this
-/// door has no certificate for — and for a cone-section image, whose
-/// offset is no plane section of the offset cone.
+/// door has no certificate for — and for a focal-section image, whose
+/// offset is no section of the offset chart.
 fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
     use geom_brep::Pcurve;
     Some(match *pcurve {
@@ -2218,11 +2178,11 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
                 },
             },
         },
-        // A cone section's image is tied to its cone through `β`, the
+        // A focal section's image is tied to its chart through `β`, the
         // projected ellipse's eccentricity: the offset moves the curve
-        // off the plane section it was, so no image of the same form
-        // is shifted out of this one.
-        Pcurve::ConeSection { .. } | Pcurve::Fitted(_) | Pcurve::General(_) => return None,
+        // off the section it was, so no image of the same form is
+        // shifted out of this one.
+        Pcurve::FocalSection(_) | Pcurve::Fitted(_) | Pcurve::General(_) => return None,
     })
 }
 
@@ -2353,12 +2313,12 @@ pub(crate) fn remap_description<T: Real>(
         EdgeDescriptionSpec::Chart {
             surface,
             image,
-            seam,
+            wrap,
             declared,
         } => EdgeDescriptionSpec::Chart {
             surface: map(surface),
             image,
-            seam,
+            wrap,
             declared,
         },
         EdgeDescriptionSpec::Scaffold(m) => EdgeDescriptionSpec::Scaffold(m),
@@ -2579,12 +2539,12 @@ fn plan_reanchors<T: Decide>(
                 EdgeDescriptionSpec::Chart {
                     surface,
                     image,
-                    seam,
+                    wrap,
                     declared: Some(mc),
                 } => EdgeDescriptionSpec::Chart {
                     surface,
                     image,
-                    seam,
+                    wrap,
                     declared: Some(restate(mc)?),
                 },
                 other => other,
@@ -2741,24 +2701,26 @@ mod offset_fit_door_rows {
 #[cfg(test)]
 #[allow(clippy::panic)]
 mod shift_chart_v_rows {
-    use geom_brep::Pcurve;
+    use geom_brep::{FocalImage, Pcurve};
     use geom_core::{Point2, Vec2};
 
     use super::shift_chart_v;
 
     /// The offset's `v` shift moves a harmonic image's constant term and
-    /// refuses a cone-section image, whose offset is no plane section of
+    /// refuses a focal-section image, whose offset is no plane section of
     /// the offset cone.
     #[test]
     fn a_cone_section_image_has_no_shift() {
-        let section = Pcurve::ConeSection {
+        let section = Pcurve::FocalSection(FocalImage {
             u0: 0.1,
+            t0: 0.0,
             v0: 2.0,
             va: -0.4,
             vb: 0.0,
+            vl: 0.0,
             beta: 0.2,
             sense: 1.0,
-        };
+        });
         assert!(shift_chart_v(&section, 0.3).is_none());
         let harmonic = Pcurve::Harmonic {
             p0: Point2::new(0.0, 1.0),
@@ -2774,27 +2736,27 @@ mod shift_chart_v_rows {
 }
 
 #[cfg(test)]
-#[allow(clippy::panic)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod pose_reach_rows {
     use geom::{Curve3, Surface};
-    use geom_core::{Point3, Vec3};
+    use geom_brep::Reach;
+    use geom_core::{Band, Point3, Tol, Vec3};
 
-    use super::pose_reach;
+    use super::pose_route;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("a linear band")
+    }
 
     /// **The reach bounds every point of an ellipse in any stored order or
     /// sign.** The mint certifies an ellipse stored with `minor > major`
-    /// and one with a negative `major` (its `u_ref` flipped); the reach
-    /// must still be at least each point's distance from the surface's
-    /// anchor, round the whole turn. Read at `|major|`, the first falls
-    /// short by `minor − major`.
+    /// and one with a negative `major` (its `u_ref` flipped); the span's
+    /// lever from a surface's anchor must still be at least each point's
+    /// distance from it, round the whole turn. Read at `|major|`, the
+    /// first falls short by `minor − major`.
     #[test]
     fn the_reach_bounds_an_ellipse_in_any_stored_frame() {
-        let sphere = Surface::Sphere {
-            center: Point3::new(0.3, -0.2, 0.1),
-            radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        };
+        let anchor = Point3::new(0.3, -0.2, 0.1);
         for (major, minor, u) in [(0.5, 0.9, 1.0), (-0.9, 0.5, -1.0), (0.9, -0.5, 1.0)] {
             let e = Curve3::Ellipse {
                 center: Point3::new(0.1, 0.2, 0.0),
@@ -2803,13 +2765,289 @@ mod pose_reach_rows {
                 minor,
                 u_ref: Vec3::new(u, 0.0, 0.0),
             };
-            let reach = pose_reach([&sphere, &sphere], &e, 0.0, 0.5);
+            let reach = Reach::Span {
+                carrier: e.clone(),
+                t0: 0.0,
+                t1: 0.5,
+            }
+            .lever_from(anchor);
             for k in 0..=720 {
                 let t = core::f64::consts::TAU * f64::from(k) / 720.0;
-                let far = (e.eval(t) - Point3::new(0.3, -0.2, 0.1)).norm();
+                let far = (e.eval(t) - anchor).norm();
                 assert!(
                     reach >= far,
                     "({major}, {minor}): the reach {reach} falls short of {far} at θ = {t}"
+                );
+            }
+        }
+    }
+
+    /// **A near-parabola is not admitted as an ellipse by a loose
+    /// lever.** Plane×cone, apex at the origin, half-angle 0.5; the
+    /// plane tilted so `pn_conic_type`'s `D` levered at the edge's
+    /// EXACT reach is `−k·ε`, in the band. The edge is a line whose
+    /// midpoint stands 2 m from the apex, 2 m either side of it at
+    /// right angles: its endpoints stand `2√2` from the apex, its ball
+    /// reaches 4. Read at the ball's lever the same `D` is `−k·ε·√2`,
+    /// definitely an ellipse for `k ≥ 8`, and the gate admitted a pose
+    /// the arm cannot tell from a parabola.
+    #[test]
+    fn a_line_edges_pose_is_read_at_its_endpoints_not_its_ball() {
+        let eps = band().zero();
+        let alpha: f64 = 0.5;
+        let cone = Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: alpha,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let edge = Curve3::Line {
+            origin: Point3::new(2.0, -2.0, 0.0),
+            dir: Vec3::new(0.0, 1.0, 0.0),
+        };
+        let tight = 8.0_f64.sqrt();
+        let span = Reach::Span {
+            carrier: edge.clone(),
+            t0: 0.0,
+            t1: 4.0,
+        };
+        assert!((span.lever_from(Point3::origin()) - tight).abs() < 1e-12);
+        // `k = 1.2` is in the band too, and reads Zero if the lever is
+        // cut below the endpoints' distance.
+        for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
+            // `D = sin α·sin β − cos α·cos β = −cos(α + β)` for a normal
+            // tilted `β` off the axis.
+            let beta = (k * eps / tight).acos() - alpha;
+            let plane = Surface::Plane {
+                origin: Point3::new(0.0, 0.0, 1.0),
+                normal: Vec3::new(beta.sin(), 0.0, beta.cos()),
+                u_ref: Vec3::new(0.0, 1.0, 0.0),
+            };
+            let got = pose_route(&plane, &cone, &edge, 0.0, 4.0, band());
+            assert!(
+                matches!(got, Err(geom_brep::SectionError::Escalated(_))),
+                "k = {k}: an in-band near-parabola must escalate, got {got:?}"
+            );
+        }
+    }
+
+    /// **The cone×cylinder pose is read at the apex.** A cone (apex at
+    /// the origin, axis `z`) and a cylinder whose stored origin stands on
+    /// the cone's axis 1000 m up, its axis tilted `θ` so that the edge
+    /// near the apex reads the tilt in the zero band from the apex (lever
+    /// 1.5). Its axis passes `1000·θ` from the apex, which `coc_coaxial`
+    /// reads definite, and the arm refuses the pose. Read at the stored
+    /// origin instead, the axes were coaxial, and the arm served a pose
+    /// whose axes stand `1000·θ` apart at the edge.
+    ///
+    /// The refusal is the offset row's: the arm refuses the same way a
+    /// cylinder EXACTLY parallel to the cone's axis and as far off the
+    /// apex is refused, which only `coc_coaxial` can do.
+    #[test]
+    fn a_cone_cylinder_pose_is_read_at_the_apex() {
+        let theta: f64 = 0.5 * band().zero() / 1.5;
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let cylinder = |origin, axis| Surface::Cylinder {
+            origin,
+            axis,
+            radius: 0.5,
+            u_ref: Vec3::unit_y(),
+        };
+        let stored = Point3::new(0.0, 0.0, 1000.0);
+        let cyl = cylinder(stored, Vec3::new(theta.sin(), 0.0, theta.cos()));
+        let off = 1000.0 * theta.sin();
+        let parallel = cylinder(Point3::new(-off, 0.0, 0.0), Vec3::unit_z());
+        let edge = Curve3::Line {
+            origin: Point3::new(1.0, 0.0, 1.0),
+            dir: Vec3::unit_z(),
+        };
+        let refusal = |cyl: &Surface<f64>| match geom_brep::cone_cylinder_section(
+            &cone,
+            cyl,
+            (Point3::new(1.0, 0.0, 1.1) - Point3::origin()).norm(),
+            band(),
+        ) {
+            Err(geom_brep::SectionError::RoutesToGeneralRung {
+                pair: "cone×cylinder",
+                why,
+            }) => why,
+            other => panic!("the arm refuses the pose to the general rung: {other:?}"),
+        };
+        assert_eq!(
+            refusal(&cyl),
+            refusal(&parallel),
+            "the tilted cylinder is refused by the offset row"
+        );
+        for (label, a, b) in [("cone, cyl", &cone, &cyl), ("cyl, cone", &cyl, &cone)] {
+            let got = pose_route(a, b, &edge, 0.0, 0.1, band());
+            assert!(
+                matches!(got, Ok(ref r) if !r.implemented && r.note == refusal(&parallel)),
+                "({label}): axes apart at the apex refuse the pose, got {got:?}"
+            );
+        }
+    }
+
+    /// **The cone×cylinder tilt is levered at the edge's distance from
+    /// the apex.** A cone (apex at the origin, axis `z`) and a radius-½
+    /// cylinder coaxial through the apex, its origin stored 1000 m along
+    /// its axis, tilted so the edge (`(1, 0, 1)` to `(1, 0, 1.1)`, whose
+    /// far end stands `L ≈ 1.487` from the apex) reads `k·zero`. At
+    /// `k = 0.8` the arm serves the coaxial circles; at `k = 1.3` it
+    /// escalates on the axis row. A lever half as long serves both, one
+    /// 1.42 times as long escalates both, and one from the stored origin
+    /// refuses both.
+    #[test]
+    fn a_cone_cylinder_tilt_is_levered_at_the_edges_distance_from_the_apex() {
+        let edge = Curve3::Line {
+            origin: Point3::new(1.0, 0.0, 1.0),
+            dir: Vec3::unit_z(),
+        };
+        let lever = (Point3::new(1.0, 0.0, 1.1_f64) - Point3::origin()).norm();
+        let cone = Surface::Cone {
+            apex: Point3::origin(),
+            axis: Vec3::unit_z(),
+            half_angle: 0.5,
+            u_ref: Vec3::unit_x(),
+        };
+        for (k, serves) in [(0.8, true), (1.3, false)] {
+            let theta: f64 = k * band().zero() / lever;
+            let axis = Vec3::new(theta.sin(), 0.0, theta.cos());
+            let cyl = Surface::Cylinder {
+                origin: Point3::origin() + axis * 1000.0,
+                axis,
+                radius: 0.5,
+                u_ref: Vec3::unit_y(),
+            };
+            for (label, a, b) in [("cone, cyl", &cone, &cyl), ("cyl, cone", &cyl, &cone)] {
+                let got = pose_route(a, b, &edge, 0.0, 0.1, band());
+                if serves {
+                    assert!(
+                        matches!(got, Ok(ref r) if r.implemented),
+                        "k = {k} ({label}): the tilt is in the zero band, served: {got:?}"
+                    );
+                } else {
+                    assert!(
+                        matches!(
+                            got,
+                            Err(geom_brep::SectionError::Escalated(ref d))
+                                if d.predicate == Some("coc_axes_parallel")
+                        ),
+                        "k = {k} ({label}): the tilt is in band, escalated: {got:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **A NURBS ruling's pose is read at its least-lever pivot.** Row
+    /// A's two cylinders and ruling, the edge a degree-1 NURBS carrier
+    /// on `(1, 0, z)` with UNEVEN control points: `z = (−1, 0.8, 1)`
+    /// (knots `[0, 0, 0.9, 1, 1]`) and `z = (−1, 0.9, 0.95, 1)`. Its lever
+    /// is the farthest control point, least at the axis point midway
+    /// along the net (`√2`, the stored origin's too). Read at the foot of
+    /// the control points' mean it was 1.6–1.8, and `cc_axes_parallel`
+    /// read a tilt the least lever leaves in the band as definite, and
+    /// served the meeting axes' ellipse pair (from `k = 8` or `9`).
+    #[test]
+    fn a_nurbs_rulings_pose_is_read_at_its_least_lever_pivot() {
+        let eps = band().zero();
+        let c1 = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let ruling = |zs: &[f64], knots: Vec<f64>| {
+            let control: Vec<Point3<f64>> = zs.iter().map(|&z| Point3::new(1.0, 0.0, z)).collect();
+            let weights = vec![1.0; control.len()];
+            let kv =
+                geom_core::spline::KnotVector::clamped(knots, 1).expect("a clamped knot vector");
+            Curve3::Nurbs(std::sync::Arc::new(
+                geom::NurbsCurve3::new(kv, control, weights).expect("a degree-1 net"),
+            ))
+        };
+        let edges = [
+            (
+                "nurbs3",
+                ruling(&[-1.0, 0.8, 1.0], vec![0.0, 0.0, 0.9, 1.0, 1.0]),
+            ),
+            (
+                "nurbs4",
+                ruling(&[-1.0, 0.9, 0.95, 1.0], vec![0.0, 0.0, 0.9, 0.95, 1.0, 1.0]),
+            ),
+            // Clustered at one end with uniform knots: the curve's
+            // mid-parameter point stands at `z = 0.98`, whose lever to
+            // `z = −1` is 2.2 against the least lever's √2.
+            (
+                "nurbs5",
+                ruling(
+                    &[-1.0, 0.97, 0.98, 0.99, 1.0],
+                    vec![0.0, 0.0, 0.25, 0.5, 0.75, 1.0, 1.0],
+                ),
+            ),
+        ];
+        for (name, edge) in &edges {
+            for k in [1.2, 8.0, 9.0, 9.9] {
+                let theta: f64 = k * eps / 2.0_f64.sqrt();
+                let c2 = Surface::Cylinder {
+                    origin: Point3::new(2.0, 0.0, 0.0),
+                    axis: Vec3::new(theta.sin(), 0.0, theta.cos()),
+                    radius: 1.0,
+                    u_ref: Vec3::unit_y(),
+                };
+                for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
+                    let got = pose_route(a, b, edge, 0.0, 1.0, band());
+                    assert!(
+                        matches!(got, Err(geom_brep::SectionError::Escalated(_))),
+                        "{name}, k = {k} ({label}): an in-band tilt must escalate, got {got:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **A ruling edge's pose is levered at its endpoints, not its
+    /// ball** (row A). Two unit cylinders, the first along `z`, the
+    /// second through `(2, 0, 0)` tilted `θ = k·ε/√2` in `xz`: tangent
+    /// along the ruling `(1, 0, z)`, the edge `(1, 0, −1)..(1, 0, 1)`.
+    /// The edge's endpoints stand `√2` from either axis's foot of its
+    /// midpoint, so `cc_axes_parallel` reads `k·ε`, in the band, and the
+    /// gate escalates in both orders. Levered at the edge's ball
+    /// (`r + half = 2`), it read `k·ε·√2`, definitely crossing for
+    /// `k ≥ 8`, and the gate served the meeting axes' ellipse pair.
+    /// `k = 1.2` is in the band too, and reads Zero if the lever is cut
+    /// below the endpoints' distance.
+    #[test]
+    fn a_ruling_edges_pose_is_read_at_its_endpoints_not_its_ball() {
+        let eps = band().zero();
+        let c1 = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: 1.0,
+            u_ref: Vec3::unit_x(),
+        };
+        let edge = Curve3::Line {
+            origin: Point3::new(1.0, 0.0, -1.0),
+            dir: Vec3::unit_z(),
+        };
+        for k in [1.2, 6.0, 8.0, 9.0, 9.9] {
+            let theta: f64 = k * eps / 2.0_f64.sqrt();
+            let c2 = Surface::Cylinder {
+                origin: Point3::new(2.0, 0.0, 0.0),
+                axis: Vec3::new(theta.sin(), 0.0, theta.cos()),
+                radius: 1.0,
+                u_ref: Vec3::unit_y(),
+            };
+            for (label, a, b) in [("c1, c2", &c1, &c2), ("c2, c1", &c2, &c1)] {
+                let got = pose_route(a, b, &edge, 0.0, 2.0, band());
+                assert!(
+                    matches!(got, Err(geom_brep::SectionError::Escalated(_))),
+                    "k = {k} ({label}): an in-band tilt must escalate, got {got:?}"
                 );
             }
         }

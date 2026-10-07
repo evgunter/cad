@@ -103,7 +103,7 @@ pub fn update_references<P: crate::ProfilePayload>(
 ) -> Result<Vec<DocEdit<P>>, UpdateError> {
     let mut referenced = false;
     let mut edits = Vec::new();
-    for &node in doc.order() {
+    for node in doc.ids() {
         let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(node) else {
             continue;
         };
@@ -168,7 +168,7 @@ pub struct PinSites {
 /// document order — a report that changes only when the document does.
 pub fn mixed_pins<P>(doc: &Doc<P>) -> Vec<PinMultiplicity> {
     let mut by_id: BTreeMap<DocumentId, BTreeMap<ContentPin, Vec<RecipeNodeId>>> = BTreeMap::new();
-    for &node in doc.order() {
+    for node in doc.ids() {
         if let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(node) {
             by_id
                 .entry(doc_ref.id)

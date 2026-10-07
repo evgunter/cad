@@ -23,7 +23,7 @@ use core::f64::consts::TAU;
 use sweep::ExtrudeSide;
 
 use geom::Surface;
-use geom_brep::{Pcurve, PcurveCache};
+use geom_brep::{FocalImage, Pcurve, PcurveCache};
 use geom_core::{Band, Point2, Tol};
 use mesh::{PatchMemo, Tessellation, tessellate, tessellate_with};
 use profile::{ProfileLoop, RawLoop};
@@ -621,22 +621,27 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
                     }
                 },
             },
-            // Likewise no cone chart here; `u0` is the one field.
-            Pcurve::ConeSection {
+            // Likewise no cone or torus chart here; `u0` is the one
+            // field.
+            Pcurve::FocalSection(FocalImage {
                 u0,
+                t0,
                 v0,
                 va,
                 vb,
+                vl,
                 beta,
                 sense,
-            } => Pcurve::ConeSection {
+            }) => Pcurve::FocalSection(FocalImage {
                 u0: u0 + TAU,
+                t0,
                 v0,
                 va,
                 vb,
+                vl,
                 beta,
                 sense,
-            },
+            }),
         };
         let (t0, t1) = cache.params();
         let he = base.get_half_edge(hek).unwrap();
@@ -654,7 +659,6 @@ fn the_trimmed_lane_misses_when_a_pcurve_changes_and_hits_when_a_plane_does() {
             t1,
             &carrier,
             &surface,
-            shifted.chart_box(t0, t1),
             Band::linear(tol).unwrap(),
         )
         .expect("the shifted pcurve certifies on the periodic chart");

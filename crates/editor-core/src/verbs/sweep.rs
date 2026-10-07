@@ -274,7 +274,7 @@ mod tests {
     /// would otherwise never be seen.
     #[test]
     fn each_reader_refuses_a_foreign_record() {
-        let id = RecipeNodeId(1);
+        let id = RecipeNodeId::new(0, 1);
         let (ec, rc) = (extrude::<f64>(), revolve::<f64>());
         let pieces = crate::eval::ProfilePieces::default();
         let Err(e) = (ec.read)(id, VerbRecord::Blend(None), &pieces, ec.foreign_record) else {

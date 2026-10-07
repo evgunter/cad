@@ -158,7 +158,7 @@ fn separated_answers_empty_and_a_node_with_no_value_refuses() {
             .is_empty()
     );
     // A foreign id has no value here, and says which standing.
-    let foreign = RecipeNodeId(999);
+    let foreign = RecipeNodeId::new(0, 999);
     let standing = NodeStanding::NotInDocument { node: foreign };
     let refusal = find_flush_candidates(&ev, base, foreign, Tol::witness())
         .expect_err("a node with no value refuses");

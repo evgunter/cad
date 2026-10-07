@@ -19,11 +19,12 @@
 //!
 //! **Distributions are opt-in, and the analysis varies exactly what
 //! the user declared variable.** A continuous parameter with NO
-//! distribution is FIXED: its analyzed interval has width zero at the
-//! nominal and it contributes mass 1. That is a modelling statement,
-//! not a fallback — nothing here guesses a spread for a parameter
-//! whose author did not state one. `Count` parameters are structural
-//! and are not box axes at all (E0's term hygiene).
+//! distribution is FIXED: it is no axis at all (VARIABLES-DESIGN VR8,
+//! [`is_axis`]) but a constant of every lane, read at its nominal.
+//! That is a modelling statement, not a fallback — nothing here
+//! guesses a spread for a parameter whose author did not state one.
+//! `Count` parameters are structural and are not box axes either (E0's
+//! term hygiene).
 //!
 //! **The analyzed box is the analysis's knob, not the distribution's
 //! property** (E2). A [`Normal`](Distribution::Normal) has unbounded
@@ -182,9 +183,9 @@ impl AnalyzedParam {
     }
 }
 
-/// The analyzed box: one axis per CONTINUOUS free variable, in id
-/// order (VR8: the axes are keyed by identity, so a rename moves none).
-/// Derived, never stored.
+/// The analyzed box: one axis per TOLERANCED variable ([`is_axis`]),
+/// in id order (VR8: the axes are keyed by identity, so a rename moves
+/// none). Derived, never stored.
 ///
 /// Equality is the axes' alone: the spoken forms beside them are how a
 /// refusal names a variable, and a rename — which moves no axis — must
@@ -193,9 +194,8 @@ impl AnalyzedParam {
 pub struct AnalyzedBox {
     params: BTreeMap<VarId, AnalyzedParam>,
     /// The axes in the document's DECLARATION order
-    /// ([`crate::Doc::free_vars`]): the order they are listed, drawn and
-    /// tie-broken in. Ids are digest output, so their numeric order
-    /// means nothing to an author.
+    /// ([`crate::Doc::free_vars`], id order): the order they are listed,
+    /// drawn and tie-broken in.
     order: Vec<VarId>,
     /// Each axis's variable as the document it was taken of speaks it,
     /// for the refusals that name one. Not part of the box's identity.
@@ -265,9 +265,12 @@ impl AnalyzedBox {
     /// doors stay, because a driver pricing a leaf is asking about an
     /// interval that is deliberately NOT the analyzed one.
     ///
-    /// An unannotated axis is FIXED and its tail is `0.0` — the
-    /// analysis is not leaving anything out, because nothing was
-    /// declared to vary.
+    /// A parameter with no tolerance is no axis of the box
+    /// [`analyzed_box`] derives (VR8), so this answers `None` for it.
+    /// `analyzed_box` builds no axis without a distribution; the `0.0`
+    /// arm answers a box assembled otherwise, whose distribution-less
+    /// axis is FIXED — nothing was declared to vary, so no tail is left
+    /// out.
     pub fn axis_tail_mass(&self, var: VarId) -> Option<Result<f64, MeasureUnavailable>> {
         let axis = self.params.get(&var)?;
         Some(match axis.distribution {
@@ -281,10 +284,11 @@ impl AnalyzedBox {
     /// [`Self::axis_tail_mass`] gives, for the E5 RSS column. `None` if
     /// the document has no such continuous parameter.
     ///
-    /// An unannotated axis is FIXED — a point mass at its nominal — and
-    /// its standard deviation is exactly `0.0`: the typed spelling of
-    /// "a fixed parameter carries a measure and spreads nothing", so an
-    /// RSS over it is available and it contributes no term.
+    /// A parameter with no tolerance is no axis of the box
+    /// [`analyzed_box`] derives (VR8), and `analyzed_box` builds no axis
+    /// without a distribution. The `0.0` arm answers a box assembled
+    /// otherwise, whose distribution-less axis is FIXED — a point mass
+    /// at its nominal that spreads nothing, so it adds no RSS term.
     pub fn axis_std_deviation(&self, var: VarId) -> Option<Result<f64, MeasureUnavailable>> {
         let axis = self.params.get(&var)?;
         Some(match axis.distribution {
@@ -298,9 +302,10 @@ impl AnalyzedBox {
     /// [`Self::axis_tail_mass`] gives, for the leaf-pricing door.
     /// `None` if the document has no such continuous parameter.
     ///
-    /// An unannotated axis is a point mass at its nominal, so it
-    /// answers `1.0` for any `sub` containing offset zero and `0.0`
-    /// otherwise.
+    /// A parameter with no tolerance is no axis of the box
+    /// [`analyzed_box`] derives (VR8). An axis built with no
+    /// distribution is a point mass at its nominal, so it answers `1.0`
+    /// for any `sub` containing offset zero and `0.0` otherwise.
     pub fn axis_box_mass(
         &self,
         var: VarId,
@@ -318,20 +323,39 @@ impl AnalyzedBox {
     }
 }
 
+/// **Whether a free variable is an analysis axis** (VR8): a continuous
+/// variable that carries a tolerance — a band or a distribution. A
+/// variable with none is a constant in every analysis lane: the box,
+/// the dual seeds of a stackup, the symbolic lane, Monte Carlo and the
+/// stackup's entries all read it at its nominal. Named or anonymous
+/// alike: what makes a variable vary is its tolerance, not its name.
+/// A query that names a variable itself ([`var_env_over`]'s box, a
+/// [`seed_env`] seed, `range`) widens it whatever it carries.
+pub fn is_axis(free: &FreeVar) -> bool {
+    matches!(
+        free,
+        FreeVar::Continuous {
+            distribution: Some(_),
+            ..
+        }
+    )
+}
+
 /// The analyzed box of a document under a policy (E1's first
 /// consumable).
 ///
-/// Per continuous parameter: the bounded support for
+/// Per axis ([`is_axis`]): the bounded support for
 /// [`Band`](Distribution::Band),
 /// [`Uniform`](Distribution::Uniform) and
 /// [`TruncatedNormal`](Distribution::TruncatedNormal); the symmetric
-/// quantile interval `±z·sigma` for [`Normal`](Distribution::Normal);
-/// and [`OffsetInterval::FIXED`] for a parameter with no distribution.
-/// `Count` parameters are not axes.
+/// quantile interval `±z·sigma` for [`Normal`](Distribution::Normal).
+/// A variable with no tolerance is no axis, and neither is a `Count`
+/// parameter: both are constants of the analysis.
 pub fn analyzed_box<P>(doc: &Doc<P>, policy: &AnalysisPolicy) -> AnalyzedBox {
     let z = quantile_z(policy.quantile_mass());
     let params: BTreeMap<VarId, AnalyzedParam> = doc
         .free_vars()
+        .filter(|(_, p)| is_axis(p))
         .filter_map(|(id, p)| match *p {
             FreeVar::Continuous {
                 dim,
@@ -342,6 +366,8 @@ pub fn analyzed_box<P>(doc: &Doc<P>, policy: &AnalysisPolicy) -> AnalyzedBox {
                 distribution,
             } => {
                 let offsets = match distribution {
+                    // Not reached: `is_axis` admitted only a toleranced
+                    // variable. Kept total rather than asserted.
                     None => OffsetInterval::FIXED,
                     // The bounded forms ARE their own analyzed
                     // interval: the box is the support, and no mass
@@ -492,8 +518,9 @@ where
     fn axis_of(var: VarId, lo: f64, hi: f64) -> Option<Self> {
         // The bracket goes with the value: it is the one value the
         // symbolic tier reads (rule C's sign read, `geom_core::sym`).
-        T::axis(lo, hi)
-            .map(|v| geom_core::Sym::param_over(geom_core::ParamSymbol::new(var.0), v, lo, hi))
+        T::axis(lo, hi).map(|v| {
+            geom_core::Sym::param_over(geom_core::ParamSymbol::new(var.0.digest()), v, lo, hi)
+        })
     }
 }
 
@@ -823,7 +850,8 @@ impl core::fmt::Display for ParamBoxError {
 
 impl ParamBox {
     /// The root box of an analyzed box: every axis at its full analyzed
-    /// offsets, and every unannotated parameter [`BoxAxis::Fixed`].
+    /// offsets, and every axis with zero width [`BoxAxis::Fixed`] (a
+    /// parameter with no tolerance is no axis, [`is_axis`]).
     pub fn of(analyzed: &AnalyzedBox) -> Self {
         let axes = analyzed
             .params()
@@ -897,10 +925,8 @@ impl ParamBox {
 
     /// The DETERMINISTIC split axis (D9): the varying axis of greatest
     /// width RELATIVE to `root`'s width on that axis, ties broken to the
-    /// EARLIEST-DECLARED variable — the order every box iterates in. Not
-    /// the lowest id: an id is digest output, and an order an author
-    /// cannot see is not one a study should depend on. `None` when
-    /// nothing varies.
+    /// EARLIEST-DECLARED variable, the least id — the order every box
+    /// iterates in. `None` when nothing varies.
     ///
     /// Relative rather than absolute because axes carry different
     /// dimensions and different spreads: a 10 mm band and a 0.01°
@@ -1019,7 +1045,11 @@ impl ParamBox {
 /// Each axis binds `nominal + [lo, hi]`, formed in the scalar's own
 /// arithmetic so the enclosure rounds outward; `Count` parameters bind
 /// exactly as [`Doc::var_env`] binds them (they are structural, never
-/// axes). A parameter the box does not name binds its nominal.
+/// axes). A toleranced parameter the box does not name binds its
+/// nominal as an axis of no width; a parameter with no tolerance the
+/// box does not name is no axis ([`is_axis`]) and binds its nominal as
+/// a constant, as [`Doc::var_env`] binds it — so the symbolic lane
+/// reads it as a number, not a symbol.
 ///
 /// # Errors
 ///
@@ -1042,6 +1072,12 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
         // Bound by id, as `Doc::var_env` binds it: the two environment
         // doors read one iteration base.
         let v = match *p {
+            FreeVar::Continuous { dim, value, .. } if box_.get(id).is_none() && !is_axis(p) => {
+                crate::expr::ParamValue::Continuous {
+                    dim,
+                    value: T::from_f64(value),
+                }
+            }
             FreeVar::Continuous { dim, value, .. } => {
                 let (lo, hi) = box_.get(id).map_or((0.0, 0.0), BoxAxis::span);
                 // The IDENTIFIED door (E12): a scalar that tracks
@@ -1066,6 +1102,7 @@ pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
     let mut env = crate::expr::VarEnv {
         bindings,
         refused: BTreeMap::new(),
+        written: std::collections::BTreeSet::new(),
     };
     // A defined variable is no axis: it binds its definition over the
     // widened inputs, so it carries their enclosure.

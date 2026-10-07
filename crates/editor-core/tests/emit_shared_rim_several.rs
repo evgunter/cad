@@ -49,7 +49,7 @@ pub(crate) fn permutations(items: &[usize]) -> Vec<Vec<usize>> {
 /// The blocks in creation order `creation`; `ids[i]` is block `i`'s node.
 pub(crate) fn document(blocks: &[Bx], creation: &[usize]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty_derived("emit_shared_rim_several", Tol::witness());
-    let mut ids = vec![RecipeNodeId(0); blocks.len()];
+    let mut ids = vec![RecipeNodeId::new(0, 0); blocks.len()];
     for &i in creation {
         let (x, y, z) = blocks[i];
         let (d, id) = block(doc, x, y, z.0, z.1);
@@ -215,7 +215,7 @@ fn the_chord_is_named_for_the_rims_it_lies_along() {
         node: m,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&docx, m, 0, seg),
+            crate::fixture::piece(&docx, m, 0, seg).into(),
         )],
     };
     let micro = |x: f64| (x * 1e6).round() as i64;
@@ -355,7 +355,7 @@ fn a_retired_rim_piece_is_offered_its_joined_edge() {
                 node: m,
                 path: vec![RoleSeg::RimEdge(
                     CapEnd::End,
-                    crate::fixture::piece(&docx, m, 0, 2),
+                    crate::fixture::piece(&docx, m, 0, 2).into(),
                 )],
             },
             EntityKind::Edge,
@@ -555,7 +555,7 @@ fn partial_overlaps_name_each_joined_edge_for_the_rims_it_runs_along() {
             node: ids[2],
             path: vec![RoleSeg::RimEdge(
                 CapEnd::End,
-                crate::fixture::piece(&docx, ids[2], 0, 0),
+                crate::fixture::piece(&docx, ids[2], 0, 0).into(),
             )],
         },
         EntityKind::Edge,

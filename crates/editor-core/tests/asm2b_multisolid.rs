@@ -64,6 +64,7 @@ fn assembly(label: &str, refs: &[DocRef], spacing: f64) -> (ProfileDoc, Vec<Reci
                     offset: Some(editor_core::Placement::literal(&Frame::translation([
                         dx, 0.0, 0.0,
                     ]))),
+                    fresh: Vec::new(),
                 },
             );
             doc = next;
@@ -306,6 +307,7 @@ fn row4_a_placement_moves_every_solid_of_a_multi_solid_instance() {
             offset: Some(editor_core::Placement::literal(&Frame::translation([
                 7.0, 0.0, 0.0,
             ]))),
+            fresh: Vec::new(),
         },
     );
     assert_ne!(
@@ -381,7 +383,9 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// the mint gives the part's nodes or steps other ids; the VOLUME bits
 /// and the solid count beside it are id-free, which is the half of this
 /// row that is about geometry.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 255_888_501_987_147_043;
+/// INTENT-LITERALS PR C moved it — a node's id is minted from slots
+/// holding variable ids — and only it.
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 4_372_370_098_487_289_317;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]

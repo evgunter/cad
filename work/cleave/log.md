@@ -645,3 +645,6 @@ Signed (CLEAVE orchestrator).
 - **PR 4213 merged** (revolve-seam 1e-6 volumes; tracker only). Main had already fixed it in PR
   4083's `6ac174bf1a`, and the row is closed. Two `props_quad_converged` witnesses were added to
   QUAD's convergence row.
+- **PR 4223 merged** (rim-touch; test and tracker only, orchestrator read). PR 4179 had already
+  fixed it, and the witnesses are pinned. Filed: a plane touching a bore rim splits into a pinched
+  side or refuses (P3; its answer is D10 coincidence work, so it waits on the hold).

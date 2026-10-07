@@ -317,7 +317,7 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     ));
     *session
         .committed_doc()
-        .order()
+        .ids()
         .last()
         .expect("the insert landed")
 }

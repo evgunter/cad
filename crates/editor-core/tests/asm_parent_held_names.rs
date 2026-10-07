@@ -166,13 +166,14 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
                     .unwrap(),
             ],
             ids: vec![ids],
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,
     )
     .unwrap();
     assert_eq!(
-        reshaped.maintenance,
+        crate::fixture::without_anonymous(&reshaped.maintenance),
         Vec::new(),
         "a reshaping that keeps every step has nothing to report"
     );
@@ -221,7 +222,11 @@ fn a_parents_held_name_follows_its_step_across_a_pin_update() {
         !after.contains(&(2.0, 0.0, 0.0)),
         "and never the inserted leg (2,0)→(3,1): {after:?}"
     );
-    assert_eq!(updated.maintenance, Vec::new(), "nothing is reported");
+    assert_eq!(
+        crate::fixture::without_anonymous(&updated.maintenance),
+        Vec::new(),
+        "nothing is reported"
+    );
 }
 
 /// The part's profile step ids, loop 0.
@@ -249,6 +254,7 @@ fn with_leg(base: &ProfileDoc, profile: RecipeNodeId, at: usize, corner: (f64, f
             node: profile,
             loops: vec![LoopProgram::polygon(corners).unwrap()],
             ids: vec![ids],
+            fresh: Vec::new(),
         },
         tol(),
         &editor_core::RefusingReach,
@@ -344,7 +350,7 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
     )
     .unwrap();
     assert_eq!(
-        updated.maintenance,
+        crate::fixture::without_anonymous(&updated.maintenance),
         Vec::new(),
         "the storeless update reads neither version and reports nothing"
     );

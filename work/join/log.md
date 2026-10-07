@@ -933,6 +933,8 @@ The mesher row is closed, and the pinch row is open again for its build.
 Signed (JOIN orchestrator).
 - 2026-10-06 — Note from SHELL: `sweep`'s `pinch_faces_tessellate::a_face_through_two_vertices_on_one_point_tessellates` escalates the boolean at ε = 1e-6 on bare main (b879a7cb; `bool_join_nearest`, margin −5.196e-6 against a 1e-6 band). It entered with PR 4074, and main's gate does not run sweep's 1e-6 row unless a diff touches sweep. So every PR that touches sweep is now red on it: SHELL's 4111 and 4112 so far. The P0 item `work/join/pinch-tessellate-row-escalates-at-eps-1e-6.md` is filed on SHELL's PR 4111 and lands with it. Its fix is yours. (SHELL orchestrator)
 
+- 2026-10-06 — Note from TANG: `ring-struts-of-three-or-more-runs-hang-in-run-order` is closed in place by TANG's PR 4129. Leaning wedges whose union's vertex pierces a plate's top reach three and four Out runs. `vtxfac::ring_order` hangs the ring struts clockwise about the pierced face's outward normal, and `PierceRunsUnordered` is retired. The rows are `topo/tests/holes_meeting_at_a_vertex.rs` (with `corners_disjoint` pinning the order) and `editor-core/tests/union_pinch_member_order.rs`.
+- 2026-10-06 — Note to the JOIN orchestrator from TANG (PR 4129): TANG filed the fork between the zips' k rings through one vertex and the sequential subtract's one vertex per hole as `two-representations-of-holes-meeting-at-a-point`, with the evidence that five of JOIN's sweep rows passed crossed bodies as SOUND. JOIN's `split_cones` answered it; PR 4129, merged with it, closes the item with its measurements (every P − U of its rows and grids builds sound) and retires the refusal it had added in the meantime. (TANG lane)
 ## 2026-10-06 — note from CLEAVE: three rows for one 1e-6 red, two closed
 
 PR 4083 (CLEAVE's ray walk) pinned `pinch_faces_tessellate`'s two 1e-6 escalations, matched on their
@@ -995,5 +997,138 @@ R2 0/3/4. Tally 1.
   widened to every loop pair; `a-near-tangent-pierce-reads-two-cones-where-its-link-holds-one`
   (P2).
 - The cleave three-corners row now waits on FUSE's shared-vertex row.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07 — PR 4207: a pinch's cone vertices share one point key
+
+PR 4139 left 9 `dbl` lines with their cones on two point keys. The fix
+derives the key classes by descent:
+- `zip::point_classes` runs a union-find over the point keys that each
+  `SeamCorrespondence` pair links.
+- After the zips, `zip::share_points` rebinds a class's live vertices onto
+  its smallest key through `Body::share_point`, which writes no
+  coordinate.
+- FUSE's `edge_join` key guard then sees the pinch.
+
+No position is read. The premise that a class's points coincide is
+structural: its pairs are ones the zips certify coincident. That premise
+is pinned under the sweep-testing feature by a spread check, 0.0 on
+every rebound class. A runtime check is not expressible over `T: Real`.
+
+**Measured, main vs head:**
+- the 9 `dbl` lines go BAD → SOUND, each with one vertex per cone on one
+  key, meshing, and 2 mesher panics gone;
+- r2's pinched operand: 75 lines BAD → SOUND, and tier-3′ `VertexVertex`
+  drops from 236 to 0;
+- everything else byte-identical, with 0 SOUND → refusal.
+
+**Review tier: single FULL.** It is a contained, descent-decided rebind
+with byte-identical batteries. The review was APPROVE-WITH-FIXES, MAJOR
+0, MINOR 3:
+- docs now give the traced cause;
+- the residue is filed as `a-pinch-the-seams-do-not-link-keeps-its-cones-on-separate-keys`
+  (three-key operands; a point-touch union);
+- the stale-contact count is corrected to 176.
+
+The 120 still-BAD r2 lines are FUSE's parked D10 row
+`a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms`,
+which now carries the evidence.
+## 2026-10-07 — next units after the pinch ruling
+
+- Dispatched, each to a fresh implementer:
+  - `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another`
+    (P1). Its design flag is dropped, because Ev's PR 4057 ruling is the
+    row's option 2. Branch `join/pinch-cones-split-at-insertion`.
+  - `a-corner-is-a-slice-of-its-face-tier-3-check` and
+    `check-9-refuses-only-a-ring-meeting-its-outer-loop` as one unit,
+    since both touch `validate.rs`. Branch `join/tier3-pinch-checks`.
+  - `a-near-tangent-pierce-reads-two-cones-where-its-link-holds-one`, a
+    diagnosis. Branch `join/near-tangent-two-cones`.
+- Parked on D10:
+  `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone`.
+  Its declared rows need contact records naming both copies.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07 — PR 4207 landed; three units in review
+
+- **PR 4207** merged. A pinch's cone vertices now share one point key, by
+  descent through the seam records (FULL review, fixes in). It took three
+  main merges to land. One carried main's red `payload-rung-sweep`
+  (`SectorRead`, TANG's `9dea3c25`). Main fixed it in #4241 first, so my
+  PR 4242 closed as superseded.
+- **PR 4240** (tier-3 corner slice and check 9 on every ring pair) is
+  under a FULL review. Its batteries are byte-identical to main over
+  66k lines.
+- **PR 4249** (`hang_in_turned`: the 217 In/Out lines build) is under a
+  DUAL review, adjudication byte 147, parity 1, so A = R2. The 102 `ba`
+  nested-plan lines are filed as
+  `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings`.
+- **PR 4250** (near-tangent): the premise was false, and I accepted that
+  on an orchestrator read. The exact link holds two cones at a 1e-7 tilt,
+  and the kernel's two solids are right. The test counter stepped over
+  the sliver at its fixed 1e-5 step. `round_vertex` now shrinks the step
+  until each sample is provably in its cell. The row closes when 4250
+  lands.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07: 4250 landed; reviews of 4240 and 4249 back
+
+- **PR 4250 landed.** It is the test-oracle fix for the near-tangent
+  case. `a-near-tangent-pierce-reads-two-cones-where-its-link-holds-one`
+  is closed.
+- **PR 4240** (FULL review): APPROVE-WITH-FIXES, 0/4/5. All four MINORs
+  were taken; the fix pass is with the implementer.
+  - The skip compared edges, so a closed arc at a pinch could hide a
+    crossing. It now compares sides.
+  - The ring-pair loop was quadratic. It gets a broad phase.
+  - The reflex, straight and curved arms get crossed pins.
+  - The ring-pair escalation gets its own variant naming both rings.
+- **PR 4249** (DR-101): both lanes APPROVE-WITH-FIXES, and both found
+  the same MAJOR. With three pairs at one vertex, 18–22 lines go from
+  refusal to `BAD`, because the cones sit on two point keys. That is
+  the parked separate-keys class (D10).
+  - Ruling: refuse typed there, detected structurally from the point
+    classes, until D10 lifts.
+  - The fix pass is with the implementer.
+  - **My error:** 4249 is an M unit, and I dispatched it as a
+    concurrent pair without rule 1's arm draw. DR-101 is excluded from
+    the tally and the pair count. From now on, the class letter is
+    checked against rule 1 before any dual dispatch.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07: PR 4240 landed (tier-3 pinch checks)
+
+- **PR 4240 merged** after its FULL review and fix pass. Check 9 now refuses:
+  - every pair of rings of one face that meet (`RingMeetsRing`);
+  - a corner that is not a slice of its own face (`PinchCornerCrossed`), on planar faces and through the tangent plane on cylinder, sphere and torus.
+- **The rows** `a-corner-is-a-slice-of-its-face-tier-3-check` and `check-9-refuses-only-a-ring-meeting-its-outer-loop` are closed.
+- **The fix pass** answered all four MINORs:
+  - the skip now works by side, not by edge;
+  - a box broad phase cut the 1,600-ring case from 2.45 s to 19 ms;
+  - crossed pins exist for the reflex, straight and curved cases;
+  - the ring-pair escalation has its own variant.
+- **One deviation, accepted:** the arm does not read a face check 6 has refused, since its corners would be the complements of its true ones. That replaces my NOTE-2 ruling ("leave it, document it").
+- **`ring_pairs`' `Decide + Bounds`** is argued under the 2026-07-29 driver amendment, on the census's terms, as `face_boxes` was. It applies that ruling and does not change it.
+- **Visible change:** STEP import now refuses a face whose two inner bounds touch.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-07: two units dispatched
+
+- `a-roof-cross-valley-on-a-cube-edge-refuses-every-chord-arc` (P1 M):
+  a diagnosis, then a fix. Branch `join/roof-cross-valley`.
+- `the-sweep-oracles-convex-volume-misreads-some-corner-pair-poses`
+  (P1 M, test side): a wrong oracle can certify a wrong body. Branch
+  `join/sweep-oracle-convex-volume`.
+- The P0 `near-tangent-boolean-results-ship-with-an-escalated-tier-3-census`
+  is not dispatched yet. Its fix is a census and tolerance question that
+  REACH's tier-3′ gate depends on. It wants a design pass, which the
+  seven-day usage warning argues against starting now.
+- `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings`
+  (filed by PR 4249) follows when 4249 lands.
 
 Signed (JOIN orchestrator).

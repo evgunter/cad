@@ -21,7 +21,8 @@
 //! [`ContactRefusal`] and [`ContainError`]; every `CertifyError`,
 //! [`PcurveMintError`], [`MassPropsError`], `OffsetFitError` and
 //! [`BandError`]; every margin shape an [`Indeterminate`] renders;
-//! every [`CensusContact`], [`StaleDeclaration`] and [`RingContact`];
+//! every [`CensusContact`], [`StaleDeclaration`], [`RingContact`] and
+//! [`RingPairContact`];
 //! and every [`Undecided`] reason, which is every `what` the
 //! cross-solid backstop can raise. One level further in, the enums
 //! `PcurveMintError::Certify`, `MassPropsError::Face` and
@@ -57,8 +58,8 @@ use crate::geometry::{CurveKey, PointKey};
 use crate::pcurves::PcurveMintError;
 use crate::props::MassPropsError;
 use crate::validate::{
-    CensusContact, CensusSubject, CensusUnsupportedCause, RingContact, StaleDeclaration,
-    ValidationError, WedgeCheck,
+    CensusContact, CensusSubject, CensusUnsupportedCause, RingContact, RingPairContact,
+    StaleDeclaration, ValidationError, WedgeCheck,
 };
 
 fn band() -> Band {
@@ -373,7 +374,7 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::Unimplemented,
         CertifyError::NurbsLaneNotSupplied,
         CertifyError::IntersectionSameSurface { key },
-        CertifyError::SeamOnNonPeriodic,
+        CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
         // and a span of no length, which none does.
         CertifyError::IntervalNotForward {
@@ -427,8 +428,13 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         },
         PcurveCertifyError::UnsupportedCarrier {
             chart: geom::SurfaceKind::Torus,
+            carrier: geom::CurveKind::Nurbs,
+            class: geom_brep::UncoveredClass::SplineCarrier,
+        },
+        PcurveCertifyError::CarrierGrazesChart {
+            chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,
-            class: geom_brep::UncoveredClass::TorusGeneralCircle,
+            grazer: geom_brep::Grazer::TorusCircle,
         },
         PcurveCertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
@@ -462,12 +468,12 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::ChartWindingUnsupported,
         PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
+        PcurveCertifyError::TubePeriodExceeded,
         PcurveCertifyError::BranchOutOfReach,
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
             sample: 4,
         },
-        PcurveCertifyError::TrimEscape,
         PcurveCertifyError::Escalated {
             check: PcurveCheck::Envelope,
             sample: 4,
@@ -492,6 +498,11 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
         PcurveMintError::LoopDiscontinuity { half_edge },
         PcurveMintError::LoopNotClosed { face },
         PcurveMintError::SingularChartJoint {
+            face,
+            r#loop,
+            half_edge,
+        },
+        PcurveMintError::JointWithoutRoom {
             face,
             r#loop,
             half_edge,
@@ -794,6 +805,36 @@ fn ring_contacts() -> Vec<RingContact> {
     ]
 }
 
+fn ring_pair_contacts() -> Vec<RingPairContact> {
+    let (vertex, edge, r#loop) = (VertexKey::default(), EdgeKey::default(), LoopKey::default());
+    vec![
+        RingPairContact::Vertex {
+            ring_vertex: vertex,
+            other_vertex: vertex,
+        },
+        RingPairContact::VertexOnEdge {
+            ring_vertex: vertex,
+            other_edge: edge,
+        },
+        RingPairContact::Edge {
+            ring_edge: edge,
+            other_edge: edge,
+        },
+        RingPairContact::OtherVertexOnEdge {
+            other_vertex: vertex,
+            ring_edge: edge,
+        },
+        RingPairContact::Circles {
+            ring_loop: r#loop,
+            other_loop: r#loop,
+        },
+        RingPairContact::EdgesMeet {
+            ring_edge: edge,
+            other_edge: edge,
+        },
+    ]
+}
+
 /// `arm/Variant`, the variant read off the nested value's `Debug`.
 fn label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
     let debug = format!("{nested:?}");
@@ -990,6 +1031,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ring: loop_,
             ring_vertex: vertex,
         },
+        ValidationError::PinchCornerCrossed { face, vertex, edge },
         ValidationError::CensusLaneUnsupported { subject: pair },
         ValidationError::InstanceInterference {
             outer: solid,
@@ -1100,6 +1142,23 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 },
             ),
             (
+                "RingPairContactEscalated",
+                ValidationError::RingPairContactEscalated {
+                    face,
+                    ring: loop_,
+                    other: loop_,
+                    source: cause,
+                },
+            ),
+            (
+                "PinchCornerEscalated",
+                ValidationError::PinchCornerEscalated {
+                    face,
+                    vertex,
+                    source: cause,
+                },
+            ),
+            (
                 "CensusEscalated",
                 ValidationError::CensusEscalated { cause },
             ),
@@ -1138,6 +1197,17 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ValidationError::RingMeetsOuter {
                 face,
                 ring: loop_,
+                contact,
+            },
+        ));
+    }
+    for contact in ring_pair_contacts() {
+        s.push((
+            label("RingMeetsRing", &contact),
+            ValidationError::RingMeetsRing {
+                face,
+                ring: loop_,
+                other: loop_,
                 contact,
             },
         ));
@@ -1321,7 +1391,8 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     use crate::pcurves::PcurveMintErrorKind;
     use crate::props::MassPropsErrorKind;
     use crate::validate::{
-        CensusContactKind, CensusUnsupportedCauseKind, RingContactKind, StaleDeclarationKind,
+        CensusContactKind, CensusUnsupportedCauseKind, RingContactKind, RingPairContactKind,
+        StaleDeclarationKind,
     };
     use geom_brep::certify::CertifyErrorKind;
     use geom_brep::edge_nurbs::PlaneNurbsRefusalKind;
@@ -1412,5 +1483,9 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         &stale_declarations(),
     ));
     out.extend(gaps::<_, RingContactKind>("RingContact", &ring_contacts()));
+    out.extend(gaps::<_, RingPairContactKind>(
+        "RingPairContact",
+        &ring_pair_contacts(),
+    ));
     out
 }

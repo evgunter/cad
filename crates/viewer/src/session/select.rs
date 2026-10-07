@@ -466,11 +466,11 @@ mod tests {
     #[test]
     fn a_vanished_node_or_parameter_is_actionable_and_a_present_one_is_not() {
         let node = |present| Standing::Node {
-            node: RecipeNodeId(3),
+            node: RecipeNodeId::new(0, 3),
             present,
         };
         let param = |present| Standing::Param {
-            var: SpokenVar::new(VarId(7), Some(VarName::from_static("thickness"))),
+            var: SpokenVar::new(VarId::new(0, 7), Some(VarName::from_static("thickness"))),
             present,
         };
         assert_eq!(node(false).tone(), Tone::Actionable);

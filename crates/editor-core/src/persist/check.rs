@@ -43,7 +43,7 @@ use crate::edit::DocEdit;
 use crate::expr::Expr;
 use crate::meta::MetaVersionError;
 use crate::node::SlotId;
-use crate::node::{AssertionBoundFault, Node, RecipeNodeId, SlotDimensionFault};
+use crate::node::{AssertionBoundFault, Node, RecipeNodeId};
 use crate::placement::{FrameFault, FrameSite};
 use crate::program::{ProfileDoc, ProfileProgram, ProgramRefusal};
 use crate::resolve::derivation_nodes;
@@ -174,7 +174,8 @@ pub(crate) enum Walk {
     /// payload is `pub` and its dimension is data. Snapshot only.
     DisplayUnit,
     /// [`first_var_fault`] over the variable table (VARIABLES-DESIGN
-    /// VR1–VR3): every variable's stored kind is its definition's,
+    /// VR1–VR3): the mint log it asks counts up from one, every
+    /// variable's stored kind is its definition's,
     /// every id is logged in the mint as a variable's, every name sits
     /// on a live variable, and no name is held twice. Snapshot only.
     Vars,
@@ -191,13 +192,6 @@ pub(crate) enum Walk {
     /// After the read walk, so a cycle is a cycle of live variables.
     /// Snapshot only.
     DefinitionCycle,
-    /// [`first_slot_fault`] over every node's slots: every node's SLOT
-    /// expressions carry the dimension their addresses fix (spec D6),
-    /// by the same `Node::slot_dimension_fault` the edit doors ask.
-    /// EVERY node kind — a walk that asked profile programs alone
-    /// admitted a retyped extrude distance the edit door refuses.
-    /// Snapshot only.
-    SlotDimension,
     /// [`first_slot_read_fault`] over every slot expression's readers,
     /// by the same `Doc::var_read_faults` the edit doors ask: a reader
     /// names a minted variable, and a live one at its kind. A reader of
@@ -224,8 +218,7 @@ pub(crate) enum Walk {
     /// produces them). Resolve failures and geometry refusals PASS this
     /// door (V1 class 2: refusing programs may exist at rest — they
     /// surface as typed node errors at evaluation). A step argument's
-    /// dimension is [`Walk::SlotDimension`]'s, not a second spelling
-    /// here.
+    /// kind is [`Walk::SlotRead`]'s, not a second spelling here.
     Program,
     /// [`validate_snapshot`] over the document's structural invariants
     /// — the ones `apply` maintains, re-checked because a parsed
@@ -247,19 +240,18 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 12] = [
+    pub(crate) const ORDER: [Walk; 11] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
         Walk::Vars,
         Walk::DefinitionRead,
         Walk::DefinitionCycle,
-        Walk::SlotDimension,
         Walk::SlotRead,
         Walk::PayloadRead,
-        Walk::AnonymousVar,
         Walk::Program,
         Walk::Snapshot,
+        Walk::AnonymousVar,
     ];
 
     /// **This walk over one document**, or `None` when it finds
@@ -297,8 +289,6 @@ impl Walk {
             Walk::DefinitionCycle => {
                 first_definition_cycle(snapshot).map(super::PersistError::Snapshot)
             }
-            Walk::SlotDimension => first_slot_fault(snapshot)
-                .map(|(node, fault)| slot_refusal(snapshot.spoken(node), fault)),
             Walk::SlotRead => first_slot_read_fault(snapshot).map(|(node, slot, fault)| {
                 read_refusal(
                     snapshot,
@@ -344,11 +334,8 @@ impl Walk {
 /// **Which adjacencies are contracts, and which are free.** A walk's
 /// position is load-bearing exactly when some document is broken in
 /// both its subject and its neighbour's, so that moving it re-diagnoses
-/// that document. Three are, each with the row that says so:
+/// that document. These are, each with the row that says so:
 ///
-/// - [`Walk::SlotDimension`] before [`Walk::SlotRead`] — a slot
-///   expression can be retyped AND read a variable at the wrong kind,
-///   and the slot's own address is the more specific answer.
 /// - [`Walk::SlotRead`] before [`Walk::PayloadRead`]
 ///   (`load_door_payload_param_ref::a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal`).
 /// - Both read walks before [`Walk::Snapshot`]
@@ -357,6 +344,13 @@ impl Walk {
 ///   for the slot half): a node can carry a broken param reference AND
 ///   a structurally invalid shape, and the param-table answer names the
 ///   parameter while the structural one does not.
+///
+/// [`Walk::AnonymousVar`] comes last: whether a variable is read is a
+/// question about the readers, so it is asked once every reader is
+/// known to be well-formed — a slot a structurally broken node no
+/// longer addresses leaves its variable unread, and the structural
+/// fault is the answer
+/// (`rv_payloadrefs_probes::rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref`).
 ///
 /// The slot walks before [`Walk::Program`] is a contract of the same
 /// kind with a different reason: the program walk PROBES the replay, so
@@ -381,21 +375,6 @@ pub(crate) fn validate_document(
         }
     }
     Ok(())
-}
-
-/// The slot walk's answer, in the load door's vocabulary.
-fn slot_refusal(node: SpokenNode, fault: SlotDimensionFault) -> super::PersistError {
-    let SlotDimensionFault {
-        slot,
-        expected,
-        found,
-    } = fault;
-    super::PersistError::Snapshot(SnapshotError::SlotDimension {
-        node,
-        slot,
-        expected,
-        found,
-    })
 }
 
 /// **Where a read fault was found** — the ONE thing the two read walks
@@ -513,6 +492,12 @@ fn free_vars(snapshot: &ProfileDoc) -> impl Iterator<Item = (VarId, &FreeVar)> {
 /// twice. The names are walked by id, so the pair a twice-held name
 /// reports is the two lowest ids holding it.
 fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    // The mint log first, since `has_var` below asks it: its ordinals
+    // count up from one, the only log a mint writes. The structural walk asks
+    // it again for a snapshot checked alone (`validate_snapshot`).
+    if let Some(entry) = snapshot.mint.out_of_order() {
+        return Some(SnapshotError::MintLogOrder { entry });
+    }
     for (&id, var) in &snapshot.vars {
         if !var.kind_holds() {
             return Some(SnapshotError::VarKind {
@@ -526,15 +511,6 @@ fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                 var: snapshot.spoken_var(id),
             });
         }
-    }
-    // The declaration order is a permutation of the table: every live
-    // variable once, and nothing else.
-    let listed: std::collections::BTreeSet<VarId> = snapshot.var_order.iter().copied().collect();
-    if listed.len() != snapshot.var_order.len()
-        || listed.len() != snapshot.vars.len()
-        || !snapshot.vars.keys().all(|id| listed.contains(id))
-    {
-        return Some(SnapshotError::VarOrderMismatch);
     }
     let mut held: std::collections::BTreeMap<&VarName, VarId> = std::collections::BTreeMap::new();
     for (&id, name) in &snapshot.var_names {
@@ -559,8 +535,8 @@ fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 /// The first defined variable, in declaration order, whose definition
 /// reads what no door could have written ([`Walk::DefinitionRead`]).
 fn first_definition_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
-    snapshot.var_order.iter().find_map(|&id| {
-        let expr = snapshot.vars.get(&id)?.def().defined()?;
+    snapshot.vars.iter().find_map(|(&id, var)| {
+        let expr = var.def().defined()?;
         let var = snapshot.spoken_var(id);
         snapshot
             .var_read_faults(expr)
@@ -609,21 +585,6 @@ fn first_definition_cycle(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     })
 }
 
-/// The first node whose slots break spec D6's rule, by the ONE
-/// predicate the edit doors ask ([`Node::slot_dimension_fault`]) — so
-/// a file can carry no slot expression an edit door would have
-/// refused, whatever the node kind.
-///
-/// EVERY node kind, which is the whole point: a walk that asked only
-/// profile programs admitted a retyped extrude distance, a fillet
-/// radius that counts and a dimensionless datum origin.
-fn first_slot_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotDimensionFault)> {
-    snapshot
-        .nodes
-        .iter()
-        .find_map(|(&id, node)| Some((id, node.slot_dimension_fault()?)))
-}
-
 /// The first slot expression with a reader this door refuses, by the
 /// ONE predicate the edit doors ask ([`crate::Doc::var_read_faults`]).
 ///
@@ -635,9 +596,10 @@ fn first_slot_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotDimensio
 /// the document itself.
 fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId, VarReadFault)> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
-        node.rows()
-            .into_iter()
-            .find_map(|(slot, expr)| Some((id, slot, refused_read(snapshot, expr)?)))
+        node.rows().into_iter().find_map(|(slot, &var)| {
+            let reader = Expr::var(var, slot.dimension());
+            Some((id, slot, refused_read(snapshot, &reader)?))
+        })
     })
 }
 
@@ -664,10 +626,10 @@ fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId,
 /// is the row that pins that.
 fn first_payload_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, VarReadFault)> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
-        crate::node::payload_exprs(node)
+        node.payload_reads(snapshot)
             .into_iter()
             .flatten()
-            .find_map(|expr| Some((id, refused_read(snapshot, expr)?)))
+            .find_map(|(var, dim)| Some((id, refused_read(snapshot, &Expr::var(var, dim))?)))
     })
 }
 
@@ -774,6 +736,7 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         DocEdit::DefineVar {
             var,
             def: crate::var::VarDecl::Free(value),
+            ..
         } => param_site(var.clone(), value),
         // The value door carries no distribution of its own — the
         // declaration it writes into supplies that — but its
@@ -901,9 +864,6 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
 /// the same four names.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SnapshotError {
-    /// `order` and the node map disagree (missing, extra, or
-    /// duplicated ids).
-    OrderMismatch,
     /// A node id the mint log does not hold as a node's appears in
     /// the document — one the document never minted.
     NodeNotMinted {
@@ -920,10 +880,11 @@ pub enum SnapshotError {
         /// What is wrong.
         fault: crate::program::StepIdFault,
     },
-    /// The mint's log is not strictly ascending by id: an id logged
-    /// twice, or out of order — a log no mint wrote.
+    /// The mint's log does not count up from one: an entry's ordinal
+    /// is not its place in the log (a repeat, a step down or a gap) —
+    /// a log no mint wrote.
     MintLogOrder {
-        /// The first entry not greater than the one before it.
+        /// The first entry whose ordinal is not its place in the log.
         entry: crate::Minted,
     },
     /// A name the document holds spells a profile step its mint log
@@ -968,9 +929,12 @@ pub enum SnapshotError {
         /// The missing input.
         input: SpokenNode,
     },
-    /// A node's input ref does not precede it in `order` (insertion
-    /// order is topological by construction — a forward ref means a
-    /// tampered file, and possibly a cycle).
+    /// A node's input ref does not precede it in id order (insertion
+    /// order is topological by construction, and ids order as inserted
+    /// — a forward ref means a tampered file, and possibly a cycle).
+    /// **Except** a union [`crate::DocEdit::SetMembers`] gave a member
+    /// minted after it: the edit door accepts that and this refuses its
+    /// save (`work/doors/a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break.md`).
     ForwardInput {
         /// The referring node.
         node: SpokenNode,
@@ -1012,9 +976,6 @@ pub enum SnapshotError {
         /// The variable.
         var: SpokenVar,
     },
-    /// The variables' declaration order is not a permutation of the
-    /// variable table (a missing, repeated or dead id).
-    VarOrderMismatch,
     /// A name attached to a variable id that names nothing live.
     NameOnMissingVar {
         /// The id the name is attached to.
@@ -1108,23 +1069,6 @@ pub enum SnapshotError {
         node: SpokenNode,
         /// What is wrong with it.
         fault: crate::node::PlacementRuleFault,
-    },
-    /// A node whose SLOT expression is of another dimension than the
-    /// slot address fixes (spec D6, [`crate::SlotId::dimension`]), for
-    /// any node kind — a profile step's argument, an extrude's
-    /// distance, a datum's coordinate. The edit doors refuse it
-    /// through the same predicate (`Node::slot_dimension_fault`), so a
-    /// file carrying one is data the edit doors could not have
-    /// produced.
-    SlotDimension {
-        /// The offending node.
-        node: SpokenNode,
-        /// The offending slot.
-        slot: SlotId,
-        /// The dimension the address fixes.
-        expected: crate::expr::Dimension,
-        /// The expression's dimension.
-        found: crate::expr::Dimension,
     },
     /// A node reading a variable id this document never minted. A
     /// deleted variable's reader is legal (its id is in the mint log);
@@ -1340,10 +1284,6 @@ fn frame_refusal(
 impl core::fmt::Display for SnapshotError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::OrderMismatch => f.write_str(
-                "the `order` list and the node map disagree — an id is missing, extra or \
-                 duplicated",
-            ),
             Self::NodeNotMinted { id } => write!(
                 f,
                 "{id} is not in the document's mint log — the document never minted it",
@@ -1351,8 +1291,8 @@ impl core::fmt::Display for SnapshotError {
             Self::StepIds { node, fault } => write!(f, "{node}'s step ids: {fault}"),
             Self::MintLogOrder { entry } => write!(
                 f,
-                "the mint's log is not strictly ascending at {entry} — an id logged twice or out \
-                 of order, which no mint writes. {}",
+                "the mint's log does not count up from one at {entry} — its ordinal is not its \
+                 place in the log (a repeat, a step down or a gap), which no mint writes. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
             Self::NameStepNotMinted { name, step } => write!(
@@ -1377,7 +1317,7 @@ impl core::fmt::Display for SnapshotError {
             }
             Self::ForwardInput { node, input } => write!(
                 f,
-                "{node} takes input from {input}, which does not precede it in `order`"
+                "{node} takes input from {input}, which was not inserted before it"
             ),
             Self::DuplicateInput { node, input } => {
                 write!(f, "{node}: ")?;
@@ -1400,9 +1340,6 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "{var} is not in the document's mint log — the document never \
                  minted it"
-            ),
-            Self::VarOrderMismatch => f.write_str(
-                "the variables' declaration order does not list every variable exactly once",
             ),
             Self::AnonymousVarUnread { var } => write!(
                 f,
@@ -1487,26 +1424,6 @@ impl core::fmt::Display for SnapshotError {
                 "{node}'s alignment datum carries a non-finite coordinate"
             ),
             Self::PlacementRule { node, fault } => write!(f, "{node}: {fault}"),
-            // The rule's own clause (`SlotDimensionFault`), forwarded
-            // into this door's subject. Every slot address alike,
-            // including a program step's: `SlotId::label` is where an
-            // address is put into words, so a reader who sees
-            // "loop 0 step 2 · centre x" from the edit door sees the
-            // same address here.
-            Self::SlotDimension {
-                node,
-                slot,
-                expected,
-                found,
-            } => write!(
-                f,
-                "{node}: {}",
-                crate::node::SlotDimensionFault {
-                    slot: *slot,
-                    expected: *expected,
-                    found: *found
-                }
-            ),
             Self::ReaderOfUnmintedVar { node, var } => write!(
                 f,
                 "{node} reads variable {var}, which this document never minted"
@@ -1569,17 +1486,6 @@ impl core::fmt::Display for SnapshotError {
 /// Re-checks the document invariants `apply` maintains — on a parsed
 /// snapshot (load) and on the in-memory snapshot (save) alike.
 fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
-    // order ↔ nodes agreement (and no duplicates: equal lengths plus
-    // every order id resolving implies a bijection on a BTreeMap).
-    let mut position = std::collections::BTreeMap::new();
-    for (i, &id) in doc.order.iter().enumerate() {
-        if !doc.nodes.contains_key(&id) || position.insert(id, i).is_some() {
-            return Err(SnapshotError::OrderMismatch);
-        }
-    }
-    if position.len() != doc.nodes.len() {
-        return Err(SnapshotError::OrderMismatch);
-    }
     // The recorded ε, by the same `doc::epsilon_admissible` the edit
     // door asks before it records one.
     if !crate::doc::epsilon_admissible(doc.epsilon) {
@@ -1594,8 +1500,8 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
             Ok(())
         }
     };
-    // The mint log first, since every check below asks it: strictly
-    // ascending, the only log a mint writes.
+    // The mint log first, since every check below asks it: its ordinals
+    // count up from one, the only log a mint writes.
     if let Some(entry) = doc.mint.out_of_order() {
         return Err(SnapshotError::MintLogOrder { entry });
     }
@@ -1641,7 +1547,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
                     input: doc.spoken(input),
                 });
             }
-            if position.get(&input) >= position.get(&id) {
+            if input >= id {
                 return Err(SnapshotError::ForwardInput {
                     node: doc.spoken(id),
                     input: doc.spoken(input),
@@ -1803,14 +1709,11 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // — for a Boolean, whose operands never change — a site that is one
     // of its operands. A union's sites are not judged here: a later
     // `SetMembers` may have stranded one, which loads.
-    for (index, &id) in doc.order.iter().enumerate() {
-        let Some(node) = doc.nodes.get(&id) else {
-            continue;
-        };
+    for (&id, node) in &doc.nodes {
         let operands = node.inputs();
         let sites = matches!(node, Node::Boolean { .. }).then_some(operands.as_slice());
-        match crate::node::declared_side_fault(node.declared_pairs(), sites, Some(index), |n| {
-            position.get(&n).copied()
+        match crate::node::declared_side_fault(node.declared_pairs(), sites, Some(id), |n| {
+            doc.nodes.contains_key(&n)
         }) {
             None => {}
             Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
@@ -1886,11 +1789,10 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
 /// bug can also build one; both doors refuse with the same
 /// diagnostics.
 ///
-/// A wrong-dimension ARGUMENT is not here. A program slot is a slot
-/// like any other, so it is decided by the document-wide slot walk
-/// ([`SnapshotError::SlotDimension`], `Node::slot_dimension_fault`)
-/// that the edit doors ask too, rather than by a second spelling that
-/// reached profile nodes alone.
+/// A wrong-kind ARGUMENT is not here. A program slot is a slot like
+/// any other, so it is decided by the document-wide slot read walk
+/// ([`SnapshotError::SlotVarKind`]) that the edit doors ask too, rather
+/// than by a second spelling that reached profile nodes alone.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProgramFault {
     /// The program is not a legal lattice walk (LIB-SWITCH §4h: the
@@ -2008,7 +1910,6 @@ mod tests {
             Vars,
             DefinitionRead,
             DefinitionCycle,
-            SlotDimension,
             SlotRead,
             PayloadRead,
             AnonymousVar,
@@ -2029,7 +1930,6 @@ mod tests {
             Walk::Vars
             | Walk::DefinitionRead
             | Walk::DefinitionCycle
-            | Walk::SlotDimension
             | Walk::SlotRead
             | Walk::PayloadRead
             | Walk::AnonymousVar
@@ -2043,7 +1943,6 @@ mod tests {
         /// census below. See [`test_utils::f6::VariantCensus`] for what
         /// that weld does and does not buy.
         const SNAPSHOT_ERROR: SnapshotError = [
-            OrderMismatch,
             NodeNotMinted,
             StepIds,
             MintLogOrder,
@@ -2057,10 +1956,8 @@ mod tests {
             LabelOnMissingNode,
             VarKind,
             VarNotMinted,
-            VarOrderMismatch,
             NameOnMissingVar,
             VarNameTwice,
-            SlotDimension,
             ReaderOfUnmintedVar,
             SlotVarKind,
             PayloadVarKind,
@@ -2094,12 +1991,13 @@ mod tests {
         match err {
             // `validate_document` itself, from the expression walks it
             // maps into this vocabulary.
+            // `MintLogOrder`: both this walk and the structural one
+            // raise it; this one runs first.
             SnapshotError::VarKind { .. }
+            | SnapshotError::MintLogOrder { .. }
             | SnapshotError::VarNotMinted { .. }
-            | SnapshotError::VarOrderMismatch
             | SnapshotError::NameOnMissingVar { .. }
             | SnapshotError::VarNameTwice { .. } => Walk::Vars,
-            SnapshotError::SlotDimension { .. } => Walk::SlotDimension,
             // Both read walks raise it; the slot walk runs first.
             SnapshotError::ReaderOfUnmintedVar { .. } | SnapshotError::SlotVarKind { .. } => {
                 Walk::SlotRead
@@ -2112,10 +2010,8 @@ mod tests {
                 Walk::DefinitionCycle
             }
             // `validate_snapshot`, which is where the rest live.
-            SnapshotError::OrderMismatch
-            | SnapshotError::NodeNotMinted { .. }
+            SnapshotError::NodeNotMinted { .. }
             | SnapshotError::StepIds { .. }
-            | SnapshotError::MintLogOrder { .. }
             | SnapshotError::NameStepNotMinted { .. }
             | SnapshotError::DeclaredSiteNotAnOperand { .. }
             | SnapshotError::DeclaredNameNotUpstream { .. }
@@ -2162,31 +2058,30 @@ mod tests {
     /// where the older table lives).
     #[test]
     fn every_snapshot_error_arm_names_the_walk_that_produces_it() {
-        let at = |bits| crate::SpokenNode::absent(RecipeNodeId(bits));
+        let at = |bits| crate::SpokenNode::absent(RecipeNodeId::new(0, bits));
         let node = || at(5);
         let face = || crate::names::StableName {
             kind: crate::names::EntityKind::Face,
-            node: RecipeNodeId(5),
+            node: RecipeNodeId::new(0, 5),
             path: Vec::new(),
         };
         // One value per arm, welded to the roster below: a case list
         // that fell behind the enum would name fewer identifiers than
         // the roster holds and red in the comparison.
         let cases = [
-            SnapshotError::OrderMismatch,
             SnapshotError::NodeNotMinted { id: node() },
             SnapshotError::StepIds {
                 node: node(),
                 fault: crate::program::StepIdFault::Repeated {
-                    step: crate::node::StepId(2),
+                    step: crate::node::StepId::new(0, 2),
                 },
             },
             SnapshotError::MintLogOrder {
-                entry: crate::Minted::Step(crate::node::StepId(3)),
+                entry: crate::Minted::Step(crate::node::StepId::new(0, 3)),
             },
             SnapshotError::NameStepNotMinted {
                 name: crate::SpokenName::absent(face()),
-                step: crate::node::StepId(9),
+                step: crate::node::StepId::new(0, 9),
             },
             SnapshotError::DeclaredSiteNotAnOperand {
                 node: node(),
@@ -2209,65 +2104,64 @@ mod tests {
             SnapshotError::WitnessOnMissingNode { node: node() },
             SnapshotError::LabelOnMissingNode { node: node() },
             SnapshotError::VarKind {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
                 kind: crate::VarKind::Length,
                 def: crate::VarKind::Angle,
             },
             SnapshotError::VarNotMinted {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
             },
-            SnapshotError::VarOrderMismatch,
             SnapshotError::NameOnMissingVar {
-                var: crate::VarId(7),
+                var: crate::VarId::new(0, 7),
                 name: VarName::from_static("w"),
             },
             SnapshotError::VarNameTwice {
                 name: VarName::from_static("w"),
-                a: crate::VarId(7),
-                b: crate::VarId(8),
-            },
-            SnapshotError::SlotDimension {
-                node: node(),
-                slot: SlotId::Distance,
-                expected: Dimension::Length,
-                found: Dimension::Angle,
+                a: crate::VarId::new(0, 7),
+                b: crate::VarId::new(0, 8),
             },
             SnapshotError::ReaderOfUnmintedVar {
                 node: node(),
-                var: crate::VarId(7),
+                var: crate::VarId::new(0, 7),
             },
             SnapshotError::SlotVarKind {
                 node: node(),
                 slot: SlotId::Distance,
-                var: crate::SpokenVar::new(crate::VarId(7), Some(VarName::from_static("depth"))),
+                var: crate::SpokenVar::new(
+                    crate::VarId::new(0, 7),
+                    Some(VarName::from_static("depth")),
+                ),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
             SnapshotError::PayloadVarKind {
                 node: node(),
-                var: crate::SpokenVar::new(crate::VarId(7), Some(VarName::from_static("depth"))),
+                var: crate::SpokenVar::new(
+                    crate::VarId::new(0, 7),
+                    Some(VarName::from_static("depth")),
+                ),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
             SnapshotError::AnonymousVarUnread {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
             },
             SnapshotError::DefinitionReadsUnmintedVar {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
-                read: crate::VarId(8),
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                read: crate::VarId::new(0, 8),
             },
             SnapshotError::DefinitionVarKind {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
-                read: crate::SpokenVar::new(crate::VarId(8), None),
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                read: crate::SpokenVar::new(crate::VarId::new(0, 8), None),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
             SnapshotError::DefinitionCycle {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
-                through: vec![crate::SpokenVar::new(crate::VarId(7), None)],
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
+                through: vec![crate::SpokenVar::new(crate::VarId::new(0, 7), None)],
             },
             SnapshotError::DefinitionTooLarge {
-                var: crate::SpokenVar::new(crate::VarId(7), None),
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
                 nodes: 4097,
             },
             SnapshotError::EpsilonInvalid { value: 0.0 },
@@ -2407,13 +2301,6 @@ mod tests {
             }
             other => panic!("non-positive ε must refuse at save, got {other:?}"),
         }
-        // order naming a node the map does not hold.
-        let mut doc = ProfileDoc::empty_derived("check", Tol::witness());
-        doc.order.push(RecipeNodeId(7));
-        match save(&doc, &[], Tol::witness()) {
-            Err(PersistError::Snapshot(SnapshotError::OrderMismatch)) => {}
-            other => panic!("order mismatch must refuse at save, got {other:?}"),
-        }
     }
 
     /// **`n` instances of a part reference nothing resolves**: the
@@ -2445,6 +2332,7 @@ mod tests {
                 &doc,
                 &crate::edit::DocEdit::InsertNode {
                     node: Box::new(Node::instantiate_part(doc_ref)),
+                    fresh: Vec::new(),
                 },
                 Tol::witness(),
                 &crate::mate::RefusingReach,
@@ -2493,6 +2381,7 @@ mod tests {
             &doc,
             &crate::edit::DocEdit::InsertNode {
                 node: Box::new(mate),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &crate::mate::RefusingReach,
@@ -2566,13 +2455,16 @@ mod tests {
         let insert = |doc: ProfileDoc, node| {
             let doc = doc
                 .apply(
-                    &crate::DocEdit::InsertNode { node },
+                    &crate::DocEdit::InsertNode {
+                        node,
+                        fresh: Vec::new(),
+                    },
                     tol,
                     &crate::RefusingReach,
                 )
                 .expect("the node inserts")
                 .doc;
-            let id = *doc.order().last().expect("the inserted node");
+            let id = *doc.ids().last().expect("the inserted node");
             (doc, id)
         };
         let doc = ProfileDoc::empty_derived("check-speak", tol);
@@ -2678,7 +2570,7 @@ mod tests {
     fn rv_name(node: u64, kind: crate::names::EntityKind) -> crate::names::StableName {
         crate::names::StableName {
             kind,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: Vec::new(),
         }
     }
@@ -2713,80 +2605,9 @@ mod tests {
         );
         match save(&doc, &[], Tol::witness()) {
             Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
-                assert_eq!(id, crate::SpokenNode::absent(RecipeNodeId(7)));
+                assert_eq!(id, crate::SpokenNode::absent(RecipeNodeId::new(0, 7)));
             }
             other => panic!("an appearance key the mint never minted must refuse, got {other:?}"),
-        }
-    }
-
-    /// **The validator's name pass answers in DOCUMENT order, not id
-    /// order.** Two payload names are corrupt at once, and the
-    /// document orders their carrying nodes in the REVERSE of their id
-    /// order, so a walk over `doc.nodes` and a walk over `doc.order`
-    /// name different offending ids. This row says which one this
-    /// door does: the pass is `Doc::name_carriers`, which walks
-    /// `Doc::order`, so the document's FIRST node answers and the id
-    /// is 60.
-    ///
-    /// **That order is not a contract.** `validate_snapshot` promises
-    /// that a corrupt document refuses typed, not WHICH of its faults
-    /// it names first; `Walk::ORDER` contracts between walks, not
-    /// within one, and a caller cannot repair a doubly corrupt file by
-    /// reading the first refusal anyway. What this row is for is that
-    /// the answer moved and nothing said so — the pass used to run
-    /// inside the per-node loop over `doc.nodes`, a `BTreeMap`, and
-    /// this document refused with 50. An unpinned order that changes
-    /// silently is how a diagnosis drifts one refactor at a time, so
-    /// the row names the order the walk has now: a later change that
-    /// moves it again has to say it is moving it.
-    #[test]
-    fn rv_the_name_pass_refuses_in_document_order() {
-        let mut doc = ProfileDoc::empty_derived("rv-name-order", Tol::witness());
-        doc.mint = doc
-            .mint
-            .clone()
-            .logged([0, 1, 2, 3].map(|id| crate::Minted::Node(RecipeNodeId(id))));
-        for id in [2u64, 3] {
-            doc.nodes.insert(
-                RecipeNodeId(id),
-                crate::test_support::stored(&Node::Datum(crate::node::Datum::Plane {
-                    origin: [0.0; 3].map(crate::test_support::len),
-                    normal: [0.0, 0.0, 1.0].map(crate::test_support::scl),
-                })),
-            );
-        }
-        for (id, derived) in [(0u64, 50u64), (1, 60)] {
-            let sited = || {
-                crate::node::SitedRef::new(
-                    RecipeNodeId(2),
-                    rv_name(derived, crate::names::EntityKind::Face),
-                )
-            };
-            doc.nodes.insert(
-                RecipeNodeId(id),
-                Node::Boolean {
-                    op: topo::BooleanOp::Union,
-                    a: RecipeNodeId(2),
-                    b: RecipeNodeId(3),
-                    declare: vec![((sited(), sited()), topo::BooleanCoincidence::REST)],
-                },
-            );
-        }
-        doc.order = vec![
-            RecipeNodeId(2),
-            RecipeNodeId(3),
-            RecipeNodeId(1),
-            RecipeNodeId(0),
-        ];
-        match save(&doc, &[], Tol::witness()) {
-            Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
-                assert_eq!(
-                    id.id(),
-                    RecipeNodeId(60),
-                    "the name pass walks `Doc::order`, so the document's FIRST node answers"
-                );
-            }
-            other => panic!("a corrupt payload name must refuse, got {other:?}"),
         }
     }
 }
