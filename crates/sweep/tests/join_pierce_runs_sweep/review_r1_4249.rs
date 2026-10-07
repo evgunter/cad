@@ -400,3 +400,19 @@ fn r1_curved_notch_pinch() {
         }
     }
 }
+
+/// One pose of [`r1_curved_notch_pinch`] (`R1_POSE="i j k"`): tier 3′'s
+/// error on `ab S`.
+#[test]
+#[ignore = "review probe"]
+fn r1_curved_one() {
+    let w: Vec<u32> = std::env::var("R1_POSE").unwrap().split(' ').map(|x| x.parse().unwrap()).collect();
+    let v = notch343().v;
+    let f = frame(direction(w[0], w[1]), f64::from(w[2]) * 1.05 + 0.1);
+    let x = curved_notch_body((2.5f64).to_radians().tan());
+    let y = unite("pinch", vec![cube_at(v, f, [0.0; 3]), cube_at(v, f, [-SIDE; 3])]).unwrap();
+    let r = topo::subtract_with(&x, &y, &BooleanDeclarations::default(), tol());
+    if let Ok(BooleanResult::Body(bb)) = &r {
+        println!("t3' {:?}", topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol()));
+    }
+}
