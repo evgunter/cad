@@ -217,7 +217,6 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::OpenFacesDisconnect { shell, components } => {
             E::OpenFacesDisconnect { shell, components }
         }
-        E::OpenFaceRingUnsupported { face, kind } => E::OpenFaceRingUnsupported { face, kind },
         E::OpenFaceChartPartial { face, other } => E::OpenFaceChartPartial { face, other },
         E::Lift { face, error } => E::Lift {
             face,
