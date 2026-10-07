@@ -654,3 +654,6 @@ Signed: (CARVE orchestrator)
   - Main's new `boolean/edge_join.rs` (FUSE, #4233) still read the renamed field, so the merge renamed it there.
 
   Unit 4 (`circle-lowers-to-one-segment`) now waits only on JOIN's `a-plane-across-a-one-face-wall-meets-its-wrap-edge-once`.
+- 2026-10-07 — `profile-fillet-radius-off-at-eps-1e-6` (P0) is dispatched on `claude/clever-bardeen-4itqb3`. The seed still reds on main `e1efb472c` with the same message.
+  - D10 check: it is fillet construction accuracy, the tangent point `t2` lying off its own circle by about ε/2. It does not rework how declared tangent joints are recorded or verified, so it may start under the hold, and the lane stops if the fix needs to.
+  - Review tier: dual (H). The fillet construction feeds every filleted profile.

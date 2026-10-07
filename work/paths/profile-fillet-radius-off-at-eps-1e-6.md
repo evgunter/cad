@@ -2,7 +2,8 @@
 id: profile-fillet-radius-off-at-eps-1e-6
 kind: issue
 title: profile: the fuzzed offset-carrier fillet recovers its radius 2.6e-7 off at CAD_TOLERANCE_EPS=1e-6 (seed 0x063fda568e08fb0f, iter 380)
-status: open
+status: dispatched
+branch: claude/clever-bardeen-4itqb3
 opened: 2026-09-04
 refs: [1877]
 priority: P0
