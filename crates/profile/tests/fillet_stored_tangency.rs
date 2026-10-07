@@ -701,8 +701,10 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 /// authored radius stores it as `|r|` (`shared coverage corpus 13`'s
 /// 1.9999999999999998 is 2.0); no verdict or joint moved.
 const GOLDEN_DEFAULT: u64 = 0x76d3_b8c8_3dc5_745c;
-/// The same at `CAD_TOLERANCE_EPS=1e-6`.
-const GOLDEN_1E6: u64 = 0x9b07_a34e_72f9_1772;
+/// The same at `CAD_TOLERANCE_EPS=1e-6`, where `arc x arc c=0.3
+/// r=0.05` validates: its legs stand ≈ 1.5Kε apart across the carriers'
+/// shallow crossing, which their ends settle.
+const GOLDEN_1E6: u64 = 0x7afe_c8d5_9469_67f5;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
 const GOLDEN_1E12: u64 = 0x7625_7377_b8a5_c0f4;
 
