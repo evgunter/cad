@@ -234,15 +234,15 @@ pub fn assert_legal_operand(what: &str, body: &Body<f64>, tol: Tol) {
 
 pub use topo::test_support::finished;
 
-/// `body`, cloned and finished ([`finished`] at the witness tolerance):
-/// the operand a blend door takes, from a fixture held by reference.
+/// `body`, cloned and finished ([`finished`]): the operand a blend door
+/// takes, from a fixture held by reference.
 ///
 /// # Panics
 ///
 /// As [`finished`], where the gate refuses the body.
 #[must_use]
-pub fn at_rest<T: topo::AtRestPolicy>(body: &Body<T>) -> topo::AtRestBody<T> {
-    finished("the blend operand", body.clone(), Tol::witness())
+pub fn at_rest<T: topo::AtRestPolicy>(body: &Body<T>, tol: Tol) -> topo::AtRestBody<T> {
+    finished("the blend operand", body.clone(), tol)
 }
 
 /// The square of side `l` with a corner at the origin, counter-clockwise

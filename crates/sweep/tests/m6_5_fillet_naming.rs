@@ -118,7 +118,7 @@ fn fe_single_call_twelve_open_chains_plus_one_closed_rim() {
     let mut all = box_edges;
     all.extend(rims);
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &all,
         R,
         Tol::witness(),
@@ -139,7 +139,7 @@ fn every_output_entity_is_a_recorded_mint_or_a_survivor() {
     let mut all = box_edges;
     all.extend(rims);
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &all,
         R,
         Tol::witness(),
@@ -163,7 +163,7 @@ fn the_records_have_the_shape_the_surgery_built() {
     let mut all = box_edges;
     all.extend(rims);
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &all,
         R,
         Tol::witness(),
@@ -204,7 +204,7 @@ fn the_every_edge_request_records_every_entity_it_mints() {
     let cube0 = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&cube0),
+        &sweep::test_support::at_rest(&cube0, Tol::witness()),
         &edges,
         R,
         Tol::witness(),
@@ -294,7 +294,7 @@ fn every_every_edge_record_names_a_source_entity() {
     let cube0 = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&cube0),
+        &sweep::test_support::at_rest(&cube0, Tol::witness()),
         &edges,
         R,
         Tol::witness(),
@@ -335,14 +335,14 @@ fn the_every_edge_fillet_is_deterministic() {
     let cube0 = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let a = fillet_edges(
-        &sweep::test_support::at_rest(&cube0),
+        &sweep::test_support::at_rest(&cube0, Tol::witness()),
         &edges,
         R,
         Tol::witness(),
     )
     .expect("the surgery");
     let b = fillet_edges(
-        &sweep::test_support::at_rest(&cube0),
+        &sweep::test_support::at_rest(&cube0, Tol::witness()),
         &edges,
         R,
         Tol::witness(),

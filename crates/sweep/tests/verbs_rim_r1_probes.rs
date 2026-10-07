@@ -286,7 +286,7 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
                 fuzz::replay()
             );
             let v = fillet_edges(
-                &sweep::test_support::at_rest(&body),
+                &sweep::test_support::at_rest(&body, tol()),
                 &rims[..1],
                 0.05 * a,
                 tol(),
@@ -334,7 +334,7 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
         );
         assert!(!seams.is_empty(), "a full ball carries a seam meridian");
         match fillet_edges(
-            &sweep::test_support::at_rest(&ball),
+            &sweep::test_support::at_rest(&ball, tol()),
             &seams[..1],
             0.05 * r,
             tol(),
@@ -402,7 +402,7 @@ fn a_passing_closed_rim_reaches_the_surgery_and_builds_its_annulus_band() {
     let body = dome(1.0);
     let rims = [sweep::test_support::one_edge_rim_at(&body, 1.0, 0.0)];
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol()),
         &rims[..1],
         0.05,
         tol(),
@@ -457,7 +457,7 @@ fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
         "the fixture must be in the collapsing regime (endpoint chord {chord})"
     );
     let v = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol()),
         &corner[..1],
         0.05,
         tol(),

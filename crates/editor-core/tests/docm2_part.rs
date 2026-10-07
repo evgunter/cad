@@ -298,7 +298,7 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
         assert_eq!(bits(body_of(&ev, joined)), bits(&fused), "{h:?}: boolean");
         let keys = edge_keys(&ev, p, &selection);
         let filleted = sweep::blend::build::fillet_edges(
-            &sweep::test_support::at_rest(side),
+            &sweep::test_support::at_rest(side, Tol::witness()),
             &keys,
             RADIUS,
             Tol::witness(),

@@ -36,7 +36,7 @@ fn tol() -> Tol {
 fn corner_arcs_are_minted_in_seeded_edge_order() {
     let body = cube(1.0, tol());
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol()),
         &query::all_edges(&body),
         0.15,
         tol(),

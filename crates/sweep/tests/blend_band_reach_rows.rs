@@ -45,8 +45,8 @@ fn fuse(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 
 /// The fillet's body, tier-3 valid, with its volume; or its refusal.
 fn built(what: &str, body: &Body<f64>, edges: &[topo::EdgeKey], r: f64) -> Result<f64, BlendError> {
-    let f =
-        fillet_edges(&sweep::test_support::at_rest(body), edges, r, tol()).map_err(|e| e.error)?;
+    let f = fillet_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol())
+        .map_err(|e| e.error)?;
     assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "{what}: tier 3");
     Ok(mass_properties(&f.body, tol()).expect("a volume").volume)
 }

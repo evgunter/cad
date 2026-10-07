@@ -153,7 +153,7 @@ mod certified {
             .collect();
         assert_eq!(box_edges.len(), 12);
         let blanked = fillet_edges(
-            &sweep::test_support::at_rest(&pipped),
+            &sweep::test_support::at_rest(&pipped, Tol::witness()),
             &box_edges,
             iv(DIE_R),
             Tol::witness(),
@@ -183,7 +183,7 @@ mod certified {
             .collect();
         assert_eq!(rims.len(), 2, "one rim of two arcs");
         let out = fillet_edges(
-            &sweep::test_support::at_rest(&blanked),
+            &sweep::test_support::at_rest(&blanked, Tol::witness()),
             &rims,
             iv(RIM_R),
             Tol::witness(),

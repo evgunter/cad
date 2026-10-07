@@ -37,7 +37,7 @@ fn block_and_anchor() -> (Body<f64>, FaceKey, HalfEdgeKey) {
 /// clean block passes.
 fn fillet(body: &Body<f64>, edges: &[EdgeKey]) -> Result<(), BlendError> {
     fillet_edges(
-        &sweep::test_support::at_rest(body),
+        &sweep::test_support::at_rest(body, Tol::witness()),
         edges,
         0.2,
         Tol::witness(),

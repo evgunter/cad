@@ -37,7 +37,7 @@ fn one_arc_of_a_whole_disc_rim_refuses_seam_vertex() {
         "the disc's rim is two arcs, split by the zone's seam"
     );
     match fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol()),
         &arcs[..1],
         0.05,
         tol(),
@@ -146,7 +146,7 @@ fn one_quarter_arc_of_a_d_is_not_a_seam_vertex() {
         "the D's round side is not a closed rim"
     );
     if let Err(r) = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol()),
         &quarter[..1],
         0.05,
         tol(),

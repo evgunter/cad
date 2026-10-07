@@ -70,7 +70,7 @@ fn only_recourse(err: &BlendError, expect: Option<&str>, what: &str) {
 fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
     let (body, edge) = crate::common::operands::half_round_end();
     let err = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &[edge],
         R,
         Tol::witness(),
@@ -98,7 +98,7 @@ fn a_repeated_edge_refusal_gives_no_recourse_at_all() {
     let mut req = edges.clone();
     req.push(edges[0]);
     let err = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &req,
         R,
         Tol::witness(),

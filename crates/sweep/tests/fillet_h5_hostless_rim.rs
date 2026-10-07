@@ -195,8 +195,13 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
             )
         };
         let c0 = census(body);
-        let out = fillet_edges(&sweep::test_support::at_rest(body), &arcs, 0.05, tol())
-            .unwrap_or_else(|e| panic!("{name}: the hostless-crossing rim carves, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(body, tol()),
+            &arcs,
+            0.05,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{name}: the hostless-crossing rim carves, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid at rest, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: ONE band over both arcs");
@@ -280,8 +285,13 @@ fn the_plane_hosted_shape_reaches_either_material_side() {
     ] {
         let arcs = rim_arcs_at(&body, r, y);
         let before = volume(&body);
-        let out = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, 0.05, tol())
-            .unwrap_or_else(|e| panic!("{name} carves before the repair, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &arcs,
+            0.05,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{name} carves before the repair, got {e:?}"));
         let delta = volume(&out.body) - before;
         assert_eq!(
             delta > 0.0,
@@ -346,8 +356,13 @@ fn a_repaired_boss_is_ring_hosted_and_takes_the_ladder_door() {
                 .all(|a| loop_edges(&body, fd.rings[0]).contains(a)),
             "{name}: the rim lies in that RING, not in the outer cycle — a ladder rim"
         );
-        let out = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, 0.1, tol())
-            .unwrap_or_else(|e| panic!("{name}: the ladder rim carves, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &arcs,
+            0.1,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{name}: the ladder rim carves, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
     }
@@ -403,7 +418,7 @@ fn the_hostless_carves_match_their_hand_closed_forms() {
     ] {
         let arcs = rim_arcs_at(&body, rim.0, rim.1);
         let before = mass_properties(&body, tol()).unwrap();
-        let out = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, r, tol())
+        let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name} tier-3 valid, got {e:?}"));
@@ -439,8 +454,13 @@ fn the_hostless_carves_match_their_hand_closed_forms() {
 fn a_hostless_band_is_naming_total() {
     let source = repaired(lantern(tol()));
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
-    let out = fillet_edges(&sweep::test_support::at_rest(&source), &arcs, 0.05, tol())
-        .expect("the repaired neck carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        0.05,
+        tol(),
+    )
+    .expect("the repaired neck carves");
     assert_naming_totality(&source, &out, &arcs, "the repaired lantern neck");
 }
 
@@ -468,8 +488,13 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
     let mut both = rim_arcs_at(&source, neck.0, neck.1);
     both.extend(rim_arcs_at(&source, shoulder.0, shoulder.1));
     assert_eq!(both.len(), 4, "two rims of two arcs each");
-    let one_call = fillet_edges(&sweep::test_support::at_rest(&source), &both, r, tol())
-        .expect("the hostless neck and the shoulder carve in ONE call");
+    let one_call = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &both,
+        r,
+        tol(),
+    )
+    .expect("the hostless neck and the shoulder carve in ONE call");
     validate_geometric(&one_call.body, tol()).expect("the one-call result is tier-3 valid");
     assert_eq!(one_call.band_faces.len(), 2, "one band per rim");
     let one = mass_properties(&one_call.body, tol()).unwrap();
@@ -479,7 +504,7 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
         let mut body = repaired(lantern(tol()));
         for (rim_r, rim_y) in order {
             let arcs = rim_arcs_at(&body, rim_r, rim_y);
-            body = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, r, tol())
+            body = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
                 .unwrap_or_else(|e| panic!("the ({rim_r}, {rim_y}) rim carves alone, got {e:?}"))
                 .body;
         }
@@ -542,7 +567,7 @@ fn the_plane_sphere_hostless_carve_matches_its_hand_closed_form() {
     ] {
         let arcs = rim_arcs_at(&body, 1.0, 0.0);
         let before = mass_properties(&body, tol()).unwrap();
-        let out = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, r, tol())
+        let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name} tier-3 valid, got {e:?}"));

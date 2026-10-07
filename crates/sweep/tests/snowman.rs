@@ -710,7 +710,7 @@ fn the_snowman_waist_fillets() {
         "every waist link takes the sphere × sphere arm, got {arms:?}"
     );
     let out = sweep::blend::build::fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &waist,
         r,
         Tol::witness(),

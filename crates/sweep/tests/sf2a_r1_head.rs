@@ -19,7 +19,7 @@ fn chamfered_cube() -> Body<f64> {
     let body = sweep::test_support::cube(1.0, Tol::witness());
     let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
     sweep::chamfer::chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         0.1,
         Tol::witness(),

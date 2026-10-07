@@ -72,7 +72,7 @@ fn assert_cap_ring_refusal(body: &Body<f64>, what: &str) {
     let creases = rod_creases(body);
     assert_eq!(creases.len(), 2, "{what}: the D's two creases");
     match fillet_edges(
-        &sweep::test_support::at_rest(body),
+        &sweep::test_support::at_rest(body, tol()),
         &creases,
         ROD_FILLET,
         tol(),
@@ -161,7 +161,7 @@ fn a_bore_clear_of_the_d_rods_sliver_carves_at_the_closed_form() {
         let creases = rod_creases(&body);
         let vol0 = volume(&body);
         let out = fillet_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, tol()),
             &creases,
             ROD_FILLET,
             tol(),
@@ -197,7 +197,7 @@ fn assert_carves_at_the_closed_form(body: &Body<f64>, what: &str) {
     assert_eq!(creases.len(), 2, "{what}: the D's two creases");
     let vol0 = volume(body);
     let out = fillet_edges(
-        &sweep::test_support::at_rest(body),
+        &sweep::test_support::at_rest(body, tol()),
         &creases,
         ROD_FILLET,
         tol(),
@@ -281,7 +281,7 @@ fn a_channel_in_the_cut_cycle_reaching_into_the_sliver_refuses_ring_clearance() 
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the D's two creases");
     match fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol()),
         &creases,
         ROD_FILLET,
         tol(),

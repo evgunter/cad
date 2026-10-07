@@ -258,7 +258,7 @@ fn rim_fillet_extra(big_r: f64, h: f64, r: f64) -> f64 {
 fn the_pipped_cube_fillets_in_place_with_rings_carried() {
     let (pipped, box_edges) = pipped_and_box_edges();
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &box_edges,
         DIE_R,
         Tol::witness(),
@@ -354,7 +354,7 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
 fn composed_die() -> Body<f64> {
     let (pipped, box_edges) = pipped_and_box_edges();
     let blanked = fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &box_edges,
         DIE_R,
         Tol::witness(),
@@ -364,7 +364,7 @@ fn composed_die() -> Body<f64> {
     let rims = rim_edges(&blanked);
     assert_eq!(rims.len(), 42, "21 rims of two arcs each");
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&blanked),
+        &sweep::test_support::at_rest(&blanked, Tol::witness()),
         &rims,
         RIM_R,
         Tol::witness(),
@@ -454,7 +454,7 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
     // (a) An edge ending at a curved end face.
     let (round, edge) = crate::common::operands::half_round_end();
     let err = fillet_edges(
-        &sweep::test_support::at_rest(&round),
+        &sweep::test_support::at_rest(&round, Tol::witness()),
         &[edge],
         DIE_R,
         Tol::witness(),
@@ -466,7 +466,7 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
         "the refusal names the run-out gap: {text}"
     );
     fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &box_edges[..1],
         DIE_R,
         Tol::witness(),
@@ -481,7 +481,7 @@ fn the_surgery_front_door_refuses_its_named_gaps() {
     // honest order: verdict before assembly.
     let rims = rim_edges(&pipped);
     let err = fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &rims[..1],
         RIM_R,
         Tol::witness(),
@@ -507,7 +507,7 @@ fn the_shrunk_faces_keep_their_rings_and_senses() {
         .collect();
     assert_eq!(rings_before.len(), 6, "six pipped faces");
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &box_edges,
         DIE_R,
         Tol::witness(),

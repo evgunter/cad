@@ -144,7 +144,7 @@ fn minted(rec: &BlendNaming) -> BTreeSet<RoleFamily> {
 
 fn record(verb: &Verb<f64>, operand: &Body<f64>) -> BlendNaming {
     let out = verb
-        .run(&sweep::test_support::at_rest(operand), tol())
+        .run(&sweep::test_support::at_rest(operand, tol()), tol())
         .expect("the fixture is inside the door");
     let VerbRecord::Blend(naming) = out.record else {
         panic!("a blend run produced another family's record");

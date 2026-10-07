@@ -95,7 +95,7 @@ fn main() {
 
     let edges: Vec<EdgeKey> = blank.edges().map(|(k, _)| k).collect();
     match fillet_edges(
-        &sweep::test_support::at_rest(&blank),
+        &sweep::test_support::at_rest(&blank, Tol::witness()),
         &edges,
         r,
         Tol::witness(),

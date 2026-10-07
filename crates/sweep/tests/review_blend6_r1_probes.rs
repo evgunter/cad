@@ -284,7 +284,7 @@ fn a_nonpositive_radius_fillet_refuses_as_invalid_input() {
     let body = cube(1.0, t);
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     for radius in [0.0, -0.1, f64::NAN] {
-        let err = fillet_edges(&sweep::test_support::at_rest(&body), &edges, radius, t)
+        let err = fillet_edges(&sweep::test_support::at_rest(&body, t), &edges, radius, t)
             .expect_err("a nonpositive radius must not mint a body");
         assert!(
             matches!(err.error, BlendError::NonpositiveSize { .. }),

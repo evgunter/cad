@@ -176,7 +176,7 @@ fn p1_an_oblique_all_concave_cavity_carves_to_its_own_steiner_form() {
         .expect("closed-form props")
         .volume;
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         r,
         Tol::witness(),
@@ -254,7 +254,7 @@ fn p2_slim_skews_carve_valid_or_refuse_typed_never_worse() {
         assert_eq!(edges.len(), 12, "twelve concave edges at {deg}°");
         let r = 0.05 * theta.sin();
         match fillet_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, Tol::witness()),
             &edges,
             r,
             Tol::witness(),
@@ -372,7 +372,7 @@ fn p3_the_chamfer_digest_is_bit_identical_to_the_merge_base() {
     };
     assert_eq!(edges.len(), 12);
     let cav = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         0.25,
         Tol::witness(),
@@ -383,7 +383,7 @@ fn p3_the_chamfer_digest_is_bit_identical_to_the_merge_base() {
     let cube_body = cube(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
     let cvx = chamfer_edges(
-        &sweep::test_support::at_rest(&cube_body),
+        &sweep::test_support::at_rest(&cube_body, Tol::witness()),
         &cube_edges,
         0.25,
         Tol::witness(),

@@ -62,9 +62,19 @@ fn the_box_rows_carve_at_the_certified_scalar_and_bracket_their_closed_forms() {
         for (round, (section, corner)) in [(false, chamfer), (true, fillet)] {
             let bracket = Bracket::open();
             let out = if round {
-                fillet_edges(&sweep::test_support::at_rest(&body), &edges, iv(D), tol)
+                fillet_edges(
+                    &sweep::test_support::at_rest(&body, tol),
+                    &edges,
+                    iv(D),
+                    tol,
+                )
             } else {
-                chamfer_edges(&sweep::test_support::at_rest(&body), &edges, iv(D), tol)
+                chamfer_edges(
+                    &sweep::test_support::at_rest(&body, tol),
+                    &edges,
+                    iv(D),
+                    tol,
+                )
             }
             .unwrap_or_else(|e| panic!("{what} (round {round}): carves at Interval, got {e:?}"));
             let ends = bracket

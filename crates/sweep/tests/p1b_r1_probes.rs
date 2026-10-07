@@ -390,7 +390,7 @@ fn fillet_products_carry_no_scaffold_at_rest() {
     let body = sweep::test_support::cube(1.0, Tol::witness());
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let filleted = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         0.125,
         Tol::witness(),

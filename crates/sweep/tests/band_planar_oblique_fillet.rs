@@ -182,7 +182,7 @@ fn a_near_perpendicular_end_escalates_or_decides_the_circle() {
 fn the_ellipse_edges_pass_the_tessellator_and_the_boolean() {
     let body = parallelogram::<f64>();
     let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &[e], D, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &[e], D, tol())
         .expect("the oblique fillet builds");
     let mesh = mesh::tessellate(&out.body, 5e-3, tol()).expect("the filleted body tessellates");
     mesh::validate::check_mesh(&mesh).expect("watertight");
@@ -271,8 +271,13 @@ fn edge_at(body: &Body<Interval>, a: [f64; 3], b: [f64; 3]) -> EdgeKey {
 fn the_oblique_fillet_carves_at_the_certified_scalar() {
     let body = parallelogram::<Interval>();
     let e = edge_at(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &[e], iv(D), tol())
-        .expect("carves at Interval");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[e],
+        iv(D),
+        tol(),
+    )
+    .expect("carves at Interval");
     validate_geometric(&out.body, tol()).expect("tier 3 at Interval");
     assert_naming_totality(&body, &out, &[e], "the oblique fillet at Interval");
     for (arc, _, _) in &out.naming.as_ref().expect("births").arcs {
@@ -374,7 +379,12 @@ fn a_drafted_wall_escalates_on_its_ellipses_axes() {
         );
         let top = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
         let apart = r * (1.0 / theta.cos() - 1.0);
-        let result = fillet_edges(&sweep::test_support::at_rest(&body), &[top], r, tol());
+        let result = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &[top],
+            r,
+            tol(),
+        );
         if apart > band.escalate() {
             let out = result.unwrap_or_else(|e| panic!("a {deg}° draft builds, got {}", e.error));
             validate_geometric(&out.body, tol()).expect("tier 3");
@@ -519,7 +529,7 @@ fn a_steep_drilled_wall_keeps_its_bottom_edge_clear() {
 fn a_brick_through_a_steep_elliptic_end_builds_in_every_op() {
     let body = leaning(3.0);
     let e = edge(&body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]);
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &[e], D, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &[e], D, tol())
         .expect("the s = 3 fillet builds");
     let cutter = brick((-0.5, 0.15), (-0.5, 0.05), (0.92, 1.5), tol());
     let operand = finished("the filleted parallelogram", out.body.clone(), tol());

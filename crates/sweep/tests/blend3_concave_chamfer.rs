@@ -63,7 +63,7 @@ fn chamfered_cavity_volume(a: f64, d: f64) -> f64 {
 fn the_chamfered_cavity() {
     let body = vented_cavity();
     let out = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &cavity_edges(&body),
         D,
         Tol::witness(),
@@ -146,7 +146,7 @@ fn plane_origin(body: &Body<f64>, face: topo::FaceKey) -> Point3<f64> {
 fn every_minted_face_of_a_concave_carve_faces_the_void() {
     let body = vented_cavity();
     let out = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &cavity_edges(&body),
         D,
         Tol::witness(),
@@ -170,7 +170,7 @@ fn every_minted_face_of_a_concave_carve_faces_the_void() {
     let cube_body = cube(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
     let cut = chamfer_edges(
-        &sweep::test_support::at_rest(&cube_body),
+        &sweep::test_support::at_rest(&cube_body, Tol::witness()),
         &cube_edges,
         D,
         Tol::witness(),
@@ -204,14 +204,14 @@ fn both_verbs_carve_the_cavity_the_fillet_once_refused() {
     let body = vented_cavity();
     let edges = cavity_edges(&body);
     chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
     )
     .expect("the chamfer carves its twelve concave edges");
     fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         D,
         Tol::witness(),

@@ -95,7 +95,7 @@ fn filleted_bored_d_rod() -> Body<f64> {
     let source = extruded(SketchPlane::xy(), loops, ROD_L, tol());
     let creases = rod_creases(&source);
     fillet_edges(
-        &sweep::test_support::at_rest(&source),
+        &sweep::test_support::at_rest(&source, tol()),
         &creases,
         ROD_FILLET,
         tol(),

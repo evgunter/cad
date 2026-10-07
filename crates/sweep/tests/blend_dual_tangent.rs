@@ -41,7 +41,7 @@ fn blended<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     match verb {
         Verb::Fillet => {
             fillet_edges(
-                &sweep::test_support::at_rest(body),
+                &sweep::test_support::at_rest(body, Tol::witness()),
                 &edges,
                 size,
                 Tol::witness(),
@@ -51,7 +51,7 @@ fn blended<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
         }
         Verb::Chamfer => {
             chamfer_edges(
-                &sweep::test_support::at_rest(body),
+                &sweep::test_support::at_rest(body, Tol::witness()),
                 &edges,
                 size,
                 Tol::witness(),

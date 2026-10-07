@@ -254,7 +254,7 @@ fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
     let body = sweep::test_support::cube(1.0, Tol::witness());
     let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let chamfered = sweep::chamfer::chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         0.1,
         Tol::witness(),

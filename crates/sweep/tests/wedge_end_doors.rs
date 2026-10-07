@@ -369,7 +369,7 @@ fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
             (
                 "chamfer",
                 chamfer_edges(
-                    &sweep::test_support::at_rest(&built.body),
+                    &sweep::test_support::at_rest(&built.body, tol()),
                     &[strut],
                     0.05,
                     tol(),
@@ -379,7 +379,7 @@ fn chamfer_and_fillet_refuse_a_cusp_or_slit_strut_typed() {
             (
                 "fillet",
                 fillet_edges(
-                    &sweep::test_support::at_rest(&built.body),
+                    &sweep::test_support::at_rest(&built.body, tol()),
                     &[strut],
                     0.05,
                     tol(),

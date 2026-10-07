@@ -344,7 +344,7 @@ fn the_554_pair_agrees_across_a_randomized_dihedral() {
         let full = neck_flare(r, half_angle, bore, Revolution::Full);
         let closed = pick_edge(&full, true, is_pair);
         let closed_verdict = fillet_edges(
-            &sweep::test_support::at_rest(&full),
+            &sweep::test_support::at_rest(&full, tol()),
             &[closed],
             r * 0.05,
             tol(),
@@ -354,7 +354,7 @@ fn the_554_pair_agrees_across_a_randomized_dihedral() {
         let part = neck_flare(r, half_angle, bore, Revolution::Partial(1.0));
         let open = pick_edge(&part, false, is_pair);
         let open_verdict = fillet_edges(
-            &sweep::test_support::at_rest(&part),
+            &sweep::test_support::at_rest(&part, tol()),
             &[open],
             r * 0.05,
             tol(),
@@ -410,7 +410,7 @@ fn co_surface_seams_still_refuse_while_transverse_rims_do_not() {
             "the seam's own lever is definitely nonzero — the zero must come from the sine"
         );
         match fillet_edges(
-            &sweep::test_support::at_rest(&ball),
+            &sweep::test_support::at_rest(&ball, tol()),
             &[seam],
             r * 0.05,
             tol(),
@@ -616,8 +616,13 @@ fn the_tangential_refusal_prose_states_no_geometric_fact() {
         Revolution::Full,
     );
     let seam = pick_edge(&ball, false, |a, b| is_sphere(a) && is_sphere(b));
-    let err = fillet_edges(&sweep::test_support::at_rest(&ball), &[seam], 0.05, tol())
-        .expect_err("the co-surface seam refuses");
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&ball, tol()),
+        &[seam],
+        0.05,
+        tol(),
+    )
+    .expect_err("the co-surface seam refuses");
     let text = format!("{err}");
     for forbidden in [
         "share a tangent plane",

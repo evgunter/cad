@@ -94,7 +94,7 @@ fn probe_a_pipped_cube_all_edges() {
         Err(e) => println!("PROBE A: battery refuses: {e}"),
     }
     match fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &edges,
         0.12,
         Tol::witness(),
@@ -124,7 +124,7 @@ fn probe_b_hexagonal_prism_over_refusal() {
     assert_eq!(edges.len(), 18);
     for r in [0.30 * a, 0.45 * a, 0.499 * a, 0.51 * a, 0.6 * a, 0.8 * a] {
         match fillet_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, Tol::witness()),
             &edges,
             r,
             Tol::witness(),
@@ -202,7 +202,7 @@ fn probe_e_hexagon_tier3_error() {
     let body = prism(&pts, 4.0);
     let edges = query::all_edges(&body);
     let f = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         0.3,
         Tol::witness(),
@@ -261,7 +261,7 @@ fn probe_g_door_a_fields() {
     let blank = finished(
         "the blank",
         fillet_edges(
-            &sweep::test_support::at_rest(&c),
+            &sweep::test_support::at_rest(&c, Tol::witness()),
             &edges,
             0.12,
             Tol::witness(),
@@ -304,7 +304,7 @@ fn probe_h_door_a_closed_tool() {
     let blank = finished(
         "the blank",
         fillet_edges(
-            &sweep::test_support::at_rest(&c),
+            &sweep::test_support::at_rest(&c, Tol::witness()),
             &edges,
             0.12,
             Tol::witness(),
@@ -360,7 +360,7 @@ fn probe_i_door_a_full_tool() {
     let blank = finished(
         "the blank",
         fillet_edges(
-            &sweep::test_support::at_rest(&c),
+            &sweep::test_support::at_rest(&c, Tol::witness()),
             &edges,
             0.12,
             Tol::witness(),
@@ -488,7 +488,7 @@ fn probe_f_skinny_triangle_refusal_boundary() {
     let edges = query::all_edges(&body);
     for r in [0.05, 0.06, 0.07, 0.072, 0.0735, 0.075, 0.08] {
         match fillet_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, Tol::witness()),
             &edges,
             r,
             Tol::witness(),
@@ -551,7 +551,7 @@ fn probe_c_oblique_trihedron() {
     );
     let edges = query::all_edges(&body);
     match fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         0.08,
         Tol::witness(),

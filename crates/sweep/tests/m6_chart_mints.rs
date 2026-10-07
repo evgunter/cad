@@ -121,7 +121,7 @@ fn the_die_octants_carry_stored_sphere_pcurves_at_rest() {
     .body;
     let rims: Vec<topo::EdgeKey> = blank.edges().map(|(k, _)| k).collect();
     let filleted = sweep::blend::fillet_edges(
-        &sweep::test_support::at_rest(&blank),
+        &sweep::test_support::at_rest(&blank, Tol::witness()),
         &rims,
         0.12,
         Tol::witness(),

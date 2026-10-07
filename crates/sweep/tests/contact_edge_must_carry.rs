@@ -232,7 +232,7 @@ fn summary(name: &str, readings: &[ContactReading]) -> String {
 fn corpus() -> Vec<(String, Body<f64>)> {
     let tol = tol();
     let carve = |name: &str, body: &Body<f64>, edges: &[EdgeKey], r: f64| {
-        let out = fillet_edges(&sweep::test_support::at_rest(body), edges, r, tol)
+        let out = fillet_edges(&sweep::test_support::at_rest(body, tol), edges, r, tol)
             .unwrap_or_else(|e| panic!("{name} carves on the corpus: {e}"));
         (name.to_owned(), out.body)
     };
@@ -363,7 +363,12 @@ fn rod_family(ratio: f64, r: f64) -> Result<Filleted<f64>, BlendRefusal> {
     let body = rod_with_flat_at(ratio * r, r, 10.0 * r, 2.0 * ratio * r, tol())
         .expect("the family member mills");
     let crease = rod_upper_crease(&body);
-    fillet_edges(&sweep::test_support::at_rest(&body), &[crease], r, tol())
+    fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[crease],
+        r,
+        tol(),
+    )
 }
 
 /// The radius at which the rod family at `ratio` reads a second-order
@@ -563,7 +568,7 @@ fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever(
     let r = 1.5 * b.escalate();
     in_band_refusal(
         fillet_edges(
-            &sweep::test_support::at_rest(&die),
+            &sweep::test_support::at_rest(&die, tol()),
             &query::all_edges(&die),
             r,
             tol(),
@@ -598,7 +603,7 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
     let die = cube(1.0, tol());
     in_band_refusal(
         fillet_edges(
-            &sweep::test_support::at_rest(&die),
+            &sweep::test_support::at_rest(&die, tol()),
             &query::all_edges(&die),
             1.5 * b.escalate(),
             tol(),
@@ -606,7 +611,7 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
         "the die at r = 1.5·Kε",
     );
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&die),
+        &sweep::test_support::at_rest(&die, tol()),
         &query::all_edges(&die),
         3.0 * b.escalate(),
         tol(),
@@ -640,11 +645,21 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
     let theta = (1.5 * b.escalate() / r).sqrt();
     let (body, edges) = skewed_cavity_edges(theta, scale);
     in_band_refusal(
-        fillet_edges(&sweep::test_support::at_rest(&body), &edges, r, tol()),
+        fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            r,
+            tol(),
+        ),
         "the slim wedge at θ²·r/2 = 0.75·Kε",
     );
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &edges, 0.1 * r, tol())
-        .unwrap_or_else(|e| panic!("the wedge at a tenth of the radius builds: {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        0.1 * r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the wedge at a tenth of the radius builds: {e}"));
     assert_eq!(
         corner_arc_chart_images(&out),
         4,
@@ -693,7 +708,7 @@ fn each_contact_edge_spends_the_rules_stations_once_beside_the_certificates() {
     assert_eq!(creases.len(), 2, "the D-rod's two creases");
     k_stats::start_recording();
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol()),
         &creases,
         Probe(ROD_FILLET),
         tol(),

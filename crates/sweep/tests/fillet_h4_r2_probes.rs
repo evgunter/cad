@@ -60,7 +60,7 @@ fn the_band_faces_sense_bit_folds_the_stored_verdict_on_both_sides() {
         ("the convex base", 1.0, 0.0, true),
     ] {
         let arcs = rim_arcs_at(&body, rim_r, rim_y);
-        let out = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, R, tol())
+        let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, R, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         let [band] = out.band_faces[..] else {
             panic!("{name}: one band")
@@ -126,8 +126,13 @@ fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
         .map(|(k, _)| k)
         .expect("the top face");
 
-    let out = fillet_edges(&sweep::test_support::at_rest(&boss), &arcs, 0.02, tol())
-        .unwrap_or_else(|e| panic!("the boss carves, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&boss, tol()),
+        &arcs,
+        0.02,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the boss carves, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     let [band] = out.band_faces[..] else {
         panic!("one band")
@@ -176,13 +181,18 @@ fn the_boss_union_is_valid_at_rest_and_its_band_is_the_ladder() {
 fn a_vanished_source_entity_is_a_recorded_retirement_on_both_sides() {
     let waist = waisted(tol());
     let arcs = rim_arcs_at(&waist, 0.5, 0.5);
-    let out = fillet_edges(&sweep::test_support::at_rest(&waist), &arcs, R, tol())
-        .unwrap_or_else(|e| panic!("the concave waist carves, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&waist, tol()),
+        &arcs,
+        R,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the concave waist carves, got {e:?}"));
     assert_naming_totality(&waist, &out, &arcs, "the concave waist");
 
     let lant = lantern(tol());
     let arcs = rim_arcs_at(&lant, 0.8, 0.6);
-    let out = fillet_edges(&sweep::test_support::at_rest(&lant), &arcs, R, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&lant, tol()), &arcs, R, tol())
         .unwrap_or_else(|e| panic!("the convex shoulder carves, got {e:?}"));
     assert_naming_totality(&lant, &out, &arcs, "the convex shoulder");
 }

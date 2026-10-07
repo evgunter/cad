@@ -43,7 +43,7 @@ fn the_rim_door_answers_identically_at_the_certified_scalar_and_the_answer_carve
     let seed = arcs_at(&source, 0.5, 0.5)[0];
     let rim = rim_of(&source, seed).expect("the waist rim");
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&source),
+        &sweep::test_support::at_rest(&source, tol),
         &rim,
         Interval::from_f64(0.05),
         tol,

@@ -186,7 +186,7 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
             .filter(|k| b.get_edge(*k).is_some())
             .collect();
         if let Ok(f) = fillet_edges(
-            &sweep::test_support::at_rest(&b),
+            &sweep::test_support::at_rest(&b, Tol::witness()),
             &box_edges,
             0.12,
             Tol::witness(),
@@ -444,9 +444,14 @@ fn d2_no_input_reaches_a_panic() {
                 // is the only outcome-level proof available from outside
                 // the door, and it is what the floor below counts.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    fillet_edges(&sweep::test_support::at_rest(body), &req, r, Tol::witness())
-                        .map(|f| f.band_faces.len())
-                        .unwrap_or(0)
+                    fillet_edges(
+                        &sweep::test_support::at_rest(body, Tol::witness()),
+                        &req,
+                        r,
+                        Tol::witness(),
+                    )
+                    .map(|f| f.band_faces.len())
+                    .unwrap_or(0)
                 }));
                 match outcome {
                     Err(_) => fired.push(format!(
@@ -513,7 +518,7 @@ fn d2_reached_variants() {
         for req in requests(&body, &mut rng, effort()) {
             for r in RADII {
                 match fillet_edges(
-                    &sweep::test_support::at_rest(&body),
+                    &sweep::test_support::at_rest(&body, Tol::witness()),
                     &req,
                     r,
                     Tol::witness(),
@@ -585,7 +590,7 @@ fn d2_a_grafted_destination_blends_inside_its_own_shell() {
     let mut base_shells: Vec<_> = base.shells().map(|(k, _)| k).collect();
     base_shells.sort_unstable();
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&dst),
+        &sweep::test_support::at_rest(&dst, Tol::witness()),
         &after,
         0.12,
         Tol::witness(),

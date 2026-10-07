@@ -24,7 +24,7 @@ fn die(l: f64, r: f64) -> Filleted<f64> {
     let edges = query::all_edges(&body);
     assert_eq!(edges.len(), 12, "a box has twelve edges");
     fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         r,
         Tol::witness(),
@@ -154,7 +154,7 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
 fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
     let (body, edge) = crate::common::operands::half_round_end();
     let err = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &[edge],
         0.15,
         Tol::witness(),

@@ -97,7 +97,7 @@ fn a_concave_cavity_meets_a_ball_island_where_the_oracle_says() {
             &ball_poled_z(s, Vec3::new(c[0], c[1], c[2]), tol()),
         );
         let out = fillet_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, tol()),
             &cavity_edges(&body),
             r,
             tol(),
@@ -138,7 +138,12 @@ fn a_convex_block_meets_a_ball_void_where_the_oracle_says() {
         };
         let edges = edges_with_corners(&body, outer);
         assert_eq!(edges.len(), 12, "the block's outer edges");
-        let out = fillet_edges(&sweep::test_support::at_rest(&body), &edges, r, tol());
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            r,
+            tol(),
+        );
         judge(
             &format!("convex s {s} {what}"),
             depth,
@@ -172,7 +177,7 @@ fn a_chamfered_cavity_meets_a_ball_island_where_the_oracle_says() {
             &ball_poled_z(s, Vec3::new(c[0], c[1], c[2]), tol()),
         );
         let out = chamfer_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, tol()),
             &cavity_edges(&body),
             d,
             tol(),
@@ -247,7 +252,7 @@ fn a_concave_floor_rim_meets_a_ball_island_where_the_oracle_says() {
             &ball_poled_z(s, Vec3::new(c[0], c[1], c[2]), tol()),
         );
         let out = fillet_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, tol()),
             &rim_arcs_at(&body, 1.5, 1.0),
             r,
             tol(),
@@ -336,7 +341,12 @@ fn an_oblique_cavity_s_corners_meet_a_ball_island_where_the_oracle_says() {
                 .any(|(x, y)| (q.x - x).abs() < 1e-9 && (q.y - y).abs() < 1e-9)
         });
         assert_eq!(cavity.len(), 12, "the oblique cavity's edges");
-        let out = fillet_edges(&sweep::test_support::at_rest(&body), &cavity, r, tol());
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &cavity,
+            r,
+            tol(),
+        );
         judge(
             &format!("oblique s {s} {what}"),
             depth,

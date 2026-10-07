@@ -229,7 +229,7 @@ fn the_chamfer_only_arm_is_unreachable_from_the_fillet_door() {
     let t = Tol::witness();
 
     // The chamfer door reaches its own arm on this fixture.
-    let chamfered = chamfer_edges(&sweep::test_support::at_rest(&cyl), &edges, D, t)
+    let chamfered = chamfer_edges(&sweep::test_support::at_rest(&cyl, t), &edges, D, t)
         .expect_err("a curved support has no ruled strip");
     assert!(
         matches!(chamfered.error, BlendError::ChamferArmUnsupported { .. }),
@@ -239,7 +239,7 @@ fn the_chamfer_only_arm_is_unreachable_from_the_fillet_door() {
 
     // The fillet door, same fixture, same size: whatever it answers,
     // it is never the chamfer's arm.
-    if let Err(refusal) = fillet_edges(&sweep::test_support::at_rest(&cyl), &edges, D, t) {
+    if let Err(refusal) = fillet_edges(&sweep::test_support::at_rest(&cyl, t), &edges, D, t) {
         assert!(
             !matches!(refusal.error, BlendError::ChamferArmUnsupported { .. }),
             "a fillet reached the chamfer-only arm: {:?}",
@@ -249,7 +249,7 @@ fn the_chamfer_only_arm_is_unreachable_from_the_fillet_door() {
 
     // And per-edge, so a whole-body refusal cannot mask the claim.
     for e in &edges {
-        if let Err(refusal) = fillet_edges(&sweep::test_support::at_rest(&cyl), &[*e], D, t) {
+        if let Err(refusal) = fillet_edges(&sweep::test_support::at_rest(&cyl, t), &[*e], D, t) {
             assert!(
                 !matches!(refusal.error, BlendError::ChamferArmUnsupported { .. }),
                 "a single-edge fillet reached the chamfer-only arm: {:?}",
@@ -292,20 +292,20 @@ fn reachable_refusals() -> Vec<(&'static str, BlendError)> {
     let (round, end) = half_round_end();
     out.push((
         "fillet run-out",
-        fillet_edges(&sweep::test_support::at_rest(&round), &[end], D, t)
+        fillet_edges(&sweep::test_support::at_rest(&round, t), &[end], D, t)
             .expect_err("a curved end face is a run-out")
             .error,
     ));
     out.push((
         "fillet clearance",
-        fillet_edges(&sweep::test_support::at_rest(&body), &edges, 0.55, t)
+        fillet_edges(&sweep::test_support::at_rest(&body, t), &edges, 0.55, t)
             .expect_err("a 0.55 m radius does not fit a 1 m face")
             .error,
     ));
     let (leaning, turn) = crate::common::operands::leaning_turn(0.5);
     out.push((
         "fillet turn",
-        fillet_edges(&sweep::test_support::at_rest(&leaning), &turn, D, t)
+        fillet_edges(&sweep::test_support::at_rest(&leaning, t), &turn, D, t)
             .expect_err("a turn whose faces are not symmetric overruns its mitre")
             .error,
     ));
@@ -319,7 +319,7 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     let t = Tol::witness();
     let mut out = vec![(
         "nonpositive size",
-        chamfer_edges(&sweep::test_support::at_rest(&body), &edges[..1], 0.0, t)
+        chamfer_edges(&sweep::test_support::at_rest(&body, t), &edges[..1], 0.0, t)
             .expect_err("a zero setback has no band")
             .error,
     )];
@@ -327,7 +327,7 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     out.push((
         "repeated edge",
         chamfer_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, t),
             &[edges[0], edges[0]],
             D,
             t,
@@ -338,20 +338,20 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     let (round, end) = half_round_end();
     out.push((
         "run-out",
-        chamfer_edges(&sweep::test_support::at_rest(&round), &[end], D, t)
+        chamfer_edges(&sweep::test_support::at_rest(&round, t), &[end], D, t)
             .expect_err("a curved end face is a run-out")
             .error,
     ));
     let (leaning, turn) = crate::common::operands::leaning_turn(0.5);
     out.push((
         "turn",
-        chamfer_edges(&sweep::test_support::at_rest(&leaning), &turn, D, t)
+        chamfer_edges(&sweep::test_support::at_rest(&leaning, t), &turn, D, t)
             .expect_err("a turn whose faces are not symmetric overruns its mitre")
             .error,
     ));
     out.push((
         "clearance",
-        chamfer_edges(&sweep::test_support::at_rest(&body), &edges, 0.55, t)
+        chamfer_edges(&sweep::test_support::at_rest(&body, t), &edges, 0.55, t)
             .expect_err("two 0.55 m setbacks do not fit a 1 m face")
             .error,
     ));
@@ -359,7 +359,7 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     out.push((
         "escalated clearance",
         chamfer_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, t),
             &edges,
             0.5 - 2.5 * eps,
             t,
@@ -372,7 +372,7 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     let concave = concave_edge(&bracket);
     out.push((
         "corner configuration",
-        chamfer_edges(&sweep::test_support::at_rest(&bracket), &[concave], D, t)
+        chamfer_edges(&sweep::test_support::at_rest(&bracket, t), &[concave], D, t)
             .expect_err("a mixed-convexity corner is out of scope")
             .error,
     ));
@@ -384,7 +384,7 @@ fn chamfer_refusals() -> Vec<(&'static str, BlendError)> {
     // refused inside the shell it lies in.
     out.push((
         "two-solid body",
-        chamfer_edges(&sweep::test_support::at_rest(&two), &corner_pair, D, t)
+        chamfer_edges(&sweep::test_support::at_rest(&two, t), &corner_pair, D, t)
             .expect_err("an asymmetric turn overruns its mitre, in either solid")
             .error,
     ));

@@ -233,7 +233,7 @@ fn the_same_geometry_without_the_channel_refuses() {
         .body;
         let edges = topo::query::all_edges(&cube);
         sweep::blend::build::fillet_edges(
-            &sweep::test_support::at_rest(&cube),
+            &sweep::test_support::at_rest(&cube, Tol::witness()),
             &edges,
             R,
             Tol::witness(),

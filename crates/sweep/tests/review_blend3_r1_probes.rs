@@ -103,7 +103,7 @@ fn r1_a_square_vent_carves_past_the_ring_gate_and_both_convexity_doors() {
     assert_eq!(edges.len(), 12, "the cavity's twelve edges");
 
     let out = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
@@ -171,7 +171,7 @@ fn r1_a_pocket_cannot_supply_an_all_concave_component() {
     );
 
     let err = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
@@ -210,7 +210,7 @@ fn r1_an_unvented_cavity_chamfers_inside_its_own_shell() {
     let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
     assert_eq!(edges.len(), 12, "the sealed cavity still has twelve edges");
     let out = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
@@ -262,7 +262,7 @@ fn r1_a_nine_edge_triangular_cavity_is_a_simpler_shape_of_the_same_class() {
     );
 
     let out = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
@@ -310,7 +310,7 @@ fn r1_the_ring_gate_still_meters_on_the_concave_side() {
         let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
         assert_eq!(edges.len(), 12, "twelve cavity edges at r = {r}");
         chamfer_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, Tol::witness()),
             &edges,
             D,
             Tol::witness(),
@@ -355,7 +355,7 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
     let cube_body = cube(a, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
     let chamfered_cube = chamfer_edges(
-        &sweep::test_support::at_rest(&cube_body),
+        &sweep::test_support::at_rest(&cube_body, Tol::witness()),
         &cube_edges,
         D,
         Tol::witness(),
@@ -383,7 +383,7 @@ fn r1_the_cavity_gains_what_the_mirrored_cube_loses() {
         .volume;
     let edges = cavity_edges_of(&body, &poly, 1.0, 3.0);
     let carved = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
@@ -485,7 +485,7 @@ fn r1_one_request_carries_both_convexity_signs() {
     let mut both = concave;
     both.extend(convex);
     let out = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &both,
         D,
         Tol::witness(),
@@ -556,7 +556,7 @@ fn r1_one_fillet_request_carries_both_convexity_signs() {
         .volume;
 
     let out = sweep::blend::build::fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &both,
         D,
         Tol::witness(),

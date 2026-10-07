@@ -143,8 +143,13 @@ fn the_boss_dome_rims_meridians_run_pole_to_rim_and_the_carve_is_naming_total() 
              piece of each split is a fresh key — this is what the fixture witnesses"
         );
         let before = mass_properties(&source, tol()).unwrap();
-        let out = fillet_edges(&sweep::test_support::at_rest(&source), &arcs, 0.1, tol())
-            .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&source, tol()),
+            &arcs,
+            0.1,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name} is tier-3 valid, got {e:?}"));
         let after = mass_properties(&out.body, tol()).unwrap();
@@ -209,8 +214,13 @@ fn the_pip_rims_meridians_run_rim_to_pole_and_the_carve_is_naming_total() {
         "the pip rim: every meridian's he_plus STARTS at its rim vertex, so the rim-side \
          piece of each split keeps the source key"
     );
-    let out = fillet_edges(&sweep::test_support::at_rest(&source), &rim, 0.05, tol())
-        .unwrap_or_else(|e| panic!("the pip rim carves, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &rim,
+        0.05,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the pip rim carves, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("the pip rim is tier-3 valid, got {e:?}"));
     assert_naming_totality(&source, &out, &rim, "the pip rim");

@@ -97,8 +97,13 @@ fn r1_the_bosss_base_rim_is_hostless_and_carves() {
         2,
         "the base disc's outer cycle is exactly the rim"
     );
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, 0.05, tol())
-        .expect("the base rim carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &arcs,
+        0.05,
+        tol(),
+    )
+    .expect("the base rim carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 1, "one band");
     assert_eq!(
@@ -149,8 +154,13 @@ fn r1_a_hostless_rim_on_a_ringed_host_carves_under_the_recourse_that_promises_it
         "and that host also carries the dome ring"
     );
 
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, 0.05, tol())
-        .expect("the ringed host's outer rim carves through the hostless crossing");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &arcs,
+        0.05,
+        tol(),
+    )
+    .expect("the ringed host's outer rim carves through the hostless crossing");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 1, "one band");
     assert_eq!(
@@ -185,8 +195,13 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
     let mut both = rim_arcs_at(&source, 1.0, 0.0);
     both.extend(rim_arcs_at(&source, 0.2, 1.2));
     assert_eq!(both.len(), 4, "two hostless rims of two arcs each");
-    let one_call = fillet_edges(&sweep::test_support::at_rest(&source), &both, 0.05, tol())
-        .expect("two hostless rims carve in ONE call");
+    let one_call = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &both,
+        0.05,
+        tol(),
+    )
+    .expect("two hostless rims carve in ONE call");
     validate_geometric(&one_call.body, tol()).expect("tier-3 valid");
     assert_eq!(one_call.band_faces.len(), 2, "one band per rim");
     let one = mass_properties(&one_call.body, tol()).unwrap();
@@ -200,9 +215,14 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
         };
         for (rr, ry) in order {
             let arcs = rim_arcs_at(&body, rr, ry);
-            body = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, 0.05, tol())
-                .unwrap_or_else(|e| panic!("the ({rr}, {ry}) rim carves alone, got {e:?}"))
-                .body;
+            body = fillet_edges(
+                &sweep::test_support::at_rest(&body, tol()),
+                &arcs,
+                0.05,
+                tol(),
+            )
+            .unwrap_or_else(|e| panic!("the ({rr}, {ry}) rim carves alone, got {e:?}"))
+            .body;
         }
         let seq = mass_properties(&body, tol()).unwrap();
         assert_eq!(
@@ -239,8 +259,13 @@ fn r1_the_mixed_shared_support_arm_is_what_refuses_the_bosss_two_rims() {
         plane_host(&body, &both[2..]),
         "one plane face carries the ladder ring and the annulus cycle"
     );
-    match fillet_edges(&sweep::test_support::at_rest(&body), &both, 0.05, tol())
-        .map_err(|e| e.error)
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &both,
+        0.05,
+        tol(),
+    )
+    .map_err(|e| e.error)
     {
         Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
             detail.contains("SEQUENTIAL calls"),

@@ -794,7 +794,8 @@ fn arc_runs_build_one_wall_at_interval() {
 /// True iff filleting `edges` refuses as a seam vertex.
 fn refuses_seam_vertex(b: &Body<f64>, edges: &[EdgeKey]) -> bool {
     matches!(
-        fillet_edges(&sweep::test_support::at_rest(b), edges, 0.1, tol()).map_err(|r| r.error),
+        fillet_edges(&sweep::test_support::at_rest(b, tol()), edges, 0.1, tol())
+            .map_err(|r| r.error),
         Err(BlendError::UnsupportedCorner {
             corner: CornerConfig::SeamVertex,
             ..

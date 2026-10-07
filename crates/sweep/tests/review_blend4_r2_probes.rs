@@ -44,7 +44,7 @@ fn convex_carve() -> (Body<f64>, Vec<FaceKey>) {
     let body = cube(2.0, Tol::witness());
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         R,
         Tol::witness(),
@@ -57,7 +57,7 @@ fn convex_carve() -> (Body<f64>, Vec<FaceKey>) {
 fn concave_carve() -> (Body<f64>, Vec<FaceKey>) {
     let body = vented_cavity();
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &cavity_edges(&body),
         R,
         Tol::witness(),
@@ -352,7 +352,7 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
         .collect();
     assert_eq!(reflex.len(), 1, "the bracket's one reflex vertical edge");
     let refused = fillet_edges(
-        &sweep::test_support::at_rest(&bracket),
+        &sweep::test_support::at_rest(&bracket, Tol::witness()),
         &reflex,
         0.1,
         Tol::witness(),
@@ -427,7 +427,7 @@ fn r2_no_sliver_wedge_pose_is_silently_wrong_on_the_corner_path() {
             let edges: Vec<EdgeKey> = prism.edges().map(|(k, _)| k).collect();
             let pose = format!("thickness {thickness}, radius {radius}");
             match fillet_edges(
-                &sweep::test_support::at_rest(&prism),
+                &sweep::test_support::at_rest(&prism, Tol::witness()),
                 &edges,
                 radius,
                 Tol::witness(),

@@ -105,7 +105,7 @@ fn the_waist_carves_one_annulus_band_and_adds_the_pappus_fill() {
     );
 
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&source),
+        &sweep::test_support::at_rest(&source, tol()),
         &arcs,
         WAIST_R,
         tol(),
@@ -140,7 +140,7 @@ fn the_convex_twin_of_the_same_body_cuts() {
         let arcs = rim_arcs_at(&source, 1.0, rim_y);
         assert_eq!(arcs.len(), 2, "{name} rim is seam-split into two arcs");
         let out = fillet_edges(
-            &sweep::test_support::at_rest(&source),
+            &sweep::test_support::at_rest(&source, tol()),
             &arcs,
             WAIST_R,
             tol(),
@@ -311,8 +311,13 @@ fn the_boss_carves_a_concave_ladder_band_and_adds_the_cap_fill() {
             "{name}: the rim is the top face's one ring"
         );
         let v0 = volume(body);
-        let out = fillet_edges(&sweep::test_support::at_rest(body), &arcs, BOSS_R, tol())
-            .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(body, tol()),
+            &arcs,
+            BOSS_R,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: one ladder band");
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
@@ -394,7 +399,7 @@ fn a_concave_band_records_every_birth_and_every_death() {
     let source = waisted(tol());
     let arcs = rim_arcs_at(&source, 0.5, 0.5);
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&source),
+        &sweep::test_support::at_rest(&source, tol()),
         &arcs,
         WAIST_R,
         tol(),

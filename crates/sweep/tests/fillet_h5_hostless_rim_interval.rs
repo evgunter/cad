@@ -86,8 +86,13 @@ fn the_hostless_rim_carves_at_the_certified_scalar_on_both_material_sides() {
         assert_full_revolve_rim(&arcs, name);
         let p0 = mass_properties(&source, tol()).expect("interval props");
 
-        let out = fillet_edges(&sweep::test_support::at_rest(&source), &arcs, iv(r), tol())
-            .unwrap_or_else(|e| panic!("{name} carves at Interval, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&source, tol()),
+            &arcs,
+            iv(r),
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{name} carves at Interval, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid at Interval, got {e:?}"));
@@ -154,8 +159,13 @@ fn the_plane_sphere_hostless_carve_brackets_its_closed_form_at_the_certified_sca
         "the source's own enclosure is a point"
     );
 
-    let out = fillet_edges(&sweep::test_support::at_rest(&source), &arcs, iv(r), tol())
-        .unwrap_or_else(|e| panic!("the repaired equator carves at Interval, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        iv(r),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the repaired equator carves at Interval, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one annulus band");
     validate_geometric(&out.body, tol()).expect("tier-3 valid at Interval");
     let p1 = mass_properties(&out.body, tol()).expect("interval props");

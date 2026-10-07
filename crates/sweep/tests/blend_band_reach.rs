@@ -69,15 +69,20 @@ fn a_concave_fillet_refuses_to_grow_into_an_island_on_one_shell() {
     let body = island_in_vented_cavity(0.05);
     let edges = cavity_edges(&body);
     assert_eq!(edges.len(), 12, "the cavity's twelve concave edges");
-    let err = fillet_edges(&sweep::test_support::at_rest(&body), &edges, 0.25, tol())
-        .map(|f| {
-            format!(
-                "built: tier 3 {:?}, V {:?}",
-                validate_geometric(&f.body, tol()),
-                mass_properties(&f.body, tol()).map(|m| m.volume)
-            )
-        })
-        .expect_err("the band reaches the island");
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        0.25,
+        tol(),
+    )
+    .map(|f| {
+        format!(
+            "built: tier 3 {:?}, V {:?}",
+            validate_geometric(&f.body, tol()),
+            mass_properties(&f.body, tol()).map(|m| m.volume)
+        )
+    })
+    .expect_err("the band reaches the island");
     assert!(
         reach_refusal(&err.error),
         "refused by the reach meter: {:?}",
@@ -98,8 +103,13 @@ fn a_concave_fillet_refuses_to_grow_into_an_island_on_one_shell() {
 fn an_island_clear_of_the_band_builds() {
     let body = island_in_vented_cavity(0.15);
     let edges = cavity_edges(&body);
-    let f = fillet_edges(&sweep::test_support::at_rest(&body), &edges, 0.25, tol())
-        .unwrap_or_else(|e| panic!("the island is clear of the band: {:?}", e.error));
+    let f = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        0.25,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the island is clear of the band: {:?}", e.error));
     assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "tier 3");
 }
 
@@ -118,14 +128,19 @@ fn the_reach_meters_an_island_that_is_a_second_solid() {
     assert_eq!(body.solids().count(), 2, "the island is a second solid");
     let edges = cavity_edges(&body);
     assert_eq!(edges.len(), 12, "the void shell's twelve edges");
-    let err = fillet_edges(&sweep::test_support::at_rest(&body), &edges, 0.25, tol())
-        .map(|f| {
-            format!(
-                "built: V {:?}",
-                mass_properties(&f.body, tol()).map(|m| m.volume)
-            )
-        })
-        .expect_err("the band reaches the island");
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        0.25,
+        tol(),
+    )
+    .map(|f| {
+        format!(
+            "built: V {:?}",
+            mass_properties(&f.body, tol()).map(|m| m.volume)
+        )
+    })
+    .expect_err("the band reaches the island");
     assert!(
         matches!(err.error, BlendError::FaceClearance { bounded: false, .. }),
         "the island's own edge lies in the material the void's band adds: {:?}",
@@ -287,8 +302,13 @@ fn a_sphere_zone_beside_a_band_is_metered_by_its_own_extent() {
         .flat_map(|&(r, y)| rim_arcs_at(&body, r, y))
         .collect();
     assert_eq!(edges.len(), 6, "three rims, two half-arcs each");
-    let f = fillet_edges(&sweep::test_support::at_rest(&body), &edges, 2.0 * u, tol())
-        .unwrap_or_else(|e| panic!("the dome is clear of the flange's band: {:?}", e.error));
+    let f = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        2.0 * u,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the dome is clear of the flange's band: {:?}", e.error));
     assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "tier 3");
 }
 
@@ -313,9 +333,14 @@ fn a_band_cut_off_at_its_end_faces_refuses_an_island_in_its_reach() {
     let body = island_in_vented_cavity(0.05);
     let edges = one_floor_edge(&body);
     assert_eq!(edges.len(), 1, "one floor edge");
-    let err = fillet_edges(&sweep::test_support::at_rest(&body), &edges, 0.25, tol())
-        .map(|f| format!("built: tier 3 {:?}", validate_geometric(&f.body, tol())))
-        .expect_err("the cut-off band reaches the island");
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        0.25,
+        tol(),
+    )
+    .map(|f| format!("built: tier 3 {:?}", validate_geometric(&f.body, tol())))
+    .expect_err("the cut-off band reaches the island");
     assert!(
         matches!(err.error, BlendError::FaceClearance { bounded: false, .. }),
         "the island's edge lies in the material the cut-off band adds: {:?}",
@@ -323,8 +348,13 @@ fn a_band_cut_off_at_its_end_faces_refuses_an_island_in_its_reach() {
     );
     let clear = island_in_vented_cavity(0.15);
     let edges = one_floor_edge(&clear);
-    let f = fillet_edges(&sweep::test_support::at_rest(&clear), &edges, 0.25, tol())
-        .unwrap_or_else(|e| panic!("the island is clear of the cut-off band: {:?}", e.error));
+    let f = fillet_edges(
+        &sweep::test_support::at_rest(&clear, tol()),
+        &edges,
+        0.25,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the island is clear of the cut-off band: {:?}", e.error));
     assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "tier 3");
 }
 
@@ -374,9 +404,14 @@ fn a_circular_band_meters_a_washer_through_its_ring_round_or_square() {
         let body = washer_in_round_void(0.05, bore);
         let edges = rim_arcs_at(&body, 1.5, 1.0);
         assert!(!edges.is_empty(), "{bore:?}: the void's floor rim");
-        let err = fillet_edges(&sweep::test_support::at_rest(&body), &edges, 0.25, tol())
-            .map(|f| format!("built: tier 3 {:?}", validate_geometric(&f.body, tol())))
-            .expect_err("the void's band reaches the washer");
+        let err = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            0.25,
+            tol(),
+        )
+        .map(|f| format!("built: tier 3 {:?}", validate_geometric(&f.body, tol())))
+        .expect_err("the void's band reaches the washer");
         assert!(
             reach_refusal(&err.error),
             "{bore:?}: refused by the reach meter: {:?}",
@@ -384,8 +419,13 @@ fn a_circular_band_meters_a_washer_through_its_ring_round_or_square() {
         );
         let clear = washer_in_round_void(0.15, bore);
         let edges = rim_arcs_at(&clear, 1.5, 1.0);
-        let f = fillet_edges(&sweep::test_support::at_rest(&clear), &edges, 0.25, tol())
-            .unwrap_or_else(|e| panic!("{bore:?}: the washer is clear of the band: {:?}", e.error));
+        let f = fillet_edges(
+            &sweep::test_support::at_rest(&clear, tol()),
+            &edges,
+            0.25,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{bore:?}: the washer is clear of the band: {:?}", e.error));
         assert_eq!(
             validate_geometric(&f.body, tol()),
             Ok(()),

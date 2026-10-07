@@ -104,7 +104,7 @@ fn r2a_valence4_nonconcurring_corner_refuses_typed() {
     let tol = Tol::witness();
     let body = cube(1.0, tol);
     let out = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol),
         &query::all_edges(&body),
         0.2,
         tol,
@@ -154,7 +154,7 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
     let c = (2.0 * s * core::f64::consts::SQRT_2 - t) / 3.0_f64.sqrt();
     let body = cube(a, tol);
     let out = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol),
         &query::all_edges(&body),
         d,
         tol,

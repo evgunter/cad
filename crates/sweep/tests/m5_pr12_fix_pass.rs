@@ -68,7 +68,7 @@ fn f2_every_corner_face_of_a_hexagonal_prism_is_tier3_valid() {
     let edges = query::all_edges(&body);
     assert_eq!(edges.len(), 18, "a hexagonal prism has 18 edges");
     let f = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         0.3,
         Tol::witness(),
@@ -102,7 +102,7 @@ fn f2_an_irregular_prism_is_tier3_valid_too() {
     );
     let edges = query::all_edges(&body);
     let f = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         0.12,
         Tol::witness(),
@@ -139,7 +139,7 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
 
     for r in [0.30, 0.45, 0.499] {
         let f = fillet_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, Tol::witness()),
             &edges,
             r,
             Tol::witness(),
@@ -158,7 +158,7 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
     for r in [0.51, 0.6, 0.8] {
         assert!(r < apothem, "the row is only interesting below the apothem");
         match fillet_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, Tol::witness()),
             &edges,
             r,
             Tol::witness(),
@@ -263,7 +263,7 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
     let edges = query::all_edges(&clipped);
     let r = 0.08;
     let f = fillet_edges(
-        &sweep::test_support::at_rest(&clipped),
+        &sweep::test_support::at_rest(&clipped, Tol::witness()),
         &edges,
         r,
         Tol::witness(),

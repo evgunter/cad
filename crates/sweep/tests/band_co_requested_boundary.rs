@@ -252,7 +252,7 @@ fn rod_request(
     let mut edges = rim_arcs_at(body, 1.0, 0.0);
     assert_eq!(edges.len(), 1, "the bore rim is one closed edge");
     edges.push(near_ruling(body, rod));
-    fillet_edges(&sweep::test_support::at_rest(body), &edges, r, tol()).map_err(|e| e.error)
+    fillet_edges(&sweep::test_support::at_rest(body, tol()), &edges, r, tol()).map_err(|e| e.error)
 }
 
 /// The carved bottom face's own clearance, read off the result: the
@@ -475,7 +475,7 @@ fn a_plane_link_on_an_annulus_hosts_outer_cycle_closes_at_the_squares_corners() 
         edges
     };
     let bottom = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol()),
         &request(true),
         0.2,
         tol(),
@@ -493,8 +493,13 @@ fn a_plane_link_on_an_annulus_hosts_outer_cycle_closes_at_the_squares_corners() 
         13,
         "the bore rim and the square's twelve edges"
     );
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &edges, 0.2, tol())
-        .unwrap_or_else(|e| panic!("the whole square carves beside the bore, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        0.2,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the whole square carves beside the bore, got {e:?}"));
     validate_geometric(&out.body, tol()).expect("the carve is tier-3 valid");
     assert_eq!(
         (
@@ -558,7 +563,12 @@ fn a_ladder_hosts_co_requested_box_edge_is_metered_exactly_by_the_ring_arm() {
             })
             .collect();
         assert_eq!(edges.len(), 14, "two rim arcs and twelve box edges");
-        fillet_edges(&sweep::test_support::at_rest(&body), &edges, r, tol())
+        fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            r,
+            tol(),
+        )
     };
     let r = 0.26;
     let err = request(r).expect_err("the trims cross").error;
@@ -598,9 +608,14 @@ fn two_coaxial_rims_on_a_shared_wall_are_read_exactly_by_the_screen() {
     edges.extend(rim_arcs_at(&washer, 1.0, 1.0));
     assert_eq!(edges.len(), 2, "two one-edge bore rims");
     let r = 0.51;
-    let err = fillet_edges(&sweep::test_support::at_rest(&washer), &edges, r, tol())
-        .expect_err("the trims cross on the wall")
-        .error;
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&washer, tol()),
+        &edges,
+        r,
+        tol(),
+    )
+    .expect_err("the trims cross on the wall")
+    .error;
     let BlendError::FaceClearanceUncertified { margin, gap, .. } = err else {
         panic!("the screen answers; got {err:?}")
     };
@@ -614,8 +629,13 @@ fn two_coaxial_rims_on_a_shared_wall_are_read_exactly_by_the_screen() {
         (read - (1.0 - 2.0 * r)).abs() < 1e-12,
         "the wall's height less both setbacks (read {read})"
     );
-    let out = fillet_edges(&sweep::test_support::at_rest(&washer), &edges, 0.49, tol())
-        .unwrap_or_else(|e| panic!("clear trims carve, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&washer, tol()),
+        &edges,
+        0.49,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("clear trims carve, got {e:?}"));
     validate_geometric(&out.body, tol()).expect("the carve is tier-3 valid");
     assert_eq!(out.band_faces.len(), 2, "both rims' bands");
 }

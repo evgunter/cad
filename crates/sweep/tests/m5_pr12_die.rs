@@ -36,7 +36,7 @@ fn blank() -> AtRestBody<f64> {
     let body = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
     let blank = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         DIE_R,
         Tol::witness(),
@@ -369,7 +369,7 @@ fn deviation_1_both_doors_compose_and_agree() {
         .collect();
     assert_eq!(surviving.len(), 12, "every box edge survives the pips");
     let via_surgery = fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &surviving,
         DIE_R,
         Tol::witness(),

@@ -151,7 +151,7 @@ fn a_general_box_matches_an_independent_closed_form() {
         let d = rng.range(0.02, 0.2) * a.min(b).min(c);
         let pad = prism(&[(0.0, 0.0), (a, 0.0), (a, b), (0.0, b)], c);
         let out = chamfer_edges(
-            &sweep::test_support::at_rest(&pad),
+            &sweep::test_support::at_rest(&pad, Tol::witness()),
             &query::all_edges(&pad),
             d,
             Tol::witness(),
@@ -217,7 +217,7 @@ fn a_skewed_wedge_chamfers_with_every_face_outward() {
         // honestly grantable.
         let d = 0.02 * base.min(h).min(t);
         let out = chamfer_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, Tol::witness()),
             &query::all_edges(&body),
             d,
             Tol::witness(),
@@ -278,7 +278,7 @@ fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
     let edges: Vec<EdgeKey> = pad.edges().map(|(k, _)| k).collect();
     k_stats::start_recording();
     chamfer_edges(
-        &sweep::test_support::at_rest(&pad),
+        &sweep::test_support::at_rest(&pad, Tol::witness()),
         &edges,
         Probe(0.1),
         Tol::witness(),
@@ -373,7 +373,7 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
         .collect();
     assert_eq!(surviving.len(), 12, "every box edge survives the dimple");
     let out = chamfer_edges(
-        &sweep::test_support::at_rest(&dimpled),
+        &sweep::test_support::at_rest(&dimpled, Tol::witness()),
         &surviving,
         d,
         Tol::witness(),
@@ -432,7 +432,7 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
     // contract, not the arm, so a future widening that grants this
     // request stays green only by staying valid.
     match chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &query::all_edges(&body),
         d,
         Tol::witness(),
@@ -487,7 +487,7 @@ fn a_nonpositive_setback_refuses_as_invalid_input() {
     let edges = query::all_edges(&pad);
     for d in [0.0, -0.1] {
         let err = chamfer_edges(
-            &sweep::test_support::at_rest(&pad),
+            &sweep::test_support::at_rest(&pad, Tol::witness()),
             &edges,
             d,
             Tol::witness(),
@@ -551,7 +551,7 @@ fn the_brackets_best_convex_request_still_refuses_typed() {
         "one edge out"
     );
     let err = chamfer_edges(
-        &sweep::test_support::at_rest(&bracket),
+        &sweep::test_support::at_rest(&bracket, Tol::witness()),
         &edges,
         0.05,
         Tol::witness(),

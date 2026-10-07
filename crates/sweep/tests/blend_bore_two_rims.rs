@@ -87,7 +87,7 @@ fn both_rims(b: &Bore) -> Vec<EdgeKey> {
 
 fn one_call(b: &Bore) -> Filleted<f64> {
     fillet_edges(
-        &sweep::test_support::at_rest(&b.body),
+        &sweep::test_support::at_rest(&b.body, tol()),
         &both_rims(b),
         RHO,
         tol(),
@@ -123,7 +123,7 @@ fn the_one_call_bore_is_the_sequential_composition_in_both_orders() {
         let v_one = volume(&one_call(&b).body);
         for (first, second) in [(b.lo, b.hi), (b.hi, b.lo)] {
             let mid = fillet_edges(
-                &sweep::test_support::at_rest(&b.body),
+                &sweep::test_support::at_rest(&b.body, tol()),
                 &circle_arcs_at_z(&b.body, first),
                 RHO,
                 tol(),
@@ -131,7 +131,7 @@ fn the_one_call_bore_is_the_sequential_composition_in_both_orders() {
             .unwrap_or_else(|e| panic!("{}: the z = {first} rim alone, got {e:?}", b.what))
             .body;
             let end = fillet_edges(
-                &sweep::test_support::at_rest(&mid),
+                &sweep::test_support::at_rest(&mid, tol()),
                 &circle_arcs_at_z(&mid, second),
                 RHO,
                 tol(),

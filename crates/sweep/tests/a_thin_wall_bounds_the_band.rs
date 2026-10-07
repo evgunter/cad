@@ -63,7 +63,7 @@ fn a_band_past_a_thin_walls_far_face_refuses_at_the_reach_meter() {
     };
 
     assert!(!past(1.4), "r = 1.4: the band stays inside the wall");
-    let near = fillet_edges(&sweep::test_support::at_rest(&body), &edges, 1.4, tol)
+    let near = fillet_edges(&sweep::test_support::at_rest(&body, tol), &edges, 1.4, tol)
         .unwrap_or_else(|e| panic!("r = 1.4 rolls inside the wall, got {:?}", e.error));
     assert_eq!(topo::validate(&near.body), Ok(()), "r = 1.4: tier 1");
     assert_eq!(topo::validate_closed(&near.body), Ok(()), "r = 1.4: tier 2");
@@ -78,7 +78,7 @@ fn a_band_past_a_thin_walls_far_face_refuses_at_the_reach_meter() {
             past(r),
             "r = {r}: the band's deepest point is past the outer wall"
         );
-        match fillet_edges(&sweep::test_support::at_rest(&body), &edges, r, tol) {
+        match fillet_edges(&sweep::test_support::at_rest(&body, tol), &edges, r, tol) {
             Err(e) => match e.error {
                 BlendError::FaceClearance {
                     chain: Convexity::Convex,
@@ -106,7 +106,7 @@ fn a_cone_foot_past_its_bend_never_reaches_the_headroom() {
     );
     let edges = rim_arcs_at(&body, 1.0, 0.0);
     for r in [0.22, 0.27, 0.3, 0.5] {
-        match fillet_edges(&sweep::test_support::at_rest(&body), &edges, r, tol) {
+        match fillet_edges(&sweep::test_support::at_rest(&body, tol), &edges, r, tol) {
             Err(e) => assert!(
                 matches!(
                     e.error,

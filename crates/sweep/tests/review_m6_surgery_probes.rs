@@ -157,7 +157,7 @@ fn one_pip(cx: f64, cy: f64) -> (Body<f64>, Vec<EdgeKey>) {
 fn p1_rim_edge_orientation_recon() {
     let (pipped, box_edges) = one_pip(0.5, 0.5);
     let blanked = fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &box_edges,
         DIE_R,
         Tol::witness(),
@@ -197,7 +197,7 @@ fn p2_ring_touch_trio_through_the_front_door() {
     {
         let (pipped, box_edges) = one_pip(0.12 + s + 0.01, 0.5);
         let blanked = fillet_edges(
-            &sweep::test_support::at_rest(&pipped),
+            &sweep::test_support::at_rest(&pipped, Tol::witness()),
             &box_edges,
             DIE_R,
             Tol::witness(),
@@ -206,7 +206,7 @@ fn p2_ring_touch_trio_through_the_front_door() {
         .body;
         let rims = rim_edges(&blanked);
         let out = fillet_edges(
-            &sweep::test_support::at_rest(&blanked),
+            &sweep::test_support::at_rest(&blanked, Tol::witness()),
             &rims,
             RIM_R,
             Tol::witness(),
@@ -228,7 +228,7 @@ fn p2_ring_touch_trio_through_the_front_door() {
     {
         let (pipped, box_edges) = one_pip(0.12 + s - 0.005, 0.5);
         let blanked = fillet_edges(
-            &sweep::test_support::at_rest(&pipped),
+            &sweep::test_support::at_rest(&pipped, Tol::witness()),
             &box_edges,
             DIE_R,
             Tol::witness(),
@@ -237,7 +237,7 @@ fn p2_ring_touch_trio_through_the_front_door() {
         .body;
         let rims = rim_edges(&blanked);
         let err = fillet_edges(
-            &sweep::test_support::at_rest(&blanked),
+            &sweep::test_support::at_rest(&blanked, Tol::witness()),
             &rims,
             RIM_R,
             Tol::witness(),
@@ -249,7 +249,7 @@ fn p2_ring_touch_trio_through_the_front_door() {
     {
         let (pipped, box_edges) = one_pip(0.12 + s + 5.0 * tol.eps, 0.5);
         let blanked = fillet_edges(
-            &sweep::test_support::at_rest(&pipped),
+            &sweep::test_support::at_rest(&pipped, Tol::witness()),
             &box_edges,
             DIE_R,
             Tol::witness(),
@@ -258,7 +258,7 @@ fn p2_ring_touch_trio_through_the_front_door() {
         .body;
         let rims = rim_edges(&blanked);
         let err = fillet_edges(
-            &sweep::test_support::at_rest(&blanked),
+            &sweep::test_support::at_rest(&blanked, Tol::witness()),
             &rims,
             RIM_R,
             Tol::witness(),
@@ -275,7 +275,7 @@ fn p2d_box_fillet_ring_touch_refuses() {
     let rho_rim = (PIP_R * PIP_R - (PIP_R - PIP_H).powi(2)).sqrt();
     let (pipped, box_edges) = one_pip(0.12 + rho_rim - 0.005, 0.5);
     let err = fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &box_edges,
         DIE_R,
         Tol::witness(),
@@ -293,7 +293,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
     {
         let (pipped, box_edges) = one_pip(0.5, 0.5);
         let blanked = fillet_edges(
-            &sweep::test_support::at_rest(&pipped),
+            &sweep::test_support::at_rest(&pipped, Tol::witness()),
             &box_edges,
             DIE_R,
             Tol::witness(),
@@ -303,7 +303,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
         let rims = rim_edges(&blanked);
         assert_eq!(rims.len(), 2);
         let out = fillet_edges(
-            &sweep::test_support::at_rest(&blanked),
+            &sweep::test_support::at_rest(&blanked, Tol::witness()),
             &rims,
             RIM_R,
             Tol::witness(),
@@ -378,7 +378,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             .filter(|k| pipped.get_edge(*k).is_some())
             .collect();
         let blanked = fillet_edges(
-            &sweep::test_support::at_rest(&pipped),
+            &sweep::test_support::at_rest(&pipped, Tol::witness()),
             &surviving,
             DIE_R,
             Tol::witness(),
@@ -392,7 +392,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             0.22 - 2.0 * s
         );
         let out = fillet_edges(
-            &sweep::test_support::at_rest(&blanked),
+            &sweep::test_support::at_rest(&blanked, Tol::witness()),
             &rims,
             RIM_R,
             Tol::witness(),
@@ -446,7 +446,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
             .filter(|k| pipped.get_edge(*k).is_some())
             .collect();
         let blanked = fillet_edges(
-            &sweep::test_support::at_rest(&pipped),
+            &sweep::test_support::at_rest(&pipped, Tol::witness()),
             &surviving,
             DIE_R,
             Tol::witness(),
@@ -455,7 +455,7 @@ fn p3_one_and_two_pip_ladders_and_tight_pair() {
         .body;
         let rims = rim_edges(&blanked);
         let err = fillet_edges(
-            &sweep::test_support::at_rest(&blanked),
+            &sweep::test_support::at_rest(&blanked, Tol::witness()),
             &rims,
             RIM_R,
             Tol::witness(),
@@ -477,7 +477,7 @@ fn p4_rim_at_a_face_edge_refuses_typed() {
             let rims = rim_edges(&pipped);
             println!("P4: boolean succeeded, {} plane-sphere edges", rims.len());
             match fillet_edges(
-                &sweep::test_support::at_rest(&pipped),
+                &sweep::test_support::at_rest(&pipped, Tol::witness()),
                 &rims,
                 RIM_R,
                 Tol::witness(),
@@ -525,7 +525,7 @@ fn p5_seam_azimuth_rotation_certifies_identically() {
             .filter(|k| pipped.get_edge(*k).is_some())
             .collect();
         let blanked = fillet_edges(
-            &sweep::test_support::at_rest(&pipped),
+            &sweep::test_support::at_rest(&pipped, Tol::witness()),
             &surviving,
             DIE_R,
             Tol::witness(),
@@ -534,7 +534,7 @@ fn p5_seam_azimuth_rotation_certifies_identically() {
         .body;
         let rims = rim_edges(&blanked);
         let out = fillet_edges(
-            &sweep::test_support::at_rest(&blanked),
+            &sweep::test_support::at_rest(&blanked, Tol::witness()),
             &rims,
             RIM_R,
             Tol::witness(),
@@ -569,7 +569,7 @@ fn p6_reversed_pip_walls_carry_through() {
     assert_eq!(sphere_senses.len(), 2, "two half-caps");
     println!("P6: pip wall senses pre-surgery: {sphere_senses:?}");
     let blanked = fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &box_edges,
         DIE_R,
         Tol::witness(),
@@ -584,7 +584,7 @@ fn p6_reversed_pip_walls_carry_through() {
     }
     let rims = rim_edges(&blanked);
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&blanked),
+        &sweep::test_support::at_rest(&blanked, Tol::witness()),
         &rims,
         RIM_R,
         Tol::witness(),
@@ -610,7 +610,7 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
     let every: Vec<_> = pipped.edges().map(|(k, _)| k).collect();
     for r in [1e-4, 5e-3, RIM_R, 0.05, DIE_R] {
         let err = fillet_edges(
-            &sweep::test_support::at_rest(&pipped),
+            &sweep::test_support::at_rest(&pipped, Tol::witness()),
             &every,
             r,
             Tol::witness(),
@@ -638,7 +638,7 @@ fn p8_duplicate_edge_refuses() {
     let mut req = box_edges.clone();
     req.push(box_edges[0]);
     let err = fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &req,
         DIE_R,
         Tol::witness(),

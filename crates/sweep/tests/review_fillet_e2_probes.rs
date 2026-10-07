@@ -81,7 +81,7 @@ fn line_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 
 /// The refusal a request meets, or a panic naming what built instead.
 fn refusal(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) -> BlendError {
-    match fillet_edges(&sweep::test_support::at_rest(body), edges, r, tol()) {
+    match fillet_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol()) {
         Err(e) => e.error,
         Ok(_) => panic!("{what}: expected a refusal, the request built"),
     }
@@ -89,7 +89,7 @@ fn refusal(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) -> BlendErro
 
 /// The request builds and passes tier-3 validation.
 fn builds(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
-    let out = fillet_edges(&sweep::test_support::at_rest(body), edges, r, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol())
         .unwrap_or_else(|e| panic!("{what}: the request must build, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{what}: and the result must be tier-3 valid, got {e:?}"));

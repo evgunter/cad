@@ -243,7 +243,7 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
     // strut surgery whose six conversion sites the unit reverted.
     let c = cube(1.0, Tol::witness());
     if let Ok(f) = sweep::chamfer::chamfer_edges(
-        &sweep::test_support::at_rest(&c),
+        &sweep::test_support::at_rest(&c, Tol::witness()),
         &query::all_edges(&c),
         0.1,
         Tol::witness(),
@@ -251,7 +251,7 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
         bodies.push(("chamfer cube (all edges)", f.body));
     }
     if let Ok(f) = fillet_edges(
-        &sweep::test_support::at_rest(&c),
+        &sweep::test_support::at_rest(&c, Tol::witness()),
         &query::all_edges(&c),
         0.15,
         Tol::witness(),
@@ -274,7 +274,7 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
             .collect()
     };
     match fillet_edges(
-        &sweep::test_support::at_rest(&c),
+        &sweep::test_support::at_rest(&c, Tol::witness()),
         &one_face,
         0.12,
         Tol::witness(),

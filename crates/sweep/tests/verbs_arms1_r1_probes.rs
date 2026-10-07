@@ -166,8 +166,13 @@ fn the_bored_dome_equator_fillets_at_three_radii() {
             );
         }
         let rim = bored_dome_equator(&body);
-        let out = fillet_edges(&sweep::test_support::at_rest(&body), &[rim], r, tol())
-            .unwrap_or_else(|e| panic!("the bored dome fillets at r = {r}, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &[rim],
+            r,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("the bored dome fillets at r = {r}, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("tier 3 at r = {r}, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1);
@@ -200,14 +205,14 @@ fn both_zone_rims_fillet_sequentially_and_match_the_closed_form() {
         "the zone is four revolution walls, its two plane annuli unslit"
     );
     let first = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol()),
         &[zone_rim(&body, -0.5)],
         r,
         tol(),
     )
     .unwrap_or_else(|e| panic!("the bottom rim fillets, got {e:?}"));
     let second = fillet_edges(
-        &sweep::test_support::at_rest(&first.body),
+        &sweep::test_support::at_rest(&first.body, tol()),
         &[zone_rim(&first.body, 1.0)],
         r,
         tol(),
@@ -259,7 +264,7 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
     let r = 0.08;
     let body = zone(0.6, Revolution::Full);
     let rims = [zone_rim(&body, -0.5), zone_rim(&body, 1.0)];
-    let one = fillet_edges(&sweep::test_support::at_rest(&body), &rims, r, tol())
+    let one = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rims, r, tol())
         .unwrap_or_else(|e| panic!("the one-call shared-wall pair builds (#935), got {e:?}"));
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
     assert_eq!(one.band_faces.len(), 2, "one band per rim");
@@ -268,14 +273,14 @@ fn both_zone_rims_in_one_call_match_the_sequential_composition() {
 
     let seq = |first: f64, second: f64| {
         let a = fillet_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, tol()),
             &[zone_rim(&body, first)],
             r,
             tol(),
         )
         .expect("the first sequential call");
         let b = fillet_edges(
-            &sweep::test_support::at_rest(&a.body),
+            &sweep::test_support::at_rest(&a.body, tol()),
             &[zone_rim(&a.body, second)],
             r,
             tol(),
@@ -333,8 +338,13 @@ fn the_unbored_hemisphere_equator_carves_as_one_band() {
         }),
         "an on-axis profile mints no closed rim edge at all"
     );
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, 0.1, tol())
-        .unwrap_or_else(|e| panic!("the hemisphere equator carves whole, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &arcs,
+        0.1,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the hemisphere equator carves whole, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("the filleted hemisphere must be tier-3 valid, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one band over both arcs");
@@ -355,8 +365,13 @@ fn near_limit_radii_refuse_typed() {
     // typed refusal.
     let body = bored_dome();
     let rim = bored_dome_equator(&body);
-    match fillet_edges(&sweep::test_support::at_rest(&body), &[rim], 0.45, tol())
-        .map_err(|r| r.error)
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[rim],
+        0.45,
+        tol(),
+    )
+    .map_err(|r| r.error)
     {
         Err(BlendError::SpineIrregular { .. } | BlendError::FaceClearanceUncertified { .. }) => {}
         other => panic!("s < r must refuse typed, got {other:?}"),
@@ -364,8 +379,13 @@ fn near_limit_radii_refuse_typed() {
     // r = 0.51 > (R − depth)/2: no spine circle exists; the poisoned
     // margin escalates (or refuses through an earlier predicate) —
     // loudly either way.
-    match fillet_edges(&sweep::test_support::at_rest(&body), &[rim], 0.51, tol())
-        .map_err(|r| r.error)
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[rim],
+        0.51,
+        tol(),
+    )
+    .map_err(|r| r.error)
     {
         Err(
             BlendError::Escalated { .. }
@@ -379,7 +399,7 @@ fn near_limit_radii_refuse_typed() {
     let narrow = zone(1.7, Revolution::Full);
     let bottom = zone_rim(&narrow, -0.5);
     match fillet_edges(
-        &sweep::test_support::at_rest(&narrow),
+        &sweep::test_support::at_rest(&narrow, tol()),
         &[bottom],
         0.35,
         tol(),
@@ -391,7 +411,7 @@ fn near_limit_radii_refuse_typed() {
     }
     // And well inside the same gap it builds and validates.
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&narrow),
+        &sweep::test_support::at_rest(&narrow, tol()),
         &[bottom],
         0.15,
         tol(),
@@ -422,7 +442,7 @@ fn the_partial_zone_refuses_through_its_own_gates() {
         })
         .expect("an open plane–sphere arc");
     match fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol()),
         &[open_arc],
         0.08,
         tol(),
@@ -442,7 +462,13 @@ fn the_partial_zone_refuses_through_its_own_gates() {
 fn a_torus_on_the_ring_convention_boundary_escalates_at_tier_3() {
     let body = bored_dome();
     let rim = bored_dome_equator(&body);
-    let mut out = fillet_edges(&sweep::test_support::at_rest(&body), &[rim], 0.1, tol()).unwrap();
+    let mut out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[rim],
+        0.1,
+        tol(),
+    )
+    .unwrap();
     validate_geometric(&out.body, tol()).expect("tier-3 valid before the plant");
     let band_face = out.band_faces[0];
     let surface = out

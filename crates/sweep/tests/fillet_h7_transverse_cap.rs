@@ -88,8 +88,13 @@ fn carve_and_check(source: &Body<f64>, what: &str) -> Blended<f64> {
     let (v0, e0, f0) = census(source);
     let vol0 = volume(source);
 
-    let out = fillet_edges(&sweep::test_support::at_rest(source), &creases, R, tol())
-        .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(source, tol()),
+        &creases,
+        R,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("{what}: both creases carve, got {e}"));
     assert_eq!(out.blend_faces.len(), 2, "{what}: one band per crease");
     assert!(
         out.corner_faces.is_empty() && out.band_faces.is_empty(),
@@ -331,8 +336,13 @@ fn one_crease_alone_carves_at_half_the_prism() {
     let creases = rod_creases(&source);
     let vol0 = volume(&source);
     for &e in &creases {
-        let out = fillet_edges(&sweep::test_support::at_rest(&source), &[e], R, tol())
-            .expect("one crease carves");
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&source, tol()),
+            &[e],
+            R,
+            tol(),
+        )
+        .expect("one crease carves");
         assert_eq!(census(&out.body), (6, 9, 5));
         validate_geometric(&out.body, tol()).expect("tier 3");
         let cut = rod_section_cut(ROD_R, ROD_FLAT, R) * ROD_L;
@@ -453,8 +463,13 @@ fn an_oblique_cap_cuts_the_ruled_band_off_in_an_ellipse() {
             (vec![creases[1]], two),
             (creases.clone(), one + two),
         ] {
-            let out = fillet_edges(&sweep::test_support::at_rest(below), &request, R, tol())
-                .unwrap_or_else(|e| panic!("{what}: the oblique cap cuts off, got {e}"));
+            let out = fillet_edges(
+                &sweep::test_support::at_rest(below, tol()),
+                &request,
+                R,
+                tol(),
+            )
+            .unwrap_or_else(|e| panic!("{what}: the oblique cap cuts off, got {e}"));
             validate_geometric(&out.body, tol())
                 .unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
             assert_naming_totality(below, &out, &request, &what);
@@ -703,7 +718,7 @@ fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_cut_off() {
 
     let body = cube(1.0, tol());
     let e = query::all_edges(&body)[0];
-    fillet_edges(&sweep::test_support::at_rest(&body), &[e], R, tol())
+    fillet_edges(&sweep::test_support::at_rest(&body, tol()), &[e], R, tol())
         .expect("one box edge is cut off at its end faces");
 }
 
@@ -750,7 +765,7 @@ fn the_cap_lever_is_the_links_extent() {
         assert_eq!(creases.len(), 2, "L = {len}: two creases");
         for e in creases {
             match fillet_edges(
-                &sweep::test_support::at_rest(below),
+                &sweep::test_support::at_rest(below, tol()),
                 &[e],
                 ROD_FILLET,
                 tol(),
@@ -825,7 +840,7 @@ fn a_curved_end_face_refuses_typed_before_metering() {
     assert_eq!(creases.len(), 4, "two walls × two wedge planes");
     for e in creases {
         let err = fillet_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, tol()),
             &[e],
             ROD_FILLET,
             tol(),

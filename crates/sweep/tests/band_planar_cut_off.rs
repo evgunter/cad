@@ -155,8 +155,12 @@ impl Verb {
         edges: &[EdgeKey],
     ) -> Result<Blended<f64>, BlendError> {
         match self {
-            Self::Chamfer => chamfer_edges(&sweep::test_support::at_rest(body), edges, D, tol()),
-            Self::Fillet => fillet_edges(&sweep::test_support::at_rest(body), edges, D, tol()),
+            Self::Chamfer => {
+                chamfer_edges(&sweep::test_support::at_rest(body, tol()), edges, D, tol())
+            }
+            Self::Fillet => {
+                fillet_edges(&sweep::test_support::at_rest(body, tol()), edges, D, tol())
+            }
         }
         .map_err(|r| r.error)
     }
@@ -340,7 +344,7 @@ fn a_chamfered_box_edge_matches_the_boolean_less_its_prism() {
         tol(),
     );
     let carved = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol()),
         &[front, back],
         D,
         tol(),
@@ -517,7 +521,7 @@ fn every_end_the_cut_off_does_not_build_refuses_typed() {
     // the chamfer ends at.
     let cube_body = cube(1.0, tol());
     let chamfered = chamfer_edges(
-        &sweep::test_support::at_rest(&cube_body),
+        &sweep::test_support::at_rest(&cube_body, tol()),
         &query::all_edges(&cube_body),
         D,
         tol(),

@@ -223,7 +223,7 @@ fn filleted_cavity_volume() -> f64 {
 fn the_filleted_cavity() {
     let body = vented_cavity();
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &cavity_edges(&body),
         R,
         Tol::witness(),
@@ -330,7 +330,7 @@ fn outward_at_boundary(body: &Body<f64>, face: topo::FaceKey) -> Vec<(Point3<f64
 fn every_minted_fillet_face_faces_its_own_void() {
     let body = vented_cavity();
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &cavity_edges(&body),
         R,
         Tol::witness(),
@@ -351,7 +351,7 @@ fn every_minted_fillet_face_faces_its_own_void() {
     let cube_body = cube(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
     let cut = fillet_edges(
-        &sweep::test_support::at_rest(&cube_body),
+        &sweep::test_support::at_rest(&cube_body, Tol::witness()),
         &cube_edges,
         R,
         Tol::witness(),
@@ -428,7 +428,7 @@ fn the_corner_recourse_is_followable_on_both_sides() {
         .collect();
     assert_eq!(reflex.len(), 1, "the bracket's one reflex vertical edge");
     let refused = fillet_edges(
-        &sweep::test_support::at_rest(&bracket),
+        &sweep::test_support::at_rest(&bracket, Tol::witness()),
         &reflex,
         0.1,
         Tol::witness(),
@@ -453,7 +453,7 @@ fn the_corner_recourse_is_followable_on_both_sides() {
     let cube_body = cube(2.0, Tol::witness());
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
     fillet_edges(
-        &sweep::test_support::at_rest(&cube_body),
+        &sweep::test_support::at_rest(&cube_body, Tol::witness()),
         &cube_edges,
         0.1,
         Tol::witness(),
@@ -461,7 +461,7 @@ fn the_corner_recourse_is_followable_on_both_sides() {
     .expect("the all-convex clause carves");
     let cavity = vented_cavity();
     fillet_edges(
-        &sweep::test_support::at_rest(&cavity),
+        &sweep::test_support::at_rest(&cavity, Tol::witness()),
         &cavity_edges(&cavity),
         0.1,
         Tol::witness(),

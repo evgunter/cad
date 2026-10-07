@@ -148,14 +148,20 @@ fn a_carried_shell_is_byte_identical_down_to_its_pcurves() {
     let a = edges_with_corners(&body, |p| p.x < 1.5);
     let b = edges_with_corners(&body, |p| p.x > 1.5);
     let (sa, sb) = (shell_of_edge(&body, a[0]), shell_of_edge(&body, b[0]));
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &a, 0.1, tol()).unwrap();
+    let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &a, 0.1, tol()).unwrap();
     assert_eq!(snapshot(&body, sb), snapshot(&out.body, sb), "planar box b");
 
     assert!(
         out.body.pcurves().count() > 0,
         "the filleted shell carries pcurve rows"
     );
-    let out2 = fillet_edges(&sweep::test_support::at_rest(&out.body), &b, 0.1, tol()).unwrap();
+    let out2 = fillet_edges(
+        &sweep::test_support::at_rest(&out.body, tol()),
+        &b,
+        0.1,
+        tol(),
+    )
+    .unwrap();
     assert_eq!(
         snapshot(&out.body, sa),
         snapshot(&out2.body, sa),
@@ -176,7 +182,7 @@ fn a_carried_shell_is_byte_identical_down_to_its_pcurves() {
     let a = edges_with_corners(&body, |p| p.x < 1.5);
     assert_eq!(a.len(), 12);
     let sr = shell_of_edge(&body, edges_with_corners(&body, |p| p.x > 1.5)[0]);
-    let out = chamfer_edges(&sweep::test_support::at_rest(&body), &a, 0.1, tol()).unwrap();
+    let out = chamfer_edges(&sweep::test_support::at_rest(&body, tol()), &a, 0.1, tol()).unwrap();
     assert_eq!(snapshot(&body, sr), snapshot(&out.body, sr), "rod");
 }
 
@@ -188,9 +194,10 @@ fn a_shell_carved_in_place_matches_it_carved_alone_then_unioned() {
     let hi = brick(Point3::new(2.0, 0.0, 0.0), Point3::new(3.0, 1.0, 1.0));
     let body = two_boxes();
     let a = edges_with_corners(&body, |p| p.x < 1.5);
-    let together = fillet_edges(&sweep::test_support::at_rest(&body), &a, 0.1, tol()).unwrap();
+    let together =
+        fillet_edges(&sweep::test_support::at_rest(&body, tol()), &a, 0.1, tol()).unwrap();
     let alone = fillet_edges(
-        &sweep::test_support::at_rest(&lo),
+        &sweep::test_support::at_rest(&lo, tol()),
         &topo::query::all_edges(&lo),
         0.1,
         tol(),
@@ -232,8 +239,13 @@ fn a_refusal_in_one_shell_names_a_face_of_that_shell() {
     let sb = shell_of_edge(&body, b[0]);
     let both: Vec<EdgeKey> = a.iter().chain(&b).copied().collect();
     for (what, req) in [("a and b", both), ("b only", b)] {
-        let err = fillet_edges(&sweep::test_support::at_rest(&body), &req, 0.1, tol())
-            .expect_err("box b is too small");
+        let err = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &req,
+            0.1,
+            tol(),
+        )
+        .expect_err("box b is too small");
         let dbg = format!("{:?}", err.error);
         assert!(
             !a.iter().any(|e| dbg.contains(&format!("{e:?}"))),
@@ -267,7 +279,7 @@ fn a_sealed_cylindrical_void_fillets_its_rims_at_the_pappus_form() {
     rims.extend(edges_with_corners(&body, |p| (p.z - 1.0 - h).abs() < 1e-9));
     let outer = edges_with_corners(&body, |p| p.x.abs() < 1e-9 || p.x > 3.99);
     let so = shell_of_edge(&body, outer[0]);
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &rims, r, tol()).unwrap();
+    let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rims, r, tol()).unwrap();
     assert_eq!(snapshot(&body, so), snapshot(&out.body, so), "outer");
     validate("cylindrical void", &out.body);
     // The spandrel's area is r²(1 − π/4), its centroid
@@ -288,7 +300,7 @@ fn an_outer_blend_carries_the_void_shell() {
     );
     let sv = shell_of_edge(&body, box_edges(&body, 1.0, 3.0)[0]);
     let out = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol()),
         &box_edges(&body, 0.0, 4.0),
         0.25,
         tol(),
@@ -320,7 +332,13 @@ fn a_blend_beside_another_solid_builds_when_it_clears_it() {
             .all(|c| c.abs() < 1e-9 || (c - 4.0).abs() < 1e-9)
     });
     let before = volume(&body);
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &top, 0.1, tol()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &top,
+        0.1,
+        tol(),
+    )
+    .unwrap();
     validate("vented, outer edges filleted", &out.body);
     close(
         "vented, outer edges filleted",
@@ -339,7 +357,13 @@ fn a_blend_beside_another_solid_builds_when_it_clears_it() {
     );
     let mut req = box_edges(&body, 1.0, 3.0);
     req.extend(box_edges(&body, 1.05, 2.95));
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &req, 0.25, tol()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &req,
+        0.25,
+        tol(),
+    )
+    .unwrap();
     validate("void and island filleted", &out.body);
     let want = 64.0 - rounded_box_volume(1.5, 0.25) + rounded_box_volume(1.4, 0.25);
     close("void and island filleted", volume(&out.body), want, 1e-12);
@@ -351,7 +375,7 @@ fn a_blend_beside_another_solid_builds_when_it_clears_it() {
 #[test]
 fn an_empty_request_returns_the_body_whatever_it_holds() {
     let empty = fillet_edges(
-        &sweep::test_support::at_rest(&Body::<f64>::new()),
+        &sweep::test_support::at_rest(&Body::<f64>::new(), tol()),
         &[],
         0.1,
         tol(),
@@ -361,7 +385,7 @@ fn an_empty_request_returns_the_body_whatever_it_holds() {
     assert!(empty.shells.is_empty());
 
     let body = two_boxes();
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &[], 0.1, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &[], 0.1, tol())
         .expect("nothing to carve");
     assert!(out.shells.is_empty());
     for (shell, _) in body.shells() {

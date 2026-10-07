@@ -74,7 +74,13 @@ fn the_fillet_dispatch_is_the_fillet_door() {
     let cube = sweep::test_support::cube(1.0, tol());
     let edges: Vec<_> = cube.edges().map(|(k, _)| k).collect();
 
-    let door = fillet_edges(&sweep::test_support::at_rest(&cube), &edges, 0.1, tol()).unwrap();
+    let door = fillet_edges(
+        &sweep::test_support::at_rest(&cube, tol()),
+        &edges,
+        0.1,
+        tol(),
+    )
+    .unwrap();
     let via = Verb::Fillet {
         edges: edges.clone(),
         radius: 0.1,
@@ -95,7 +101,13 @@ fn the_chamfer_dispatch_is_the_chamfer_door() {
     let cube = sweep::test_support::cube(1.0, tol());
     let edges: Vec<_> = cube.edges().map(|(k, _)| k).collect();
 
-    let door = chamfer_edges(&sweep::test_support::at_rest(&cube), &edges, 0.1, tol()).unwrap();
+    let door = chamfer_edges(
+        &sweep::test_support::at_rest(&cube, tol()),
+        &edges,
+        0.1,
+        tol(),
+    )
+    .unwrap();
     let via = Verb::Chamfer {
         edges: edges.clone(),
         distance: 0.1,
@@ -119,7 +131,13 @@ fn a_refusal_crosses_the_dispatch_unaltered() {
     let cube = sweep::test_support::cube(1.0, tol());
     let edges: Vec<_> = cube.edges().map(|(k, _)| k).collect();
 
-    let door = chamfer_edges(&sweep::test_support::at_rest(&cube), &edges, 0.0, tol()).unwrap_err();
+    let door = chamfer_edges(
+        &sweep::test_support::at_rest(&cube, tol()),
+        &edges,
+        0.0,
+        tol(),
+    )
+    .unwrap_err();
     let via = Verb::Chamfer {
         edges,
         distance: 0.0,

@@ -159,8 +159,13 @@ fn the_sphere_sphere_equator_fillets_to_its_closed_form() {
     let source = lentil();
     let arcs = rim_arcs_at(&source, RIM_R, 0.0);
     assert_eq!(arcs.len(), 1, "the equator is ONE closed rim edge");
-    let out = fillet_edges(&sweep::test_support::at_rest(&source), &arcs, r, tol())
-        .unwrap_or_else(|e| panic!("the sphere-sphere equator fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the sphere-sphere equator fillets, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one band face");
     let (center, major, minor) = band_torus(&out.body, out.band_faces[0]);
@@ -319,8 +324,13 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
     // The dihedral along a co-surface seam is zero, and the kernel says
     // so on its own metered predicate.
     for seam in seams {
-        match fillet_edges(&sweep::test_support::at_rest(&body), &[seam], 0.02, tol())
-            .map_err(|r| r.error)
+        match fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &[seam],
+            0.02,
+            tol(),
+        )
+        .map_err(|r| r.error)
         {
             Err(BlendError::TangentialEdge { margin, .. }) => assert_eq!(
                 (
@@ -344,7 +354,7 @@ fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
     let body = lantern();
     let (arcs, _) = mouth(&body);
     match fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, tol()),
         &arcs[..1],
         0.02,
         tol(),
@@ -394,8 +404,13 @@ fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
 fn requesting_the_rim_whole_gets_past_the_seam() {
     let body = lantern();
     let (arcs, vertex) = mouth(&body);
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, 0.02, tol())
-        .unwrap_or_else(|e| panic!("the whole rim carves, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &arcs,
+        0.02,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the whole rim carves, got {e:?}"));
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     assert_eq!(
         out.band_faces.len(),
@@ -431,7 +446,12 @@ fn a_one_edge_rim_never_reaches_the_seam_tag() {
     for (r, y) in [(RIM_R, 0.0), (0.6, 0.2), (0.6, -0.2)] {
         let arcs = rim_arcs_at(&source, r, y);
         assert_eq!(arcs.len(), 1, "an annular revolve's rim is ONE edge");
-        fillet_edges(&sweep::test_support::at_rest(&source), &arcs, 0.05, tol())
-            .unwrap_or_else(|e| panic!("the r={r} rim at y={y} fillets, got {e:?}"));
+        fillet_edges(
+            &sweep::test_support::at_rest(&source, tol()),
+            &arcs,
+            0.05,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("the r={r} rim at y={y} fillets, got {e:?}"));
     }
 }

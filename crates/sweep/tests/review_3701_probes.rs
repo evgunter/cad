@@ -115,7 +115,7 @@ fn builds(label: &str, w: f64, bottom: &[f64], top: &[f64], r: f64, joined: usiz
     let t = Tol::witness();
     let body = prism(w, bottom, top, t);
     let req: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let f = sweep::fillet::fillet_edges(&sweep::test_support::at_rest(&body), &req, r, t)
+    let f = sweep::fillet::fillet_edges(&sweep::test_support::at_rest(&body, t), &req, r, t)
         .unwrap_or_else(|e| panic!("{label}: fillet: {e}"));
     assert_eq!(
         topo::validate_geometric(&f.body, t),
@@ -137,7 +137,7 @@ fn builds(label: &str, w: f64, bottom: &[f64], top: &[f64], r: f64, joined: usiz
         "{label}: fillet volume"
     );
     sweep::test_support::assert_naming_totality(&body, &f, &req, label);
-    let c = sweep::chamfer::chamfer_edges(&sweep::test_support::at_rest(&body), &req, r, t)
+    let c = sweep::chamfer::chamfer_edges(&sweep::test_support::at_rest(&body, t), &req, r, t)
         .unwrap_or_else(|e| panic!("{label}: chamfer: {e}"));
     assert_eq!(
         topo::validate_geometric(&c.body, t),
@@ -208,12 +208,12 @@ fn a_joint_inside_a_corners_setback_refuses() {
         for (verb, err) in [
             (
                 "fillet",
-                sweep::fillet::fillet_edges(&sweep::test_support::at_rest(&body), &req, r, t)
+                sweep::fillet::fillet_edges(&sweep::test_support::at_rest(&body, t), &req, r, t)
                     .unwrap_err(),
             ),
             (
                 "chamfer",
-                sweep::chamfer::chamfer_edges(&sweep::test_support::at_rest(&body), &req, r, t)
+                sweep::chamfer::chamfer_edges(&sweep::test_support::at_rest(&body, t), &req, r, t)
                     .unwrap_err(),
             ),
         ] {

@@ -268,8 +268,13 @@ fn compose_two_rims(
     let mut both = rim_arcs_at(source, rims[0].0, rims[0].1);
     both.extend(rim_arcs_at(source, rims[1].0, rims[1].1));
     assert_eq!(both.len(), 4, "{what}: two rims of two arcs each");
-    let one_call = fillet_edges(&sweep::test_support::at_rest(source), &both, r, tol())
-        .map_err(|e| format!("{what}: one call refused: {:?}", e.error))?;
+    let one_call = fillet_edges(
+        &sweep::test_support::at_rest(source, tol()),
+        &both,
+        r,
+        tol(),
+    )
+    .map_err(|e| format!("{what}: one call refused: {:?}", e.error))?;
     validate_geometric(&one_call.body, tol())
         .map_err(|e| format!("{what}: one-call result not tier-3 valid: {e:?}"))?;
     assert_eq!(one_call.band_faces.len(), 2, "{what}: one band per rim");
@@ -279,7 +284,7 @@ fn compose_two_rims(
         let mut body = source.clone();
         for (rr, ry) in order {
             let arcs = rim_arcs_at(&body, rr, ry);
-            body = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, r, tol())
+            body = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
                 .map_err(|e| format!("{what}: rim ({rr}, {ry}) refused alone: {:?}", e.error))?
                 .body;
         }
@@ -357,16 +362,26 @@ fn a_hostless_rim_beside_a_ladder_rim_and_a_ringed_host_measured() {
     for (r, y) in [(1.0, 0.0), (0.5, 1.5), (1.0, 1.0)] {
         let arcs = rim_arcs_at(&body, r, y);
         assert_eq!(arcs.len(), 2, "({r}, {y}) two arcs");
-        let out = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, 0.05, tol())
-            .unwrap_or_else(|e| panic!("the ({r}, {y}) rim carves, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &arcs,
+            0.05,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("the ({r}, {y}) rim carves, got {e:?}"));
         validate_geometric(&out.body, tol()).expect("tier-3 valid");
     }
     // The ladder ring beside a hostless rim, one call.
     let mut both = rim_arcs_at(&body, 1.0, 0.0);
     both.extend(rim_arcs_at(&body, 0.5, 1.0));
     assert_eq!(both.len(), 4);
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &both, 0.05, tol())
-        .unwrap_or_else(|e| panic!("the ladder rim composes with the base rim, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &both,
+        0.05,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the ladder rim composes with the base rim, got {e:?}"));
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 2, "one band per rim");
 }
@@ -407,7 +422,7 @@ fn the_hostless_closed_forms_match_an_independent_derivation() {
     for (name, body, rim, want) in cases {
         let arcs = rim_arcs_at(&body, rim.0, rim.1);
         let before = mass_properties(&body, tol()).unwrap().volume;
-        let out = fillet_edges(&sweep::test_support::at_rest(&body), &arcs, r, tol())
+        let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         let after = mass_properties(&out.body, tol()).unwrap().volume;
         let delta = after - before;

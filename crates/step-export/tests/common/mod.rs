@@ -548,7 +548,7 @@ pub fn filleted_die() -> Body<f64> {
     .body;
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
     sweep::blend::build::fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         0.12,
         Tol::witness(),
@@ -746,7 +746,7 @@ pub fn composed_die() -> Body<f64> {
         .map(|(k, _)| k)
         .collect();
     let blanked = fillet_edges(
-        &sweep::test_support::at_rest(&pipped),
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
         &box_edges,
         die_r,
         Tol::witness(),
@@ -782,7 +782,7 @@ pub fn composed_die() -> Body<f64> {
         .map(|(k, _)| k)
         .collect();
     fillet_edges(
-        &sweep::test_support::at_rest(&blanked),
+        &sweep::test_support::at_rest(&blanked, Tol::witness()),
         &rims,
         rim_r,
         Tol::witness(),

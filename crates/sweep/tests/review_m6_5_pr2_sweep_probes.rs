@@ -25,7 +25,7 @@ fn filleted_die() -> AtRestBody<f64> {
     let cube0 = box_at(0.0, 1.0);
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let die = fillet_edges(
-        &sweep::test_support::at_rest(&cube0),
+        &sweep::test_support::at_rest(&cube0, Tol::witness()),
         &edges,
         0.125,
         Tol::witness(),

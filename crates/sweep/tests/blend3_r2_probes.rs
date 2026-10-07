@@ -66,7 +66,7 @@ fn p1_a_square_vent_passes_the_ring_clearance_door_and_both_convexity_ones() {
     let edges = edges_with_corners(&body, cavity_corner);
     assert_eq!(edges.len(), 12, "the square-vented cavity's twelve edges");
     let out = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
@@ -183,7 +183,7 @@ fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
     let floor = edges_with_corners(&body, floor_corner);
     assert_eq!(floor.len(), 4, "the pocket floor's four concave edges");
     let floor_only = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &floor,
         D,
         Tol::witness(),
@@ -198,7 +198,7 @@ fn p3_a_pocket_cannot_supply_a_complete_concave_request() {
     let full = edges_with_corners(&body, on_pocket_vertical);
     assert_eq!(full.len(), 12, "floor, struts, and the pocket's convex rim");
     let err = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &full,
         D,
         Tol::witness(),
@@ -250,7 +250,7 @@ fn p4_the_l_bracket_inner_edge_still_refuses_the_fillet_as_mixed() {
     });
     assert_eq!(inner.len(), 1, "the bracket's one reflex vertical edge");
     let err = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &inner,
         0.1,
         Tol::witness(),

@@ -273,8 +273,8 @@ fn rims_carve(
         edges.extend(e);
     }
     let v0 = volume(body);
-    let out =
-        fillet_edges(&sweep::test_support::at_rest(body), &edges, r, tol()).map_err(|e| e.error)?;
+    let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), &edges, r, tol())
+        .map_err(|e| e.error)?;
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{what}: tier 3 after the carve, {e:?}"));
     assert_eq!(validate(&out.body), Ok(()), "{what}: tier 1");
@@ -437,7 +437,7 @@ fn a_two_annuli_laminas_outer_and_ring_hosted_rims_carve() {
 fn a_washer_rim_chamfer_refuses_typed() {
     let b = washer();
     let e = rim_arcs_at(&b, 1.0, 0.0);
-    let err = chamfer_edges(&sweep::test_support::at_rest(&b), &e, 0.2, tol())
+    let err = chamfer_edges(&sweep::test_support::at_rest(&b, tol()), &e, 0.2, tol())
         .expect_err("plane × cylinder")
         .error;
     assert!(
@@ -463,7 +463,7 @@ fn an_interval_washers_rims_fillet_tier_3_valid() {
     for (rr, y) in [(1.0, 0.0), (2.0, 1.0)] {
         let e = rim_arcs_at(&b, rr, y);
         match fillet_edges(
-            &sweep::test_support::at_rest(&b),
+            &sweep::test_support::at_rest(&b, tol()),
             &e,
             Interval::from_f64(0.2),
             tol(),
@@ -581,7 +581,12 @@ fn a_ruled_band_on_a_plane_support_carrying_the_bore_carves_at_the_closed_form()
         let setback = ((rho + r).powi(2) - r * r).sqrt() - rho;
         let clearance = near - setback - ri;
         let v0 = volume(&body);
-        match fillet_edges(&sweep::test_support::at_rest(&body), &near_ruling, r, tol()) {
+        match fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &near_ruling,
+            r,
+            tol(),
+        ) {
             Ok(out) => {
                 validate_geometric(&out.body, tol())
                     .unwrap_or_else(|e| panic!("near {near} r {r}: tier 3 {e:?}"));
@@ -660,7 +665,12 @@ fn a_ruled_band_whose_caps_are_unslit_annuli_carves_at_the_closed_form() {
         .collect();
         assert_eq!(creases.len(), 2, "two vertical rulings");
         let v0 = volume(&body);
-        match fillet_edges(&sweep::test_support::at_rest(&body), &creases, r, tol()) {
+        match fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &creases,
+            r,
+            tol(),
+        ) {
             Ok(out) => {
                 validate_geometric(&out.body, tol())
                     .unwrap_or_else(|e| panic!("ri {ri} c {c} r {r}: tier 3 {e:?}"));
@@ -750,7 +760,7 @@ fn a_notched_bore_ring_is_metered_edge_by_edge_against_the_outer_rims_trim() {
                 continue;
             }
             let clear = (2.0 - r) - reach;
-            match fillet_edges(&sweep::test_support::at_rest(&body), &rim, r, tol()) {
+            match fillet_edges(&sweep::test_support::at_rest(&body, tol()), &rim, r, tol()) {
                 Ok(out) => {
                     carved += 1;
                     let ok = validate_geometric(&out.body, tol());
@@ -834,7 +844,7 @@ fn a_second_ring_beside_a_ring_hosted_rim_is_metered_at_its_deepest_edge() {
             assert_eq!(e.len(), 1);
             for r in [0.2, 0.28, 0.295, 0.302, 0.304, 0.305, 0.32] {
                 let gap = gap_of(r);
-                match fillet_edges(&sweep::test_support::at_rest(&body), &e, r, tol()) {
+                match fillet_edges(&sweep::test_support::at_rest(&body, tol()), &e, r, tol()) {
                     Ok(out) => {
                         let ok = validate_geometric(&out.body, tol());
                         let got = volume(&out.body) - v0;
@@ -992,7 +1002,7 @@ fn the_lone_host_trim_keeps_the_hosts_key_and_designations() {
     let fd0 = w.get_face(bottom).unwrap().clone();
     for (rr, which) in [(1.0, "ring"), (2.0, "outer")] {
         let e = rim_arcs_at(&w, rr, 0.0);
-        let out = fillet_edges(&sweep::test_support::at_rest(&w), &e, 0.2, tol())
+        let out = fillet_edges(&sweep::test_support::at_rest(&w, tol()), &e, 0.2, tol())
             .unwrap()
             .body;
         let fd = out
@@ -1057,9 +1067,14 @@ fn the_squared_washers_thirteen_edges_carve_at_the_closed_form() {
     let v0 = volume(&body);
     let want0 = 4.2 * 4.2 * 1.0 - PI;
     assert!((v0 - want0).abs() < 1e-9, "fixture {v0} vs {want0}");
-    let out = fillet_edges(&sweep::test_support::at_rest(&body), &edges, r, tol())
-        .expect("carves")
-        .body;
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        r,
+        tol(),
+    )
+    .expect("carves")
+    .body;
     assert_eq!(validate_geometric(&out, tol()), Ok(()));
     let (x, y, z) = (4.2 - 2.0 * r, 4.2 - 2.0 * r, 1.0 - 2.0 * r);
     let rounded = x * y * z
@@ -1122,7 +1137,7 @@ fn cone_and_plane_annulus_rims_carve_at_the_closed_form() {
         ((1.5, 1.0), (1.0, 0.0), (-0.5, -1.0)),
     ] {
         let e = rim_arcs_at(&b, k.0, k.1);
-        let out = fillet_edges(&sweep::test_support::at_rest(&b), &e, r, tol())
+        let out = fillet_edges(&sweep::test_support::at_rest(&b, tol()), &e, r, tol())
             .unwrap_or_else(|e| panic!("{k:?}: {e:?}"))
             .body;
         assert_eq!(validate_geometric(&out, tol()), Ok(()), "{k:?}");

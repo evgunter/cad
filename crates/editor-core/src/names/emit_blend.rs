@@ -421,7 +421,7 @@ mod tie_tests {
         );
 
         let blended = sweep::blend::build::fillet_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, Tol::witness()),
             &edges,
             0.125_f64,
             Tol::witness(),
@@ -469,7 +469,7 @@ mod tie_tests {
         // different minting id, so the deferral reaches it by
         // construction — asserted, not assumed.
         let chamfered = sweep::blend::build::chamfer_edges(
-            &sweep::test_support::at_rest(&body),
+            &sweep::test_support::at_rest(&body, Tol::witness()),
             &edges,
             0.125_f64,
             Tol::witness(),

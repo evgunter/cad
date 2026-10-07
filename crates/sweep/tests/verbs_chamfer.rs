@@ -47,7 +47,7 @@ fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
 fn the_chamfered_cube() {
     let body = cube(L, Tol::witness());
     let out = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &query::all_edges(&body),
         D,
         Tol::witness(),
@@ -113,7 +113,7 @@ fn the_chamfer_records_every_birth_and_death() {
     let body = cube(L, Tol::witness());
     let source_edges = query::all_edges(&body);
     let out = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &source_edges,
         D,
         Tol::witness(),
@@ -179,14 +179,14 @@ fn fillet_and_chamfer_agree_on_a_right_corner() {
     let body = cube(L, Tol::witness());
     let edges = query::all_edges(&body);
     let filleted = fillet_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
     )
     .expect("fillets");
     let chamfered = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
@@ -236,7 +236,7 @@ fn one_edge_of_a_cube_is_cut_off_at_its_end_faces() {
     let body = cube(L, Tol::witness());
     let edges = query::all_edges(&body);
     let out = chamfer_edges(
-        &sweep::test_support::at_rest(&body),
+        &sweep::test_support::at_rest(&body, Tol::witness()),
         &edges[..1],
         D,
         Tol::witness(),
@@ -261,7 +261,7 @@ fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
     let cyl = cylinder(0.5, 1.0);
     let edges = query::all_edges(&cyl);
     let err = chamfer_edges(
-        &sweep::test_support::at_rest(&cyl),
+        &sweep::test_support::at_rest(&cyl, Tol::witness()),
         &edges,
         D,
         Tol::witness(),
@@ -291,7 +291,7 @@ fn an_l_brackets_inner_edge_refuses_on_its_corner_configuration() {
     let bracket = l_bracket();
     let inner = concave_edge(&bracket);
     let err = chamfer_edges(
-        &sweep::test_support::at_rest(&bracket),
+        &sweep::test_support::at_rest(&bracket, Tol::witness()),
         &[inner],
         D,
         Tol::witness(),

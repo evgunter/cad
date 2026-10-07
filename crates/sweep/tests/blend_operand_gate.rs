@@ -93,7 +93,7 @@ fn both_blend_doors_refuse_an_inside_out_operand_at_a_dual() {
 fn the_counterclockwise_wedge_blends_outward_at_both_doors() {
     let tol = Tol::witness();
     let wedge_volume = 0.5 * 0.5 * 110f64.to_radians().sin();
-    let at_f64 = both_doors(&at_rest(&wedge::<f64>(true)));
+    let at_f64 = both_doors(&at_rest(&wedge::<f64>(true), tol));
     let dual =
         Dual64::gate_at_rest_kept(wedge::<Dual64>(true), tol).expect("a dual gate runs nothing");
     let at_dual = both_doors(&dual);

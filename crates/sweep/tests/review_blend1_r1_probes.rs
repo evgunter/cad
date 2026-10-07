@@ -294,8 +294,13 @@ fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
     assert_eq!(arcs2.len(), 2, "the raised rim is two arcs by authoring");
     whole(&two, arcs2.clone()).expect("the two-arc rim resolves");
     assert!(
-        sweep::blend::fillet_edges(&sweep::test_support::at_rest(&two), &arcs2, 0.05, tol())
-            .is_ok(),
+        sweep::blend::fillet_edges(
+            &sweep::test_support::at_rest(&two, tol()),
+            &arcs2,
+            0.05,
+            tol()
+        )
+        .is_ok(),
         "the two-arc rim carves"
     );
     // The PRISTINE three-arc extrusion, whole rim: three junctions at
@@ -308,7 +313,7 @@ fn r1_a_three_arc_rim_carves_where_a_two_arc_rim_does() {
         .unwrap_or_else(|e| panic!("the three-arc rim resolves at every junction, got {e:?}"));
     assert!(
         sweep::blend::fillet_edges(
-            &sweep::test_support::at_rest(&pristine),
+            &sweep::test_support::at_rest(&pristine, tol()),
             &arcs3,
             0.05,
             tol()
