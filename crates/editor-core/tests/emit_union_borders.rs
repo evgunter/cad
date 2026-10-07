@@ -61,6 +61,7 @@ fn moved(doc: ProfileDoc, tr: RecipeNodeId, axis: Axis3, to: f64) -> ProfileDoc 
             node: tr,
             slot: SlotId::Translation(axis),
             expr: len(to),
+            fresh: Vec::new(),
         },
     )
     .0

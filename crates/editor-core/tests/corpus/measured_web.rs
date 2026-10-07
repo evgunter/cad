@@ -177,6 +177,7 @@ pub fn document() -> CorpusDoc {
             node: plate,
             slot: editor_core::SlotId::Distance,
             expr: len(0.125),
+            fresh: Vec::new(),
         },
         bump_root: plate,
     }

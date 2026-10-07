@@ -79,6 +79,7 @@ fn measured_twins() -> (ProfileDoc, RecipeNodeId) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::measure(MeasureExpr::value(sum), Vec::new()).unwrap()),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -196,9 +197,11 @@ fn bound(var: VarId, env: &editor_core::VarEnv<Sym<f64>>) -> Sym<f64> {
     }
 }
 
-/// Row 6: the symbolic tier reads a variable as its id's symbol, so
-/// `w − w` is a theorem, `w − v` at equal values is not, and the
-/// symbol is `ParamSymbol::new(id)` exactly.
+/// Row 6: the symbolic tier reads a toleranced variable as its id's
+/// symbol, so `w − w` is a theorem, `w − v` at equal values is not, and
+/// the symbol is `ParamSymbol::new(id)` exactly. The twins carry a law:
+/// an untoleranced variable is a constant of the lane (VR8), which
+/// `intent_literals_c_slots` pins.
 #[test]
 fn the_symbol_is_the_variables_id() {
     let doc = twins();
@@ -258,6 +261,7 @@ fn a_kind_is_fixed() {
         DocEdit::DefineVar {
             var: w.into(),
             def: VarDecl::Free(FreeVar::Count { value: 3 }),
+            fresh: Vec::new(),
         },
     )
     .unwrap_err();
@@ -274,7 +278,8 @@ fn a_kind_is_fixed() {
             &doc,
             DocEdit::DefineVar {
                 var: w.into(),
-                def: angle
+                def: angle,
+                fresh: Vec::new()
             }
         ),
         Err(EditError::VarKindFixed {
@@ -289,6 +294,7 @@ fn a_kind_is_fixed() {
         DocEdit::DefineVar {
             var: w.into(),
             def: same_kind.clone(),
+            fresh: Vec::new(),
         },
     )
     .expect("a definition of the variable's kind applies");
@@ -490,7 +496,10 @@ fn every_lane_reads_the_declaration_order_not_the_id_order() {
     let (doc, measure) = measured_twins();
     let (w, v) = (id(&doc, "w"), id(&doc, "v"));
     assert!(w > v, "the fixture's ids sort against its declarations");
-    assert_eq!(doc.var_order(), &[w, v]);
+    // The measure's own variable, the anonymous definition its value
+    // lowers to, is declared after the twins.
+    assert_eq!(doc.var_order()[..2], [w, v]);
+    assert_eq!(doc.var_order().len(), 3);
     assert_eq!(
         doc.free_vars().map(|(id, _)| id).collect::<Vec<_>>(),
         vec![w, v]
@@ -516,5 +525,5 @@ fn every_lane_reads_the_declaration_order_not_the_id_order() {
     // And the order survives a save.
     let text = save(&doc, &[], Tol::witness()).unwrap();
     let back = load(&text, Tol::witness()).unwrap().doc;
-    assert_eq!(back.var_order(), &[w, v]);
+    assert_eq!(back.var_order(), doc.var_order());
 }
