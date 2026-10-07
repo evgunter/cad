@@ -39,11 +39,11 @@
 //!   the check judged each junction between its own two links. N = 2 in
 //!   each is the control every other suite builds; one N past each
 //!   range is `review_closed_chain_junctions_r2_probes`'.
-//! - `an_open_three_link_chain_refuses_chain_g1_at_its_first_junction`
+//! - `an_open_three_link_chain_turns_at_both_junctions`
 //!   — the open case, which no pairing ever broke: three cube edges in a
 //!   row, one junction at each inner vertex between exactly the two
-//!   links that meet there, and the 90° refusal at the FIRST junction is
-//!   the verdict that pairing owes.
+//!   links that meet there, and a turn at each junction and nowhere else
+//!   is the verdict that pairing owes.
 //! - `a_self_closed_link_counts_its_vertex_twice` — the walk's
 //!   incidence: a self-closed link beside one other link at its vertex
 //!   is a corner, not a junction.

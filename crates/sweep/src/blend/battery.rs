@@ -1617,7 +1617,7 @@ fn break_at_turns<T: Real>(chain: Chain<T>, turns: &[usize]) -> Vec<Chain<T>> {
         // lines meet at one corner and are closed by an arc tangent to
         // both, so its one run starts and ends at that corner, where the
         // end names two of three edges, the turn
-        // (`band_planar_cut_off::a_closed_rim_with_one_turn_breaks_there_and_refuses_the_turn`).
+        // (`band_planar_cut_off::a_closed_rim_with_one_turn_breaks_there_and_refuses_its_mixed_chain`).
         debug_assert!(run.is_empty(), "a closed chain's runs end at turns");
     }
     runs.into_iter()
