@@ -339,7 +339,7 @@ fn a_random_sphere_island_winds_as_its_stereographic_oracle_does() {
             continue;
         };
         built += 1;
-        if !read_at(0.1 * r) || 1e-13 * r > band().zero() {
+        if std::env::var("R2_NOSTAND").is_err() && (!read_at(0.1 * r) || 1e-13 * r > band().zero()) {
             stood += 1;
             continue;
         }
@@ -474,7 +474,7 @@ fn a_bystander_of_a_random_sphere_island_is_re_homed_as_its_oracle_says() {
             continue;
         };
         built += 1;
-        if !read_at(0.1 * r) || 1e-13 * r > band().zero() {
+        if std::env::var("R2_NOSTAND").is_err() && (!read_at(0.1 * r) || 1e-13 * r > band().zero()) {
             stood += 1;
             continue;
         }
