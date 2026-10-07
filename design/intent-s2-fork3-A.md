@@ -16,10 +16,9 @@ reported at each reader. `Rebind` is addressed to the variable.
 
 *Terms.* A **StableName** is a derivation path: the minting node plus the
 role the entity plays there. A **select** reads a `Body` variable (a node's
-output) and denotes the entity that name has in that body's table; the same
-name read in two bodies (an extrude, then a boolean over it) is two selects,
-because an edge key means nothing without its body. A **reader** is any slot
-holding the variable's id. **Interning** means one variable per definition.
+output) and denotes the entity that name has in that body's table; one name
+read in two bodies is two selects, since an edge key means nothing without
+its body. A **reader** is any slot holding the variable's id.
 
 **Premise check.** D10's sentence "a `Face` or `Edge` variable is a selection
 of a `Body` variable by `StableName`" is agent-drafted (the PR 3990 draft
@@ -113,15 +112,14 @@ keeps its spelling as sugar lowering to one select per name;
 `Doc.select(body, name) -> Var` is how a selection is named and shared.
 
 **Final states compared.** *Node:* one row per select (or a multi-port
-select whose ports are positional over a mutable name list), a label nobody
-needs, a memo entry for a lookup, the shape forced through every evaluation
-consumer. *Set-valued variable:* a new kind per arity shape, no sharing of one
-edge between a fillet and a measure. *Distinct variables per site:* duplicates
-with no semantic difference, each repaired separately. *Recommended:* one arm
-in `VarDef`, no new kinds beyond `Face`/`Edge`, one variable per denotation,
-repair once. Reversibility: interning can be relaxed to the offer model by
-deleting one load check; a node cannot be turned back into a definition
-without moving every id.
+select with positional ports over a mutable name list), a label nobody needs,
+a memo entry for a lookup. *Set-valued variable:* a new kind per arity shape,
+no sharing of one edge between a fillet and a measure. *Distinct variables per
+site:* duplicates with no semantic difference, each repaired separately.
+*Recommended:* one `VarDef` arm, no kinds beyond `Face`/`Edge`, one variable
+per denotation, repair once. Reversibility: interning relaxes to the offer
+model by deleting one load check; a node cannot become a definition without
+moving every id.
 
 **Confidence.** Definition over node: *likely*. Many singletons over a set
 kind: *likely*. One variable per `(body, name)`: *likely*; the merge rule on
@@ -136,11 +134,10 @@ binding regardless of FORK-5: *sure*.
   "assertions and other measures" if FORK-5 refuses driven geometry; selects
   are a third customer and every geometric reader is downstream of one, so
   the per-lane binding is on E's path either way. Say so in the spec.
-- **The spec's `Select { body: VarId, name }` as a `VarDef` arm matches this
-  report**; its "if FORK-3 rules one entity per variable" rows (Fillet,
-  Chamfer `Vec<S>` of `Edge`, Shell `Vec<S>` of `Face`) are the ones taken.
-  `Rebind`'s address changes from a name to a variable; `rebind_payload_names`
-  shrinks to declared pairs and the appearance store as the spec says.
+- **The spec's `Select { body: VarId, name }` `VarDef` arm and its "one
+  entity per variable" rows are the ones taken.** `Rebind`'s address becomes
+  a variable; `rebind_payload_names` shrinks to declared pairs and the
+  appearance store.
 - **The latent name-rebind defect** (rewriting a site where `from` still
   resolves, when a downstream boolean is what stranded it) is today's; I did
   not file it since E retires the path. File it if E slips.
@@ -154,9 +151,8 @@ binding regardless of FORK-5: *sure*.
 - **Not checked:** whether `Shell` with an empty `open` is admitted today (no
   refusal found by grep; the variant docs imply a closed cavity is legal).
   If it is refused, the "drop `target`" alternative gains and the lean flips.
-- **Ev's verbatim transcript** (commits 5f7a1c71e3, 3d70e5de72, fae23dbc71,
-  c4158a079c) has no word on selections, tree rows or sharing; the premise
-  check above rests on that absence and on PR 3990's drafting commit.
-- Change no code; this report only. Corpus selection sizes read: fillets of
-  12, 12 and 42 edges (die tour), chamfers of 12, one shell face, measures of
-  one or two refs.
+- **Ev's verbatim transcripts** (commits 5f7a1c71e3, 3d70e5de72, fae23dbc71,
+  c4158a079c) say nothing on selections, tree rows or sharing; the premise
+  check rests on that absence and on PR 3990's drafting commit 84404cdbf8.
+- No code changed. Corpus selection sizes: fillets of 12, 12 and 42 edges,
+  chamfers of 12, one shell face, measures of one or two refs.
