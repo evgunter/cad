@@ -35,7 +35,7 @@ use std::collections::btree_map::Entry;
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::EdgeCurveSpec;
+use geom_brep::{EdgeCurveSpec, Reach};
 use geom_brep::intersect::{EqualCylinderSection, RadiusEvidence, cylinder_cylinder_section};
 use geom_core::{Band, Bounds, Decide, Point3, Real, Tol, Vec3};
 use topo::{
@@ -468,7 +468,10 @@ pub(in crate::blend) fn turn_plan<'a, T: Decide>(
                 &out(l1)?,
                 &out(l2)?,
                 RadiusEvidence::Declared,
-                l1.arm_len.max(l2.arm_len),
+                &Reach::Measured {
+                    at: p,
+                    lever: l1.arm_len.max(l2.arm_len),
+                },
                 band,
             )
             .map_err(|_| unbuilt())?;
