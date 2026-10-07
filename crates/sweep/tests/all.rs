@@ -55,6 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "a_ruling_lying_on_a_wall.rs"]
+mod a_ruling_lying_on_a_wall;
 #[path = "a_swept_cusp_is_legal_at_rest.rs"]
 mod a_swept_cusp_is_legal_at_rest;
 #[path = "at_rest_pcurve_faces.rs"]
@@ -109,6 +111,10 @@ mod offd2_r1_probes;
 mod offd_r1_probes;
 #[path = "offset_restates_a_neighbour_chart_rim.rs"]
 mod offset_restates_a_neighbour_chart_rim;
+#[path = "one_door_for_coincident_sections.rs"]
+mod one_door_for_coincident_sections;
+#[path = "one_segment_loop.rs"]
+mod one_segment_loop;
 #[path = "p1b_r1_probes.rs"]
 mod p1b_r1_probes;
 #[path = "parallel_cylinder_join.rs"]
@@ -210,6 +216,8 @@ mod band_planar_cut_off_interval;
 mod band_planar_cut_off_meters;
 #[path = "band_planar_cut_off_shapes.rs"]
 mod band_planar_cut_off_shapes;
+#[path = "band_planar_oblique_fillet.rs"]
+mod band_planar_oblique_fillet;
 #[path = "band_ruled_cap_ring.rs"]
 mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
@@ -384,6 +392,8 @@ mod reach_aligned_half_rods;
 mod reach_cone_split;
 #[path = "reach_continuation.rs"]
 mod reach_continuation;
+#[path = "reach_split_gate_azimuth.rs"]
+mod reach_split_gate_azimuth;
 #[path = "reach_split_gate_per_face.rs"]
 mod reach_split_gate_per_face;
 #[path = "reach_split_gate_pose.rs"]
@@ -529,6 +539,8 @@ mod split_edge_loft_charts;
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
 mod split_tangent_edge_curved;
+#[path = "split_through_a_seam_ruling.rs"]
+mod split_through_a_seam_ruling;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]
@@ -692,6 +704,8 @@ mod mate7a_r2_probes;
 mod mate7a_torus_rest;
 #[path = "pi_seam_and_kiss_through_the_boolean.rs"]
 mod pi_seam_and_kiss_through_the_boolean;
+#[path = "pierce_tangent_off_face.rs"]
+mod pierce_tangent_off_face;
 #[path = "snowman.rs"]
 mod snowman;
 #[path = "tang_circle_cylinder.rs"]
@@ -938,6 +952,8 @@ mod rest_mate_every_op;
 #[path = "witness_ladder.rs"]
 mod witness_ladder;
 
+#[path = "boss_flush_with_a_block_edge.rs"]
+mod boss_flush_with_a_block_edge;
 #[path = "far_thin_disc_sign.rs"]
 mod far_thin_disc_sign;
 #[path = "join1_delta2_harness.rs"]
@@ -946,6 +962,8 @@ mod join1_delta2_harness;
 mod pinch_faces_tessellate;
 #[path = "rest_nested_strut.rs"]
 mod rest_nested_strut;
+#[path = "rest_zip_admission.rs"]
+mod rest_zip_admission;
 
 #[path = "pole_ball_shells.rs"]
 mod pole_ball_shells;

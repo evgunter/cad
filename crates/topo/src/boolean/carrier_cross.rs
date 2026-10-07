@@ -39,10 +39,19 @@
 //! planes' common line; two circles in one plane), or along a shared
 //! stretch whose ends are vertices
 //! of one of them — the boundary vertices, which are always candidates.
-//! A spiric or spline carrier on either side has no closed form here,
-//! and a face holding a lone vertex (a pierce ring) has no boundary
-//! pre-pass: both answer [`BoundaryCrossing::Unread`], and the caller
-//! keeps its frontier door.
+//! A boundary ellipse is a plane section, so a line or circle meets it
+//! only where it meets the ellipse's plane, which the same closed forms
+//! name. A line or circle lying in that plane would need the coplanar
+//! conic pair, which this module does not hold; on a cylinder, the one
+//! carrier an ellipse bounds here, it cannot arise, since a plane holding
+//! a ruling cuts the wall in rulings and one holding a rim cuts it in a
+//! circle. Who reads ellipses is the caller's ([`BoundaryReads`]): the
+//! undeclared lying-on lane does, for rulings and arcs alike, and the
+//! declared one-carrier arms do not, so the D10 hold leaves their reach
+//! where it was. An unread ellipse, an ellipse as the swept edge, a
+//! spiric or spline carrier on either side, and a face holding a lone
+//! vertex (a pierce ring), which has no boundary pre-pass, all answer
+//! [`BoundaryCrossing::Unread`], and the caller keeps its frontier door.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
@@ -71,6 +80,17 @@ pub(super) enum BoundaryCrossing<T: geom_core::Real> {
     Unread,
 }
 
+/// Which boundary carriers [`boundary_crossing`] reads in closed form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum BoundaryReads {
+    /// Lines and circles; an ellipse on the boundary is unread. The
+    /// declared one-carrier arms read this, so the D10 hold leaves their
+    /// reach where it was.
+    LinesAndCircles,
+    /// Ellipses too, through their planes: the undeclared lying-on lane.
+    WithEllipses,
+}
+
 /// A point strictly inside `carrier`'s span `(t0, t1)` where it meets
 /// `face`'s boundary. The span must lie on `face`'s carrier — the
 /// caller's certificate, which this function does not re-ask.
@@ -95,6 +115,7 @@ pub(super) fn boundary_crossing<T: Decide>(
     face: FaceKey,
     carrier: &geom::Curve3<T>,
     (t0, t1): (T, T),
+    reads: BoundaryReads,
     band: Band,
 ) -> Result<BoundaryCrossing<T>, BooleanError> {
     let mid = geom::mid_param(t0, t1);
@@ -105,6 +126,7 @@ pub(super) fn boundary_crossing<T: Decide>(
         _ => return Ok(BoundaryCrossing::Unread),
     };
     let reach = (t1 - t0) * metres_per_param;
+    let at = carrier.eval(mid);
     let face_data = y
         .get_face(face)
         .ok_or(BooleanError::ClassificationInvariant {
@@ -119,7 +141,12 @@ pub(super) fn boundary_crossing<T: Decide>(
         let CurveGeom::Certified(other) = y.edge_curve_linked(ek, edge) else {
             return Ok(BoundaryCrossing::Unread);
         };
-        match meetings(carrier, other.carrier(), reach, band)? {
+        if reads == BoundaryReads::LinesAndCircles
+            && matches!(other.carrier(), geom::Curve3::Ellipse { .. })
+        {
+            return Ok(BoundaryCrossing::Unread);
+        }
+        match meetings(carrier, other.carrier(), reach, at, band)? {
             Some(points) => candidates.extend(points),
             None => return Ok(BoundaryCrossing::Unread),
         }
@@ -192,18 +219,20 @@ fn transverse<T: Decide>(x: T, arm: T, band: Band) -> Result<bool, BooleanError>
     }
 }
 
-/// The isolated points where carriers `a` and `b` can meet, beyond the
-/// boundary vertices the caller already holds: empty where they meet
-/// only along a shared stretch or not at all, `None` for a pair with no
-/// closed form here. `reach` is the swept edge's length, the lever a
-/// line pair's sine is read at.
+/// The isolated points where the swept carrier `a` and the boundary
+/// carrier `b` can meet, beyond the boundary vertices the caller already
+/// holds: empty where they meet only along a shared stretch or not at
+/// all, `None` for a pair with no closed form here. `reach` is the swept
+/// edge's length and `at` a point of its span: a line's tilt is read
+/// over the reach, and a line read parallel is placed at `at`.
 fn meetings<T: Decide>(
     a: &geom::Curve3<T>,
     b: &geom::Curve3<T>,
     reach: T,
+    at: Point3<T>,
     band: Band,
 ) -> Result<Option<Vec<Point3<T>>>, BooleanError> {
-    use geom::Curve3::{Circle, Line};
+    use geom::Curve3::{Circle, Ellipse, Line};
     Ok(Some(match (a, b) {
         (
             &Line { origin, dir },
@@ -269,39 +298,119 @@ fn meetings<T: Decide>(
                 ..
             },
         ) => {
-            let m = n1.cross(n2);
-            let s = m.norm();
-            if !transverse(s, r1.max(r2), band)? {
+            if !transverse(n1.cross(n2).norm(), r1.max(r2), band)? {
                 return Ok(Some(parallel_circles(c1, n1, r1, c2, r2, band)?));
             }
-            // The planes' common line, through the point of it nearest
-            // the origin of the two-plane system, then its meetings with
-            // the first circle's sphere — which, in its plane, are its
-            // meetings with the circle.
-            let (h1, h2) = (n1.dot(c1 - Point3::origin()), n2.dot(c2 - Point3::origin()));
-            let c = n1.dot(n2);
-            let k = s.powi(2);
-            let p0 = Point3::origin() + (n1 * ((h1 - h2 * c) / k) + n2 * ((h2 - h1 * c) / k));
-            let u = m * (T::one() / s);
-            let w = p0 - c1;
-            let b = w.dot(u);
-            let disc = b.powi(2) - (w.dot(w) - r1.powi(2));
-            match decide(
-                "bool_carrier_cross_line_meets_circle",
-                Margin::levered_inv(disc, r1 + r1),
-                band,
-            ) {
-                Ok(Sign::Negative) => Vec::new(),
-                Ok(Sign::Zero) => vec![p0 + u * (-b)],
-                Ok(Sign::Positive) => {
-                    let root = disc.sqrt();
-                    vec![p0 + u * (-b - root), p0 + u * (-b + root)]
-                }
-                Err(diag) => return Err(escalated(diag)),
+            circle_meets_plane(c1, n1, r1, c2, n2, band)?
+        }
+        // An ellipse is a plane section, so whatever meets it meets its
+        // plane: those meetings are the candidates, and the boundary
+        // pre-pass drops any not on the ellipse. A curve lying in that
+        // plane has no closed form here.
+        //
+        // A swept line is read parallel to the plane only where its tilt
+        // carries it less than the band over its whole reach; it then
+        // stays within the band of its distance at `at`, so a definite
+        // distance there certifies that its span misses the plane.
+        (
+            &Line { origin, dir },
+            &Ellipse {
+                center,
+                axis,
+                major,
+                ..
+            },
+        ) => {
+            let den = dir.dot(axis);
+            if !transverse(den, reach.max(major), band)? {
+                return Ok(off_plane(at, center, axis, band)?.then(Vec::new));
             }
+            let t = (center - origin).dot(axis) / den;
+            vec![origin + dir * t]
+        }
+        (
+            &Circle {
+                center: c1,
+                axis: n1,
+                radius: r1,
+                ..
+            },
+            &Ellipse {
+                center: c2,
+                axis: n2,
+                major,
+                ..
+            },
+        ) => {
+            // Read parallel, every point of the circle stays within the
+            // band of its centre's distance from the plane: the tilt is
+            // levered by the radius, the farthest the circle reaches.
+            if !transverse(n1.cross(n2).norm(), r1.max(major), band)? {
+                return Ok(off_plane(c1, c2, n2, band)?.then(Vec::new));
+            }
+            circle_meets_plane(c1, n1, r1, c2, n2, band)?
         }
         _ => return Ok(None),
     }))
+}
+
+/// Whether `p` lies definitely off the plane through `on` with unit
+/// normal `n`.
+fn off_plane<T: Decide>(
+    p: Point3<T>,
+    on: Point3<T>,
+    n: Vec3<T>,
+    band: Band,
+) -> Result<bool, BooleanError> {
+    match decide(
+        "bool_carrier_cross_plane_offset",
+        Margin::of((p - on).dot(n)),
+        band,
+    ) {
+        Ok(Sign::Zero) => Ok(false),
+        Ok(Sign::Positive | Sign::Negative) => Ok(true),
+        Err(diag) => Err(escalated(diag)),
+    }
+}
+
+/// Where the circle (`c1`, unit `n1`, `r1`) meets the plane through
+/// `c2` with unit normal `n2`, the two planes decided transverse: the
+/// planes' common line, through the point of it nearest the origin of
+/// the two-plane system, then its meetings with the circle's sphere —
+/// which, in the circle's plane, are its meetings with the circle.
+fn circle_meets_plane<T: Decide>(
+    c1: Point3<T>,
+    n1: Vec3<T>,
+    r1: T,
+    c2: Point3<T>,
+    n2: Vec3<T>,
+    band: Band,
+) -> Result<Vec<Point3<T>>, BooleanError> {
+    let m = n1.cross(n2);
+    let s = m.norm();
+    let (h1, h2) = (n1.dot(c1 - Point3::origin()), n2.dot(c2 - Point3::origin()));
+    let c = n1.dot(n2);
+    let k = s.powi(2);
+    let p0 = Point3::origin() + (n1 * ((h1 - h2 * c) / k) + n2 * ((h2 - h1 * c) / k));
+    let u = m * (T::one() / s);
+    let w = p0 - c1;
+    let b = w.dot(u);
+    let disc = b.powi(2) - (w.dot(w) - r1.powi(2));
+    Ok(
+        match decide(
+            "bool_carrier_cross_line_meets_circle",
+            Margin::levered_inv(disc, r1 + r1),
+            band,
+        ) {
+            Ok(Sign::Negative) => Vec::new(),
+            Ok(Sign::Zero) => vec![p0 + u * (-b)],
+            Ok(Sign::Positive) => {
+                let root = disc.sqrt();
+                vec![p0 + u * (-b - root), p0 + u * (-b + root)]
+            }
+            Err(diag) => return Err(escalated(diag)),
+        },
+    )
 }
 
 /// Two circles in parallel planes: none where the planes are distinct
@@ -317,11 +426,7 @@ fn parallel_circles<T: Decide>(
     band: Band,
 ) -> Result<Vec<Point3<T>>, BooleanError> {
     let sign = |row, margin| decide(row, margin, band).map_err(escalated);
-    if sign(
-        "bool_carrier_cross_plane_offset",
-        Margin::of((c2 - c1).dot(n1)),
-    )? != Sign::Zero
-    {
+    if off_plane(c2, c1, n1, band)? {
         return Ok(Vec::new());
     }
     let w = c2 - c1;
@@ -366,7 +471,7 @@ mod meetings_rows {
         b: &Curve3<f64>,
         band: Band,
     ) -> Result<Option<Vec<Point3<f64>>>, crate::boolean::BooleanError> {
-        meetings(a, b, 1.0, band)
+        meetings(a, b, 1.0, a.eval(0.5), band)
     }
 
     fn band() -> Band {
@@ -462,6 +567,118 @@ mod meetings_rows {
         );
     }
 
+    fn ellipse(c: [f64; 3], axis: [f64; 3], major: f64, minor: f64) -> Curve3<f64> {
+        let Curve3::Circle {
+            center,
+            axis,
+            u_ref,
+            ..
+        } = circle(c, axis, 1.0)
+        else {
+            unreachable!("circle builds a circle")
+        };
+        Curve3::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        }
+    }
+
+    /// **An ellipse is met where its plane is met**: the oblique section
+    /// of the unit cylinder `z = 0.2·x`, against a swept ruling, rim and
+    /// tilted circle (a swept ellipse is unread before this). Each true
+    /// meeting is among the candidates; the ruling's lies on the
+    /// ellipse, and a circle's plane crossings need not.
+    #[test]
+    fn an_ellipse_is_met_at_its_plane() {
+        let b = band();
+        let k = 1.04f64.sqrt();
+        let cut = ellipse([0.0; 3], [-0.2, 0.0, 1.0], k, 1.0);
+        let ruling = line([0.6, 0.8, -3.0], [0.0, 0.0, 1.0]);
+        let rim = circle([0.0, 0.0, 0.1], [0.0, 0.0, 1.0], 1.0);
+        let tilted = circle([0.0, 0.0, 0.0], [0.0, 1.0, 0.0], 1.0);
+        let got = meet(&ruling, &cut, b).unwrap().unwrap();
+        assert!(holds(&got, [0.6, 0.8, 0.12]), "ruling × ellipse: {got:?}");
+        for (a, c, want, what) in [
+            (
+                &rim,
+                &cut,
+                vec![[0.5, 0.75f64.sqrt(), 0.1], [0.5, -(0.75f64.sqrt()), 0.1]],
+                "rim",
+            ),
+            (
+                &tilted,
+                &cut,
+                vec![[1.0 / k, 0.0, 0.2 / k], [-1.0 / k, 0.0, -0.2 / k]],
+                "tilted",
+            ),
+        ] {
+            let got = meet(a, c, b).unwrap().unwrap();
+            for w in &want {
+                assert!(holds(&got, *w), "{what} × ellipse: {w:?} in {got:?}");
+            }
+        }
+        // A line parallel to the ellipse's plane and off it, and a
+        // circle in a parallel plane: no candidate. In the plane: unread.
+        let lifted = |z: f64| line([0.0, 0.0, z], [1.0 / k, 0.0, 0.2 / k]);
+        assert_eq!(
+            meet(&lifted(1.0), &cut, b).unwrap().map(|v| v.len()),
+            Some(0)
+        );
+        assert!(meet(&lifted(0.0), &cut, b).unwrap().is_none());
+        let beside = |z: f64| circle([0.0, 0.0, z], [-0.2, 0.0, 1.0], 0.5);
+        assert_eq!(
+            meet(&beside(1.0), &cut, b).unwrap().map(|v| v.len()),
+            Some(0)
+        );
+        assert!(meet(&beside(0.0), &cut, b).unwrap().is_none());
+    }
+
+    /// **A swept line's tilt is read over its whole reach.** With `z` the
+    /// band's zero threshold: a line `100·z` above the plane of a
+    /// unit-major ellipse at its origin and sloping down `z/2` crosses
+    /// the plane at `(1, 0, 0)`, `200 m` on. Its tilt is under the band
+    /// at the ellipse's size, but over a `300 m` swept edge it carries
+    /// `150·z`, so the crossing is a candidate. The same line sloping
+    /// `z/3000` carries `z/10` over that reach and is read parallel:
+    /// about `100·z` off the plane at the span's middle, its span
+    /// certainly misses it. (At the witness band the first line is the
+    /// `1e-7` offset and `5e-10` slope.)
+    #[test]
+    fn a_swept_lines_tilt_is_read_over_its_reach() {
+        let b = band();
+        let z = b.zero();
+        let cut = ellipse([0.0; 3], [0.0, 0.0, 1.0], 1.0, 0.5);
+        let sloped = |slope: f64| {
+            let dir = Vec3::new(1.0, 0.0, -slope).normalize();
+            let origin = Point3::new(1.0, 0.0, 0.0) + dir * (-100.0 * z / slope);
+            Curve3::Line { origin, dir }
+        };
+        let swept = |l: &Curve3<f64>| meetings(l, &cut, 300.0, l.eval(150.0), b);
+        let steep = sloped(z / 2.0);
+        let Curve3::Line { origin, .. } = steep else {
+            unreachable!("a line")
+        };
+        assert!(
+            (origin.z - 100.0 * z).abs() < 1e-3 * z,
+            "100·z above the plane: {origin:?}"
+        );
+        let got = swept(&steep).unwrap().unwrap();
+        assert!(
+            got.iter()
+                .any(|p| p.distance(Point3::new(1.0, 0.0, 0.0)) < 1e-6),
+            "the crossing 200 m on is a candidate: {got:?}"
+        );
+        let flat = line([0.0, 0.0, 100.0 * z], [1.0, 0.0, -z / 3000.0]);
+        assert_eq!(
+            swept(&flat).unwrap().map(|v| v.len()),
+            Some(0),
+            "read parallel and off the plane"
+        );
+    }
+
     #[test]
     fn a_stretch_or_a_miss_has_no_candidate_and_a_parallel_line_is_unread() {
         let b = band();
@@ -493,7 +710,7 @@ mod crossing_rows {
     //! wall sheet's rim, which no vertex projects onto. (Coaxial
     //! iso-curves are found by either kind of candidate; this is the row
     //! that needs the closed forms.)
-    use super::{BoundaryCrossing, boundary_crossing};
+    use super::{BoundaryCrossing, BoundaryReads, boundary_crossing};
     use crate::boolean::Operand;
     use crate::boolean::contain::FaceContainment;
     use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
@@ -527,7 +744,17 @@ mod crossing_rows {
             radius: 0.3,
             u_ref: -out,
         };
-        match boundary_crossing(&body, Operand::B, face, &tilted, (-0.5, 0.5), band).unwrap() {
+        match boundary_crossing(
+            &body,
+            Operand::B,
+            face,
+            &tilted,
+            (-0.5, 0.5),
+            BoundaryReads::WithEllipses,
+            band,
+        )
+        .unwrap()
+        {
             BoundaryCrossing::At { t, p: q, at } => {
                 assert!(t.abs() < 1e-12, "the meeting is at the span's middle: {t}");
                 assert!(q.distance(p) < 1e-12, "at the rim point: {q:?}");
@@ -591,7 +818,17 @@ mod crossing_rows {
             origin: foot,
             dir: Vec3::unit_z(),
         };
-        match boundary_crossing(&body, Operand::B, face, &along, (0.25, 0.75), band).unwrap() {
+        match boundary_crossing(
+            &body,
+            Operand::B,
+            face,
+            &along,
+            (0.25, 0.75),
+            BoundaryReads::WithEllipses,
+            band,
+        )
+        .unwrap()
+        {
             BoundaryCrossing::At { t, at, .. } => {
                 assert!((t - 0.5).abs() < 1e-12, "at the dividing vertex: {t}");
                 assert_eq!(at, FaceContainment::OnVertex(mid), "the vertex itself");
@@ -633,7 +870,15 @@ mod crossing_rows {
         };
         assert!(
             matches!(
-                boundary_crossing(&body, Operand::B, face, &tilted, (-0.5, 0.5), band),
+                boundary_crossing(
+                    &body,
+                    Operand::B,
+                    face,
+                    &tilted,
+                    (-0.5, 0.5),
+                    BoundaryReads::WithEllipses,
+                    band
+                ),
                 Ok(BoundaryCrossing::At { .. })
             ),
             "the sound face meets the circle"
@@ -642,7 +887,15 @@ mod crossing_rows {
         stale.faces.remove(face);
         assert!(
             matches!(
-                boundary_crossing(&stale, Operand::B, face, &tilted, (-0.5, 0.5), band),
+                boundary_crossing(
+                    &stale,
+                    Operand::B,
+                    face,
+                    &tilted,
+                    (-0.5, 0.5),
+                    BoundaryReads::WithEllipses,
+                    band
+                ),
                 Err(crate::boolean::BooleanError::ClassificationInvariant { .. })
             ),
             "a face the caller passed that does not resolve refuses typed"
@@ -653,7 +906,17 @@ mod crossing_rows {
             "boundary_crossing (ring)",
             &mut torn,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| boundary_crossing(b, Operand::B, face, &tilted, (-0.5, 0.5), band),
+            |b| {
+                boundary_crossing(
+                    b,
+                    Operand::B,
+                    face,
+                    &tilted,
+                    (-0.5, 0.5),
+                    BoundaryReads::WithEllipses,
+                    band,
+                )
+            },
         );
         // A member's start, on a span no candidate falls strictly inside:
         // no containment read follows, so the start is the only read that
@@ -661,7 +924,15 @@ mod crossing_rows {
         let clear = (0.4, 0.401);
         assert!(
             matches!(
-                boundary_crossing(&body, Operand::B, face, &tilted, clear, band),
+                boundary_crossing(
+                    &body,
+                    Operand::B,
+                    face,
+                    &tilted,
+                    clear,
+                    BoundaryReads::WithEllipses,
+                    band
+                ),
                 Ok(BoundaryCrossing::Clear)
             ),
             "the sound face is clear of the circle there"
@@ -674,7 +945,17 @@ mod crossing_rows {
             "boundary_crossing (start)",
             &mut torn,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| boundary_crossing(b, Operand::B, face, &tilted, clear, band),
+            |b| {
+                boundary_crossing(
+                    b,
+                    Operand::B,
+                    face,
+                    &tilted,
+                    clear,
+                    BoundaryReads::WithEllipses,
+                    band,
+                )
+            },
         );
         let (edge, curve) = body
             .edges()
@@ -691,7 +972,17 @@ mod crossing_rows {
             "boundary_crossing",
             &mut body,
             &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
-            |b| boundary_crossing(b, Operand::B, face, &tilted, (-0.5, 0.5), band),
+            |b| {
+                boundary_crossing(
+                    b,
+                    Operand::B,
+                    face,
+                    &tilted,
+                    (-0.5, 0.5),
+                    BoundaryReads::WithEllipses,
+                    band,
+                )
+            },
         );
     }
 }

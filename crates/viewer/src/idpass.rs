@@ -29,7 +29,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, ProfileProgram, Said, Say, Speaker};
+use pncad::document::{Doc, Evaluation, ProfileProgram, Said, Say, Speaker};
 use pncad::prelude::StableName;
 use pncad::select::UnnamedEntity;
 
@@ -188,8 +188,8 @@ pub enum IdAnswer {
 }
 
 impl Say for IdAnswer {
-    /// Each arm in the words of the layer that raised it: a name
-    /// through [`NameAndPath`], an unnamed patch through its own
+    /// Each arm in the words of the layer that raised it: a name in
+    /// its words ([`Speaker::name`]), an unnamed patch through its own
     /// refusal's sentence, and an unassigned id as the picture's own
     /// fact. The id is `id N` in every arm that carries one, because
     /// it is one `u32` read out of the id buffer, whatever it turns out
@@ -197,7 +197,7 @@ impl Say for IdAnswer {
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Nothing => f.write_str("nothing"),
-            Self::Named(name) => write!(f, "{}", NameAndPath(name, by)),
+            Self::Named(name) => write!(f, "{}", by.name(name)),
             Self::Unnamed { id, error } => {
                 write!(f, "id {id}, a drawn patch: {}", Said(error, by))
             }
@@ -210,20 +210,6 @@ impl Say for IdAnswer {
 impl core::fmt::Display for IdAnswer {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.say(f, Speaker::TAG)
-    }
-}
-
-/// **A name as a sentence that must tell two names apart says it**:
-/// kind and minting node ([`Speaker::name`]), then the role path
-/// ([`Disagreement`]'s sentence says why both halves). The one spelling
-/// of a name that two answers could otherwise share; the tie
-/// `crate::frame::pick_refusal` reports says its faces this way too.
-pub struct NameAndPath<'a>(pub &'a StableName, pub Speaker<'a>);
-
-impl core::fmt::Display for NameAndPath<'_> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self(name, by) = self;
-        write!(f, "{} ({:?})", by.name(name), name.path)
     }
 }
 
@@ -259,26 +245,15 @@ pub struct Disagreement {
 
 impl Say for Disagreement {
     /// The id side is [`IdAnswer`]'s own sentence. Every NAME on
-    /// either side is said by kind and minting node, the half a user
-    /// can act on, followed by the role path ([`NameAndPath`]).
+    /// either side is said in its words, which tell two names of one
+    /// table apart. The sentence reaches the user's status line
+    /// ([`Disagreement::notice`]), so it carries no role path: the path
+    /// a bug report replays is this value's `Debug`, for a log, and no
+    /// surface of the viewer prints it.
     ///
-    /// BOTH halves of a name are load-bearing here, which is what makes this
-    /// message different from every other one in this crate. The name's
-    /// `Display` omits the path deliberately, so two names differing
-    /// only in their derivation would render identically; the path
-    /// alone drops kind and node, so two names on different nodes
-    /// sharing a role path would. A message whose entire subject is
-    /// that two answers DIFFER cannot afford either collapse.
-    ///
-    /// The path rides as `Debug` because `RoleSeg` has no `Display` in
-    /// this workspace — the one rendering here that is not prose, and
-    /// it is a derivation, not a sentence.
-    ///
-    /// Destructured rather than field-read, which is what holds the
-    /// paragraph above to the value: the argument is that BOTH halves
-    /// are load-bearing, and a third field added to
-    /// [`Disagreement`] and left out of this sentence would falsify it
-    /// silently. In the pattern it is E0027 instead.
+    /// Destructured rather than field-read, so a third field added to
+    /// [`Disagreement`] and left out of this sentence is E0027 rather
+    /// than silently unsaid.
     fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         let Self { from_gpu, from_ray } = self;
         write!(
@@ -288,14 +263,14 @@ impl Say for Disagreement {
         )?;
         match &from_ray[..] {
             [] => f.write_str("nothing"),
-            [name] => write!(f, "{}", NameAndPath(name, by)),
+            [name] => write!(f, "{}", by.name(name)),
             tied => {
                 f.write_str("tied between ")?;
                 for (i, name) in tied.iter().enumerate() {
                     if i > 0 {
                         f.write_str(" and ")?;
                     }
-                    write!(f, "{}", NameAndPath(name, by))?;
+                    write!(f, "{}", by.name(name))?;
                 }
                 Ok(())
             }
@@ -318,15 +293,18 @@ impl Disagreement {
     /// retires it on
     /// the id log's own judgement that the question has moved on.
     ///
-    /// Its names are said from `doc`, the landed document the index
-    /// that drew the picture was built against.
+    /// Its nodes are said from the landed document the index that drew
+    /// the picture was built against, and its names within the tables
+    /// of that document's evaluation ([`Speaker::within`]), both in
+    /// `landed`.
     ///
     /// [`Retold::Again`]: the same hover says it again while the
     /// paths still disagree.
-    pub fn notice(&self, doc: &Doc<ProfileProgram>) -> Message {
+    pub fn notice(&self, landed: (&Doc<ProfileProgram>, &Evaluation<f64>)) -> Message {
+        let (doc, evaluation) = landed;
         Message::new(
             Subject::Cursor,
-            Said(self, Speaker::of(doc)).to_string(),
+            Said(self, Speaker::of(doc).within(evaluation)).to_string(),
             Retold::Again,
         )
     }
@@ -434,11 +412,11 @@ mod tests {
     use super::*;
     use pncad::prelude::{CapEnd, EntityKind, NameRef, RecipeNodeId, RoleSeg};
 
-    /// A disagreement renders both halves of every name, the role path
-    /// whole, on the wasm32 build's stack however deep the name nests:
-    /// a name's rendering walks its nesting from its own stack.
+    /// A disagreement says each name in its words, and no role path, on
+    /// the wasm32 build's stack however deep the name nests: a name's
+    /// words walk its nesting from their own stack.
     #[test]
-    fn a_disagreement_over_a_name_nested_past_every_stack_renders_on_the_smallest_stack() {
+    fn a_disagreement_over_a_name_nested_past_every_stack_says_it_on_the_smallest_stack() {
         const DEEP: usize = 20_000;
         let shown = test_utils::own_thread::on_the_smallest_stack(|| {
             let leaf = StableName {
@@ -457,12 +435,7 @@ mod tests {
             }
             .to_string()
         });
-        assert_eq!(shown.matches("FromA").count(), 2 * DEEP, "both paths whole");
-        assert_eq!(
-            shown
-                .matches("face name minted by node 000000000002")
-                .count(),
-            2
-        );
+        assert!(!shown.contains("FromA"), "no role path: {shown}");
+        assert_eq!(shown.matches("the end cap of node 000000000001").count(), 2);
     }
 }

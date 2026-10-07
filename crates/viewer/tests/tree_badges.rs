@@ -48,7 +48,7 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
     let Some(NodeResult::Failed(error)) = evaluation.result(extrude) else {
         panic!("the evaluation should report the extrude as failed");
     };
-    assert_eq!(message, &error.spoken(session.committed_doc()));
+    assert_eq!(message, &error.spoken(session.committed_doc(), evaluation));
 
     let poisoned = common::row_of(&rows, moved);
     match &poisoned.status {
@@ -1114,7 +1114,7 @@ fn child_band_refusal_rows() {
         };
         assert_eq!(
             status.message(),
-            Some(error.spoken(&asm).as_str()),
+            Some(error.spoken(&asm, &evaluation).as_str()),
             "{id:?} must carry the payload's own rendering, not a sentence this crate wrote"
         );
     }
@@ -1853,7 +1853,7 @@ fn child_band_snapshot_load() {
     assert_eq!(status.badge(), "FAILED", "{status:?}");
     assert_eq!(
         status.message(),
-        Some(error.spoken(&doc).as_str()),
+        Some(error.spoken(&doc, &evaluation).as_str()),
         "the mate row carries the payload's own rendering"
     );
     let pointed: Vec<RecipeNodeId> = rows

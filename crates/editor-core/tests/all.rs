@@ -106,6 +106,8 @@ mod bool13_r1_probes;
 mod bool13r2_probes;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
+#[path = "boss_flush_offer.rs"]
+mod boss_flush_offer;
 #[path = "cascade_delete.rs"]
 mod cascade_delete;
 #[path = "cert3r1_dump.rs"]
@@ -479,6 +481,10 @@ mod meta_nesting_bound;
 mod name_depth;
 #[path = "name_tables_by_position.rs"]
 mod name_tables_by_position;
+#[path = "name_words_corpus.rs"]
+mod name_words_corpus;
+#[path = "name_words_rows.rs"]
+mod name_words_rows;
 #[path = "names_verbatim_edge_evaluator.rs"]
 mod names_verbatim_edge_evaluator;
 #[path = "node_labels.rs"]
@@ -713,6 +719,8 @@ mod decide_6_read_cost_interval;
 mod decide_7_rule_g_cost_interval;
 #[path = "edit_refusal_recourse.rs"]
 mod edit_refusal_recourse;
+#[path = "emit_crossing_sense.rs"]
+mod emit_crossing_sense;
 #[path = "emit_edge_piece_locality.rs"]
 mod emit_edge_piece_locality;
 #[path = "emit_pair_cut_and_merged.rs"]

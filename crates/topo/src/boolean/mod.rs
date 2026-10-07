@@ -74,6 +74,7 @@ mod arcs;
 pub(crate) mod boxes;
 mod carrier_cross;
 pub mod carrier_eq;
+mod carrier_touch;
 mod circle_roots;
 mod circle_torus;
 pub(crate) mod combine;
@@ -131,7 +132,7 @@ pub(crate) mod zip;
 
 use geom_core::{
     Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
-    Margin, MarginDiag, NO_DECLARATION_RECOURSE, Point3, Real, Sign, Tol,
+    Margin, MarginDiag, Point3, Real, Sign, Tol,
 };
 
 use crate::body::Body;
@@ -140,7 +141,6 @@ use crate::contact::{BooleanCoincidence, ContactClass};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, ShellKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::merge_faces::MergeCoplanarError;
-use crate::revert::RevertError;
 use crate::validate::ValidationError;
 
 pub use carrier_eq::{
@@ -163,6 +163,7 @@ pub use plane_eq::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, orient
 pub use reduce::PlantedDegradation;
 pub use reduce::{SweepStrategy, SweepTrace};
 pub use shell_witness::ShellOrientation;
+pub use zip::Fusions;
 // LIB-SEL2 (SELECT-DESIGN §3b; #304 review MINOR-1): THE flush-pair
 // verify door — descriptions, oriented sources and the verification
 // arm in one function, shared by the REST lane's verify-at-use and
@@ -211,14 +212,19 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_vertex_face_side" => Coincide::VertexOnFace.subject(),
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
-        "bool_sector_within" => Coincide::Sectors.subject(),
+        "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" => {
+            Coincide::Sectors.subject()
+        }
         "bool_ee_collinear" => Coincide::EdgeOnEdge.subject(),
         "bool_plane_parallel" => PlaneRung::Parallel.subject(),
         "bool_plane_orient" => PlaneRung::Orientation.subject(),
         "carrier_cyl_axis_parallel" => "whether the two cylinders' axes are parallel",
-        crate::query::DATUM_UNIT_NORM | join::BOOL_GERM_PLANE_NORMAL | boxes::BOX_CYLINDER_AXIS => {
-            geom_core::DIRECTION_LENGTH_SUBJECT
-        }
+        crate::query::DATUM_UNIT_NORM
+        | join::BOOL_GERM_PLANE_NORMAL
+        | boxes::BOX_CYLINDER_AXIS
+        | boxes::BOX_SPHERE_AXIS
+        | boxes::BOX_SPHERE_SEAM_UNIT => geom_core::DIRECTION_LENGTH_SUBJECT,
+        boxes::BOX_SPHERE_SEAM => "whether a sphere's seam direction is square to its polar axis",
         "bool_pierce_normal_on_chart" => BooleanDecision::PierceOnFace.subject(),
         // `geom`'s torus convention, which the pierce point's normal
         // reads before it differentiates the torus.
@@ -270,6 +276,11 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         | "bool_sphere_region_roots_coaxial"
         | "bool_sphere_region_roots_extreme"
         | "bool_sphere_region_roots_slack"
+        | "bool_sphere_region_arc_span"
+        | "bool_sphere_region_arc_on"
+        | "bool_sphere_region_arc_end"
+        | "bool_sphere_region_arc_trim"
+        | "bool_sphere_region_arc_straddle"
         | "bool_torus_chart_affine"
         | "bool_torus_chart_box"
         | "bool_torus_chart_closure"
@@ -363,7 +374,7 @@ impl BooleanOp {
 
 /// Which operand a key belongs to (keys are body-lineage-scoped;
 /// cross-body records must say which arena they index — F9).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Operand {
     /// The first operand (left of the op).
     A,
@@ -374,7 +385,7 @@ pub enum Operand {
 /// A trilean side code against the *other* solid's boundary — the
 /// boolean analogue of `PlaneSide`, derived from `enters_material`
 /// (module docs): `Enters ⇒ In`, `Exits ⇒ Out`, `Tangent ⇒ On`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SideCode {
     /// Definitely inside the other solid's material.
     In,
@@ -393,6 +404,43 @@ impl SideCode {
             Self::On => Self::On,
         }
     }
+}
+
+/// **One operand edge piece's side of the other operand, beside a
+/// vertex the classification read**: the piece of operand `operand`'s
+/// edge `edge` that starts or ends at `vertex`, and which side of the
+/// other operand's boundary it lies on just beside it.
+///
+/// Two passes write rows, and only the first records a decision the
+/// classification made:
+/// - The vertex-on-face pass records every edge at the piercing vertex,
+///   read against the pierced face: the side codes that pass decided
+///   and acted on, recorded as it read them (D5's birth row), before
+///   any reclassification lumps them.
+/// - The vertex-vertex pass records every edge at each vertex of a pair
+///   whose other vertex lies inside an edge of its body (two faces
+///   meeting along it), read against that wedge, or at a convex corner,
+///   and nothing at any other pair (`sectors::wedge_classes`). The
+///   classification itself decides sector pairs, not edges, so these
+///   rows are a measurement of their own, taken beside it from the same
+///   sectors, not a record of what it decided.
+///
+/// `In` and `On` both lie in the other operand's closed body.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct EdgePieceClass {
+    /// The operand whose edge the piece is.
+    pub operand: Operand,
+    /// The vertex, in that operand's CLONE keys (as
+    /// [`BooleanNaming::reduction_contacts`]).
+    pub vertex: VertexKey,
+    /// The operand edge the piece lies on, in the operand's own keys:
+    /// the reduction's splits read back to the edge they divided.
+    pub edge: EdgeKey,
+    /// Whether the piece starts at `vertex` as the edge is stored, so it
+    /// lies after the vertex along the edge; `false` where it ends there.
+    pub starts: bool,
+    /// The piece's side of the other operand's boundary.
+    pub class: SideCode,
 }
 
 /// A coincident vertex pair — one `sonvv` record: declared contact
@@ -698,6 +746,8 @@ pub struct CarriedContacts {
     /// coincidence an op decided and recorded (D10), which asserts no
     /// class.
     pub ve: Vec<VeContact>,
+    /// Edge-edge records within the operand, carried back in, as `ve`.
+    pub ee: Vec<EeContact>,
 }
 
 /// A carried vertex-vertex declaration: the pair AND the class it
@@ -729,8 +779,8 @@ pub struct CarriedVf {
 impl CarriedContacts {
     /// True iff nothing is carried.
     pub fn is_empty(&self) -> bool {
-        let Self { vv, vf, ve } = self;
-        vv.is_empty() && vf.is_empty() && ve.is_empty()
+        let Self { vv, vf, ve, ee } = self;
+        vv.is_empty() && vf.is_empty() && ve.is_empty() && ee.is_empty()
     }
 }
 
@@ -1655,6 +1705,9 @@ pub struct BooleanReduction<T: Real> {
     pub(crate) coincident: Vec<SettledPair>,
     /// Every edge split the reduction made, both clones, split order.
     pub(crate) edge_splits: Vec<EdgeSplit>,
+    /// Every operand edge piece the sector passes classified beside a
+    /// vertex ([`EdgePieceClass`]), sorted.
+    pub edge_classes: Vec<EdgePieceClass>,
 }
 
 /// A cross-operand face pair the coincidence ladder settled one
@@ -2207,10 +2260,11 @@ pub enum BooleanError {
     /// several vertices at one point (its own contact's) and the other
     /// operand's vertex there crosses into more than one of their
     /// neighborhoods, and one pair has no run in the shared vertex's
-    /// orbit that holds none of another pair's cuts: two dangling null
-    /// edges with one segment, or a null edge both of whose ways round
-    /// hold one (`insert::reconcile_shared`). A dangling null edge whose
-    /// segment holds another's whole builds: the inner hangs at its tip.
+    /// orbit that holds none of another pair's cuts: a null edge both
+    /// of whose ways round hold one (`insert::reconcile_shared`). A
+    /// dangling null edge whose segment holds another's whole builds:
+    /// the inner hangs at its tip, and of two with one segment the Out
+    /// one holds (`insert::holds_whole`).
     /// It also refuses where the shared vertex is B's and B's walk order
     /// nests one of its pairs' runs inside another's: the reconcile turns
     /// runs to clear the other pairs' cuts, and a nested run turned would
@@ -2240,22 +2294,6 @@ pub enum BooleanError {
         vertex: VertexKey,
         /// How many Out runs it has against the face.
         runs: usize,
-    },
-    /// The result pinches at `vertex`: two cones of its boundary meet
-    /// there, and the seam zips would fuse the point to itself
-    /// (`zip::cross_pinches`). One vertex holds two cones only where a
-    /// face's boundary crosses from one to the other there, and the
-    /// pre-pass crosses only two corners of one ring, or the corners of
-    /// two faces of one surface and sense, one of them ringless. Here
-    /// none offer. On every residue line measured (that row's table),
-    /// the one face through the point twice passes it on its outer
-    /// loop, round a hole touching that loop there, and crossing it
-    /// would leave a ring meeting the outer loop. Which body is right
-    /// there is open
-    /// (`work/join/a-pinch-no-kept-face-can-cross-refuses.md`).
-    PinchUncrossed {
-        /// The pinch vertex, in the joined body's keys.
-        vertex: VertexKey,
     },
     /// The result would hold a non-manifold vertex: both operands hold
     /// several vertices at one point, and A's crosses into two of B's
@@ -2627,8 +2665,6 @@ pub enum BooleanError {
     /// an operand refused; the door's refusal, carried whole, says what
     /// stopped it.
     Containment(PointInSolidError),
-    /// `revert` refused on the ∖ B side.
-    Revert(RevertError),
     /// The two seam cycles of a polygon pair are not antiparallel —
     /// the orientation chain broke (kernel bug, loudly).
     SeamOrientation {
@@ -2824,8 +2860,6 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PierceRunsUnordered`].
     PierceRunsUnordered,
-    /// [`BooleanError::PinchUncrossed`].
-    PinchUncrossed,
     /// [`BooleanError::NonManifoldResult`].
     NonManifoldResult,
     /// [`BooleanError::ClassificationInvariant`].
@@ -2862,8 +2896,6 @@ pub enum BooleanErrorKind {
     CoincidentShell,
     /// [`BooleanError::Containment`].
     Containment,
-    /// [`BooleanError::Revert`].
-    Revert,
     /// [`BooleanError::SeamOrientation`].
     SeamOrientation,
     /// [`BooleanError::ZipCorrespondence`].
@@ -3032,7 +3064,6 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PierceRunsUnordered { .. } => BooleanErrorKind::PierceRunsUnordered,
-            Self::PinchUncrossed { .. } => BooleanErrorKind::PinchUncrossed,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
             Self::CrossingInsertion { .. } => BooleanErrorKind::CrossingInsertion,
@@ -3051,7 +3082,6 @@ impl BooleanError {
             Self::ShellWitnessExhausted { .. } => BooleanErrorKind::ShellWitnessExhausted,
             Self::CoincidentShell { .. } => BooleanErrorKind::CoincidentShell,
             Self::Containment(_) => BooleanErrorKind::Containment,
-            Self::Revert(_) => BooleanErrorKind::Revert,
             Self::SeamOrientation { .. } => BooleanErrorKind::SeamOrientation,
             Self::ZipCorrespondence { .. } => BooleanErrorKind::ZipCorrespondence,
             Self::Merge(_) => BooleanErrorKind::Merge,
@@ -3246,12 +3276,9 @@ impl core::fmt::Display for BooleanError {
                          outline (a whole-turn construction circle, or an arc wound past a \
                          full turn, is one it cannot read)"
                     ),
-                    ContainError::RayExhausted => write!(
-                        f,
-                        "{preamble}: the point is off the face's boundary, but every test \
-                         ray grazed one of its vertices or edges. Recourse: \
-                         {NO_DECLARATION_RECOURSE}"
-                    ),
+                    ContainError::RayExhausted => {
+                        write!(f, "{preamble}: {}", crate::ray_walk::NoRaySettled)
+                    }
                     ContainError::Curved(e) => write!(f, "the Boolean {e}"),
                     ContainError::Escalated(_)
                     | ContainError::StaleFace(_)
@@ -3521,12 +3548,6 @@ impl core::fmt::Display for BooleanError {
                  the kernel yet",
                 operand_word(*operand)
             ),
-            Self::PinchUncrossed { .. } => write!(
-                f,
-                "the result would pinch at one point, where two parts of its boundary meet, \
-                 and the Boolean cannot yet join the faces that pass through that point. \
-                 There is no way through this in the kernel yet"
-            ),
             Self::NonManifoldResult { .. } => write!(
                 f,
                 "the result would meet itself in a fan of faces around one point, where \
@@ -3619,7 +3640,6 @@ impl core::fmt::Display for BooleanError {
             // nor which question asked: the uncut-component probe asks it
             // of solids that do not cross, the reduction of ones that do.
             Self::Containment(e) => write!(f, "the Boolean {e}"),
-            Self::Revert(e) => write!(f, "revert of the ∖ B side refused: {e}"),
             Self::SeamOrientation { a_face, b_face } => write!(
                 f,
                 "seam cycles of faces {a_face:?}/{b_face:?} are not antiparallel \
@@ -4122,6 +4142,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut pierce_rings = Vec::new();
     let mut covered = Vec::new();
     let mut held = Vec::new();
+    let mut edge_classes = Vec::new();
 
     // Vertex-on-face classification (sonva then sonvb, as 15.5).
     for &c in &contacts.a_on_b {
@@ -4140,6 +4161,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
         covered.extend(out.covered);
+        edge_classes.extend(piece_classes(
+            &a,
+            Operand::A,
+            c.vertex,
+            &out.classes,
+            &edge_splits,
+        )?);
     }
     for &c in &contacts.b_on_a {
         let out = vtxfac::classify_vertex_on_face(
@@ -4157,6 +4185,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         null_pairs.extend(out.pairs);
         pierce_rings.extend(out.ring);
         covered.extend(out.covered);
+        edge_classes.extend(piece_classes(
+            &b,
+            Operand::B,
+            c.vertex,
+            &out.classes,
+            &edge_splits,
+        )?);
     }
 
     // The VF passes hang null struts at their piercing vertices and at
@@ -4191,6 +4226,19 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     for &c in &contacts.vv {
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
+        for (body, operand, vertex, own, other) in [
+            (&a, Operand::A, c.a, &a_sectors, &b_sectors),
+            (&b, Operand::B, c.b, &b_sectors, &a_sectors),
+        ] {
+            let classes = sectors::wedge_classes(own, other, band)?;
+            edge_classes.extend(piece_classes(
+                body,
+                operand,
+                vertex,
+                &classes,
+                &edge_splits,
+            )?);
+        }
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
         // The codes as first read, which the germ loci are derived from.
         let mut raw = records.clone();
@@ -4266,10 +4314,13 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let orbits: Vec<_> = classified
+    #[cfg_attr(not(any(test, feature = "test-support")), allow(unused_mut))]
+    let mut orbits: Vec<_> = classified
         .iter()
         .map(|(_, a_sectors, b_sectors, ..)| (a_sectors.as_slice(), b_sectors.as_slice()))
         .collect();
+    #[cfg(any(test, feature = "test-support"))]
+    insert::reverse_when_asked(&mut plans, &mut orbits);
     insert::reconcile_shared(&mut plans, &orbits, &a, &b, band)?;
     let out = insert::mint_plans(&mut a, &mut b, &plans, &orbits, band)?;
     null_edges.extend(out.edges);
@@ -4285,6 +4336,7 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
 
     a.sweep_and_close();
     b.sweep_and_close();
+    let edge_classes = with_copies(edge_classes, &null_edges);
     Ok(BooleanReduction {
         op,
         a: carved_a,
@@ -4302,7 +4354,95 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
         rest_contacts,
         coincident,
         edge_splits,
+        edge_classes,
     })
+}
+
+/// The operand edge `piece` of `operand`'s clone lies on: read back
+/// through `splits`, each child to the parent it was split from.
+fn split_root(splits: &[EdgeSplit], operand: Operand, piece: EdgeKey) -> EdgeKey {
+    let mut edge = piece;
+    while let Some(split) = splits
+        .iter()
+        .find(|s| s.operand == operand && s.child == edge)
+    {
+        edge = split.parent;
+    }
+    edge
+}
+
+/// The two vertices each null edge joins, `(operand, below end, above
+/// end)` in clone keys (`BooleanNaming::null_copies`).
+pub(super) fn null_copy_rows<T: Real>(
+    null_edges: &[BoolNullEdgeRecord<T>],
+) -> Vec<(Operand, VertexKey, VertexKey)> {
+    null_edges
+        .iter()
+        .map(|r| (r.operand, r.attr.below_end, r.attr.above_end))
+        .collect()
+}
+
+/// `rows`, read at every vertex the null edges join a classified vertex
+/// to as well: the copies lie on its point, and the join hands each of
+/// them some of its edges. Sorted and deduplicated.
+fn with_copies<T: Real>(
+    mut rows: Vec<EdgePieceClass>,
+    null_edges: &[BoolNullEdgeRecord<T>],
+) -> Vec<EdgePieceClass> {
+    loop {
+        let mut copied = Vec::new();
+        for r in null_edges {
+            let (x, y) = (r.attr.below_end, r.attr.above_end);
+            for row in rows.iter().filter(|row| row.operand == r.operand) {
+                for (from, to) in [(x, y), (y, x)] {
+                    if row.vertex == from {
+                        copied.push(EdgePieceClass { vertex: to, ..*row });
+                    }
+                }
+            }
+        }
+        let before = rows.len();
+        rows.extend(copied);
+        rows.sort();
+        rows.dedup();
+        if rows.len() == before {
+            return rows;
+        }
+    }
+}
+
+/// The rows ([`EdgePieceClass`]) for one classified vertex of
+/// `operand`'s clone `body`: each edge, by the half-edge leaving
+/// `vertex` along it, with its class. The edge is read back through
+/// `splits` to the operand edge it lies on.
+fn piece_classes<T: Real>(
+    body: &Body<T>,
+    operand: Operand,
+    vertex: VertexKey,
+    classes: &[(HalfEdgeKey, SideCode)],
+    splits: &[EdgeSplit],
+) -> Result<Vec<EdgePieceClass>, BooleanError> {
+    let desync = |what| BooleanError::ClassificationInvariant { what };
+    let mut out = Vec::with_capacity(classes.len());
+    for &(he, class) in classes {
+        let piece = body
+            .get_half_edge(he)
+            .ok_or_else(|| desync("a classified half-edge does not resolve in its clone"))?
+            .edge;
+        let starts = body
+            .get_edge(piece)
+            .ok_or_else(|| desync("a classified edge does not resolve in its clone"))?
+            .he_plus
+            == he;
+        out.push(EdgePieceClass {
+            operand,
+            vertex,
+            edge: split_root(splits, operand, piece),
+            starts,
+            class,
+        });
+    }
+    Ok(out)
 }
 
 /// The held edges that bound the held region from outside. A null edge
@@ -5196,6 +5336,22 @@ fn validate_declarations<T: Decide>(
                 return Err(bad(operand, "carried v-on-e edge key does not resolve"));
             }
         }
+        for touch in &c.ee {
+            if touch.a == touch.b {
+                return Err(bad(operand, "carried e-e pair names one edge twice"));
+            }
+            for e in [touch.a, touch.b] {
+                let Some(d) = body.get_edge(e) else {
+                    return Err(bad(operand, "carried e-e edge key does not resolve"));
+                };
+                // Edge-split lineage reads each edge as the segment
+                // between its ends (`ops::ee_lineage`), which only a
+                // line edge is.
+                if edge_join::certified_line(body, e, d).is_none() {
+                    return Err(bad(operand, "carried e-e edge is not a certified line"));
+                }
+            }
+        }
         Ok(())
     };
     carried(a, &decls.carried_a, Operand::A)?;
@@ -5838,7 +5994,7 @@ mod tests {
     /// enums and `&'static str` — everything the projection can be
     /// checked on without reaching into another crate's error type.
     /// Arms nesting a foreign refusal (`Euler`, `Join`, `Merge`,
-    /// `Revert`, `GraftRecertify`, `CrossingInsertion`, `Pieces`) are absent by
+    /// `GraftRecertify`, `CrossingInsertion`, `Pieces`) are absent by
     /// the same rule.
     fn sample_errors() -> Vec<BooleanError> {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -5986,9 +6142,6 @@ mod tests {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
                 runs: 3,
-            },
-            BooleanError::PinchUncrossed {
-                vertex: VertexKey::default(),
             },
             BooleanError::NonManifoldResult {
                 a_vertex: VertexKey::default(),
@@ -6158,7 +6311,6 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PierceRunsUnordered => "PierceRunsUnordered",
-                BooleanErrorKind::PinchUncrossed => "PinchUncrossed",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",
                 BooleanErrorKind::CrossingInsertion => "CrossingInsertion",
@@ -6177,7 +6329,6 @@ mod tests {
                 BooleanErrorKind::ShellWitnessExhausted => "ShellWitnessExhausted",
                 BooleanErrorKind::CoincidentShell => "CoincidentShell",
                 BooleanErrorKind::Containment => "Containment",
-                BooleanErrorKind::Revert => "Revert",
                 BooleanErrorKind::SeamOrientation => "SeamOrientation",
                 BooleanErrorKind::ZipCorrespondence => "ZipCorrespondence",
                 BooleanErrorKind::Merge => "Merge",

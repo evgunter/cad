@@ -258,6 +258,9 @@ struct SolidJoin {
     /// per datum, every chord that rides it shares it (the descriptions
     /// stay key-coherent for D6).
     aux: std::collections::BTreeMap<AuxDatum, crate::geometry::SurfaceKey>,
+    /// `(edge, chord)` for every chord minted on a segment along this
+    /// solid's `edge` ([`Self::join`]).
+    along: Vec<(EdgeKey, EdgeKey)>,
 }
 
 /// What an aux surface in [`SolidJoin::aux`] is a copy of, which is
@@ -367,6 +370,13 @@ impl SolidJoin {
     /// ([`ChordJoiner::join`]): `plan`'s chords where the roles are its
     /// order, else the plan of the roles' own order — the ring lane of a
     /// planar face orders the halves by the curve, after it is computed.
+    ///
+    /// A segment whose locus on this solid is an edge is that edge
+    /// (module docs), so a chord minted on it runs along the edge from
+    /// end to end: each is logged in [`Self::along`] as `(edge, chord)`,
+    /// the substitution row the carriage reads where the op drops the
+    /// edge and keeps the chord. The pairing is the locus's key, never
+    /// a position.
     fn join<T: Decide + crate::props::AtRestPolicy>(
         &mut self,
         body: &mut Body<T>,
@@ -383,9 +393,14 @@ impl SolidJoin {
             reordered = self.plan(body, roles, segment)?;
             &reordered
         };
-        self.joiner
+        let minted = self
+            .joiner
             .join(body, plan, curve, tol)
             .map_err(BooleanError::Join)?;
+        if let Some(edge) = segment {
+            self.along
+                .extend(minted.into_iter().map(|chord| (edge, chord)));
+        }
         Ok(())
     }
 }
@@ -396,6 +411,7 @@ impl SolidJoin {
             joiner: ChordJoiner::new(band),
             sides: Sides::new(red, operand),
             aux: std::collections::BTreeMap::new(),
+            along: Vec::new(),
         }
     }
 }
@@ -595,6 +611,12 @@ pub(super) struct Connected {
     pub completed: Vec<CompletedPolygonPair>,
     pub a_fragments: Vec<(FaceKey, FaceKey)>,
     pub b_fragments: Vec<(FaceKey, FaceKey)>,
+    /// Each operand's chords along its own edges, `(edge, chord)` in
+    /// that operand's clone keys, A's then B's: every chord a segment
+    /// whose locus on that operand is an edge minted runs along that
+    /// edge between its two ends, so it holds the edge's interior
+    /// where the op drops the edge ([`SolidJoin::join`]).
+    pub along: [Vec<(EdgeKey, EdgeKey)>; 2],
 }
 
 /// The lockstep joining sweep (module docs). Mutates both annotated
@@ -989,6 +1011,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         completed,
         a_fragments: sa.joiner.take_fragments(),
         b_fragments: sb.joiner.take_fragments(),
+        along: [sa.along, sb.along],
     })
 }
 
@@ -1944,7 +1967,8 @@ fn intersecting_cylinder_axes<T: Decide>(
             | geom_brep::SectionError::CoincidentSurfaces
             | geom_brep::SectionError::DegenerateTorus
             | geom_brep::SectionError::BeyondOperandExtent { .. }
-            | geom_brep::SectionError::Carrier(_),
+            | geom_brep::SectionError::Carrier(_)
+            | geom_brep::SectionError::Spiric(_),
         ) => FrameError::Desync(
             "the declared equal-radius cylinder section refused at the germ pair \
              with a refusal this pair cannot produce",
@@ -2687,7 +2711,9 @@ fn resolve_roles_geometric<T: Decide + crate::props::AtRestPolicy>(
 /// loops' regions read the other boundary or too near it, which a
 /// crossing's two flanks cannot both do unless their faces are all
 /// curved (`work/cleave/the-uncut-shell-witness-reads-no-curved-face-interior`).
-/// No in-band reading is named as the cause: it is about one point.
+/// No in-band reading is named as the cause: it is about one point. A
+/// witness refused near a face the door cannot read is, as it is for a
+/// shell ([`super::shell_witness`]).
 fn loop_roles(
     face: FaceKey,
     (outer, o): (LoopKey, Reading),
@@ -2704,11 +2730,15 @@ fn loop_roles(
         }
         (Reading::Side(o), _) => Ok(in_first(o, outer, ring)),
         (Reading::Undecided(_), Reading::Side(r)) => Ok(in_first(r, ring, outer)),
-        (Reading::Undecided(_), Reading::Undecided(_)) => {
-            Err(BooleanError::Join(SplitJoinError::SectionLoopUndecided {
-                face,
-            }))
-        }
+        // One ranking over both loops' witnesses ([`crate::ray_walk::Evidence`]):
+        // a limit is named, an in-band reading is not (it is about one
+        // point), so both of those and an empty one read undecided.
+        (Reading::Undecided(o), Reading::Undecided(r)) => Err(match o.kept.then(r.kept).ranked() {
+            crate::ray_walk::Ranked::Blocked(e) => BooleanError::Containment(e),
+            crate::ray_walk::Ranked::InBand(_) | crate::ray_walk::Ranked::Neither => {
+                BooleanError::Join(SplitJoinError::SectionLoopUndecided { face })
+            }
+        }),
     }
 }
 
@@ -2751,11 +2781,12 @@ fn region_faces<T: Decide>(
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod loop_roles_rows {
-    use super::super::shell_witness::{Reading, Tally};
+    use super::super::shell_witness::Reading;
     use super::super::{BooleanError, SideCode};
     use super::loop_roles;
     use crate::chord_join::SplitJoinError;
     use crate::entity::{FaceKey, LoopKey};
+    use crate::stands::Tally;
     use slotmap::SlotMap;
 
     fn keys() -> (FaceKey, LoopKey, LoopKey) {

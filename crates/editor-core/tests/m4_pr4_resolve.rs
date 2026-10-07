@@ -162,20 +162,20 @@ fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
     doc
 }
 
-/// A rim-edge piece name from the overlapping union's table
-/// (`[FromA(RimEdge..), Fragment(Ends)]`).
-fn rim_piece_name(ev: &Evaluation<f64>, union: RecipeNodeId) -> StableName {
+/// A joined rim edge's name from the overlapping union's table: one
+/// edge along both blocks' rims, named for the set of them
+/// (`[Merged([FromA(RimEdge..), FromB(RimEdge..)])]`).
+fn joined_rim_name(ev: &Evaluation<f64>, union: RecipeNodeId) -> StableName {
     ev.value(union)
         .unwrap()
         .name_table
         .iter()
         .find_map(|(n, e)| {
-            let piece = matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))))
-                && matches!(n.path.first(), Some(RoleSeg::FromA(_)))
-                && n.kind == EntityKind::Edge;
-            (piece && matches!(e, Entry::Unique(_))).then(|| n.clone())
+            let joined =
+                n.kind == EntityKind::Edge && matches!(n.path.as_slice(), [RoleSeg::Merged(_)]);
+            (joined && matches!(e, Entry::Unique(_))).then(|| n.clone())
         })
-        .expect("overlapping union has FromA rim pieces")
+        .expect("overlapping union has joined rim edges")
 }
 
 // ---- Resolved ----
@@ -471,8 +471,8 @@ fn never_minted_node_reports_foreign_not_deleted() {
 fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
     let s = slide_union(0.5);
     let ev1 = run(&s.doc, None);
-    let probe = rim_piece_name(&ev1, s.union);
-    let doc2 = slide_to(&s, 2.5); // disjoint: fragments vanish
+    let probe = joined_rim_name(&ev1, s.union);
+    let doc2 = slide_to(&s, 2.5); // disjoint: the joined rims vanish
     let ev2 = run(&doc2, Some(&ev1));
     let res = resolve_with_prior(
         RunCtx {
@@ -518,16 +518,19 @@ fn flip_vanished_name_diagnoses_the_predicate_flip_with_tombstone() {
         t.body,
         minted(EntityKind::Body, s.union, RoleSeg::OutputBody)
     );
-    // The over-tie/collapse offer: the disjoint union still carries
-    // the UNQUALIFIED base rim edge — offered for the explicit
-    // Rebind, never auto-bound.
-    let mut base = probe.clone();
-    base.path.pop();
-    assert!(
-        f.offers.contains(&base),
-        "expected the collapsed base as an offer: {:?}",
-        f.offers
-    );
+    // N3's offer: the join stopped happening, so each rim the set
+    // lists is a live edge of the disjoint union again — offered for
+    // the explicit Rebind, never auto-bound.
+    let [RoleSeg::Merged(set)] = probe.path.as_slice() else {
+        unreachable!("the probe is a set name")
+    };
+    for rim in set {
+        assert!(
+            f.offers.contains(rim),
+            "expected {rim:?} among the offers: {:?}",
+            f.offers
+        );
+    }
 }
 
 // ---- Vanished: StructuralParam diagnosis ----
@@ -622,7 +625,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
         },
     );
     let ev1 = run(&doc, None);
-    let master = rim_piece_name(&ev1, s.union);
+    let master = joined_rim_name(&ev1, s.union);
     let inst = minted(
         EntityKind::Edge,
         pattern,
@@ -641,7 +644,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
         ),
         Resolution::Resolved(_)
     ));
-    // Slide B disjoint: the master fragment name vanishes, so the
+    // Slide B disjoint: the master's joined rim vanishes, so the
     // instance name vanishes THROUGH it.
     let (doc2, _) = step(
         doc.clone(),
@@ -1013,6 +1016,10 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::HoleRim { of: x, .. } => under(x),
         // Two.
         RoleSeg::Seam { a: x, b: y }
+        | RoleSeg::Crossing {
+            edge: x, face: y, ..
+        }
+        | RoleSeg::EdgeCrossing { a: x, b: y, .. }
         | RoleSeg::TrimEdge {
             edge: x,
             support: y,

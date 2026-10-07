@@ -125,7 +125,7 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DEFINITION_NODE_BOUND, DocEdit, EditError, EditRecord, Maintenance,
-    MaintenanceNet, Recorded, Recording, RegaugeThenMateOutcome, apply, apply_replayed,
+    MaintenanceNet, Recorded, Recording, RegaugeThenMateOutcome, Took, apply, apply_replayed,
     cascade_delete_order, regauge_then_mate,
 };
 pub use eval::{
@@ -139,8 +139,8 @@ pub use eval::{
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
 pub use spoken::{
-    FullId, HeldNodes, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
-    node_kind_noun, spoken_by,
+    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
+    node_kind_noun, spoken_by, spoken_within,
 };
 // The entity door's token: a field of four `NodeErrorKind` variants, so
 // a reader that matches one needs to be able to name it here rather
@@ -179,14 +179,15 @@ pub use names::{
     BooleanCoincidence, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal,
     ContactVerdict, CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation,
     DuplicateName, EntityKey, EntityKind, EntityRef, Entry, FIT_DEFERRAL, FaceName, FlushEvidence,
-    FlushFinding, FlushRung, FragmentGroups, GeomPred, InterrogateError, MeridianEnd, NameOrigin,
-    NamePat, NameRef, NameTable, NameTextError, NamingError, NotAFaceName, OpGroup, PieceRole,
-    PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport, RolePath, RoleSeg,
-    SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf,
-    StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute,
-    band, band_pi, band_rim, carried, declare, declare_all, declared_pairs, denotation,
-    edge_carrier_kind, edge_frame, face_carrier_kind, face_frame, find_flush_candidates,
-    meridian_vertex, select, select_where, vertex_position,
+    FlushFinding, FlushRung, FragmentGroups, GeomPred, InterrogateError, LeafRole, MeridianEnd,
+    NameOrigin, NamePat, NameRef, NameTable, NameTextError, NamingError, NotAFaceName, OpGroup,
+    PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport,
+    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat, SegTag, SelectRefusal, Selector,
+    Sense, Side, SplitHalf, StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
+    all_vertices, attribute, band, band_pi, band_rim, band_rim_pi, carried, declare, declare_all,
+    declared_pairs, denotation, edge_carrier_kind, edge_frame, face_carrier_kind, face_frame,
+    find_flush_candidates, leaf_role, meridian_vertex, role_leaf, select, select_where,
+    vertex_position,
 };
 pub use node::{
     AuthoredNode, Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
@@ -224,7 +225,7 @@ pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };
 pub use resolve::{
-    Diagnosis, FlipSet, FoldConsumption, GroupCutters, HitTestError, MeshPatchKey,
+    AboutReference, Diagnosis, FlipSet, FoldConsumption, GroupCutters, HitTestError, MeshPatchKey,
     NodeVerdictDelta, PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure,
     ResolveError, ResolveIndeterminate, Resolved, RunCtx, RunStatus, TieWitness, Tombstone,
     UnnamedEntity, UpstreamCause, VerdictFlip, appearance_rebind_suggestions, apply_with_names,

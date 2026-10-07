@@ -255,16 +255,39 @@ No rule reads a plane or a direction, and a union's reading of a seam pair in
 name order changes nothing. Name order spells a set; the flush rule below is
 the one place it chooses an entity.
 
-**Flush edges at a union.** An edge that lies along several members' edges,
-where they run flush, is a piece of the first minted of them (the least in
-name order, since name order compares the minting node's id first and ids
-order as minted), so a member added later never takes a stretch from an
-earlier one; and an
-edge lying along a member edge is a piece of it whatever the fold named it
-(`emit_union::Flush`). A seam vertex cites such an edge whole,
-`FromMember(m, e)`, never a piece; a vertex at a member vertex is that vertex,
-and one where a single face crosses a member edge is the `Crossing` of that
-edge and that face.
+**Flush edges at a union.** Each union edge is named for the member edges it
+lies on, read off the finished body and the members' own bodies
+(`emit_union::Flush`), so the name is the same in every member order:
+
+- An edge that lies within one or more member edges, where they run flush, is
+  a piece of the first minted of them (the least in name order, since name
+  order compares the minting node's id first and ids order as minted), so a
+  member added later never takes a stretch from an earlier one, whatever the
+  fold named it.
+- An edge that lies within none, but runs along several member edges that
+  together cover it, is named for that set: `Merged` of those member edges,
+  flat and in name order, the shape faces have (N3). Such an edge is a flush
+  rim the output stage joined across members (maximal edges, `docs/DESIGN.md`).
+  "Along" means on the edge's line and overlapping it over a length, so a rim
+  that only partly overlaps an edge is in its set. Several pieces of one set
+  are told apart by their ends (N2).
+- An edge that runs along member edges for part of its length and along a seam
+  for the rest is named from its two faces, as a seam is.
+
+The set does not retire its constituents the way N3 retires a merged face's.
+A member edge a set lists can also hold a stretch outside it, and that
+stretch keeps its piece name, the member edge qualified by its ends (N2),
+never the bare member edge. Unlike two coplanar faces, the stretch and the set
+are different cells on the line, and a name cites only what its cell lies on.
+
+A pair boolean names a joined edge by the same reading over its two operands'
+edges. A seam vertex cites a member edge whole, `FromMember(m, e)`, never a
+piece and never a set: the one it lies on, the least where several do. In a
+pair boolean, where an A edge and a B edge both hold it, A's is cited. A
+vertex at a member vertex is that vertex, and one where a single face crosses
+a member edge is the `Crossing` of that edge and that face. A reference to a
+member edge, or to a piece of one, that no longer resolves is offered every
+set listing that member edge.
 
 **A union's face is named for its PARENT.** Two member faces are linked when
 all of these hold: their members are declared coincident on them, or share a
@@ -483,9 +506,10 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   rung declines. That is a statement about two recorded groups, not a claimed
   flip.
 - *The cutters.* `cutters` (`GroupCutters`, `resolve::group_cutters`) reads the
-  minting node's two tables for the `Seam` rows on the group's parent (a face
-  group's seam edges, an edge group's seam vertices), matched on the
-  `Seam { a, b }` pair with any `Fragment` tail and never on the row, and names
+  minting node's two tables for the seam rows on the group's parent (a face
+  group's seam edges, an edge group's seam and crossing vertices), matched on
+  the pair — a `Seam`'s or an `EdgeCrossing`'s two sides, a `Crossing`'s edge
+  and face — with any `Fragment` tail and never on the row, and names
   every cutter whose seam with the parent only the last-good table spells
   (`gone`) or only the current one does (`new`); both empty says the two
   tables spell seams on the parent with the same cutters. A seam is a crossing,

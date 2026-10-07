@@ -21,11 +21,13 @@ use geom_core::Tol;
 /// per Ev's 2026-07-29 ruling on the M5 PR 8 diagnosis question:
 /// the diagnosis ACCEPTANCE artifacts (this corpus + the golden
 /// digest in `m4_pr4_ci`) pin what production users actually get.
-/// Scenario A's flip-vanish row therefore exercises the AMENDED N5
-/// semantics: the disjoint run's pair space is pruned and no flip
-/// evidence is computed. The vanished name is a rim-edge piece named by
-/// its ends, whose group went from two to one, so the row diagnoses
-/// to `GroupResized` (`resolve::group_resized`'s docs). Engine-behavior tests
+/// Scenario A's flip-vanish row: the vanished name is a rim-edge piece
+/// named by its ends, whose group went from two to one when the slab
+/// that cut it slid clear. The disjoint run's pair space is pruned
+/// (the AMENDED N5 semantics), but the slab's wall, which the piece's
+/// end vertex cites, is still classified against `a` and flips from
+/// inside to outside, so the row diagnoses to that `PredicateFlip`,
+/// which outranks the group-size rung. Engine-behavior tests
 /// that are genuinely about behavior-GIVEN-verdicts stay under the
 /// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
 /// headers); `m4_pr4_banked` pins both strategies side by side.
@@ -77,10 +79,14 @@ where
 {
     let mut out = Vec::new();
 
-    // ---- Scenario A: sliding union (flip-vanish + cascade). ----
+    // ---- Scenario A: a sliding slab (flip-vanish + cascade). ----
+    // The slab crosses both of `a`'s top rims along x, whose genuine
+    // valence-3 cuts at x = 0.45 and 0.55 hold each in two pieces named
+    // by their ends; slid clear of `a`, it leaves the rims whole. No
+    // vertex of the slab lies inside `a` in either run.
     let doc = ProfileDoc::empty_derived("pr4", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, b0) = block(doc, (-0.05, 0.05), (-1.0, 2.0), 0.5, 2.5);
     let (doc, tr) = insert(
         doc,
         Node::transform(
@@ -92,18 +98,13 @@ where
             },
         ),
     );
-    // The sliding overlap's flush planes are declared on the union (the
-    // kernel does not infer them). The B side is read at the TRANSFORM,
-    // which is the boolean's operand and carries `b0`'s names verbatim
-    // (N1).
-    let decl = super::declare_x_offset_flush_at(&doc, (a, a), (tr, b0));
     let (doc, u) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b: tr,
-            declare: decl,
+            declare: Vec::new(),
         },
     );
     let (doc, pat) = insert(

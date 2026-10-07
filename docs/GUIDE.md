@@ -1574,12 +1574,15 @@ recipe there is nothing to select against, and a name you cannot name
 is a name you would have to hand-write — the serialized form, field by
 field, with no compiler and no door checking any of it.
 
-So a revolve's roles have MINTING doors, the same five `pncad::select`
+So a revolve's roles have MINTING doors, the same six `pncad::select`
 gives Rust: `band(node, piece)` is the face swept from a meridian
 piece and `band_pi(node, piece)` its `[pi, 2pi)` half where a full
 revolve splits a CURVED wall in two (a planar wall is one face, its
 `band`), `band_rim(node, piece)`
-is the latitude rim standing at the vertex the piece starts at,
+is the latitude rim standing at the vertex the piece starts at and
+`band_rim_pi(node, piece)` its `[pi, 2pi)` half-arc where a full
+revolve of a profile touching the axis splits every rim in two (a
+blend over the whole rim names both),
 `meridian_vertex(end, node, piece)` is that vertex itself, and
 `carried(node, inner)` is the name a survivor of `node` wears one op
 later. Each answers the

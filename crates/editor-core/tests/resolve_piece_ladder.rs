@@ -187,11 +187,13 @@ fn vanished(res: &Resolution) -> &Diagnosis {
 // ---------------------------------------------------------------
 
 #[test]
-fn a_vanished_rim_piece_is_diagnosed_as_its_group_resizing() {
-    // The corpus's own pruned-pair row: the rim piece's group
-    // goes from two to one (why no flip exists there:
-    // `resolve::group_resized`'s docs). The undivided rim edge rides
-    // in the offers.
+fn a_vanished_rim_piece_is_diagnosed_by_its_cutters_flip_over_its_group_resizing() {
+    // The corpus's own flip-vanish row: the rim piece's group goes
+    // from two to one as the slab that cut it slides clear, and the
+    // slab's wall, a cutter its seam vertex names, flips from inside
+    // `a` to outside. The flip is on the name's path, so it outranks
+    // the group-size rung (`resolve_group_membership` holds that rung
+    // on real documents). The undivided rim edge rides in the offers.
     let rows = fixture::pr4::diagnosis_corpus::<f64>();
     let (_, res) = rows
         .iter()
@@ -208,37 +210,16 @@ fn a_vanished_rim_piece_is_diagnosed_as_its_group_resizing() {
         ),
         "the row is about a piece named by its ends: {name:?}"
     );
-    // The cutter whose seam vertex with the rim edge is gone is the
-    // other operand's cap VERTEX, a point on the edge, not a face.
-    let Diagnosis::GroupResized {
-        node,
-        was: 2,
-        now: 1,
-        cutters: GroupCutters::Read { gone, new },
+    let Diagnosis::PredicateFlip {
+        predicate,
+        from,
+        to,
     } = vanished(res)
     else {
-        panic!("expected a 2 -> 1 resize with its cutters read: {res:?}");
+        panic!("expected the cutter's flip: {res:?}");
     };
-    assert_eq!(*node, name.node);
-    assert!(new.is_empty(), "no cutter starts cutting: {new:?}");
-    let [cutter] = gone.as_slice() else {
-        panic!("one cutter stops cutting: {gone:?}");
-    };
-    assert_eq!(cutter.kind, EntityKind::Vertex, "{cutter:?}");
-    assert_ne!(cutter.node, name.node, "{cutter:?}");
-    assert!(
-        matches!(
-            cutter.path.as_slice(),
-            [RoleSeg::CapVertex(
-                editor_core::CapEnd::End,
-                editor_core::ProfileVertexRef::Piece {
-                    role: editor_core::PieceRole::Leg,
-                    ..
-                },
-            )]
-        ),
-        "an end cap vertex where a leg starts: {cutter:?}"
-    );
+    assert_eq!(*predicate, "bool_point_in_solid_plane", "{res:?}");
+    assert_ne!(from, to);
     assert!(f.offers.contains(&base_of(name)), "{:?}", f.offers);
 }
 

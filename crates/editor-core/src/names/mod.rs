@@ -45,6 +45,7 @@ mod role;
 mod seam_pair;
 mod select;
 mod table;
+pub(crate) mod words;
 
 pub use attribute::{NameOrigin, attribute};
 pub(crate) use defer::CarriedRows;
@@ -80,17 +81,18 @@ pub use interrogate::{
 pub use nest::NameTextError;
 pub(crate) use nest::{read_door, write_door};
 pub(crate) use role::member_edge;
-pub(crate) use role::name_free_seg;
 pub use role::{
     CapEnd, EntityKind, FaceName, MeridianEnd, NameRef, NotAFaceName, PieceRole, PieceRun,
     ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SectionCircle,
-    SplitHalf, StableName, band, band_pi, band_rim, carried, meridian_vertex,
+    Sense, SplitHalf, StableName, band, band_pi, band_rim, band_rim_pi, carried, meridian_vertex,
 };
 pub(crate) use role::{Carry, SegRewrite, inert_seg, locator_seg};
 pub(crate) use role::{Lift, VerbatimEdge, lift, verbatim_edge};
+pub(crate) use role::{fragment_tail_start, name_free_seg};
 pub(crate) use seam_pair::face_descends_from;
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};
+pub use words::{LeafRole, leaf_role, role_leaf};
 
 /// **Every edge name of a node's output body, as of THIS evaluation**
 /// — the materializer for an every-edge fillet selection (M6-5, the

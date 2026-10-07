@@ -1576,7 +1576,7 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
     let ev = run(&outer, &with_resolver(store.clone()));
     let own = ev.node_error(added).expect("the second mate is refused");
     assert_eq!(
-        own.spoken(&outer),
+        own.spoken(&outer, &ev),
         format!(
             "Mate \"outer added\" ({ta}) failed: the mate solve refused: Mate \"outer held\" \
              ({th}) and this mate cannot both hold: {}",
@@ -1595,10 +1595,10 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
         },
     );
     assert!(
-        own.spoken(&renamed)
+        own.spoken(&renamed, &ev)
             .contains(&format!("Mate \"outer renamed\" ({th}) and this mate")),
         "the memoized refusal holds the id, so a rename shows with nothing re-evaluated: {}",
-        own.spoken(&renamed)
+        own.spoken(&renamed, &ev)
     );
 
     let error = ev
@@ -1609,10 +1609,11 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
         panic!("one carried level, in the part: {levels:?}");
     };
     assert_eq!(level.document.doc_ref(), Some(&inner_ref), "{levels:?}");
-    let inner_own = run(&inner, &with_resolver(store))
+    let inner_ev = run(&inner, &with_resolver(store));
+    let inner_own = inner_ev
         .node_error(level.node)
         .expect("the part's own tree draws the level's node failed")
-        .spoken(&inner);
+        .spoken(&inner, &inner_ev);
     let in_outer = level.line_in(&outer);
     assert_eq!(
         in_outer, inner_own,
@@ -1624,7 +1625,7 @@ fn a_carried_level_says_the_parts_labels_where_the_outer_document_holds_its_ids(
          {in_outer}"
     );
     assert_eq!(in_outer, level.line(), "the level holds its own nodes");
-    let in_frame = error.spoken(&outer);
+    let in_frame = error.spoken(&outer, &ev);
     assert!(
         in_frame.contains(&format!("the part's {} failed", inner.spoken(level.node)))
             && !in_frame.contains("outer"),
@@ -1755,7 +1756,7 @@ fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_t
         refusal.kind(),
         editor_core::ProductErrorKind::PlacedUnderTwoRoots
     );
-    let in_outer = error.spoken(&outer);
+    let in_outer = error.spoken(&outer, &ev);
     assert!(
         in_outer.contains(&format!(
             "Extrude \"inner block\" ({t})'s body is placed under two roots"

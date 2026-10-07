@@ -51,9 +51,11 @@ first: rung 1, closed-form `Line`/`Circle`; rung 2, the exact conic
 `Curve3::Ellipse` (tilted plane×cylinder, tilted plane×cone,
 equal-radius cylinder×cylinder)
 and the exact quartic `Curve3::Spiric` (the axis-parallel plane×torus
-section, one oval in the torus's own minor angle — minted by the
-offset-axial door for a hollowed partial revolve's rim, not by the C5
-table), whose residuals are zero by construction; rung 3, a fitted cubic
+section, one oval in the torus's own minor angle — minted by
+`plane_torus_section`'s axis-parallel arm, which the offset-axial
+door's rim mint calls; a plane through the axis cuts the more exact
+`Circle`, and `Curve3::spiric` refuses it), whose residuals are zero by
+construction; rung 3, a fitted cubic
 `Curve3::Nurbs` carrying the C2 certificate. Parabola and hyperbola are
 outside the inventory by decision: a plane×cone section of either kind
 refuses typed, naming its conic. Conics round-trip to rational-quadratic NURBS only as
@@ -195,14 +197,19 @@ Before any march, the
 plane × NURBS lane decides its own domain boundary, the wall's knot
 rectangle, against the plane, one side at a time
 (`geom_brep::boundary_section`: plane × one boundary curve of the
-wall, the same door the boolean's NURBS crossing layer reads). A side
+wall). A side
 either lies within the band of the plane, or meets it at isolated
 crossings, each found to the sweep floor and decided transversal along
 the side, or refused as a graze, the locus tangent to the side, naming
 the side (`SsiError::BoundaryGraze`). A side within the band is
 decided over a strip beside it where the wall's slope across it is
-one-signed: nothing where the strip is clear of the plane, a `Side`
-region where the locus is coincident with the side (below); where that
+one-signed: nothing where the strip is clear of the plane (its plane
+distance one-signed and the wall moving further that way inward; a
+piece of the side whose Bernstein hull straddles zero is halved until
+one-signed, the side reads in band at opposite signs or a halving that
+does not narrow a hull, and it refuses past its halvings,
+`SsiError::SideSignBudget`), a `Side` region where the locus is
+coincident with the side (below); where that
 slope does not clear the band the surfaces may be tangent along the
 side, and it refuses toward C7 (`SsiError::BoundaryTangent`); where no
 strip has it one-signed, or none holds the locus's certified zero set
@@ -428,9 +435,10 @@ classification data, refused as carriers. `SurfaceKind::Approx` is its
 own kind, not `Nurbs`: a locus claim against an approximating surface is
 a claim about the fit, and `Approx × anything` refuses because composing
 the fit's precision claim with the SSI limbs is not a ratified rule.
-Implemented: plane×plane, plane×sphere, sphere×sphere, axis-aligned
-plane×torus (rung 1); plane×cylinder, plane×cone (all but the parabola
-and hyperbola), declared-equal cylinder×cylinder (rung 2); cylinder×sphere and
+Implemented: plane×plane, plane×sphere, sphere×sphere (rung 1);
+plane×cylinder, plane×cone (all but the parabola and hyperbola),
+declared-equal cylinder×cylinder, axis-aligned plane×torus (its
+axis-parallel pose off the axis the `Spiric`) (rung 2); cylinder×sphere and
 plane×NURBS (rung 3). Every other pair refuses, most blocked on the cone
 and torus metres conversion (C2 limb 2).
 

@@ -299,6 +299,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
                     node: RecipeNodeId(tagged(3)),
                 },
             }),
+            reference: 0,
         },
         K::BlendSelectionResolve {
             verb: sweep::blend::BlendKind::Fillet,
@@ -311,6 +312,7 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
                     width: 2,
                 },
             }),
+            reference: 0,
         },
         K::WitnessBifurcation(editor_core::WitnessBifurcation {
             kind: editor_core::BifurcationKind::FoldProximity,
@@ -378,7 +380,7 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
         let payload = match &kind {
             K::Profile(e) => e.to_string(),
             K::Expr { source, .. } => source.to_string(),
-            K::DeclareResolve { error } => error.to_string(),
+            K::DeclareResolve { error, .. } => error.to_string(),
             K::BlendSelectionResolve { error, .. } => error.to_string(),
             K::WitnessBifurcation(e) => e.to_string(),
             K::PlacementRule(e) => e.to_string(),
@@ -546,7 +548,7 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             }
             .to_string(),
             &[
-                "face name minted by node 000000000005",
+                "the output body of node 000000000005",
                 "no longer resolves",
                 "the margin deciding the order of two crossings along an edge flipped from zero to \
                  positive",
@@ -561,9 +563,9 @@ fn the_document_layers_own_payloads_render_their_own_stories() {
             }
             .to_string(),
             &[
-                "vertex name minted by node 000000000005",
-                "its minting node was deleted",
-                "explicit rebind",
+                "the output body of node 000000000005",
+                "is stranded: node 000000000005 was deleted",
+                "Recourse: rebind it",
             ],
         ),
         (

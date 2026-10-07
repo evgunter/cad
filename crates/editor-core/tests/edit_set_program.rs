@@ -493,9 +493,10 @@ fn a_dropped_step_strands_the_names_on_its_pieces_and_they_never_alias() {
         crate::fixture::without_anonymous(&applied.maintenance),
         vec![Maintenance::Strand {
             node: r.doc.spoken(fillet),
-            name: r.doc.spoken_name(&crease),
+            name: r.doc.spoken_name(&crease).steps_respoken(&applied.doc),
+            took: editor_core::Took::Step
         }],
-        "the crease's name strands, spelled as it was"
+        "the crease's name strands, its dropped step said by its tag"
     );
     assert_eq!(selection_of(&applied.doc, fillet), vec![crease.clone()]);
     assert_ne!(
@@ -588,7 +589,8 @@ fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
     assert_eq!(
         crate::fixture::without_anonymous(&applied.maintenance),
         vec![Maintenance::StrandedAppearance {
-            name: doc.spoken_name(&arc)
+            name: doc.spoken_name(&arc).steps_respoken(&applied.doc),
+            took: editor_core::Took::Step
         }],
         "the paint on the dropped step's arc strands"
     );
@@ -688,10 +690,12 @@ fn a_reshaping_reports_its_strands_then_its_stranded_keys() {
         vec![
             Maintenance::Strand {
                 node: doc.spoken(frame),
-                name: doc.spoken_name(&right),
+                name: doc.spoken_name(&right).steps_respoken(&applied.doc),
+                took: editor_core::Took::Step
             },
             Maintenance::StrandedAppearance {
-                name: doc.spoken_name(&right)
+                name: doc.spoken_name(&right).steps_respoken(&applied.doc),
+                took: editor_core::Took::Step
             },
         ]
     );
@@ -1726,8 +1730,10 @@ fn filleted_to_sharp(old: &[StepId]) -> Vec<Option<StepId>> {
 /// the corner and keeps every step: the fillet's run out now holds the
 /// right wall, so the kept leg is not drawn (N1, "Undrawn pieces
 /// vanish rather than alias"), and no value edit brings it back. The
-/// edit removed the name's referent, so it reports both carriers
-/// (DM7); dropping the fillet draws the leg again and reports nothing.
+/// edit took the name's referent, so it reports both carriers (DM7),
+/// each saying the kept leg's step at the row it holds in the new
+/// program, never the row it held before, which is now another step's;
+/// dropping the fillet draws the leg again and reports nothing.
 #[test]
 fn a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it() {
     let (doc, profile, ext) = extruded("shadow-by-insert", vec![corner(false)]);
@@ -1743,19 +1749,44 @@ fn a_fillet_inserted_before_a_kept_leg_strands_the_names_on_it() {
 
     let keep = vec![sharp_to_filleted(&old)];
     let applied = accepted(&doc, profile, vec![corner(true)], keep);
+    let said = doc.spoken_name(&up).steps_respoken(&applied.doc);
     assert_eq!(
         crate::fixture::without_anonymous(&applied.maintenance),
         vec![
             Maintenance::Strand {
                 node: doc.spoken(frame),
-                name: doc.spoken_name(&up),
+                name: said.clone(),
+                took: editor_core::Took::Piece
             },
             Maintenance::StrandedAppearance {
-                name: doc.spoken_name(&up),
+                name: said,
+                took: editor_core::Took::Piece
             },
         ],
         "the kept leg's names strand: the frame's, then the paint's"
     );
+    let new = ids_of(&applied.doc, profile)[0].clone();
+    let (was, is) = (
+        old.iter()
+            .position(|s| *s == old[4])
+            .expect("the sharp corner draws the leg"),
+        new.iter()
+            .position(|s| *s == old[4])
+            .expect("the reshaping keeps the leg's step"),
+    );
+    assert_ne!(new[was], old[4], "the leg's old row is another step's now");
+    for row in &applied.maintenance {
+        let row = row.to_string();
+        assert!(
+            row.contains(&format!("loop 0 step {is} "))
+                && !row.contains(&format!("loop 0 step {was} ")),
+            "a kept step is said at its row in the new program, {is}, never its old {was}: {row}"
+        );
+        assert!(
+            row.contains(&applied.doc.spoken_name(&up).to_string()),
+            "the name reads as the new program says it: {row}"
+        );
+    }
     assert_eq!(frame_face(&applied.doc, frame), up, "nothing is rewritten");
     frame_refuses_vanished(&applied.doc, frame, &up);
     let fillet = ids_of(&applied.doc, profile)[0][3];
@@ -1801,15 +1832,19 @@ fn a_reshaping_from_a_parked_program_strands_a_kept_leg_it_stops_drawing() {
     let up = wall_by(ext, old[4], PieceRole::Leg);
     let (doc, frame) = frame_on(doc, ext, up.clone());
     let keep = || vec![sharp_to_filleted(&old)];
-    let strand = vec![Maintenance::Strand {
-        node: doc.spoken(frame),
-        name: doc.spoken_name(&up),
-    }];
+    // The kept leg is said at its row in the program the edit made.
+    let strand = |after: &ProfileDoc| {
+        vec![Maintenance::Strand {
+            node: doc.spoken(frame),
+            name: doc.spoken_name(&up).steps_respoken(after),
+            took: editor_core::Took::Piece,
+        }]
+    };
 
     let replaying = accepted(&doc, profile, vec![corner(true)], keep());
     assert_eq!(
         crate::fixture::without_anonymous(&replaying.maintenance),
-        strand,
+        strand(&replaying.doc),
         "from the replaying state the leg's frame strands"
     );
     let parked = set_value(&doc, "hole_r", 0.0).doc;
@@ -1822,7 +1857,7 @@ fn a_reshaping_from_a_parked_program_strands_a_kept_leg_it_stops_drawing() {
     let applied = accepted(&parked, profile, vec![corner(true)], keep());
     assert_eq!(
         crate::fixture::without_anonymous(&applied.maintenance),
-        strand,
+        strand(&applied.doc),
         "from the parked state the same frame strands"
     );
     frame_refuses_vanished(&applied.doc, frame, &up);
@@ -1860,6 +1895,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
         vec![Maintenance::Strand {
             node: doc.spoken(frame),
             name: doc.spoken_name(&run_out),
+            took: editor_core::Took::Piece
         }],
         "the reshaping strands the run its value leaves undrawn"
     );
@@ -1904,6 +1940,7 @@ fn a_reshapings_values_strand_what_a_slot_edit_of_them_would_not() {
         crate::fixture::without_anonymous(&fewer.maintenance),
         vec![Maintenance::StrandedAppearance {
             name: doc.spoken_name(&wall_by(ext, hole, PieceRole::Piece(3))),
+            took: editor_core::Took::Piece
         }],
         "the count strands the piece it stops drawing, and only it"
     );
@@ -2045,7 +2082,7 @@ fn report_matches_resolution(
         .maintenance
         .iter()
         .filter_map(|m| match m {
-            Maintenance::Strand { name, .. } | Maintenance::StrandedAppearance { name } => {
+            Maintenance::Strand { name, .. } | Maintenance::StrandedAppearance { name, .. } => {
                 Some(name.name().clone())
             }
             Maintenance::AnonymousVarRemoved { var, .. } => {
@@ -2501,15 +2538,17 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
         .iter()
         .flat_map(|[_, seam, rim]| [seam.clone(), rim.clone()]);
     let (doc, blend) = insert(doc, Node::fillet(loft, len(0.05), edges.collect()));
-    let report = |n: &StableName| {
+    let report = |n: &StableName, after: &ProfileDoc| {
         if n.kind == EntityKind::Face {
             Maintenance::StrandedAppearance {
-                name: doc.spoken_name(n),
+                name: doc.spoken_name(n).steps_respoken(after),
+                took: editor_core::Took::Step,
             }
         } else {
             Maintenance::Strand {
                 node: doc.spoken(blend),
-                name: doc.spoken_name(n),
+                name: doc.spoken_name(n).steps_respoken(after),
+                took: editor_core::Took::Step,
             }
         }
     };
@@ -2550,8 +2589,8 @@ fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
     let is_live = live(&applied.doc);
     for (k, group) in names.iter().enumerate() {
         for n in group {
-            let reported =
-                crate::fixture::without_anonymous(&applied.maintenance).contains(&report(n));
+            let reported = crate::fixture::without_anonymous(&applied.maintenance)
+                .contains(&report(n, &applied.doc));
             assert_eq!(
                 reported,
                 k == 1,

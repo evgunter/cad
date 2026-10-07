@@ -1431,6 +1431,19 @@ pub fn swept(doc: &ProfileDoc, node: RecipeNodeId) -> RecipeNodeId {
     }
 }
 
+/// **The step that drew `piece`**, whose tag a name's words say where
+/// no document is at hand.
+///
+/// # Panics
+///
+/// Where `piece` is a kernel-built section's, which no step drew.
+pub fn step_of(piece: &ProfileEdgeRef) -> editor_core::StepId {
+    match piece {
+        ProfileEdgeRef::Piece { step, .. } => *step,
+        ProfileEdgeRef::Section { .. } => panic!("a section's piece has no step"),
+    }
+}
+
 /// **The piece canonical segment `k` of canonical loop `l` is**, on the
 /// profile `sweep` sweeps (or `sweep` itself, a profile).
 ///
@@ -1733,6 +1746,10 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::Rim(x)
         | RoleSeg::HoleRim { of: x, .. } => vec![x.as_ref()],
         RoleSeg::Seam { a: x, b: y }
+        | RoleSeg::Crossing {
+            edge: x, face: y, ..
+        }
+        | RoleSeg::EdgeCrossing { a: x, b: y, .. }
         | RoleSeg::TrimEdge {
             edge: x,
             support: y,

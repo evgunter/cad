@@ -74,6 +74,7 @@ fn a_strand_a_later_rebind_repairs_is_not_reported() {
         vec![Maintenance::Strand {
             node: doc.spoken(carrier),
             name: doc.spoken_name(&named),
+            took: editor_core::Took::Node
         }]
     );
     let (repaired, each, _) = net_of(
@@ -134,7 +135,8 @@ fn an_appearance_strand_a_later_clear_removes_is_not_reported() {
     assert_eq!(
         alone,
         vec![Maintenance::StrandedAppearance {
-            name: doc.spoken_name(&painted)
+            name: doc.spoken_name(&painted),
+            took: editor_core::Took::Node
         }]
     );
     let (cleared, _, _) = net_of(

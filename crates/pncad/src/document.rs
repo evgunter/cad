@@ -90,7 +90,7 @@
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, Maintenance,
     MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, Recorded, Recording,
-    RegaugeThenMateOutcome, StepId, StepIdFault, apply, apply_replayed, regauge_then_mate,
+    RegaugeThenMateOutcome, StepId, StepIdFault, Took, apply, apply_replayed, regauge_then_mate,
 };
 pub use editor_core::{
     ArcShape, AuthoredStep, StepHandleRefusal, StepShape, TargetShape, keep_grid,
@@ -116,8 +116,8 @@ pub use editor_core::{
 // beside a refusal it carries whole, and the full-width id a machine
 // channel prints.
 pub use editor_core::{
-    FullId, HeldNodes, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
-    node_kind_noun, spoken_by,
+    FullId, HeldNodes, NameTables, Said, Say, Speaker, SpokenName, SpokenNode, SpokenVar, held_by,
+    node_kind_noun, spoken_by, spoken_within,
 };
 
 // A node's label (DESIGN.md Band 1, "Node labels"): document data the

@@ -155,6 +155,7 @@ fn a_delete_that_strands_a_payload_name_reaches_the_line() {
     let expected = vec![Maintenance::Strand {
         node: doc.spoken(carrier),
         name: doc.spoken_name(&named),
+        took: pncad::document::Took::Node,
     }];
     let mut session = DocSession::inline(doc, Tol::witness());
     let op = SessionOp::DeleteNode { node: victim };
@@ -188,8 +189,12 @@ fn every_maintenance_row_rides_beside_a_refusal() {
         Maintenance::Strand {
             node: SpokenNode::absent(RecipeNodeId(tagged(3))),
             name: face(7),
+            took: pncad::document::Took::Node,
         },
-        Maintenance::StrandedAppearance { name: face(8) },
+        Maintenance::StrandedAppearance {
+            name: face(8),
+            took: pncad::document::Took::Node,
+        },
     ];
     let notices: Vec<frame::Message> = rows
         .iter()
@@ -214,12 +219,12 @@ fn every_maintenance_row_rides_beside_a_refusal() {
     };
     assert_eq!(
         line.text(),
-        "nothing to undo \u{2022} node 000000000003 carries a face name minted by node 000000000007; this edit removed \
-         what it denoted (its minting node, or the profile segment it named), so the name \
-         resolves to nothing until it is rebound \u{2022} the appearance store holds an \
-         attachment under a face name minted by node 000000000008; this edit removed what it denoted (its \
-         minting node, or the profile segment it named), so the name resolves to nothing until \
-         it is rebound or cleared"
+        "nothing to undo \u{2022} node 000000000003 carries a name for the face of node \
+         000000000007; this edit deleted node 000000000007, which minted the name, so the \
+         name resolves to nothing until it is rebound \u{2022} the appearance store holds an \
+         attachment under a name for the face of node 000000000008; this edit deleted node \
+         000000000008, which minted the name, so the name resolves to nothing until it is \
+         rebound or cleared"
     );
 }
 
@@ -248,6 +253,7 @@ fn a_delete_that_strands_an_appearance_key_reaches_the_line() {
 
     let expected = vec![Maintenance::StrandedAppearance {
         name: doc.spoken_name(&painted),
+        took: pncad::document::Took::Node,
     }];
     let mut session = DocSession::inline(doc, tol);
     let op = SessionOp::DeleteNode { node: victim };
@@ -433,7 +439,8 @@ fn corner(filleted: bool) -> LoopProgram<Formula> {
 /// takes that wall's segment, so the kept leg the frame names is no
 /// longer drawn. The door's own pre-click report — what the Apply
 /// button counts — names the frame's strand, and the landed edit
-/// reports the same row to the line.
+/// reports the same row to the line, the kept leg said at its row in
+/// the program the edit made.
 #[test]
 fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("maint-profile-shadow", Tol::witness());
@@ -447,18 +454,11 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
     let mut ids = base.kept_in_place();
     ids[0].insert(3, None);
     ids[0].insert(5, None);
-    let expected = vec![Maintenance::Strand {
-        node: doc.spoken(carrier),
-        name: doc.spoken_name(&right),
-    }];
+    let before = doc.clone();
     let mut session = DocSession::inline(doc, Tol::witness());
-    assert_eq!(
-        session
-            .edit_profile_report(profile, &base, vec![corner(true)], ids.clone())
-            .expect("the reshaping is legal"),
-        expected,
-        "the count Apply shows before the click"
-    );
+    let counted = session
+        .edit_profile_report(profile, &base, vec![corner(true)], ids.clone())
+        .expect("the reshaping is legal");
     let op = SessionOp::EditProfile {
         node: profile,
         base,
@@ -466,6 +466,14 @@ fn a_fillet_inserted_before_a_framed_leg_is_counted_and_reported() {
         ids,
     };
     let outcome = session.perform(op.clone());
+    let expected = vec![Maintenance::Strand {
+        node: before.spoken(carrier),
+        name: before
+            .spoken_name(&right)
+            .steps_respoken(session.committed_doc()),
+        took: pncad::document::Took::Piece,
+    }];
+    assert_eq!(counted, expected, "the count Apply shows before the click");
     assert_eq!(
         crate::fixture::without_anonymous(&outcome.maintenance),
         expected
@@ -561,6 +569,7 @@ fn an_offset_clear_is_carried_but_not_worded() {
                 .into(),
             )],
         }),
+        took: pncad::document::Took::Node,
     };
     assert_eq!(
         frame::maintenance_notice(&strand).map(|notice| notice.text().to_owned()),

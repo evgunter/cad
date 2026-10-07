@@ -34,8 +34,8 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// resolution-semantics change — this is the replay-identity family's
 /// resolution member).
 ///
-/// What the pin holds: flip-vanish → GroupResized { was: 2, now: 1 }
-/// naming B's cap vertex as the one cutter gone; cascade → Cascade;
+/// What the pin holds: flip-vanish → PredicateFlip on the cutting
+/// slab's wall, which slid from inside `a` to outside; cascade → Cascade;
 /// structural-param → StructuralParam; node-gone; ambiguous. It moves
 /// with every spelling the diagnosed names carry (node and profile step
 /// ids, `Borders` on the ambiguous row's piece, `Ends` on the probed rim
@@ -48,7 +48,7 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// and with it every row this hashes. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched across the change.
-const DIAGNOSIS_DIGEST: u64 = 0x1e8c_4546_8845_e185;
+const DIAGNOSIS_DIGEST: u64 = 0x2755_1d3d_53d6_11b6;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

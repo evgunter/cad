@@ -310,7 +310,7 @@ fn assert_the_mate_is_blamed(
     assert_eq!(
         mate_row,
         RowStatus::Failed {
-            message: error.spoken(doc),
+            message: error.spoken(doc, ev),
             carried: Vec::new(),
         },
         "the mate's row is the cause and carries the payload's own words"
@@ -411,7 +411,7 @@ fn assert_both_loud(
         assert_eq!(
             common::status_of(&rows, id),
             RowStatus::Failed {
-                message: error.spoken(doc),
+                message: error.spoken(doc, ev),
                 carried: Vec::new(),
             },
             "{id:?} carries its own words"

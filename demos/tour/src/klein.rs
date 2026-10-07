@@ -119,8 +119,8 @@
 //! 5. **The loop is ONE swept body, and its section is not spelled
 //!    the natural way** (walls 5 and 8). `sweep_body` carries the
 //!    annulus around the U-turn — the loft's stacking statement is a
-//!    fold over adjacent section pairs, each decided against its own
-//!    base section's normal (issue 368). Two findings shape it:
+//!    fold over adjacent section pairs, each decided against both its
+//!    sections' normals (issue 368). Two findings shape it:
 //!    - the walls are `circle_split(.., 4, ..)`, not `circle` ([`annulus`]
 //!      carries the gap comment). The `circle` loop is wall 5 (tier 3
 //!      refuses `QuadratureBudget` at the default ε and finer,
@@ -198,20 +198,7 @@
 //!    that argument against its own no-snapping doctrine. Wall 7 no
 //!    longer pins a refusal: it re-runs all four of those lattice
 //!    points and requires them to mesh.
-//! 10. **The lattice cannot say "tangent straight leg to THIS point",
-//!     and the drift is measurable.** After a declared-tangent joint
-//!     off an arc, the only straight continuation the PATHS lattice
-//!     offers is `.line(len)` — `.to(anchor)` belongs to a fillet's
-//!     arrival side. So the inner tube's wall is placed by LENGTH from
-//!     the rim arc's end tangent instead of by the author's own
-//!     coordinate, and the revolve reconstructs its cylinder radius
-//!     from the swept endpoints: the two walls that are geometrically
-//!     the same cylinder come out with radii differing by up to ~38
-//!     ulps across the proportions swept for finding 9. This is the
-//!     same drift class the `tube_along_arc` door was built to retire
-//!     (see the `tube` scene's bit-exact `minor_radius`), met from the
-//!     profile side. Pinned in [`stops`].
-//! 11. **What went RIGHT, and is worth stating.** The bottle's hole
+//! 10. **What went RIGHT, and is worth stating.** The bottle's hole
 //!     is the tube's diameter — Ev's own constraint — so the neck
 //!     wall and the inner tube wall are literally the same cylinder
 //!     about the same axis, twice, in one profile loop. Everything
@@ -221,11 +208,12 @@
 //!     decision, and these two runs are not adjacent, so the bulb
 //!     carries 12 faces on 12 surface keys — four cylinder faces that
 //!     are geometrically two cylinders, described four ways (four
-//!     different chart origins, and the radius drift of finding 10).
+//!     different chart origins; the two outer walls do carry the one
+//!     authored radius, since the lattice stores the carriers it builds).
 //!     Any predicate whose certified lane is "same `SurfaceKey`" —
 //!     M9-2's chart-region rule is the live example — sees two charts
 //!     where the model has one. [`stops`] pins the whole picture.
-//! 12. **The loop's caps are tilted, and the tilt is load-bearing**
+//! 11. **The loop's caps are tilted, and the tilt is load-bearing**
 //!     (wall 9). No public door pins a spine's end tangents:
 //!     `NurbsCurve3::interpolate` takes no end derivatives, and
 //!     nothing joins two exact arcs into one path. So the spine is an
@@ -546,7 +534,7 @@ fn exact_spine(m: &Meridian) -> NurbsCurve3<f64> {
     let (top_c, tube_c) = ((RLOOP, ZTOP), (RLOOP, m.z_tube));
     // The quarter points, written as the numbers they are: sampling
     // `over_arc`/`into_arc` there would leave trig residue of ~1e-16
-    // in the end tangents, which is enough to build (finding 12).
+    // in the end tangents, which is enough to build (finding 11).
     let on = [
         (0.0, ZTOP),
         (RLOOP, ZTOP + RLOOP),
@@ -610,8 +598,8 @@ fn annulus<S: Scalar>(m: &Meridian, cx: f64, lofted: bool, tol: Tol) -> Vec<Cons
 /// `sweep_body` takes them so; the body comes out at `S`.
 ///
 /// GAP (library finding,
-/// `work/carve/a-half-turn-spine-sweeps-only-off-its-exact-tangents`):
-/// the scene's loop rides a float knife edge (finding 12).
+/// `work/carvetail/a-half-turn-spine-sweeps-only-off-its-exact-tangents`):
+/// the scene's loop rides a float knife edge (finding 11).
 /// `sweep_places` carries every station by ONE minimal rotation from
 /// the base tangent, and the loop's spine turns exactly a half turn,
 /// so its end tangents are anti-parallel in ℝ. The exact spine refuses
@@ -826,7 +814,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the loop is one genus-1 shell of 10 faces; got {census:?}"
     );
 
-    // Findings entry 11, executed: the same cylinder, said four ways.
+    // Findings entry 10, executed: the same cylinder, said four ways.
     // Ev's constraint — the rim's hole is the tube's diameter —
     // makes the neck wall and the inner tube wall THE SAME cylinder
     // about THE SAME axis. The revolve's cosurface merge is a
@@ -859,34 +847,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         4,
         "each run anchors its own chart origin; got {origins:?}"
     );
-    // Findings entry 10, PINNED. The outer pair's radii should both
-    // be exactly R + WALL/2: it is an authored number. One of them is
-    // not, because its run's position is DERIVED — the only straight
-    // continuation the lattice offers after a declared-tangent joint
-    // is `.line(len)`, so the tube wall's radius comes out of the rim
-    // arc's end tangent instead of out of the author's hand.
-    let mut outer: Vec<f64> = cylinders
-        .iter()
-        .map(|(_, r)| *r)
-        .filter(|r| *r > R)
-        .collect();
-    outer.sort_by(f64::total_cmp);
-    assert_eq!(outer.len(), 2, "two outer-wall cylinders");
-    let drift = outer[1] - outer[0];
-    assert!(
-        drift > 0.0,
-        "the two outer-wall cylinders now carry the SAME radius. If the PATHS \
-         lattice grew a tangent-straight-leg-to-an-anchor (`.tangent().to(p)`), or \
-         the revolve stopped reconstructing a wall radius from swept endpoints, \
-         findings entry 10 has retired — delete it and this pin."
-    );
-    assert!(
-        drift < 1e-14,
-        "the derived wall radius drifted {drift:e} m from the authored one — far \
-         beyond the tens of ulps findings entry 10 records"
-    );
-
-    // Findings entry 12, measured on the body: each cap is a plane
+    // Findings entry 11, measured on the body: each cap is a plane
     // through its spine end, normal to its spine end's tangent, holding
     // the meridian's two wall radii — so the cap is the bulb's rim
     // turned by that tangent's tilt, and its edge sits up to
@@ -1328,7 +1289,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // lie flat on the rims they meet. `sweep_places` carries every
     // station by one minimal rotation from the base tangent, and at an
     // exact half turn the last station's tangent is anti-parallel to it:
-    // the frame refuses (finding 12).
+    // the frame refuses (finding 11).
     crate::walls::wall(
         "bottle",
         9,
@@ -1342,7 +1303,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             )
         },
         "sweep the scene's loop along `exact_spine`, so its caps lie on the bulb's rims: \
-         re-derive findings entry 12's seam measures (they become zero) and drop \
+         re-derive findings entry 11's seam measures (they become zero) and drop \
          `sweep_loop`'s gap comment",
     );
 }

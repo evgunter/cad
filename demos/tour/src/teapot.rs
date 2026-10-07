@@ -290,12 +290,12 @@ use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::prelude::SurfaceKind;
 use pncad::prelude::query;
 use pncad::prelude::{
-    CapEnd, EntityKind, MeridianEnd, NamePat, RoleSeg, SegPat, SegTag, Selector, StableName,
+    CapEnd, EntityKind, MeridianEnd, NamePat, SegPat, SegTag, Selector, StableName,
 };
 use pncad::profile::ArcSweep;
 use pncad::select::{
-    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_rim, edge_name, face_carrier_kind,
-    face_frame, meridian_vertex, select, vertex_position,
+    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_rim, band_rim_pi, edge_name,
+    face_carrier_kind, face_frame, meridian_vertex, select, vertex_position,
 };
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, BooleanError, Operand};
@@ -864,19 +864,8 @@ fn vertex_at(doc: &Doc<ProfileProgram>, sweep: RecipeNodeId, v: u32, tol: Tol) -
 /// two seam vertices, named `BandRim` (`[0, π)`) and `BandRimPi`
 /// (`[π, 2π)`). The fillet takes the pair; either arc alone ends at a
 /// seam vertex and refuses `UnsupportedCorner`.
-///
-/// The second name is spelled by hand: `pncad::select` has `band_rim`
-/// and `band_pi` but no `band_rim_pi` (filed,
-/// `work/emit/band-rim-pi-has-no-minting-builder.md`).
 fn rim_arcs(node: RecipeNodeId, vertex: ProfileVertexRef) -> [StableName; 2] {
-    [
-        band_rim(node, vertex),
-        StableName {
-            kind: EntityKind::Edge,
-            node,
-            path: vec![RoleSeg::BandRimPi(vertex)],
-        },
-    ]
+    [band_rim(node, vertex), band_rim_pi(node, vertex)]
 }
 
 /// **The sketch frame and the axis every meridian here turns about.**
@@ -2409,9 +2398,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              V = 5369*pi/3 / 256^3 m^3 and A = (453 + 52*sqrt(10))*pi / 256^2 m^2 \
              by Archimedes' zone and the stack, both met to 1e-12. THREE rims roll \
              in ONE request, each asked for WHOLE — both its half-arcs, BandRim and \
-             BandRimPi, the second spelled by hand because the select façade mints \
-             no builder for it — and each band carves over both arcs: 14/23/11 \
-             rolled, every band the same (+2, +3, +1). The flange's rim and the \
+             BandRimPi, minted by `band_rim` and `band_rim_pi` — and each band \
+             carves over both arcs: 14/23/11 rolled, every band the same \
+             (+2, +3, +1). The flange's rim and the \
              dome's foot are the two ends of ONE meridian segment, so both bands slit \
              and cross THAT segment's meridians, and their names tell the two apart \
              by the band that made each. Their supports are three \

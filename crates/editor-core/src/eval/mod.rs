@@ -422,7 +422,7 @@ impl NodeStanding {
     /// standing is answered by an evaluation and carried inside values
     /// the evaluation memo reuses, so it holds ids, never a label.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
+    pub fn spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
         crate::spoken::spoken_by(self, doc)
     }
 }
@@ -1116,6 +1116,29 @@ impl NodeRefusal {
 /// node said by `by`, and the failing node named once. The one
 /// spelling [`NodeError`]'s renderings and [`NodeRefusal::line_at`]
 /// share.
+/// **A reference the failed node holds that stopped resolving**: said by
+/// its slot, `this fillet's edge 2 is stranded: …`, where the speaker's
+/// document holds the node ([`crate::Speaker::about`] names it) with
+/// that name at `reference`, its place among
+/// [`crate::Node::payload_names`]; otherwise `lead`, then the refusal
+/// saying the name once, in full.
+fn resolve_failed(
+    f: &mut core::fmt::Formatter<'_>,
+    by: crate::spoken::Speaker<'_>,
+    error: &crate::resolve::ResolveError,
+    reference: usize,
+    lead: impl core::fmt::Display,
+) -> core::fmt::Result {
+    match by.reference(reference, error.name()) {
+        Some(reference) => write!(
+            f,
+            "{}",
+            crate::spoken::Said(&crate::resolve::AboutReference(error, reference), by)
+        ),
+        None => write!(f, "{lead}: {}", crate::spoken::Said(error, by)),
+    }
+}
+
 fn failed_line(node: RecipeNodeId, kind: &NodeErrorKind, by: crate::spoken::Speaker<'_>) -> String {
     format!(
         "{} failed: {}",
@@ -1698,6 +1721,9 @@ pub enum NodeErrorKind {
         /// The resolution failure: N5's closed trio of shapes, its
         /// diagnosis not limited to N5's arms.
         error: Box<crate::resolve::ResolveError>,
+        /// Which of the node's references failed: its place among
+        /// [`crate::Node::payload_names`].
+        reference: usize,
     },
     /// A declared entity is SITED at a node that is not one of the
     /// consumer's operands — not a member of the union, nor `a` or
@@ -1817,6 +1843,9 @@ pub enum NodeErrorKind {
         verb: sweep::blend::BlendKind,
         /// The resolution failure (N5's closed trio).
         error: Box<crate::resolve::ResolveError>,
+        /// Which of the node's references failed: its place among
+        /// [`crate::Node::payload_names`].
+        reference: usize,
     },
     /// A blend node's selection named something that is not an EDGE
     /// of the target (a face, a vertex, the body). The op blends
@@ -1863,6 +1892,9 @@ pub enum NodeErrorKind {
     ShellOpenResolve {
         /// The resolution failure (N5's closed trio).
         error: Box<crate::resolve::ResolveError>,
+        /// Which of the node's references failed: its place among
+        /// [`crate::Node::payload_names`].
+        reference: usize,
     },
     /// A shell node's `open` list named something that is not a FACE
     /// of the target (an edge, a vertex, the body). The op opens faces
@@ -2045,6 +2077,9 @@ pub enum NodeErrorKind {
     MeasureRefResolve {
         /// The resolution failure (N5's closed trio).
         error: Box<crate::resolve::ResolveError>,
+        /// Which of the node's references failed: its place among
+        /// [`crate::Node::payload_names`].
+        reference: usize,
     },
     /// A `Node::Measure` reference resolved into a value that carries
     /// no bodies, or into an output body its value does not have — the
@@ -2243,7 +2278,7 @@ impl crate::finding::Finding for UndeclarableContactFinding<'_> {
     fn story(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "a member's face rests on the {}, which no member carries ({})",
+            "a member's face rests on {}, which no member carries ({})",
             self.by.name(self.row),
             self.diag.payload()
         )
@@ -2356,15 +2391,14 @@ impl crate::spoken::Say for NodeErrorKind {
                 name,
             } => write!(
                 f,
-                "{}'s seam declaration crosses at the remainder's {} and claims \
-                 {} {} of the part (minted by its node {}), which the pinned part's \
-                 product does not name — the crossing does not re-verify against this \
-                 version of the part",
+                "{}'s seam declaration crosses at {} on the remainder and claims {} in \
+                 the part, which this version of the part does not name, so the crossing does \
+                 not re-verify",
                 by.node_as(*instance, "instance"),
                 by.name(outer),
-                name.kind.article(),
-                name.kind.noun(),
-                name.node
+                // The part's own nodes and steps are another document's
+                // ids, so its name is said by tag.
+                crate::spoken::Speaker::TAG.name(name),
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
@@ -2622,10 +2656,12 @@ impl crate::spoken::Say for NodeErrorKind {
                 f,
                 "the parameter-identity attach refused on a carrier the blend just minted: {e}"
             ),
-            Self::DeclareResolve { error } => write!(
+            Self::DeclareResolve { error, reference } => resolve_failed(
                 f,
-                "a declared name failed to resolve through the operands' tables: {}",
-                Said(&**error, by)
+                by,
+                error,
+                *reference,
+                "a declared name failed to resolve through the operands' tables",
             ),
             Self::DeclareSiteNotAnOperand { at } => write!(
                 f,
@@ -2661,17 +2697,21 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::UndeclarableContact { row, diag } => {
                 crate::finding::compose(f, &UndeclarableContactFinding { row, diag, by })
             }
-            Self::BlendSelectionResolve { verb, error } => {
-                write!(
-                    f,
-                    "a {verb} selection name failed to resolve: {}",
-                    Said(&**error, by)
-                )
-            }
+            Self::BlendSelectionResolve {
+                verb,
+                error,
+                reference,
+            } => resolve_failed(
+                f,
+                by,
+                error,
+                *reference,
+                format_args!("a {verb} selection name failed to resolve"),
+            ),
             Self::BlendSelectionKind { verb, name, found } => write!(
                 f,
-                "the {verb} selection name minted by {} denotes {} {}, not an edge",
-                by.node(name.node),
+                "the {verb} selection names {}, which is {} {}, not an edge",
+                by.name(name),
                 found.article(),
                 found.noun()
             ),
@@ -2680,17 +2720,17 @@ impl crate::spoken::Say for NodeErrorKind {
                 "the {verb} selection is empty — an unfinished recipe, not the identity"
             ),
             Self::Shell(e) => write!(f, "the shell op refused: {e}"),
-            Self::ShellOpenResolve { error } => {
-                write!(
-                    f,
-                    "a shell open-face name failed to resolve: {}",
-                    Said(&**error, by)
-                )
-            }
+            Self::ShellOpenResolve { error, reference } => resolve_failed(
+                f,
+                by,
+                error,
+                *reference,
+                "a shell open-face name failed to resolve",
+            ),
             Self::ShellOpenKind { name, found } => write!(
                 f,
-                "the shell open-face name minted by {} denotes {} {}, not a face",
-                by.node(name.node),
+                "the shell's open face names {}, which is {} {}, not a face",
+                by.name(name),
                 found.article(),
                 found.noun()
             ),
@@ -2700,17 +2740,19 @@ impl crate::spoken::Say for NodeErrorKind {
                  built with a certified claim, and this scalar does not certify — the \
                  base-scalar evaluation beside this one is where the shell is built"
             ),
-            Self::FaceFrameResolve { error } => {
-                write!(
-                    f,
-                    "the derived frame's face name failed to resolve: {}",
-                    Said(&**error, by)
-                )
-            }
+            // A derived frame's payload holds one name, its face, so the
+            // reference that failed is always that one.
+            Self::FaceFrameResolve { error } => resolve_failed(
+                f,
+                by,
+                error,
+                0,
+                "the derived frame's face name failed to resolve",
+            ),
             Self::FaceFrameKind { name, found } => write!(
                 f,
-                "the derived frame's name minted by {} denotes {} {}, not a face",
-                by.node(name.node),
+                "the derived frame's face names {}, which is {} {}, not a face",
+                by.name(name),
                 found.article(),
                 found.noun()
             ),
@@ -2749,17 +2791,17 @@ impl crate::spoken::Say for NodeErrorKind {
                 by.node_as(*profile, "profile node"),
                 by.node_as(*frame, "derived frame node")
             ),
-            Self::MeasureRefResolve { error } => {
-                write!(
-                    f,
-                    "a measure reference failed to resolve: {}",
-                    Said(&**error, by)
-                )
-            }
+            Self::MeasureRefResolve { error, reference } => resolve_failed(
+                f,
+                by,
+                error,
+                *reference,
+                "a measure reference failed to resolve",
+            ),
             Self::MeasureRefUnreadable { name, error } => write!(
                 f,
-                "the measure reference minted by {} could not be read back: {error}",
-                by.node(name.node)
+                "the measure reference to {} could not be read back: {error}",
+                by.name(name)
             ),
             Self::MeasureUnsupported(refusal) => write!(f, "{refusal}"),
             Self::MeasureNotParallel {
@@ -2904,7 +2946,7 @@ impl CarriedLevel<'_> {
     /// them, never from `here`: ids are not document-scoped, so `here`
     /// may hold the same id as another node.
     #[must_use]
-    pub fn line_in<P>(&self, here: &Doc<P>) -> String {
+    pub fn line_in<P: crate::ProfilePayload>(&self, here: &Doc<P>) -> String {
         let by = match self.document {
             CarriedIn::ThisDocument => crate::spoken::Speaker::of(here),
             CarriedIn::Part { held, .. } => crate::spoken::Speaker::held(held),
@@ -2981,12 +3023,23 @@ impl<'a> Iterator for CarriedChain<'a> {
 impl NodeError {
     /// **The failure as the frame that owns the node's document speaks
     /// it**: the node as `doc` holds it now ([`Doc::spoken`]), then its
-    /// kind's prose. The error lives in the [`Evaluation`], which a
-    /// frame holds across edits (and a label edit recomputes nothing),
-    /// so it holds the id and never a label a rename could leave stale.
+    /// kind's prose, each name it forwards within the table
+    /// `evaluation`, the evaluation that raised it, holds it in
+    /// ([`crate::Speaker::within`]). The error lives in the
+    /// [`Evaluation`], which a frame holds across edits (and a label edit
+    /// recomputes nothing), so it holds the id and never a label a rename
+    /// could leave stale.
     #[must_use]
-    pub fn spoken<P>(&self, doc: &Doc<P>) -> String {
-        failed_line(self.node, &self.kind, crate::spoken::Speaker::of(doc))
+    pub fn spoken<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        evaluation: &dyn crate::NameTables,
+    ) -> String {
+        failed_line(
+            self.node,
+            &self.kind,
+            crate::spoken::Speaker::of(doc).within(evaluation),
+        )
     }
 
     /// **The kind's prose alone, spoken from `doc`**: each node and
@@ -2994,7 +3047,7 @@ impl NodeError {
     /// that names the node itself quotes as the cause, in place of the
     /// kind's documentless `Display`, which writes a reader `#<16 hex>`.
     #[must_use]
-    pub fn kind_spoken<P>(&self, doc: &Doc<P>) -> String {
+    pub fn kind_spoken<P: crate::ProfilePayload>(&self, doc: &Doc<P>) -> String {
         crate::spoken::Said(&self.kind, crate::spoken::Speaker::of(doc)).to_string()
     }
 }
@@ -6500,6 +6553,14 @@ fn extrude_side_tag(side: crate::node::ExtrudeSide) -> u8 {
     }
 }
 
+fn sense_tag(sense: crate::names::Sense) -> u8 {
+    use crate::names::Sense;
+    match sense {
+        Sense::Enters => 1,
+        Sense::Leaves => 2,
+    }
+}
+
 fn split_half_tag(half: crate::names::SplitHalf) -> u8 {
     use crate::names::SplitHalf;
     match half {
@@ -6539,6 +6600,8 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::FromB => 17,
         S::FromMember => 41,
         S::Seam => 18,
+        S::Crossing => 47,
+        S::EdgeCrossing => 48,
         S::Merged => 19,
         S::Fragment => 20,
         S::SplitBody => 21,
@@ -6737,6 +6800,22 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.name(a);
             h.name(b);
         }
+        RoleSeg::Crossing { edge, face, sense } => {
+            h.name(edge);
+            h.name(face);
+            h.write_tag(sense_tag(*sense));
+        }
+        RoleSeg::EdgeCrossing {
+            a,
+            a_sense,
+            b,
+            b_sense,
+        } => {
+            h.name(a);
+            h.write_tag(sense_tag(*a_sense));
+            h.name(b);
+            h.write_tag(sense_tag(*b_sense));
+        }
         RoleSeg::Merged(names) => {
             h.write_u64(names.len() as u64);
             for n in names {
@@ -6761,9 +6840,10 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.write_tag(half(*side));
             h.name(parent);
         }
-        RoleSeg::CrossingVertex { side, edge } => {
+        RoleSeg::CrossingVertex { side, edge, sense } => {
             h.write_tag(half(*side));
             h.name(edge);
+            h.write_tag(sense_tag(*sense));
         }
         RoleSeg::OnToolVertex { side, of } => {
             h.write_tag(half(*side));

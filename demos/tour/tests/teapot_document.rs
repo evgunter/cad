@@ -41,7 +41,7 @@ use pncad::geom::Surface;
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MeridianEnd, RoleSeg, StableName, fillet_edges, query};
 use pncad::profile::ArcSweep;
-use pncad::select::{ProfilePieces, band_rim, edge_name};
+use pncad::select::{ProfilePieces, band_rim, band_rim_pi, edge_name};
 use pncad::topo::{Body, EdgeKey};
 
 // ---- the lid's stations, from `src/teapot.rs` ----
@@ -340,20 +340,12 @@ fn two_slits_on_one_meridian_carry_the_band_that_made_each() {
 }
 
 /// The latitude rim at meridian vertex `v` of an axis-touching lid,
-/// WHOLE: its two half-arcs' names. The second is spelled by hand
-/// (`work/emit/band-rim-pi-has-no-minting-builder.md`).
+/// WHOLE: its two half-arcs' names.
 fn rim_arcs(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, v: u32, tol: Tol) -> [StableName; 2] {
     let piece = pieces_of(doc, lid, tol)
         .vertex(0, v as usize)
         .expect("the vertex is the meridian's");
-    [
-        band_rim(lid, piece),
-        StableName {
-            kind: EntityKind::Edge,
-            node: lid,
-            path: vec![RoleSeg::BandRimPi(piece)],
-        },
-    ]
+    [band_rim(lid, piece), band_rim_pi(lid, piece)]
 }
 
 /// **The scene's one request builds the kernel's one-request body.**

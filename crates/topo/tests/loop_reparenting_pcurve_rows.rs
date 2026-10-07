@@ -376,7 +376,10 @@ fn the_fixture_is_not_a_structurally_valid_body() {
 #[test]
 fn kfmrh_onto_a_chart_that_mints_nothing_drops_the_demoted_loops_rows() {
     let mut s = sheet();
-    s.body.kfmrh(s.plane, s.low).unwrap();
+    // Lifts RechartStrandsDescriptions: the rows the demoted loop keeps on the plane are the row, not its descriptions.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.kfmrh(s.plane, s.low))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
@@ -782,7 +785,9 @@ fn both_doors<R: core::fmt::Debug>(
     twin: impl FnOnce(&mut Body<f64>) -> R,
 ) -> (Body<f64>, R) {
     let (mut a, mut b) = (body.clone(), body.clone());
-    let (ra, rb) = (keys_only(&mut a), twin(&mut b));
+    // Lifts RechartStrandsDescriptions and RechartUnvouched: the rows each door leaves are the row, not the descriptions it moves.
+    let ra = a.lifting_rechart_refusals_for_tests(keys_only);
+    let rb = twin(&mut b);
     assert_eq!(
         format!("{ra:?}"),
         format!("{rb:?}"),
@@ -946,7 +951,10 @@ fn the_minting_pass_restores_what_each_move_left_the_caller() {
     // `kfmrh` onto the plane: there is nothing to restore, and the
     // face the rows left is gone with the op.
     let mut s = sheet();
-    s.body.kfmrh(s.plane, s.low).unwrap();
+    // Lifts RechartStrandsDescriptions: the rows the demoted loop keeps on the plane are the row, not its descriptions.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.kfmrh(s.plane, s.low))
+        .unwrap();
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -1098,7 +1106,10 @@ fn kfmrh_onto_a_rowless_curved_face_drops_the_rows_and_tier_3_names_why() {
         .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 6));
 
-    s.body.kfmrh(s.plane, s.low).unwrap();
+    // Lifts RechartStrandsDescriptions: the rows the demoted loop keeps on the plane are the row, not its descriptions.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.kfmrh(s.plane, s.low))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10));
     loud_at_rest(&mut s.body);
 }
@@ -1536,7 +1547,10 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
             },
         )
         .unwrap();
-    s.body.kfmrh(s.plane, s.low).unwrap();
+    // Lifts RechartStrandsDescriptions: the rows the demoted loop keeps on the plane are the row, not its descriptions.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.kfmrh(s.plane, s.low))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 10), "kfmrh");
 
     let mut s = sheet();
@@ -1591,7 +1605,10 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
         )
         .unwrap();
     let he = he_at(&s.body, s.low, at(U0, V0));
-    s.body.kef(he).unwrap();
+    // Lifts RechartUnvouched: the rows the kill carries are the row, not the chart it lands on.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.kef(he))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 8), "kef");
 }
 
@@ -1607,7 +1624,11 @@ fn a_recipe_stamp_joining_a_cylinder_to_a_plane_carries_no_row_through_any_door(
 fn kef_into_a_face_on_a_chart_that_mints_nothing_drops_the_remnants_rows() {
     let mut s = sheet();
     let he = he_at(&s.body, s.low, at(U0, V0));
-    let killed = s.body.kef(he).unwrap();
+    // Lifts RechartUnvouched: the rows the kill carries are the row, not the chart it lands on.
+    let killed = s
+        .body
+        .lifting_rechart_refusals_for_tests(|b| b.kef(he))
+        .unwrap();
     assert_eq!(killed.killed_face, s.low);
     assert_eq!(rows_of(&s.body, s.plane), (0, 8));
     assert_eq!(validate_pcurves(&s.body, band()), vec![]);
@@ -1635,7 +1656,10 @@ fn kef_into_a_rowless_curved_face_drops_the_remnants_rows_and_tier_3_names_why()
         )
         .unwrap();
     let he = he_at(&s.body, s.low, at(U0, V0));
-    s.body.kef(he).unwrap();
+    // Lifts RechartUnvouched: the rows the kill carries are the row, not the chart it lands on.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.kef(he))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 8));
     loud_at_rest(&mut s.body);
 }
@@ -1689,7 +1713,10 @@ fn kef_into_a_second_key_sharing_a_recipe_drops_the_remnants_rows_until_the_pass
     s.body.set_surface_source(second, one_recipe()).unwrap();
 
     let he = he_at(&s.body, s.low, at(U0, V0));
-    s.body.kef(he).unwrap();
+    // Lifts RechartUnvouched: the rows the kill carries are the row, not the chart it lands on.
+    s.body
+        .lifting_rechart_refusals_for_tests(|b| b.kef(he))
+        .unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (0, 8));
 
     topo::mint_pcurves(&mut s.body, tol()).unwrap();
@@ -1942,15 +1969,14 @@ fn a_swap_onto_an_equal_surface_on_another_key_reads_as_a_chart_change() {
 
 /// **The sibling setter is not the same case.** `set_edge_curve` moves
 /// neither a row's key nor its chart — it changes what the row must
-/// agree WITH — and the pcurve pass re-derives that agreement from the
-/// edge's CURRENT carrier on every run. So a carrier swap that leaves a
-/// row saying the old image is refused per half-edge, loud, on the same
-/// body where the surface setter was silent: this row swaps a rim ARC
-/// for the straight line between its own endpoints and reads, on each
-/// side of the edge, the row's interval refused (the line's is not the
-/// arc's) and its certification refused.
+/// agree WITH — so a carrier swap re-mints the faces the edge's halves
+/// are on, as the site mint the Euler operators run does. This row
+/// swaps a rim ARC for the straight line between its own endpoints,
+/// which leaves the cylinder: the closed-form lane has no row set for
+/// either face, so each stores nothing, and tier 3 reads on each the
+/// refusal the mint would raise.
 #[test]
-fn an_edge_carrier_swap_leaves_rows_the_pcurve_pass_refuses_loud() {
+fn an_edge_carrier_swap_off_the_chart_leaves_its_faces_rowless() {
     let mut s = sheet();
     let he = first_he(&s.body, s.low);
     let edge = s.body.get_half_edge(he).unwrap().edge;
@@ -1968,20 +1994,16 @@ fn an_edge_carrier_swap_leaves_rows_the_pcurve_pass_refuses_loud() {
     s.body
         .set_edge_curve(edge, EdgeCurveSpec::line_between(p0, p1), tol())
         .unwrap();
-    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_eq!(rows_of(&s.body, s.low), (0, 4));
     let findings = validate_pcurves(&s.body, band());
-    let certify = findings
-        .iter()
-        .filter(|f| matches!(f, PcurveMintError::Certify { .. }))
-        .count();
-    let interval = findings
-        .iter()
-        .filter(|f| matches!(f, PcurveMintError::RowInterval { .. }))
-        .count();
-    assert_eq!(
-        (certify, interval, findings.len()),
-        (2, 2, 4),
-        "{findings:?}"
+    let refused = topo::mint_pcurves(&mut s.body, tol()).unwrap_err();
+    assert!(
+        findings.len() == 2
+            && findings
+                .iter()
+                .all(|f| matches!(f, PcurveMintError::LoopDiscontinuity { .. }))
+            && findings.contains(&refused),
+        "tier 3 reads the mint's refusal on each face the line bounds: {findings:?}"
     );
 }
 
@@ -1994,20 +2016,16 @@ fn outer_cycle(body: &Body<f64>, face: FaceKey) -> Vec<topo::HalfEdgeKey> {
     body.loop_cycle(first).unwrap()
 }
 
-/// **The sibling setter's loudness is the pcurve pass's, on a
-/// half-minted face too.** `validate_pcurves` re-certifies every row a
-/// face stores, whether or not the set is complete, so the carrier swap
-/// the row above reads refused on both sides is refused on both sides
-/// here as well — the half-minted face's staled row and the mate face's,
-/// each for its interval and its certification — beside the half-minted
-/// face's gap and the refusal its re-derivation meets with the new
-/// carrier in its loop.
-///
-/// So `set_edge_curve` keeps the rows it finds — re-minting only where
-/// a null edge gets its first carrier — and a row it stales is measured
-/// wherever it is stored.
+/// **A half-minted face is left as found, and its staled row is the
+/// pcurve pass's to refuse.** The site mint re-mints no face it finds
+/// half-minted, so the carrier swap the row above reads re-mints the
+/// mate's face alone, which stores nothing once the line leaves the
+/// chart. The half-minted face keeps the swapped edge's row, and
+/// `validate_pcurves`, which re-certifies every row a face stores
+/// whether or not the set is complete, refuses it for its interval and
+/// its certification, beside the face's gap.
 #[test]
-fn a_carrier_swap_on_a_half_minted_face_is_refused_on_both_sides() {
+fn a_carrier_swap_on_a_half_minted_face_leaves_its_staled_row_refused() {
     let mut s = sheet();
     let he = first_he(&s.body, s.low);
     let edge = s.body.get_half_edge(he).unwrap().edge;
@@ -2039,46 +2057,42 @@ fn a_carrier_swap_on_a_half_minted_face_is_refused_on_both_sides() {
         .set_edge_curve(edge, EdgeCurveSpec::line_between(p0, p1), tol())
         .unwrap();
     let findings = validate_pcurves(&s.body, band());
-    let refused: Vec<topo::HalfEdgeKey> = findings
-        .iter()
-        .filter_map(|f| match f {
-            PcurveMintError::Certify { half_edge, .. } => Some(*half_edge),
-            _ => None,
-        })
-        .collect();
-    let absent: Vec<topo::HalfEdgeKey> = findings
-        .iter()
-        .filter_map(|f| match f {
-            PcurveMintError::MissingCache { half_edge } => Some(*half_edge),
-            _ => None,
-        })
-        .collect();
+    let of_kind = |kind: fn(&PcurveMintError) -> Option<topo::HalfEdgeKey>| -> Vec<_> {
+        findings.iter().filter_map(kind).collect()
+    };
+    let refused = of_kind(|f| match f {
+        PcurveMintError::Certify { half_edge, .. } => Some(*half_edge),
+        _ => None,
+    });
+    let interval = of_kind(|f| match f {
+        PcurveMintError::RowInterval { half_edge } => Some(*half_edge),
+        _ => None,
+    });
+    let absent = of_kind(|f| match f {
+        PcurveMintError::MissingCache { half_edge } => Some(*half_edge),
+        _ => None,
+    });
     assert_eq!(absent, vec![victim], "{findings:?}");
     assert_eq!(
         refused,
-        vec![he, mate],
-        "both stored rows of the swapped edge re-certify, and refuse: {findings:?}"
+        vec![he],
+        "the kept row re-certifies, and refuses: {findings:?}"
     );
-    let interval: Vec<topo::HalfEdgeKey> = findings
-        .iter()
-        .filter_map(|f| match f {
-            PcurveMintError::RowInterval { half_edge } => Some(*half_edge),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(interval, vec![he, mate], "both rows state the old interval");
     assert_eq!(
-        findings.len(),
-        6,
-        "beside them, only the half-minted face's re-derivation refusal: {findings:?}"
+        interval,
+        vec![he],
+        "it states the old interval: {findings:?}"
     );
     assert!(
         s.body.pcurve(he).is_some(),
         "the staled row is still there — measured, not removed"
     );
+    assert!(
+        s.body.pcurve(mate).is_none(),
+        "the mate's face is re-minted, and stores nothing off the chart"
+    );
 }
 
-// ---------------------------------------------------------------
 // The one tie across two keys: a shared payload `Arc`.
 // ---------------------------------------------------------------
 //
@@ -2209,7 +2223,11 @@ fn kef_reaping_the_dying_key_carries_the_remnant_across_one_payload() {
     for tied in [true, false] {
         let ArcSheet { mut s, keys } = arc_sheet(tied);
         let he = he_at(&s.body, s.low, at(U1, VM));
-        let killed = s.body.kef(he).unwrap();
+        // Lifts RechartUnvouched: the rows the kill carries are the row, not the chart it lands on.
+        let killed = s
+            .body
+            .lifting_rechart_refusals_for_tests(|b| b.kef(he))
+            .unwrap();
         assert_eq!(killed.killed_face, s.low);
         assert!(
             s.body.get_surface(keys[0]).is_none(),
@@ -2224,7 +2242,10 @@ fn kef_reaping_the_dying_key_carries_the_remnant_across_one_payload() {
 fn kfmrh_carries_every_row_across_one_payload() {
     for tied in [true, false] {
         let ArcSheet { mut s, .. } = arc_sheet(tied);
-        s.body.kfmrh(s.low, s.up).unwrap();
+        // Lifts RechartUnvouched: the rows the kill carries are the row, not the chart it lands on.
+        s.body
+            .lifting_rechart_refusals_for_tests(|b| b.kfmrh(s.low, s.up))
+            .unwrap();
         let want = if tied { (8, 0) } else { (4, 4) };
         assert_eq!(rows_of(&s.body, s.low), want, "tied: {tied}");
     }

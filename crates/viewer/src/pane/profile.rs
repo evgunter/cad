@@ -1302,13 +1302,16 @@ mod tests {
             );
         });
         let committed = session.committed_doc();
+        // The removal draws the named step nowhere, so the line says it
+        // by its tag, as against a document that draws no step at all.
+        let undrawn: Doc<ProfileProgram> = Doc::empty_derived("undrawn", Tol::witness());
         assert!(
             hovered.contains(&format!(
-                "{} carries a {}",
+                "{} carries a name for {}",
                 committed.spoken(carrier),
-                committed.spoken_name(&wall)
+                committed.spoken_name(&wall).steps_respoken(&undrawn)
             )),
-            "the hover speaks the carrier and the name's minting node: {hovered}"
+            "the hover speaks the carrier and the name's words: {hovered}"
         );
         // Dropping another step instead leaves the named leg drawn and
         // strands nothing — what Apply says is asked again of every
@@ -1349,9 +1352,20 @@ mod tests {
         let before = session.committed_doc().clone();
         let out = session.perform(op.clone());
         assert!(out.refusal.is_none(), "{:?}", out.refusal);
+        // The removed step is said by its tag: its old row is now
+        // another step's, and the line is read with the new program on
+        // screen.
+        let name = before
+            .spoken_name(&wall)
+            .steps_respoken(session.committed_doc());
+        assert!(
+            name.to_string().contains("the profile step "),
+            "a removed step is said by its tag: {name}"
+        );
         let expected = vec![Maintenance::Strand {
             node: before.spoken(carrier),
-            name: before.spoken_name(&wall),
+            name,
+            took: pncad::document::Took::Step,
         }];
         // Beside the strand, the outcome carries the anonymous
         // variables the rewritten arguments were written in, which the

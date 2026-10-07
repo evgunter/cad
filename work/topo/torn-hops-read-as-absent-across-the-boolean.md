@@ -52,7 +52,8 @@ halves' faces) that answers its miss as absent — `None`, `continue`,
   curvature lever), the sector/contact `surface` closure (tangent read
   `false`), `pierced_kind` and the error-path `map_or(Nurbs, ..)`s;
 - `boolean/zip.rs` `split_across` (`chart_of`, `outer` over faces read
-  from loop records).
+  from loop records); since retired (PR 4139), its successor
+  `split_cones` reads a loop's face through `linked`.
 
 Unclear, to decide at the site: `finish.rs` `weld_pinches`' skip of a
 welded vertex that no longer resolves; `ops.rs`
@@ -87,7 +88,7 @@ walks (`section_boundary`), `ops.rs` `describe_edges` and
 `torus_chart_windows` / `sphere_chart_trim` / `point_in_face`,
 `surface_group.rs` `unmated_boundary`, `vtxfac.rs`
 `classify_vertex_on_face`'s pierced surface and kind, `zip.rs`
-`split_across`, `combine.rs` `graft_solids_impl`'s curve read, and the
+`split_across` (since retired, PR 4139), `combine.rs` `graft_solids_impl`'s curve read, and the
 sweep hit `sphere_region.rs` `sphere_face_region`. `weld_pinches`' skip
 stays: it asks whether a pierce copy survived the carve's kills.
 

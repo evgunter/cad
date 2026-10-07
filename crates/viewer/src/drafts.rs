@@ -270,15 +270,15 @@ pub(crate) struct Drafts {
     pub(crate) creation_labels: BTreeMap<&'static str, String>,
 }
 
-/// **A label field's text, as the document's label**: blank clears
-/// (`None`); anything else is held to the label rule.
+/// **A label field's text, as the document's label**: a field that
+/// shows nothing ([`Label::is_blank`]) clears (`None`); anything else
+/// is held to the label rule.
 ///
 /// # Errors
 ///
-/// [`LabelFault`] for a text the rule refuses — one with a line break
-/// or another control character.
+/// [`LabelFault`] for a text the rule refuses.
 pub(crate) fn label_typed(text: &str) -> Result<Option<Label>, LabelFault> {
-    if text.trim().is_empty() {
+    if Label::is_blank(text) {
         return Ok(None);
     }
     Label::new(text).map(Some)
@@ -1367,6 +1367,11 @@ mod tests {
     fn a_label_field_reads_blank_as_clear_and_holds_the_rest_to_the_rule() {
         assert_eq!(super::label_typed(" \t "), Ok(None));
         assert_eq!(
+            super::label_typed("\u{200b}"),
+            Ok(None),
+            "a field of a zero-width space shows nothing, so it clears"
+        );
+        assert_eq!(
             super::label_typed(" lid ").map(|label| label.map(|l| l.as_str().to_owned())),
             Ok(Some(" lid ".to_owned()))
         );
@@ -1589,7 +1594,7 @@ mod tests {
         };
         assert_eq!(at, seat.0, "the node the gate admitted");
         assert_ne!(at, held.node, "and not the node the form is displaying");
-        assert_ne!(at, held.feature(), "nor the feature that minted the name");
+        assert_ne!(at, held.feature(), "nor the feature that made the entity");
         assert_eq!(name, seat.1);
         let want = Formula::written_angle(pncad::quantity::WrittenAngle::canonical_in(
             core::f64::consts::FRAC_PI_2,

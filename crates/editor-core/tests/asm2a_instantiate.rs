@@ -411,11 +411,11 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // The counts are literals on purpose: a row that only compares the
     // two instances passes when both lose the same decisions. 466 is
     // the placing op's own log on this part (placement + validation of
-    // the placed body); 726 is the part's, on its own nodes — its
+    // the placed body); 728 is the part's, on its own nodes — its
     // profile's pre-pass on the Profile node's log, decided once (the
     // pinned lift reuses the pre-pass's validated form).
     assert_eq!(first.len(), 466, "the instantiate op's own decisions");
-    assert_eq!(direct_total, 726, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 728, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----
@@ -1129,8 +1129,9 @@ fn a_depth_three_chain_keeps_every_level_and_its_document() {
             side: ExtrudeSide::Along,
         },
     );
-    let p3_own = match run(&p3, &EvalOptions::default()).result(p3_root) {
-        Some(NodeResult::Failed(e)) => e.spoken(&p3),
+    let p3_ev = run(&p3, &EvalOptions::default());
+    let p3_own = match p3_ev.result(p3_root) {
+        Some(NodeResult::Failed(e)) => e.spoken(&p3, &p3_ev),
         other => panic!("p3's extrude refuses on its own: {other:?}"),
     };
     let r3 = store.insert(p3, tol);
@@ -1270,8 +1271,9 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 
 /// `node`'s own refusal line, as `doc`'s own tree draws it.
 fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String {
-    match run(doc, opts).result(node) {
-        Some(NodeResult::Failed(e)) => e.spoken(doc),
+    let ev = run(doc, opts);
+    match ev.result(node) {
+        Some(NodeResult::Failed(e)) => e.spoken(doc, &ev),
         other => panic!(
             "node {} refuses on its own: {other:?}",
             test_utils::refusal::tag(node.0)

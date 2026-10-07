@@ -370,7 +370,9 @@ fn a_sweep_node_reaches_its_own_wider_frontier() {
         NodeErrorKind::CurvedSolidFrontier { what } => {
             assert!(what.contains("joined-path composition lane"), "{what}");
             assert!(
-                what.contains("closed chain of two or more segments"),
+                what.contains(
+                    "a closed chain of segments, or a full circle as one segment at one vertex"
+                ),
                 "{what}"
             );
             assert!(!what.contains("multi-segment"), "{what}");
