@@ -19,18 +19,13 @@
 //! holds for exact incidence; the endpoint band is what opens this
 //! window.
 //!
-//! **Through the import door the window is empty at every ε row**
-//! (measured at 1e-6, 1e-9, 1e-12 on the same shape as a STEP solid,
-//! as a two-cap sphere and as issue 723's half-cap): `import_step`
-//! refuses every `R·Δv ≥ ε` at its pcurve re-mint —
-//! `pcurve_loop_continuity`, which decides the junction's chart-v jump
-//! at the same band this condition reports it at, escalating in the
-//! ambiguity band and refusing above it — and imports the `R·Δv < ε`
-//! shape, on which the condition is quiet by the same band. Props'
-//! `props_rim_level` never decides the question: the re-mint sits in
-//! front of it. No fixture can be committed, and the condition's
-//! import-door reach is nil by construction rather than by absence of
-//! a file.
+//! **The pcurve re-mint does not close the window.** It decides each
+//! junction's deck element and not its chart-v jump (a joint's 3-D
+//! coincidence follows from the rows' envelopes and the endpoint
+//! pinning), so it mints every gap the certifying doors construct, and
+//! the import door, which re-mints through it, no longer refuses
+//! `R·Δv ≥ ε` there. Its reach through import is unmeasured since
+//! (`work/tess/rim-continuation-import-reach-reopened-by-the-deck-element-walk.md`).
 //!
 //! **Through the Euler doors the shape is a rim-only cap**: a sphere
 //! face whose one loop is two rim arcs and no meridian. With the gap
@@ -169,17 +164,17 @@ fn a_two_level_rim_row_from_the_certifying_doors_reports_its_gap() {
     );
 }
 
-/// **The re-mint admits no gap the examination reports — the record,
+/// **The re-mint admits the gaps the examination reports — the record,
 /// pinned on one body with no file.** `topo::mint_pcurves` is the gate
-/// `import_step` refuses at (`pcurve_loop_continuity`, the junction's
-/// chart-v jump at the linear band), and the examination reports the
-/// same gap at the same band. Bisected on `R·Δv` over the same
-/// construction: the largest gap the re-mint admits and the smallest
-/// the examination reports are adjacent at `ε`, the examination is
-/// quiet at the former and the re-mint refuses the latter, so the
-/// intersection an import fixture would need is empty at this ε.
+/// `import_step` re-mints through, and it no longer decides the
+/// junction's chart-v jump: a joint's 3-D coincidence follows from the
+/// two rows' envelopes and the endpoint pinning, and the walk decides
+/// only its deck element. So every gap the certifying doors construct
+/// (`R·Δv` inside the endpoint band) mints, while the examination
+/// reports from `R·Δv = ε`; the intersection an import fixture would
+/// need is no longer empty at this ε.
 #[test]
-fn the_remint_admits_no_gap_the_examination_reports() {
+fn the_remint_admits_the_gaps_the_examination_reports() {
     let tol = Tol::witness();
     let eps = tol.eps();
     let mint_ok = |f: f64| {
@@ -199,40 +194,57 @@ fn the_remint_admits_no_gap_the_examination_reports() {
         mint_ok(0.5) && !reports(0.5),
         "below the band: minted, quiet"
     );
-    assert!(
-        !mint_ok(1.9) && reports(1.9),
-        "inside the window: refused, reported"
-    );
-    let (mut lo, mut hi) = (0.5_f64, 1.9_f64);
-    for _ in 0..80 {
-        let m = 0.5 * (lo + hi);
-        if mint_ok(m) { lo = m } else { hi = m }
-    }
-    let admits_up_to = lo;
-    let (mut quiet, mut loud) = (0.5_f64, 1.9_f64);
-    for _ in 0..80 {
-        let m = 0.5 * (quiet + loud);
-        if reports(m) { loud = m } else { quiet = m }
-    }
-    let reports_from = loud;
-    assert!(
-        admits_up_to < reports_from,
-        "the re-mint admits up to {admits_up_to:.17}ε, the examination reports from {reports_from:.17}ε"
-    );
-    assert!(
-        !reports(admits_up_to),
-        "quiet at the last admitted gap {admits_up_to:.17}ε"
-    );
-    assert!(
-        !mint_ok(reports_from),
-        "refused at the first reported gap {reports_from:.17}ε"
-    );
-    for (what, f) in [("admission", admits_up_to), ("report", reports_from)] {
+    for f in [1.5, 1.9] {
         assert!(
-            (f - 1.0).abs() < 1e-6,
-            "the {what} threshold sits at ε: {f:.17}"
+            mint_ok(f) && reports(f),
+            "inside the window at {f}ε: minted, reported"
         );
     }
+    // Past the joint bound nothing reaches the walk: the door that
+    // builds the cap refuses a 100ε gap (its endpoint pin), and a
+    // minted rim row moved 100ε along the meridian does not certify, so
+    // no row can carry the gap to a joint.
+    assert!(
+        two_level_rim_cap(100.0 * eps / RS).is_err(),
+        "a 100ε gap is refused where the cap is built"
+    );
+    let mut body = two_level_rim_cap(0.5 * eps / RS).unwrap();
+    topo::mint_pcurves(&mut body, tol).unwrap();
+    let band = Band::linear(tol).unwrap();
+    let moved = body
+        .half_edges()
+        .find_map(|(he, h)| {
+            let row = body.pcurve(he)?;
+            let geom_brep::Pcurve::Harmonic { p0, pa, pb, pl } = row.pcurve() else {
+                return None;
+            };
+            let edge = body.get_edge(h.edge)?;
+            let Some(topo::CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
+                return None;
+            };
+            let face = body.face_of_half_edge(he)?;
+            let sphere = body.get_surface(body.get_face(face)?.surface)?;
+            let shifted = geom_brep::Pcurve::Harmonic {
+                p0: geom_core::Point2::new(p0.x, p0.y + 100.0 * eps / RS),
+                pa: *pa,
+                pb: *pb,
+                pl: *pl,
+            };
+            let (t0, t1) = row.params();
+            Some(geom_brep::PcurveCache::certify(
+                shifted,
+                t0,
+                t1,
+                curve.carrier(),
+                sphere,
+                band,
+            ))
+        })
+        .expect("the cap stores a harmonic rim row");
+    assert!(
+        moved.is_err(),
+        "a rim row 100ε off its carrier does not certify"
+    );
 }
 
 /// **Nothing that meshes or measures consumes the discarded

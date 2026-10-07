@@ -1495,12 +1495,15 @@ is a cup. `Node.shell(target, thickness, open)` is the door, and
 names — carried, never read, frozen at authoring time.
 
 One thing the blend selection does not have: **`open` is ordered.** A
-chart's rim is its FIRST designated face (the chart's other faces
+chart's rim is its FIRST designated face (a plane chart's other faces
 merge onto it and the rim's name is that face's), so name first the
-face you want to carry the rim's identity. An empty list is the
+face you want to carry the rim's identity. A curved face opens too: a
+dome's cap, which wraps round its axis, keeps both of the faces a full
+revolve wears it on as the branches of one band, each named for its
+own designation. An empty list is the
 SEALED hollow — a closed thin solid with a cavity and no rim — which
 is legal and not a refusal. And a face is designated together with
-every face on its chart: where two faces share one plane, naming one
+every face on its chart: where two faces share one surface, naming one
 of them refuses (`shell`, the kernel's partial-chart gate) rather than
 silently opening both. (A full revolve's planar cap is ONE face — it
 sweeps a planar wall whole.)

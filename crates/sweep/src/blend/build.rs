@@ -8,9 +8,11 @@
 //! propagates its refusal unchanged: what precedes it is the request
 //! preamble ([`nonpositive_size_gate`], [`repeated_edge_gate`]), which
 //! reads the REQUEST and never the body. Nothing here mints a surface,
-//! a point, or a topology entity before a verdict exists — the C8 claim
-//! ("if the battery returns `Ok`, construction cannot fail for a
-//! geometric reason") is kept by construction order, not by hope.
+//! a point, or a topology entity before a verdict exists, and the one
+//! predicate arm that answers after the battery (predicate 2's reach,
+//! which needs the plan's feet) answers in the surgery before any
+//! mutation — so every C8 predicate answers before anything is built,
+//! kept by construction order, not by hope.
 //!
 //! # The assembly front door
 //!

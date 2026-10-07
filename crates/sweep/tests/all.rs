@@ -242,6 +242,12 @@ mod blend4_r1_probes;
 mod blend6_verb_vocab;
 #[path = "blend_ball_side_bits.rs"]
 mod blend_ball_side_bits;
+#[path = "blend_band_reach.rs"]
+mod blend_band_reach;
+#[path = "blend_band_reach_oracle.rs"]
+mod blend_band_reach_oracle;
+#[path = "blend_band_reach_rows.rs"]
+mod blend_band_reach_rows;
 #[path = "blend_bore_two_rims.rs"]
 mod blend_bore_two_rims;
 #[path = "blend_dual_tangent.rs"]
@@ -298,6 +304,8 @@ mod ladder_split_key;
 mod lamina_annulus;
 #[path = "lib_u3_sections.rs"]
 mod lib_u3_sections;
+#[path = "loft_v_is_the_section_set.rs"]
+mod loft_v_is_the_section_set;
 #[path = "m3_pr5_extrude_booleans.rs"]
 mod m3_pr5_extrude_booleans;
 #[path = "m5_pr10_frontier.rs"]
@@ -541,8 +549,8 @@ mod split_edge_loft_charts;
 mod split_section_rings;
 #[path = "split_tangent_edge_curved.rs"]
 mod split_tangent_edge_curved;
-#[path = "split_through_a_seam_ruling.rs"]
-mod split_through_a_seam_ruling;
+#[path = "split_through_a_ruling.rs"]
+mod split_through_a_ruling;
 #[path = "turning_orientation.rs"]
 mod turning_orientation;
 #[path = "verbs_1031b_arcwind.rs"]
@@ -969,3 +977,5 @@ mod rest_zip_admission;
 
 #[path = "pole_ball_shells.rs"]
 mod pole_ball_shells;
+#[path = "shell_curved_mouth.rs"]
+mod shell_curved_mouth;

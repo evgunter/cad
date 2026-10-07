@@ -338,7 +338,9 @@ chart. Its home is the half-edge (`Body::pcurves`, a
 a function of the edge and the chart alone, plus the half-edge's
 **joint element**, the integer (whole periods, a torus's second period,
 a sphere's twin bit) that carries its image onto the end of the
-half-edge before it in its loop, or a reset marker at a pole or apex.
+half-edge before it in its loop, or a reset marker at a pole or apex
+(and on a spline chart where the net's own `u` stretch is not decided
+past the band).
 A loop's lift is derived by summing elements from its `first`, so no
 stored byte depends on which half-edge is `first`. A seam edge has both
 half-edges on one surface with one image and two joint elements, so no
@@ -382,14 +384,28 @@ certifies against its carrier and chart alone, on one branch (a τ jump
 is unrepresentable in `Harmonic`'s `α + β·t`); no caller's window enters
 it. The face's rows lift its loops, and `topo::pcurves` certifies the
 loop: at each joint the walk decides the deck element (the whole number
-of periods, and on a sphere the involution twin) as an integer with
-half a period of room; the joint's 3-D coincidence is not decided again
-in the chart, since it follows from the two rows' envelopes and the
-edge certificate's pinning of each carrier's ends to the vertex. Each
-loop winds 0 or ±1 period, and a closed chart polygon is built only
-where it winds 0. A vertex on the chart's singular set (a sphere's pole,
-a cone's apex) is decided as 3-D incidence of the vertex on that set;
-a chart with no singular set decides nothing there. On a spline chart,
+of periods, and on a sphere the involution twin) as an integer, with
+half the step to the next point of the joint's orbit as room: half a
+period on a cylinder, cone or torus, and a quarter period on a sphere,
+whose twin sits half a period over in azimuth. Where two points as far
+from the axis as the joint's chart ends can be (the vertex's distance
+less the two ε that bound each end) and that half step apart in azimuth
+are farther apart than the joint bound, the integer names the joint's
+own orbit point; nearer a pole or a narrow cone's apex it may name
+another lift of the same point. The joint's
+3-D coincidence is not decided again in the chart, since it follows
+from the two rows' envelopes and the edge certificate's pinning of each
+carrier's ends to the vertex. A loop's winding is its elements composed
+once around, read off the invariants a change of starting half-edge
+leaves alone: off the twin, at most one period on each periodic
+channel; through the twin, an odd number of half turns of azimuth, at
+most three, and no bound on the second channel, whose periods are not
+such an invariant there; and no azimuth winding counted across a reset.
+A closed chart polygon is built only where the winding is zero and
+every joint's integer was decided with room past the joint bound. A
+vertex on the chart's singular set (a sphere's pole, a cone's apex) is
+decided as 3-D incidence of the vertex on that set; a chart with no
+singular set decides nothing there. On a spline chart,
 where a net can fold and a 3-D coincidence does not name the sheet, each
 joint also states its chart-space gap. Planar faces store nothing; `chart_pcurve` derives on
 demand. On every other chart the row is mandatory at rest: every
@@ -481,10 +497,13 @@ contact census is CONTACT-DESIGN's, at `crates/topo/README.md`.
 construction; blends are analytic-first.** Implemented in
 `crates/sweep/src/blend/`; `crates/sweep/README.md` is the reference.
 What binds from here: the six named margined predicates over the inputs
-run in order before any ball exists (radius vs `1/κ_max` of each
-support, face clearance, spine regularity, chain G1, convexity-sign
-consistency, corner configuration), which is what lets an interval
-replay certify validity over a parameter box. Every constant-radius arm
+(radius vs `1/κ_max` of each support, face clearance, spine regularity,
+chain G1, convexity-sign consistency, corner configuration) all answer
+before anything is built, which is what lets an interval replay certify
+validity over a parameter box. They run in that order, except face
+clearance's reach arm (every band against every face of the body it
+does not blend), which needs the plan's feet: it runs in the surgery
+after predicate 6 and before any mutation. Every constant-radius arm
 mints a torus or a cylinder (the envelope of equal spheres over a circle
 or a line spine); a cone belongs to the variable-radius family.
 Trimlines are stored as `TangentIntersection`. Scope: a straight band

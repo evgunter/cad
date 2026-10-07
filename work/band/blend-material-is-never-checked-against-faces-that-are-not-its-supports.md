@@ -2,10 +2,12 @@
 id: blend-material-is-never-checked-against-faces-that-are-not-its-supports
 kind: issue
 title: blend: the band's material is never checked against faces that are not its supports, so a concave fillet grows into an island and builds an overlapping body every tier admits
-status: open
+status: closed
 opened: 2026-10-06
 priority: P0
 cost: H
+pr: 4143
+closed: 2026-10-07
 ---
 
 Found by the lane that made the blend carve each chain inside its own
@@ -87,3 +89,32 @@ shell". It is the predicate's ratified meaning, not a new predicate. The
 check must certify clearance or refuse typed (`FaceClearance` /
 `FaceClearanceUncertified`), before construction, and replay at
 `Interval`.
+
+## Findings (the lane that built it)
+
+Measured against the tree at `cadf2ed1`:
+
+- **The one-shell witness reproduces as stated**: with the meter taken
+  out, `fillet_edges` builds the island-in-a-vented-cavity body; with it,
+  the request refuses `FaceClearance { bounded: false }` on the island's
+  own edge.
+- **The two-solid witness reaches the meter through `fillet_edges`**
+  since PR 4113 (each chain carved inside its own shell) merged: the
+  request refuses `FaceClearance { bounded: false }`, and the row also
+  pins it at the meter itself (`test_support::band_reach`).
+- **Two bands of one request.** A support of another chain in the same
+  request is metered by what survives that chain's band (the part outside
+  its strip and corner regions), and the other band's own surface is
+  metered as a face. Without this, every co-requested pair that shares a
+  wall refused (PR 4113's "beside another solid" row among them).
+- **The convex flare is caught by the meter at `r = 1.5` and `1.6`** and
+  certified clear at `r = 0.5` and `1.0`; on main predicate 1 refuses
+  these radii first, so PR 4092 (sided headroom) is what will carry them
+  to the meter through `fillet_edges`.
+- **Where the meter runs.** It runs in the surgery's pre-mutation phase,
+  after the ring carry-through pass, not inside the battery: at the
+  battery it pre-empted the surgery's exact ring and boundary meters and
+  the then one-solid body door on 26 rows of the existing corpus, each of
+  which those meters already refuse for the same physical fact (a ring
+  or edge in the band's material, or a body the surgery does not
+  carve). It is still before any surface is minted.

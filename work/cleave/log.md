@@ -590,6 +590,7 @@ Signed (CLEAVE orchestrator).
   row file was absent at that branch's head, so the status flip failed silently). Closed here.
 - **Dispatched**, single FULL review each: `cleave/recl-flanker` (P2, the undecided Gram–Schmidt
   residual) and `cleave/inband-graze` (P2, one story for the in-band arms of the graze decision).
+- **PR 4181 merged** (the frustum apex P1; single FULL review, fix pass done). Its row is closed.
 - **PR 4158 merged** (the seam-ruling P0, closed). **Dispatched** `cleave/frustum-apex`
   (`a-frustum-split-through-a-ruling-off-its-seam-refuses-a-degenerate-section`, P1: a plane through a
   cone's apex pairs the wall's crossings top↔top). Review tier: single FULL.
@@ -639,3 +640,11 @@ Signed (CLEAVE orchestrator).
   - `revolve-seam-split-volumes-miss-their-closed-forms-at-eps-1e-6`, raised to P1 because it is a
     nightly red; it is probably the #4205 class. Lane `cleave/revseam-1e6`.
   - `lily-walls-curved-clearance-crowds-the-band-under-k-lint`, P2. Lane `cleave/lily-clearance`.
+- **PR 4214 merged** (lily-walls k-lint; tracker only). Main had already fixed it via #3817, and the
+  row is closed. The sphere-region root-slack sibling is filed on HONE.
+- **PR 4213 merged** (revolve-seam 1e-6 volumes; tracker only). Main had already fixed it in PR
+  4083's `6ac174bf1a`, and the row is closed. Two `props_quad_converged` witnesses were added to
+  QUAD's convergence row.
+- **PR 4223 merged** (rim-touch; test and tracker only, orchestrator read). PR 4179 had already
+  fixed it, and the witnesses are pinned. Filed: a plane touching a bore rim splits into a pinched
+  side or refuses (P3; its answer is D10 coincidence work, so it waits on the hold).
