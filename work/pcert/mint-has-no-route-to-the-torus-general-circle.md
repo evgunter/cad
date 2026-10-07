@@ -6,6 +6,7 @@ status: closed
 opened: 2026-10-02
 priority: P1
 closed: 2026-10-07
+pr: 4227
 ---
 
 Filed by PCERT's `pcert/at-rest-rows-mandatory` (PR 3759), which makes
