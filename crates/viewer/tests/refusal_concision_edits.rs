@@ -469,7 +469,8 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                             editor_core::ProfileEdgeRef::Piece {
                                 step: editor_core::StepId(tagged(9)),
                                 role: editor_core::PieceRole::Leg,
-                            },
+                            }
+                            .into(),
                         )],
                     },
                     s(3, "Extrude"),

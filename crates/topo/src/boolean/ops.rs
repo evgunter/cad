@@ -305,6 +305,18 @@ pub struct BooleanNaming {
     /// fallback and the declared-REST union — sorted and deduplicated;
     /// a path that never classifies (disjoint boxes) has none.
     pub covered: Vec<(FaceKey, FaceKey)>,
+    /// Every operand edge piece the classification read beside a vertex,
+    /// with its side of the other operand
+    /// ([`EdgePieceClass`](super::EdgePieceClass)), sorted: the vertex in
+    /// clone keys, as `reduction_contacts`. Read off the classification,
+    /// so a path that never classifies has none.
+    pub edge_classes: Vec<super::EdgePieceClass>,
+    /// The two vertices each of the classification's null edges joins,
+    /// `(operand, below end, above end)` in clone keys as
+    /// `edge_classes`: one point by construction, so a vertex and its
+    /// copies are one place on the operand, and an operand edge ending at
+    /// one ends at all of them. A path that never classifies has none.
+    pub null_copies: Vec<(super::Operand, VertexKey, VertexKey)>,
     /// The output stage's joins in the order made, result keys: each
     /// row's vertex and `gone` edge are dead, and its `kept` edge holds
     /// their interiors (maximal edges, `docs/DESIGN.md`'s merge stage).
@@ -648,6 +660,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
     let covered = red.covered.clone();
+    let edge_classes = red.edge_classes.clone();
+    let null_copies = super::null_copy_rows(&red.null_edges);
     let copies = Descendants::null_copies(&red.null_edges);
     let along = connected.along.clone();
     let carried = split_lineage(&red, decls, band)?;
@@ -727,6 +741,8 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         reduction_contacts,
         discards: fin.discards,
         covered,
+        edge_classes,
+        null_copies,
         edge_joins,
     };
     Ok(BooleanResult::Body(BooleanBody {
@@ -1258,8 +1274,10 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
     )
 }
 
-/// **Whether a boundary edge of `face` may meet `region`**: some edge of
-/// one of its loops has a certified box, padded by `pad`, overlapping it.
+/// **Whether a boundary edge of `face` may meet `circle`**: some edge of
+/// one of its loops has a certified box, padded by `pad`, overlapping
+/// `region` (the circle's box), and the two are not apart along a
+/// direction that turns with them ([`super::separating::apart`]).
 /// `face` is one the caller read out of `body`.
 ///
 /// # Panics
@@ -1272,15 +1290,25 @@ fn pair_verdict<T: Decide + Bounds + crate::props::AtRestPolicy>(
 fn face_boundary_meets<T: Decide + Bounds>(
     body: &Body<T>,
     face: FaceKey,
-    region: &bvh::Aabb,
+    (circle, region): (super::separating::Item<T>, &bvh::Aabb),
+    axes: &[geom_core::UnitVec3<T>],
     pad: f64,
+    band: Band,
 ) -> bool {
     let fd = proven(&body.faces, face, EntityId::Face);
     for member in body.face_boundary_linked(face, fd) {
         let BoundaryMember::Edge { ek, .. } = member else {
             continue;
         };
-        if boxes::edge_box(body, ek, pad).overlaps(region) {
+        if boxes::edge_box(body, ek, pad).overlaps(region)
+            && !super::separating::apart(
+                (body, super::separating::Item::Edge(ek)),
+                (body, circle),
+                axes,
+                pad,
+                band,
+            )
+        {
             return true;
         }
     }
@@ -1288,8 +1316,9 @@ fn face_boundary_meets<T: Decide + Bounds>(
 }
 
 /// **The section certificate over pairs of rows**: every `(A row, B
-/// row)` pair whose certified boxes overlap and which `admit` takes, in
-/// the rows' order, each [`pair_verdict`]'s. `evented` says whether
+/// row)` pair whose certified boxes overlap, which the narrow phase
+/// ([`super::separating::apart`]) does not part and which `admit`
+/// takes, in the rows' order, each [`pair_verdict`]'s. `evented` says whether
 /// the reduction recorded an event on the pair `(A face, B face)`;
 /// `named` says whether A's face is the one a refusal names. With
 /// `stop` the walk returns at the first refusing pair.
@@ -1303,12 +1332,25 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
     evented: impl Fn(FaceKey, FaceKey) -> bool,
     named: impl Fn(&geom::Surface<T>) -> bool,
     stop: bool,
+    axes: &super::separating::OperandAxes<T>,
 ) -> Vec<PairVerdict> {
     let b_rows: Vec<&FaceRow<T>> = b_rows.into_iter().collect();
+    let pad = boxes::sweep_pad(band);
     let mut out = Vec::new();
     for fa in a_rows {
         for &fb in &b_rows {
             if !fa.bbox.overlaps(&fb.bbox) || !admit(fa, fb) {
+                continue;
+            }
+            // The overlap is a world-axis one; a pair apart along a
+            // direction that turns with the operands has no section.
+            if super::separating::apart(
+                (a, super::separating::Item::Face(fa.face)),
+                (b, super::separating::Item::Face(fb.face)),
+                axes.of(a, b, band),
+                pad,
+                band,
+            ) {
                 continue;
             }
             let verdict = pair_verdict((a, fa), (b, fb), band, evented(fa.face, fb.face), charts);
@@ -1330,8 +1372,8 @@ fn walk_pairs<'r, T: Decide + Bounds + crate::props::AtRestPolicy + 'r>(
 }
 
 /// **The section certificate over every in-scope pair** of `a` × `b`
-/// whose certified boxes overlap and which `exempt` does not answer, in
-/// arena order ([`walk_pairs`]). `evented` says whether the reduction
+/// whose certified boxes overlap, which the narrow phase does not part
+/// and which `exempt` does not answer, in arena order ([`walk_pairs`]). `evented` says whether the reduction
 /// recorded an event on the pair `(A face, B face)`. With `stop` the
 /// scan returns at the first refusing pair. `chart_boundary` is asked
 /// once per face and cached.
@@ -1359,6 +1401,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + crate::props::AtRestPolicy>(
         evented,
         |s| path.names(s),
         stop,
+        &super::separating::OperandAxes::new(boxes::axis_key),
     ))
 }
 
@@ -3651,6 +3694,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         }
     }
     let pad = boxes::sweep_pad(band);
+    let axes = super::separating::OperandAxes::new(boxes::axis_key);
     let mut section_charts = ChartCache::default();
     let rows = [face_rows(a, band)?, face_rows(b, band)?];
     let mut out: Vec<SphereRecut<T>> = Vec::new();
@@ -3711,6 +3755,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         (y, y_row),
                         band,
                         &mut section_charts,
+                        &axes,
                     )
                 };
                 match &y_row.surface {
@@ -3755,8 +3800,23 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // witness extends to the whole circle.
                                 let foot = center - normal * s;
                                 let rho = ((radius - s.abs()) * (radius + s.abs())).sqrt();
-                                let circle_box = boxes::centred_box(foot, rho, pad);
-                                if face_boundary_meets(y, yf, &circle_box, pad) {
+                                let circle = super::separating::Circle {
+                                    center: foot,
+                                    u_ref,
+                                    v_ref: normal.cross(u_ref),
+                                    radius: rho,
+                                };
+                                if face_boundary_meets(
+                                    y,
+                                    yf,
+                                    (
+                                        super::separating::Item::Circle(circle),
+                                        &boxes::circle_box(&circle, pad),
+                                    ),
+                                    axes.of(a, b, band),
+                                    pad,
+                                    band,
+                                ) {
                                     return Err(BooleanError::FallbackExtentUnsupported {
                                         operand: x_is,
                                         face,
@@ -3942,7 +4002,13 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         // relevant here than it is at the operand
                         // gate. Only a face the ball may actually
                         // reach costs the operation its answer.
-                        if !y_row.bbox.overlaps(&ball_box) {
+                        if !ball_may_reach(
+                            (y, yf, &y_row.bbox),
+                            (center, radius, &ball_box),
+                            axes.of(a, b, band),
+                            pad,
+                            band,
+                        ) {
                             continue;
                         }
                         return Err(BooleanError::CurvedBooleanUnsupported {
@@ -4036,6 +4102,30 @@ fn cut_holder(held: Option<(FaceKey, SectionRefusal)>) -> Result<Option<FaceKey>
     }
 }
 
+/// **Whether the ball about `center` of radius `radius` may reach
+/// `y`'s face `yf`**: their boxes (`face_box`, the ball's `ball_box`)
+/// overlap, and the narrow phase does not part the face from the WHOLE
+/// ball ([`super::separating::Item::Ball`]). The question is the ball's
+/// escape, so it is asked of the ball whatever part of the sphere the
+/// faces on it keep: a reach of those faces is a subset of the ball, and
+/// a face clear of that subset may still lie inside the ball.
+fn ball_may_reach<T: Decide>(
+    (y, yf, face_box): (&Body<T>, FaceKey, &bvh::Aabb),
+    (center, radius, ball_box): (Point3<T>, T, &bvh::Aabb),
+    axes: &[geom_core::UnitVec3<T>],
+    pad: f64,
+    band: Band,
+) -> bool {
+    face_box.overlaps(ball_box)
+        && !super::separating::apart(
+            (y, super::separating::Item::Face(yf)),
+            (y, super::separating::Item::Ball { center, radius }),
+            axes,
+            pad,
+            band,
+        )
+}
+
 /// **Whether every face on `x`'s sphere `surface` is certified apart
 /// from `y`'s face `y_row`**, whose carrier the sphere crosses or
 /// touches: the section certificate's walk ([`walk_pairs`]) over those
@@ -4047,6 +4137,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
     (y, y_row): (&Body<T>, &FaceRow<T>),
     band: Band,
     charts: &mut ChartCache,
+    axes: &super::separating::OperandAxes<T>,
 ) -> Option<(FaceKey, SectionRefusal)> {
     let on_sphere = x_rows.iter().filter(|r| r.key == surface);
     let pairs = match x_is {
@@ -4059,6 +4150,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             |_, _| false,
             |_| true,
             true,
+            axes,
         ),
         Operand::B => walk_pairs(
             (y, [y_row]),
@@ -4069,6 +4161,7 @@ fn sphere_faces_apart<T: Decide + Bounds + crate::props::AtRestPolicy>(
             |_, _| false,
             |_| true,
             true,
+            axes,
         ),
     };
     pairs.into_iter().find_map(|p| {
@@ -4801,6 +4894,8 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 merge_skipped: merged.skipped.clone(),
                 reduction_contacts: red.contacts.clone(),
                 covered: red.covered.clone(),
+                edge_classes: red.edge_classes.clone(),
+                null_copies: super::null_copy_rows(&red.null_edges),
                 edge_joins,
                 ..BooleanNaming::default()
             };
@@ -4864,6 +4959,8 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
+            edge_classes: red.edge_classes.clone(),
+            null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
             ..BooleanNaming::default()
         },
@@ -4875,6 +4972,8 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
             merge_skipped: merged.skipped.clone(),
             reduction_contacts: reduction_contacts.clone(),
             covered: covered.to_vec(),
+            edge_classes: red.edge_classes.clone(),
+            null_copies: super::null_copy_rows(&red.null_edges),
             edge_joins: edge_joins.clone(),
             ..BooleanNaming::default()
         },
@@ -6607,6 +6706,95 @@ mod tests {
         }
     }
 
+    /// **The `Approx` arm asks after the BALL, not the sphere face**
+    /// (`ball_may_reach`). The face here keeps a small cap of its
+    /// sphere near the north pole; the brick inside the ball near the
+    /// south pole is clear of any honest reach of that cap and still
+    /// in the ball, which is where the escape it guards runs. So it is
+    /// reached, face by face, whatever the cap's own reach. A brick past
+    /// the ball on the diagonal, inside the ball's world box, is parted
+    /// by the narrow phase. Asking after the face instead, the inside
+    /// brick reads apart the day a sphere face's reach is tighter than
+    /// its ball.
+    #[test]
+    fn the_approx_arm_asks_whether_the_ball_reaches_the_face() {
+        use super::ball_may_reach;
+        use crate::boolean::boxes;
+        use crate::test_support::brick;
+        let tol = geom_core::Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let pad = boxes::sweep_pad(band);
+        // The operators' chords, not described as intersections, so the
+        // cap's carrier can be swapped for the sphere's.
+        let mut capped = crate::Body::<f64>::new();
+        crate::test_support::prism_ops(
+            &mut capped,
+            &[(-0.2, -0.2), (0.2, -0.2), (0.2, 0.2), (-0.2, 0.2)],
+            (0.9, 0.98),
+            Point3::new,
+            crate::test_support::FaceGeometry::Certified,
+            tol,
+        );
+        let top = capped
+            .faces()
+            .map(|(f, _)| f)
+            .find(|&f| {
+                crate::face_normal::face_outward_normal(&capped, f).is_some_and(|n| n.vec().z > 0.5)
+            })
+            .unwrap();
+        capped
+            .set_face_surface(
+                top,
+                crate::FaceSurface::New {
+                    surface: geom::Surface::Sphere {
+                        center: Point3::new(0.0, 0.0, 0.0),
+                        radius: 1.0,
+                        axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+                        u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+                    },
+                    sense: true,
+                },
+            )
+            .unwrap();
+        let &geom::Surface::Sphere { center, radius, .. } =
+            capped.face_surface_linked(top, capped.get_face(top).unwrap())
+        else {
+            panic!("the cap's carrier is the sphere");
+        };
+        let ball_box = boxes::centred_box(center, radius, pad);
+        for (what, (x, y, z), reached) in [
+            (
+                "inside the ball, off the cap",
+                ((-0.1, 0.1), (-0.1, 0.1), (-0.9, -0.7)),
+                true,
+            ),
+            (
+                "past the ball on the diagonal",
+                ((0.8, 0.9), (0.8, 0.9), (0.8, 0.9)),
+                false,
+            ),
+        ] {
+            let other = brick::<f64>(x, y, z, tol);
+            // Each brick its own cell: the axes are read off this pair.
+            let axes = crate::boolean::separating::OperandAxes::new(boxes::axis_key);
+            for (yf, _) in other.faces() {
+                let face_box = boxes::face_box(&other, yf, pad, band).unwrap();
+                assert!(face_box.overlaps(&ball_box), "{what}: the boxes overlap");
+                assert_eq!(
+                    ball_may_reach(
+                        (&other, yf, &face_box),
+                        (center, radius, &ball_box),
+                        axes.of(&capped, &other, band),
+                        pad,
+                        band,
+                    ),
+                    reached,
+                    "{what}: face {yf:?}"
+                );
+            }
+        }
+    }
+
     /// **The sphere extent scan answers `ContainError`'s reachable
     /// refusals typed, on the face's own operand.** It runs on operands
     /// AT REST: a refusal the face door owns is carried whole with the
@@ -6699,13 +6887,23 @@ mod torn_hop_rows {
             max_y: 11.0,
             max_z: 11.0,
         };
-        assert!(!face_boundary_meets(&body, face, &far, 0.0), "a far box");
+        let circle = super::super::separating::Item::Circle(super::super::separating::Circle {
+            center: Point3::new(10.5, 10.5, 10.5),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+            v_ref: Vec3::new(0.0, 1.0, 0.0),
+            radius: 0.5,
+        });
+        let band = Band::linear(Tol::witness()).unwrap();
+        assert!(
+            !face_boundary_meets(&body, face, (circle, &far), &[], 0.0, band),
+            "a far box"
+        );
         assert!(!has_lone_vertex(&body, face), "a cube face has none");
         assert_eq!(faces_by_vertex(&body).len(), 8, "eight corners");
         let named = crate::review_d18::tear_ring(&mut body, face);
         let premise = [named.as_str(), ROW_FOUR, OPERATORS_KEEP_LINKS];
         assert_torn_op_panics("face_boundary_meets", &mut body, &premise, |b| {
-            face_boundary_meets(b, face, &far, 0.0)
+            face_boundary_meets(b, face, (circle, &far), &[], 0.0, band)
         });
         assert_torn_op_panics("has_lone_vertex", &mut body, &premise, |b| {
             has_lone_vertex(b, face)

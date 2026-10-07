@@ -376,6 +376,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::ChainNotConnected { .. } => "ChainNotConnected",
         BlendError::RadiusHeadroom { .. } => "RadiusHeadroom",
         BlendError::FaceClearanceUncertified { .. } => "FaceClearanceUncertified",
+        BlendError::FaceClearance { .. } => "FaceClearance",
         BlendError::TangentialEdge { .. } => "TangentialEdge",
         BlendError::SpineIrregular { .. } => "SpineIrregular",
         BlendError::ChainNotG1 { .. } => "ChainNotG1",
@@ -551,8 +552,15 @@ fn d2_a_grafted_destination_blends_inside_its_own_shell() {
     let base = cube(1.0, Tol::witness());
     let edges: Vec<EdgeKey> = base.edges().map(|(k, _)| k).collect();
     let mut dst = base.clone();
-    topo::instance::graft_disjoint_all(&mut dst, &cube(0.5, Tol::witness()))
-        .expect("a disjoint graft");
+    // The grafted cube stands clear of the destination: one at the
+    // origin would lie inside it, where the destination's bands reach.
+    let apart = topo::transform_rigid(
+        &cube(0.5, Tol::witness()),
+        &Affine3::translation(Vec3::new(3.0, 0.0, 0.0)),
+        Tol::witness(),
+    )
+    .expect("a translation is rigid");
+    topo::instance::graft_disjoint_all(&mut dst, &apart).expect("a disjoint graft");
     assert_eq!(dst.shells().count(), 2, "the graft added a shell");
     let after: Vec<EdgeKey> = edges
         .iter()

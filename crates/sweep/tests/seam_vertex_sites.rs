@@ -4,9 +4,10 @@
 //! seam meridian at each crossing, not two. The one-seam reading of
 //! `battery::is_seam_vertex` admits that site — and only where the rim
 //! CLOSES, because its recourse promises `rim_of` lists the rim whole.
-//! One arc of an OPEN run of cocircular arcs swept beside a whole face
-//! (a D's two quarter arcs, extruded) has the same orbit at its station
-//! and must not be told to request a rim that does not exist.
+//! One arc of an OPEN run of cocircular arcs beside a whole face (a
+//! D's round side, extruded, cut at its station with a ruling across
+//! its one cylinder wall) has the same orbit at its station and must
+//! not be told to request a rim that does not exist.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -15,6 +16,8 @@ use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig};
 use sweep::test_support::{lantern, prism, rim_arcs_at};
 use topo::EdgeKey;
+
+use crate::common::stations::station_vertices;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -43,15 +46,17 @@ fn one_arc_of_a_whole_disc_rim_refuses_seam_vertex() {
 }
 
 /// A D: the straight side on `x = 0`, the round side two CCW quarter
-/// arcs of the unit circle meeting at `(1, 0)`. The two arcs sweep onto
-/// one cylinder key with a strut at the station, so the bottom rim's
-/// station vertex carries one co-surface seam and two rim arcs on
-/// (cap, cylinder) — the closed rim's orbit — but the rim is OPEN (it
-/// ends at the straight side), so the tag must not fire there.
+/// arcs of the unit circle meeting at `(1, 0)`. The sweep builds the
+/// round side as one cylinder wall with one rim arc on each cap; the
+/// station at `(1, 0)` is cut into both rim arcs and joined by a
+/// ruling `mef` across the wall, so the bottom rim's station vertex
+/// carries one co-surface seam and two rim arcs on (cap, cylinder) —
+/// the closed rim's orbit — but the rim is OPEN (it ends at the
+/// straight side), so the tag must not fire there.
 #[test]
 fn one_quarter_arc_of_a_d_is_not_a_seam_vertex() {
     let b = (core::f64::consts::PI / 8.0).tan();
-    let body = prism(
+    let mut body = prism(
         vec![
             (Point2::new(0.0, 1.0), 0.0),
             (Point2::new(0.0, -1.0), b),
@@ -60,6 +65,54 @@ fn one_quarter_arc_of_a_d_is_not_a_seam_vertex() {
         1.0,
         tol(),
     );
+    let rims: Vec<EdgeKey> = body
+        .edges()
+        .filter(|(_, e)| {
+            body.get_curve_geom(e.curve)
+                .and_then(|g| g.certified())
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Circle { .. }))
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(rims.len(), 2, "one rim arc on each cap");
+    let e = body.get_edge(rims[0]).unwrap();
+    let wall = [e.he_plus, e.he_minus]
+        .into_iter()
+        .filter_map(|h| body.face_of_half_edge(h))
+        .find(|&f| {
+            matches!(
+                body.get_surface(body.get_face(f).unwrap().surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .expect("the round side's cylinder wall");
+    let stations: Vec<topo::VertexKey> = rims
+        .iter()
+        .map(|&rim| {
+            let curve = body.get_edge(rim).unwrap().curve;
+            let (t0, t1) = body
+                .get_curve_geom(curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .params();
+            body.split_edge(rim, (t0 + t1) * 0.5, tol()).unwrap().vertex
+        })
+        .collect();
+    assert_eq!(
+        station_vertices(&body),
+        stations,
+        "a station cut into an arc rim is one the reader finds"
+    );
+    let leaving = |v: topo::VertexKey| {
+        body.half_edges()
+            .find(|(h, he)| he.start == v && body.face_of_half_edge(*h) == Some(wall))
+            .unwrap()
+            .0
+    };
+    let (he1, he2) = (leaving(stations[0]), leaving(stations[1]));
+    body.mef_chord(topo::MefSite::Chords { he1, he2 }, tol())
+        .unwrap();
     let quarter: Vec<EdgeKey> = body
         .edges()
         .filter(|(_, e)| {
