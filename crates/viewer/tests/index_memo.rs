@@ -129,7 +129,7 @@ fn bump_of(c: &corpus::CorpusDoc) -> Option<(Edit, Edit)> {
 /// node other than `not`, scaled — "change another", when the document
 /// has another to change.
 fn another_length_slot(doc: &ProfileDoc, not: RecipeNodeId) -> Option<Edit> {
-    for &node in doc.order() {
+    for node in doc.ids() {
         if node == not {
             continue;
         }

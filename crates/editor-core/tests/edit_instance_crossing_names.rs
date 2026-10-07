@@ -617,7 +617,7 @@ fn a_split_that_takes_an_instance_naming_a_kept_node_is_refused() {
 fn inlining_an_instance_with_a_record_splices_the_parts_own_nodes() {
     let mut store = PartStore::default();
     let (part, body) = part_doc("crossnames-inline-part");
-    let part_nodes = part.order().len();
+    let part_nodes = part.ids().len();
     let doc_ref = store.insert(part, Tol::witness());
     let (doc, neighbour) = insert(
         ProfileDoc::empty(DocumentId::derive("crossnames-inline"), Tol::witness()),
@@ -636,7 +636,7 @@ fn inlining_an_instance_with_a_record_splices_the_parts_own_nodes() {
             Some(editor_core::Placement::IDENTITY),
         ),
     );
-    let before = doc.order().len();
+    let before = doc.ids().len();
 
     let back = inline(
         &doc,
@@ -650,7 +650,7 @@ fn inlining_an_instance_with_a_record_splices_the_parts_own_nodes() {
         "the instance is gone, and its record with it"
     );
     assert_eq!(
-        back.doc.order().len(),
+        back.doc.ids().len(),
         before - 1 + part_nodes,
         "the instance went and the part's own nodes came in its place — a count the \
          untouched neighbour cannot supply"

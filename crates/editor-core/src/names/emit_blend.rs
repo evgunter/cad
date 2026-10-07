@@ -365,7 +365,7 @@ mod tie_tests {
         )
         .expect("a unit cube extrudes");
         let table = name_extrude(
-            RecipeNodeId(1),
+            RecipeNodeId::new(0, 1),
             &built,
             &crate::eval::ProfilePieces::numbered(
                 &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
@@ -434,8 +434,8 @@ mod tie_tests {
         let rec = blended.naming.as_ref().expect("the surgery keeps records");
 
         let out = name_blend(
-            RecipeNodeId(2),
-            RecipeNodeId(1),
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 1),
             &planted,
             &blended.body,
             rec,
@@ -462,8 +462,14 @@ mod tie_tests {
         // same body, the same request, the untouched table — no tie
         // upstream, no tie downstream, and every row went through the
         // strict `insert`.
-        let clean = name_blend(RecipeNodeId(2), RecipeNodeId(1), &table, &blended.body, rec)
-            .expect("the untied table names as it always did");
+        let clean = name_blend(
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 1),
+            &table,
+            &blended.body,
+            rec,
+        )
+        .expect("the untied table names as it always did");
         assert!(
             clean.iter().all(|(_, e)| matches!(e, Entry::Unique(_))),
             "an untied operand must produce no tied rows"
@@ -484,8 +490,8 @@ mod tie_tests {
             .as_ref()
             .expect("the surgery keeps records");
         let cout = crate::names::name_chamfer(
-            RecipeNodeId(3),
-            RecipeNodeId(1),
+            RecipeNodeId::new(0, 3),
+            RecipeNodeId::new(0, 1),
             &planted,
             &chamfered.body,
             crec,
@@ -512,8 +518,8 @@ mod tie_tests {
             "a tied entry with one member is a narrowing bug: {cwidths:?}"
         );
         let cclean = crate::names::name_chamfer(
-            RecipeNodeId(3),
-            RecipeNodeId(1),
+            RecipeNodeId::new(0, 3),
+            RecipeNodeId::new(0, 1),
             &table,
             &chamfered.body,
             crec,

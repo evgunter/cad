@@ -21,7 +21,7 @@ fn shelled(shell: RecipeNodeId, kind: EntityKind, seg: RoleSeg) -> StableName {
 }
 
 fn blank_of(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()
+    doc.ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))

@@ -33,7 +33,7 @@ fn plane() -> RecipeNodeId {
 
 /// The profile drawn on that frame: the document's second node.
 fn profile(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[1]
+    doc.ids()[1]
 }
 
 fn key_of(doc: &ProfileDoc) -> ContentKey {

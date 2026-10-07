@@ -39,12 +39,12 @@ use fixture::{Recorder, ang, len, scl};
 /// A variable as the free mass doors' refusals speak it.
 /// The variable `doc` declares as `name`, or an id it never minted.
 fn v(doc: &editor_core::ProfileDoc, name: &str) -> editor_core::VarId {
-    doc.var_named(name).unwrap_or(editor_core::VarId(0))
+    doc.var_named(name).unwrap_or(editor_core::VarId::new(0, 0))
 }
 
 fn sp(name: &'static str) -> editor_core::SpokenVar {
     editor_core::SpokenVar::new(
-        editor_core::VarId(0),
+        editor_core::VarId::new(0, 0),
         Some(editor_core::VarName::from_static(name)),
     )
 }

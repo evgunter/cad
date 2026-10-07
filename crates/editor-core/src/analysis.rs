@@ -194,9 +194,8 @@ impl AnalyzedParam {
 pub struct AnalyzedBox {
     params: BTreeMap<VarId, AnalyzedParam>,
     /// The axes in the document's DECLARATION order
-    /// ([`crate::Doc::free_vars`]): the order they are listed, drawn and
-    /// tie-broken in. Ids are digest output, so their numeric order
-    /// means nothing to an author.
+    /// ([`crate::Doc::free_vars`], id order): the order they are listed,
+    /// drawn and tie-broken in.
     order: Vec<VarId>,
     /// Each axis's variable as the document it was taken of speaks it,
     /// for the refusals that name one. Not part of the box's identity.
@@ -519,8 +518,9 @@ where
     fn axis_of(var: VarId, lo: f64, hi: f64) -> Option<Self> {
         // The bracket goes with the value: it is the one value the
         // symbolic tier reads (rule C's sign read, `geom_core::sym`).
-        T::axis(lo, hi)
-            .map(|v| geom_core::Sym::param_over(geom_core::ParamSymbol::new(var.0), v, lo, hi))
+        T::axis(lo, hi).map(|v| {
+            geom_core::Sym::param_over(geom_core::ParamSymbol::new(var.0.digest()), v, lo, hi)
+        })
     }
 }
 
@@ -925,10 +925,8 @@ impl ParamBox {
 
     /// The DETERMINISTIC split axis (D9): the varying axis of greatest
     /// width RELATIVE to `root`'s width on that axis, ties broken to the
-    /// EARLIEST-DECLARED variable — the order every box iterates in. Not
-    /// the lowest id: an id is digest output, and an order an author
-    /// cannot see is not one a study should depend on. `None` when
-    /// nothing varies.
+    /// EARLIEST-DECLARED variable, the least id — the order every box
+    /// iterates in. `None` when nothing varies.
     ///
     /// Relative rather than absolute because axes carry different
     /// dimensions and different spreads: a 10 mm band and a 0.01°

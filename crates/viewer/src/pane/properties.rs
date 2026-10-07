@@ -1435,7 +1435,7 @@ mod layout_tests {
         let id = name
             .bytes()
             .fold(0_u64, |h, b| h.wrapping_mul(31).wrapping_add(u64::from(b)));
-        SpokenVar::new(VarId(id), Some(VarName::from_static(name)))
+        SpokenVar::new(VarId::new(0, id), Some(VarName::from_static(name)))
     }
 
     /// An extrude distance row with `driver` and `value`.
@@ -1621,10 +1621,10 @@ mod tests {
 
     use crate::test_support::spoken;
 
-    const NODE: RecipeNodeId = RecipeNodeId(test_utils::refusal::tagged(4));
+    const NODE: RecipeNodeId = RecipeNodeId::new(0, test_utils::refusal::tagged(4));
 
     fn thickness() -> SpokenVar {
-        SpokenVar::new(VarId(5), Some(VarName::from_static("thickness")))
+        SpokenVar::new(VarId::new(0, 5), Some(VarName::from_static("thickness")))
     }
 
     /// One extrude distance row, driven or not, with the value the
@@ -1700,12 +1700,15 @@ mod tests {
     fn fused() -> AdmissionFault {
         AdmissionFault::FusedGeometry {
             instance: spoken(
-                RecipeNodeId(test_utils::refusal::tagged(0)),
+                RecipeNodeId::new(0, test_utils::refusal::tagged(0)),
                 Some("InstantiatePart"),
             ),
-            root: spoken(RecipeNodeId(test_utils::refusal::tagged(2)), Some("Union")),
+            root: spoken(
+                RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
+                Some("Union"),
+            ),
             others: vec![spoken(
-                RecipeNodeId(test_utils::refusal::tagged(1)),
+                RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 Some("InstantiatePart"),
             )],
         }
@@ -1945,7 +1948,7 @@ mod verdict_tests {
     fn name(kind: EntityKind) -> StableName {
         StableName {
             kind,
-            node: RecipeNodeId(test_utils::refusal::tagged(1)),
+            node: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
@@ -1954,7 +1957,7 @@ mod verdict_tests {
         Standing::Face {
             face: FaceSelection {
                 name: name(EntityKind::Face),
-                node: RecipeNodeId(test_utils::refusal::tagged(2)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
                 body: 0,
             },
             resolution: resolution.map(Box::new),
@@ -1966,7 +1969,7 @@ mod verdict_tests {
             error: ResolveError::NodeGone {
                 name: name(EntityKind::Face),
                 edit: RecipeEditRef::NodeDeleted {
-                    node: RecipeNodeId(test_utils::refusal::tagged(1)),
+                    node: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 },
             },
             offers,
@@ -2025,7 +2028,7 @@ mod verdict_tests {
             &pncad::document::EvalOptions::default(),
             tol,
         );
-        let by_tag = format!("node {}", test_utils::refusal::tag(block.0));
+        let by_tag = format!("node {}", test_utils::refusal::tag(block.0.digest()));
         let name = StableName {
             kind: EntityKind::Face,
             node: block,
@@ -2082,7 +2085,7 @@ mod verdict_tests {
 
         // A node the landed document no longer holds has no label to
         // say: it is said by its tag over that document too.
-        let deleted = RecipeNodeId(test_utils::refusal::tagged(1));
+        let deleted = RecipeNodeId::new(0, test_utils::refusal::tagged(1));
         assert!(doc.node(deleted).is_none(), "the fixture's id is absent");
         let stranded = StableName {
             kind: EntityKind::Face,
@@ -2104,7 +2107,7 @@ mod verdict_tests {
             !said.contains("end cap"),
             "the verdict is about this face, and does not say its name again: {said}"
         );
-        let deleted_by_tag = format!("node {}", test_utils::refusal::tag(deleted.0));
+        let deleted_by_tag = format!("node {}", test_utils::refusal::tag(deleted.0.digest()));
         assert!(
             said.contains(&deleted_by_tag),
             "a deleted minting node is said by its tag over the landed document: {said}"
@@ -2131,9 +2134,9 @@ mod verdict_tests {
         });
         let labelled = format!(
             "Extrude \"base block\" ({})",
-            test_utils::refusal::tag(block.0)
+            test_utils::refusal::tag(block.0.digest())
         );
-        let by_tag = format!("node {}", test_utils::refusal::tag(block.0));
+        let by_tag = format!("node {}", test_utils::refusal::tag(block.0.digest()));
         for selection in [picked_face, Selection::Node(block)] {
             let mut session = DocSession::inline(doc.clone(), tol);
             let named = session.perform(SessionOp::SetLabel {
@@ -2205,7 +2208,7 @@ mod verdict_tests {
     fn a_selection_keeps_what_the_document_it_was_picked_in_says() {
         let tol = pncad::tolerance::witness();
         let (doc, block, _) = crate::test_support::boss_on_block("verdict-picked-in", tol);
-        let t = test_utils::refusal::tag(block.0);
+        let t = test_utils::refusal::tag(block.0.digest());
         let face = Selection::Face(FaceSelection {
             name: StableName {
                 kind: EntityKind::Face,
@@ -2251,7 +2254,7 @@ mod verdict_tests {
             datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
         });
         assert!(added.refusal.is_none(), "{:?}", added.refusal);
-        let datum = *session.doc().order().last().expect("the added datum");
+        let datum = *session.doc().ids().last().expect("the added datum");
         let named = session.perform(SessionOp::SetLabel {
             node: datum,
             label: Some(Label::new("floor").expect("a label")),
@@ -2290,7 +2293,7 @@ mod verdict_tests {
     fn a_deleted_selection_says_the_last_label_its_node_had() {
         let tol = pncad::tolerance::witness();
         let (doc, block, _) = crate::test_support::boss_on_block("verdict-last-label", tol);
-        let t = test_utils::refusal::tag(block.0);
+        let t = test_utils::refusal::tag(block.0.digest());
         let label = |name: &str| Some(Label::new(name).expect("a label"));
         for (what, at_pick, after) in [
             ("unlabelled, then labelled", None, "base"),
@@ -2349,12 +2352,12 @@ mod verdict_tests {
         let standing = Standing::Edge {
             edge: EdgeSelection {
                 name: name(EntityKind::Edge),
-                node: RecipeNodeId(test_utils::refusal::tagged(2)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
                 body: 0,
             },
             resolution: Some(Box::new(Resolution::Indeterminate(ResolveIndeterminate {
                 standing: NodeStanding::Failed {
-                    node: RecipeNodeId(test_utils::refusal::tagged(1)),
+                    node: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 },
             }))),
         };
@@ -2380,7 +2383,7 @@ mod verdict_tests {
     #[test]
     fn a_deleted_nodes_verdict_is_drawn_loud() {
         let (painted, voices) = drawn(&Standing::Node {
-            node: RecipeNodeId(test_utils::refusal::tagged(3)),
+            node: RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
             present: false,
         });
         assert_eq!(find(&painted, "deleted").ink, Some(voices.actionable));
@@ -2391,7 +2394,7 @@ mod verdict_tests {
     #[test]
     fn an_undeclared_parameters_verdict_is_drawn_loud() {
         let (painted, voices) = drawn(&Standing::Param {
-            var: SpokenVar::new(VarId(9), Some(VarName::from_static("width"))),
+            var: SpokenVar::new(VarId::new(0, 9), Some(VarName::from_static("width"))),
             present: false,
         });
         assert_eq!(
@@ -2407,11 +2410,11 @@ mod verdict_tests {
         for standing in [
             Standing::Empty,
             Standing::Node {
-                node: RecipeNodeId(test_utils::refusal::tagged(3)),
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
                 present: true,
             },
             Standing::Param {
-                var: SpokenVar::new(VarId(9), Some(VarName::from_static("width"))),
+                var: SpokenVar::new(VarId::new(0, 9), Some(VarName::from_static("width"))),
                 present: true,
             },
         ] {

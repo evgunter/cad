@@ -108,7 +108,7 @@ pub struct Evaluation<T: Decide> {
     pub prior_refused: Option<Mispaired>,
     /// Deterministic topological order of the live nodes (spec D2:
     /// a pure function of the document; Kahn's algorithm, ties to the
-    /// earlier node in [`Doc::order`]). Always the FULL order, even when
+    /// lesser id, the node inserted first). Always the FULL order, even when
     /// canceled — order is data, not schedule.
     pub order: Vec<RecipeNodeId>,
     /// Per-node results. On cancelation this holds the completed
@@ -196,27 +196,22 @@ impl<T: Decide> Evaluation<T> {
         crate::mate::Space::of(self.unplaced.get(&node).copied())
     }
 
-    /// **[`Evaluation::unplaced`] in `doc`'s order**, as `(node, root,
-    /// cause)`: the one reading of the map that a list, a report or a
-    /// refusal takes. The map is keyed by id, and an id is a digest, so
-    /// its own order is no order a reader can follow.
-    ///
-    /// `doc` is the document this evaluation is of.
-    pub fn unplaced_in_order<'a, P>(
-        &'a self,
-        doc: &'a Doc<P>,
-    ) -> impl Iterator<Item = (RecipeNodeId, RecipeNodeId, crate::mate::Unplaced)> + 'a {
-        doc.order().iter().filter_map(|&node| {
-            let &(root, cause) = self.unplaced.get(&node)?;
-            Some((node, root, cause))
-        })
+    /// **[`Evaluation::unplaced`] in id order**, as `(node, root,
+    /// cause)`: the order the nodes were inserted in, the one reading of
+    /// the map that a list, a report or a refusal takes.
+    pub fn unplaced_in_order(
+        &self,
+    ) -> impl Iterator<Item = (RecipeNodeId, RecipeNodeId, crate::mate::Unplaced)> + '_ {
+        self.unplaced
+            .iter()
+            .map(|(&node, &(root, cause))| (node, root, cause))
     }
 
-    /// **Every unplaced group, by its root, with its cause**, in
-    /// `doc`'s order ([`Evaluation::unplaced_in_order`]): a root lives
-    /// in its own group's space, so each group is its root's row.
-    pub fn unplaced_groups<P>(&self, doc: &Doc<P>) -> Vec<(RecipeNodeId, crate::mate::Unplaced)> {
-        self.unplaced_in_order(doc)
+    /// **Every unplaced group, by its root, with its cause**, in id
+    /// order ([`Evaluation::unplaced_in_order`]): a root lives in its
+    /// own group's space, so each group is its root's row.
+    pub fn unplaced_groups(&self) -> Vec<(RecipeNodeId, crate::mate::Unplaced)> {
+        self.unplaced_in_order()
             .filter(|&(node, root, _)| node == root)
             .map(|(_, root, cause)| (root, cause))
             .collect()
@@ -5440,7 +5435,7 @@ where
             for ids in &program.ids {
                 h.write_u64(ids.len() as u64);
                 for id in ids {
-                    h.write_u64(id.0);
+                    h.write_id(id.0);
                 }
             }
             // The f64 stream above IS the structure identity and stays
@@ -5612,9 +5607,9 @@ where
             class,
             alignment,
         } => {
-            h.write_u64(a.at.0);
+            h.write_id(a.at.0);
             feed_stable_name(&mut h, &a.name);
-            h.write_u64(b.at.0);
+            h.write_id(b.at.0);
             feed_stable_name(&mut h, &b.name);
             // The class's word is `ContactClass::content_tag` — the one
             // spelling the crossing record, the mate and the declaration
@@ -5744,7 +5739,7 @@ where
                 // RECIPE PAYLOAD selecting a reading, not a Merkle link
                 // to an input — the input's own key is fed separately
                 // through `upstream_keys`.
-                h.write_u64(r.at.0);
+                h.write_id(r.at.0);
                 feed_stable_name(&mut h, &r.name);
             }
             feed_measure_expr(&mut h, expr);
@@ -5943,7 +5938,7 @@ fn naming_key(content: ContentKey, upstream: &[(RecipeNodeId, NamingKey)]) -> Na
     h.write_key(content);
     h.write_u64(upstream.len() as u64);
     for (id, nk) in upstream {
-        h.write_u64(id.0);
+        h.write_id(id.0);
         h.write_u64(nk.0 as u64);
         h.write_u64((nk.0 >> 64) as u64);
     }
@@ -6401,7 +6396,7 @@ fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
             // the dimension it is read at.
             h.write_u64(0);
             h.write_u64(1);
-            h.write_u64(var.0);
+            h.write_id(var.0);
             h.write_tag(dimension_tag(expr.dim()));
         }
         K::Neg(a) => {
@@ -6469,7 +6464,7 @@ fn feed_declared(h: &mut KeyHasher, pairs: &[crate::DeclaredPair]) {
     h.write_u64(pairs.len() as u64);
     for ((a, b), class) in pairs {
         for r in [a, b] {
-            h.write_u64(r.at.0);
+            h.write_id(r.at.0);
             feed_stable_name(h, &r.name);
         }
         h.write_u64(class.content_tag());
@@ -6500,7 +6495,7 @@ fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
                     EntityKind::Edge => 3,
                     EntityKind::Vertex => 4,
                 });
-                h.write_u64(name.node.0);
+                h.write_id(name.node.0);
                 h.write_u64(name.path.len() as u64);
                 let mut level = SegFeed(Vec::new());
                 for seg in &name.path {
@@ -6530,6 +6525,11 @@ impl<'a> SegFeed<'a> {
 
     fn write_u64(&mut self, x: u64) {
         self.0.push(Fed::U64(x));
+    }
+
+    fn write_id(&mut self, id: crate::MintId) {
+        self.write_u64(u64::from(id.ordinal()));
+        self.write_u64(id.digest());
     }
 
     fn name(&mut self, name: &'a StableName) {
@@ -6674,7 +6674,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
     let pe = |h: &mut SegFeed<'a>, e: crate::names::ProfileEdgeRef| match e {
         crate::names::ProfileEdgeRef::Piece { step, role: r } => {
             h.write_tag(1);
-            h.write_u64(step.0);
+            h.write_id(step.0);
             role(h, r);
         }
         crate::names::ProfileEdgeRef::Section { circle: c, role: r } => {
@@ -6699,7 +6699,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
     let pv = |h: &mut SegFeed<'a>, v: crate::names::ProfileVertexRef| match v {
         crate::names::ProfileVertexRef::Piece { step, role: r } => {
             h.write_tag(1);
-            h.write_u64(step.0);
+            h.write_id(step.0);
             role(h, r);
         }
         crate::names::ProfileVertexRef::Section { circle: c, role: r } => {
@@ -6913,7 +6913,7 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         // entities one key — the memo hazard the segment vocabulary
         // exists to prevent.
         RoleSeg::FromMember { member, of } => {
-            h.write_u64(member.0);
+            h.write_id(member.0);
             h.name(of);
         }
         // The shell's three roles. Each wraps one source name; the hole
@@ -7549,7 +7549,7 @@ mod name_feed_tests {
             EntityKind::Edge => 3,
             EntityKind::Vertex => 4,
         });
-        h.write_u64(name.node.0);
+        h.write_id(name.node.0);
         h.write_u64(name.path.len() as u64);
         for seg in &name.path {
             let mut level = SegFeed(Vec::new());
@@ -7567,7 +7567,7 @@ mod name_feed_tests {
     fn leaf(node: u64) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         }
     }
@@ -7594,7 +7594,7 @@ mod name_feed_tests {
         };
         StableName {
             kind: EntityKind::Edge,
-            node: RecipeNodeId(level as u64 + 10),
+            node: RecipeNodeId::new(0, level as u64 + 10),
             path: vec![
                 seg,
                 RoleSeg::Fragment(Qualifier::OrderAlong { rank: 1, of: 2 }),

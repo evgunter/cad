@@ -330,7 +330,7 @@ fn every_window_door_answers_what_the_hand_walk_does() {
 
     // Every drawn (node, body), and one that is not drawn.
     let mut targets: Vec<(RecipeNodeId, u32)> = hand.by_target.keys().copied().collect();
-    let absent = RecipeNodeId(u64::MAX);
+    let absent = RecipeNodeId::new(0, u64::MAX);
     targets.push((absent, 0));
     targets.push((index.parts()[0].node(), 99));
     for (node, body) in targets {

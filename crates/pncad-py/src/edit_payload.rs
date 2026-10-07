@@ -317,11 +317,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(node.id()),
             ..none
         },
-        // The id the insert drew: the node it would have been.
-        EditError::NodeIdCollides { id } => EditPayload {
-            node: Some(id.id()),
-            ..none
-        },
         EditError::UnresolvedInput { input } => EditPayload {
             input: Some(input.id()),
             ..none
@@ -508,7 +503,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             param: Some(name),
             ..none
         },
-        EditError::VarIdCollides { id: _ } => none,
         EditError::FreshUnheld { .. } | EditError::FreshKind { .. } | EditError::FreshUnread { .. } => {
             none
         }

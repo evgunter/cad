@@ -439,7 +439,7 @@ fn never_minted_node_reports_foreign_not_deleted() {
     let ev = run(&doc, None);
     let foreign = minted(
         EntityKind::Face,
-        RecipeNodeId(9999),
+        RecipeNodeId::new(0, 9999),
         RoleSeg::Cap(CapEnd::End),
     );
     match resolve(
@@ -456,7 +456,7 @@ fn never_minted_node_reports_foreign_not_deleted() {
             assert_eq!(
                 *edit,
                 RecipeEditRef::ForeignNode {
-                    node: RecipeNodeId(9999)
+                    node: RecipeNodeId::new(0, 9999)
                 },
                 "a never-minted id must not be blamed on a delete"
             );
@@ -1094,14 +1094,14 @@ fn only_wall_mention(hay: &StableName, needle: &StableName) -> bool {
 /// segment reports the opposite.
 #[test]
 fn the_phantom_detector_sees_through_the_whole_vocabulary() {
-    let needle = fixture::fname(RecipeNodeId(1), RoleSeg::Cap(CapEnd::End));
+    let needle = fixture::fname(RecipeNodeId::new(0, 1), RoleSeg::Cap(CapEnd::End));
     let partner_only = StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(2),
+        node: RecipeNodeId::new(0, 2),
         path: vec![RoleSeg::Fragment(Qualifier::Borders(vec![needle.clone()]))],
     };
     let blended = fixture::fname(
-        RecipeNodeId(3),
+        RecipeNodeId::new(0, 3),
         RoleSeg::BlendFace(partner_only.clone().into()),
     );
 
@@ -1117,7 +1117,10 @@ fn the_phantom_detector_sees_through_the_whole_vocabulary() {
     );
     // The same segment, carrying the needle structurally: a real
     // derivation, and the detector must not call it a phantom.
-    let derived = fixture::fname(RecipeNodeId(3), RoleSeg::BlendFace(needle.clone().into()));
+    let derived = fixture::fname(
+        RecipeNodeId::new(0, 3),
+        RoleSeg::BlendFace(needle.clone().into()),
+    );
     assert!(
         !only_wall_mention(&derived, &needle),
         "a blend OF the name is a derivation, not a phantom"

@@ -486,7 +486,7 @@ fn saved_with_a_planar_rest(label: &str) -> (ProfileDoc, String) {
         path: vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(1),
+                node: RecipeNodeId::new(0, 1),
                 path: vec![RoleSeg::Cap(CapEnd::Start)],
             }
             .into(),
@@ -614,7 +614,7 @@ fn a4_every_checked_in_document_loads_and_none_carries_a_mate() {
         };
         let mates = loaded
             .doc
-            .order()
+            .ids()
             .iter()
             .filter(|&&id| matches!(loaded.doc.node(id), Some(Node::Mate { .. })))
             .count();
@@ -630,7 +630,7 @@ fn a4_the_same_alignment_without_the_key_loads() {
     let back = load(&text, Tol::witness()).expect("loads").doc;
     assert!(back.bit_eq(&doc), "the planar rest round-trips bit for bit");
     let primitives: Vec<MatePrimitive> = back
-        .order()
+        .ids()
         .iter()
         .filter_map(|&id| match back.node(id) {
             Some(Node::Mate { alignment, .. }) => Some(alignment.primitive),

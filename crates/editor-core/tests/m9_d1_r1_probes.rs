@@ -166,7 +166,7 @@ fn export_poles_by_canonical_vertex(
     revolution: sweep::Revolution<f64>,
 ) -> Vec<bool> {
     let profile = *doc
-        .order()
+        .ids()
         .iter()
         .find(|id| matches!(doc.node(**id), Some(Node::Profile(_))))
         .expect("the doc's profile node");

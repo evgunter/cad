@@ -381,18 +381,18 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
     // in its order, every node of mine Added in its, and the one
     // variable, declared at a different point of each chain, two ids.
     assert_ne!(
-        theirs.doc.order()[0],
-        mine.doc.order()[0],
+        theirs.doc.ids()[0],
+        mine.doc.ids()[0],
         "two first edits, two first ids"
     );
     let d = theirs.doc.diff(&mine.doc);
     let expected: Vec<NodeChange> = theirs
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .map(NodeChange::Removed)
-        .chain(mine.doc.order().iter().copied().map(NodeChange::Added))
+        .chain(mine.doc.ids().iter().copied().map(NodeChange::Added))
         .collect();
     assert_eq!(d.nodes, expected, "diff is exactly the relabeling residue");
     let depth = |a: &Authored| a.doc.var_named("pip_depth").expect("declared");
@@ -401,10 +401,9 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
     // and each typed value's own — is one of each side's.
     let expected: Vec<editor_core::VarId> = theirs
         .doc
-        .var_order()
-        .iter()
-        .chain(mine.doc.var_order())
-        .copied()
+        .var_ids()
+        .into_iter()
+        .chain(mine.doc.var_ids())
         .collect();
     assert_eq!(d.vars, expected, "every variable under two minted ids");
     assert!(
@@ -416,6 +415,5 @@ fn r7_die_reauthored_different_order_isomorphic_and_diff_exact() {
         mine.doc.var_scope(),
         "and one name at one kind"
     );
-    assert!(d.order_changed, "the orders share no id");
     assert!(!d.epsilon_changed && !d.metadata_changed);
 }

@@ -660,3 +660,35 @@ coincidence is now a margined verdict (no declarations), checked by the
 - **Rejected:** a fitted Hermite image for every band-close torus circle. It certifies at the fallback grade a curve that has a closed form, and it is conditional on the fitted door.
 - **Folded in:** the cone lane's schedule `Record::Verdict` is brought in line with C4's witness-lane cross-check.
 - **Implementer:** session_01Jf5pbwHG7dwojg183pt2vs, branch `pcert/torus-villarceau-route` from 9645b375. It is an H unit, so it gets a dual review.
+
+## 2026-10-07 — PR 4227 dual review (frozen head 64b7def7)
+
+- **The review pair:** two Opus reviewers ran concurrently. Both returned APPROVE-WITH-FIXES. The pre-note's tally candidates are none.
+- **The one MAJOR is in both reports:** the torus incidence test decides "off the torus" from an *upper* bound on the distance. So circles within band of a Villarceau circle get refused as `CarrierOffChart`.
+  - **Class finding:** the same one-sided idiom is in the cone's `pcurve_cone_chart_incident`. The sphere's test is to be checked.
+  - The fix pass decides Off only from a lower bound, and sweeps all three.
+- **Test gaps** (demonstrated by surviving mutants): five envelope terms and every Villarceau gate.
+- **Fix pass** is with the implementer: session_01Jf5pbwHG7dwojg183pt2vs.
+
+## 2026-10-07 — PR 4227 merged (65af3eca); spline-carrier designers dispatched
+
+- **4227 merged.** `Pcurve::FocalSection` covers both cone sections and Villarceau circles under one closed-form envelope. Incidence on the sphere, cone and torus is one-sided: Off is decided only from a sampled lower bound. A circle on a torus or cone that is in band but is none of its circles refuses as `CarrierGrazesChart`. `UncoveredClass::TorusGeneralCircle` and `::ConeSection` are retired.
+- **Rows:**
+  - Closed: the torus and cone route rows.
+  - Filed: `the-face-whole-excusal-has-no-fixture-on-an-analytic-chart`.
+  - Still open: the incidence issue, for its spline-carrier and no-fitted bullets.
+- **Review: DR-102.**
+  - The concurrent pair's only MAJOR was raised by both reviewers, so the tally is 0.
+  - A single confirming review followed the fix pass: 0 MAJOR, 3 MINOR.
+  - The row was renumbered twice at merge (DR-100, then DR-101), because main took both numbers while CI ran.
+- **Next P1, the spline-carrier route:** an Opus/Fable designer pair is running. The byte, 122, is on `analysis/design-fork/pcert-spline-carrier-route-2026-10-07`. Sessions: session_01QrKCiRg8fQ31Qwsdm8FQ2c and session_012cb8vsD3QyGVpV4oCTU2cZ.
+
+## 2026-10-07 — spline-carrier route: designers converge, [ev] PR 4261
+
+- **Round 1:** A recommended a Hermite fit on the curved charts and the affine net on the plane. B recommended the *projected image*, `ψ(C(t))`, exact on every analytic chart.
+- **Reconciliation:** each designer was shown the other's report. A moved to B's route. B adopted A's routed-verdict point and its reach correction.
+  - The orchestrator asked B to check its nearest-point claim on the cone. B found it false there by exactly 1/cos α (the cone's `v` was height), and moved the cone's `v` to the foot's coordinate on the generator.
+  - Converged, not crossed.
+- **Why it goes to Ev:** the route rewrites C4's `OnLocusHull` sentence, which Ev worded on PR 3781, and the sphere circle's Hermite sentence, which landed with 3733 without an `[ev]` review. PR 4261 carries the diff and fork-log row 85.
+- **Still Ev's:** A versus A′ (whether the sphere's general circle leaves the Hermite route); both designers lean A. The P1/P2 question is in the PR body.
+- **Off-question findings, filed:** `no-fitted-class-misuse-is-excused-by-not-owed`, `site-rows-derive-through-chart-pcurve-bypassing-the-routed-arm` and `on-locus-hull-is-named-for-charts-whose-metres-composite-refuses`. The excusal-fixture row's `m6_2` claim is corrected.

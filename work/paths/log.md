@@ -647,3 +647,16 @@ red until PATHS fixes it, and CARVE merges them over it with this as
 the reason.
 
 Signed: (CARVE orchestrator)
+
+- 2026-10-07 — The wrap-edge unit merged (#4226, `e1efb472c`; DR-100, no MAJOR from either reviewer). A one-segment loop now revolves and lofts to one wall, and the one-face full torus is adopted.
+  - The fix pass made tier 3 hold the wrap flag both ways. That exposed a STEP slit adopted unflagged (`dm1-id-214.stp`); step-import now flags it as the face's wrap edge.
+  - Two of main's reds were ported by merge, not caused here: the meeting fixture's gates (#4229/#4230), and `SectorRead`'s rung disposition (#4242).
+  - Main's new `boolean/edge_join.rs` (FUSE, #4233) still read the renamed field, so the merge renamed it there.
+
+  Unit 4 (`circle-lowers-to-one-segment`) now waits only on JOIN's `a-plane-across-a-one-face-wall-meets-its-wrap-edge-once`.
+- 2026-10-07 — `profile-fillet-radius-off-at-eps-1e-6` (P0) is dispatched on `claude/clever-bardeen-4itqb3`. The seed still reds on main `e1efb472c` with the same message.
+  - D10 check: it is fillet construction accuracy, the tangent point `t2` lying off its own circle by about ε/2. It does not rework how declared tangent joints are recorded or verified, so it may start under the hold, and the lane stops if the fix needs to.
+  - Review tier: dual (H). The fillet construction feeds every filleted profile.
+- 2026-10-07 — `profile-fillet-radius-off-at-eps-1e-6` (P0) closes on `claude/clever-bardeen-4itqb3`. The seed's corner has no exact fillet: its offset circles miss tangency by 5.27e-7, inside the 1e-6 band. The decided centre was the radical-line foot, which carried that gap amplified by (ρ₁ + ρ₂)/d (1.117x here, unbounded on near-equal carriers).
+  - The centre now sits midway between the offset circles' nearest points, so each arc×arc rim carries half the gap: the floor where the circles are separated, a bound where they cross. The oracle pins each rim at half the gap, and a pinned sweep draws the decided class at both scalars.
+  - The D10 hold did not bind: no joint's recording or verification changed. The sibling sites are filed as `decided-tangent-point-is-the-radical-foot`.

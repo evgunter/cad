@@ -131,14 +131,14 @@ fn with_distance(text: &str, wire: serde_json::Value) -> String {
     let nodes = body["snapshot"]["nodes"]
         .as_object_mut()
         .expect("a node map");
-    let distances: Vec<u64> = nodes
+    let distances: Vec<String> = nodes
         .values()
-        .filter_map(|node| node.get("Extrude")?["distance"].as_u64())
+        .filter_map(|node| node.get("Extrude")?["distance"].as_str().map(str::to_owned))
         .collect();
-    let [distance] = distances[..] else {
+    let [distance] = &distances[..] else {
         panic!("the fixture has exactly one extrude to tamper, got {distances:?}")
     };
-    body["snapshot"]["vars"][distance.to_string()] = serde_json::json!({
+    body["snapshot"]["vars"][distance.as_str()] = serde_json::json!({
         "kind": "Length",
         "def": { "Defined": wire },
     });
@@ -364,18 +364,18 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
     );
 
     match load(&tampered, tol) {
-        Err(PersistError::EditReplay {
-            index: 0,
-            error: EditError::Dimension(inner),
-        }) => assert_eq!(
-            inner,
-            DimensionError::Mismatch {
-                op: "add",
-                left: Dimension::Length,
-                right: Dimension::Angle,
-            },
-            "the replay refuses with the checker's own value, two levels deep"
-        ),
+        Err(PersistError::EditReplay { index: 0, error }) => match *error {
+            EditError::Dimension(inner) => assert_eq!(
+                inner,
+                DimensionError::Mismatch {
+                    op: "add",
+                    left: Dimension::Length,
+                    right: Dimension::Angle,
+                },
+                "the replay refuses with the checker's own value, two levels deep"
+            ),
+            other => panic!("expected an EditReplay dimension refusal, got {other:?}"),
+        },
         other => panic!("expected an EditReplay dimension refusal, got {other:?}"),
     }
 }
@@ -436,16 +436,24 @@ fn snapshot_invariant_violations_refuse_typed() {
         edit(&mut v);
         format!("{header}\n{v}\n")
     };
-    // A live node the mint log does not hold (a replay could re-mint
-    // its id): the last insert's entry taken out of the log.
-    let last = *doc.order().last().expect("the fixture inserts");
+    // A live node the mint log does not hold as a node's: the last
+    // insert's entry retagged a step's, so the log still counts up.
+    let last = *doc.ids().last().expect("the fixture inserts");
     let unlogged = edited(&|v| {
         let log = v["snapshot"]["mint"]["log"]
             .as_array_mut()
             .expect("the file carries its mint log");
-        let before = log.len();
-        log.retain(|entry| entry["node"].as_u64() != Some(last.0));
-        assert_eq!(log.len() + 1, before, "the log held the node once");
+        let spelled = serde_json::Value::from(last.0.to_string());
+        let held = log
+            .iter_mut()
+            .filter(|entry| entry["node"] == spelled)
+            .count();
+        assert_eq!(held, 1, "the log held the node once");
+        for entry in log.iter_mut() {
+            if entry["node"] == spelled {
+                *entry = serde_json::json!({ "step": spelled.clone() });
+            }
+        }
     });
     match load(&unlogged, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { id })) => {
@@ -453,20 +461,6 @@ fn snapshot_invariant_violations_refuse_typed() {
         }
         other => panic!("expected NodeNotMinted, got {other:?}"),
     }
-    // order/nodes disagreement: the order cut to its first entry.
-    let unordered = edited(&|v| {
-        let order = v["snapshot"]["order"]
-            .as_array_mut()
-            .expect("the file carries its order");
-        order.truncate(1);
-    });
-    assert!(
-        matches!(
-            load(&unordered, Tol::witness()),
-            Err(PersistError::Snapshot(SnapshotError::OrderMismatch))
-        ),
-        "order mismatch must refuse"
-    );
 }
 
 #[test]
@@ -505,7 +499,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
     let meta_edit = DocEdit::SetAppearanceMeta {
         name: editor_core::StableName {
             kind: editor_core::EntityKind::Body,
-            node: doc.order()[1],
+            node: doc.ids()[1],
             path: vec![editor_core::RoleSeg::OutputBody],
         },
         key: "k".into(),
@@ -593,7 +587,7 @@ fn metadata_convention_doors_refuse_typed() {
     let (doc, _) = small();
     let name = editor_core::StableName {
         kind: editor_core::EntityKind::Body,
-        node: doc.order()[1],
+        node: doc.ids()[1],
         path: vec![editor_core::RoleSeg::OutputBody],
     };
     // No "v" field → refused at the edit door (D7 convention).
@@ -784,7 +778,7 @@ fn unreplayable_edit_log_refuses_at_save() {
     let bad = DocEdit::SetAppearanceMeta {
         name: editor_core::StableName {
             kind: editor_core::EntityKind::Body,
-            node: doc.order()[1],
+            node: doc.ids()[1],
             path: vec![editor_core::RoleSeg::OutputBody],
         },
         key: "k".into(),
@@ -792,14 +786,14 @@ fn unreplayable_edit_log_refuses_at_save() {
     };
     match save(&doc, &[bad], Tol::witness()) {
         Err(PersistError::EditReplay { index: 0, error }) => assert!(
-            matches!(error, editor_core::EditError::MetaUnversioned { .. }),
+            matches!(*error, editor_core::EditError::MetaUnversioned { .. }),
             "expected the apply door's refusal, got {error:?}"
         ),
         other => panic!("unreplayable log must refuse at save, got {other:?}"),
     }
     // And a log referencing a node the snapshot lacks.
     let orphan = DocEdit::SetParam {
-        node: RecipeNodeId(77),
+        node: RecipeNodeId::new(0, 77),
         slot: editor_core::SlotId::Distance,
         expr: len(1.0),
         fresh: Vec::new(),

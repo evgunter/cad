@@ -121,7 +121,7 @@ fn sweep_inputs_are_profile_then_path_and_it_carries_both_slots() {
 #[test]
 fn a_dangling_profile_ref_refuses_at_the_edit_door() {
     let (doc, ..) = loft_doc();
-    let bogus = RecipeNodeId(9999);
+    let bogus = RecipeNodeId::new(0, 9999);
     let err = doc
         .apply(
             &DocEdit::InsertNode {

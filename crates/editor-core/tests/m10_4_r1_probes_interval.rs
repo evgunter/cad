@@ -79,7 +79,7 @@ fn eval_f64(doc: &ProfileDoc) -> Evaluation<f64> {
 
 fn opts(doc: &ProfileDoc, seed: Option<&str>, lift: ProfileLift) -> EvalOptions {
     EvalOptions {
-        seed: seed.map(|n| doc.var_named(n).unwrap_or(editor_core::VarId(0))),
+        seed: seed.map(|n| doc.var_named(n).unwrap_or(editor_core::VarId::new(0, 0))),
         profile_lift: lift,
         ..EvalOptions::default()
     }
@@ -457,7 +457,7 @@ fn r1_a_stale_verdict_still_mints_a_chamber_certificate() {
         &doc,
         &DocEdit::SetParam {
             node: doc
-                .order()
+                .ids()
                 .iter()
                 .copied()
                 .filter(|&id| matches!(doc.node(id), Some(Node::Extrude { .. })))
@@ -762,7 +762,7 @@ fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
 /// Band: refuses.
 #[test]
 fn r1_std_deviation_matches_an_independent_quadrature() {
-    let p = editor_core::SpokenVar::new(editor_core::VarId(0), Some(name("p")));
+    let p = editor_core::SpokenVar::new(editor_core::VarId::new(0, 0), Some(name("p")));
     // Uniform.
     let u = std_deviation(&p, &Distribution::Uniform { lo: -3.0, hi: 1.0 }).expect("uniform");
     assert!((u - 4.0 / f64::sqrt(12.0)).abs() < 1e-14, "uniform σ {u}");
@@ -1023,7 +1023,7 @@ fn r1_a_real_tolerance_study_on_the_stepped_shaft() {
 fn r1_seed_env_refuses_a_foreign_name() {
     let (a, _) = stepped_shaft(1.0, 0.5, None, None);
     assert!(
-        seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), editor_core::VarId(0)).is_err(),
+        seed_env::<Dual64, _>(&a, a.var_env::<Dual64>(), editor_core::VarId::new(0, 0)).is_err(),
         "an unknown name refuses"
     );
     // And the bindings it does produce carry exactly one unit tangent.
