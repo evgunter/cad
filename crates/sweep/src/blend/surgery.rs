@@ -442,9 +442,10 @@ enum HostFoot {
 /// arcs — and through no sweep or boolean door. It refuses at the
 /// half-band gate (on the `Struts` route, a full revolve's plane side
 /// being one face), and never carves:
-/// `work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`,
-/// rowed by
-/// `fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`.
+/// `work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`.
+/// The slit that `kef` leaves is scaffolding, which the door's at-rest
+/// gate refuses first; whether a finished body reaches this arm is
+/// `work/band/blend-scaffolding-arms-behind-the-operand-gate.md`.
 ///
 /// A RINGED host is served under [`Self::Struts`]: the band's host trim
 /// becomes that face's new outer boundary, and each ring is admissible
@@ -1565,8 +1566,8 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         // feet IN this cycle, so an edge of it the request did not name
         // would end up inside a strip the carve excises. The recourse is
         // true at the site because its clause asks for the rim to be the
-        // host's WHOLE outer cycle. Rowed by
-        // `fillet_h5_r2_probes::a_hostless_host_with_an_unrequested_outer_cycle_edge_refuses_at_the_host_gate`.
+        // host's WHOLE outer cycle. Whether a finished operand reaches
+        // it is `work/band/blend-scaffolding-arms-behind-the-operand-gate.md`.
         if cycle != want {
             return Err(unbuilt_chain(
                 link0.edge,
