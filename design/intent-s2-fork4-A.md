@@ -1,5 +1,4 @@
 # FORK-4 — re-pointing an operand
-
 ## For Ev
 
 **Recommendation (sure).** After stage 2 an operand slot is written by the
