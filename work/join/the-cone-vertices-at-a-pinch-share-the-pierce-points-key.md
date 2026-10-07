@@ -2,12 +2,13 @@
 id: the-cone-vertices-at-a-pinch-share-the-pierce-points-key
 kind: issue
 title: A pinch's cone vertices that descend from one pierce point sit on two point keys: tier 3′ refuses VertexVertex, and the output-stage join kills one
-status: dispatched
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: M
 branch: join/pinch-cones-share-a-point-key
 refs: [a-pinch-no-kept-face-can-cross-refuses, the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone]
+closed: 2026-10-07
 ---
 
 ## What
