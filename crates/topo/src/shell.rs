@@ -1719,26 +1719,25 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // host's RING, and the guest's shell fuses into the host's (the
         // first chart does the fusion; any further chart is same-shell
         // genus surgery).
-        let fused = out.kfmrh(host, guest).map_err(|error| ShellError::Rim {
-            face: designated,
-            error: error.from_driver(),
-        })?;
+        // The ring's edges name the guest's surface. They lie on the
+        // host's surface once the guest dies — the lift put the two
+        // planes on top of each other — so the kill takes their
+        // re-descriptions: a key swap with the carrier untouched, which
+        // the door certifies against the geometry rather than taking
+        // the swap on trust.
+        let carried: Vec<_> = loop_rekeyed(&out, guest_outer, guest_surface, host_surface)
+            .into_iter()
+            .map(|(edge, spec)| (edge, spec.description))
+            .collect();
+        let fused = out
+            .kfmrh_describing(host, guest, &carried, tol)
+            .map_err(|error| ShellError::Rim {
+                face: designated,
+                error: error.from_driver(),
+            })?;
         naming.dead.faces.push(fused.killed_face);
         naming.dead.surfaces.extend(fused.killed_surface);
         naming.dead.shells.extend(fused.killed_shell);
-        // The ring's edges still NAME the surface that just died. They
-        // lie on the host's surface now — the lift put the two planes
-        // on top of each other — so the re-description is a key swap
-        // with the carrier untouched, and the attach layer certifies it
-        // against the geometry rather than taking the swap on trust.
-        rename_loop_surface(
-            &mut out,
-            fused.ring,
-            guest_surface,
-            host_surface,
-            tol,
-            designated,
-        )?;
         // The record's ring rows, walked off the ring `kfmrh` just
         // returned. On an outer-shell designation each ring entity is
         // a cavity twin, so its source is the row the graft map wrote
@@ -2389,27 +2388,6 @@ fn lift_to<T: Real>(body: &Body<T>, from: FaceKey, onto: FaceKey) -> T {
     let (o_from, n_from) = plane(from);
     let (o_onto, _) = plane(onto);
     (o_onto - o_from).dot(n_from)
-}
-
-/// Re-points every description on `r#loop` that names `dead` at
-/// `live`, re-certifying each through the attach layer. `rim` names
-/// the designated face in any refusal and is otherwise unread.
-fn rename_loop_surface<T: Decide + crate::props::AtRestPolicy>(
-    body: &mut Body<T>,
-    r#loop: crate::entity::LoopKey,
-    dead: crate::geometry::SurfaceKey,
-    live: crate::geometry::SurfaceKey,
-    tol: Tol,
-    rim: FaceKey,
-) -> Result<(), ShellError<T>> {
-    for (edge, spec) in loop_rekeyed(body, r#loop, dead, live) {
-        body.set_edge_curve(edge, spec, tol)
-            .map_err(|error| ShellError::Rim {
-                face: rim,
-                error: error.from_driver(),
-            })?;
-    }
-    Ok(())
 }
 
 /// Every edge on `r#loop`, in cycle order, with its stored description

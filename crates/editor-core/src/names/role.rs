@@ -912,6 +912,31 @@ impl SplitHalf {
     }
 }
 
+/// **A crossing's sense** (N2): whether the crossed edge, as the body
+/// that holds it stores it, enters or leaves at the crossing the closed
+/// body the crossing face belongs to. A side of the crossing with no
+/// portion of the edge counts as outside that body.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub enum Sense {
+    /// The edge runs from outside the body into it.
+    Enters,
+    /// The edge runs from inside the body out of it.
+    Leaves,
+}
+
+impl Sense {
+    /// The sense of the same crossing read along the edge the other way.
+    #[must_use]
+    pub fn flipped(self) -> Self {
+        match self {
+            Self::Enters => Self::Leaves,
+            Self::Leaves => Self::Enters,
+        }
+    }
+}
+
 /// An N2 fragment discriminator against recipe-covariant references.
 /// NO values, NO bare indices: `Borders`, `Keeps` and `Ends` cite
 /// names, and `OrderAlong.rank` is an ordinal under the named
@@ -941,10 +966,10 @@ pub enum Qualifier {
     Ends(Vec<StableName>),
     /// Ordinal position of a crossing VERTEX along the edge it lies on
     /// (`name_frag_order_along` through `k_stats`): rank `rank` of `of`
-    /// crossings of one edge by one face, ordered by the crossed edge's
-    /// carrier parameter, the edge oriented as its operand body stores
-    /// it, and a seam edge as the loop of its pair's first side runs
-    /// along it (N2).
+    /// crossings of one edge by one face with one sense, ordered by the
+    /// crossed edge's carrier parameter, the edge oriented as its operand
+    /// body stores it, and a seam edge as the loop of its pair's first
+    /// side runs along it (N2).
     ///
     /// A union's seam pair is in name order (`names::canonical`), and
     /// wherever putting it there swaps the pair — at the union's
@@ -1149,16 +1174,15 @@ pub enum RoleSeg {
     },
     /// A zip-minted seam entity: the crossing of an A-operand entity
     /// and a B-operand entity, by their operand names. An edge is
-    /// face × face. A vertex is edge × edge, edge × face or
-    /// face × edge, face × face (every incident seam line agreeing on
-    /// one face pair), or edge × vertex / vertex × edge (the partner
-    /// read from the reduction's contact records). Several pieces of one
-    /// seam edge carry a `Fragment(Ends)` after it, and a vertex pair
-    /// that crosses more than once a `Fragment(OrderAlong)`. A seam
-    /// JUNCTION — the vertex where k ≥ 2 seam lines meet
-    /// and no operand edge does — is named by the sorted run of those
-    /// lines' face × face `Seam` segments, one segment per line and
-    /// nothing after them.
+    /// face × face. A vertex is face × face (every incident seam line
+    /// agreeing on one face pair), or edge × vertex / vertex × edge (the
+    /// partner read from the reduction's contact records); an edge
+    /// crossing a face is a [`RoleSeg::Crossing`], and two edges
+    /// crossing an [`RoleSeg::EdgeCrossing`]. Several pieces of one seam
+    /// edge carry a `Fragment(Ends)` after it. A seam JUNCTION — the
+    /// vertex where k ≥ 2 seam lines meet and no operand edge does — is
+    /// named by the sorted run of those lines' face × face `Seam`
+    /// segments, one segment per line and nothing after them.
     ///
     /// In a pair boolean's table `a` is the A side and `b` the B side.
     /// In a UNION's published table they are not: a union has no A
@@ -1172,6 +1196,35 @@ pub enum RoleSeg {
         /// The B-side crossing entity's name (the greater name, in a
         /// union's table).
         b: NameRef,
+    },
+    /// A vertex where an edge of one side of a boolean or union meets a
+    /// face of the other, crossing it or ending in it, by the edge, the
+    /// face and the edge's [`Sense`] against the closed body the face
+    /// belongs to (N2). Crossings of one edge by one face with one sense
+    /// carry a `Fragment(OrderAlong)` after it when there are several.
+    Crossing {
+        /// The crossed edge.
+        edge: NameRef,
+        /// The crossing face.
+        face: NameRef,
+        /// The edge's sense at the vertex.
+        sense: Sense,
+    },
+    /// A vertex where an edge of each side of a boolean or union cross,
+    /// by the two edges, each with its [`Sense`] against the closed body
+    /// of the other side (N2). In a pair boolean's table `a` is the A
+    /// side; in a union's the two are in name order, each sense with its
+    /// edge. Several such crossings with the same senses carry a
+    /// `Fragment(OrderAlong)` along `a` in a pair boolean's table.
+    EdgeCrossing {
+        /// The A-side edge (the lesser name, in a union's table).
+        a: NameRef,
+        /// `a`'s sense against the other side's closed body.
+        a_sense: Sense,
+        /// The B-side edge (the greater name, in a union's table).
+        b: NameRef,
+        /// `b`'s sense against the other side's closed body.
+        b_sense: Sense,
     },
     /// An F7 merged face, or an edge a boolean's output stage joined
     /// across several operand or member edges (`names/README.md`,
@@ -1230,12 +1283,15 @@ pub enum RoleSeg {
     },
     /// A crossing vertex minted where the tool plane crossed an
     /// operand edge (argument: the operand edge's name; each half
-    /// keeps its own coincident copy — `side` names which).
+    /// keeps its own coincident copy — `side` names which), with the
+    /// edge's [`Sense`] against that half (N2).
     CrossingVertex {
         /// Which output half holds this copy.
         side: SplitHalf,
         /// The operand edge the plane crossed.
         edge: NameRef,
+        /// The edge's sense against the `side` half.
+        sense: Sense,
     },
     /// A per-half copy of an operand vertex the tool plane passed
     /// THROUGH (review R2): both halves keep a coincident copy, so
@@ -1537,6 +1593,8 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         RoleSeg::FromA(_)
         | RoleSeg::FromB(_)
         | RoleSeg::Seam { .. }
+        | RoleSeg::Crossing { .. }
+        | RoleSeg::EdgeCrossing { .. }
         | RoleSeg::Merged(_)
         | RoleSeg::Fragment(_)
         | RoleSeg::SectionEdge { .. }
@@ -2240,6 +2298,22 @@ impl RoleSeg {
                 a: rewrite_ref(a, w)?,
                 b: rewrite_ref(b, w)?,
             },
+            R::Crossing { edge, face, sense } => R::Crossing {
+                edge: rewrite_ref(edge, w)?,
+                face: rewrite_ref(face, w)?,
+                sense: *sense,
+            },
+            R::EdgeCrossing {
+                a,
+                a_sense,
+                b,
+                b_sense,
+            } => R::EdgeCrossing {
+                a: rewrite_ref(a, w)?,
+                a_sense: *a_sense,
+                b: rewrite_ref(b, w)?,
+                b_sense: *b_sense,
+            },
             R::Merged(v) => R::Merged(rewrite_set(v, w)?),
             R::Fragment(q) => R::Fragment(match q {
                 Qualifier::Borders(walls) => Qualifier::Borders(rewrite_set(walls, w)?),
@@ -2255,9 +2329,10 @@ impl RoleSeg {
                 side: *side,
                 parent: rewrite_ref(parent, w)?,
             },
-            R::CrossingVertex { side, edge } => R::CrossingVertex {
+            R::CrossingVertex { side, edge, sense } => R::CrossingVertex {
                 side: *side,
                 edge: rewrite_ref(edge, w)?,
+                sense: *sense,
             },
             R::OnToolVertex { side, of } => R::OnToolVertex {
                 side: *side,

@@ -6562,6 +6562,14 @@ fn extrude_side_tag(side: crate::node::ExtrudeSide) -> u8 {
     }
 }
 
+fn sense_tag(sense: crate::names::Sense) -> u8 {
+    use crate::names::Sense;
+    match sense {
+        Sense::Enters => 1,
+        Sense::Leaves => 2,
+    }
+}
+
 fn split_half_tag(half: crate::names::SplitHalf) -> u8 {
     use crate::names::SplitHalf;
     match half {
@@ -6601,6 +6609,8 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::FromB => 17,
         S::FromMember => 41,
         S::Seam => 18,
+        S::Crossing => 47,
+        S::EdgeCrossing => 48,
         S::Merged => 19,
         S::Fragment => 20,
         S::SplitBody => 21,
@@ -6799,6 +6809,22 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.name(a);
             h.name(b);
         }
+        RoleSeg::Crossing { edge, face, sense } => {
+            h.name(edge);
+            h.name(face);
+            h.write_tag(sense_tag(*sense));
+        }
+        RoleSeg::EdgeCrossing {
+            a,
+            a_sense,
+            b,
+            b_sense,
+        } => {
+            h.name(a);
+            h.write_tag(sense_tag(*a_sense));
+            h.name(b);
+            h.write_tag(sense_tag(*b_sense));
+        }
         RoleSeg::Merged(names) => {
             h.write_u64(names.len() as u64);
             for n in names {
@@ -6823,9 +6849,10 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
             h.write_tag(half(*side));
             h.name(parent);
         }
-        RoleSeg::CrossingVertex { side, edge } => {
+        RoleSeg::CrossingVertex { side, edge, sense } => {
             h.write_tag(half(*side));
             h.name(edge);
+            h.write_tag(sense_tag(*sense));
         }
         RoleSeg::OnToolVertex { side, of } => {
             h.write_tag(half(*side));
