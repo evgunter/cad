@@ -1463,17 +1463,18 @@ fn name_boolean_edges<T: Decide>(
         } else {
             Lone::Whole
         };
-        // The group is recorded under what its members are spelled
-        // from: the edge whole, or the line its pieces lie on.
-        let spelled = match lone {
-            Lone::Whole => base.clone(),
-            Lone::Piece => (*edge_line(&NameRef::new(base.clone()))).clone(),
-        };
-        rec.record(
-            &spelled,
-            edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect(),
-            root.map(EntityKey::Edge).parent(),
-        );
+        // The group is the line's: every edge on it the node holds from
+        // an operand edge, whichever parent on the line it descends
+        // from. Tied parents share one name and so one line, and stay
+        // each its own group.
+        let line = edge_line(&NameRef::new(base.clone()));
+        let members = edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect();
+        let parent = root.map(EntityKey::Edge).parent();
+        if inner.tied {
+            rec.record(&line, members, parent);
+        } else {
+            rec.record_on_line(&line, members, parent);
+        }
         out.push(EdgeGroup {
             base,
             from_tie: inner.tied,
