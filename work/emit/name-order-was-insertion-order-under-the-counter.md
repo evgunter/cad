@@ -2,8 +2,9 @@
 id: name-order-was-insertion-order-under-the-counter
 kind: issue
 title: Where a name's canonical form picks the least name, the counter made that the earliest-inserted node and the mint makes it an arbitrary one
-status: review
+status: closed
 opened: 2026-09-30
+closed: 2026-10-07
 priority: P2
 cost: M
 parent: sibling-branches-mint-one-node-id-for-different-nodes
@@ -146,3 +147,24 @@ paragraph) states the pair; fork-log row 74 records it.
   `FromMember` holder and every value channel is unchanged.
 - Filed: `work/wire/id-lowerings-to-u64-tokens-drop-the-ordinal.md`,
   `work/flux/analysis-boxes-keep-an-axis-order-the-ids-already-give.md`.
+
+## Closed (PR 4244, 2026-10-07)
+
+PR 4244 builds the ruling. `RecipeNodeId`, `StepId` and `VarId` each wrap
+one `MintId { ordinal: u32, digest: u64 }`, which orders by ordinal
+first. On the wire an id is spelled `"<ordinal>:<16 hex>"`, because
+snapshot maps are keyed by id.
+
+`Doc::order`, `positions` and `var_order` are gone, and so are the
+collision refusals. The load door's mint-log check is now exact: the
+ordinals must count up from one. "Least" in `Flush` means first minted,
+and `redrawing_another_member_never_takes_a_held_flush_stretch` holds it
+in both list orders.
+
+Nothing needed a single integer. The kernel's u64 tokens take the digest;
+the residue is filed as `work/wire/id-lowerings-to-u64-tokens-drop-the-ordinal.md`.
+
+Review surfaced one defect main shares: a member that `SetMembers` adds
+after its union points forward, so save and cascade delete break. It is
+filed as `work/doors/a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break.md`.
+

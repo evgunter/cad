@@ -2064,3 +2064,18 @@ too, and the second-crossing row's same-sense group, which no geometry
 the kernel accepts reaches today. Main's lint red from #4234 was fixed by
 #4241 on the way. The growth row is closed.
 
+## 2026-10-07 — PR 4244: ids are a (mint ordinal, digest) pair
+
+This builds the #4156 ruling; nothing needed one integer. Review caught
+four things:
+- a probe-twin pin left stale;
+- msolve14's ε pins left stale (they hash ids; with ids masked to
+  positions the solve matches main at every ε);
+- `MintLogOrder`'s old wording;
+- docs restating a false "id order is topological".
+
+Filed from it: the forward-member row (doors), the u64-token residue
+(wire) and the analysis boxes' redundant axis order (flux). PR 4244
+merged second after #4228 and re-measured exactly the pins #4228 moved.
+The name row is closed.
+
