@@ -1945,3 +1945,319 @@ fn a_pinchs_cones_share_one_point_key() {
     }
     assert!(rebound > 0, "no union rebound a class");
 }
+
+// ---- Review r2 probes (PR 4249). Not part of the PR: shared-vertex
+// poses outside `pinch_runs_battery`'s shape, read by `outcome`, and every
+// built body's vertices, cones, cross-cone faces and mesh at `v`.
+
+/// A frame whose cube corner at `v` (`cube_at(.., [0; 3])`) opens along
+/// `d`, spun by `psi` about it.
+fn r2_diag_frame(d: [f64; 3], psi: f64) -> [[f64; 3]; 3] {
+    let [u, w, m] = frame(d, psi);
+    let (s6, s2, s3) = (6f64.sqrt(), 2f64.sqrt(), 3f64.sqrt());
+    let local = [
+        [(2.0f64 / 3.0).sqrt(), 0.0, 1.0 / s3],
+        [-1.0 / s6, 1.0 / s2, 1.0 / s3],
+        [-1.0 / s6, -1.0 / s2, 1.0 / s3],
+    ];
+    local.map(|a| [0, 1, 2].map(|c| a[0] * u[c] + a[1] * w[c] + a[2] * m[c]))
+}
+
+/// One built or refused run, with the corner reading at `v`.
+fn r2_line(
+    tag: &str,
+    r: Result<BooleanResult<f64>, BooleanError>,
+    want: f64,
+    v: [f64; 3],
+    cones: (&[Vec<Plane>], &[Vec<Plane>], Cones),
+) -> String {
+    if std::env::var("R2_ONLY").is_ok_and(|o| tag.contains(&o)) {
+        if let Some(bb) = r.as_ref().ok().and_then(BooleanResult::body) {
+            println!(
+                "{tag}: PSEUDO {:?}",
+                topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
+            );
+        }
+    }
+    let detail = r.as_ref().ok().and_then(BooleanResult::body).map(|bb| {
+        let nv = vertices_at(&bb.body, v).len();
+        let c = crate::common::pinch_cones::cones_at(v, cones.0, cones.1, cones.2);
+        let f2 = faces_through_two_vertices_at(&bb.body, v);
+        let finding = pierce_point_finding(&bb.body, v, cones);
+        let mesh =
+            match mesh::tessellate(&bb.body, 0.05, tol()).map(|m| mesh::validate::check_mesh(&m)) {
+                Ok(Ok(())) => "ok".to_owned(),
+                other => format!("{other:?}").chars().take(80).collect(),
+            };
+        format!(" | nv={nv} cones={c:?} f2={f2} mesh={mesh} finding={finding:?}")
+    });
+    let _ = shared_point_spread_finding();
+    format!(
+        "{tag}: {}{}",
+        outcome(r, want, tol()),
+        detail.unwrap_or_default()
+    )
+}
+
+/// Every op both orders of `a` (pieces `pa`) and `b` (pieces `pb`),
+/// meeting at `v`, `common` their shared volume.
+fn r2_every(
+    label: &str,
+    v: [f64; 3],
+    (a, pa, va): (&AtRestBody<f64>, &Pieces, f64),
+    (b, pb, vb): (&AtRestBody<f64>, &Pieces, f64),
+    common: f64,
+) -> Vec<String> {
+    let decls = BooleanDeclarations::default();
+    let mut out = Vec::new();
+    for (order, x, y, vx, px, py) in [("ab", a, b, va, pa, pb), ("ba", b, a, vb, pb, pa)] {
+        let ops: [(&str, Op, f64, Cones); 3] = [
+            ("U", topo::union_with, va + vb - common, Cones::Union),
+            ("I", topo::intersect_with, common, Cones::Intersect),
+            ("S", topo::subtract_with, vx - common, Cones::Subtract),
+        ];
+        for (op, run, want, c) in ops {
+            let r = run(x, y, &decls, tol());
+            out.push(r2_line(
+                &format!("{label} {order} {op}"),
+                r,
+                want,
+                v,
+                (px, py, c),
+            ));
+        }
+    }
+    out
+}
+
+/// The union of cubes of side `side` with corners at `v` along frames
+/// `fs` (pairwise touching only at `v`), and their pieces; `None` if the
+/// kernel refuses to build it.
+fn r2_pinch(v: [f64; 3], fs: &[[[f64; 3]; 3]], side: f64) -> Option<(AtRestBody<f64>, Pieces)> {
+    let decls = BooleanDeclarations::default();
+    let mut acc = finished("a cube", cube_sized(v, fs[0], [0.0; 3], side));
+    for &f in &fs[1..] {
+        let c = finished("a cube", cube_sized(v, f, [0.0; 3], side));
+        match topo::union_with(&acc, &c, &decls, tol()) {
+            Ok(BooleanResult::Body(b)) => acc = b.body,
+            _ => return None,
+        }
+    }
+    let pieces = fs
+        .iter()
+        .map(|&f| cube_planes_sized(v, f, [0.0; 3], side))
+        .collect();
+    // The cubes meet only at `v`: the kernel's union holds all of them.
+    let vol = mass_properties(&acc, tol()).unwrap().volume;
+    if (vol - side.powi(3) * fs.len() as f64).abs() > 1e-9 {
+        return None;
+    }
+    Some((acc, pieces))
+}
+
+/// Whether two cube corners at the origin along `f` and `g` overlap
+/// beyond the point, by sampling directions.
+fn r2_cones_overlap(f: [[f64; 3]; 3], g: [[f64; 3]; 3]) -> bool {
+    let inside = |f: [[f64; 3]; 3], s: [f64; 3]| f.iter().all(|a| dot(*a, s) > 1e-3);
+    let n = 60;
+    for p in 0..n {
+        for q in 0..2 * n {
+            let th = std::f64::consts::PI * (f64::from(p) + 0.5) / f64::from(n);
+            let ph = std::f64::consts::PI * f64::from(q) / f64::from(n);
+            let s = [th.sin() * ph.cos(), th.sin() * ph.sin(), th.cos()];
+            if inside(f, s) && inside(g, s) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// The notch against a pinch of cubes along `fs`.
+fn r2_notch_vs(label: &str, fs: &[[[f64; 3]; 3]], side: f64) -> Vec<String> {
+    let c = notch343();
+    let Some((b, pb)) = r2_pinch(c.v, fs, side) else {
+        return vec![format!(
+            "{label}: SKIP the pinch operand refuses to build or its cubes overlap"
+        )];
+    };
+    let a = finished(
+        "the notch",
+        fixtures::prism::<f64>(&c.profile, 1.0, tol()).body,
+    );
+    let pa: Pieces = c.pieces.iter().map(|p| polygon_prism(p)).collect();
+    let va = pa.iter().map(|p| convex_volume(p)).sum::<f64>();
+    let vb = side.powi(3) * fs.len() as f64;
+    let mut common = 0.0;
+    for q in &pb {
+        for p in &pa {
+            let mut all = p.clone();
+            all.extend_from_slice(q);
+            common += convex_volume(&all);
+        }
+    }
+    r2_every(label, c.v, (&a, &pa, va), (&b, &pb, vb), common)
+}
+
+/// **R2 probe: tripods.** Three cubes whose corners open 120° apart round
+/// the grid direction at `v`, so three vertex pairs share the notch's
+/// corner; plus skew pinches (two corners not opposite) and two-cube
+/// pinches at finer spins. `R2_PART` picks one family.
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn r2_shared_vertex_probe() {
+    let part = std::env::var("R2_PART").unwrap_or_default();
+    let tilts = [0.0, 0.25, 0.6];
+    for i in 0..12 {
+        for j in 0..7 {
+            let n = unit(direction(i, j));
+            let (p, q) = {
+                let f = frame(n, 0.0);
+                (f[0], f[1])
+            };
+            if part == "tripod" {
+                for (t, &tilt) in tilts.iter().enumerate() {
+                    for k in 0..3 {
+                        let spin = f64::from(k) * 0.9 + 0.3;
+                        let fs: Vec<_> = (0..3)
+                            .map(|c| {
+                                let a =
+                                    std::f64::consts::TAU * f64::from(c) / 3.0 + 0.2 * f64::from(k);
+                                let d = [0, 1, 2]
+                                    .map(|x| a.cos() * p[x] + a.sin() * q[x] + tilt * n[x]);
+                                r2_diag_frame(d, spin + f64::from(c))
+                            })
+                            .collect();
+                        if (0..3).any(|x| (x + 1..3).any(|y| r2_cones_overlap(fs[x], fs[y]))) {
+                            println!("tripod i={i} j={j} t={t} k={k}: SKIP overlap");
+                            continue;
+                        }
+                        for l in r2_notch_vs(&format!("tripod i={i} j={j} t={t} k={k}"), &fs, SIDE)
+                        {
+                            println!("{l}");
+                        }
+                    }
+                }
+            }
+            if part == "skew" {
+                // Two corners at angle `gap` from each other about `n`.
+                for (g, gap) in [2.0f64, 2.4, 2.8].into_iter().enumerate() {
+                    for k in 0..4 {
+                        let spin = f64::from(k) * 0.8 + 0.15;
+                        let d1 = n;
+                        let d2 = [0, 1, 2].map(|x| gap.cos() * n[x] + gap.sin() * p[x]);
+                        let fs = [r2_diag_frame(d1, spin), r2_diag_frame(d2, 1.3 * spin + 0.4)];
+                        if r2_cones_overlap(fs[0], fs[1]) {
+                            println!("skew i={i} j={j} g={g} k={k}: SKIP overlap");
+                            continue;
+                        }
+                        for l in r2_notch_vs(&format!("skew i={i} j={j} g={g} k={k}"), &fs, SIDE) {
+                            println!("{l}");
+                        }
+                    }
+                }
+            }
+            if part == "both" {
+                // Both operands pinched: two cubes along `n`'s frame
+                // against two smaller cubes along another grid direction's.
+                for k in 0..4 {
+                    let psi = f64::from(k) * 1.3 + 0.2;
+                    let f = frame(direction(i, j), psi);
+                    let g = frame(direction((i + 5) % 12, (j + 3) % 7), psi * 0.7 + 0.5);
+                    let neg = |f: [[f64; 3]; 3]| [f[0], f[2], f[1]].map(|a| a.map(|c| -c));
+                    let v = notch343().v;
+                    let (s1, s2) = (SIDE, 3.0);
+                    let Some((a, pa)) = r2_pinch(v, &[f, neg(f)], s1) else {
+                        println!("both i={i} j={j} k={k}: SKIP");
+                        continue;
+                    };
+                    let Some((b, pb)) = r2_pinch(v, &[g, neg(g)], s2) else {
+                        println!("both i={i} j={j} k={k}: SKIP");
+                        continue;
+                    };
+                    let mut common = 0.0;
+                    for x in &pa {
+                        for y in &pb {
+                            let mut all = x.clone();
+                            all.extend_from_slice(y);
+                            common += convex_volume(&all);
+                        }
+                    }
+                    let (va, vb) = (2.0 * s1.powi(3), 2.0 * s2.powi(3));
+                    for l in r2_every(
+                        &format!("both i={i} j={j} k={k}"),
+                        v,
+                        (&a, &pa, va),
+                        (&b, &pb, vb),
+                        common,
+                    ) {
+                        println!("{l}");
+                    }
+                }
+            }
+            if part == "fine" {
+                // The battery's pinch at spins between its six, and near
+                // its 217's: psi in steps of 0.0875 over [0, 2pi).
+                for k in 0..72 {
+                    let psi = f64::from(k) * std::f64::consts::TAU / 72.0 + 0.013;
+                    let (notch, pinch) = r2_pinch_pieces(direction(i, j), psi);
+                    for (tag, r, want) in pinch_runs(direction(i, j), psi) {
+                        let cones = tag_cones(&tag, "ab", (&notch, &pinch));
+                        println!(
+                            "{}",
+                            r2_line(
+                                &format!("fine i={i} j={j} k={k} {tag}"),
+                                r,
+                                want,
+                                notch343().v,
+                                cones
+                            )
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// **R2 probe: the pinch battery read in full.** Each line of
+/// `pinch_runs_battery` with the corner reading of every built body.
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn r2_pinch_battery_detail() {
+    for i in 0..12 {
+        for j in 0..7 {
+            for k in 0..6 {
+                let psi = f64::from(k) * 1.05 + 0.1;
+                let (notch, pinch) = r2_pinch_pieces(direction(i, j), psi);
+                for (tag, r, want) in pinch_runs(direction(i, j), psi) {
+                    let cones = tag_cones(&tag, "ab", (&notch, &pinch));
+                    println!(
+                        "{}",
+                        r2_line(
+                            &format!("i={i} j={j} k={k} {tag}"),
+                            r,
+                            want,
+                            notch343().v,
+                            cones
+                        )
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// `pinch_runs`' operands as convex pieces (a copy, so the probe runs on
+/// the base tree too).
+fn r2_pinch_pieces(m: [f64; 3], psi: f64) -> (Pieces, Pieces) {
+    let c = notch343();
+    let f = frame(m, psi);
+    (
+        c.pieces.iter().map(|p| polygon_prism(p)).collect(),
+        vec![
+            cube_planes_at(c.v, f, [0.0; 3]),
+            cube_planes_at(c.v, f, [-SIDE; 3]),
+        ],
+    )
+}

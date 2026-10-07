@@ -1,0 +1,51 @@
+diff --git a/crates/topo/src/boolean/insert.rs b/crates/topo/src/boolean/insert.rs
+index d9ea56a38..fd4ab221b 100644
+--- a/crates/topo/src/boolean/insert.rs
++++ b/crates/topo/src/boolean/insert.rs
+@@ -974,6 +974,10 @@ fn hang_in_turned<T: Decide>(
+     sectors: &[Orbits<'_, T>],
+     band: Band,
+ ) -> Result<(), BooleanError> {
++    let mutant = std::env::var("R2_MUT").unwrap_or_default();
++    if mutant == "off" {
++        return Ok(());
++    }
+     for (slot, operand) in [Operand::A, Operand::B].into_iter().enumerate() {
+         let key = |c: VvContact| if slot == 0 { (c.a, c.b) } else { (c.b, c.a) };
+         for i in 0..plans.len() {
+@@ -1003,6 +1007,10 @@ fn hang_in_turned<T: Decide>(
+                     let mut held = 0;
+                     for cut in cuts {
+                         held += usize::from(held_cut(secs, runs[m], &[cut], band)?.is_some());
++                        if mutant == "onecut" {
++                            held *= 2;
++                            break;
++                        }
+                     }
+                     match held {
+                         0 => {}
+@@ -1013,9 +1021,10 @@ fn hang_in_turned<T: Decide>(
+                     }
+                 }
+                 if let Some(m) = holder {
+-                    plans[i].runs[k][slot].held = Some(Held {
++                    let (who, by) = if mutant == "flip" { (m, k) } else { (k, m) };
++                    plans[i].runs[who][slot].held = Some(Held {
+                         depth: 1,
+-                        fan: Some(m),
++                        fan: if mutant == "nofan" { None } else { Some(by) },
+                         by_strut: false,
+                     });
+                 }
+diff --git a/crates/topo/src/boolean/join.rs b/crates/topo/src/boolean/join.rs
+index 71c97bd81..549fb14fa 100644
+--- a/crates/topo/src/boolean/join.rs
++++ b/crates/topo/src/boolean/join.rs
+@@ -454,6 +454,7 @@ impl Sides {
+         ) {
+             (true, false) => Ok(true),
+             (false, true) => Ok(false),
++            (true, true) if std::env::var("R2_MUT").is_ok_and(|m| m == "isup") => Ok(true),
+             (true, true) => Err(desync("null half starts at a vertex of both side sets")),
+             (false, false) => Err(desync("null half starts at a vertex of neither side set")),
+         }
