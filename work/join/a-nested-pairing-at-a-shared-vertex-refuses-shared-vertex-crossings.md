@@ -8,6 +8,7 @@ priority: P1
 cost: M
 refs: [a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another, a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch]
 branch: join/nested-pairing-shared-vertex
+pr: 4274
 ---
 
 
