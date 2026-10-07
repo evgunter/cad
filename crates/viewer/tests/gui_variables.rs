@@ -4,6 +4,8 @@
 //! read one, declining keeps the typed one distinct; a name is proposed
 //! and stored only when committed; and the value doors read a defined
 //! variable as held.
+// Panicking is a test's failure mechanism (workspace lint note).
+#![allow(clippy::expect_used)]
 
 use crate::common;
 use editor_core::ExtrudeSide;
@@ -234,7 +236,7 @@ fn a_value_typed_at_a_shared_slot_makes_it_its_own() {
 /// reader.
 #[test]
 fn a_proposed_name_is_stored_only_when_committed() {
-    let (mut session, a, b, _w, _k) = two_extrudes();
+    let (mut session, a, _b, _w, _k) = two_extrudes();
     let doc = session.committed_doc();
     let proposed = props::proposed_name(doc, SlotId::Distance).expect("a proposal");
     assert_eq!(proposed.as_str(), "distance");
@@ -259,7 +261,6 @@ fn a_proposed_name_is_stored_only_when_committed() {
         "distance_2",
         "the next proposal steps past the name now held"
     );
-    let _ = b;
 }
 
 /// A declared `d`, defined as `w * 2.0`.
