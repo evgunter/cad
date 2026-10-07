@@ -428,8 +428,13 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         },
         PcurveCertifyError::UnsupportedCarrier {
             chart: geom::SurfaceKind::Torus,
+            carrier: geom::CurveKind::Nurbs,
+            class: geom_brep::UncoveredClass::SplineCarrier,
+        },
+        PcurveCertifyError::CarrierGrazesChart {
+            chart: geom::SurfaceKind::Torus,
             carrier: geom::CurveKind::Circle,
-            class: geom_brep::UncoveredClass::TorusGeneralCircle,
+            grazer: geom_brep::Grazer::TorusCircle,
         },
         PcurveCertifyError::CarrierOffChart {
             chart: geom::SurfaceKind::Sphere,
@@ -463,6 +468,7 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
         PcurveCertifyError::ChartWindingUnsupported,
         PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
+        PcurveCertifyError::TubePeriodExceeded,
         PcurveCertifyError::BranchOutOfReach,
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,

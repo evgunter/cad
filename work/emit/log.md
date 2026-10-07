@@ -2050,3 +2050,17 @@ edge's line, and N5 reads a cited line as the rows whose undivided base
 it is. Both designers converged on it after round 2. The growth row
 stays open for the build, which lands `Ends` on every piece on top.
 
+## 2026-10-07 — PR 4228: a crossing cites the edge's line; Ends on every piece
+
+This builds the #4212 ruling. Review found three real defects, all fixed
+with fail-before rows:
+- a cascade's `through` line, resolved on its own, cascaded wrongly;
+- `GroupResized` broke when two untied parents lay on one line;
+- the cross-piece ranking was anchored to the least-named piece, which
+  could swap ranks silently on a closed carrier.
+
+Two rows were filed: a curved-rim union that refuses `SharedRim` on main
+too, and the second-crossing row's same-sense group, which no geometry
+the kernel accepts reaches today. Main's lint red from #4234 was fixed by
+#4241 on the way. The growth row is closed.
+

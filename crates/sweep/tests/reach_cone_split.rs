@@ -154,7 +154,7 @@ fn halves(result: &SplitResult<f64>, what: &str) -> (Body<f64>, Body<f64>) {
 /// The cut's section on a half: its conic edges are wall × plane
 /// `Intersection`s certified to rounding scale, their spans close the
 /// conic once, and — for a tilted cut — the cone faces store the exact
-/// `ConeSection` chart image of each.
+/// `FocalSection` chart image of each.
 fn assert_section(part: &Body<f64>, tilted: bool, what: &str) {
     let mut span = 0.0;
     for (_, edge) in part.edges() {
@@ -185,9 +185,9 @@ fn assert_section(part: &Body<f64>, tilted: bool, what: &str) {
     if tilted {
         let images = part
             .pcurves()
-            .filter(|(_, cache)| matches!(cache.pcurve(), Pcurve::ConeSection { .. }))
+            .filter(|(_, cache)| matches!(cache.pcurve(), Pcurve::FocalSection(_)))
             .count();
-        assert!(images >= 2, "{what}: {images} cone-section images");
+        assert!(images >= 2, "{what}: {images} focal-section images");
     }
 }
 

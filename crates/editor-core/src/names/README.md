@@ -509,7 +509,10 @@ the current run, the diagnosis is `GroupResized { node, was, now, cutters }`.
   survivor, and at a union the published entities a fold step's group descends
   to, followed by entity through every later step. A piece a later step
   re-mints under a seam name of its own is not a descendant by that descent and
-  is not counted. Two tied parents that share a base are two groups, each
+  is not counted. An edge piece's group is its line's: every edge the node
+  holds on the line from an operand edge, whichever parent edge on the line it
+  descends from, whole or in pieces, counted together. Two tied parents that
+  share a base are two groups, each
   counted on its own, where the emitter groups by parent entity; where it
   groups by parent names (the seam lanes) their pieces share one group and the
   rung declines. That is a statement about two recorded groups, not a claimed

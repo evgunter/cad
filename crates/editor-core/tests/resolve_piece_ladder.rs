@@ -437,7 +437,10 @@ fn a_collapsed_edge_piece_group_at_the_cut_is_diagnosed_group_resized() {
             .name_table
             .iter()
             .filter_map(|(n, e)| {
-                let hit = matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))));
+                // The plate's rim pieces: the bar's own edges are lone
+                // pieces whose ends the slide moves.
+                let hit = matches!(n.path.first(), Some(RoleSeg::FromA(_)))
+                    && matches!(n.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_))));
                 (hit && matches!(e, Entry::Unique(_))).then(|| n.clone())
             })
             .collect();
