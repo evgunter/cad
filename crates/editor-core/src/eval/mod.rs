@@ -6738,9 +6738,9 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::Lateral(r) => {
             run(h, r);
         }
-        RoleSeg::RimEdge(c, e) => {
+        RoleSeg::RimEdge(c, r) => {
             h.write_tag(cap(*c));
-            pe(h, *e);
+            run(h, r);
         }
         RoleSeg::LateralEdge(v) => {
             pv(h, *v);
@@ -6787,8 +6787,8 @@ fn feed_role_seg<'a>(h: &mut SegFeed<'a>, seg: &'a crate::names::RoleSeg) {
         RoleSeg::Pole(v) => {
             pv(h, *v);
         }
-        RoleSeg::AxisEdge(e) => {
-            pe(h, *e);
+        RoleSeg::AxisEdge(r) => {
+            run(h, r);
         }
         RoleSeg::FromA(inner) => {
             h.name(inner);

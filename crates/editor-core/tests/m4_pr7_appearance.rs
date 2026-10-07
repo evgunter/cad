@@ -111,7 +111,7 @@ fn set_appearance_validates_and_applies_purely() {
     let edge = minted(
         EntityKind::Edge,
         ext,
-        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, ext, 0, 0)),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, ext, 0, 0).into()),
     );
     assert_eq!(
         doc.apply(

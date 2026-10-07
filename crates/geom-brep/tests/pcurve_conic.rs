@@ -8,6 +8,7 @@
 use crate::shared::tol::band;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
+use geom_brep::Reach;
 use geom_brep::intersect::{PlaneCylinderSection, plane_cylinder_section};
 use geom_brep::{ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane, implicit_residual};
 use geom_core::spline::KnotVector;
@@ -35,7 +36,17 @@ fn plane(phi: f64) -> Surface<f64> {
 }
 
 fn section_ellipse(phi: f64) -> Curve3<f64> {
-    match plane_cylinder_section(&plane(phi), &cyl(), 1.0, band()).unwrap() {
+    match plane_cylinder_section(
+        &plane(phi),
+        &cyl(),
+        &Reach::Measured {
+            at: Point3::new(1.0, 2.0, 3.0),
+            lever: 1.0,
+        },
+        band(),
+    )
+    .unwrap()
+    {
         PlaneCylinderSection::TiltedEllipse(e) => e,
         other => panic!("expected the tilted ellipse, got {other:?}"),
     }

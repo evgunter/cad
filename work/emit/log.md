@@ -2042,3 +2042,11 @@ Filed:
 - the touch and edge × edge spelling (design);
 - the unoriented-seam refusal (design);
 - the end-touch row, which main's edge joins left without a witness.
+
+## 2026-10-07 — PR 4212: a crossing cites the edge's line (ruled)
+
+Ev approved fork-log row 77: a crossing and every piece's base cite the
+edge's line, and N5 reads a cited line as the rows whose undivided base
+it is. Both designers converged on it after round 2. The growth row
+stays open for the build, which lands `Ends` on every piece on top.
+

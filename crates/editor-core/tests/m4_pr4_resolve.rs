@@ -337,7 +337,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     let base = StableName {
         kind: EntityKind::Edge,
         node,
-        path: vec![RoleSeg::AxisEdge(crate::fixture::no_piece())],
+        path: vec![RoleSeg::AxisEdge(crate::fixture::no_piece().into())],
     };
     let mut table = NameTable::new();
     table.insert_tied(base.clone(), vec![e1, e2]).unwrap();
@@ -921,7 +921,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     let rim = minted(
         EntityKind::Edge,
         a,
-        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, a, 0, 0)),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, a, 0, 0).into()),
     );
     assert!(
         apply_with_names(
@@ -940,7 +940,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     let bogus = minted(
         EntityKind::Edge,
         a,
-        RoleSeg::RimEdge(CapEnd::End, crate::fixture::no_piece()),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::no_piece().into()),
     );
     let err = apply_with_names(
         &doc,
