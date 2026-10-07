@@ -400,6 +400,8 @@ mod r2_sense_fold_probes;
 mod ray_wall_margin_twins;
 #[path = "reach_aligned_half_rods.rs"]
 mod reach_aligned_half_rods;
+#[path = "reach_cone_root_lane.rs"]
+mod reach_cone_root_lane;
 #[path = "reach_cone_split.rs"]
 mod reach_cone_split;
 #[path = "reach_continuation.rs"]

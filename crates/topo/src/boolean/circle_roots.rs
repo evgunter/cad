@@ -184,6 +184,11 @@ pub(super) enum CircleRoots<T> {
     /// The quartic's constructed roots disagree in number with its
     /// certified count ([`TorusRoots::CountDisagrees`]).
     CountDisagrees,
+    /// A root within the band of a cone's apex, where the surface has no
+    /// tangent plane and its quadric form's gradient vanishes: no
+    /// crossing there can be read, and the door refuses rather than
+    /// answer.
+    AtApex,
 }
 
 impl<T: geom_core::Real> From<TorusRoots<T>> for CircleRoots<T> {
@@ -346,6 +351,9 @@ const POLE_CANDIDATES: u32 = 32;
 /// `F`'s sign. The answer is [`certified_subdivision`]'s; the half-angle
 /// ladder runs first and only its escalations are kept.
 ///
+/// `slack` is the subdivision's root-slack meter, where the caller has
+/// one.
+///
 /// # Errors
 ///
 /// The ladder's escalation as `rows.decision`, and
@@ -356,6 +364,7 @@ pub(super) fn half_angle_roots<T: Decide>(
     residual: impl Fn(T) -> T,
     frame: HalfAngleFrame<T>,
     rows: &HalfAngleRows,
+    slack: Option<&RootSlack<'_, T>>,
     band: Band,
 ) -> Result<CircleRoots<T>, BooleanError> {
     if f.degree > 2 {
@@ -364,7 +373,7 @@ pub(super) fn half_angle_roots<T: Decide>(
         });
     }
     ladder_roots(f, &residual, &frame, rows, band)?;
-    certified_subdivision(f, &residual, &frame.walk, &rows.verify, None, band)
+    certified_subdivision(f, &residual, &frame.walk, &rows.verify, slack, band)
 }
 
 /// [`half_angle_roots`]'s ladder: the quartic in the tangent half-angle
