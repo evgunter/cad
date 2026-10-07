@@ -5261,6 +5261,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "cap_plane",
             "degenerate_stacking",
             "euler",
+            "far_section_not_forward",
+            "far_stacking_escalated",
             "one_segment_loop",
             "pcurve",
             "reversed_stacking",

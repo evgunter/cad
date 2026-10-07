@@ -2289,20 +2289,29 @@ fn slanted_tube() -> AtRestBody<f64> {
     }
 }
 
-/// **A wall bounded by an ellipse keeps the door.** The turned sunk dome
-/// on a tube whose bottom is cut by a slanted plane: the interior
-/// question has no closed form for a circle against an ellipse, so the
-/// rim arc lying on the wall, which neither certificate places, keeps
-/// the crossing layer's door in every op, both member orders
-/// (`work/tang/a-line-edge-lying-on-a-wall-keeps-the-door.md`, its
-/// ellipse section). The refusal is on the dome's edge, against a wall
-/// face (its edge key is the reduction's working copy's).
+/// **A wall bounded by an ellipse, undeclared, builds every op.** The
+/// turned sunk dome on a tube whose bottom is cut by the plane
+/// `z = 0.5 + 0.2·x`: the rim arc lying on the wall, which neither
+/// certificate (a) nor (b) places, is read by the interior question,
+/// whose candidates against the ellipse are the arc's meetings with
+/// its plane. The rim sits above that plane, so it has none, and the
+/// rim splits at the seam rulings as on the plain tube. The tube holds
+/// `π·R²·(H − 0.5)` (the plane's mean height over the disc is `0.5`);
+/// the dome's split, the censuses and the records are the two-face
+/// rows of
+/// [`a_dome_sunk_across_the_tubes_seam_rulings_builds_every_op_undeclared`].
+/// The wall's ellipse trim is measured by certified quadrature, so each
+/// volume is read to the enclosure's own half-width.
 #[test]
-fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_keeps_the_door() {
+fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_builds_every_op_undeclared() {
     let tol = Tol::witness();
     let none = BooleanDeclarations::none();
     let tube = slanted_tube();
+    let rho = 2.0_f64.sqrt() * R;
+    let t = PI * R * R * (H - 0.5);
     for dz in [-1e-3, -0.3] {
+        let above = cap_volume(rho, rho - R + dz);
+        let inside = cap_volume(rho, rho - R) - above;
         let lift = Affine3::translation(Vec3::new(0.0, 0.0, dz));
         let sunk = topo::transform_rigid(&dome_on_the_cap(), &lift, tol).unwrap();
         for turn in [1.0 / 12.0, 1.0 / 5.0] {
@@ -2313,47 +2322,65 @@ fn a_turned_rim_on_a_wall_bounded_by_an_ellipse_keeps_the_door() {
                 topo::transform_rigid(&sunk, &spin, tol).unwrap(),
                 tol,
             );
-            for (op, r, dome_is) in [
+            let (whole, common) = ((6, 12, 9, 1), (4, 8, 6, 1));
+            for (op, r, want, census, contacts) in [
                 (
                     "t ∪ d",
                     topo::union_with(&tube, &d, &none, tol),
-                    topo::Operand::B,
+                    t + above,
+                    whole,
+                    [0; 4],
                 ),
                 (
                     "d ∪ t",
                     topo::union_with(&d, &tube, &none, tol),
-                    topo::Operand::A,
+                    t + above,
+                    whole,
+                    [0; 4],
                 ),
                 (
                     "t ∖ d",
                     topo::subtract_with(&tube, &d, &none, tol),
-                    topo::Operand::B,
+                    t - inside,
+                    (7, 16, 12, 1),
+                    [2, 2, 0, 0],
                 ),
                 (
                     "d ∖ t",
                     topo::subtract_with(&d, &tube, &none, tol),
-                    topo::Operand::A,
+                    above,
+                    (3, 4, 3, 1),
+                    [0; 4],
                 ),
                 (
                     "t ∩ d",
                     topo::intersect_with(&tube, &d, &none, tol),
-                    topo::Operand::B,
+                    inside,
+                    common,
+                    [0; 4],
                 ),
                 (
                     "d ∩ t",
                     topo::intersect_with(&d, &tube, &none, tol),
-                    topo::Operand::A,
+                    inside,
+                    common,
+                    [0; 4],
                 ),
             ] {
                 let label = format!("dz = {dz}, turn {turn}: {op}");
-                let Err(BooleanError::CurvedPierceUnsupported { operand, face, .. }) = r else {
-                    panic!("{label}: the crossing layer's door: {r:?}");
+                let pad = match &r {
+                    Ok(BooleanResult::Body(bb)) => {
+                        topo::mass_properties(&bb.body, tol).unwrap().volume_pad
+                    }
+                    _ => 0.0,
                 };
-                assert_eq!(operand, dome_is, "{label}: on the dome's edge");
+                let (v, c, k) = built(&label, r);
                 assert!(
-                    faces_of(&tube, SurfaceKind::Cylinder).contains(&face),
-                    "{label}: against a wall face"
+                    (v - want).abs() <= pad + 1e-12,
+                    "{label}: the closed form: {v} ± {pad} vs {want}"
                 );
+                assert_eq!(c, census, "{label}: F, E, V, shells");
+                assert_eq!(k, contacts, "{label}: [v-v, v-f, curve, patch] records");
             }
         }
     }

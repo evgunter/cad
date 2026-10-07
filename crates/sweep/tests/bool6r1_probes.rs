@@ -94,13 +94,10 @@ fn stacking_verdicts(run: impl FnOnce()) -> Vec<Sign> {
         .collect()
 }
 
-/// **The population: one `loft_stacking` sample per SLAB.** The old
-/// statement minted exactly one per loft whatever `k` was; the fold
-/// mints `k − 1`, all Positive on a forward stack. This is the claim
-/// the ε-posture paragraph makes about the predicate's distribution,
-/// executed rather than asserted.
+/// **The population: two `loft_stacking` samples per SLAB**, one per
+/// section normal the slab spans, all Positive on a forward stack.
 #[test]
-fn the_fold_mints_one_loft_stacking_verdict_per_slab() {
+fn the_fold_mints_two_loft_stacking_verdicts_per_slab() {
     for k in [2usize, 3, 4, 5, 9, 17] {
         let (sections, places) = forward_stack(k);
         let v_degree = k.min(4) - 1;
@@ -110,9 +107,9 @@ fn the_fold_mints_one_loft_stacking_verdict_per_slab() {
         });
         assert_eq!(
             signs.len(),
-            k - 1,
+            2 * (k - 1),
             "{k} sections must mint {} loft_stacking samples, got {signs:?}",
-            k - 1
+            2 * (k - 1)
         );
         assert!(
             signs.iter().all(|s| *s == Sign::Positive),
@@ -291,9 +288,10 @@ fn the_verdict_sequence_up_to_a_refusal_is_slab_local() {
     });
     assert_eq!(
         a,
-        vec![Sign::Positive, Sign::Negative],
-        "slab 0 decides Positive, slab 1 Negative, and the fold stops there \
-         — slab 2 is never sampled"
+        vec![Sign::Positive, Sign::Positive, Sign::Negative],
+        "slab 0 decides Positive against both its normals, slab 1 Negative \
+         against its base normal, and the fold stops there — slab 1's far \
+         normal and slab 2 are never sampled"
     );
     assert_eq!(a, b, "the last section cannot reach slab 1's verdict");
 }

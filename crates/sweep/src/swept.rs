@@ -44,8 +44,10 @@
 //! **says so at its own site**; that marker is the only thing tying
 //! the two together, and it is deliberately not deleted.
 
-use geom::Curve3;
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, SketchSegment};
+use geom::{Curve3, Surface};
+use geom_brep::{
+    EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, NewellError, SketchSegment, newell_plane,
+};
 use geom_core::{
     Affine3, Arc2, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
@@ -583,12 +585,13 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
 /// The world points determining a cap plane, in forward swept order:
 /// every loop vertex, plus every arc segment's apex. The apexes keep
 /// 2-vertex loops plane-determining — Newell needs three points and a
-/// 2-vertex cap has only two vertices — and they carry the traversal's
-/// winding faithfully (each sits between its segment's endpoints in
-/// loop order). A one-segment loop is a full turn at its one vertex
-/// (D1), whose chord has no apex: its carrier points a quarter of the
-/// way round, its antipode ([`geom_core::Arc2::antipode`]) and three
-/// quarters of the way round stand in, in the same order.
+/// 2-vertex cap has only two vertices. A one-segment loop is a full
+/// turn at its one vertex (D1), whose chord has no apex: its carrier
+/// points a quarter of the way round, its antipode
+/// ([`geom_core::Arc2::antipode`]) and three quarters of the way round
+/// stand in, in the same order. The polygon is inscribed in the region,
+/// so its winding is not necessarily the region's: [`cap_plane`]
+/// orients its plane by the region's.
 ///
 /// `qs` are the world vertices and `place` the matching placement, so
 /// a rotated or translated cap passes the rotated or translated pair.
@@ -612,6 +615,142 @@ pub(crate) fn cap_points<T: Real, S: SweptChord<T>>(
         }
     }
     pts
+}
+
+/// Which end of a sweep a cap closes. The start cap's loop runs the
+/// swept chain reversed (the closing `mef` of the start lamina), the end
+/// cap's runs it forward (the swept face that survives).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CapEnd {
+    /// The cap at the sketch's own station: outward normal opposite the
+    /// sweep.
+    Start,
+    /// The cap the sweep carries to its far station: outward normal
+    /// along the sweep.
+    End,
+}
+
+/// Why a cap's plane could not be built (every verb's `CapPlane`
+/// payload). Unreachable from a validated profile; surfaced rather than
+/// trusted.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum CapPlaneError {
+    /// The cap's points failed Newell certification.
+    Newell(NewellError),
+    /// Whether Newell's normal points along the region's normal or
+    /// against it was too close to call.
+    Orientation(Indeterminate),
+    /// Newell's normal lies definitely in the sketch plane: the cap's
+    /// plane is edge-on to the region it closes.
+    EdgeOn,
+}
+
+impl core::fmt::Display for CapPlaneError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Newell(e) => write!(f, "a cap is not planar: {e}"),
+            Self::Orientation(cause) => write!(
+                f,
+                "whether a cap's plane faces along the profile's winding or against it could \
+                 not be decided: {}. {}",
+                cause.payload(),
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
+            Self::EdgeOn => write!(
+                f,
+                "a cap's plane stands edge-on to the profile's own plane. {}",
+                geom_core::KERNEL_DEFECT_ENDING
+            ),
+        }
+    }
+}
+
+impl std::error::Error for CapPlaneError {}
+
+/// The certified plane of a sweep's cap.
+///
+/// The plane is Newell's over [`cap_points`] — origin, normal, `u_ref`
+/// and residual certification — oriented by the REGION's winding, not
+/// the polygon's. A validated outer loop winds counterclockwise about
+/// its sketch normal (`profile` decides it arc-exactly at validation),
+/// so the swept chain's region normal is `place`'s sketch normal,
+/// negated when the traversal `reversed` the canonical chain; the start
+/// cap faces opposite it, the end cap along it. The polygon is
+/// inscribed in the region and a large convex arc can make it wind the
+/// other way, so when Newell's normal opposes the region's the plane is
+/// flipped (`u_ref` re-derived from the flipped normal, as Newell
+/// derives it).
+///
+/// `forward` is `cap_points` of the swept chain at this cap's station.
+///
+/// **Precondition: `place` is a rigid, right-handed frame**
+/// (`c2 = c0 × c1`, unit and orthogonal), so that "counterclockwise in
+/// the sketch" means "counterclockwise about `c2`". Nothing enforces it
+/// at the public doors yet — `profile::SketchPlane::new` and the loft's
+/// placements admit a reflected or skewed map, which reaches the
+/// orientation decision's refusals with a kernel-defect ending when the
+/// cause is the caller's frame
+/// (`work/paths/sketch-plane-holds-the-affine-and-the-witness-dies-at-the-read-boundary.md`).
+pub(crate) fn cap_plane<T: Decide>(
+    forward: &[Point3<T>],
+    place: Affine3<T>,
+    reversed: bool,
+    end: CapEnd,
+    band: Band,
+) -> Result<Surface<T>, CapPlaneError> {
+    // The start cap's loop order: first point kept, the rest reversed —
+    // the order the minted face runs, so a residual refusal names its
+    // vertex in the face's own order.
+    let ordered: Vec<Point3<T>> = match end {
+        CapEnd::End => forward.to_vec(),
+        CapEnd::Start => forward
+            .first()
+            .into_iter()
+            .chain(forward.iter().skip(1).rev())
+            .copied()
+            .collect(),
+    };
+    let plane = newell_plane(&ordered, band).map_err(CapPlaneError::Newell)?;
+    let Surface::Plane { origin, normal, .. } = plane else {
+        unreachable!("newell_plane mints a plane")
+    };
+    let sketch_normal = place.linear.c2.normalize();
+    let expected_outward = if reversed == (end == CapEnd::Start) {
+        sketch_normal
+    } else {
+        -sketch_normal
+    };
+    // Margin: the cosine between the two normals, levered by the cap's
+    // half-perimeter (it bounds the cap's diameter, the arm a tilt of
+    // the normal moves a cap point through). Never near the band: every
+    // cap point lies in the sketch plane, and Newell certified them all
+    // within ε of its own plane, so for a region of mean width w ≫ ε
+    // the two planes meet at an angle of order ε/w and the cosine is
+    // ±1 to that order. Under the precondition above an escalation
+    // here is a kernel defect.
+    let mut half_perimeter = T::zero();
+    for (i, &p) in ordered.iter().enumerate() {
+        half_perimeter = half_perimeter + (ordered[(i + 1) % ordered.len()] - p).norm();
+    }
+    half_perimeter = half_perimeter * T::from_f64(0.5);
+    let agrees = decide(
+        "cap_plane_orientation",
+        Margin::levered(normal.dot(expected_outward), half_perimeter),
+        band,
+    )
+    .map_err(CapPlaneError::Orientation)?;
+    match agrees {
+        Sign::Positive => return Ok(plane),
+        Sign::Zero => return Err(CapPlaneError::EdgeOn),
+        Sign::Negative => {}
+    }
+    let flipped = -normal;
+    let (u_ref, _) = flipped.orthonormal_basis();
+    Ok(Surface::Plane {
+        origin,
+        normal: flipped,
+        u_ref,
+    })
 }
 
 /// What [`build_full_turn`] minted.
