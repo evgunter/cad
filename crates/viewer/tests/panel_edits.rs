@@ -359,14 +359,14 @@ fn an_expression_driven_dimension_refuses_with_the_affordance() {
         Some(Refusal::DrivenByExpression {
             node,
             slot,
-            params,
+            variables,
             current,
             ..
         }) => {
             assert_eq!(node, extrude);
             assert_eq!(slot, SlotId::Distance);
             assert_eq!(
-                params,
+                variables,
                 vec![
                     session
                         .committed_doc()
@@ -386,7 +386,7 @@ fn the_affordance_navigates_to_the_driving_parameter_and_the_edit_lands_there() 
     let (doc, _profile, extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
     session.perform(SessionOp::Select(Selection::Node(extrude)));
-    let Some(Refusal::DrivenByExpression { params, .. }) = session
+    let Some(Refusal::DrivenByExpression { variables, .. }) = session
         .perform(SessionOp::SetSlot {
             node: extrude,
             slot: SlotId::Distance,
@@ -396,7 +396,7 @@ fn the_affordance_navigates_to_the_driving_parameter_and_the_edit_lands_there() 
     else {
         panic!("expected the driven refusal");
     };
-    let var = params.first().expect("one driving variable").id();
+    let var = variables.first().expect("one driving variable").id();
 
     // The affordance's navigate half: selecting the variable is a
     // typed operation, and editing it there moves the slot the direct
@@ -673,6 +673,7 @@ test_utils::f6_variants! {
         NoSuchSlot,
         NoSuchVariable,
         VariableIsDefined,
+        NotOffered,
         ConstantRefused,
         EmptyName,
         WrongNodeKind,

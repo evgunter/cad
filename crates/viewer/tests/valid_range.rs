@@ -424,14 +424,14 @@ fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
         Some(Refusal::DrivenByExpression {
             node,
             slot,
-            ref params,
+            ref variables,
             current,
             ..
         }) => {
             assert_eq!(node, extrude);
             assert_eq!(slot, SlotId::Distance);
             assert_eq!(
-                params,
+                variables,
                 &vec![
                     session
                         .committed_doc()

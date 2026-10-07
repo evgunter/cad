@@ -217,8 +217,8 @@ fn main() {
     println!("   Reevaluate landed a full run in {:?}", start.elapsed());
 
     // The seam recovers: an edit resubmits and the run completes.
-    let params = viewer::props::variable_rows(session.doc());
-    if let Some(param) = params.first() {
+    let variables = viewer::props::variable_rows(session.doc());
+    if let Some(param) = variables.first() {
         println!("   nudging variable {} to resubmit", param.label);
         session.perform(SessionOp::SetVariable {
             var: param.var,

@@ -490,13 +490,13 @@ pub fn authored_in(unit: Option<UnitDef>, written: f64) -> f64 {
 pub enum SlotDriver {
     /// A bare literal: editable in place.
     Literal,
-    /// An expression. Direct numeric editing is refused; `params` are
+    /// An expression. Direct numeric editing is refused; `variables` are
     /// the document variables it references, in first-seen order and
     /// deduplicated — the affordance's navigation targets.
     Expression {
         /// The variables this expression reads, first-read order, each
         /// as the document speaks it.
-        params: Vec<SpokenVar>,
+        variables: Vec<SpokenVar>,
     },
 }
 
@@ -521,7 +521,7 @@ impl SlotDriver {
             }
         }
         Self::Expression {
-            params: read.into_iter().map(|var| doc.spoken_var(var)).collect(),
+            variables: read.into_iter().map(|var| doc.spoken_var(var)).collect(),
         }
     }
 
@@ -633,7 +633,9 @@ fn slot_row(
             // the refusing direction: nothing here should be
             // overwritten with a number on the strength of an
             // invariant that just failed.
-            driver: SlotDriver::Expression { params: Vec::new() },
+            driver: SlotDriver::Expression {
+                variables: Vec::new(),
+            },
             value: Err(SlotFault::NoExpression),
             unit: None,
             source: None,
@@ -942,15 +944,15 @@ pub struct VariableRow {
 pub fn variable_rows(doc: &Doc<ProfileProgram>) -> Vec<VariableRow> {
     doc.free_vars()
         .filter(|(var, _)| doc.var_name(*var).is_some())
-        .map(|(var, param)| VariableRow {
+        .map(|(var, held)| VariableRow {
             var,
             label: doc.spoken_var(var),
-            dimension: param.dim(),
-            value: match param {
+            dimension: held.dim(),
+            value: match held {
                 FreeVar::Continuous { value, .. } => SlotValue::Continuous(*value),
                 FreeVar::Count { value } => SlotValue::Count(*value),
             },
-            unit: match param {
+            unit: match held {
                 FreeVar::Continuous { display_unit, .. } => Some(display_unit.def()),
                 FreeVar::Count { .. } => None,
             },
@@ -1149,12 +1151,22 @@ pub fn equal_variables(
         .copied()
         .filter(|&var| var != own)
         .filter(|&var| doc.var(var).is_some_and(|held| held.kind() == kind))
-        .filter(|&var| value_of(var) == Some(value))
+        .filter(|&var| value_of(var).is_some_and(|other| bit_equal(other, value)))
         .map(|var| Offered {
             var,
             label: variable_label(doc, var),
         })
         .collect()
+}
+
+/// Equal at the bits: `-0.0` is not `0`, where `==` would say it is.
+fn bit_equal(a: SlotValue, b: SlotValue) -> bool {
+    match (a, b) {
+        (SlotValue::Continuous(a), SlotValue::Continuous(b)) => a.to_bits() == b.to_bits(),
+        (SlotValue::Count(a), SlotValue::Count(b)) => a == b,
+        (SlotValue::Continuous(_), SlotValue::Count(_))
+        | (SlotValue::Count(_), SlotValue::Continuous(_)) => false,
+    }
 }
 
 /// **A variable as a person reads it**: its name, or, unnamed, the first

@@ -202,7 +202,7 @@ fn probe_scale(
             let Some(held) = doc.var(*var) else {
                 return Err(Refusal::NoSuchVariable(*var));
             };
-            let Some(param) = held.free() else {
+            let Some(free) = held.free() else {
                 return Err(Refusal::VariableIsDefined(doc.spoken_var(*var)));
             };
             // Same rule as a slot's: one of whatever unit the
@@ -213,7 +213,7 @@ fn probe_scale(
             // a millimetre variable is searched in millimetres. A
             // `Count` is a number rather than a quantity, has no
             // unit to name, and steps by 1.
-            let (value, unit) = match param {
+            let (value, unit) = match free {
                 FreeVar::Continuous {
                     value,
                     display_unit,
@@ -221,7 +221,7 @@ fn probe_scale(
                 } => (*value, Some(display_unit.def())),
                 FreeVar::Count { value } => (*value as f64, None),
             };
-            Ok((value, unit, param.dim() == Dimension::Count))
+            Ok((value, unit, free.dim() == Dimension::Count))
         }
     }
 }

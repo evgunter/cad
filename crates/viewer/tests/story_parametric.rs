@@ -273,7 +273,7 @@ fn the_parametric_living_walk() {
     assert_eq!(
         radius_row.driver,
         SlotDriver::Expression {
-            params: vec![spoken(session.committed_doc(), &base_r)]
+            variables: vec![spoken(session.committed_doc(), &base_r)]
         },
         "the radius names its driving variable"
     );
@@ -421,14 +421,14 @@ fn the_parametric_living_walk() {
         Some(Refusal::DrivenByExpression {
             node,
             slot,
-            ref params,
+            ref variables,
             current,
             ..
         }) => {
             assert_eq!(node, tower);
             assert_eq!(slot, SlotId::Distance);
             assert_eq!(
-                params,
+                variables,
                 &vec![spoken(session.committed_doc(), &height)],
                 "the affordance's target"
             );
@@ -462,9 +462,9 @@ fn the_parametric_living_walk() {
         },
     });
     match outcome.refusal {
-        Some(Refusal::DrivenByExpression { ref params, .. }) => {
+        Some(Refusal::DrivenByExpression { ref variables, .. }) => {
             assert_eq!(
-                params,
+                variables,
                 &vec![spoken(session.committed_doc(), &height)],
                 "probe THAT instead"
             );
@@ -799,7 +799,7 @@ fn the_parametric_living_walk() {
     assert_eq!(
         distance.driver,
         SlotDriver::Expression {
-            params: vec![spoken(session.committed_doc(), &height)]
+            variables: vec![spoken(session.committed_doc(), &height)]
         },
         "the tower's distance is still height-driven"
     );

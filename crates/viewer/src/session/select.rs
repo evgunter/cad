@@ -469,14 +469,14 @@ mod tests {
             node: RecipeNodeId(3),
             present,
         };
-        let param = |present| Standing::Variable {
+        let standing = |present| Standing::Variable {
             var: SpokenVar::new(VarId(7), Some(VarName::from_static("thickness"))),
             present,
         };
         assert_eq!(node(false).tone(), Tone::Actionable);
-        assert_eq!(param(false).tone(), Tone::Actionable);
+        assert_eq!(standing(false).tone(), Tone::Actionable);
         assert_eq!(node(true).tone(), Tone::Advisory);
-        assert_eq!(param(true).tone(), Tone::Advisory);
+        assert_eq!(standing(true).tone(), Tone::Advisory);
         assert_eq!(Standing::Empty.tone(), Tone::Advisory);
     }
 }

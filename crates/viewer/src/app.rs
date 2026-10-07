@@ -3706,7 +3706,7 @@ mod properties_pane_tests {
     /// nothing selected, the pane gains the verdict line and loses the
     /// "select a feature" prompt, and nothing else.
     #[test]
-    fn an_undeclared_parameter_is_said_once_in_the_pane() {
+    fn an_undeclared_variable_is_said_once_in_the_pane() {
         let var = pncad::document::VarId(0x0123_4567_89ab_cdef);
         let verdict = format!("{var} is no longer declared");
         let mut with = painted_with(Selection::Variable(var));
@@ -4048,8 +4048,13 @@ mod properties_pane_tests {
         pane.click("name…");
         assert_eq!(
             pane.app.drafts.name_draft,
-            Some(((extrude(), SlotId::Distance), "distance".to_owned())),
-            "the field opens on the proposal"
+            Some(crate::drafts::NameDraft {
+                node: extrude(),
+                slot: SlotId::Distance,
+                var,
+                text: "distance".to_owned(),
+            }),
+            "the field opens on the proposal, for the variable the slot reads"
         );
         pane.quiet();
         assert!(
@@ -4064,6 +4069,75 @@ mod properties_pane_tests {
         );
         assert_eq!(doc.slot(extrude(), SlotId::Distance), Some(var));
         assert!(pane.app.drafts.name_draft.is_none(), "the field closes");
+    }
+
+    /// **An open naming field names the variable it was opened for and
+    /// no other**: accepting an offer while the field is open makes the
+    /// slot read the named `beam`, and the field closes rather than
+    /// rename `beam` through the slot.
+    #[test]
+    fn a_naming_field_closes_when_its_slot_reads_another_variable() {
+        let mut pane = Driven::with(typed_beside("beam", 0.004));
+        pane.quiet();
+        pane.click("name\u{2026}");
+        assert!(pane.app.drafts.name_draft.is_some(), "the field is open");
+        let beam = pane
+            .app
+            .session
+            .committed_doc()
+            .var_named("beam")
+            .expect("beam is declared");
+        let accepted = pane.app.session.perform(SessionOp::SetSlotVariable {
+            node: extrude(),
+            slot: SlotId::Distance,
+            var: beam,
+        });
+        assert!(accepted.refusal.is_none(), "{:?}", accepted.refusal);
+        let painted = pane.quiet();
+        assert!(pane.app.drafts.name_draft.is_none(), "the field closes");
+        assert!(!painted.iter().any(|(run, _)| run == "Name"));
+        assert_eq!(
+            pane.app
+                .session
+                .committed_doc()
+                .var_name(beam)
+                .map(|name| name.as_str()),
+            Some("beam"),
+            "beam keeps its name"
+        );
+    }
+
+    /// **A name the door refuses leaves the field open with its text**:
+    /// `distance` is taken, so `RenameVar` refuses, the variable stays
+    /// unnamed, and the person's text is still there to amend.
+    #[test]
+    fn a_refused_name_keeps_the_field_and_its_text() {
+        let mut pane = Driven::with(typed_beside("distance", 0.009));
+        pane.quiet();
+        pane.click("name\u{2026}");
+        let draft = pane
+            .app
+            .drafts
+            .name_draft
+            .as_mut()
+            .expect("the field is open");
+        assert_eq!(
+            draft.text, "distance_2",
+            "the proposal steps past the held name"
+        );
+        draft.text = "distance".to_owned();
+        let var = draft.var;
+        pane.click("Name");
+        assert!(pane.app.session.committed_doc().var_name(var).is_none());
+        assert_eq!(
+            pane.app
+                .drafts
+                .name_draft
+                .as_ref()
+                .map(|draft| draft.text.as_str()),
+            Some("distance"),
+            "the field and its text stay"
+        );
     }
 
     /// **A driven slot's unit picker is drawn, cannot be opened, and

@@ -4426,24 +4426,24 @@ mod value_field_tests {
             "and the change made elsewhere stands"
         );
 
-        let mut param = Row::millimetres("chrome-stale-param", 0.01);
-        let Subject::Variable(var) = param.subject.clone() else {
+        let mut var_row = Row::millimetres("chrome-stale-var_row", 0.01);
+        let Subject::Variable(var) = var_row.subject.clone() else {
             panic!("the fixture is a variable row");
         };
-        param.click_in();
-        let outcome = param.session.perform(SessionOp::SetVariable {
+        var_row.click_in();
+        let outcome = var_row.session.perform(SessionOp::SetVariable {
             var,
             value: props::SlotValue::Continuous(0.02),
         });
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        param.click_away();
-        let emitted = param.taken();
+        var_row.click_away();
+        let emitted = var_row.taken();
         assert!(
             emitted.is_empty(),
             "the untouched variable edit emits nothing: {emitted:?}"
         );
         assert_eq!(
-            param.showing().0,
+            var_row.showing().0,
             20.0,
             "and the 20 mm set elsewhere stands"
         );

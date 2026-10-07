@@ -1269,7 +1269,7 @@ impl core::fmt::Display for CarryForwardDoor {
 /// variable the document no longer holds reaches a carry-forward edit,
 /// which refuses [`EditError::UnknownVar`]; dragging that variable's
 /// row is a lookup with no edit behind it, and the viewer refuses
-/// `Refusal::NoSuchParam` (`crates/viewer/src/session/refuse.rs`, the
+/// `Refusal::NoSuchVariable` (`crates/viewer/src/session/refuse.rs`, the
 /// second reader of this const and the only one outside this crate).
 /// The two are converged on the RECOURSE and not on the sentence,
 /// because a drag has no refused edit to report and a sentence that
@@ -3181,7 +3181,7 @@ impl EditError {
                 )
             }
             // The recourse is `UNKNOWN_VAR_RECOURSE`, which the
-            // viewer's `Refusal::NoSuchParam` renders too; the const's
+            // viewer's `Refusal::NoSuchVariable` renders too; the const's
             // own doc says why the two doors converge there.
             Self::UnknownVar { var, door } => {
                 write!(

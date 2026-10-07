@@ -180,12 +180,123 @@ fn an_offer_stands_only_while_the_slot_reads_what_was_typed() {
     );
 }
 
+/// **A drag of the typed slot closes its offer**: the drag moves the
+/// variable typing minted in place (Q6), and an offer is about the
+/// value as typed — never about a dragged one, here equal to `b`'s.
+#[test]
+fn a_drag_of_the_typed_slot_closes_its_offer() {
+    let (mut session, a, _b, w, _k) = two_extrudes();
+    typed(&mut session, a, 0.012);
+    assert_eq!(offered(&session, a), vec![w]);
+    for op in [
+        SessionOp::BeginGesture {
+            node: a,
+            slot: SlotId::Distance,
+        },
+        SessionOp::PreviewGesture {
+            node: a,
+            slot: SlotId::Distance,
+            value: 0.010,
+        },
+        SessionOp::CommitGesture {
+            node: a,
+            slot: SlotId::Distance,
+        },
+    ] {
+        let outcome = session.perform(op);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    }
+    assert!(
+        offered(&session, a).is_empty(),
+        "a dragged value is offered nothing"
+    );
+}
+
+/// **A move of the typed variable by its own value door closes the
+/// offer** — the same rule as a drag, by the other route there is.
+#[test]
+fn moving_the_typed_variable_closes_its_offer() {
+    let (mut session, a, _b, w, _k) = two_extrudes();
+    typed(&mut session, a, 0.012);
+    assert_eq!(offered(&session, a), vec![w]);
+    let minted = reads(&session, a);
+    let moved = session.perform(SessionOp::SetVariable {
+        var: minted,
+        value: SlotValue::Continuous(0.010),
+    });
+    assert!(moved.refusal.is_none(), "{:?}", moved.refusal);
+    assert_eq!(reads(&session, a), minted, "moved in place");
+    assert!(offered(&session, a).is_empty());
+}
+
+/// **An offer is made straight after a typing op, and neither an undo
+/// nor a redo makes one**: the redo puts the typed value back, and the
+/// offer the undo closed stays closed.
+#[test]
+fn a_redo_does_not_revive_an_offer() {
+    let (mut session, a, _b, w, _k) = two_extrudes();
+    typed(&mut session, a, 0.012);
+    assert_eq!(offered(&session, a), vec![w]);
+    for op in [SessionOp::Undo, SessionOp::Redo] {
+        let outcome = session.perform(op);
+        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+        assert!(offered(&session, a).is_empty());
+    }
+}
+
+/// **Equal is equal at the bits** (choice 3): a length holding `-0.0`
+/// is not offered to a slot typed `0`, though `-0.0 == 0.0`.
+#[test]
+fn a_negative_zero_is_not_offered_for_a_typed_zero() {
+    let (mut session, a, _b, _w, _k) = two_extrudes();
+    for (name, value) in [("z", -0.0), ("o", 0.0)] {
+        let declared = session.perform(SessionOp::DeclareVar {
+            name: VarName::new(name).expect("a name"),
+            value: FreeVar::continuous(Dimension::Length, value),
+        });
+        assert!(declared.refusal.is_none(), "{name}: {:?}", declared.refusal);
+    }
+    let z = common::var_of(session.committed_doc(), "z");
+    let o = common::var_of(session.committed_doc(), "o");
+    typed(&mut session, a, 0.0);
+    let named: Vec<VarId> = offered(&session, a)
+        .into_iter()
+        .filter(|&var| session.committed_doc().var_name(var).is_some())
+        .collect();
+    assert_eq!(named, vec![o], "+0 is offered and -0 ({z:?}) is not");
+}
+
+/// **Only a variable on offer is accepted**: once a retype moved the
+/// offer off `w`, accepting `w` is refused, so a stale button cannot
+/// join the slot to it.
+#[test]
+fn accepting_what_is_not_offered_is_refused() {
+    let (mut session, a, _b, w, _k) = two_extrudes();
+    typed(&mut session, a, 0.012);
+    assert_eq!(offered(&session, a), vec![w]);
+    typed(&mut session, a, 0.010);
+    let minted = reads(&session, a);
+    let accepted = session.perform(SessionOp::SetSlotVariable {
+        node: a,
+        slot: SlotId::Distance,
+        var: w,
+    });
+    assert!(
+        matches!(&accepted.refusal, Some(Refusal::NotOffered(var)) if var.id() == w),
+        "{:?}",
+        accepted.refusal
+    );
+    assert!(accepted.committed.is_empty());
+    assert_eq!(reads(&session, a), minted, "the slot is untouched");
+}
+
 /// **Typed text is a typed value too, and a formula is not**: `12 mm`
 /// at the slot mints and is offered `w`; `w` at the slot reads `w`
-/// itself, and nothing is offered for it.
+/// itself, and nothing is offered for it — not even `b`'s typed 12 mm,
+/// which equals it.
 #[test]
 fn typed_text_is_offered_and_a_formula_is_not() {
-    let (mut session, a, _b, w, _k) = two_extrudes();
+    let (mut session, a, b, w, _k) = two_extrudes();
     let text = |session: &mut DocSession, text: &str| {
         let outcome = session.perform(SessionOp::SetSlotExpression {
             node: a,
@@ -196,6 +307,9 @@ fn typed_text_is_offered_and_a_formula_is_not() {
     };
     text(&mut session, "12 mm");
     assert_eq!(offered(&session, a), vec![w], "a written quantity mints");
+    // `b` holds a typed 12 mm too, so a read of `w` at `a` has an equal
+    // variable an offer could name: only the formula keeps it unoffered.
+    typed(&mut session, b, 0.012);
     text(&mut session, "w");
     assert_eq!(reads(&session, a), w);
     assert!(

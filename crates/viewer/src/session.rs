@@ -77,7 +77,7 @@ use crate::docio::{self, DirResolver, NoFile};
 use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator, evaluate_beside};
 use crate::g1;
 use crate::generation::Generation;
-use crate::history::History;
+use crate::history::{History, HistoryId};
 use crate::parts::{self, PartFiles};
 use crate::pickcache;
 use crate::props::{self, Notation, SlotDriver, SlotValue};
@@ -262,10 +262,10 @@ fn guard_driven(
     let (driver, current) = driver_of(doc, node, slot)?;
     match driver {
         SlotDriver::Literal => Ok(()),
-        SlotDriver::Expression { params } => Err(Refusal::DrivenByExpression {
+        SlotDriver::Expression { variables } => Err(Refusal::DrivenByExpression {
             node,
             slot,
-            params,
+            variables,
             current,
             notation,
         }),
@@ -511,18 +511,20 @@ struct Derived {
     /// The slot whose typed value is offered the variables of equal
     /// value ([`DocSession::offered`]), and the variable that typing
     /// minted. It stands until it is accepted or declined, or until the
-    /// slot no longer reads that variable — a later edit, an undo — so
-    /// an offer is never made about a value the slot no longer holds.
+    /// history moves off the state the typing recorded — any later
+    /// edit, a drag of that very variable, an undo, a redo — so an
+    /// offer is only ever made about a value as it was typed.
     offer: Option<SlotOffer>,
 }
 
-/// A typed value's offer: the slot it was typed at and the variable it
-/// minted there.
+/// A typed value's offer: the slot it was typed at, the variable it
+/// minted there, and the history state the typing recorded.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct SlotOffer {
     node: RecipeNodeId,
     slot: SlotId,
     var: VarId,
+    at: HistoryId,
 }
 
 impl Derived {
@@ -1070,8 +1072,9 @@ impl DocSession {
 
     /// **The variables a value typed at `slot` on `node` is offered**
     /// (D10: typing a value offers an existing variable of equal
-    /// value): empty unless the last typed value there still stands and
-    /// has not been accepted or declined, and empty where no variable
+    /// value): empty unless the last op that changed the document typed
+    /// a value there and it has not been accepted or declined — any
+    /// later edit, drag, undo or redo closes it — and empty where no variable
     /// equals it ([`props::equal_variables`]). Read off the committed
     /// document, which is the one the accepting edit applies to.
     pub fn offered(&self, node: RecipeNodeId, slot: SlotId) -> Vec<props::Offered> {
@@ -1080,6 +1083,7 @@ impl DocSession {
             Some(offer)
                 if offer.node == node
                     && offer.slot == slot
+                    && offer.at == self.history.current()
                     && doc.slot(node, slot) == Some(offer.var) =>
             {
                 props::equal_variables(doc, node, slot)
@@ -1487,6 +1491,12 @@ impl DocSession {
         // them. A landing changes only the landed run, an earlier
         // version of the shown document.
         self.derived.said = self.derived.said.respoken(self.doc());
+        // And the one place an offer closes when the history moves off
+        // the state its typing recorded: an offer is made straight
+        // after a typing op and never again, so no later edit, drag,
+        // undo or redo can stand it up about a value nobody typed.
+        let now = self.history.current();
+        self.derived.offer = self.derived.offer.filter(|offer| offer.at == now);
         outcome
     }
 
@@ -1911,12 +1921,28 @@ impl DocSession {
         self.derived.offer = doc
             .slot(node, slot)
             .filter(|&var| doc.is_typed_value(var))
-            .map(|var| SlotOffer { node, slot, var });
+            .map(|var| SlotOffer {
+                node,
+                slot,
+                var,
+                at: self.history.current(),
+            });
     }
 
     /// **Accept an offer**: the slot reads `var` — the slot-write
-    /// gesture, one edit and one undo step. The door checks the kind.
+    /// gesture, one edit and one undo step. Only a variable on offer
+    /// there ([`Self::offered`]) is accepted, so a stale button can
+    /// never join a slot to a variable chosen against a value it no
+    /// longer holds; the door checks the kind.
     fn set_slot_variable(&mut self, node: RecipeNodeId, slot: SlotId, var: VarId) -> OpOutcome {
+        if !self
+            .offered(node, slot)
+            .iter()
+            .any(|offered| offered.var == var)
+        {
+            let spoken = self.committed_doc().spoken_var(var);
+            return OpOutcome::refused(Refusal::NotOffered(spoken));
+        }
         let outcome = self.commit_written(props::slot_read_edit(node, slot, var));
         if outcome.refusal.is_none() {
             self.close_offer(node, slot);

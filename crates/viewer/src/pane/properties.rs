@@ -13,6 +13,7 @@ use pncad::select::{AboutReference, Resolution};
 
 use crate::app::{ViewerBehavior, indeterminate_wording, toned};
 use crate::display::free_move_check;
+use crate::drafts::NameDraft;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::frame::Tone;
 use crate::props::{self, Notation, SlotDriver, SlotGroup, SlotRow, SlotValue, VariableRow};
@@ -303,10 +304,10 @@ impl ViewerBehavior<'_> {
             // event, so the field it re-writes is next frame's.
             match self.drafts.new_variable_dimension {
                 Some(Dimension::Length) => {
-                    length_picker(ui, "add_param", &mut self.notation.length);
+                    length_picker(ui, "add_variable", &mut self.notation.length);
                 }
                 Some(Dimension::Angle) => {
-                    angle_picker(ui, "add_param", &mut self.notation.angle);
+                    angle_picker(ui, "add_variable", &mut self.notation.angle);
                 }
                 Some(Dimension::Scalar | Dimension::Count) | None => {}
             }
@@ -734,7 +735,7 @@ impl ViewerBehavior<'_> {
         };
         if let Some(unit) = pick_unit(
             ui,
-            "param_unit",
+            "variable_unit",
             &row.var.full().to_string(),
             row.dimension,
             written,
@@ -949,50 +950,60 @@ impl ViewerBehavior<'_> {
             .on_hover_text(NAME_HOVER)
             .clicked()
         {
-            self.drafts.name_draft = Some((
-                (node, row.slot),
-                proposal.map(|name| name.to_string()).unwrap_or_default(),
-            ));
+            self.drafts.name_draft = Some(NameDraft {
+                node,
+                slot: row.slot,
+                var,
+                text: proposal.map(|name| name.to_string()).unwrap_or_default(),
+            });
         }
     }
 
     /// **The naming field**, under the row whose button opened it: the
     /// proposal as editable text, committed as one
-    /// [`SessionOp::RenameVar`] on its button or Enter, abandoned on
-    /// `cancel`. A text that is no name disables the commit and says why
-    /// on hover, in the name door's words.
+    /// [`SessionOp::RenameVar`] of the variable the field was opened
+    /// for, on its button or Enter, abandoned on `cancel`. A text that
+    /// is no name disables the commit and says why on hover, in the
+    /// name door's words.
+    ///
+    /// The field stands while the slot reads that variable and it is
+    /// unnamed ([`NameDraft`]): a commit the door takes names it, and
+    /// the field closes on the next frame; a commit the door refuses
+    /// (a name taken) leaves it unnamed, so the field and its text stay
+    /// for the person to amend.
     fn name_field_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, slot: SlotId) {
-        let Some(((at_node, at_slot), _)) = &self.drafts.name_draft else {
+        let Some(draft) = &self.drafts.name_draft else {
             return;
         };
-        if (*at_node, *at_slot) != (node, slot) {
+        if (draft.node, draft.slot) != (node, slot) {
             return;
         }
-        let Some(var) = self.session.committed_doc().slot(node, slot) else {
+        let var = draft.var;
+        let doc = self.session.committed_doc();
+        if doc.slot(node, slot) != Some(var) || doc.var_name(var).is_some() {
             self.drafts.name_draft = None;
             return;
-        };
-        let mut commit = false;
+        }
+        let mut commit = None;
         let mut cancel = false;
         ui.horizontal(|ui| {
-            let Some((_, text)) = self.drafts.name_draft.as_mut() else {
+            let Some(draft) = self.drafts.name_draft.as_mut() else {
                 return;
             };
-            let field = ui.add(egui::TextEdit::singleline(text).desired_width(120.0));
+            let field = ui.add(egui::TextEdit::singleline(&mut draft.text).desired_width(120.0));
             let entered = field.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
-            let name = VarName::new(text.trim());
+            let name = VarName::new(draft.text.trim());
             let button = ui.add_enabled(name.is_ok(), egui::Button::new("Name").small());
             let button = match &name {
                 Ok(_) => button,
                 Err(fault) => button.on_disabled_hover_text(fault.to_string()),
             };
-            commit = name.is_ok() && (entered || button.clicked());
+            if entered || button.clicked() {
+                commit = name.ok();
+            }
             cancel = ui.add(egui::Button::new("cancel").small()).clicked();
         });
-        if commit
-            && let Some((_, text)) = self.drafts.name_draft.take()
-            && let Ok(name) = VarName::new(text.trim())
-        {
+        if let Some(name) = commit {
             self.ops.push(SessionOp::RenameVar {
                 var,
                 name: Some(name),
@@ -1075,10 +1086,10 @@ impl ViewerBehavior<'_> {
     ) -> Option<Refusal> {
         match &row.driver {
             SlotDriver::Literal => None,
-            SlotDriver::Expression { params } => Some(Refusal::DrivenByExpression {
+            SlotDriver::Expression { variables } => Some(Refusal::DrivenByExpression {
                 node,
                 slot: row.slot,
-                params: params.clone(),
+                variables: variables.clone(),
                 current: row.value.as_ref().ok().copied(),
                 notation,
             }),
@@ -1375,7 +1386,7 @@ fn slot_notes(
         );
     }
     let mut clicked = None;
-    if let SlotDriver::Expression { params } = &row.driver {
+    if let SlotDriver::Expression { variables } = &row.driver {
         if let Some(source) = &row.source {
             crate::widgets::message_toned(
                 ui,
@@ -1389,14 +1400,19 @@ fn slot_notes(
             format!(
                 "{}: {}",
                 row.slot.label(),
-                Refusal::affordance(params, row.slot, row.value.as_ref().ok().copied(), notation,)
+                Refusal::affordance(
+                    variables,
+                    row.slot,
+                    row.value.as_ref().ok().copied(),
+                    notation,
+                )
             ),
             theme,
             Tone::Advisory,
         );
-        if !params.is_empty() {
+        if !variables.is_empty() {
             ui.horizontal_wrapped(|ui| {
-                for var in params {
+                for var in variables {
                     if crate::widgets::message_link(ui, format!("edit {var}")).clicked() {
                         clicked = Some(var.id());
                     }
@@ -1559,7 +1575,7 @@ mod layout_tests {
 
     /// A named variable, its id derived from the name so two names
     /// are two variables.
-    fn param(name: &'static str) -> SpokenVar {
+    fn variable(name: &'static str) -> SpokenVar {
         let id = name
             .bytes()
             .fold(0_u64, |h, b| h.wrapping_mul(31).wrapping_add(u64::from(b)));
@@ -1601,15 +1617,15 @@ mod layout_tests {
 
     #[test]
     fn a_driven_slots_affordance_and_its_doors_stay_inside_the_pane() {
-        let params = vec![
-            param("outer_enclosure_wall_thickness"),
-            param("lid_clearance"),
-            param("gasket_compression_allowance"),
+        let variables = vec![
+            variable("outer_enclosure_wall_thickness"),
+            variable("lid_clearance"),
+            variable("gasket_compression_allowance"),
         ];
         let value = SlotValue::of(Dimension::Length, 0.004).expect("a finite length");
         let row = distance_row(
             SlotDriver::Expression {
-                params: params.clone(),
+                variables: variables.clone(),
             },
             Ok(value),
         );
@@ -1621,11 +1637,11 @@ mod layout_tests {
             &format!(
                 "{}: {}",
                 SlotId::Distance.label(),
-                Refusal::affordance(&params, SlotId::Distance, Some(value), Notation::DEFAULT)
+                Refusal::affordance(&variables, SlotId::Distance, Some(value), Notation::DEFAULT)
             ),
         );
         assert_own_lines(region, affordance);
-        for var in &params {
+        for var in &variables {
             let door = find(&painted, &format!("edit {var}"));
             assert_inside(region, door);
             assert_under(affordance, door);
@@ -1643,7 +1659,7 @@ mod layout_tests {
             source: Some(source.to_owned()),
             ..distance_row(
                 SlotDriver::Expression {
-                    params: vec![param("outer_enclosure_wall_thickness")],
+                    variables: vec![variable("outer_enclosure_wall_thickness")],
                 },
                 Ok(value),
             )
@@ -1673,7 +1689,7 @@ mod layout_tests {
             source: Some("thickness * 2".to_owned()),
             ..distance_row(
                 SlotDriver::Expression {
-                    params: vec![param("thickness")],
+                    variables: vec![variable("thickness")],
                 },
                 Ok(value),
             )
@@ -1717,7 +1733,7 @@ mod layout_tests {
     }
 
     #[test]
-    fn a_parameters_range_reading_is_said_over_its_button_inside_the_pane() {
+    fn a_variables_range_reading_is_said_over_its_button_inside_the_pane() {
         let reading = "free from 0.0012345678901234567 m to 12.345678901234567 m \
                        before something new fails";
         let (region, painted) = drawn_in(REGION, |ui| {
@@ -1787,7 +1803,7 @@ mod tests {
         };
         let row = distance_row(
             SlotDriver::Expression {
-                params: vec![thickness()],
+                variables: vec![thickness()],
             },
             Ok(current),
         );
@@ -1795,13 +1811,13 @@ mod tests {
             Some(Refusal::DrivenByExpression {
                 node,
                 slot,
-                ref params,
+                ref variables,
                 current: carried,
                 notation,
             }) => {
                 assert_eq!(node, NODE);
                 assert_eq!(slot, SlotId::Distance);
-                assert_eq!(params, &vec![thickness()], "what to edit instead");
+                assert_eq!(variables, &vec![thickness()], "what to edit instead");
                 assert_eq!(carried, Some(current));
                 assert_eq!(notation, millimetres, "and the notation it reads in");
             }
@@ -1912,7 +1928,7 @@ mod tests {
     fn a_driven_slot_that_did_not_evaluate_still_gets_the_refusal() {
         let row = distance_row(
             SlotDriver::Expression {
-                params: vec![thickness()],
+                variables: vec![thickness()],
             },
             Err(SlotFault::NoExpression),
         );
@@ -2517,7 +2533,7 @@ mod verdict_tests {
     /// **An undeclared variable is said once, loud** — the only line
     /// the pane draws for it (`properties_ui`'s `Variable` arm draws none).
     #[test]
-    fn an_undeclared_parameters_verdict_is_drawn_loud() {
+    fn an_undeclared_variables_verdict_is_drawn_loud() {
         let (painted, voices) = drawn(&Standing::Variable {
             var: SpokenVar::new(VarId(9), Some(VarName::from_static("width"))),
             present: false,

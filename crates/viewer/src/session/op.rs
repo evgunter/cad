@@ -129,12 +129,11 @@ pub enum SessionOp {
         /// The expression source.
         text: String,
     },
-    /// **Make a slot read an existing variable** — the slot-write
-    /// gesture, and what accepting a typed value's offer emits
-    /// (`DocSession::offered`): one `SetParam` (or `SetStructuralParam`)
-    /// whose formula is the variable alone, so two slots share one
-    /// variable from then on. A variable of another kind is the edit
-    /// door's to refuse.
+    /// **Accept a typed value's offer** (`DocSession::offered`): the
+    /// slot reads the offered variable, by one `SetParam` (or
+    /// `SetStructuralParam`) whose formula is the variable alone, so
+    /// two slots share one variable from then on. A variable not on
+    /// offer at that slot is refused (`Refusal::NotOffered`).
     SetSlotVariable {
         /// The node.
         node: RecipeNodeId,

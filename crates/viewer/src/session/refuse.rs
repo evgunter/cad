@@ -234,7 +234,7 @@ pub enum Refusal {
         slot: SlotId,
         /// The variables the driving expression reads, each as the
         /// document spoke it at the refusal.
-        params: Vec<SpokenVar>,
+        variables: Vec<SpokenVar>,
         /// The slot's current value, when it has one.
         current: Option<SlotValue>,
         /// The working notation the affordance reads `current` in —
@@ -279,6 +279,15 @@ pub enum Refusal {
     /// value of its own, so there is nothing to move; its range is the
     /// ranges of the variables it reads.
     VariableIsDefined(SpokenVar),
+    /// An offer was accepted ([`SessionOp::SetSlotVariable`]) of a
+    /// variable that is not on offer at that slot: the offer closed —
+    /// the slot was retyped, dragged, undone — or never named it. An
+    /// offer is made only about a value as it was typed, so the op
+    /// refuses rather than join the slot to a variable chosen against a
+    /// value it no longer holds.
+    ///
+    /// [`SessionOp::SetSlotVariable`]: crate::session::SessionOp::SetSlotVariable
+    NotOffered(SpokenVar),
     /// A variable's field was given a constant expression that does
     /// not evaluate to a value — a non-finite result, or a count past
     /// its range. Constant text typed as a value is folded here, before
@@ -451,6 +460,7 @@ impl Refusal {
                 source,
             },
             Self::VariableIsDefined(var) => Self::VariableIsDefined(var.respoken(doc)),
+            Self::NotOffered(var) => Self::NotOffered(var.respoken(doc)),
             Self::Duplicate(fault) => Self::Duplicate(fault.respoken(doc)),
             Self::Contact(refused) => Self::Contact(Box::new(refused.respoken(doc))),
             Self::Display(fault) => Self::Display(fault.respoken(doc)),
@@ -459,13 +469,13 @@ impl Refusal {
             Self::DrivenByExpression {
                 node,
                 slot,
-                params,
+                variables,
                 current,
                 notation,
             } => Self::DrivenByExpression {
                 node,
                 slot,
-                params: params.iter().map(|var| var.respoken(doc)).collect(),
+                variables: variables.iter().map(|var| var.respoken(doc)).collect(),
                 current,
                 notation,
             },
@@ -497,6 +507,7 @@ impl Refusal {
             | Self::NoSuchVariable(_)
             | Self::ConstantRefused { .. }
             | Self::VariableIsDefined(_)
+            | Self::NotOffered(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
@@ -539,6 +550,7 @@ impl Refusal {
             | Self::NoSuchVariable(_)
             | Self::ConstantRefused { .. }
             | Self::VariableIsDefined(_)
+            | Self::NotOffered(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
@@ -677,15 +689,15 @@ impl Refusal {
     /// ([`props::computed_text`], in the working `notation` and
     /// carrying its symbol), so the two never show one number two ways.
     pub fn affordance(
-        params: &[SpokenVar],
+        variables: &[SpokenVar],
         slot: SlotId,
         current: Option<SlotValue>,
         notation: Notation,
     ) -> String {
-        let over = if params.is_empty() {
+        let over = if variables.is_empty() {
             "an expression".to_owned()
         } else {
-            let names: Vec<String> = params.iter().map(SpokenVar::to_string).collect();
+            let names: Vec<String> = variables.iter().map(SpokenVar::to_string).collect();
             format!("an expression over {}", names.join(", "))
         };
         match current {
@@ -784,14 +796,14 @@ impl core::fmt::Display for Refusal {
         match self {
             Self::DrivenByExpression {
                 slot,
-                params,
+                variables,
                 current,
                 notation,
                 ..
             } => write!(
                 f,
                 "{}",
-                Self::affordance(params, *slot, *current, *notation)
+                Self::affordance(variables, *slot, *current, *notation)
             ),
             Self::NoSuchSlot { node, slot } => {
                 write!(f, "{node} has no {} slot", slot.label())
@@ -809,6 +821,11 @@ impl core::fmt::Display for Refusal {
                 f,
                 "{var} is defined by a formula and holds no value of its own to move — \
                  probe a variable it reads"
+            ),
+            Self::NotOffered(var) => write!(
+                f,
+                "{var} is no longer offered here — type the value again to be offered \
+                 the variables equal to it"
             ),
             Self::EmptyName => {
                 write!(

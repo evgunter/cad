@@ -296,6 +296,36 @@ Pattern: every viewer identifier in the item's list and its siblings, i.e. `(Sel
 | `work.py lint` | ok (0 problems, 0 warnings) |
 | editor-core `--profile default` | not run: the diff does not touch editor-core |
 | ruff (`check-python-lint.py`) | skipped locally (ruff 0.16.8 here, CI pins 0.16.1); no Python file changed |
+
+### The review's fix pass
+
+The single review (APPROVE-WITH-FIXES, `review/intent-gui-variables`)
+found the offer outliving a drag, a redo reviving it, a naming field
+that named whatever the slot read at commit, a non-bit equality, and a
+mutant the formula row could not kill. The fixes change none of the
+nine choices: each makes the code do what the choice already says.
+New rows, each mutation-checked red without its guard:
+
+| Guard | Row |
+|---|---|
+| the offer stands only at the history state its typing recorded (`SlotOffer::at`, checked in `offered`) | `gui_variables::a_drag_of_the_typed_slot_closes_its_offer`, `gui_variables::moving_the_typed_variable_closes_its_offer` |
+| `perform` closes an offer once the history moves off that state | `gui_variables::a_redo_does_not_revive_an_offer` |
+| the `is_typed_value` filter in `offer_after` (the review's surviving M7) | `gui_variables::typed_text_is_offered_and_a_formula_is_not`, now with `b` holding an equal typed value |
+| bit equality in `equal_variables` | `gui_variables::a_negative_zero_is_not_offered_for_a_typed_zero` |
+| `SetSlotVariable` refuses `NotOffered` | `gui_variables::accepting_what_is_not_offered_is_refused` |
+| the naming field closes when its slot stops reading the variable it was opened for (`NameDraft::var`) | `properties_pane_tests::a_naming_field_closes_when_its_slot_reads_another_variable` |
+| a refused rename keeps the field and its text | `properties_pane_tests::a_refused_name_keeps_the_field_and_its_text` |
+
+Runs on the fix pass: `cargo fmt --all --check` and `cargo clippy --workspace
+--all-targets --all-features -D warnings` clean; `scripts/gates/*.sh`
+and `payload-rung-sweep --check` pass; viewer default 908 passed;
+viewer `--features app` 1192 passed with lavapipe installed, so the two
+GPU rows ran and passed; editor-core `--profile ci` 2776 passed (one
+row, `sym_9_the_drive_writes_the_ladders_receipt`, was cut by the
+run's own wall-clock limit and passed alone in 249 s); `work.py lint`
+ok. The editor-core change is two doc citations of the renamed
+`Refusal::NoSuchVariable`.
+
 ## 2026-10-07 — FORK-6: split moves a variable with its readers (orchestrator's ruling)
 
 The inline lane (`inline-merges-variables-by-equal-value`) stopped at a

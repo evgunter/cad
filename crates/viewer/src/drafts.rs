@@ -15,7 +15,8 @@ use std::collections::BTreeMap;
 
 use pncad::document::{
     BooleanOp, Dimension, DimensionError, Doc, Formula, HeldNodes, Label, LabelFault, LoopProgram,
-    Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarName,
+    Maintenance, Node, ProfileProgram, RecipeNodeId, RecordedProgramError, SlotId, StepId, VarId,
+    VarName,
 };
 use pncad::geom_core::Point2;
 use pncad::prelude::StableName;
@@ -60,11 +61,8 @@ pub(crate) struct Drafts {
     pub(crate) expr_target: Option<(RecipeNodeId, SlotId)>,
     /// The refused text itself.
     pub(crate) expr_text: String,
-    /// The slot whose variable the naming field is open for, and the
-    /// text in it — seeded with the proposal
-    /// ([`crate::props::proposed_name`]) and stored in the document
-    /// only when the person commits it (VR2).
-    pub(crate) name_draft: Option<((RecipeNodeId, SlotId), String)>,
+    /// The naming field, while it is open ([`NameDraft`]).
+    pub(crate) name_draft: Option<NameDraft>,
     /// The add-variable form's name field.
     pub(crate) new_variable_name: String,
     /// Its chosen dimension — `None` until the user picks one, and
@@ -611,6 +609,28 @@ impl RowEdit {
             Self::Clear => rows.clear(),
         }
     }
+}
+
+/// **The naming field**: the slot it is drawn under, the variable it
+/// was opened for, and the text in it — seeded with the proposal
+/// ([`crate::props::proposed_name`]) and stored in the document only
+/// when the person commits it (VR2).
+///
+/// **It names the variable it was opened for, never the slot's reader
+/// at commit.** The field stands only while the slot still reads that
+/// variable and it is still unnamed; an accepted offer, a retype or an
+/// undo closes it, so a name typed for one variable can never land on
+/// another.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct NameDraft {
+    /// The node whose row the field is drawn under.
+    pub(crate) node: RecipeNodeId,
+    /// The slot of that row.
+    pub(crate) slot: SlotId,
+    /// The variable the field was opened for, and the one it names.
+    pub(crate) var: VarId,
+    /// The text in the field.
+    pub(crate) text: String,
 }
 
 impl Default for Drafts {

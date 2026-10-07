@@ -553,7 +553,7 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
     assert_eq!(
         driver(&session),
         SlotDriver::Expression {
-            params: vec![width.clone()]
+            variables: vec![width.clone()]
         },
         "the slot is now driven, and says by what"
     );
@@ -575,12 +575,12 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
         Some(Refusal::DrivenByExpression {
             node,
             slot,
-            params,
+            variables,
             current,
             ..
         }) => {
             assert_eq!((node, slot), (extrude, SlotId::Distance));
-            assert_eq!(params, vec![width.clone()]);
+            assert_eq!(variables, vec![width.clone()]);
             assert_eq!(current, Some(SlotValue::Continuous(0.015)));
         }
         other => panic!("expected the driven refusal, got {other:?}"),
@@ -630,7 +630,7 @@ fn a_parameterless_expression_is_driven_and_offers_no_navigation_target() {
         .expect("the extrude carries a distance");
     assert_eq!(
         row.driver,
-        SlotDriver::Expression { params: vec![] },
+        SlotDriver::Expression { variables: vec![] },
         "arithmetic over literals is driven, with nothing to navigate to"
     );
     assert!(matches!(
@@ -641,7 +641,7 @@ fn a_parameterless_expression_is_driven_and_offers_no_navigation_target() {
                 value: SlotValue::Continuous(0.001),
             })
             .refusal,
-        Some(Refusal::DrivenByExpression { params, .. }) if params.is_empty()
+        Some(Refusal::DrivenByExpression { variables, .. }) if variables.is_empty()
     ));
 }
 
