@@ -1380,10 +1380,13 @@ fn inline_carries_an_anonymous_variable_whole() {
     );
     let reads = definition_reads(&out.doc, host_defined);
     let part_reads = definition_reads(&part, defined);
-    assert_eq!(
-        reads,
-        BTreeSet::from([id(&out.doc, "d")]),
-        "the definition reads the carried d"
+    let host_d = id(&out.doc, "d");
+    assert!(reads.contains(&host_d), "the definition reads the carried d");
+    let quantity: Vec<_> = reads.iter().copied().filter(|&v| v != host_d).collect();
+    assert_eq!(quantity.len(), 1, "and its own typed 0.25, a variable (VR6)");
+    assert!(
+        out.doc.is_typed_value(quantity[0]),
+        "carried anonymous: {quantity:?}"
     );
     assert!(
         reads.is_disjoint(&part_reads),
