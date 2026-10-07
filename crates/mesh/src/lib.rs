@@ -81,7 +81,7 @@
 //!
 //! **Invariant (ratified via PR #32, and the memo-key contract): per-face
 //! tessellation is a pure function of (face surface, loops — each
-//! edge's carrier, interval, direction, wrap flag and lineage identity
+//! edge's carrier, interval, direction and lineage identity
 //! — per-edge chord points and parameters, the stored pcurves, δ, and
 //! the ambient ε and k).** A face whose inputs are unchanged
 //! re-tessellates identically and its patch can be reused across
