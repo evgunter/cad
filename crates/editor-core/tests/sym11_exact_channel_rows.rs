@@ -39,8 +39,7 @@ use crate::m10_9_pins_interval::measured_studies;
 /// bracket and the pad stop at the replayed profile's validation
 /// (`arc_span`, `line_span`), so theirs is the validation prefix's
 /// receipt, and nothing in that prefix reaches the door. How each value
-/// moved since SYM-11 (2026-09-21), merge by merge, is the attribution
-/// table in
+/// moved since SYM-11 (2026-09-21), merge by merge, is attributed in
 /// `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
 ///
 /// INTENT-LITERALS PR C (a slot holds a variable) adds one theorem per
