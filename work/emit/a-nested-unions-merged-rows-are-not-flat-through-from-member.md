@@ -7,6 +7,7 @@ opened: 2026-10-06
 priority: P2
 cost: M
 branch: emit/nested-union-flat
+pr: 4281
 ---
 
 
