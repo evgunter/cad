@@ -654,3 +654,15 @@ plane; its two fixtures, the turned dome and the prism on the slanted
 tube, build every op at their closed forms; the declared one-carrier
 arms do not read ellipses, so the D10 hold leaves their reach where it
 was. Filed: `an-ellipse-lying-on-a-wall-keeps-the-door` (P2).
+
+## 2026-10-07 — a vertex read by two sector passes refuses typed (TANG implementer)
+
+`a-vertex-read-by-two-sector-passes-panics-instead-of-refusing` (P1)
+closes. `vtxfac::refuse_sector_rereads` replaces the `debug_assert!` in
+`boolean_reduce`. It runs before any vertex-on-face pass writes, in
+every build, and refuses `VertexReadTwice`, naming the vertex and its
+two reads. The rows rebuild the arch: standing pyramids on the plate,
+a `meeting::wedge` prism beside one, and two blocks in face contact.
+They cover every op, both orders and every pose. On the merge base
+each one panicked. Filed:
+`a-vertex-read-twice-where-the-first-pass-writes-nothing-refuses` (P1).
