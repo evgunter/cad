@@ -2525,15 +2525,16 @@ fn along<T: Decide>(
     };
     let (t0, t1) = curve.params();
     let near = (t0 + t1) / T::from_f64(2.0);
-    // Whether the carrier runs forward from `from` to `to`, metered as
-    // the chord between them signed by the parameter's direction.
+    // Whether the carrier runs forward from `from` to `to`: the
+    // parameter gap, metered at the stretch's average speed (the chord
+    // over the gap) so the margin is a length.
     let stretch = |carrier: &geom::Curve3<T>, near: T| -> Result<Option<(T, T)>, ShellError<T>> {
         let (Some(a), Some(b)) = (carrier.param_near(from, near), carrier.param_near(to, near))
         else {
             return Ok(None);
         };
-        let chord = (to - from).norm().copysign(b - a);
-        let sign = decide("shell_seam_stretch", Margin::of(chord), band)
+        let speed = geom_core::InfSpeed::new((to - from).norm() / (b - a).abs());
+        let sign = decide("shell_seam_stretch", Margin::metered(b - a, speed), band)
             .map_err(|source| ShellError::Escalated { source })?;
         Ok((sign == Sign::Positive).then_some((a, b)))
     };
