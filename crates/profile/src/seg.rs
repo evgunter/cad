@@ -1008,8 +1008,8 @@ pub(crate) fn pair_contacts<T: Decide>(
 ) -> Result<PairOutcome<T>, Indeterminate> {
     match (&s1.kind, &s2.kind) {
         (SegKind::Line, SegKind::Line) => line_line(s1, s2, band),
-        (SegKind::Line, SegKind::Arc(g2)) => line_arc(s1, g2, band),
-        (SegKind::Arc(g1), SegKind::Line) => line_arc(s2, g1, band),
+        (SegKind::Line, SegKind::Arc(g2)) => line_arc(s1, s2, g2, band),
+        (SegKind::Arc(g1), SegKind::Line) => line_arc(s2, s1, g1, band),
         (SegKind::Arc(g1), SegKind::Arc(g2)) => arc_arc(s1, g1, s2, g2, band),
     }
 }
@@ -1119,19 +1119,31 @@ fn line_line<T: Decide>(
 /// secant (two candidates, foot ± √(r² − h²) along the line — the
 /// radicand is a product of two definitely-positive factors
 /// (r − |h|)(r + |h|), so it cannot poison in this branch).
+///
+/// An in-band clearance is a carrier question the segments need not
+/// ask: where [`arc_clear_of_carrier`] certifies the arc away from the
+/// whole line, there is no contact; otherwise it escalates.
 fn line_arc<T: Decide>(
     line: &Seg<T>,
+    arc: &Seg<T>,
     g: &ArcGeom<T>,
     band: Band,
 ) -> Result<PairOutcome<T>, Indeterminate> {
     let to_center = g.arc.centre - line.a;
     let h = line.unit.perp_dot(to_center);
+    let foot = line.a + line.unit * to_center.dot(line.unit);
     let (clearance, _) = carrier_line_circle_margin(line.unit, line.a, g);
     let mut contacts = Vec::new();
-    match decide("carrier_line_circle", Margin::of(clearance), band)? {
+    let carriers = match decide("carrier_line_circle", Margin::of(clearance), band) {
+        Ok(sign) => sign,
+        Err(_) if arc_clear_of_carrier(line, arc, g, foot, band) => {
+            return Ok(PairOutcome::Contacts(contacts));
+        }
+        Err(source) => return Err(source),
+    };
+    match carriers {
         Sign::Negative => {}
         Sign::Zero => {
-            let foot = line.a + line.unit * to_center.dot(line.unit);
             if let Some(j) = joint(line_span(line, foot, band)?, arc_span(g, foot, band)?) {
                 contacts.push(Contact {
                     point: foot,
@@ -1160,6 +1172,33 @@ fn line_arc<T: Decide>(
         }
     }
     Ok(PairOutcome::Contacts(contacts))
+}
+
+/// Whether an arc certainly keeps off a line's whole carrier, read from
+/// the arc's span rather than the carriers' clearance. Along a circle
+/// the signed distance to a line has one local minimum, at the point
+/// facing the line, which lies toward `foot` (the line's point nearest
+/// the centre) from the centre. An arc whose span definitely excludes
+/// that point (`arc_span` of `foot`, within the clearance of the
+/// circle) is therefore nearest the line at an endpoint, and with both
+/// endpoints definitely on the centre's side (`chord_side`) no point of
+/// it reaches the line.
+fn arc_clear_of_carrier<T: Decide>(
+    line: &Seg<T>,
+    arc: &Seg<T>,
+    g: &ArcGeom<T>,
+    foot: Point2<T>,
+    band: Band,
+) -> bool {
+    let side = |q: Point2<T>| chord_side(line, q, band).map(|(sign, _)| sign);
+    matches!(arc_span(g, foot, band), Ok(Sign::Negative))
+        && match side(g.arc.centre) {
+            Ok(centre @ (Sign::Positive | Sign::Negative)) => {
+                matches!(side(arc.a), Ok(s) if s == centre)
+                    && matches!(side(arc.b), Ok(s) if s == centre)
+            }
+            Ok(Sign::Zero) | Err(_) => false,
+        }
 }
 
 /// Arc/arc contacts. Predicates, in gate order, all margins in meters:
