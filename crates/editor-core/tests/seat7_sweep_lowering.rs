@@ -313,14 +313,20 @@ fn both_sweeps_evaluate_in_one_document() {
 /// and this digest feeds ids. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched.
+///
+/// RE-BLESSED, `cut_cylinder` and `boss_union` only, when a chart
+/// image's flag became `wrap` (the wrap edge, D1): the digest feeds each
+/// curve's `Debug`, whose field name moved; with `wrap: ` read back as
+/// `seam: ` the feed reproduces every old constant, so no evaluation
+/// moved.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0xe38c_9822_0a11_ac9e),
-        ("corner_table", 0x1d3d_b707_632b_2c62),
-        ("cut_cylinder", 0x2180_47fc_4c41_82b0),
-        ("boss_union", 0x62bc_6f19_57a5_570e),
-        ("kitchen_sink", 0x1161_860c_ba55_1340),
+        ("die", 0xbad8_3e67_947d_3484),
+        ("corner_table", 0xa3ad_d45d_6fdf_8bc0),
+        ("cut_cylinder", 0x66cc_96b0_a9c3_a570),
+        ("boss_union", 0x2c30_5ade_2025_a47c),
+        ("kitchen_sink", 0x60c7_ea2e_6afc_e782),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

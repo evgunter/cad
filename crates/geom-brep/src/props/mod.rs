@@ -155,7 +155,7 @@
 //! **What the predicate is and is not, stated exactly**:
 //!
 //! * Every **iso flux/area closed form** runs it before integrating —
-//!   cone, rim-bearing sphere, torus — with **one exemption**, so
+//!   cone and rim-bearing sphere — with **one exemption**, so
 //!   "every curved kind" is not the claim: the
 //!   **rimless sphere band**, which carries no rim, so the predicate
 //!   is vacuous on it rather than satisfied by it. What that arm does
@@ -164,16 +164,17 @@
 //!   wedge, whose `Δu` is the azimuth between them on the face's side;
 //!   its `v`-extent, from the fold that carries each arc's span-derived
 //!   pole extremes) is stated at `curved::sphere`, at the arm.
-//!   The **cylinder** does not run it: its flux is the chart Green
-//!   form over every loop (`curved::cylinder_chart`), which integrates
+//!   The **cylinder** and the **torus** do not run it: each one's flux
+//!   is a chart Green form over every loop (`curved::cylinder_chart`,
+//!   and `curved::torus_chart` over each loop's lift), which integrates
 //!   the region the boundary actually bounds and needs no rectangle.
-//! * **[`boundary_material_sign`] runs it too, on the three iso
+//! * **[`boundary_material_sign`] runs it too, on the cone and sphere
 //!   arms**, because each reaches a side derivation that rests on this
-//!   premise; the cylinder arm reads the sign of its chart area, as
-//!   its flux does. It was listed here as a second exemption, on the
-//!   argument that *"running the predicate there could only convert an
+//!   premise; the cylinder and torus arms read the sign of their chart
+//!   area, as their flux does. It was listed here as a second
+//!   exemption, on the argument that *"running the predicate there could only convert an
 //!   answer into an exemption"* — which covers the ERROR direction
-//!   only. The three linearly-leveled arms derive a side from
+//!   only. The linearly-leveled arms derive a side from
 //!   `lo + hi − 2v`, *which extreme is this rim at*, and on a domain
 //!   that is not a rectangle that returns a definite ±1 depending on
 //!   where the owning body's loop flattening started rather than on
@@ -185,26 +186,15 @@
 //!   premise and the side now travel together
 //!   (`curved::linear_rim_side`), so what its callers must treat as
 //!   exempt is what such a face now produces.
-//!
-//!   **The torus arm is not exempt either, and the argument that it
-//!   was is retired here rather than restated.** That argument said
-//!   the arm reads only the anchor meridian's chart orientation and
-//!   the rim sharing that meridian's `t0` vertex — *two facts about
-//!   one CORNER* — so no global inference is on the path. It is
-//!   false. The anchor-end choice cancels against `dv/dt` only when
-//!   the two rims FLANKING that meridian carry opposite `d_u`. Every
-//!   corner of a rectangle gives that; a **reflex** corner does not,
-//!   and on an L-shaped domain the six rotations of one cycle answer
-//!   `+ + − − + +` while the flux lane refuses all six. One corner is
-//!   true and not sufficient — the PAIR is what the premise buys, and
-//!   only a rectangle guarantees it. The arm runs
-//!   `require_rims_at_extremes` on the same `torus_ends` extremes the
-//!   flux lane uses.
 //! * **[`require_iso_rectangle`] is the predicate's own public door**:
 //!   the per-kind boundary classification and `props_rim_level`, and
 //!   nothing integrated on top — for a consumer whose lane rests on
 //!   the premise without wanting a volume (`mesh`'s swept-rectangle
-//!   walk cites it before walking a face). It ADMITS every rimless
+//!   walk cites it before walking a face). It decides the premise on
+//!   every curved kind, the cylinder and torus included, whose flux
+//!   lanes no longer need it: its cylinder arm reads the extremes as
+//!   the cone's below, and its torus arm off the anchor meridian's
+//!   stored span (`curved::torus_parse`). It ADMITS every rimless
 //!   sphere band, and the flux lane measures the two it has a lune
 //!   for — the coplanar two-band face (`props_band_coplanar`,
 //!   `Δu = π`) and the wedge (`props_wedge_azimuth`, the azimuth
@@ -215,23 +205,22 @@
 //! * `w ≡ Δu` is **one** of the two premises `area = r·Δu·(hi − lo)`
 //!   needs. The other is that `(lo, hi)` is the face's true
 //!   `v`-extent, and **this predicate does not establish it** — each
-//!   kind's own derivation does. The torus's ends are the anchor
-//!   meridian's stored span, the pieces of a split edge folded into
-//!   that meridian first. The cylinder's and cone's are `min_max`
-//!   over edge ENDPOINT levels, exact because their meridians are
-//!   lines, monotone in `v`. The sphere's meridians are great-circle
+//!   kind's own derivation does. The cone's are `min_max` over edge
+//!   ENDPOINT levels, exact because its meridians are lines, monotone
+//!   in `v`. The sphere's meridians are great-circle
 //!   arcs whose latitude peaks at a pole the arc may contain in its
 //!   interior, so its fold also carries each arc's span-derived pole
 //!   extremes (`curved::sphere_meridian_span_levels`, decided through
 //!   `props_meridian_pole`) — the stored-span derivation in fold
 //!   form.
 //!
-//! Outside that verification: the loop-local vertex **tags** are
-//! trusted as declared (the [`LoopEdge`] trust boundary), and on the
-//! cone, sphere and torus the residuals certify carriers, not that the
-//! traversed arcs jointly close a loop. The cylinder's Green form
-//! checks closure (`props_loop_closed`, `props_chart_loops_closed`),
-//! because its anchor-freedom rests on it.
+//! Outside that verification: on the cone and sphere the residuals
+//! certify carriers, not that the traversed arcs jointly close a loop.
+//! The cylinder's and torus's Green forms check closure on the
+//! traversed endpoints (`props_loop_closed`, and
+//! `props_chart_loops_closed` / `props_torus_lift_closed_u` and `_v`),
+//! because their anchor-freedom rests on it. No lane reads the
+//! loop-local vertex **tags** ([`LoopEdge`]).
 
 mod curved;
 mod loop_area;
@@ -260,13 +249,11 @@ pub use loop_area::loop_vector_area;
 ///
 /// The tags must **faithfully identify shared vertices** — no residual
 /// can catch a tag lie, because a lie leaves the geometry unchanged.
-/// They are load-bearing: the torus `s_f` inference locates the rim
-/// topologically adjacent to a meridian's anchor endpoint through
-/// them, and lying tags silently flip the anchored flux term's sign
-/// (pinned by `torus_tag_contract_is_load_bearing`). `topo`'s
-/// flattening satisfies the contract by construction (first-seen
-/// traversal order over the half-edge cycle); callers constructing
-/// `LoopEdge`s by hand own it.
+/// No props lane reads them: closure is decided on the traversed
+/// endpoints, and a tag lie moves no flux (`torus_flux_reads_no_tags`).
+/// `topo`'s flattening satisfies the contract by construction
+/// (first-seen traversal order over the half-edge cycle); callers
+/// constructing `LoopEdge`s by hand own it.
 #[derive(Clone, Debug)]
 pub struct LoopEdge<T: Real> {
     /// The edge's carrier locus.
@@ -332,11 +319,6 @@ impl<T: SpanLocate> LoopEdge<T> {
     /// The carrier point at the interval end `t1`.
     pub(crate) fn p1(&self) -> Point3<T> {
         self.carrier.eval(self.t1)
-    }
-
-    /// The vertex tag at the interval start `t0` (`he_plus` start).
-    pub(crate) fn tag_at_t0(&self) -> u32 {
-        if self.forward { self.start } else { self.end }
     }
 
     /// The carrier points at the edge's TRAVERSAL ends, in traversal

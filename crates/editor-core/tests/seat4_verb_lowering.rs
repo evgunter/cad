@@ -341,9 +341,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0xb5da_755b_989f_409cu64),
-        ("heat_sink", 0x126b_88a8_ee09_db4a),
-        ("kiss_carry", 0x8d4b_7e11_5b5e_0fdc),
+        ("crossing_slots", 0xf6d9_9bce_a48e_6974u64),
+        ("heat_sink", 0x3f86_1e33_3244_1652),
+        ("kiss_carry", 0x5f8d_edb9_b6ef_34ce),
     ] {
         let doc = corpus::documents()
             .into_iter()

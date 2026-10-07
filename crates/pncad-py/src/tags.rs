@@ -1487,7 +1487,6 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::ArcCrossesAxis { .. } => "arc_crosses_axis",
         RevolveError::SliverAxisClearance { .. } => "sliver_axis_clearance",
         RevolveError::UnsupportedToroid { .. } => "unsupported_toroid",
-        RevolveError::OneSegmentLoop { .. } => "one_segment_loop",
         RevolveError::NonManifoldAxisContact { .. } => "non_manifold_axis_contact",
         RevolveError::MultipleAxisRuns { .. } => "multiple_axis_runs",
         RevolveError::HoleTouchesAxis { .. } => "hole_touches_axis",
@@ -1630,6 +1629,7 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::PairingMismatch => "pairing_mismatch",
         BooleanErrorKind::SharedVertexCrossings => "shared_vertex_crossings",
         BooleanErrorKind::PierceRunsNested => "pierce_runs_nested",
+        BooleanErrorKind::VertexReadTwice => "vertex_read_twice",
         BooleanErrorKind::NonManifoldResult => "non_manifold_result",
         BooleanErrorKind::ClassificationInvariant => "classification_invariant",
         BooleanErrorKind::CrossingInsertion => "crossing_insertion",
@@ -1643,6 +1643,9 @@ pub fn boolean_error_tag(kind: BooleanErrorKind) -> &'static str {
         BooleanErrorKind::Pcurves => "pcurves",
         BooleanErrorKind::Join => "join",
         BooleanErrorKind::RestZipUnsupported => "rest_zip_unsupported",
+        BooleanErrorKind::JoinUndecided => "join_undecided",
+        BooleanErrorKind::JoinCarrierUnsupported => "join_carrier_unsupported",
+        BooleanErrorKind::CurvedRestUnrecorded => "curved_rest_unrecorded",
         BooleanErrorKind::JoinDesync => "join_desync",
         BooleanErrorKind::TornComponent => "torn_component",
         BooleanErrorKind::ShellWitnessExhausted => "shell_witness_exhausted",
@@ -1710,7 +1713,6 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::Pcurve(_) => "pcurve",
         LoftError::SeamStructure { .. } => "seam_structure",
         LoftError::SectionStructure => "section_structure",
-        LoftError::OneSegmentLoop { .. } => "one_segment_loop",
         LoftError::ReversedStacking { .. } => "reversed_stacking",
         LoftError::DegenerateStacking { .. } => "degenerate_stacking",
         LoftError::FarSectionNotForward { .. } => "far_section_not_forward",
@@ -1762,6 +1764,8 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
         NamingError::MergedChordConstituents { .. } => "merged_chord_constituents",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
+        NamingError::ConventionalVertex { .. } => "conventional_vertex",
+        NamingError::ClosedCarrierUnread { .. } => "closed_carrier_unread",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
@@ -2185,14 +2189,13 @@ pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
 /// one word whichever kind it was, and the residual that certifies it
 /// is a number rather than a spelling.
 ///
-/// The match is exhaustive, so a sixth normalization minted
+/// The match is exhaustive, so a fifth normalization minted
 /// kernel-side stops this crate compiling instead of arriving under
-/// one of these five words.
+/// one of these four words.
 pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
         NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
-        NormalizationKind::FullPeriodTorus => "full_period_torus",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
     }
@@ -2553,6 +2556,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::PlacingMateLeft { .. } => "placing_mate_left",
         SplitError::MateFrameCrosses { .. } => "mate_frame_crosses",
         SplitError::UncutVarReference { .. } => "uncut_var_reference",
+        SplitError::DefinitionStraddlesCut { .. } => "definition_straddles_cut",
         SplitError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",

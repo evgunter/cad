@@ -703,7 +703,7 @@ pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
                 let chart = EdgeDescriptionSpec::Chart {
                     surface: c.surface,
                     image: Some(c.pcurve.clone()),
-                    seam: c.seam,
+                    wrap: c.wrap,
                     declared: None,
                 };
                 match old.authority() {

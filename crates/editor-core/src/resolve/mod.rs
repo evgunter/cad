@@ -1344,7 +1344,13 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
     }
 
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone> {
-        let (node, entity) = lookup_unique(self.ctx.eval, name)?;
+        // A line is no row: its last-good entry is the least row on it,
+        // as a union reads a cited line (N5, "A cited line").
+        let (node, entity) = lookup_unique(self.ctx.eval, name).or_else(|| {
+            line_rows(self.ctx.eval, name)
+                .iter()
+                .find_map(|row| lookup_unique(self.ctx.eval, row))
+        })?;
         let table = &self.ctx.eval.value(node)?.name_table;
         let Some(body) = table.name_of(&EntityRef {
             body: entity.body,
@@ -1419,12 +1425,20 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             Some((_, Entry::Unique(_))) => offers.push(base),
             None => {}
         }
+    } else if let Some(line) = piece_line(name) {
+        // An edge piece's base is its line, which no table publishes:
+        // the surviving pieces of the line are offered (N5, "A cited
+        // line"), the undivided edge among them where it is one row.
+        for row in line_rows(new.eval, &line) {
+            if matches!(lookup(new.eval, row), Some((_, Entry::Unique(_)))) {
+                offers.push((**row).clone());
+            }
+        }
     } else if let Some(base) = unqualified(name)
-        // The same collapse for a face or edge piece: the undivided
-        // survivor is offered for an explicit `Rebind`, never bound.
-        // There is no over-tie to widen to here — a `Borders`, `Keeps`
-        // or `Ends` tie is a row of the QUALIFIED name, which step 2
-        // already answered.
+        // The same collapse for a face piece: the undivided survivor is
+        // offered for an explicit `Rebind`, never bound. There is no
+        // over-tie to widen to here — a `Borders` or `Keeps` tie is a
+        // row of the QUALIFIED name, which step 2 already answered.
         && matches!(lookup(new.eval, &base), Some((_, Entry::Unique(_))))
     {
         offers.push(base);
@@ -1451,9 +1465,20 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 
     // Cascade dominates: an embedded operand name that itself fails
     // to resolve carries the root cause (its own diagnosis chains).
+    // A name cited by its line is present while any row lies on it, and
+    // so is the line a name resolved here is, when it is one: an edge
+    // spelled with no piece qualifier that neither run holds as a row.
+    let is_line = name.kind == EntityKind::Edge
+        && *crate::names::edge_line(&crate::names::NameRef::new(name.clone())) == *name
+        && !prior.carried(name);
+    let lines = cited_lines(name, is_line);
     let mut cascade: Option<StableName> = None;
     walk_names(name, Partners::Cascade, &mut |inner| {
-        if cascade.is_none() && lookup(new.eval, inner).is_none() {
+        if cascade.is_none()
+            && lookup(new.eval, inner).is_none()
+            && !(lines.iter().any(|l| core::ptr::eq(*l, inner))
+                && !line_rows(new.eval, inner).is_empty())
+        {
             cascade = Some(inner.clone());
         }
     });
@@ -1510,6 +1535,77 @@ fn fragment_base(name: &StableName) -> Option<StableName> {
     let mut base = name.clone();
     base.path.pop();
     (!base.path.is_empty()).then_some(base)
+}
+
+/// **The line an edge piece lies on**: its base, where its qualifier is
+/// `Ends` (N2).
+fn piece_line(name: &StableName) -> Option<StableName> {
+    (name.kind == EntityKind::Edge
+        && matches!(
+            name.path.last(),
+            Some(RoleSeg::Fragment(Qualifier::Ends(_)))
+        ))
+    .then(|| fragment_base(name))
+    .flatten()
+}
+
+/// **The rows that lie on `line`** (N5, "A cited line"): the edge rows
+/// of `line`'s node's table whose line it is, in key order. Empty where
+/// that node has no table in this run or no row lies on it.
+fn line_rows<'a, T: Decide>(
+    eval: &'a Evaluation<T>,
+    line: &StableName,
+) -> &'a [crate::names::NameRef] {
+    eval.value(line.node)
+        .map_or(&[], |v| v.name_table.on_line(line))
+}
+
+/// **Every name `name` cites by its line**, at every depth, `name`
+/// itself read as a line where `is_line`: a crossing's
+/// edges, a band crossing's, a seam vertex's, a `Keeps` entry, the parent an edge piece
+/// wraps, and the parent a line wraps in turn (`names::role::edge_line`).
+/// By address, so a reader can tell a name in a line position from an
+/// equal one elsewhere in the tree.
+fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
+    let mut out: Vec<&StableName> = Vec::new();
+    let mut stack: Vec<(&StableName, bool)> = vec![(name, is_line)];
+    while let Some((n, is_line)) = stack.pop() {
+        let mut lines: Vec<&StableName> = Vec::new();
+        let tail = n
+            .path
+            .iter()
+            .rposition(|s| !matches!(s, RoleSeg::Fragment(Qualifier::Ends(_))))
+            .map_or(0, |i| i + 1);
+        let piece = n.kind == EntityKind::Edge && tail < n.path.len();
+        if (piece || is_line) && tail == 1 {
+            lines.extend(crate::names::wrapped_edge(&n.path[0]).map(|w| &**w));
+        }
+        for seg in &n.path {
+            match seg {
+                RoleSeg::Crossing { edge, .. }
+                | RoleSeg::CrossingVertex { edge, .. }
+                | RoleSeg::BandCross { edge, .. } => {
+                    lines.push(edge);
+                }
+                RoleSeg::EdgeCrossing { a, b, .. } => lines.extend([&**a, &**b]),
+                RoleSeg::Seam { a, b } if n.kind == EntityKind::Vertex => {
+                    lines.extend([&**a, &**b]);
+                }
+                RoleSeg::Fragment(Qualifier::Keeps(kept)) => lines.extend(kept),
+                _ => {}
+            }
+        }
+        let mut children = Vec::new();
+        embedded(n, Partners::Include, &mut children);
+        for c in children {
+            let line = lines.iter().any(|l| core::ptr::eq(*l, c));
+            if line {
+                out.push(c);
+            }
+            stack.push((c, line));
+        }
+    }
+    out
 }
 
 /// A face or edge piece's base ([`fragment_base`]) — what the SAME
@@ -1598,24 +1694,23 @@ fn border_delta<T: Decide>(
 /// # Why a fragment name can vanish with no flip
 ///
 /// This is the one statement of it; the sites that need it point
-/// here. A fragment qualifier exists only while its group has two or
-/// more members (N2), and `OrderAlong` spells the size of a group of
-/// crossings of one sense into the name as `of`. So a fragment name
-/// vanishes whenever its group stops being divided, and a ranked
-/// crossing's whenever its group changes size, and neither event need
-/// flip any discriminator: a `Borders` group that stops being divided
-/// leaves no piece whose walls could be compared — the walls still
-/// stand where they stood relative to the survivor — and an
-/// `OrderAlong` group ranks its members against EACH OTHER, so a group
-/// of one runs no pair. What remains in evidence is the count. An edge
-/// piece's `Ends` holds no count, so a cut elsewhere on its parent, by
-/// a face that does not already cross it, leaves its name as it was. A
-/// crossing's sense is its own, and a crossing ranked among others of
-/// its sense keeps an ordinal, so a second crossing of the same sense
-/// by a face that already crosses the parent renames the first, and
-/// every piece whose `Ends` cite it vanishes too; so do a piece whose
-/// own end moves, a lone piece its parent's second cut gives `Ends`,
-/// and a group that collapses to one.
+/// here. A face fragment's qualifier exists only while its group has
+/// two or more members (N2), an edge piece's `Ends` while its parent is
+/// divided, and `OrderAlong` spells the size of a group of crossings of
+/// one sense into the name as `of`. So a fragment name vanishes
+/// whenever its group stops being divided, and a ranked crossing's
+/// whenever its group changes size, and neither event need flip any
+/// discriminator: a `Borders` group that stops being divided leaves no
+/// piece whose walls could be compared — the walls still stand where
+/// they stood relative to the survivor — and an `OrderAlong` group
+/// ranks its members against EACH OTHER, so a group of one runs no
+/// pair. What remains in evidence is the count. An edge piece's `Ends`
+/// holds no count and a crossing's sense is its own, so a cut elsewhere
+/// on its parent leaves the piece's name as it was, and so do the
+/// crossings it ends at; a second crossing of the same sense by a face
+/// that already crosses the parent ranks the first, and every piece
+/// whose `Ends` cite it vanishes too; so does a piece whose own end
+/// moves, which leaves its group's count as it was.
 ///
 /// # What is counted
 ///

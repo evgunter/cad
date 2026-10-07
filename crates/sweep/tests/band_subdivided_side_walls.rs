@@ -196,7 +196,11 @@ fn extruded_continuation_builds_one_wall_and_unions_as_built() {
         );
     }
     assert_eq!(
-        topo::joinable_vertices(&ex.body),
+        topo::joinable_vertices(
+            &ex.body,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap(),
         vec![],
         "no station vertex on either cap"
     );
@@ -232,7 +236,12 @@ fn a_union_answered_by_one_operand_joins_its_station_vertices() {
     let t = Tol::witness();
     let prism = finished("the stationed prism", stationed_prism(t), t);
     assert_eq!(
-        topo::joinable_vertices(&prism).len(),
+        topo::joinable_vertices(
+            &prism,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap()
+        .len(),
         2,
         "the station on each cap rim"
     );
@@ -242,7 +251,14 @@ fn a_union_answered_by_one_operand_joins_its_station_vertices() {
     let out = r.body().expect("non-empty");
     assert_eq!(out.kind, topo::BooleanResultKind::OperandA);
     assert_eq!(out.naming.edge_joins.len(), 2, "both stations joined");
-    assert_eq!(topo::joinable_vertices(&out.body), vec![]);
+    assert_eq!(
+        topo::joinable_vertices(
+            &out.body,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap(),
+        vec![]
+    );
     assert_eq!(out.body.vertices().count(), 8);
     assert_eq!(out.body.edges().count(), 12);
     assert_eq!(validate_closed(&out.body), Ok(()), "tier 2");
@@ -305,7 +321,12 @@ fn a_rim_joined_twice_reads_through_both_joins() {
     let t = Tol::witness();
     let prism = finished("the twice stationed prism", twice_stationed_prism(t), t);
     assert_eq!(
-        topo::joinable_vertices(&prism).len(),
+        topo::joinable_vertices(
+            &prism,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap()
+        .len(),
         4,
         "two stations per cap rim"
     );
@@ -314,7 +335,14 @@ fn a_rim_joined_twice_reads_through_both_joins() {
     let out = r.body().expect("non-empty");
     let joins = &out.naming.edge_joins;
     assert_eq!(joins.len(), 4, "every station joined");
-    assert_eq!(topo::joinable_vertices(&out.body), vec![]);
+    assert_eq!(
+        topo::joinable_vertices(
+            &out.body,
+            geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+        )
+        .unwrap(),
+        vec![]
+    );
     assert_eq!(out.body.edges().count(), 12, "a box");
     assert!(
         joins
@@ -387,7 +415,15 @@ fn revolved_continuation_builds_one_wall_per_run_and_unions_as_built() {
         assert_eq!(r.rims[0][1], None, "{rev:?}: no rim at a station");
         assert_eq!(r.rims[0][3], None, "{rev:?}: no rim at a station");
         assert_eq!(r.body.vertices().count(), vertices, "{rev:?}");
-        assert_eq!(topo::joinable_vertices(&r.body), vec![], "{rev:?}");
+        assert_eq!(
+            topo::joinable_vertices(
+                &r.body,
+                geom_core::Band::linear(geom_core::Tol::witness()).unwrap()
+            )
+            .unwrap(),
+            vec![],
+            "{rev:?}"
+        );
         assert_eq!(station_vertices(&r.body), vec![], "{rev:?}");
         assert_eq!(topo::validate_geometric(&r.body, t), Ok(()), "{rev:?}");
         let mut merged = r.body.clone();

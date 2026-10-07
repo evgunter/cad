@@ -3857,6 +3857,7 @@ MEMBERS_BOUND_AS = {
     "SplitError::PlacingMateLeft": "SplitError.variant",
     "SplitError::MateFrameCrosses": "SplitError.variant",
     "SplitError::UncutVarReference": "SplitError.variant",
+    "SplitError::DefinitionStraddlesCut": "SplitError.variant",
     "SplitError::UnresolvedVarCrossesCut": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",

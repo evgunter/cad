@@ -202,6 +202,7 @@ cases! {
         sector_side(Vec3::new(1.0, 0.0, -D), Reach::Extent(1.0));
     pierce_curvature_short_of_its_bend: "PierceCurvature", D, SECTOR_SITE, Valued =>
         pierce_curvature(D);
+    joined_vertex_off_a_pole: "JoinUndecided", D, EDGE_JOIN_SITE, Valued => vertex_off_a_pole(D);
     tangent_side_in_band: "Coincidence(TangentSide)", -D, TANGENT_SITE, Valued =>
         tangent_side(false);
     lever_arm_sector_curving_in_band: "LeverArm(SectorCurving)", D, TANGENT_SITE, Valued =>
@@ -525,6 +526,41 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
     let c = 2.0 * margin.sqrt();
     let dir = Vec3::new((1.0 - c * c).sqrt(), 0.0, c);
     side_code(dir, Reach::Bisector(0.5), n, 1.0, band()).map(|_| ())
+}
+
+// The join's regularity readings share one refusal. The pole distance
+// is rostered at its door below; the pair's wedge is reachable from
+// operands, and is not rostered: `classify_dihedral` is levered by the
+// shorter of the vertex's two edges, so a few-ε arc beside an
+// otherwise joinable vertex reads the wedge in the band and refuses
+// the whole boolean (`JoinUndecided`), where the boolean built before
+// the curved join (`work/fuse/a-sliver-arc-beside-a-joinable-vertex-refuses-the-boolean`).
+const EDGE_JOIN_SITE: Door = Door::Site(
+    "a valence-2 vertex's distance from its chart's pole is read inside the join's predicate, \
+     on a vertex an output stage leaves between two edges of one carrier, which no pair of \
+     operands places within the band of a pole by construction; the pair's wedge, read beside \
+     it, is reachable from operands",
+);
+
+/// A point of the unit sphere about `z` at distance `rho` from its
+/// axis: the join's regularity reading at a vertex that far off the
+/// pole.
+fn vertex_off_a_pole(rho: f64) -> Result<(), BooleanError> {
+    let sphere = geom::Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let p = Point3::new(rho, 0.0, (1.0 - rho * rho).sqrt());
+    super::super::edge_join::singular_at(&sphere, p, band())
+        .map(|_| ())
+        .map_err(|diag| {
+            BooleanError::JoinUndecided(crate::JoinUndecided {
+                vertex: crate::entity::VertexKey::default(),
+                reading: crate::JoinReading::Regularity(diag),
+            })
+        })
 }
 
 /// A unit cylinder along `y` resting on a floor from the side `side`
@@ -1034,7 +1070,8 @@ fn parallel_radical_plane_at(offset: f64) -> Result<(), BooleanError> {
         radius,
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
-    super::super::join::parallel_radical_plane(&wall(0.0, 0.5), &wall(offset, 0.3), band())
+    let reach = geom_brep::Reach::Ball(geom_brep::ExtentBall::point(Point3::origin()));
+    super::super::join::parallel_radical_plane(&wall(0.0, 0.5), &wall(offset, 0.3), &reach, band())
         .map(|_| ())
 }
 
@@ -2047,6 +2084,15 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
                 verdict,
             })
             .collect(),
+        // Every regularity reading is a magnitude: a distance from a
+        // singularity, a wedge, a sagitta. It refuses on no negative.
+        BooleanErrorKind::JoinUndecided => [BooleanError::JoinUndecided(crate::JoinUndecided {
+            vertex: crate::entity::VertexKey::default(),
+            reading: crate::JoinReading::Regularity(diag),
+        })]
+        .into_iter()
+        .filter(|e| quoted_margin(&e.to_string()).is_some_and(|m| m >= 0.0))
+        .collect(),
         BooleanErrorKind::CurvedSectorSideUnsupported => refused()
             .into_iter()
             .map(|verdict| BooleanError::CurvedSectorSideUnsupported { verdict })
@@ -2096,6 +2142,7 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PierceRunsNested
+        | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported
         | BooleanErrorKind::NurbsExtentUnsupported
@@ -2104,6 +2151,8 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::GermFrameCylinderPinch
         | BooleanErrorKind::RestZipUnsupported
         | BooleanErrorKind::JoinDesync
+        | BooleanErrorKind::JoinCarrierUnsupported
+        | BooleanErrorKind::CurvedRestUnrecorded
         | BooleanErrorKind::TornComponent
         | BooleanErrorKind::ShellWitnessExhausted
         | BooleanErrorKind::CoincidentShell

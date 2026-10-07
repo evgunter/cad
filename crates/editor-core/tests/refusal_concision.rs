@@ -155,7 +155,7 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
     use geom_core::{Band, Indeterminate, MarginDiag, Tol};
     use topo::{
         BooleanError, BooleanOp, ContactClass, DeclaredContact, EdgeKey, FaceKey, LoopKey, Operand,
-        PlaneRelation, PointInSolidError, SolidKey, VertexKey,
+        PlaneRelation, PointInSolidError, SectorRead, SolidKey, VertexKey,
     };
 
     let band = Band::linear(Tol::witness()).expect("the witness band");
@@ -649,6 +649,17 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
                 runs: 3,
+            },
+        ),
+        (
+            "VertexReadTwice",
+            BooleanError::VertexReadTwice {
+                operand: Operand::A,
+                vertex: VertexKey::default(),
+                reads: [
+                    SectorRead::Pierce(FaceKey::default()),
+                    SectorRead::Pair(VertexKey::default()),
+                ],
             },
         ),
         (

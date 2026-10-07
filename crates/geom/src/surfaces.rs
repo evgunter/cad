@@ -208,8 +208,7 @@ pub enum Surface<T: Real> {
         /// The unit pole axis: the poles lie at `center ± axis·radius`
         /// (`v = ±π/2`).
         axis: Vec3<T>,
-        /// The unit reference direction ⊥ `axis` where u = 0 lives —
-        /// the seam meridian.
+        /// The unit reference direction ⊥ `axis` where u = 0 lives.
         u_ref: Vec3<T>,
     },
 
@@ -246,8 +245,7 @@ pub enum Surface<T: Real> {
         /// The minor radius r in meters: the tube radius (positive by
         /// convention).
         minor_radius: T,
-        /// The unit reference direction ⊥ `axis` where u = 0 lives —
-        /// the seam meridian.
+        /// The unit reference direction ⊥ `axis` where u = 0 lives.
         u_ref: Vec3<T>,
     },
 

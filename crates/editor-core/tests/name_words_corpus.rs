@@ -66,7 +66,7 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// kind, which the quantiles of a long tail need not.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
     ("scoped faces", [16, 34, 38, 38_230]),
-    ("full", [19, 69, 111, 248_708]),
+    ("full", [19, 97, 181, 274_184]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -83,7 +83,7 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// Ids as their mint ordinal and digest: a `Borders` refusal lists its
 /// walls in mint order now (it listed them by digest), and nothing else
 /// moved — the node tags are still the digest's.
-const SAID_DIGEST: u64 = 0x5b07_b109_c863_0281;
+const SAID_DIGEST: u64 = 0xd6b3_49cb_384c_e311;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a

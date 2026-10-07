@@ -67,16 +67,15 @@ fn sequential(src: &Body<f64>, order: &[(f64, f64)], r: f64) -> f64 {
 }
 
 /// **P1 — the zone-pair equality, OFF the unit's fixture radius.** The
-/// unit pins bit-equality at r = 0.08. MEASURED here: at r = 0.11 the
-/// equality is still bit-level in both orders, but at r = 0.3 the
-/// lo-then-hi sequential order lands ONE ULP away
-/// (1.57569308007029445e1 vs …463e1) while hi-then-lo stays bit-equal —
-/// the summation-order mechanism the PR discloses on the bud demo
-/// reaches the kernel's own fixture at an untested radius. So the
-/// bit-level claim is a per-fixture measurement, not a door property,
-/// exactly as the PR body's "not universally" hedge states; this row
-/// pins the measured boundary: exact at 0.11, within 2 ε_machine
-/// relative at 0.3.
+/// unit pins bit-equality at r = 0.08. MEASURED here: at r = 0.11 and at
+/// r = 0.3 the lo-then-hi sequential order lands ONE ULP away
+/// (1.59492284689684940e1 vs …922e1 at 0.11) while hi-then-lo stays
+/// bit-equal — the summation-order mechanism the PR discloses on the
+/// bud demo reaches the kernel's own fixture. So the bit-level claim is
+/// a per-fixture measurement, not a door property, exactly as the PR
+/// body's "not universally" hedge states; this row pins the measured
+/// boundary: within 2 ε_machine relative at both radii, one call ON one
+/// sequential order.
 #[test]
 fn r2_p1_zone_pair_equality_off_the_fixture_radius() {
     let body = zone();
@@ -84,7 +83,7 @@ fn r2_p1_zone_pair_equality_off_the_fixture_radius() {
         one_edge_rim_at(&body, ZONE_SPHERE_LO.0, ZONE_SPHERE_LO.1),
         one_edge_rim_at(&body, ZONE_SPHERE_HI.0, ZONE_SPHERE_HI.1),
     );
-    for (r, exact) in [(0.11, true), (0.3, false)] {
+    for (r, exact) in [(0.11, false), (0.3, false)] {
         let one = fillet_edges(&body, &[lo, hi], r, tol())
             .unwrap_or_else(|e| panic!("the pair builds at r = {r}, got {e:?}"));
         validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));

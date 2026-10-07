@@ -753,6 +753,11 @@ class SplitError(PncadError):
     no gauge, `gauge` the gauge the cut anchors on. `mate_frame_crosses`:
     `node` is the mate, and `root` the cut root a promote would land at
     the empty chain, where that is the recourse."""
+    moving: Optional[str]
+    staying: Optional[str]
+    """`definition_straddles_cut`: `param` is the tied variable, `moving`
+    a variable it reads that the cut moves, `staying` one that stays or
+    that the document no longer holds."""
 
 class InlineError(PncadError):
     """The `inline` refactoring refused.

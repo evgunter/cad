@@ -350,6 +350,8 @@ mod lane2_r2_probes;
 #[path = "replace_face_band_probes.rs"]
 mod replace_face_band_probes;
 
+#[path = "a_vertex_read_by_two_sector_passes.rs"]
+mod a_vertex_read_by_two_sector_passes;
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
 #[path = "cleave_mint_doors.rs"]

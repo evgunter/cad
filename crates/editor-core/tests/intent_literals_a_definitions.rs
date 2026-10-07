@@ -22,10 +22,10 @@ use editor_core::persist::SnapshotError;
 use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
     CancelToken, CarryForwardDoor, Dimension, Distribution, DocEdit, DocumentId, EditError,
-    EvalError, EvalOptions, Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, Maintenance,
-    MeasureExpr, Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply, evaluate,
-    inline, load, save, split, var_env_over,
+    EvalError, EvalOptions, Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, InlineError,
+    Maintenance, MeasureExpr, Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError,
+    ProfileDoc, ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply,
+    evaluate, inline, load, save, split, var_env_over,
 };
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{Bounds, Interval, Real, Sym, SymBudget, SymRules, Tol};
@@ -1026,36 +1026,61 @@ fn a_refusal_through_a_dead_read_names_the_definition_it_came_through() {
     );
 }
 
-/// Inlining into a host that already holds the part's `w` and
-/// `h := w + w` under the same names, at other ids, shares them: the
-/// part's definition is compared re-pointed at the host's ids.
-#[test]
-fn inline_shares_a_definition_the_host_already_holds() {
-    let with_definition = |seed: &str| {
-        let doc = ProfileDoc::empty(DocumentId::derive(seed), Tol::witness());
-        let doc = declare(&doc, "w", free(W));
-        declare(
-            &doc,
-            "h",
-            VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
-        )
-    };
-    let part = with_definition("intent-literals-a-shared-part");
+/// A part holding `w` and `h := w + w`, reading `h`, published to a
+/// store: the part, the store and its reference.
+fn part_defining_h(seed: &str) -> (ProfileDoc, PartStore, editor_core::DocRef) {
+    let part = ProfileDoc::empty(DocumentId::derive(seed), Tol::witness());
+    let part = declare(&part, "w", free(W));
+    let part = declare(
+        &part,
+        "h",
+        VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
+    );
     let (part, _) = block(part, 0.0, named("h"));
     let mut store = PartStore::default();
     let doc_ref = store.insert(part.clone(), Tol::witness());
+    (part, store, doc_ref)
+}
+
+/// Inlining into a host that already holds the part's `w` and
+/// `h := w + w` under the same names, bit for bit, refuses at `w`: the
+/// equal definitions are two variables, never merged.
+#[test]
+fn inline_refuses_a_definition_the_host_already_holds() {
+    let (_, store, doc_ref) = part_defining_h("intent-literals-a-shared-part");
     let host = ProfileDoc::empty(
         DocumentId::derive("intent-literals-a-shared-host"),
         Tol::witness(),
     );
-    let host = declare(&host, "z", free(1.0));
     let host = declare(&host, "w", free(W));
     let host = declare(
         &host,
         "h",
         VarDecl::defined(Formula::add(named("w"), named("w")).unwrap()),
     );
-    assert_ne!(id(&host, "w"), id(&part, "w"), "the ids differ");
+    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    match inline(
+        &host,
+        instance,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    ) {
+        Err(InlineError::VarNameConflict { name }) => assert_eq!(name, n("w")),
+        other => panic!("expected VarNameConflict on w, got {other:?}"),
+    }
+}
+
+/// Inlining into a host holding neither name carries `w` and `h` as
+/// ids the host mints, and the carried `h` reads the carried `w`, not
+/// the part's.
+#[test]
+fn inline_carries_a_definition_at_the_carried_ids() {
+    let (part, store, doc_ref) = part_defining_h("intent-literals-a-carried-part");
+    let host = ProfileDoc::empty(
+        DocumentId::derive("intent-literals-a-carried-host"),
+        Tol::witness(),
+    );
+    let host = declare(&host, "z", free(1.0));
     let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
     let inlined = inline(
         &host,
@@ -1063,15 +1088,22 @@ fn inline_shares_a_definition_the_host_already_holds() {
         &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
         Tol::witness(),
     )
-    .expect("the host's w and h are the part's");
-    // The block's typed values cross as anonymous variables of their
-    // own; every NAMED variable is the host's.
+    .expect("no name clashes");
+    let (w, h) = (id(&inlined.doc, "w"), id(&inlined.doc, "h"));
+    assert_ne!(w, id(&part, "w"), "the host mints its own w");
+    assert_ne!(h, id(&part, "h"), "and its own h");
+    let mut reads = Vec::new();
+    inlined
+        .doc
+        .var(h)
+        .and_then(|held| held.def().defined())
+        .expect("h stays defined")
+        .var_reads(&mut reads);
     assert_eq!(
-        inlined.doc.var_names(),
-        host.var_names(),
-        "nothing declared twice"
+        reads.iter().map(|(read, _)| *read).collect::<Vec<_>>(),
+        vec![w, w],
+        "the carried h reads the carried w"
     );
-    assert_eq!(inlined.doc.var_ids()[..3], host.var_ids()[..]);
     assert!(failures(&eval_after(&inlined.doc, None)).is_empty());
 }
 
