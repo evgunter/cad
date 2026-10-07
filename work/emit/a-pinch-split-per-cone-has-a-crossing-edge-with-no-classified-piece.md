@@ -7,6 +7,7 @@ opened: 2026-10-07
 priority: P0
 cost: M
 branch: emit/pinch-crossing-classified
+pr: 4269
 ---
 
 
