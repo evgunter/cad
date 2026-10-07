@@ -29,9 +29,12 @@ use sweep::test_support::{
     assert_naming_totality, block, pocket_die, prism, prism_on, realized, sketch_from_axes,
 };
 use topo::boolean::BooleanOp;
-use topo::{EdgeKey, mass_properties, validate_geometric};
+use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
-use crate::band_planar_cut_off::{D, Verb, carve, edge, the_box, tol, volume};
+use crate::band_planar_cut_off::{
+    D, Verb, carve, edge, midpoint_tol, pad_ceiling, the_box, tol, volume, volume_enclosure,
+};
+use crate::common::cavity::{brick, cavity_corner, cut, edges_with_corners, rod, vented_cavity};
 use crate::common::operands::leaning_turn;
 
 /// What two band prisms meeting at a right trihedron overlap in.
@@ -495,10 +498,127 @@ fn a_frustum_top_rim_mitres_at_leaning_walls() {
         // along its whole edge.
         let alpha = core::f64::consts::FRAC_PI_2 + s.atan();
         let bound = 4.0 * (hi - lo) * D * D * alpha.sin() / 2.0;
-        let removed = v0 - crate::band_planar_cut_off::volume_enclosure(&out.body).0;
+        let removed = v0 - volume_enclosure(&out.body).0;
         assert!(
             removed > 0.0 && removed < bound,
             "{verb:?}: ΔV {removed} is positive and under the bands' prisms, {bound}"
+        );
+    }
+}
+
+/// [`carve`]'s checks — tier 3, naming totality, `ΔV` against the
+/// closed form — on a body with a feature the bands leave alone, which
+/// may be a second shell.
+fn carve_beside(body: &Body<f64>, edges: &[EdgeKey], verb: Verb, removed: f64, what: &str) {
+    let out = verb
+        .run(body, edges)
+        .unwrap_or_else(|e| panic!("{what} ({verb:?}): builds, got {e}"));
+    validate_geometric(&out.body, tol())
+        .unwrap_or_else(|e| panic!("{what} ({verb:?}): tier 3, got {e:?}"));
+    assert_naming_totality(body, &out, edges, what);
+    let ((v0, pad0), (v1, pad1)) = (volume_enclosure(body), volume_enclosure(&out.body));
+    let (dv, pad) = (v0 - v1, pad0 + pad1);
+    assert!(
+        pad < pad_ceiling() && (dv - removed).abs() < midpoint_tol() + pad,
+        "{what} ({verb:?}): ΔV {dv} ± {pad} vs the closed form {removed}"
+    );
+}
+
+fn fuse(what: &str, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+    let a = sweep::test_support::finished(&format!("{what}: the first operand"), a.clone(), tol());
+    let b = sweep::test_support::finished(&format!("{what}: the second operand"), b.clone(), tol());
+    topo::union(&a, &b, tol())
+        .unwrap_or_else(|e| panic!("{what}: the union succeeds: {e:?}"))
+        .body()
+        .unwrap_or_else(|| panic!("{what}: the union leaves material"))
+        .body
+        .clone()
+        .into_body()
+}
+
+/// Whether `verb` refuses `edges` of `body` on predicate 2's reach.
+fn refuses_on_reach(body: &Body<f64>, edges: &[EdgeKey], verb: Verb, what: &str) {
+    match verb.run(body, edges) {
+        Err(BlendError::FaceClearance { bounded: false, .. }) => {}
+        Err(e) => panic!("{what} ({verb:?}): refuses FaceClearance, got {e}"),
+        Ok(out) => panic!(
+            "{what} ({verb:?}): refuses FaceClearance, built (tier 3 {:?})",
+            validate_geometric(&out.body, tol())
+        ),
+    }
+}
+
+/// **A convex mitre over a void.** The box with a sealed void
+/// `[0.05, 0.3]² × [0.5, top]` under the corner its two top edges turn
+/// at: the void's vertical edge `x = y = 0.05` lies in the mitre's
+/// plane. The chamfer removes it above `z = 1 − d + 0.05 = 0.95`, the
+/// fillet above `1 − r + √(r² − 0.05²) ≈ 0.9866`; each verb refuses a
+/// void whose top is `0.02` (chamfer) or `0.0034` (fillet) inside, and
+/// builds at the volume the void does not touch where it is
+/// `0.02`/`0.0116` clear.
+#[test]
+fn a_mitre_over_a_void_refuses_where_its_bands_reach_it() {
+    let with_void = |top: f64| {
+        cut(
+            "void",
+            &the_box(),
+            &brick(Point3::new(0.05, 0.05, 0.5), Point3::new(0.3, 0.3, top)),
+        )
+    };
+    let turn = |body: &Body<f64>| {
+        [
+            edge(body, [0.0, 0.0, 1.0], [2.0, 0.0, 1.0]),
+            edge(body, [0.0, 0.0, 1.0], [0.0, 1.5, 1.0]),
+        ]
+    };
+    for (verb, inside, clear) in [(Verb::Chamfer, 0.97, 0.93), (Verb::Fillet, 0.99, 0.975)] {
+        let body = with_void(inside);
+        assert_eq!(body.solids().count(), 1, "the void is a shell of the box");
+        refuses_on_reach(&body, &turn(&body), verb, "a void in the mitre's bands");
+        let body = with_void(clear);
+        carve_beside(
+            &body,
+            &turn(&body),
+            verb,
+            verb.section() * 3.5 - overlap(verb),
+            "a void clear of the mitre's bands",
+        );
+    }
+}
+
+/// **Concave mitres beside an island.** [`vented_cavity`]'s floor rim,
+/// four concave turns, with an island standing `gap` off the floor and
+/// every wall on a stem through the floor. The bands add material to
+/// the island's bottom edges where the chamfer's `2·gap < d`
+/// (`gap < 0.05`) or the fillet's `gap < r(1 − 1/√2) ≈ 0.0293`: each
+/// verb refuses about `0.005` inside and builds at the closed form
+/// about `0.005` clear.
+#[test]
+fn concave_mitres_beside_an_island_refuse_where_their_bands_reach_it() {
+    let with_island = |gap: f64| {
+        let lo = 1.0 + gap;
+        let island = brick(
+            Point3::new(lo, lo, lo),
+            Point3::new(3.0 - gap, 3.0 - gap, 2.4),
+        );
+        let stem = rod(Point2::new(2.0, 2.0), 0.1, 0.9, lo + 0.05);
+        fuse("island", &fuse("stem", &vented_cavity(), &stem), &island)
+    };
+    let floor = |body: &Body<f64>| {
+        edges_with_corners(body, |p| cavity_corner(p) && (p.z - 1.0).abs() < 1e-12)
+    };
+    for (verb, inside, clear) in [(Verb::Chamfer, 0.045, 0.055), (Verb::Fillet, 0.024, 0.034)] {
+        let body = with_island(inside);
+        let rim = floor(&body);
+        assert_eq!(rim.len(), 4, "the cavity's floor rim");
+        refuses_on_reach(&body, &rim, verb, "an island in the floor rim's bands");
+        let body = with_island(clear);
+        carve_beside(
+            &body,
+            &floor(&body),
+            verb,
+            -(verb.section() * 8.0 - 4.0 * overlap(verb)),
+            "an island clear of the floor rim's bands",
         );
     }
 }

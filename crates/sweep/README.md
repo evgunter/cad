@@ -56,7 +56,9 @@ supports, or a whole rim over a plane and a cylinder), and a bound
 Each reach is an intersection of 1-Lipschitz bounds: per link, the
 cross-section between the supports, the sector the ball's arc subtends
 and the ball (the chamfer's triangle), run along a straight spine over
-the edge's window and closed by the face each end runs into, or revolved
+the edge's window and closed by the plane of the face each end runs
+into (at a mitre the other band's support, which the band's section
+passes no later than the mitre's plane of symmetry), or revolved
 over the whole turn of a circular one; per corner patch, the three
 supports, the three band-end planes and the ball. The faces are pruned
 by their certified boxes (`topo::FaceBoxes`); a face on a surface of
@@ -74,7 +76,8 @@ the other chain is metered by what survives that chain's band, the other
 band's new surface is metered as a face (but a concave band's surface
 against a convex band's reach, whose removed material the concave region
 overlapped), and two chains that meet at a vertex are left to the corner
-predicate.
+predicate, or at a turn to the isosceles verdict and the mitre, where the
+bands meet by construction.
 
 Consumers: an island standing in a filleted cavity, on one shell and as
 a second solid, and a thin revolved wall whose convex inner fillet
@@ -82,7 +85,10 @@ leaves through the far wall, all refused; the teapot lid's dome, a
 sphere zone beside the flange's band, clear
 (`crates/sweep/tests/blend_band_reach.rs`); an island filleted in the
 same request as its cavity, its convex round receding from the void's
-concave one, clear (`blend_per_shell_carry`).
+concave one, clear (`blend_per_shell_carry`); a void under a box's
+convex mitre and an island beside a cavity floor's concave ones,
+refused inside the bands and built clear of them
+(`band_planar_mitre`).
 
 ## Walls: one per run
 

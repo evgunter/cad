@@ -20,10 +20,14 @@
 //! plane). Over plane supports these bounds ARE the cross-section; over
 //! a curved support they enclose it.
 //!
-//! - A straight link runs over the edge's window. At a cut-off, a mitre
-//!   or a cap it ends in the end face's plane and the window widens by
-//!   the cross-section's run along it; at a corner patch it ends at the
-//!   patch's anchors.
+//! - A straight link runs over the edge's window, closed at each end by
+//!   the plane of the face it runs into, and the window widens by the
+//!   cross-section's run along it; at a corner patch it ends at the
+//!   patch's anchors. A cut-off or a cap ends the band in that plane. A
+//!   mitre ends it short of the plane, which is the other band's
+//!   support: the section's corners past it — the edge point, the foot
+//!   on L's face, the foot on the shared face — pass the plane no later
+//!   than the mitre's plane of symmetry, so it bounds the band too.
 //! - A circular link is taken over the whole turn, every bound a
 //!   function of its meridian sheet; a support off the band's axis is
 //!   read about it with its departure as slack.
@@ -965,11 +969,11 @@ fn straight_reach<T: Decide + Bounds>(
             (st.fa - st.p).norm().max((st.fb - st.p).norm())
         }
     };
-    // The window along the spine. At a cut-off, a mitre or a cap the
-    // band ends in the plane of the face it runs into, which bounds it,
-    // and the window widens by the run of the cross-section along that
-    // plane; at a corner patch it ends at the patch: the plane through
-    // the ball's centre normal to the edge (the chamfer's feet).
+    // The window along the spine. The plane of the face each end runs
+    // into bounds the band (module docs, a mitre's included), and the
+    // window widens by the run of the cross-section along that plane;
+    // at a corner patch it ends at the patch: the plane through the
+    // ball's centre normal to the edge (the chamfer's feet).
     let mut ends = Vec::new();
     let mut core: Vec<Bound<T>> = cross.iter().map(|(_, b)| b.clone()).collect();
     let mut caps = Vec::new();
