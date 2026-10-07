@@ -269,3 +269,88 @@ fn rp3_planar_ring_near_tilted_plane() {
     }
     write(&log, "planar_ring_near_tilted_plane");
 }
+
+/// A two-arc disc of radius 2 extruded to height 1, less the box
+/// `[1, 3] × [y0, y1] × [z0, z1]`: a window in the upper wall face
+/// bounded by two rulings and two rim arcs (a ring the at-rest gate
+/// admits on a cylinder). Then a horizontal split a hair below or above
+/// the window's bottom rim, and a vertical split a hair from its
+/// low ruling.
+#[test]
+#[ignore = "reviewer evidence: writes outcome files, asserts nothing"]
+fn rp3_cylinder_window_near_plane() {
+    let mut log = Log(String::new(), 0);
+    let disc = vec![(2.0, 0.0, 1.0), (-2.0, 0.0, 1.0)];
+    let Some(prism) = extruded(SketchPlane::xy(), &[disc], 1.0) else {
+        panic!("disc");
+    };
+    let prism = finished("disc prism", prism, tol());
+    let area_disc = PI * 4.0;
+    for (y0, y1, z0, z1) in [(0.8, 1.2, 0.3, 0.7), (0.5, 0.6, 0.2, 0.9), (1.1, 1.5, 0.45, 0.55)] {
+        let rect = vec![(1.0, y0, 0.0), (3.0, y0, 0.0), (3.0, y1, 0.0), (1.0, y1, 0.0)];
+        let cutter = finished("cutter", extruded(sketch_at(z0), &[rect], z1 - z0).unwrap(), tol());
+        let body = match topo::subtract(&prism, &cutter, tol()) {
+            Ok(BooleanResult::Body(b)) => b.body,
+            other => {
+                let _ = writeln!(log.0, "win {y0} {y1} | build | {}", tag(&other.err()));
+                continue;
+            }
+        };
+        let rings = body.faces().map(|(_, f)| f.rings.len()).sum::<usize>();
+        let _ = writeln!(log.0, "win {y0} {y1} | build | rings={rings}");
+        // the window's xy footprint inside the disc
+        let f = |y: f64| 0.5 * (y * (4.0 - y * y).sqrt() + 4.0 * (y / 2.0).asin());
+        let a_bd = (f(y1) - f(y0)) - (y1 - y0);
+        for d in offsets() {
+            for (dir, c) in [("zlo", z0 - d), ("zhi", z1 + d)] {
+                log.1 += 1;
+                let plane = topo::test_support::split_plane(Point3::new(0.0, 0.0, c), Vec3::new(0.0, 0.0, 1.0), tol());
+                // volume below c
+                let below = area_disc * c - a_bd * (c.min(z1) - z0).max(0.0);
+                let total = area_disc - a_bd * (z1 - z0);
+                let line = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| split(&body, &plane, tol()))) {
+                    Err(_) => "PANIC".into(),
+                    Ok(Err(e)) => format!("ERR {}", tag(&e)),
+                    Ok(Ok(r)) => {
+                        let side = |p: &SplitPart<f64>, w: f64| match p {
+                            SplitPart::Body(b) => outcome_body(b, w),
+                            _ => "EMPTY".into(),
+                        };
+                        format!("above[{}] below[{}]", side(&r.above, total - below), side(&r.below, below))
+                    }
+                };
+                let _ = writeln!(log.0, "win {y0} {y1} {dir} d{d:e} | split | {line}");
+            }
+            for (dir, c) in [("ylo", y0 - d), ("yhi", y1 + d)] {
+                log.1 += 1;
+                let plane = topo::test_support::split_plane(Point3::new(0.0, c, 0.5), Vec3::new(0.0, 1.0, 0.0), tol());
+                let line = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| split(&body, &plane, tol()))) {
+                    Err(_) => "PANIC".into(),
+                    Ok(Err(e)) => format!("ERR {}", tag(&e)),
+                    Ok(Ok(r)) => {
+                        let vol = |p: &SplitPart<f64>| match p {
+                            SplitPart::Body(b) => topo::mass_properties(b, tol()).map(|m| m.volume).unwrap_or(f64::NAN),
+                            _ => 0.0,
+                        };
+                        let t3 = |p: &SplitPart<f64>| match p {
+                            SplitPart::Body(b) => topo::validate_geometric(b, tol()).is_ok(),
+                            _ => true,
+                        };
+                        let sum = vol(&r.above) + vol(&r.below);
+                        let total = area_disc - a_bd * (z1 - z0);
+                        format!(
+                            "t3={}/{} above={:.10e} below={:.10e} {}",
+                            t3(&r.above),
+                            t3(&r.below),
+                            vol(&r.above),
+                            vol(&r.below),
+                            if (sum - total).abs() < 1e-9 { "SUMOK" } else { "SUMBAD" }
+                        )
+                    }
+                };
+                let _ = writeln!(log.0, "win {y0} {y1} {dir} d{d:e} | split | {line}");
+            }
+        }
+    }
+    write(&log, "cylinder_window_near_plane");
+}

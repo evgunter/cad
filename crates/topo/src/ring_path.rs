@@ -488,8 +488,16 @@ pub(crate) fn path_parity<T: Decide>(
                     for &t in &roots[..if arrival { 1 } else { 2 }] {
                         let w = p.at(t) - centre;
                         let s = branch((w.dot(v_ref) / b).atan2(w.dot(u_ref) / a), span);
-                        let [p0, p1] = in_span(t, p.span, p.radius)?;
-                        let [a0, a1] = in_span(s, span, b)?;
+                        // RP3 probe: lever the in-span readings by the crossing's
+                        // slope (plane offset per unit length along the piece).
+                        let slope = if std::env::var("RP3_SLOPE").is_ok() {
+                            let (st, ct) = t.sin_cos();
+                            (cb * ct - ca * st).abs()
+                        } else {
+                            T::one()
+                        };
+                        let [p0, p1] = in_span(t, p.span, p.radius * slope)?;
+                        let [a0, a1] = in_span(s, span, b * slope)?;
                         readings.push([p0, p1, a0, a1]);
                     }
                 }
@@ -638,3 +646,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review3_probes;
