@@ -128,10 +128,20 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// **`cap_plane_orientation` is new, 0/0/0/4**: each extrude's two caps
 /// decide once whether Newell's normal agrees with the profile's
 /// winding, definite and numeric, on this table and on the boss's.
+///
+/// **Validation reads a missed contact candidate's segment ends.** Where
+/// a span definitely misses a tangency or crossing candidate, each
+/// segment end is asked whether it touches the other segment, and its
+/// span only where it is not definitely off the carrier: `circle_side`
+/// is new, 0/0/2/2, its registered rows the ends the arc shares with
+/// its neighbours, whose rim (`Arc2::rim`) the arc registers; `chord_side`
+/// 4/0/0/10 -> 6/0/0/12, `line_span` 4/0/0/4 -> 6/0/0/4, `arc_span`
+/// 4/0/0/4 -> 4/0/2/4 and `contact_at_shared_vertex` 8/0/0/4 ->
+/// 12/0/0/4.
 const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("arc_apex_identity", [0, 0, 0, 1]),
     ("arc_diameter_clearance", [0, 0, 0, 6]),
-    ("arc_span", [4, 0, 0, 4]),
+    ("arc_span", [4, 0, 2, 4]),
     ("assert_bound", [0, 0, 0, 1]),
     ("cap_plane_orientation", [0, 0, 0, 4]),
     ("carrier_circles_identity", [3, 0, 0, 0]),
@@ -141,8 +151,9 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("carrier_line_circle", [0, 0, 0, 5]),
     ("carrier_on_surface_1", [135, 0, 0, 9]),
     ("carrier_on_surface_2", [117, 0, 0, 27]),
-    ("chord_side", [4, 0, 0, 10]),
-    ("contact_at_shared_vertex", [8, 0, 0, 4]),
+    ("chord_side", [6, 0, 0, 12]),
+    ("circle_side", [0, 0, 2, 2]),
+    ("contact_at_shared_vertex", [12, 0, 0, 4]),
     ("datum_unit_norm", [0, 0, 0, 2]),
     ("dihedral_arm", [0, 0, 0, 128]),
     ("dihedral_wedge", [0, 0, 0, 128]),
@@ -150,7 +161,7 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("extrusion_normal_component", [0, 0, 0, 2]),
     ("interval_span_forward", [0, 0, 0, 36]),
     ("interval_span_winding", [0, 0, 0, 12]),
-    ("line_span", [4, 0, 0, 4]),
+    ("line_span", [6, 0, 0, 4]),
     ("newell_plane_residual", [30, 0, 0, 0]),
     ("path_circle_radius", [0, 0, 0, 1]),
     ("path_junction_turn", [0, 0, 0, 4]),

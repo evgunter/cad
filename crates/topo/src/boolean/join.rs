@@ -2352,12 +2352,12 @@ type LooseMap = SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>;
 /// PARTNER's half in the same solid: the nearest loose germ along its
 /// line ([`nearer_along`]) that is its partner by [`partners`] —
 /// [`find_match`]'s own criterion,
-/// static in the germ geometry, so a captured partner PAIR can still
-/// join (same face) while splitting a pair walls one side off. Germ
-/// meta is shared between the solids, so the (record, slot) partner
-/// relation is computed once (A-clone points — coincident copies) and
-/// translated per solid. A loose half with no partner maps to `None`
-/// (conservatively separated wherever captured).
+/// static in the germ geometry, which [`capture_rank`] reads to rank
+/// what a chord arc captures. Germ meta is shared between the solids,
+/// so the (record, slot) partner relation is computed once (A-clone
+/// points — coincident copies) and translated per solid. A loose half
+/// with no partner maps to `None` (conservatively separated wherever
+/// captured).
 fn loose_partners<T: Decide>(
     open: &[OpenRecord<T>],
     red: &BooleanReduction<T>,
@@ -2400,18 +2400,17 @@ fn loose_partners<T: Decide>(
 /// - **Same loop, the face's OUTER**: the split partitions real
 ///   boundary between two faces; either partition names the same two
 ///   directed cycles (role order moves only face identity), so the
-///   order is chosen by the clean-arc constraint alone: the first
-///   chord's mef run `[h1 .. h2]` must not SEPARATE a still-loose
-///   scaffolding pair (walling a pending site off from its partner).
-///   Both arcs dirty is a loud desync.
+///   order is chosen by what the first chord's mef run `[h1 .. h2]`
+///   captures of the still-loose halves alone ([`best_arc`]). Both arcs
+///   separating a pair is a loud desync.
 /// - **Same loop, a RING of its face** (the closed seam-ring lane —
 ///   pierce-ring scaffolding): the split's remainder stays a ring of
 ///   the old face and must anti-enclose (a hole boundary), so the mef
 ///   run — the enclosed patch, the new face's outer, closed by the
 ///   segment's own curve — must wind CCW around the face's outward
 ///   normal. Decided intrinsically by [`ring_run_ccw`] once the curve is
-///   known ([`RoleLane::resolve`]). A derived order whose run separates
-///   a loose pair is a loud desync.
+///   known ([`RoleLane::resolve`]). A derived order whose run captures
+///   a loose half without its partner is a loud desync.
 ///
 /// Cross-solid consistency needs NO coupling of the two solids' role
 /// orders: the sense attributes carry the seam orientation (the
@@ -2447,7 +2446,7 @@ fn choose_roles<T: Decide>(
         .outer;
     if l == outer {
         // Both arcs dirty is refused loudly, never resolved.
-        return clean_dir(body, ea, ra, loose)?
+        return best_arc(body, ea, ra, loose)?
             .map(RoleLane::Decided)
             .ok_or(desync("every chord arc separates a loose scaffolding pair"));
     }
@@ -2498,9 +2497,8 @@ fn choose_roles<T: Decide>(
     // the order moves nothing, and the run, the edge closed by its
     // copy, is a sliver no winding orients. That is read off the
     // joiner's own plans, not assumed: the two orders must mint the one
-    // same site, or the match is refused, and the order the minted
-    // chord's `mef` runs on keeps the loose-pair separation constraint
-    // every same-loop order does.
+    // same site, or the match is refused, and the run the minted
+    // chord's `mef` walls off must rank [`Capture::Clean`].
     for (x, y) in [(ea, ra), (ra, ea)] {
         let sites = |order| {
             JoinPlan::of(body, order, SegmentEdge::Locus(segment), band)
@@ -2518,9 +2516,9 @@ fn choose_roles<T: Decide>(
             _ => false,
         };
         if across {
-            return match clean_dir(body, x, y, loose)? {
-                Some((c1, _)) if c1 == x => Ok(RoleLane::Decided((x, y))),
-                _ => Err(desync(
+            return match capture_rank(body, (x, y), loose)? {
+                Capture::Clean => Ok(RoleLane::Decided((x, y))),
+                Capture::RingHeld | Capture::Separates => Err(desync(
                     "a match across its segment's edge separates a loose scaffolding pair",
                 )),
             };
@@ -2596,8 +2594,8 @@ impl<T: Decide> RoleLane<T> {
 }
 
 /// The ring lane's role order from the island's winding: CCW keeps the
-/// match's order. A derived order whose run separates a loose pair is a
-/// loud desync.
+/// match's order. A derived order whose run is not [`Capture::Clean`]
+/// is a loud desync.
 fn ring_order<T: Decide>(
     body: &Body<T>,
     (ea, ra): (HalfEdgeKey, HalfEdgeKey),
@@ -2605,9 +2603,9 @@ fn ring_order<T: Decide>(
     ccw: bool,
 ) -> Result<(HalfEdgeKey, HalfEdgeKey), BooleanError> {
     let (h1, h2) = if ccw { (ea, ra) } else { (ra, ea) };
-    match clean_dir(body, h1, h2, loose)? {
-        Some((c1, _)) if c1 == h1 => Ok((h1, h2)),
-        _ => Err(BooleanError::JoinDesync {
+    match capture_rank(body, (h1, h2), loose)? {
+        Capture::Clean => Ok((h1, h2)),
+        Capture::RingHeld | Capture::Separates => Err(BooleanError::JoinDesync {
             what: "derived ring role order separates a loose scaffolding pair",
         }),
     }
@@ -2713,15 +2711,33 @@ fn ring_winding_order(wound: Result<Sign, geom_core::Indeterminate>) -> Result<b
     }
 }
 
-/// The clean chord-arc role order, if any (doc at [`choose_roles`]):
-/// `Some((h1, h2))` such that the `next`-order arc `h1 → h2` avoids
-/// every `unused` half; different loops trivially clean.
-fn clean_dir<T: Decide>(
+/// What a chord arc's mef run captures of the still-loose halves, worst
+/// first: an arc ranks by the worst capture it makes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum Capture {
+    /// Every loose half on the arc has its partner on the arc too: the
+    /// pair still shares a face and joins there.
+    Clean,
+    /// Some loose half's partner lies off the arc, on another ring of the
+    /// face. The mef re-homes that ring by geometry ([`ChordJoiner`]'s
+    /// `rehome_rings`) to the side its segment's other end lies on, which
+    /// is the arc's side as long as section segments in one face do not
+    /// cross.
+    RingHeld,
+    /// Some loose half has no partner, or its partner lies on the split
+    /// loop off the arc or outside the face's rings: the run walls it off
+    /// from its partner.
+    Separates,
+}
+
+/// The rank of the mef run the `next`-order arc `h1 → h2` walls off as
+/// the new face ([`Capture`]). Halves on two loops split nothing and rank
+/// [`Capture::Clean`].
+fn capture_rank<T: Decide>(
     body: &Body<T>,
-    ea: HalfEdgeKey,
-    ra: HalfEdgeKey,
+    (h1, h2): (HalfEdgeKey, HalfEdgeKey),
     loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
-) -> Result<Option<(HalfEdgeKey, HalfEdgeKey)>, BooleanError> {
+) -> Result<Capture, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let loop_of = |he: HalfEdgeKey| -> Result<crate::entity::LoopKey, BooleanError> {
         Ok(body
@@ -2729,56 +2745,75 @@ fn clean_dir<T: Decide>(
             .ok_or(desync("role half no longer resolves"))?
             .parent_loop)
     };
-    if loop_of(ea)? != loop_of(ra)? {
-        return Ok(Some((ea, ra)));
+    let split = loop_of(h1)?;
+    if split != loop_of(h2)? {
+        return Ok(Capture::Clean);
     }
-    // A direction is BAD iff its arc SEPARATES a loose half from its
-    // match partner (captures exactly one of a partner pair, or a
-    // half with no computable partner — the capture would wall it off
-    // on the new face where its partner cannot reach it). Capturing a
-    // complete partner pair together is harmless: they still share a
-    // face and join there.
-    let separates = |from: HalfEdgeKey, to: HalfEdgeKey| -> Result<bool, BooleanError> {
-        let mut inside: Vec<HalfEdgeKey> = Vec::new();
-        let mut he = body
-            .get_half_edge(from)
-            .ok_or(desync("role arc start no longer resolves"))?
+    let face = body
+        .get_loop(split)
+        .ok_or(desync("role loop no longer resolves"))?
+        .face;
+    let rings = &body
+        .get_face(face)
+        .ok_or(desync("role face no longer resolves"))?
+        .rings;
+    let mut inside: Vec<HalfEdgeKey> = Vec::new();
+    let mut he = body
+        .get_half_edge(h1)
+        .ok_or(desync("role arc start no longer resolves"))?
+        .next;
+    let mut steps = 0usize;
+    while he != h2 {
+        if loose.contains_key(he) {
+            inside.push(he);
+        }
+        he = body
+            .get_half_edge(he)
+            .ok_or(desync("role arc left the loop"))?
             .next;
-        let mut steps = 0usize;
-        while he != to {
-            if loose.contains_key(he) {
-                inside.push(he);
-            }
-            he = body
-                .get_half_edge(he)
-                .ok_or(desync("role arc left the loop"))?
-                .next;
-            steps += 1;
-            if steps > body.half_edges().count() {
-                return Err(desync("role arc did not close"));
-            }
+        steps += 1;
+        if steps > body.half_edges().count() {
+            return Err(desync("role arc did not close"));
         }
-        for &h in &inside {
-            match loose.get(h).copied().flatten() {
-                // Last loose half of its record: its partner is at
-                // another site — separated.
-                None => return Ok(true),
-                Some(sib) => {
-                    if !inside.contains(&sib) {
-                        return Ok(true);
-                    }
-                }
-            }
-        }
-        Ok(false)
-    };
-    if !separates(ea, ra)? {
-        Ok(Some((ea, ra)))
-    } else if !separates(ra, ea)? {
-        Ok(Some((ra, ea)))
-    } else {
-        Ok(None)
     }
+    let mut worst = Capture::Clean;
+    for &h in &inside {
+        let sib = match loose.get(h).copied().flatten() {
+            None => return Ok(Capture::Separates),
+            Some(sib) if inside.contains(&sib) => continue,
+            Some(sib) => sib,
+        };
+        let held = loop_of(sib)?;
+        if held == split || !rings.contains(&held) {
+            return Ok(Capture::Separates);
+        }
+        worst = Capture::RingHeld;
+    }
+    Ok(worst)
+}
+
+/// The outer lane's role order (doc at [`choose_roles`]): the arc of
+/// better [`Capture`] rank, `ea → ra` on a tie; `None` when both
+/// separate. A [`Capture::Clean`] arc is preferred to a ring-held one,
+/// so a ring-held arc is taken only where neither arc is clean: at exact
+/// ties the ring-held choice of a split that has a clean one flips
+/// tier-3 verdicts, which `the_outer_lane_prefers_a_clean_arc_at_an_exact_tie`
+/// (sweep) guards.
+fn best_arc<T: Decide>(
+    body: &Body<T>,
+    ea: HalfEdgeKey,
+    ra: HalfEdgeKey,
+    loose: &SecondaryMap<HalfEdgeKey, Option<HalfEdgeKey>>,
+) -> Result<Option<(HalfEdgeKey, HalfEdgeKey)>, BooleanError> {
+    let (fwd, back) = (
+        capture_rank(body, (ea, ra), loose)?,
+        capture_rank(body, (ra, ea), loose)?,
+    );
+    Ok(match fwd.min(back) {
+        Capture::Separates => None,
+        best if fwd == best => Some((ea, ra)),
+        _ => Some((ra, ea)),
+    })
 }
 
 /// Cut the corresponding null edges in both solids; completions must
