@@ -4,6 +4,7 @@ kind: issue
 title: Crossings of a NURBS edge tie because param_along has no parameter for a NURBS carrier, where N2 ranks them by the carrier's own parameter
 status: review
 branch: emit/nurbs-crossing-param
+pr: 4278
 opened: 2026-10-01
 priority: P2
 cost: M
