@@ -5,6 +5,8 @@ title: Step 3 of the 3881 ruling: no joinable vertex at rest, checked at tier 3 
 status: open
 opened: 2026-10-07
 needs_ev: true
+pr: 4251
+branch: fuse/ev-where-maximal-edges-is-checked
 priority: P1
 cost: H
 refs: [a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made, curved-joinable-vertices-are-left-unjoined, 4233]
