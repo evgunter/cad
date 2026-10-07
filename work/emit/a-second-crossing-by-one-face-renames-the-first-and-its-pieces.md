@@ -87,15 +87,20 @@ The line does not change what this row ruled: a second crossing of the
 same sense by a face that already crosses the line still ranks the
 same-sense group, and renames the first crossing and the pieces ending
 at it (N5's group-size bullet). Several pieces of one line crossed by
-one face with one sense now share one group, ranked along the line by
-the carrier of the least-named piece (`emit_topo::OnLine`, and `Along`
-in `name_boolean_vertices`).
+one face with one sense now share one group, each crossing read on its
+own piece's interval of the line's carrier (`emit_topo::rank_crossings`).
 
 **What remains** is two of the ruled test rows, which nothing in the
 suite holds yet:
 - a row for the in-face union vertices in `wire_legal_union_refusals`
   (an end-touch: the sense read at minting);
-- a row for a same-sense group. One face crossing one line twice with
-  one sense needs a curved edge or face (a plane crosses a straight
-  line once, and a circle twice with opposite senses), so the fixture
-  is the cost of this row.
+- a row for a same-sense group built from geometry. One face crossing one
+  line twice with one sense needs that face to meet the line's carrier four
+  times: a tilted cylinder through a rim circle. The boolean refuses
+  non-parallel cylinder pairs (`GermFrameUnsupported`), and a sphere cap's
+  curved boolean is refused too (`CurvedBooleanUnsupported`). Every pair the
+  kernel admits crosses a line's carrier with alternating senses.
+  The ranking itself is held at the helper on real pieces of a 270° rim
+  (`emit_topo::crossings_rank_along_the_line`, PR 4228): crossings on two
+  pieces of one line rank by the line's own parameter, whichever piece is
+  named least.
