@@ -116,7 +116,7 @@ fn the_siblings_and_the_selector_are_empty_for_a_valueless_node() {
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let ev = eval(&doc);
-    let absent = RecipeNodeId(999);
+    let absent = RecipeNodeId::new(0, 999);
     for node in [p, absent] {
         assert!(editor_core::all_faces(&ev, node).is_empty());
         assert!(editor_core::all_vertices(&ev, node).is_empty());
@@ -237,7 +237,7 @@ fn composed_ids(
     ev: &editor_core::Evaluation<f64>,
 ) -> (RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let (_, pipped) = doc
-        .order()
+        .ids()
         .iter()
         .find_map(|id| match doc.node(*id) {
             Some(Node::Fillet { target, .. }) => Some((*id, *target)),

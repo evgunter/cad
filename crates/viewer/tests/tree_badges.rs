@@ -59,7 +59,7 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
                 Some(
                     format!(
                         "upstream failure at Extrude {} — that row carries the cause",
-                        test_utils::refusal::tag(extrude.0)
+                        test_utils::refusal::tag(extrude.0.digest())
                     )
                     .as_str()
                 ),
@@ -1203,8 +1203,8 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
     use viewer::test_support::spoken;
 
     let row = |id: u64, status: RowStatus| tree::TreeRow {
-        id: RecipeNodeId(id),
-        spoken: spoken(RecipeNodeId(id), Some("Transform")),
+        id: RecipeNodeId::new(0, id),
+        spoken: spoken(RecipeNodeId::new(0, id), Some("Transform")),
         pose: None,
         depth: 0,
         root: false,
@@ -1219,7 +1219,7 @@ fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
         row(
             2,
             RowStatus::Poisoned {
-                through: RecipeNodeId(1),
+                through: RecipeNodeId::new(0, 1),
                 message: None,
             },
         ),
@@ -1547,7 +1547,7 @@ fn an_empty_value_reads_empty_and_the_node_refusing_it_links_nowhere() {
             .strip_suffix(" half empty")
             .expect("the readout ends in its suffix");
         let kernel = NodeErrorKind::EmptyHalf {
-            input: RecipeNodeId(0),
+            input: RecipeNodeId::new(0, 0),
             half,
         }
         .to_string();
@@ -1705,7 +1705,7 @@ fn a_mate_row_reads_whether_it_placed_its_child() {
 fn downstream_at_mate(mate: pncad::document::RecipeNodeId) -> String {
     format!(
         "upstream failure at Mate {} — that row carries the cause",
-        test_utils::refusal::tag(mate.0)
+        test_utils::refusal::tag(mate.0.digest())
     )
 }
 
@@ -1820,7 +1820,7 @@ fn child_band_snapshot_load() {
     let loaded = load(&text, tol).expect("a state loads where an edit could not land");
     let doc = loaded.doc;
     let mates: Vec<RecipeNodeId> = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))

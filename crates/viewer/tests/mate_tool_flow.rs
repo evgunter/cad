@@ -232,7 +232,7 @@ fn a_vanished_pick_degrades_the_tool_one_step_typed() {
     // picked — though the document that dropped it no longer holds it.
     let said = format!(
         "face of InstantiatePart {}",
-        test_utils::refusal::tag(bench.shelf_i.0)
+        test_utils::refusal::tag(bench.shelf_i.0.digest())
     );
     assert!(
         held_line.ends_with(&format!("pick b: {said}")),
@@ -986,7 +986,7 @@ fn a_mate_refusal_names_the_picked_node_as_the_panel_does() {
     let said = refused.respoken(session.doc()).to_string();
     let spoken = format!(
         "InstantiatePart \"post\" ({})",
-        test_utils::refusal::tag(bench.post_b.0)
+        test_utils::refusal::tag(bench.post_b.0.digest())
     );
     assert_eq!(
         said,

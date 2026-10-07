@@ -2294,7 +2294,7 @@ mod tests {
     use eframe::egui;
     use pncad::document::{Axis3, Frame, RecipeNodeId, SlotId};
 
-    const NODE: RecipeNodeId = RecipeNodeId(7);
+    const NODE: RecipeNodeId = RecipeNodeId::new(0, 7);
 
     /// How many Tab/ArrowUp pairs the row spends looking for the
     /// focus. A budget rather than a count: which step the focus

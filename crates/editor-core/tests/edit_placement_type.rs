@@ -741,7 +741,7 @@ fn an_old_file_is_refused_typed() {
 fn a_literal_frame_compares_by_bits() {
     let signed = Frame::translation([-0.0, 0.0, 0.25]);
     let plain = Frame::translation([0.0, 0.0, 0.25]);
-    let body = RecipeNodeId(3);
+    let body = RecipeNodeId::new(0, 3);
     let transform = |f: &Frame| -> AuthoredNode { Node::transform(body, Placement::literal(f)) };
     assert!(transform(&signed).bit_eq(&transform(&signed)));
     assert!(

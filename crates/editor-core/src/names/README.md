@@ -92,10 +92,10 @@ DM4) follow this rule, and so do profile pieces:
   whole document; its order is mint order, which is the order the author
   placed things in, and nothing else. The document keeps every
   id it has minted, node and step, in one mint log, deleted nodes' and
-  dropped steps' included, and a mint whose id is already in the log is
-  refused. The load door checks what minting makes true: every node's id
-  in the mint log, one id per authored step, every step's id in the mint
-  log, and no id standing for two steps. A name may spell only a step the
+  dropped steps' included, in mint order, so no id is minted twice. The
+  load door checks what minting makes true: the log's ordinals count up
+  from one, every node's id in the mint log, one id per authored step,
+  every step's id in the mint log, and no id standing for two steps. A name may spell only a step the
   document has minted: the doors that write a name (`InsertNode`, `Rebind`,
   `SetAppearance`, `SetAppearanceMeta`) refuse one the mint log does not
   hold, and so does the load door.

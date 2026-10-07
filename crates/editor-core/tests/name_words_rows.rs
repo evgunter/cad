@@ -40,9 +40,9 @@ use editor_core::{
 };
 use test_utils::fuzz;
 
-const EXTRUDE: RecipeNodeId = RecipeNodeId(1 << 16);
-const OTHER: RecipeNodeId = RecipeNodeId(2 << 16);
-const OP: RecipeNodeId = RecipeNodeId(3 << 16);
+const EXTRUDE: RecipeNodeId = RecipeNodeId::new(0, 1 << 16);
+const OTHER: RecipeNodeId = RecipeNodeId::new(0, 2 << 16);
+const OP: RecipeNodeId = RecipeNodeId::new(0, 3 << 16);
 
 fn wall(step: u64) -> StableName {
     StableName {
@@ -50,7 +50,7 @@ fn wall(step: u64) -> StableName {
         node: EXTRUDE,
         path: vec![RoleSeg::Lateral(
             ProfileEdgeRef::Piece {
-                step: StepId(step << 16),
+                step: StepId::new(0, step << 16),
                 role: PieceRole::Leg,
             }
             .into(),
@@ -158,12 +158,12 @@ fn random_cited(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
         },
         4 => StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId((5 + rng.below(2) as u64) << 16),
+            node: RecipeNodeId::new(0, (5 + rng.below(2) as u64) << 16),
             path: vec![RoleSeg::FromB(NameRef::new(wall_of(rng)))],
         },
         _ => StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(7 << 16),
+            node: RecipeNodeId::new(0, 7 << 16),
             path: vec![RoleSeg::FromB(NameRef::new(random_cited(
                 rng,
                 depth - 1,
@@ -218,7 +218,7 @@ fn random_rich(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
                 path: vec![RoleSeg::RimEdge(
                     CapEnd::End,
                     ProfileEdgeRef::Piece {
-                        step: StepId(step << 16),
+                        step: StepId::new(0, step << 16),
                         role: PieceRole::Leg,
                     }
                     .into(),
@@ -234,7 +234,7 @@ fn random_rich(rng: &mut fuzz::Rng, depth: u32, pool: usize) -> StableName {
         (0..n).map(|_| random_rich(rng, depth - 1, pool)).collect()
     };
     let inner = |rng: &mut fuzz::Rng| NameRef::new(random_rich(rng, depth - 1, pool));
-    let node = |rng: &mut fuzz::Rng| RecipeNodeId((8 + rng.below(3) as u64) << 16);
+    let node = |rng: &mut fuzz::Rng| RecipeNodeId::new(0, (8 + rng.below(3) as u64) << 16);
     let half = |rng: &mut fuzz::Rng| {
         if rng.below(2) == 0 {
             SplitHalf::Above
@@ -351,7 +351,11 @@ fn unsaid_nodes_erased(name: &StableName) -> StableName {
     );
     StableName {
         kind: name.kind,
-        node: if unsaid { RecipeNodeId(0) } else { name.node },
+        node: if unsaid {
+            RecipeNodeId::new(0, 0)
+        } else {
+            name.node
+        },
         path,
     }
 }

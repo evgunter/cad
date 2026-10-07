@@ -47,12 +47,12 @@ fn annotated(value: f64, distribution: Distribution) -> FreeVar {
 
 /// A variable as the free mass doors' refusals speak it.
 fn p(name: &'static str) -> SpokenVar {
-    SpokenVar::new(VarId(0), Some(VarName::from_static(name)))
+    SpokenVar::new(VarId::new(0, 0), Some(VarName::from_static(name)))
 }
 
 /// The variable `doc` declares as `name`, or an id it never minted.
 fn v(doc: &ProfileDoc, name: &str) -> VarId {
-    doc.var_named(name).unwrap_or(VarId(0))
+    doc.var_named(name).unwrap_or(VarId::new(0, 0))
 }
 
 /// The default policy IS the ±3σ convention, and the box it draws for

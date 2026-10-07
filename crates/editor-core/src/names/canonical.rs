@@ -542,12 +542,12 @@ mod tests {
     fn face(node: u64, member: u64) -> StableName {
         StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path: vec![RoleSeg::FromMember {
-                member: RecipeNodeId(member),
+                member: RecipeNodeId::new(0, member),
                 of: NameRef::new(StableName {
                     kind: EntityKind::Face,
-                    node: RecipeNodeId(member),
+                    node: RecipeNodeId::new(0, member),
                     path: vec![RoleSeg::Cap(CapEnd::Start)],
                 }),
             }],
@@ -563,7 +563,7 @@ mod tests {
     fn name(kind: EntityKind, node: u64, path: Vec<RoleSeg>) -> StableName {
         StableName {
             kind,
-            node: RecipeNodeId(node),
+            node: RecipeNodeId::new(0, node),
             path,
         }
     }

@@ -1554,11 +1554,11 @@ mod tests {
     #[test]
     fn the_subject_door_carries_the_gather_refusal_it_saw() {
         let refusal = || crate::ProductError::PlacedUnderTwoRoots {
-            placed: RecipeNodeId(2),
+            placed: RecipeNodeId::new(0, 2),
             twice: crate::PlacedTwice::Body,
             select: None,
-            first: RecipeNodeId(7),
-            second: RecipeNodeId(8),
+            first: RecipeNodeId::new(0, 7),
+            second: RecipeNodeId::new(0, 8),
         };
         let subject: Subject<'_, f64> = Subject::refused(refusal());
         let Subject::Unavailable {
@@ -1614,8 +1614,8 @@ mod tests {
         for refusal in [
             crate::ProductError::NoBodyRoots,
             crate::ProductError::Root(crate::NodeStanding::Poisoned {
-                node: RecipeNodeId(7),
-                through: RecipeNodeId(2),
+                node: RecipeNodeId::new(0, 7),
+                through: RecipeNodeId::new(0, 2),
             }),
         ] {
             let absence = refusal.kind().means_no_body();

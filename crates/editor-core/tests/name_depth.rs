@@ -128,21 +128,23 @@ fn a_split_remaps_a_name_past_every_stack_on_the_smallest_stack() {
         let depth = 20_000;
         let leaf = StableName {
             kind: editor_core::EntityKind::Face,
-            node: RecipeNodeId(1),
+            node: RecipeNodeId::new(0, 1),
             path: vec![editor_core::RoleSeg::Cap(editor_core::CapEnd::End)],
         };
-        let name = (0..depth).fold(leaf, |n, level| in_copy(RecipeNodeId(2 + level % 3), 0, n));
+        let name = (0..depth).fold(leaf, |n, level| {
+            in_copy(RecipeNodeId::new(0, 2 + level % 3), 0, n)
+        });
         let map = (1..=4)
-            .map(|n| (RecipeNodeId(n), RecipeNodeId(n + 100)))
+            .map(|n| (RecipeNodeId::new(0, n), RecipeNodeId::new(0, n + 100)))
             .collect();
         let moved = remap_name(&name, &map, &Default::default()).expect("every id is mapped");
         let expect = (0..depth).fold(
             StableName {
                 kind: editor_core::EntityKind::Face,
-                node: RecipeNodeId(101),
+                node: RecipeNodeId::new(0, 101),
                 path: vec![editor_core::RoleSeg::Cap(editor_core::CapEnd::End)],
             },
-            |n, level| in_copy(RecipeNodeId(102 + level % 3), 0, n),
+            |n, level| in_copy(RecipeNodeId::new(0, 102 + level % 3), 0, n),
         );
         assert!(
             moved == expect,

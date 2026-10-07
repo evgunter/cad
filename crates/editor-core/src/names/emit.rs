@@ -1160,8 +1160,8 @@ mod pattern_tests {
     /// to these rows (they pin the wrapping); minting a faithful key
     /// bridge across a graft is the consumer's job, not this door's.
     fn two_solid_master() -> (Body<f64>, NameTable) {
-        let (mut body, a) = cube(RecipeNodeId(test_utils::refusal::tagged(1)), 0.0);
-        let (second, b) = cube(RecipeNodeId(test_utils::refusal::tagged(2)), 10.0);
+        let (mut body, a) = cube(RecipeNodeId::new(0, test_utils::refusal::tagged(1)), 0.0);
+        let (second, b) = cube(RecipeNodeId::new(0, test_utils::refusal::tagged(2)), 10.0);
         let was: (BTreeSet<_>, BTreeSet<_>, BTreeSet<_>) = (
             body.faces().map(|(k, _)| k).collect(),
             body.edges().map(|(k, _)| k).collect(),
@@ -1252,7 +1252,7 @@ mod pattern_tests {
         assert_eq!(master_body.solids().count(), 2, "a two-solid master");
         let n = 3_i64;
         let bodies = instances(&master_body, n, 5.0);
-        let node = RecipeNodeId(test_utils::refusal::tagged(9));
+        let node = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
         let t =
             name_pattern(node, &master, n, 1, &bodies).expect("a multi-solid master is admitted");
 
@@ -1294,7 +1294,7 @@ mod pattern_tests {
         let (master_body, master) = two_solid_master();
         let (n, step) = (3_i64, 5.0);
         let bodies = instances(&master_body, n, step);
-        let node = RecipeNodeId(test_utils::refusal::tagged(9));
+        let node = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
         let t = name_pattern(node, &master, n, 1, &bodies).expect("admitted");
 
         let mut checked = 0;
@@ -1346,10 +1346,10 @@ mod pattern_tests {
     /// another placement's range.
     #[test]
     fn a_master_row_past_the_masters_body_count_refuses_typed() {
-        let (body, a) = cube(RecipeNodeId(test_utils::refusal::tagged(1)), 0.0);
+        let (body, a) = cube(RecipeNodeId::new(0, test_utils::refusal::tagged(1)), 0.0);
         let master = at_body(&a, 1);
         let err = name_pattern(
-            RecipeNodeId(test_utils::refusal::tagged(9)),
+            RecipeNodeId::new(0, test_utils::refusal::tagged(9)),
             &master,
             2,
             1,
@@ -1369,8 +1369,8 @@ mod pattern_tests {
     /// holds over all six.
     #[test]
     fn a_multi_output_body_master_lays_out_placement_major() {
-        let (b0, a) = cube(RecipeNodeId(test_utils::refusal::tagged(1)), 0.0);
-        let (b1, b) = cube(RecipeNodeId(test_utils::refusal::tagged(2)), 10.0);
+        let (b0, a) = cube(RecipeNodeId::new(0, test_utils::refusal::tagged(1)), 0.0);
+        let (b1, b) = cube(RecipeNodeId::new(0, test_utils::refusal::tagged(2)), 10.0);
         let mut master = at_body(&a, 0);
         for (name, entry) in at_body(&b, 1).iter() {
             let Entry::Unique(e) = entry else {
@@ -1394,7 +1394,7 @@ mod pattern_tests {
                 }));
             }
         }
-        let node = RecipeNodeId(test_utils::refusal::tagged(9));
+        let node = RecipeNodeId::new(0, test_utils::refusal::tagged(9));
         let t = name_pattern(node, &master, n, per, &bodies).expect("admitted");
         assert_eq!(t.len(), master.len() * 3, "census: N × the master's");
         for j in 0..n {
@@ -1622,7 +1622,7 @@ mod display_tests {
     fn every_variant_names_its_subject() {
         let name = StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(test_utils::refusal::tagged(7)),
+            node: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
             path: vec![RoleSeg::Cap(super::super::role::CapEnd::End)],
         };
         // Locators the rows below sample by value, so a refusal that
@@ -1633,11 +1633,11 @@ mod display_tests {
         // them: the same cap vertex of two different operands' sweeps.
         let partner = |node| StableName {
             kind: EntityKind::Vertex,
-            node: RecipeNodeId(test_utils::refusal::tagged(node)),
+            node: RecipeNodeId::new(0, test_utils::refusal::tagged(node)),
             path: vec![RoleSeg::CapVertex(
                 super::super::role::CapEnd::End,
                 super::super::role::ProfileVertexRef::Piece {
-                    step: crate::node::StepId(test_utils::refusal::tagged(0)),
+                    step: crate::node::StepId::new(0, test_utils::refusal::tagged(0)),
                     role: crate::names::PieceRole::Leg,
                 },
             )],
@@ -1664,7 +1664,7 @@ mod display_tests {
             ),
             (
                 NamingError::MissingUpstream {
-                    node: RecipeNodeId(test_utils::refusal::tagged(11)),
+                    node: RecipeNodeId::new(0, test_utils::refusal::tagged(11)),
                 },
                 vec!["00000000000b"],
             ),
@@ -1705,7 +1705,7 @@ mod display_tests {
                 // ONE arena: two `two_faces()` calls hand out keys from
                 // two bodies, which are not guaranteed distinct.
                 NamingError::SharedRim {
-                    node: RecipeNodeId(test_utils::refusal::tagged(23)),
+                    node: RecipeNodeId::new(0, test_utils::refusal::tagged(23)),
                     face: pair.0,
                     other: pair.1,
                     found: RimShare::Several,
@@ -1738,7 +1738,7 @@ mod display_tests {
             (
                 NamingError::MergedChordOffRim {
                     edge: two_edges().0,
-                    node: RecipeNodeId(test_utils::refusal::tagged(29)),
+                    node: RecipeNodeId::new(0, test_utils::refusal::tagged(29)),
                     rim: two_edges().1,
                 },
                 vec!["merged faces", "00000000001d", "does not lie within"],
@@ -1771,13 +1771,13 @@ mod display_tests {
             ),
             (
                 NamingError::MemberEdgeTied {
-                    member: RecipeNodeId(test_utils::refusal::tagged(37)),
+                    member: RecipeNodeId::new(0, test_utils::refusal::tagged(37)),
                     edge: Box::new(StableName {
                         kind: EntityKind::Edge,
-                        node: RecipeNodeId(test_utils::refusal::tagged(37)),
+                        node: RecipeNodeId::new(0, test_utils::refusal::tagged(37)),
                         path: vec![RoleSeg::LateralEdge(
                             super::super::role::ProfileVertexRef::Piece {
-                                step: crate::node::StepId(test_utils::refusal::tagged(2)),
+                                step: crate::node::StepId::new(0, test_utils::refusal::tagged(2)),
                                 role: crate::names::PieceRole::Leg,
                             },
                         )],
@@ -2243,11 +2243,11 @@ mod conventional_vertex_tests {
     use crate::node::StepId;
     use profile::PieceRole;
 
-    const NODE: RecipeNodeId = RecipeNodeId(7);
+    const NODE: RecipeNodeId = RecipeNodeId::new(0, 7);
 
     fn at(step: u64) -> ProfileVertexRef {
         ProfileVertexRef::Piece {
-            step: StepId(step),
+            step: StepId::new(0, step),
             role: PieceRole::RunOut,
         }
     }
@@ -2263,7 +2263,7 @@ mod conventional_vertex_tests {
         .unwrap();
         for (i, (f, _)) in (0u64..).zip(body.faces()) {
             let piece = ProfileEdgeRef::Piece {
-                step: StepId(i),
+                step: StepId::new(0, i),
                 role: PieceRole::RunOut,
             };
             t.insert(band(NODE, piece), ent(0, EntityKey::Face(f)))
