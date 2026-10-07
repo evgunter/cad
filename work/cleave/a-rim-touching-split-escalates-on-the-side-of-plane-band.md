@@ -2,10 +2,13 @@
 id: a-rim-touching-split-escalates-on-the-side-of-plane-band
 kind: issue
 title: a tube split by a plane whose section touches a rim at azimuth 0.3 escalates on the side-of-plane band
-status: open
+status: closed
 opened: 2026-10-06
 priority: P3
 cost: E
+closed: 2026-10-07
+pr: 4223
+branch: cleave/rim-touch
 ---
 
 
@@ -123,3 +126,11 @@ was run at 96 azimuths × both normals × the three ε rows:
 Quadrature-only failures on these fixtures (`props_quad_converged` in
 band, `QuadratureBudget` at 13 rounds) went onto
 `work/quad/quadrature-convergence-test-escalates-instead-of-refining.md`.
+
+## Closed (PR 4223, 2026-10-07)
+
+Fixed by PR 4179 before it was taken. The escalation was `split_conic_departure` at a graze vertex
+that `acos` had placed 1e-8 rad off the rim's touch point. The graze root is now the extremum,
+which the decided side chooses. `a_section_touching_a_rim_splits_at_the_closed_form` pins the
+six witness azimuths at every ε, with one vertex on the touch point and the closed form on both
+sides. The bore-rim pinch is filed separately.
