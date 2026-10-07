@@ -1487,11 +1487,11 @@ fn germ_section_frame<T: Decide>(
 /// at, so the gap is read where the section is and not where a
 /// carrier's origin is stored; and, for the cylinder pair, the span of
 /// both walls' boundary vertices (the diameter of their ball), which a
-/// wall's axial extent ends at. [`pair_section_frame`] levers each pair
-/// as before the table read at a foot: the radius for plane×cylinder,
-/// the longer of the larger radius and this span for the cylinder pair.
-/// No lever is a ball chosen around the faces (`geom_brep::Reach`'s
-/// module docs); the radius under-states a long wall's, filed as
+/// wall's axial extent ends at. [`pair_section_frame`] levers the
+/// plane×cylinder pair at the radius and the cylinder pair at the longer
+/// of the larger radius and this span. No lever is a ball chosen around
+/// the faces (`geom_brep::Reach`'s module docs); the radius under-states
+/// a long wall's, filed as
 /// `germ-frame-levers-a-plane-cylinder-tilt-at-the-radius`.
 ///
 /// # Errors
@@ -1726,12 +1726,11 @@ pub(super) enum FrameError {
 ///
 /// The plane×cylinder and cylinder pairs read their axis rows at the
 /// foot of `at` on each axis ([`germ_section_frame`]: a point the
-/// section is consumed at), levered as this frame levered them before
-/// the table read at a foot: the plane×cylinder pair at its radius, the
-/// cylinder pair at `span` (the length its walls run together, where
-/// the caller knows it) or the larger radius, whichever is longer — two
-/// axes a sine θ apart drift θ·span apart over the walls. `None` levers
-/// by the radii alone.
+/// section is consumed at). The plane×cylinder pair is levered at its
+/// radius; the cylinder pair at `span` (the length its walls run
+/// together, where the caller knows it) or the larger radius, whichever
+/// is longer — two axes a sine θ apart drift θ·span apart over the
+/// walls. `None` levers by the radii alone.
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 pub(super) fn pair_section_frame<T: Decide>(
     sa: &geom::Surface<T>,
@@ -1835,10 +1834,12 @@ pub(super) fn pair_section_frame<T: Decide>(
         // ([`geom_brep::cylinder_axes_parallel`], `cc_axes_parallel`),
         // levered at the larger radius or the walls' span, whichever is
         // longer: the axes drift apart by the sine times the length they
-        // run together, and a bigger lever makes the parallelism margin
-        // harder to call Zero. The table re-decides this margin on the
-        // intersecting half below from the same reach, so the two are
-        // one reading.
+        // run together. A bigger lever only moves a reading toward the
+        // definite side, and here that side refuses (skew keeps `NoArm`,
+        // meeting axes take the pinch door below), so it never serves a
+        // frame the walls' span would not. The table re-decides this
+        // margin on the intersecting half below from the same reach, so
+        // the two are one reading.
         (
             Sf::Cylinder {
                 origin: o1,
@@ -3002,16 +3003,65 @@ mod frame_dispatch_tests {
         geom_core::Band::linear(Tol::witness()).expect("a linear band")
     }
 
+    /// **The germ frame reads at the curved face, not the plane's.** The
+    /// plane `z = 0` and a unit cylinder along `x` resting on it, tilted
+    /// half the zero band, the wall's boundary vertices about the origin
+    /// and the table's centred 1000 m along the axis. Read at the wall
+    /// ([`super::frame_reading`]), the gap is the radius: the tangent
+    /// ruling's frame (`Ok(None)`), in both face orders. Read at the
+    /// table, the gap moved by `1000·θ` and the walls parted (`Empty`,
+    /// refused).
+    #[test]
+    fn the_germ_frame_reads_at_the_wall_not_the_table() {
+        let plane = geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let tilt = 0.5 * Tol::witness().eps();
+        let axis = Vec3::new(1.0, 0.0, tilt).normalize();
+        let cyl = geom::Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 1.0),
+            axis,
+            radius: 1.0,
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        };
+        let table: Vec<Point3<f64>> = [(995.0, -5.0), (1005.0, -5.0), (1005.0, 5.0), (995.0, 5.0)]
+            .iter()
+            .map(|&(x, y)| Point3::new(x, y, 0.0))
+            .collect();
+        let wall: Vec<Point3<f64>> = [-0.5, 0.5]
+            .iter()
+            .flat_map(|&x| [Point3::new(x, 0.0, 0.0), Point3::new(x, 0.0, 2.0)])
+            .collect();
+        for (label, a, b, on_a, on_b) in [
+            ("plane, wall", &plane, &cyl, table.clone(), wall.clone()),
+            ("wall, plane", &cyl, &plane, wall.clone(), table.clone()),
+        ] {
+            let (at, span) = super::frame_reading(a, b, on_a, on_b).expect("a reading");
+            let got = pair_section_frame(a, b, geom_brep::RadiusEvidence::None, at, span, band());
+            assert!(
+                matches!(got, Ok(None)),
+                "({label}): the tangent ruling's frame, got {:?}",
+                got.as_ref().map_err(|e| match e {
+                    FrameError::Escalated(d) => d.predicate.unwrap_or("unnamed"),
+                    _ => "a refusal",
+                })
+            );
+        }
+    }
+
     /// **The germ frame levers a cylinder pair at its walls' span.** Two
     /// unit cylinders with parallel axes 2 apart along `x`, the second
-    /// tilted half the zero band, their walls' boundary vertices 10 m
-    /// long. At the radius the tilt reads Zero; across the walls' span
-    /// ([`super::frame_reading`]: the diameter of their vertices' ball)
-    /// it reads about `5·zero`, in the band, and the frame escalates on
-    /// the table's `cc_axes_parallel` in both orders.
+    /// tilted `0.15·zero`, their walls' boundary vertices 10 m long.
+    /// Across the walls' span ([`super::frame_reading`]: the diameter of
+    /// their vertices' ball) the tilt reads `1.5·zero`, in the band, and
+    /// the frame escalates on the table's `cc_axes_parallel` in both
+    /// orders. At half the span it reads `0.75·zero` and at the radius
+    /// `0.15·zero`, both Zero.
     #[test]
     fn the_germ_frame_levers_a_cylinder_pair_at_its_walls_span() {
-        let theta = 0.5 * Tol::witness().eps();
+        let theta = 0.15 * Tol::witness().eps();
         let c1 = cylinder_at(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), 1.0);
         let c2 = cylinder_at(
             Point3::new(0.0, 2.0, 0.0),

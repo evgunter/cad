@@ -549,8 +549,8 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
 
 /// Where the section table reads a wall's pose, and the lever: the base
 /// vertex `at`'s point, and [`face_extent`], the farthest boundary vertex
-/// of `face` from it — the length this lane metered the table at before
-/// the table read its gap at an axis foot. No ball around the vertex is
+/// of `face` from it, which bounds how far along the axis a tilt pinned
+/// at the vertex's foot moves the section. No ball around the vertex is
 /// a lever ([`geom_brep::Reach`]'s module docs): levered at one, a vertex
 /// on a wall `r` from the axis read `r + face_extent` from the foot, and
 /// an in-band tilt decided as an ellipse.

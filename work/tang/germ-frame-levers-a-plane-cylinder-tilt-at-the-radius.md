@@ -13,7 +13,7 @@ Found by PR 4118's third full review (NOTE-3). Inherited from main.
 
 ## What
 
-`boolean::join::pair_section_frame` (`crates/topo/src/boolean/join.rs:1864`)
+`boolean::join::pair_section_frame` (`crates/topo/src/boolean/join.rs:1888`)
 hands `plane_cylinder_section` a `Reach::Measured` whose length is the
 cylinder's RADIUS. `pc_axis_plane_parallel` meters the axis's tilt off
 the plane at that lever. On main the same radius went in as the scalar
@@ -28,13 +28,14 @@ then read as Zero, and the frame names the straight chord's frame
 (`TangentLine` / `ParallelLines`) for a section that leaves the plane
 across the wall. An under-stated lever is the wrong-answer direction.
 
-`Reach::lever_from` (`crates/geom-brep/src/extent.rs`) now floors a
-measured lever at the pivot's distance from `at`. `frame_reading`
-(`crates/topo/src/boolean/join.rs:1477`) reads at the centre of the wall's
-boundary vertices, so that floor reaches about the radius, not the
-length.
+The lever is the bare radius: `Reach::lever_from`
+(`crates/geom-brep/src/extent.rs`) returns a measured length as given,
+and the floor at the pivot's distance from `at` lives only in
+`Reach::lever_between`, the cylinder pair's reading. `frame_reading`
+(`crates/topo/src/boolean/join.rs:1501`) reads at the centre of the
+wall's boundary vertices.
 
-The cylinder pair's lever (`join.rs:1832`, the longer of the larger
+The cylinder pair's lever (`join.rs:1856`, the longer of the larger
 radius and the walls' span) does reach the walls' length.
 
 ## The shape of a fix

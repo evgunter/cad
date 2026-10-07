@@ -123,8 +123,8 @@ pub fn tangent_locus<T: Decide>(
     reach: ExtentBall<T>,
     band: Band,
 ) -> Result<TangentLocus<T>, TangentLocusError> {
-    // The witness reads the ball its callers hand it, as it did before
-    // the classifiers took a `Reach` (`crate::extent`'s module docs).
+    // The witness reads the ball its callers hand it
+    // (`crate::extent`'s module docs).
     let reach = &Reach::Ball(reach);
     let escalate = TangentLocusError::Escalated;
     match (a, b) {

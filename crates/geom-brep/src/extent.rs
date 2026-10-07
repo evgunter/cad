@@ -1,7 +1,8 @@
-//! **The consumed extent** — a ball enclosing every point at which a
-//! carrier verdict is consumed, and the lever arm it gives an angular
-//! datum (D4 ¶1: an angle means the displacement it induces at the
-//! extent over which the decision is consumed).
+//! **The consumed extent** — where a carrier verdict is consumed, and
+//! the lever arm it gives an angular datum (D4 ¶1: an angle means the
+//! displacement it induces at the extent over which the decision is
+//! consumed): a ball enclosing the consumed points ([`ExtentBall`]), and
+//! what a section classifier reads its axis rows across ([`Reach`]).
 //!
 //! A ladder that pins a carrier's position at a PIVOT and its
 //! direction by an angle reads a relative tilt θ as a displacement of
@@ -29,20 +30,18 @@
 //! crossing axes) it decides a reading that is in the band at the
 //! consumed extent, and serves a class the arm cannot tell from its
 //! neighbour. The rule the section classifiers' callers hold: **a lever
-//! is never shorter than the region it consumes, and never longer than
-//! the lever the caller read the same row at before the classifiers
-//! read at a foot.** No ball chosen around the consumed region is a
-//! lever. An edge's span ([`Reach::Span`]) is levered by its
-//! per-carrier farthest distance from a pivot chosen to make that
-//! distance least, so it is no longer than the same distance from the
-//! stored origin the classifiers levered an edge from before. A face's
-//! caller ([`Reach::Measured`]) hands the length it levered by before;
-//! only the cylinder pair floors it ([`Reach::lever_between`]). Those
-//! lengths are not exact distances yet (filed on TANG's slate).
+//! is never shorter than the region it consumes, and no longer than the
+//! caller's own measure of that region from the point it is read at.**
+//! No ball chosen around the consumed region is a lever. An edge's span
+//! ([`Reach::Span`]) is levered by its per-carrier farthest distance
+//! from the pivot that makes that distance least on each axis. A face's
+//! caller ([`Reach::Measured`]) hands a length it measured; only the
+//! cylinder pair floors it ([`Reach::lever_between`]). Those lengths are
+//! not exact distances to the consumed points yet (filed on TANG's
+//! slate).
 //!
 //! The tangent-locus witness reads a ball, [`Reach::Ball`]: the one its
-//! callers, the carrier doors, hand it, as before the classifiers took a
-//! [`Reach`].
+//! callers, the carrier doors, hand it.
 //!
 //! Everything is comparison-free: `max` and `min` are the [`Real`]
 //! lattice operations.
@@ -173,7 +172,7 @@ fn foot<T: Real>(p: Point3<T>, origin: Point3<T>, axis: Vec3<T>) -> Point3<T> {
 pub enum Reach<T: Real> {
     /// A ball enclosing the consumed region, read at the foot of its
     /// centre and levered out to its far side
-    /// ([`ExtentBall::lever_from`]). The tangent-locus witness's reading,
+    /// ([`ExtentBall::lever_from`]): the tangent-locus witness's reading,
     /// the ball its callers (the carrier doors) hand it.
     Ball(ExtentBall<T>),
     /// A length the caller measured from `at` (chord_join's face extent,
@@ -206,11 +205,15 @@ impl<T: Real> Reach<T> {
     /// on the consumed region's distance from `pivot`.
     ///
     /// - [`Self::Ball`]: the ball's far side from `pivot`.
-    /// - [`Self::Measured`]: the caller's length, whatever the pivot: the
-    ///   caller measured it as the distance its consumed points stand
-    ///   along the reading's axis from `at`, which is what a tilt pinned
-    ///   at `at`'s foot moves the plane×cylinder section by. The cylinder
-    ///   pair reads more than that ([`Self::lever_between`]).
+    /// - [`Self::Measured`]: the caller's length, whatever the pivot.
+    ///   What callers hand: chord_join the Euclidean distance from its
+    ///   base vertex to the face's farthest boundary vertex, which bounds
+    ///   the axial distance a tilt pinned at the vertex's foot moves the
+    ///   plane×cylinder section by; the germ frame the radius for the
+    ///   plane×cylinder pair (filed: it under-states a long wall), and
+    ///   the longer of the larger radius and the walls' span for the
+    ///   cylinder pair. The cylinder pair also reads the foot's distance
+    ///   from `at` ([`Self::lever_between`]).
     /// - [`Self::Span`]: per carrier, never an underestimate and exact
     ///   where the carrier allows:
     ///   - a **line** segment: its endpoints (distance to a point is
@@ -263,7 +266,7 @@ impl<T: Real> Reach<T> {
     /// - [`Self::Span`] of a line or a NURBS carrier, whose lever is the
     ///   farthest of finitely many points `pᵢ` (endpoints, control
     ///   points): the axis point `s*` where that farthest distance is
-    ///   least ([`minimax_on_axis`]). Its lever is therefore no longer
+    ///   least (`minimax_on_axis`). Its lever is therefore no longer
     ///   than from any other point of the axis — in particular no longer
     ///   than from the cylinder's stored origin, which is where the
     ///   classifiers levered an edge's span before they read at a foot.
@@ -283,6 +286,26 @@ impl<T: Real> Reach<T> {
             } => foot(*center, origin, axis),
             Self::Ball(ball) => foot(ball.center(), origin, axis),
             Self::Measured { at, .. } => foot(*at, origin, axis),
+        }
+    }
+
+    /// A point the reach stands for: a ball's centre, the point a length
+    /// was measured from, a span's first consumed point or conic centre.
+    /// Its distance from a pivot is at most a ball's or a span's lever
+    /// from there, so the floor in [`Self::lever_between`] binds only on
+    /// a [`Self::Measured`] length.
+    fn reading_point(&self) -> Point3<T> {
+        match self {
+            Self::Ball(ball) => ball.center(),
+            Self::Measured { at, .. } => *at,
+            Self::Span {
+                carrier:
+                    Curve3::Circle { center, .. }
+                    | Curve3::Ellipse { center, .. }
+                    | Curve3::Spiric { center, .. },
+                ..
+            } => *center,
+            Self::Span { .. } => self.span_points()[0],
         }
     }
 
@@ -320,25 +343,24 @@ impl<T: Real> Reach<T> {
     /// lever. A lever shorter than a foot's would let that part and the
     /// tilt together exceed what the gap row was told it bridges.
     ///
-    /// **A measured length is floored here, and only here, at the foot's
-    /// distance from `at`.** The caller measured its length along the
+    /// **The lever here is floored at the foot's distance from the reach's
+    /// point** (a ball's centre, the point a length was measured from, a
+    /// span's consumed point); that binds only on a measured
+    /// length, and only here. The caller measured its length along the
     /// axis from `at`; the foot-to-foot gap also carries the radial
     /// offset of `at` from each axis, which a tilt turns into axial
     /// travel between the feet, so this lever reaches at least that far.
     /// The plane×cylinder row ([`Self::lever_from`]) moves its section by
     /// the tilt times the AXIAL distance from the foot alone, which the
-    /// length already bounds; floored there it levered a face shorter
-    /// than the radius past what the caller measured, and served a tilt
-    /// the length leaves in the band.
+    /// length already bounds, so it takes the bare length: floored there,
+    /// a face shorter than the radius would be levered past its own
+    /// measure, and a tilt the length leaves in the band served.
     #[must_use]
     pub fn lever_between(&self, line1: (Point3<T>, Vec3<T>), line2: (Point3<T>, Vec3<T>)) -> T {
         let lever = |(origin, axis)| {
             let pivot = self.foot_on(origin, axis);
-            let bare = self.lever_from(pivot);
-            match self {
-                Self::Measured { at, .. } => bare.max((*at - pivot).norm()),
-                Self::Ball(_) | Self::Span { .. } => bare,
-            }
+            self.lever_from(pivot)
+                .max((self.reading_point() - pivot).norm())
         };
         lever(line1).min(lever(line2))
     }

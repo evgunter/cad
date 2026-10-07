@@ -1553,7 +1553,7 @@ pub fn cylinder_axes_parallel<T: Decide>(
 /// `cc_axes_coplanar`: whether two crossing cylinder axes `oᵢ + s·aᵢ`
 /// (`aᵢ` unit) meet, the margin their signed gap along the common
 /// perpendicular, `w·(a1×a2)/‖a1×a2‖`, `w` between their feet at `reach`
-/// ([`axes_feet`]). Zero ⇒ they meet; definite ⇒ skew.
+/// (`axes_feet`). Zero ⇒ they meet; definite ⇒ skew.
 ///
 /// Sliding either point along its axis leaves the gap unchanged, so the
 /// feet name the same gap as any stored origins, with less of the

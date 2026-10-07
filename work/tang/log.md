@@ -545,6 +545,11 @@ cylinder pair's foot-to-foot gap, which is the one reading that needs
 it. A short-face row pins the lane. The interval minimax stays bounded
 where axial points coincide.
 
+**Fix pass 5** (the fifth full review: approve with fixes, no MAJOR).
+Rows now pin the germ frame's reading face, the walls' span at half its
+length, and `route_pose`'s farthest anchor. The docs state the rule
+positively. Filed: `extent-ball-and-reach-are-two-statements-of-one-extent`.
+
 ## 2026-10-06 — in-face rings pair along the wall: fixed upstream by PR 4008; the sweep row lands (TANG implementer)
 
 `in-face-pierce-rings-pair-across-the-gap` (P0) closes with no kernel

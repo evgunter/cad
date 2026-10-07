@@ -24,12 +24,12 @@ plus the levered tilt in one margin).
 
 The section classifiers do not:
 
-- `plane_cylinder_ruled` (`crates/geom-brep/src/intersect.rs:915`)
+- `plane_cylinder_ruled` (`crates/geom-brep/src/intersect.rs:921`)
   decides `pc_axis_plane_parallel` (the tilt levered at the reach),
   then `pc_parallel_gap` (`r − |gap|` at the foot) separately.
 - `cylinder_cylinder_section` decides `cc_axes_parallel`
   (`cylinder_axes_parallel`), then `cc_parallel_gap`
-  (`parallel_cylinder_gap`, `intersect.rs:1599`) separately.
+  (`parallel_cylinder_gap`, `intersect.rs:1640`) separately.
 
 Each row can sit just inside its Zero band, so `TangentLine` can be
 minted for a pose whose ruling stands up to about `2ε` off one wall

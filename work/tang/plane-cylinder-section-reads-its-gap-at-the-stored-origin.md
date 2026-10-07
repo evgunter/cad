@@ -102,8 +102,9 @@ tried decided an in-band tilt as served):
   than main's from the stored origin (a third review found a NURBS
   ruling read at its control-point mean levered longer).
 - chord_join hands its base vertex and `face_extent`
-  (`Reach::Measured`), the length it levered by before, floored at the
-  pivot's distance from the vertex.
+  (`Reach::Measured`), the length main levered it by, unfloored: the
+  plane×cylinder row moves its section by the tilt times the axial
+  distance from the vertex's foot, which `face_extent` bounds.
 - The germ frame hands the centre of the curved face's boundary
   vertices and the length it levered by before: the radius for the
   plane×cylinder pair (filed: it under-states a long wall), the larger
