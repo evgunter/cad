@@ -4961,3 +4961,273 @@ mod track_cover {
         assert_eq!(read(&t, vec![(0, arc(2.0, 3.0))]), (vec![], vec![], false));
     }
 }
+
+/// **The boolean's rows at a vertex read twice name the result**: a
+/// pyramid standing on its apex at a point of a plate's top that another
+/// body's own contact holds, beside pyramids standing there, voids
+/// hanging from it, islands in the voids and voids in the pyramids, or
+/// two pyramids united at their apexes there, in every op and both
+/// orders at every pose, name through [`name_boolean`] with no emission
+/// refusal. Two shapes have no emitter rule, as on main (`no_rule`). `crates/topo/tests/a_vertex_read_again_classes_every_edge.rs`
+/// reads the same scenes' rows against their germs.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod touch_reread_rows {
+    use super::{NamingError, OperandCtx, name_boolean};
+    use crate::names::emit::{ent, name1};
+    use crate::names::role::{CapEnd, EntityKind, RoleSeg};
+    use crate::names::table::{EntityKey, NameTable};
+    use crate::names::{PieceRole, PieceRun, ProfileEdgeRef, ProfileVertexRef};
+    use crate::node::{RecipeNodeId, StepId};
+    use geom_core::Tol;
+    use topo::test_support::meeting::{
+        PLATE, Pose, apex_pyramid, bearing, corners, mix, nest, nest_polygon, posed_box, poses,
+    };
+    use topo::{AtRestBody, BooleanResult, intersect, subtract, union};
+
+    fn t() -> Tol {
+        Tol::witness()
+    }
+
+    fn built(r: Result<BooleanResult<f64>, topo::BooleanError>) -> AtRestBody<f64> {
+        match r {
+            Ok(BooleanResult::Body(r)) => r.body,
+            other => panic!("{:?}", other.map(|_| ())),
+        }
+    }
+
+    /// A name for every entity of `body`, each its own: the rows read
+    /// operand edges by name, not by role.
+    fn table(body: &AtRestBody<f64>, node: RecipeNodeId) -> NameTable {
+        let piece = |k: usize| ProfileEdgeRef::Piece {
+            step: StepId::new(0, k as u64),
+            role: PieceRole::Leg,
+        };
+        let at = |k: usize| ProfileVertexRef::Piece {
+            step: StepId::new(0, k as u64),
+            role: PieceRole::Leg,
+        };
+        let mut t = NameTable::new();
+        t.insert(
+            name1(EntityKind::Body, node, RoleSeg::OutputBody),
+            ent(0, EntityKey::Body),
+        )
+        .unwrap();
+        for (k, (f, _)) in body.faces().enumerate() {
+            let name = name1(
+                EntityKind::Face,
+                node,
+                RoleSeg::Lateral(PieceRun::one(piece(k))),
+            );
+            t.insert(name, ent(0, EntityKey::Face(f))).unwrap();
+        }
+        for (k, (e, _)) in body.edges().enumerate() {
+            let name = name1(EntityKind::Edge, node, RoleSeg::LateralEdge(at(k)));
+            t.insert(name, ent(0, EntityKey::Edge(e))).unwrap();
+        }
+        for (k, (v, _)) in body.vertices().enumerate() {
+            let name = name1(
+                EntityKind::Vertex,
+                node,
+                RoleSeg::CapVertex(CapEnd::End, at(k)),
+            );
+            t.insert(name, ent(0, EntityKey::Vertex(v))).unwrap();
+        }
+        t
+    }
+
+    /// The cells the emitter has no rule for, each named, as on main:
+    /// - `y ∩ x` where the pyramid crosses into a void in an arch, a
+    ///   seam vertex no rule parents in that order
+    ///   (`work/emit/an-intersection-into-a-void-at-a-vertex-has-no-seam-vertex-rule-in-one-order.md`);
+    /// - a union in either order over a quadrilateral void in a
+    ///   quadrilateral arch, a seam vertex whose parentage its incident
+    ///   edges leave underdetermined
+    ///   (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`).
+    fn no_rule(label: &str, what: &str, e: &NamingError) -> bool {
+        const SEAM: [&str; 5] = [
+            "over a void in the bare arch",
+            "over the void in the arch",
+            "over the void, the island in it",
+            "over a quad void in a quad arch",
+            "over a quad void in a bare quad arch",
+        ];
+        const QUADS: [&str; 2] = [
+            "over a quad void in a quad arch",
+            "over a quad void in a bare quad arch",
+        ];
+        match e {
+            NamingError::SeamVertexParentage { .. } => what == "y ∩ x" && SEAM.contains(&label),
+            NamingError::Emission { what: why } => {
+                (what == "x ∪ y" || what == "y ∪ x")
+                    && QUADS.contains(&label)
+                    && why.starts_with("seam vertex parentage underdetermined")
+            }
+            _ => false,
+        }
+    }
+
+    /// Names every op on `(x, y)` in both orders; returns how many built.
+    fn names(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, pose: &Pose) -> usize {
+        let (xn, yn) = (RecipeNodeId::new(0, 1), RecipeNodeId::new(0, 2));
+        let (xt, yt) = (table(x, xn), table(y, yn));
+        let mut named = 0;
+        for (what, (a, an, at), (b, bn, bt), r) in [
+            ("x − y", (x, xn, &xt), (y, yn, &yt), subtract(x, y, t())),
+            ("y − x", (y, yn, &yt), (x, xn, &xt), subtract(y, x, t())),
+            ("x ∪ y", (x, xn, &xt), (y, yn, &yt), union(x, y, t())),
+            ("y ∪ x", (y, yn, &yt), (x, xn, &xt), union(y, x, t())),
+            ("x ∩ y", (x, xn, &xt), (y, yn, &yt), intersect(x, y, t())),
+            ("y ∩ x", (y, yn, &yt), (x, xn, &xt), intersect(y, x, t())),
+        ] {
+            let Ok(BooleanResult::Body(r)) = r else {
+                continue;
+            };
+            let a = OperandCtx {
+                node: an,
+                table: at,
+                body: a,
+            };
+            let b = OperandCtx {
+                node: bn,
+                table: bt,
+                body: b,
+            };
+            match name_boolean(RecipeNodeId::new(0, 9), &r.body, &r.naming, &a, &b, t()) {
+                Ok(_) => named += 1,
+                Err(e) if no_rule(label, what, &e) => {}
+                Err(e) => panic!("{label}, {}, {what}: names, got {e:?}", pose.label),
+            }
+        }
+        named
+    }
+
+    /// At rest, every scene.
+    #[test]
+    fn a_vertex_read_twice_names_its_result_in_every_op() {
+        assert!(every_scene(&poses()[..1]) > 0, "cells built");
+    }
+
+    /// The other poses, every scene.
+    #[test]
+    fn a_vertex_read_twice_names_its_result_in_every_op_at_every_pose() {
+        assert!(every_scene(&poses()[1..]) > 0, "cells built");
+    }
+
+    fn every_scene(poses: &[Pose]) -> usize {
+        let mut named = 0;
+        for pose in poses {
+            let p = |b: [[f64; 3]; 3]| apex_pyramid(&b, pose, t());
+            let plate = posed_box("the plate", PLATE, pose, t());
+            let arch_base = corners(60.0, 0.5, 0.4);
+            let void = corners(120.0, -0.5, 0.4);
+            let arch = p(arch_base);
+            let one = built(union(&plate, &arch, t()));
+            let both = built(subtract(&one, &p(void), t()));
+            let cavity = built(subtract(&plate, &p(void), t()));
+            let isle = nest(void, 0.7);
+            let island = built(union(&cavity, &p(isle), t()));
+            let hvoid = nest(arch_base, 0.7);
+            let hollow = built(subtract(&one, &p(hvoid), t()));
+            let bare_hollow = built(subtract(&arch, &p(hvoid), t()));
+            let deep = built(union(&hollow, &p(nest(hvoid, 0.7)), t()));
+            let arches = built(union(
+                &plate,
+                &[180.0, 300.0].iter().fold(arch.clone(), |u, &b| {
+                    built(union(&u, &p(corners(b, 0.5, 0.4)), t()))
+                }),
+                t(),
+            ));
+            let block = posed_box("a block", [(1.0, 2.0), (0.5, 1.5), (0.3, 1.5)], pose, t());
+            let pentagon: Vec<[f64; 3]> = (0..5)
+                .map(|k| bearing(120.0 + 72.0 * f64::from(k), 0.3, -0.45))
+                .collect();
+            let pentagonal = built(subtract(&block, &apex_pyramid(&pentagon, pose, t()), t()));
+            let quad = [
+                bearing(40.0, 0.45, 0.5),
+                bearing(80.0, 0.45, 0.5),
+                bearing(80.0, 0.25, 0.5),
+                bearing(40.0, 0.25, 0.5),
+            ];
+            let quad_void = nest_polygon(&quad, 0.7);
+            let quad_arch = apex_pyramid(&quad, pose, t());
+            let quad_hollow = built(subtract(
+                &built(union(&plate, &quad_arch, t())),
+                &apex_pyramid(&quad_void, pose, t()),
+                t(),
+            ));
+            let bare_quad_hollow = built(subtract(
+                &quad_arch,
+                &apex_pyramid(&quad_void, pose, t()),
+                t(),
+            ));
+            let cone = p(corners(240.0, 0.7, 0.5));
+            let over = p(corners(50.0, 0.7, 0.5));
+            let over_180 = p(corners(170.0, 0.7, 0.5));
+            let over_300 = p(corners(290.0, 0.7, 0.5));
+            let hang = p(corners(240.0, -0.6, 0.5));
+            let hang_over = p(corners(130.0, -0.6, 0.5));
+            let in_void = p(nest(void, 1.4));
+            let in_island = p(nest(isle, 0.7));
+            let in_hollow = p(nest(hvoid, 0.7));
+            let pair = |x, y| built(union(&p(x), &p(y), t()));
+            let two_up = pair(corners(40.0, 0.6, 0.5), corners(280.0, 0.6, 0.5));
+            let two_down = pair(corners(200.0, -0.6, 0.5), corners(110.0, -0.6, 0.5));
+            let third = 1.0 / 3.0;
+            let cross3 = p(mix(
+                arch_base,
+                [[third, third, third], [0.75, 0.15, 0.1], [0.45, 0.22, 0.33]],
+                0.6,
+            ));
+            let on2 = p(mix(
+                arch_base,
+                [[0.4, 0.4, 0.2], [0.45, 0.45, 0.1], [0.7, 0.25, 0.05]],
+                0.6,
+            ));
+            let cross_in = p(mix(
+                void,
+                [[third, third, third], [0.7, 0.2, 0.1], [1.2, -0.3, 0.1]],
+                0.6,
+            ));
+            for (label, x, y) in [
+                ("the arches", &cone, &arches),
+                ("one standing pyramid", &cone, &one),
+                ("over the arch", &over, &one),
+                ("over the arches", &over, &arches),
+                ("over the second arch", &over_180, &arches),
+                ("over the third arch", &over_300, &arches),
+                ("over the arch and void", &over, &both),
+                ("hanging below the cavity", &hang, &cavity),
+                ("hanging across the cavity", &hang_over, &cavity),
+                ("hanging into the void", &in_void, &cavity),
+                ("hanging across the arch and void", &hang_over, &both),
+                ("two up, one over the arch", &two_up, &one),
+                ("two up over the arch and void", &two_up, &both),
+                ("two down beside the void", &two_down, &both),
+                ("two up over the bare arch", &two_up, &arch),
+                ("in the island in the void", &in_island, &island),
+                ("in the void in the arch", &in_hollow, &hollow),
+                ("over a void in the bare arch", &over, &bare_hollow),
+                ("two up over a void in the bare arch", &two_up, &bare_hollow),
+                ("over the void in the arch", &over, &hollow),
+                ("crossing the void in the arch", &cross3, &hollow),
+                ("on the void's face in the arch", &on2, &hollow),
+                ("crossing the island in the void", &cross_in, &island),
+                ("beside the void in the arch", &cone, &hollow),
+                ("crossing three levels", &cross3, &deep),
+                ("over the void, the island in it", &over, &deep),
+                ("hanging into a pentagonal void", &hang, &pentagonal),
+                ("hanging across a pentagonal void", &hang_over, &pentagonal),
+                ("over a quad void in a quad arch", &over, &quad_hollow),
+                (
+                    "over a quad void in a bare quad arch",
+                    &over,
+                    &bare_quad_hollow,
+                ),
+            ] {
+                named += names(label, x, y, pose);
+            }
+        }
+        named
+    }
+}
