@@ -1,4 +1,4 @@
-# FORK-2 — how the explicit product list is kept (designer B)
+# FORK-2 — how the explicit product list is kept
 
 ## For Ev
 
@@ -146,8 +146,7 @@ split: likely.
   keys the drawn scene by the list. Unlisted bodies, including a kept-out
   tool, are invisible, as today. Whether "drawn" should widen beyond the
   product is a separate viewer question; I did not design it.
-- **The spec's sites.** The spec says Promote's slot insert (`edit.rs:6030`)
-  goes. Under this answer Promote needs no product code at all, which agrees.
+- The spec drops Promote's slot insert (`edit.rs:6030`); this agrees.
 - **Test 6 (migration preserves the product).** It is compatible: the
   migration writes today's root bodies as the list.
 - **Tests.** Mates leave the list; the root-count rows shift by the mate count.
