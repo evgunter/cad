@@ -133,14 +133,3 @@ does.
 
 **Pinned:** `a_near_tangent_sliver_is_a_cone_of_its_own` (the witness,
 both orders). It is red on the old counter: `cones_at` reads `(1, 0)`.
-
-## 2026-10-07 — the pinned row is red at ε 1e-6 (TANG, PR 4246's review)
-
-`a_near_tangent_sliver_is_a_cone_of_its_own` fails at
-`CAD_TOLERANCE_EPS=1e-6`, on main as on PR 4246's branch:
-`ac I: the lump and the sliver` (`assert_eq!` on the ∩ body's solid count:
-two, the lump and the sliver). The 1e-7 tilt the row poses is inside a
-1e-6 band, so the sliver need not stand apart from the lump at that ε,
-while the row asserts two solids at every ε. Either the row stands down above the tilt's band, or the
-ε-1e-6 reading is a finding of its own; this item owns the call. The
-nightly's 1e-6 row is red on it until then.
