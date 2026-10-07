@@ -88,7 +88,7 @@ pub use role::{
 };
 pub(crate) use role::{Carry, SegRewrite, inert_seg, locator_seg};
 pub(crate) use role::{Lift, VerbatimEdge, lift, verbatim_edge};
-pub(crate) use role::{fragment_tail_start, name_free_seg};
+pub(crate) use role::{fragment_tail_start, name_free_seg, wrapped_edge};
 pub(crate) use seam_pair::face_descends_from;
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};

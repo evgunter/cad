@@ -1429,12 +1429,20 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             Some((_, Entry::Unique(_))) => offers.push(base),
             None => {}
         }
+    } else if let Some(line) = piece_line(name) {
+        // An edge piece's base is its line, which no table publishes:
+        // the surviving pieces of the line are offered (N5, "A cited
+        // line"), the undivided edge among them where it is one row.
+        for row in line_rows(new.eval, &line) {
+            if matches!(lookup(new.eval, row), Some((_, Entry::Unique(_)))) {
+                offers.push((**row).clone());
+            }
+        }
     } else if let Some(base) = unqualified(name)
-        // The same collapse for a face or edge piece: the undivided
-        // survivor is offered for an explicit `Rebind`, never bound.
-        // There is no over-tie to widen to here — a `Borders`, `Keeps`
-        // or `Ends` tie is a row of the QUALIFIED name, which step 2
-        // already answered.
+        // The same collapse for a face piece: the undivided survivor is
+        // offered for an explicit `Rebind`, never bound. There is no
+        // over-tie to widen to here — a `Borders` or `Keeps` tie is a
+        // row of the QUALIFIED name, which step 2 already answered.
         && matches!(lookup(new.eval, &base), Some((_, Entry::Unique(_))))
     {
         offers.push(base);
@@ -1461,9 +1469,15 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 
     // Cascade dominates: an embedded operand name that itself fails
     // to resolve carries the root cause (its own diagnosis chains).
+    // A name cited by its line is present while any row lies on it.
+    let lines = cited_lines(name);
     let mut cascade: Option<StableName> = None;
     walk_names(name, Partners::Cascade, &mut |inner| {
-        if cascade.is_none() && lookup(new.eval, inner).is_none() {
+        if cascade.is_none()
+            && lookup(new.eval, inner).is_none()
+            && !(lines.iter().any(|l| core::ptr::eq(*l, inner))
+                && !line_rows(new.eval, inner).is_empty())
+        {
             cascade = Some(inner.clone());
         }
     });
@@ -1520,6 +1534,71 @@ fn fragment_base(name: &StableName) -> Option<StableName> {
     let mut base = name.clone();
     base.path.pop();
     (!base.path.is_empty()).then_some(base)
+}
+
+/// **The line an edge piece lies on**: its base, where its qualifier is
+/// `Ends` (N2).
+fn piece_line(name: &StableName) -> Option<StableName> {
+    (name.kind == EntityKind::Edge
+        && matches!(name.path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_)))))
+    .then(|| fragment_base(name))
+    .flatten()
+}
+
+/// **The rows that lie on `line`** (N5, "A cited line"): the edge rows
+/// of `line`'s node's table whose line it is, in key order. Empty where
+/// that node has no table in this run or no row lies on it.
+fn line_rows<'a, T: Decide>(
+    eval: &'a Evaluation<T>,
+    line: &StableName,
+) -> &'a [crate::names::NameRef] {
+    eval.value(line.node)
+        .map_or(&[], |v| v.name_table.on_line(line))
+}
+
+/// **Every name `name` cites by its line**, at every depth: a crossing's
+/// edges, a seam vertex's, a `Keeps` entry, the parent an edge piece
+/// wraps, and the parent a line wraps in turn (`names::role::edge_line`).
+/// By address, so a reader can tell a name in a line position from an
+/// equal one elsewhere in the tree.
+fn cited_lines(name: &StableName) -> Vec<&StableName> {
+    let mut out: Vec<&StableName> = Vec::new();
+    let mut stack: Vec<(&StableName, bool)> = vec![(name, false)];
+    while let Some((n, is_line)) = stack.pop() {
+        let mut lines: Vec<&StableName> = Vec::new();
+        let tail = n
+            .path
+            .iter()
+            .rposition(|s| !matches!(s, RoleSeg::Fragment(Qualifier::Ends(_))))
+            .map_or(0, |i| i + 1);
+        let piece = n.kind == EntityKind::Edge && tail < n.path.len();
+        if (piece || is_line) && tail == 1 {
+            lines.extend(crate::names::wrapped_edge(&n.path[0]).map(|w| &**w));
+        }
+        for seg in &n.path {
+            match seg {
+                RoleSeg::Crossing { edge, .. } | RoleSeg::CrossingVertex { edge, .. } => {
+                    lines.push(edge);
+                }
+                RoleSeg::EdgeCrossing { a, b, .. } => lines.extend([&**a, &**b]),
+                RoleSeg::Seam { a, b } if n.kind == EntityKind::Vertex => {
+                    lines.extend([&**a, &**b]);
+                }
+                RoleSeg::Fragment(Qualifier::Keeps(kept)) => lines.extend(kept),
+                _ => {}
+            }
+        }
+        let mut children = Vec::new();
+        embedded(n, Partners::Include, &mut children);
+        for c in children {
+            let line = lines.iter().any(|l| core::ptr::eq(*l, c));
+            if line {
+                out.push(c);
+            }
+            stack.push((c, line));
+        }
+    }
+    out
 }
 
 /// A face or edge piece's base ([`fragment_base`]) — what the SAME

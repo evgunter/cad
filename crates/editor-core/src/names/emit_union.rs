@@ -116,7 +116,7 @@ use crate::names::emit::{
     vertex_point,
 };
 use crate::names::emit_topo::{
-    Cover, CrossedEdge, FaceDescent, Lone, OnSegment, Segment, name_edge_pieces, name_parent_faces,
+    Cover, CrossedEdge, EdgePieces, FaceDescent, Lone, OnSegment, Segment, name_edge_pieces, name_parent_faces,
     rank_crossings,
 };
 use crate::names::groups::{CrossingSenses, Rederived};
@@ -124,7 +124,7 @@ use crate::names::least_root::LeastRoot;
 use crate::names::nest::{Descent, Kept, Stopped, descend};
 use crate::names::role::{
     Carry, EntityKind, NameRef, Qualifier, RoleSeg, SegRewrite, Sense, StableName,
-    never_in_a_boolean_table,
+    edge_line, never_in_a_boolean_table,
 };
 use crate::names::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
@@ -224,10 +224,11 @@ pub(crate) fn name_union<T: geom_core::Decide>(
         bnd,
     )?;
     let mut tie = TieRows::default();
+    let mut pieces = EdgePieces::default();
     for g in by_parents.seams.iter().chain(&member_edges) {
         name_edge_pieces(
-            &mut t,
-            &mut tie,
+            &mut pieces,
+            &t,
             g.from_tie,
             &g.base,
             (body, 0),
@@ -235,6 +236,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
             g.lone,
         )?;
     }
+    pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
     check_total(&t, body, 0)?;
     Ok((Arc::new(t), by_parents.groups))
@@ -381,9 +383,10 @@ fn put_entry(t: &mut NameTable, name: StableName, entry: &Entry) -> Result<(), N
 }
 
 /// Member `member`'s edge `edge` in its own body, as its own table
-/// names it: a tie there is [`NamingError::MemberEdgeTied`], and a
-/// member or name the union does not have is an emission bug (every
-/// member-keyed row came from that member's table).
+/// names it, a cited line read as the least row on it (N5): a tie
+/// there is [`NamingError::MemberEdgeTied`], and a member or name the
+/// union does not have is an emission bug (every member-keyed row came
+/// from that member's table).
 fn member_edge<'a, T: geom_core::Decide>(
     members: &'a [Member<'a, T>],
     member: RecipeNodeId,
@@ -391,7 +394,11 @@ fn member_edge<'a, T: geom_core::Decide>(
 ) -> Result<(&'a topo::Body<T>, topo::EdgeKey), NamingError> {
     let bug = |what| NamingError::Emission { what };
     let m = member_of(members, member)?;
-    match m.table.lookup(edge) {
+    let entry = m
+        .table
+        .lookup(edge)
+        .or_else(|| m.table.on_line(edge).first().and_then(|row| m.table.lookup(row)));
+    match entry {
         Some(Entry::Unique(e)) => match e.key {
             EntityKey::Edge(k) => Ok((m.body, k)),
             _ => Err(bug("a member's edge name names no edge in the member")),
@@ -729,7 +736,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             kind: EntityKind::Vertex,
             node: self.union,
             path: vec![RoleSeg::Crossing {
-                edge: NameRef::new(edge),
+                edge: edge_line(&NameRef::new(edge)),
                 face: NameRef::new(face),
                 sense,
             }],
@@ -1404,7 +1411,7 @@ impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
                 Some(v) => self.flush.least_at(v, (member, edge))?,
                 None => (member, edge),
             };
-            let whole = entity_name(self.union, &(member, edge));
+            let whole = (*edge_line(&NameRef::new(entity_name(self.union, &(member, edge))))).clone();
             return Ok(if whole == *n {
                 Carry::Keep
             } else {

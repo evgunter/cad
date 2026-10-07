@@ -22,7 +22,9 @@ use super::emit::{
 };
 use super::groups::{CrossingSenses, Emitted, GroupRecord, Parent};
 use super::merged::{self, NESTED_MERGED};
-use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, Sense, SplitHalf, StableName};
+use super::role::{
+    EntityKind, NameRef, Qualifier, RoleSeg, Sense, SplitHalf, StableName, edge_line,
+};
 use super::seam_pair;
 use super::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
@@ -451,39 +453,47 @@ fn name_split_edges_vertices<T: Decide>(
         // Each crossing carries its sense against this half; a plane
         // crosses a straight edge at most once, and an arc it crosses
         // twice leaves crossings of both senses on each side. Several
-        // of one sense are ranked along the crossed edge (N2).
+        // of one sense on one line are ranked along it (N2), by the
+        // carrier of its least-named crossed edge.
+        let mut by_line: BTreeMap<(NameRef, Sense), OnLine<T>> = BTreeMap::new();
         for (crossed, (parent, verts)) in crossings {
             let forward = oriented(target_body, target_table, crossed, &parent.name)?;
             let pieces = pieces_of.get(&crossed).map_or(&[][..], Vec::as_slice);
-            let mut by_sense: BTreeMap<Sense, Vec<_>> = BTreeMap::new();
+            let line = edge_line(&parent.name);
             for &v in &verts {
                 let sense = split_sense(body, v, pieces)?;
-                by_sense
-                    .entry(if forward { sense } else { sense.flipped() })
-                    .or_default()
-                    .push((ent(s.ix, EntityKey::Vertex(v)), vertex_point(body, v)?));
+                let sense = if forward { sense } else { sense.flipped() };
+                by_line
+                    .entry((line.clone(), sense))
+                    .or_insert_with(|| OnLine::new(&parent.name, crossed))
+                    .push(
+                        &parent,
+                        crossed,
+                        (ent(s.ix, EntityKey::Vertex(v)), vertex_point(body, v)?),
+                    );
             }
+        }
+        for ((line, sense), on) in by_line {
+            let base = name1(
+                EntityKind::Vertex,
+                node,
+                RoleSeg::CrossingVertex {
+                    side: s.half,
+                    edge: line,
+                    sense,
+                },
+            );
             let edge = CrossedEdge {
                 body: target_body,
                 table: target_table,
-                edge: crossed,
-                name: &parent.name,
+                edge: on.along.1,
+                name: &on.along.0,
             };
-            for (sense, crossings) in by_sense {
-                let base = name1(
-                    EntityKind::Vertex,
-                    node,
-                    RoleSeg::CrossingVertex {
-                        side: s.half,
-                        edge: parent.name.clone(),
-                        sense,
-                    },
-                );
-                rank_crossings(t, tie, parent.tied, &base, &edge, &crossings, bnd)?;
-            }
+            rank_crossings(t, tie, on.tied, &base, &edge, &on.crossings, bnd)?;
         }
     }
     tie.flush(t)?;
+    let mut pieces = EdgePieces::default();
     for ((slot, base), (from_tie, edges)) in edge_groups {
         let s = &sides[slot];
         // A lone section chord is the whole of the section line across
@@ -492,9 +502,9 @@ fn name_split_edges_vertices<T: Decide>(
             Some(RoleSeg::SectionEdge { .. }) => Lone::Whole,
             _ => Lone::Piece,
         };
-        name_edge_pieces(t, tie, from_tie, &base, (s.body, s.ix), &edges, lone)?;
+        name_edge_pieces(&mut pieces, t, from_tie, &base, (s.body, s.ix), &edges, lone)?;
     }
-    Ok(())
+    pieces.mint(t, tie)
 }
 
 /// **The sense of a Split's crossing at `v`** (N2) against the half
@@ -1011,10 +1021,11 @@ pub(crate) fn name_boolean<T: Decide>(
         bnd,
     )?;
     tie.flush(&mut t)?;
+    let mut pieces = EdgePieces::default();
     for g in &edge_groups {
         name_edge_pieces(
-            &mut t,
-            &mut tie,
+            &mut pieces,
+            &t,
             g.from_tie,
             &g.base,
             (body, 0),
@@ -1022,6 +1033,7 @@ pub(crate) fn name_boolean<T: Decide>(
             g.lone,
         )?;
     }
+    pieces.mint(&mut t, &mut tie)?;
     tie.flush(&mut t)?;
 
     super::emit::check_total(&t, body, 0)?;
@@ -1426,8 +1438,9 @@ fn name_boolean_edges<T: Decide>(
         let (op, root_key) = root.of(a, b);
         let inner = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(root_key)))?;
         let base = name1(EntityKind::Edge, node, root.wrap(inner.name));
+        // The group is its pieces' base: the line they lie on.
         rec.record(
-            &base,
+            &edge_line(&NameRef::new(base.clone())),
             edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect(),
             root.map(EntityKey::Edge).parent(),
         );
@@ -1919,7 +1932,7 @@ fn name_boolean_vertices<T: Decide>(
         let (seg, along) = match (pa.kind, pb.kind, senses) {
             (EntityKind::Edge, EntityKind::Face, (Some(sense), None)) => (
                 RoleSeg::Crossing {
-                    edge: pa.clone(),
+                    edge: edge_line(&pa),
                     face: pb,
                     sense,
                 },
@@ -1927,7 +1940,7 @@ fn name_boolean_vertices<T: Decide>(
             ),
             (EntityKind::Face, EntityKind::Edge, (None, Some(sense))) => (
                 RoleSeg::Crossing {
-                    edge: pb.clone(),
+                    edge: edge_line(&pb),
                     face: pa,
                     sense,
                 },
@@ -1935,22 +1948,27 @@ fn name_boolean_vertices<T: Decide>(
             ),
             (EntityKind::Edge, EntityKind::Edge, (Some(a_sense), Some(b_sense))) => (
                 RoleSeg::EdgeCrossing {
-                    a: pa.clone(),
+                    a: edge_line(&pa),
                     a_sense,
-                    b: pb,
+                    b: edge_line(&pb),
                     b_sense,
                 },
                 Along::A(pa),
             ),
             _ => (
                 RoleSeg::Seam {
-                    a: pa.clone(),
-                    b: pb.clone(),
+                    a: edge_line(&pa),
+                    b: edge_line(&pb),
                 },
                 Along::Either(pa, pb),
             ),
         };
-        let slot = groups.entry(seg).or_insert((false, Vec::new(), along));
+        // Pieces of one line crossed alike share a name, and rank along
+        // the line by the carrier of the least-named of them.
+        let slot = groups.entry(seg).or_insert((false, Vec::new(), along.clone()));
+        if along.first() < slot.2.first() {
+            slot.2 = along;
+        }
         slot.0 |= from_tie;
         slot.1.push(v);
     }
@@ -2003,10 +2021,20 @@ fn name_boolean_vertices<T: Decide>(
 
 /// The edge a seam vertex group's ranks lie along: an A-side edge, a
 /// B-side one, or the first of a seam's two parents that is an edge.
+#[derive(Clone)]
 enum Along {
     A(NameRef),
     B(NameRef),
     Either(NameRef, NameRef),
+}
+
+impl Along {
+    /// The name it is chosen by among the pieces of one line.
+    fn first(&self) -> &NameRef {
+        match self {
+            Self::A(e) | Self::B(e) | Self::Either(e, _) => e,
+        }
+    }
 }
 
 /// Each result vertex the zips and A-side welds fused → the dead
@@ -2531,23 +2559,23 @@ fn group_count(n: usize) -> Result<u32, NamingError> {
     )
 }
 
-/// **Names the pieces of one parent edge** (N2): a lone piece is
-/// `base` when it is the whole parent ([`Lone::Whole`]), and otherwise,
-/// as each of several is, `base` + `Fragment(Ends)`, the sorted pair of
-/// its two end vertices' names as `t` publishes them, read off body
-/// `ix` of `at`: a lone piece of a divided edge is named by its ends,
-/// so no piece's name says how many siblings it has. Pieces with equal
-/// pairs are N4's tie. Every end vertex is named before this runs, so
+/// **Names the pieces of one parent edge** (N2) into `out`: a lone
+/// piece is `base` when it is the whole parent ([`Lone::Whole`]), and
+/// otherwise, as each of several is, the parent's line
+/// ([`edge_line`]) + `Fragment(Ends)`, the sorted pair of its two end
+/// vertices' names as `t` publishes them, read off body `ix`: a lone
+/// piece of a divided edge is named by its ends, so no piece's name
+/// says how many siblings it has, and a piece of an earlier piece is a
+/// piece of its line. Every end vertex is named before this runs, so
 /// `t` holds its name.
 ///
 /// # Errors
 ///
 /// [`NamingError::Emission`] for a piece ending at a vertex `t` does
-/// not name, and the insert doors' own refusals.
-#[allow(clippy::too_many_arguments)]
+/// not name.
 pub(super) fn name_edge_pieces<T: geom_core::Real>(
-    t: &mut NameTable,
-    tie: &mut TieRows,
+    out: &mut EdgePieces,
+    t: &NameTable,
     from_tie: bool,
     base: &StableName,
     (body, ix): (&Body<T>, u32),
@@ -2555,15 +2583,10 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
     lone: Lone,
 ) -> Result<(), NamingError> {
     if let ([one], Lone::Whole) = (edges, lone) {
-        return Ok(put(
-            t,
-            tie,
-            from_tie,
-            base.clone(),
-            ent(ix, EntityKey::Edge(*one)),
-        )?);
+        out.push(base.clone(), from_tie, ent(ix, EntityKey::Edge(*one)));
+        return Ok(());
     }
-    let mut pieces = Vec::with_capacity(edges.len());
+    let line = edge_line(&NameRef::new(base.clone()));
     for &e in edges {
         let (v0, v1) = edge_ends(body, e)?;
         let mut ends = Vec::with_capacity(2);
@@ -2577,9 +2600,39 @@ pub(super) fn name_edge_pieces<T: geom_core::Real>(
             );
         }
         ends.sort();
-        pieces.push((Qualifier::Ends(ends), ent(ix, EntityKey::Edge(e))));
+        let mut name = (*line).clone();
+        name.path.push(RoleSeg::Fragment(Qualifier::Ends(ends)));
+        out.push(name, from_tie, ent(ix, EntityKey::Edge(e)));
     }
-    mint_qualified(t, tie, from_tie, base, pieces)
+    Ok(())
+}
+
+/// **The edge pieces of one emission**, gathered over every parent edge
+/// ([`name_edge_pieces`]) and minted together: two parents on one line
+/// whose pieces have one pair of ends are N4's tie, as two pieces of
+/// one parent are.
+#[derive(Default)]
+pub(super) struct EdgePieces(BTreeMap<StableName, (bool, Vec<super::table::EntityRef>)>);
+
+impl EdgePieces {
+    fn push(&mut self, name: StableName, from_tie: bool, e: super::table::EntityRef) {
+        let slot = self.0.entry(name).or_default();
+        slot.0 |= from_tie;
+        slot.1.push(e);
+    }
+
+    /// Mints every gathered name: strict for one piece, tied for
+    /// several.
+    ///
+    /// # Errors
+    ///
+    /// The insert doors' own refusals.
+    pub(super) fn mint(self, t: &mut NameTable, tie: &mut TieRows) -> Result<(), NamingError> {
+        for (name, (from_tie, ents)) in self.0 {
+            mint_candidates(t, tie, from_tie, name, ents)?;
+        }
+        Ok(())
+    }
 }
 
 /// What a lone piece of a parent edge is named for: the parent whole,
@@ -2697,6 +2750,39 @@ pub(super) struct CrossedEdge<'a, T: geom_core::Real> {
     pub(super) table: &'a NameTable,
     pub(super) edge: EdgeKey,
     pub(super) name: &'a StableName,
+}
+
+/// The crossings of one line with one sense in a Split (N2), over the
+/// crossed edges that lie on it: whether any of those edges is tied,
+/// each crossing and its point, and the least-named crossed edge, whose
+/// carrier ranks them.
+struct OnLine<T: geom_core::Real> {
+    tied: bool,
+    crossings: Vec<(super::table::EntityRef, Point3<T>)>,
+    along: (NameRef, EdgeKey),
+}
+
+impl<T: geom_core::Real> OnLine<T> {
+    fn new(name: &NameRef, edge: EdgeKey) -> Self {
+        Self {
+            tied: false,
+            crossings: Vec::new(),
+            along: (name.clone(), edge),
+        }
+    }
+
+    fn push(
+        &mut self,
+        parent: &Upstream,
+        edge: EdgeKey,
+        crossing: (super::table::EntityRef, Point3<T>),
+    ) {
+        self.tied |= parent.tied;
+        if parent.name < self.along.0 {
+            self.along = (parent.name.clone(), edge);
+        }
+        self.crossings.push(crossing);
+    }
 }
 
 /// **Ranks the crossings of one edge by one face with one sense** (N2):
@@ -2844,8 +2930,8 @@ fn name_split_faces<T: Decide>(
         }
         // Same-side multiplicity: each piece by the parent's boundary
         // edges it holds a stretch of (N2's `Keeps`), cited by their
-        // operand names. A piece's edge is one of them when it descends
-        // from one: whole, or as a piece the plane cut.
+        // lines. A piece's edge is one of them when it descends from
+        // one: whole, or as a piece the plane cut.
         let boundary: BTreeSet<EdgeKey> = face_half_edges(target_body, root)?
             .into_iter()
             .map(|he| {
@@ -2881,7 +2967,7 @@ fn name_split_faces<T: Decide>(
                         target_node,
                         ent(0, EntityKey::Edge(root_edge)),
                     )?;
-                    kept.insert((*up.name).clone());
+                    kept.insert((*edge_line(&up.name)).clone());
                 }
             }
             pieces.push((
