@@ -638,3 +638,8 @@ coincidence is now a margined verdict (no declarations), checked by the
 - **Next in PCERT:**
   - `fillet-meridian-radius-term-is-registered-only` (P0) stays parked on PATHS 5b.
   - pctail's wide-arc row is P2.
+- **Fillet-meridian P0 closed by PATHS 5b (#3774):** the filleted bracket and the pad now certify whole at M10-9's scale at every ε. So all three regressions disclosed at 3759/3812 are resolved:
+  - chaintol, by 3945;
+  - the bracket and the pad, by 5b;
+  - the shallow-arc grid stays as pctail's P2.
+- **Priorities set on the remaining slate.** The three C4 route rows (torus general circle, cone section, spline carrier) are P1, per Ev's 3617 ruling that every uncovered class gets a route wired. The spiric / no-fitted classes, the fitted-kind option and the line-seam refusal are P2. The torus general circle goes next, as the nearest analogue of the sphere route (3733).
