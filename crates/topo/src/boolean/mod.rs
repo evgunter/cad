@@ -2343,13 +2343,16 @@ pub enum BooleanError {
         /// How many Out runs it has against the face.
         runs: usize,
     },
-    /// A vertex of `operand` is read by two sector passes: it pierces
-    /// two faces of the other solid, or pierces one and coincides with a
-    /// vertex of it. That other solid holds its own contact at the
-    /// vertex's point: two of its faces meet there in their interiors,
-    /// or a vertex of it rests on one of its faces. A vertex-on-face pass
-    /// hangs struts at its piercing vertex, so a later pass would read
-    /// an orbit an earlier one wrote (`vtxfac::refuse_sector_rereads`).
+    /// A vertex of `operand` is read by two sector passes where the
+    /// first read cannot be taken with the second: it pierces two faces
+    /// of the other solid, or pierces one and coincides with a vertex of
+    /// it while crossing the face, or while that vertex's link does not
+    /// lie strictly on one side of the face. That other solid holds its
+    /// own contact at the vertex's point: two of its faces meet there in
+    /// their interiors, or a vertex of it rests on one of its faces. A
+    /// vertex-on-face pass hangs struts at a vertex that crosses the
+    /// face, so a later pass would read an orbit an earlier one wrote
+    /// (`vtxfac::refuse_sector_rereads`, `vtxfac::partner_side`).
     VertexReadTwice {
         /// The operand whose vertex is read twice.
         operand: Operand,
@@ -4361,55 +4364,53 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     let mut held = Vec::new();
     let mut edge_classes = Vec::new();
 
-    vtxfac::refuse_sector_rereads(&contacts)?;
+    let rereads = vtxfac::refuse_sector_rereads(&contacts)?;
+    // A vertex that touches a face and pairs: its pierce's classes and
+    // datum, and each pair's partner side and classes, combined once
+    // every pair is read (`vtxfac::touch_classes`).
+    let mut touches = std::collections::BTreeMap::new();
     // Vertex-on-face classification (sonva then sonvb, as 15.5).
-    for &c in &contacts.a_on_b {
-        let out = vtxfac::classify_vertex_on_face(
-            &mut a,
-            &mut b,
-            Operand::A,
-            c,
-            op,
-            &declared,
-            &contacts,
-            band,
-            tol,
-        )?;
-        null_edges.extend(out.edges);
-        null_pairs.extend(out.pairs);
-        pierce_rings.extend(out.ring);
-        covered.extend(out.covered);
-        edge_classes.extend(piece_classes(
-            &a,
-            Operand::A,
-            c.vertex,
-            &out.classes,
-            &edge_splits,
-        )?);
-    }
-    for &c in &contacts.b_on_a {
-        let out = vtxfac::classify_vertex_on_face(
-            &mut b,
-            &mut a,
-            Operand::B,
-            c,
-            op,
-            &declared,
-            &contacts,
-            band,
-            tol,
-        )?;
-        null_edges.extend(out.edges);
-        null_pairs.extend(out.pairs);
-        pierce_rings.extend(out.ring);
-        covered.extend(out.covered);
-        edge_classes.extend(piece_classes(
-            &b,
-            Operand::B,
-            c.vertex,
-            &out.classes,
-            &edge_splits,
-        )?);
+    for (operand, pierced) in [
+        (Operand::A, &contacts.a_on_b),
+        (Operand::B, &contacts.b_on_a),
+    ] {
+        for &c in pierced {
+            let reread = rereads.get(&(operand, c.vertex)).copied();
+            let (piercing_body, pierced_body) = match operand {
+                Operand::A => (&mut a, &mut b),
+                Operand::B => (&mut b, &mut a),
+            };
+            let out = vtxfac::classify_vertex_on_face(
+                piercing_body,
+                pierced_body,
+                operand,
+                c,
+                op,
+                &declared,
+                &contacts,
+                reread,
+                band,
+                tol,
+            )?;
+            null_edges.extend(out.edges);
+            null_pairs.extend(out.pairs);
+            pierce_rings.extend(out.ring);
+            covered.extend(out.covered);
+            if reread.is_some() {
+                touches.insert(
+                    (operand, c.vertex),
+                    (out.classes, out.datum, c.face, Vec::new()),
+                );
+            } else {
+                edge_classes.extend(piece_classes(
+                    piercing_body,
+                    operand,
+                    c.vertex,
+                    &out.classes,
+                    &edge_splits,
+                )?);
+            }
+        }
     }
 
     // Vertex-vertex classification, every pair read before the first
@@ -4424,18 +4425,30 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
     for &c in &contacts.vv {
         let a_sectors = sectors::build_sectors(&a, Operand::A, c.a, band)?;
         let b_sectors = sectors::build_sectors(&b, Operand::B, c.b, band)?;
-        for (body, operand, vertex, own, other) in [
-            (&a, Operand::A, c.a, &a_sectors, &b_sectors),
-            (&b, Operand::B, c.b, &b_sectors, &a_sectors),
+        for (body, operand, vertex, own, other, partner) in [
+            (&a, Operand::A, c.a, &a_sectors, &b_sectors, c.b),
+            (&b, Operand::B, c.b, &b_sectors, &a_sectors, c.a),
         ] {
             let classes = sectors::wedge_classes(own, other, band)?;
-            edge_classes.extend(piece_classes(
-                body,
-                operand,
-                vertex,
-                &classes,
-                &edge_splits,
-            )?);
+            match touches.get_mut(&(operand, vertex)) {
+                Some((_, datum, face, pairs)) => {
+                    let side = vtxfac::partner_side(other, *datum, band).ok_or(
+                        BooleanError::VertexReadTwice {
+                            operand,
+                            vertex,
+                            reads: [SectorRead::Pierce(*face), SectorRead::Pair(partner)],
+                        },
+                    )?;
+                    pairs.push((side, classes));
+                }
+                None => edge_classes.extend(piece_classes(
+                    body,
+                    operand,
+                    vertex,
+                    &classes,
+                    &edge_splits,
+                )?),
+            }
         }
         let mut records = sectors::pair_search(&a_sectors, &b_sectors, band)?;
         // The codes as first read, which the germ loci are derived from.
@@ -4467,6 +4480,19 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds + crate::props
             &recl::Reversed::default(),
         )?;
         classified.push((c, a_sectors, b_sectors, records, raw, sector_read));
+    }
+    for ((operand, vertex), (touch, _, _, pairs)) in &touches {
+        let body = match operand {
+            Operand::A => &a,
+            Operand::B => &b,
+        };
+        edge_classes.extend(piece_classes(
+            body,
+            *operand,
+            *vertex,
+            &vtxfac::touch_classes(touch, pairs),
+            &edge_splits,
+        )?);
     }
     // An edge of a shared vertex that two crossing pairs' edge-edge
     // germs run along folds Out in each of them (`recl::Reversed`).

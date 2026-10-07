@@ -52,11 +52,14 @@
 //! recorded. Mixed keeps the In side (both witnesses' choice for the
 //! split analogue).
 
+use geom_brep::OutwardNormal;
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
 use super::plane_eq::PlaneEqError;
 use super::reduce::face_plane;
-use super::sectors::{build_sectors, side_code};
+use std::collections::BTreeMap;
+
+use super::sectors::{BoolSector, build_sectors, side_code};
 use super::tables::{eq15_3_lump, lump_keeps_one};
 use super::{
     BoolNullEdgeRecord, BooleanError, BooleanOp, ContactRecords, NullEdgePairRecord, Operand,
@@ -65,35 +68,38 @@ use super::{
 use super::{Coincide, Contradiction, DeclarationRead};
 use crate::body::{Body, WALKS_CLOSE};
 use crate::contact::BooleanCoincidence;
-use crate::entity::{EntityId, HalfEdgeKey};
+use crate::entity::{EntityId, HalfEdgeKey, VertexKey};
 use crate::euler::{MevSite, RunSite};
 use crate::live::{Proven, linked, proven};
 use crate::null::{NewVertexSide, NullEdge};
 use crate::validate::decide;
 use geom_core::Tol;
 
-/// Refuses [`BooleanError::VertexReadTwice`] where a vertex is read by
-/// two sector passes, before any pass writes. A vertex-on-face pass
-/// hangs struts at its piercing vertex and a vertex-vertex pass inserts
-/// at its paired vertices, so whichever runs second would read an orbit
-/// the first wrote: a piercing vertex pierces one face and sits in no
-/// pair. A vertex in several pairs is not refused here, since the
+/// Refuses [`BooleanError::VertexReadTwice`] where a vertex pierces two
+/// faces, before any pass writes, and returns each vertex that pierces
+/// a face and pairs with a vertex too, with its first pair. A pierce
+/// hangs struts at its vertex only where it crosses the face, so such a
+/// vertex is read again only where its pierce touches
+/// ([`classify_vertex_on_face`] refuses before it writes, and
+/// [`partner_side`] and [`touch_classes`] read the touch). A vertex in
+/// several pairs and in no pierce is not returned, since the
 /// vertex-vertex passes read every pair before the first writes.
-pub(super) fn refuse_sector_rereads(contacts: &ContactRecords) -> Result<(), BooleanError> {
+pub(super) fn refuse_sector_rereads(
+    contacts: &ContactRecords,
+) -> Result<BTreeMap<(Operand, VertexKey), SectorRead>, BooleanError> {
+    let mut rereads = BTreeMap::new();
     for (operand, pierced) in [
         (Operand::A, &contacts.a_on_b),
         (Operand::B, &contacts.b_on_a),
     ] {
-        let twice = |vertex, reads| BooleanError::VertexReadTwice {
-            operand,
-            vertex,
-            reads,
-        };
-        let mut pierces = std::collections::BTreeMap::new();
+        let mut pierces = BTreeMap::new();
         for c in pierced {
             if let Some(&face) = pierces.get(&c.vertex) {
-                let reads = [SectorRead::Pierce(face), SectorRead::Pierce(c.face)];
-                return Err(twice(c.vertex, reads));
+                return Err(BooleanError::VertexReadTwice {
+                    operand,
+                    vertex: c.vertex,
+                    reads: [SectorRead::Pierce(face), SectorRead::Pierce(c.face)],
+                });
             }
             pierces.insert(c.vertex, c.face);
         }
@@ -102,13 +108,93 @@ pub(super) fn refuse_sector_rereads(contacts: &ContactRecords) -> Result<(), Boo
                 Operand::A => (c.a, c.b),
                 Operand::B => (c.b, c.a),
             };
-            if let Some(&face) = pierces.get(&own) {
-                let reads = [SectorRead::Pierce(face), SectorRead::Pair(other)];
-                return Err(twice(own, reads));
+            if pierces.contains_key(&own) {
+                rereads
+                    .entry((operand, own))
+                    .or_insert(SectorRead::Pair(other));
             }
         }
     }
-    Ok(())
+    Ok(rereads)
+}
+
+/// The pierced face's oriented datum at a pierce point: its outward
+/// normal and the lever its side verdicts charge ([`side_code`]).
+#[derive(Clone, Copy, Debug)]
+pub(super) struct PierceDatum<T: geom_core::Real> {
+    pub normal: OutwardNormal<T>,
+    pub lever: T,
+}
+
+/// **The side of a pierced face a paired vertex's link lies on**, where
+/// the piercing vertex only touches the face: `In` or `Out` where every
+/// bound of `partner`'s sectors reads strictly that side of the face's
+/// datum, the reading the touch itself was decided by; `None` where any
+/// bound reads on the face, in band, or the bounds read both sides.
+pub(super) fn partner_side<T: Decide>(
+    partner: &[BoolSector<T>],
+    datum: PierceDatum<T>,
+    band: Band,
+) -> Option<SideCode> {
+    let mut side = None;
+    for s in partner {
+        for (dir, reach) in [(s.start, s.start_reach), (s.end, s.end_reach)] {
+            match side_code(dir, reach, datum.normal, datum.lever, band) {
+                Ok(c @ (SideCode::In | SideCode::Out)) if side.is_none_or(|k| k == c) => {
+                    side = Some(c);
+                }
+                _ => return None,
+            }
+        }
+    }
+    side
+}
+
+/// **The classes of a touching vertex's edges against the other solid**,
+/// from its pierce's classes (`touch`) and its pairs' (`pairs`: each
+/// partner's side of the pierced face, by [`partner_side`], and its
+/// [`super::sectors::wedge_classes`] rows, empty where it gave none).
+///
+/// Near the point the other solid is the pierced face's half-space `H`
+/// together with each partner's material `M`, whose boundary lies
+/// strictly on one side of the face. Every face bounds material on one
+/// side only, so a partner on the Out side is the cone its faces
+/// enclose, joined to `H`, and a partner on the In side bounds a void
+/// cone inside `H`, which it removes. An edge on the face is on the
+/// other solid's boundary, beside no partner. An edge Out of `H` is In
+/// where any Out-side partner holds it, else on its boundary where any
+/// does, else Out; an edge In `H` is Out where any In-side partner
+/// leaves it out, else on its boundary where any does, else In. A
+/// partner on the edge's side that gave no rows leaves the edge
+/// unclassified.
+pub(super) fn touch_classes(
+    touch: &[(HalfEdgeKey, SideCode)],
+    pairs: &[(SideCode, Vec<(HalfEdgeKey, SideCode)>)],
+) -> Vec<(HalfEdgeKey, SideCode)> {
+    touch
+        .iter()
+        .filter_map(|&(he, own)| {
+            if own == SideCode::On {
+                return Some((he, own));
+            }
+            let mut codes = Vec::new();
+            for (_, rows) in pairs.iter().filter(|(side, _)| *side == own) {
+                codes.push(rows.iter().find(|&&(h, _)| h == he)?.1);
+            }
+            let wins = match own {
+                SideCode::Out => SideCode::In,
+                _ => SideCode::Out,
+            };
+            let class = if codes.contains(&wins) {
+                wins
+            } else if codes.contains(&SideCode::On) {
+                SideCode::On
+            } else {
+                own
+            };
+            Some((he, class))
+        })
+        .collect()
 }
 
 /// Output of one vertex-on-face classification.
@@ -127,6 +213,8 @@ pub(super) struct VtxFacOut<T: geom_core::Real> {
     /// with its side of the pierced face as first read, before any
     /// lump (`BooleanReduction::edge_classes`).
     pub classes: Vec<(HalfEdgeKey, SideCode)>,
+    /// The pierced face's datum the classes were read against.
+    pub datum: PierceDatum<T>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -140,7 +228,9 @@ struct Entry {
 
 /// Classifies `contact.vertex` (in the piercing body) against
 /// `contact.face` (in the pierced body) and performs the paired
-/// insertion (module docs).
+/// insertion (module docs). Where the vertex is read again (`reread`,
+/// from [`refuse_sector_rereads`]) and crosses the face, refuses
+/// [`BooleanError::VertexReadTwice`] before it writes.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     piercing_body: &mut Body<T>,
@@ -150,6 +240,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     op: BooleanOp,
     declared: &super::DeclaredPairs<T>,
     contacts: &super::ContactRecords,
+    reread: Option<SectorRead>,
     band: Band,
     tol: Tol,
 ) -> Result<VtxFacOut<T>, BooleanError> {
@@ -592,9 +683,20 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         ring: None,
         covered,
         classes,
+        datum: PierceDatum {
+            normal: n_pierced,
+            lever: pierced_lever,
+        },
     };
     if runs.is_empty() {
         return Ok(out); // tangential touch: 3′ contact only, no surgery
+    }
+    if let Some(next) = reread {
+        return Err(BooleanError::VertexReadTwice {
+            operand: piercing,
+            vertex,
+            reads: [SectorRead::Pierce(contact.face), next],
+        });
     }
 
     // Piercing-side null edges, one per run (PR 2's insertion pattern).
@@ -1144,14 +1246,15 @@ mod tests {
     use super::*;
     use SideCode::{In, On, Out};
 
-    /// A vertex is refused at its second read when a pierce came first,
-    /// naming both reads, on either operand; a vertex in several pairs
-    /// and nowhere pierced is not, nor are two operands' vertices that
+    /// A vertex that pierces two faces is refused, naming both, on
+    /// either operand; one that pierces a face and pairs is returned on
+    /// its operand with its first pair; a vertex in several pairs and
+    /// nowhere pierced is neither, nor are two operands' vertices that
     /// share a key.
     #[test]
-    fn a_vertex_is_refused_at_a_second_read_after_a_pierce() {
+    fn a_pierced_vertex_is_refused_at_a_second_pierce_and_returned_at_a_pair() {
         use super::super::VvContact;
-        use crate::entity::{FaceKey, VertexKey};
+        use crate::entity::FaceKey;
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
         let (v, w, x) = (
             VertexKey::from(key(1)),
@@ -1161,13 +1264,13 @@ mod tests {
         let (f, g) = (FaceKey::from(key(4)), FaceKey::from(key(5)));
         let vf = |vertex, face| VfContact { vertex, face };
         let vv = |a, b| VvContact { a, b };
-        let refusal = |c: &ContactRecords| match refuse_sector_rereads(c) {
+        let read = |c: &ContactRecords| match refuse_sector_rereads(c) {
             Err(BooleanError::VertexReadTwice {
                 operand,
                 vertex,
                 reads,
-            }) => Some((operand, vertex, reads)),
-            Ok(()) => None,
+            }) => Err((operand, vertex, reads)),
+            Ok(rereads) => Ok(rereads.into_iter().collect::<Vec<_>>()),
             Err(e) => panic!("{e:?}"),
         };
         let rows = [
@@ -1177,7 +1280,7 @@ mod tests {
                     a_on_b: vec![vf(v, f), vf(w, f), vf(v, g)],
                     ..Default::default()
                 },
-                Some((
+                Err((
                     Operand::A,
                     v,
                     [SectorRead::Pierce(f), SectorRead::Pierce(g)],
@@ -1187,10 +1290,10 @@ mod tests {
                 "pierced and paired, B",
                 ContactRecords {
                     b_on_a: vec![vf(w, f)],
-                    vv: vec![vv(x, v), vv(v, w)],
+                    vv: vec![vv(x, v), vv(v, w), vv(x, w)],
                     ..Default::default()
                 },
-                Some((Operand::B, w, [SectorRead::Pierce(f), SectorRead::Pair(v)])),
+                Ok(vec![((Operand::B, w), SectorRead::Pair(v))]),
             ),
             (
                 "paired twice",
@@ -1198,7 +1301,7 @@ mod tests {
                     vv: vec![vv(v, w), vv(v, x), vv(x, w)],
                     ..Default::default()
                 },
-                None,
+                Ok(vec![]),
             ),
             (
                 "one key on each operand, pierced by A's and paired by B's",
@@ -1207,11 +1310,64 @@ mod tests {
                     vv: vec![vv(w, v)],
                     ..Default::default()
                 },
-                None,
+                Ok(vec![]),
             ),
         ];
         for (what, c, want) in rows {
-            assert_eq!(refusal(&c), want, "{what}");
+            assert_eq!(read(&c), want, "{what}");
+        }
+    }
+
+    /// A touching edge's class joins the Out-side partners' on its Out
+    /// side and removes the In-side partners' voids on its In side; an
+    /// edge on the face stays on it; a partner on the edge's side with
+    /// no rows leaves it unclassified.
+    #[test]
+    fn a_touching_edges_class_combines_its_partners_on_its_side() {
+        let key = |n: u64| HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | n));
+        let (e, f, g) = (key(1), key(2), key(3));
+        let out_side = (Out, vec![(e, In), (f, Out), (g, On)]);
+        let in_side = (In, vec![(e, In), (f, Out), (g, On)]);
+        let rows = [
+            (
+                "Out, beside an Out-side partner",
+                vec![(e, Out), (f, Out), (g, On)],
+                vec![out_side.clone()],
+                vec![(e, In), (f, Out), (g, On)],
+            ),
+            (
+                "Out, beside an In-side partner",
+                vec![(e, Out), (f, Out)],
+                vec![in_side.clone()],
+                vec![(e, Out), (f, Out)],
+            ),
+            (
+                "In, beside an In-side partner",
+                vec![(e, In), (f, In), (g, In)],
+                vec![in_side.clone()],
+                vec![(e, In), (f, Out), (g, On)],
+            ),
+            (
+                "In, beside an Out-side partner",
+                vec![(e, In), (f, In)],
+                vec![out_side.clone()],
+                vec![(e, In), (f, In)],
+            ),
+            (
+                "Out, two partners",
+                vec![(f, Out), (g, Out)],
+                vec![out_side.clone(), (Out, vec![(f, In), (g, Out)])],
+                vec![(f, In), (g, On)],
+            ),
+            (
+                "a partner with no rows",
+                vec![(e, Out), (g, On)],
+                vec![(Out, vec![])],
+                vec![(g, On)],
+            ),
+        ];
+        for (what, touch, pairs, want) in rows {
+            assert_eq!(touch_classes(&touch, &pairs), want, "{what}");
         }
     }
 
@@ -1387,6 +1543,7 @@ mod tests {
                 super::super::BooleanOp::Union,
                 &super::super::DeclaredPairs::default(),
                 &super::super::ContactRecords::default(),
+                None,
                 band,
                 tol,
             )
