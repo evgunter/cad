@@ -132,7 +132,7 @@ refused `SliverSector`, 4.2 at margin 5.34e-9 as DR-4098 measured, and
 at 1e-6, δ = 1e-7 inside: lands whole where main cut a 4.2e-11 m³
 segment 1e-7 deep, inside ε. The row now admits the whole where the
 segment's depth is within ε, and only on the material side.
-`split_through_a_seam_ruling::a_near_tangent_cut_along_a_cylinder_ruling_never_answers_wrongly`
+`split_through_a_ruling::a_near_tangent_cut_along_a_cylinder_ruling_never_answers_wrongly`
 (from #4158), at 1e-9, a = 0.3, t = 1e-5: the sliver is 5e-11 deep and
 the cylinder lands whole on its material side. Every validity tier
 passes (1, 2, 3, 3′).

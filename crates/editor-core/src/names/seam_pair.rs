@@ -23,7 +23,9 @@ use super::role::{RoleSeg, StableName, name_free_seg};
 /// compile error here until someone says whether it passes an entity
 /// through.
 enum Head<'a> {
-    /// A seam: the pair itself.
+    /// A seam: the pair itself. A crossing vertex is read as one too:
+    /// its edge and the face or edge it meets, which is the pair a rank
+    /// along its edge is measured against.
     Seam(&'a StableName, &'a StableName),
     /// The same entity carried through one op, or a piece of it: the
     /// argument is its name one level down.
@@ -36,7 +38,11 @@ enum Head<'a> {
 
 fn head(seg: &RoleSeg) -> Head<'_> {
     match seg {
-        RoleSeg::Seam { a, b } => Head::Seam(a, b),
+        RoleSeg::Seam { a, b }
+        | RoleSeg::Crossing {
+            edge: a, face: b, ..
+        }
+        | RoleSeg::EdgeCrossing { a, b, .. } => Head::Seam(a, b),
         // A boolean's survivor, a blend's or shell's survivor, a split's
         // fragment, a pattern's or part's instance: the same entity (or
         // a piece of it) under one more op.
@@ -100,7 +106,8 @@ pub(super) fn seam_edge_sides(name: &StableName) -> Option<(&StableName, &Stable
 }
 
 /// The two parents `(a, b)` of a seam VERTEX name, if it is one: a
-/// vertex minted as `Seam { a, b }`, or a pass-through of one, found
+/// vertex minted as `Seam { a, b }`, `EdgeCrossing { a, b, .. }` or
+/// `Crossing { edge: a, face: b, .. }`, or a pass-through of one, found
 /// the way [`seam_line_pair`] finds an edge's pair. A junction (a run
 /// of lines) answers its first line; it carries no rank.
 pub(super) fn seam_vertex_parents(name: &StableName) -> Option<(&StableName, &StableName)> {

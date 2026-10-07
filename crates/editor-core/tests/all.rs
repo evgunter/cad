@@ -721,6 +721,8 @@ mod decide_6_read_cost_interval;
 mod decide_7_rule_g_cost_interval;
 #[path = "edit_refusal_recourse.rs"]
 mod edit_refusal_recourse;
+#[path = "emit_crossing_sense.rs"]
+mod emit_crossing_sense;
 #[path = "emit_edge_piece_locality.rs"]
 mod emit_edge_piece_locality;
 #[path = "emit_pair_cut_and_merged.rs"]

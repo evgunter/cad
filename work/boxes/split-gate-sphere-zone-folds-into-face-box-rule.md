@@ -48,3 +48,21 @@ cuts up to `3·10⁻³` of the size clear of a torus rounding at the gate,
 and the closed form pays none. The torus form needs `R > r` decided
 (`split_gate_torus_ring`); the bracket lane would read its `Span`
 radii's ends.
+
+## Since `reach/split-gate-sphere-azimuth` (2026-10-06): the sphere half landed
+
+`FaceBoxRule::SphereWindow` is the sphere arm (`boxes::sphere_reach`): the
+face's chart rectangle, latitude and azimuth, read off
+`solid_contain::sphere_chart_trim` under the side guard and boxed by
+`boxes::torus_rect_extent` with `R = 0`; the zone (a full turn) where
+the face wraps alone or its seam direction is not decided; the ball
+outside the rectangle class. Both box lanes and the gate read it, and
+`gate_face_reach`'s sphere special case and `classify::zone_extent` are
+gone. `the_two_box_lanes_agree_face_for_face` holds a ball-falling
+sphere; `sphere_rect_rows` holds a rectangle in both lanes.
+
+What remains of this unit is the torus half: `classify::torus_window_reach`
+still reads the closed form at the gate while `FaceBoxRule::TorusWindow`
+samples (`boxes::torus_window_extent`). `torus_rect_extent` now lives
+in `boxes.rs`, so the fold is the arm's to take.
+

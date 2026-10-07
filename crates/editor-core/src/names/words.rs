@@ -799,6 +799,14 @@ fn head<'n, 's>(
     items
 }
 
+/// A crossing's sense as the verb its edge takes.
+fn sense_verb(sense: super::role::Sense) -> &'static str {
+    match sense {
+        super::role::Sense::Enters => "enters",
+        super::role::Sense::Leaves => "leaves",
+    }
+}
+
 /// One segment of `leaf`'s head, in words. Exhaustive over [`RoleSeg`],
 /// so a new segment is given words here or the compile breaks, and each
 /// segment's words differ from every other's.
@@ -853,6 +861,24 @@ fn role<'n, 's>(
             text(" and "),
             cites.one(b),
         ],
+        RoleSeg::Crossing { edge, face, sense } => vec![
+            text("the crossing where "),
+            cites.one(edge),
+            text(format!(" {} the body of ", sense_verb(*sense))),
+            cites.one(face),
+        ],
+        RoleSeg::EdgeCrossing {
+            a,
+            a_sense,
+            b,
+            b_sense,
+        } => vec![
+            text("the crossing where "),
+            cites.one(a),
+            text(format!(" {} the other body and ", sense_verb(*a_sense))),
+            cites.one(b),
+            text(format!(" {} the first", sense_verb(*b_sense))),
+        ],
         RoleSeg::Merged(set) => {
             // A set on an edge is the edge a join made of its members.
             let what = if leaf.kind == EntityKind::Edge {
@@ -873,10 +899,10 @@ fn role<'n, 's>(
             cites.one(face),
             text(format!(" {}", half(*side))),
         ],
-        RoleSeg::CrossingVertex { side, edge } => vec![
-            text("the split's crossing of "),
+        RoleSeg::CrossingVertex { side, edge, sense } => vec![
+            text("the split's crossing where "),
             cites.one(edge),
-            text(format!(" {}", half(*side))),
+            text(format!(" {} the half {}", sense_verb(*sense), half(*side))),
         ],
         RoleSeg::BlendFace(edge) => vec![text("the blend face over "), cites.one(edge)],
         RoleSeg::CornerFace(v) => vec![text("the corner face at "), cites.one(v)],

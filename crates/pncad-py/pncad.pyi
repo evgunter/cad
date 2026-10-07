@@ -4343,6 +4343,8 @@ class SegTag:
     FromB: Final[SegTag]
     FromMember: Final[SegTag]
     Seam: Final[SegTag]
+    Crossing: Final[SegTag]
+    EdgeCrossing: Final[SegTag]
     Merged: Final[SegTag]
     Fragment: Final[SegTag]
     SplitBody: Final[SegTag]

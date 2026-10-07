@@ -366,6 +366,10 @@ impl RoleSeg {
             | RoleSeg::InPart { of: n }
             | RoleSeg::Instance { of: n, .. } => f(Shared(n)),
             RoleSeg::Seam { a, b }
+            | RoleSeg::Crossing {
+                edge: a, face: b, ..
+            }
+            | RoleSeg::EdgeCrossing { a, b, .. }
             | RoleSeg::TrimEdge {
                 edge: a,
                 support: b,
@@ -416,6 +420,10 @@ impl RoleSeg {
             | RoleSeg::InPart { of: n }
             | RoleSeg::Instance { of: n, .. } => f(Shared(n)),
             RoleSeg::Seam { a, b }
+            | RoleSeg::Crossing {
+                edge: a, face: b, ..
+            }
+            | RoleSeg::EdgeCrossing { a, b, .. }
             | RoleSeg::TrimEdge {
                 edge: a,
                 support: b,
@@ -1834,6 +1842,17 @@ pub(super) mod tests {
                     of: r(a),
                 },
                 R::Seam { a: r(a), b: r(b) },
+                R::Crossing {
+                    edge: r(a),
+                    face: r(b),
+                    sense: crate::names::Sense::Enters,
+                },
+                R::EdgeCrossing {
+                    a: r(a),
+                    a_sense: crate::names::Sense::Leaves,
+                    b: r(b),
+                    b_sense: crate::names::Sense::Enters,
+                },
                 R::Merged(vec![a.clone(), b.clone()]),
                 R::Fragment(Qualifier::Borders(vec![a.clone(), b.clone()])),
                 R::Fragment(Qualifier::Keeps(vec![a.clone(), b.clone()])),
@@ -1855,6 +1874,7 @@ pub(super) mod tests {
                 R::CrossingVertex {
                     side: SplitHalf::Below,
                     edge: r(a),
+                    sense: crate::names::Sense::Leaves,
                 },
                 R::OnToolVertex {
                     side: SplitHalf::Above,
