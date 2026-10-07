@@ -24,7 +24,7 @@
 //! or under 1.8), the far row decides it definite and the floor's Zero
 //! escalates through its gate, so the split rows expect that name.
 
-#![allow(clippy::panic)]
+#![allow(clippy::panic, clippy::expect_used)]
 
 use crate::shared::tol::band;
 use geom::{Curve3, Surface};
