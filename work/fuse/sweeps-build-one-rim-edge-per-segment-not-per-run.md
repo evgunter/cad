@@ -2,8 +2,8 @@
 id: sweeps-build-one-rim-edge-per-segment-not-per-run
 kind: issue
 title: Sweeps build one rim edge per profile segment, not per collinear or cocircular run: extrude mints a station vertex on both cap rims, a partial revolve one wall per arc
-status: review
-branch: fuse/sweep-runs
+status: closed
+closed: 2026-10-07
 pr: 4200
 opened: 2026-10-06
 priority: P1
@@ -70,3 +70,15 @@ output holding station vertices would fail it.
 - **Asserted:** `run_walls_built::holds` checks every swept body for
   `topo::joinable_vertices` and for curved stations
   (`common::stations::station_vertices`).
+
+## Closed (PR 4200, 2026-10-07)
+
+- **Extrude and partial revolve** build one strut, wall and rim edge per
+  run of profile segments, as the full revolve already did. The
+  collapse lives in `swept::collapse_runs` and `revolve/runs.rs`.
+- **Partial revolve's cocircular runs** are direct construction. No
+  curved join was needed.
+- **A partial revolve's on-axis run** is one axis edge.
+- **Rim and axis names hold the run.** A one-piece run keeps the old
+  wire form.
+- **Review:** single FULL review; the fix pass is in.
