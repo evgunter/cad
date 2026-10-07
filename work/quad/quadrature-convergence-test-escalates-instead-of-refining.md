@@ -145,3 +145,47 @@ D-profile rod of `fillet_h7_transverse_cap.rs` cut by the plane through
 creases filleted: `mass_properties` of the result refuses
 `props_quad_converged` (margin 5.6e-12, band `(1e-12, 1e-11)`) at
 ε = 1e-12; not pinned.
+
+## Evidence (2026-10-06, CARVE `carve/loft-v-is-the-whole-sets`)
+
+The tour's `lily_leaf_b` (a swept lens leaf, `demos/tour/src/lily.rs`)
+lands here when its sweep's v moves from the first strip's chord shares
+to the chord rule over every row of its outer loop. That moves the walls
+by a small amount and nothing else. Its mass properties then refuse at
+the default ε with:
+
+```
+whether the quadrature's enclosure has converged is too close to call at this
+tolerance: margin -2.717410219170452e-9 lies inside the ambiguity band (1e-9, 1e-8)
+```
+
+It measures at ε = 1e-6 and 1e-12, and it measured under both the old
+rule and the path parameter. It is the same in-band convergence arm, on
+a body with no question about its shape.
+
+This is now a live tour wall on a normal scene: `demos/tour/src/lily.rs`
+wall 17 (`LEAF_B_VOLUME_WALL`) pins `lily_leaf_b`'s volume refusal at
+the default ε, and goes red ("NO LONGER REFUSES") when this row's fix
+lands. Its Pappus containment row (`finding_13_tessellation_table_reproduces`)
+reads the volume through the same wall at the default ε.
+
+## 2026-10-07 — boolean-built tubes split across their axes (CLEAVE)
+
+These are second constructions from `cleave/revseam-1e6`'s
+corroboration probe, and they are not pinned. A two-seam cylinder,
+`common::bores::turned_cylinder(0.3, 1.0)`, has rods subtracted about
+`z` by `common::cavity::{cut, rod}`. Each body is split, and then
+`mass_properties` is taken of a half:
+
+- **The default ε.** The body is the counterbore: the cylinder less a
+  rod of r 0.3 over z ∈ [−0.5, 0.7], then a rod of r 0.6 over
+  z ∈ [0.6, 1.5]. It is split through `(0, 0, 0.3)`, with the normal
+  leaning 0.1 rad off `z`. One half refuses with `Escalated { margin
+  −6.05e-9, band (1e-9, 1e-8), "props_quad_converged" }`. The same
+  cut measures at 1e-6.
+- **ε = 1e-12.** The body is the tube: the cylinder less a rod of
+  r 0.5 over z ∈ [−0.5, 1.5]. It is split through `(1, 0, 1)` with
+  normal `(−sin 0.2, 0, cos 0.2)`, which touches the top rim. One half
+  refuses with margin 4.85e-12, band `(1e-12, 1e-11)`. The same cut
+  measures at 1e-6.
+

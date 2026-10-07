@@ -117,7 +117,7 @@ Fixtures the spec owes:
 
 A document evaluates a band: `emit_shell` names every branch face, pinned by `lib_g17_shell_node::the_capped_vessel_opens_its_cap_into_a_seamed_band`. A planar void designation also stops refusing at name emission.
 
-Reviewed by a concurrent pair, row DR-95. Its document-path MAJOR was fixed in the fix pass.
+Reviewed by a concurrent pair, row DR-97. Its document-path MAJOR was fixed in the fix pass.
 
 Residues, each filed:
 - `shell-open-band-wrapping-between-two-boundaries`;

@@ -29,3 +29,14 @@ twice, the cutaway building the same faces twice. At 1e-12, eight rows,
 convergence margin lands within a few band widths of the target is a
 round that barely certified (or barely did not); which faces, and
 whether the next round would have cleared them, is unmeasured.
+
+## The same rule on `demo/lily` (CLEAVE, 2026-10-07)
+
+The name flags on a second scene. A full `scripts/k_probe_sweep.sh` at
+`origin/main` `1f27ea0881`, linted by `tools/k-lint`, gives two
+`demo/lily` `props_quad_converged` rows at ε 1e-9: 3.613e-8 and
+2.788e-8, ε-coupled headroom under 1.5e2·ε (1.5e-7), none at 1e-6 or
+1e-12. The 2026-10-06 nightly (run 37460629022, head `d9bdfaf9`) read
+3.626e-8 and 2.828e-8 on the same scene, so the headroom moved by
+~1e-10 between those heads and the flags stayed. Which faces they are
+is as unmeasured as the cutaway's.
