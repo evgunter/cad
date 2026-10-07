@@ -28,6 +28,7 @@ use topo::test_support as fixtures;
 use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult};
 
 use crate::common::differential::outcome;
+use crate::join_pierce_runs_sweep::{convex_volume, frame};
 
 const SIDE: f64 = 4.0;
 const TAU: f64 = std::f64::consts::TAU;
@@ -60,88 +61,9 @@ fn rot(x: V3, k: V3, ang: f64) -> V3 {
     let kd = dot(k, x);
     [0, 1, 2].map(|i| x[i] * c + kx[i] * s + k[i] * kd * (1.0 - c))
 }
-fn frame(m: V3, psi: f64) -> [V3; 3] {
-    let m = unit(m);
-    let seed = if m[2].abs() < 0.9 {
-        [0.0, 0.0, 1.0]
-    } else {
-        [1.0, 0.0, 0.0]
-    };
-    let u0 = unit(cross(seed, m));
-    let w0 = cross(m, u0);
-    let (c, s) = (psi.cos(), psi.sin());
-    let u = [0, 1, 2].map(|i| c * u0[i] + s * w0[i]);
-    let w = cross(m, u);
-    [u, w, m]
-}
 /// `R x` where `R`'s columns are the frame's axes.
 fn apply(f: [V3; 3], x: V3) -> V3 {
     [0, 1, 2].map(|i| f[0][i] * x[0] + f[1][i] * x[1] + f[2][i] * x[2])
-}
-
-fn convex_volume(planes: &[Half]) -> f64 {
-    const EPS: f64 = 1e-9;
-    let mut pts: Vec<V3> = Vec::new();
-    let n = planes.len();
-    for i in 0..n {
-        for j in i + 1..n {
-            for k in j + 1..n {
-                let (a, b, c) = (planes[i], planes[j], planes[k]);
-                let det = dot(a.0, cross(b.0, c.0));
-                if det.abs() < 1e-12 {
-                    continue;
-                }
-                let bc = cross(b.0, c.0);
-                let ca = cross(c.0, a.0);
-                let ab = cross(a.0, b.0);
-                let p = [0, 1, 2].map(|t| (a.1 * bc[t] + b.1 * ca[t] + c.1 * ab[t]) / det);
-                if planes.iter().all(|&(nn, d)| dot(nn, p) <= d + EPS)
-                    && !pts
-                        .iter()
-                        .any(|q| (0..3).all(|t| (q[t] - p[t]).abs() < EPS))
-                {
-                    pts.push(p);
-                }
-            }
-        }
-    }
-    if pts.len() < 4 {
-        return 0.0;
-    }
-    let inner = [0, 1, 2].map(|t| pts.iter().map(|p| p[t]).sum::<f64>() / pts.len() as f64);
-    let mut vol = 0.0;
-    for &(nn, d) in planes {
-        let on: Vec<V3> = pts
-            .iter()
-            .copied()
-            .filter(|&p| (dot(nn, p) - d).abs() < EPS)
-            .collect();
-        if on.len() < 3 {
-            continue;
-        }
-        let c = [0, 1, 2].map(|t| on.iter().map(|p| p[t]).sum::<f64>() / on.len() as f64);
-        let e1 = unit([0, 1, 2].map(|t| on[0][t] - c[t]));
-        let e2 = cross(unit(nn), e1);
-        let mut ring: Vec<(f64, V3)> = on
-            .iter()
-            .map(|&p| {
-                let r = [0, 1, 2].map(|t| p[t] - c[t]);
-                (dot(r, e2).atan2(dot(r, e1)), p)
-            })
-            .collect();
-        ring.sort_by(|a, b| a.0.total_cmp(&b.0));
-        let area: f64 = (0..ring.len())
-            .map(|i| {
-                let (p, q) = (ring[i].1, ring[(i + 1) % ring.len()].1);
-                let r1 = [0, 1, 2].map(|t| p[t] - c[t]);
-                let r2 = [0, 1, 2].map(|t| q[t] - c[t]);
-                dot(cross(r1, r2), unit(nn)) / 2.0
-            })
-            .sum();
-        let h = d / dot(nn, nn).sqrt() - dot(unit(nn), inner);
-        vol += area.abs() * h / 3.0;
-    }
-    vol
 }
 
 /// A link arc on the unit sphere: start, unit normal, angle swept

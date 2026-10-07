@@ -63,7 +63,7 @@ fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
 
 /// The right-handed frame `(u, w, m)` with `m` the unit of `m` and `u`
 /// turned by `psi` about it.
-fn frame(m: [f64; 3], psi: f64) -> [[f64; 3]; 3] {
+pub(crate) fn frame(m: [f64; 3], psi: f64) -> [[f64; 3]; 3] {
     let m = unit(m);
     let seed = if m[2].abs() < 0.9 {
         [0.0, 0.0, 1.0]
@@ -138,7 +138,7 @@ fn cube_planes(f: [[f64; 3]; 3], lo: [f64; 3]) -> Vec<([f64; 3], f64)> {
 /// volume sums the pyramids over the faces from an interior point.
 /// Each distinct half-space is taken once, compared at unit normal, so
 /// two operands' half-spaces on one plane bound one face, not two.
-fn convex_volume(planes: &[([f64; 3], f64)]) -> f64 {
+pub(crate) fn convex_volume(planes: &[([f64; 3], f64)]) -> f64 {
     const EPS: f64 = 1e-9;
     let at_unit = |(n, d): ([f64; 3], f64)| {
         let l = dot(n, n).sqrt();
@@ -1921,6 +1921,23 @@ fn a_run_turned_at_a_shared_vertex_holds_two_siblings() {
         assert!(line.starts_with("OK SOUND"), "{tag}: {line}");
         assert_eq!(finding, Some(None), "{tag}");
     }
+}
+
+/// **The outer lane prefers a clean arc at an exact tie**: wedge343
+/// against wedge330 at the grid's `i=0 j=1`, unturned. Union in B, A
+/// order splits a face whose two chord arcs are one clean and one
+/// ring-held, and the clean one builds SOUND. Red when the outer lane
+/// takes a ring-held arc where a clean one exists: the other split
+/// leaves a vertex on a face tier 3 reads as an undeclared contact.
+#[test]
+fn the_outer_lane_prefers_a_clean_arc_at_an_exact_tie() {
+    let runs = corner_pair_runs(&wedge(343.0), &wedge(330.0), frame(direction(0, 1), 0.0));
+    let (_, r, want) = runs
+        .into_iter()
+        .find(|(tag, _, _)| tag == "ba U")
+        .expect("the B-first union");
+    let line = outcome(r, want, tol());
+    assert!(line.starts_with("OK SOUND"), "ba U: {line}");
 }
 
 /// A named pair of corners.

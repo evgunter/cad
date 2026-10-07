@@ -22,6 +22,7 @@ use topo::test_support as fixtures;
 use topo::{AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, mass_properties};
 
 use crate::common::differential::outcome;
+use crate::join_pierce_runs_sweep::{convex_volume, frame};
 
 const SIDE: f64 = 4.0;
 
@@ -55,22 +56,6 @@ fn rot(x: V3, k: V3, ang: f64) -> V3 {
     [0, 1, 2].map(|i| x[i] * c + kx[i] * s + k[i] * kd * (1.0 - c))
 }
 
-/// As `join_pierce_runs_sweep::frame`.
-fn frame(m: V3, psi: f64) -> [V3; 3] {
-    let m = unit(m);
-    let seed = if m[2].abs() < 0.9 {
-        [0.0, 0.0, 1.0]
-    } else {
-        [1.0, 0.0, 0.0]
-    };
-    let u0 = unit(cross(seed, m));
-    let w0 = cross(m, u0);
-    let (c, s) = (psi.cos(), psi.sin());
-    let u = [0, 1, 2].map(|i| c * u0[i] + s * w0[i]);
-    let w = cross(m, u);
-    [u, w, m]
-}
-
 fn cube_body(v: V3, f: [V3; 3], lo: V3) -> Body<f64> {
     let [u, w, m] = f;
     fixtures::mapped_cube::<f64>(
@@ -94,72 +79,6 @@ fn cube_planes(v: V3, f: [V3; 3], lo: V3) -> Vec<Half> {
         out.push((dir, base + lo[axis] + SIDE));
     }
     out
-}
-
-/// As `join_pierce_runs_sweep::convex_volume`.
-fn convex_volume(planes: &[Half]) -> f64 {
-    const EPS: f64 = 1e-9;
-    let mut pts: Vec<V3> = Vec::new();
-    let n = planes.len();
-    for i in 0..n {
-        for j in i + 1..n {
-            for k in j + 1..n {
-                let (a, b, c) = (planes[i], planes[j], planes[k]);
-                let det = dot(a.0, cross(b.0, c.0));
-                if det.abs() < 1e-12 {
-                    continue;
-                }
-                let bc = cross(b.0, c.0);
-                let ca = cross(c.0, a.0);
-                let ab = cross(a.0, b.0);
-                let p = [0, 1, 2].map(|t| (a.1 * bc[t] + b.1 * ca[t] + c.1 * ab[t]) / det);
-                if planes.iter().all(|&(nn, d)| dot(nn, p) <= d + EPS)
-                    && !pts
-                        .iter()
-                        .any(|q| (0..3).all(|t| (q[t] - p[t]).abs() < EPS))
-                {
-                    pts.push(p);
-                }
-            }
-        }
-    }
-    if pts.len() < 4 {
-        return 0.0;
-    }
-    let inner = [0, 1, 2].map(|t| pts.iter().map(|p| p[t]).sum::<f64>() / pts.len() as f64);
-    let mut vol = 0.0;
-    for &(nn, d) in planes {
-        let on: Vec<V3> = pts
-            .iter()
-            .copied()
-            .filter(|&p| (dot(nn, p) - d).abs() < EPS)
-            .collect();
-        if on.len() < 3 {
-            continue;
-        }
-        let c = [0, 1, 2].map(|t| on.iter().map(|p| p[t]).sum::<f64>() / on.len() as f64);
-        let e1 = unit([0, 1, 2].map(|t| on[0][t] - c[t]));
-        let e2 = cross(unit(nn), e1);
-        let mut ring: Vec<(f64, V3)> = on
-            .iter()
-            .map(|&p| {
-                let r = [0, 1, 2].map(|t| p[t] - c[t]);
-                (dot(r, e2).atan2(dot(r, e1)), p)
-            })
-            .collect();
-        ring.sort_by(|a, b| a.0.total_cmp(&b.0));
-        let area: f64 = (0..ring.len())
-            .map(|i| {
-                let (p, q) = (ring[i].1, ring[(i + 1) % ring.len()].1);
-                let r1 = [0, 1, 2].map(|t| p[t] - c[t]);
-                let r2 = [0, 1, 2].map(|t| q[t] - c[t]);
-                dot(cross(r1, r2), unit(nn)) / 2.0
-            })
-            .sum();
-        let h = d / dot(nn, nn).sqrt() - dot(unit(nn), inner);
-        vol += area.abs() * h / 3.0;
-    }
-    vol
 }
 
 /// A corner-carrying operand: its body, its corner, and itself as a
@@ -356,9 +275,25 @@ type Op = fn(
 const EDGE: V3 = [0.0, -2.0, 0.0];
 const CORNER: V3 = [0.0, 0.0, 0.0];
 
+/// The cube's low corner, in its own frame, for a placement name. The
+/// `rv-*` placements (review of PR 4272) slide the valley corner along
+/// the cube's edge or push it generically off it.
+fn place_lo(place: &str) -> V3 {
+    match place {
+        "edge" => EDGE,
+        "corner" => CORNER,
+        "rv-e1" => [0.0, -1.0, 0.0],
+        "rv-e3" => [0.0, -3.5, 0.0],
+        "rv-in" => [0.3, -2.0, 0.3],
+        "rv-out" => [-0.3, -2.0, -0.3],
+        "rv-mix" => [0.3, -2.0, -0.3],
+        _ => panic!("unknown placement {place}"),
+    }
+}
+
 /// One pose's six runs: `(tag, line)`.
 fn pose_lines(s: &Shape, place: &str, f: [V3; 3], what: &str) -> Vec<String> {
-    let lo = if place == "edge" { EDGE } else { CORNER };
+    let lo = place_lo(place);
     let cube = finished("the cube", cube_body(s.v, f, lo));
     let va = s.volume_with(&[]);
     let vb = SIDE * SIDE * SIDE;
@@ -387,7 +322,22 @@ fn pose_lines(s: &Shape, place: &str, f: [V3; 3], what: &str) -> Vec<String> {
                         }),
                         Err(_) => None,
                     };
-                    outcome(r, want, tol()) + &why.unwrap_or_default()
+                    // `R2_MESH=1` (review of PR 4272) also tessellates the
+                    // body and asks `check_mesh` whether it is watertight.
+                    let mesh = match &r {
+                        Ok(res) if std::env::var("R2_MESH").is_ok() => {
+                            res.body()
+                                .map(|bb| match mesh::tessellate(&bb.body, 5e-3, tol()) {
+                                    Ok(m) => match mesh::validate::check_mesh(&m) {
+                                        Ok(()) => " MESH ok".to_string(),
+                                        Err(e) => format!(" MESH BAD {e:?}"),
+                                    },
+                                    Err(e) => format!(" MESH UNTESSELLATED {e:?}"),
+                                })
+                        }
+                        _ => None,
+                    };
+                    outcome(r, want, tol()) + &why.unwrap_or_default() + &mesh.unwrap_or_default()
                 }
                 Err(_) => "PANIC".into(),
             };
@@ -470,6 +420,22 @@ fn poses(sweep: &str, shape_center: Option<V3>) -> Vec<(&'static str, [V3; 3], S
                 for k in 0..120 {
                     let psi = f64::from(k) * std::f64::consts::TAU / 120.0;
                     out.push((place, frame(m, psi), format!("i={i} j={j} psik={k}")));
+                }
+            }
+        }
+        "rv" => {
+            // Review of PR 4272: the grid's directions near the
+            // valley4 witness, at placements off the plain edge.
+            for place in ["rv-e1", "rv-e3", "rv-in", "rv-out", "rv-mix"] {
+                for i in 0..12u32 {
+                    for j in 0..3u32 {
+                        let theta = std::f64::consts::TAU * (f64::from(i) + 0.11) / 12.0;
+                        let phi = (f64::from(j) - 3.0) * 0.43 + 0.02;
+                        let m = [theta.cos() * phi.cos(), theta.sin() * phi.cos(), phi.sin()];
+                        for psi in [0.3, 1.3, 3.7] {
+                            out.push((place, frame(m, psi), format!("i={i} j={j} psi={psi}")));
+                        }
+                    }
                 }
             }
         }
