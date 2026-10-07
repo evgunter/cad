@@ -642,33 +642,40 @@ pub(crate) fn edge_line(name: &NameRef) -> NameRef {
     line.unwrap_or_else(|| name.clone())
 }
 
+/// The segments [`edge_line`] reads through, as one match over `$seg`
+/// answering the earlier edge each carries: the one list behind
+/// [`wrapped_edge`] and its mutable twin, which match ergonomics give a
+/// shared or a mutable reference alike.
+///
+/// `InPart` is read through: its argument names another document's
+/// edge, and stripping a piece qualifier from it reads no id as local
+/// (the `resolve` walk does not descend into it because it reads ids),
+/// so a piece of a part's edge is a piece of that edge's line in the
+/// part as anywhere else.
+macro_rules! wrapped_edge_of {
+    ($seg:expr) => {
+        match $seg {
+            RoleSeg::FromA(n)
+            | RoleSeg::FromB(n)
+            | RoleSeg::FromMember { of: n, .. }
+            | RoleSeg::SplitFragment { parent: n, .. }
+            | RoleSeg::FromTarget(n)
+            | RoleSeg::InPart { of: n }
+            | RoleSeg::Instance { of: n, .. } => Some(n),
+            _ => None,
+        }
+    };
+}
+
 /// The one earlier edge an edge's single segment `seg` carries, where
 /// [`edge_line`] reads through it.
 pub(crate) fn wrapped_edge(seg: &RoleSeg) -> Option<&NameRef> {
-    match seg {
-        RoleSeg::FromA(n)
-        | RoleSeg::FromB(n)
-        | RoleSeg::FromMember { of: n, .. }
-        | RoleSeg::SplitFragment { parent: n, .. }
-        | RoleSeg::FromTarget(n)
-        | RoleSeg::InPart { of: n }
-        | RoleSeg::Instance { of: n, .. } => Some(n),
-        _ => None,
-    }
+    wrapped_edge_of!(seg)
 }
 
 /// [`wrapped_edge`], mutably.
 fn wrapped_edge_mut(seg: &mut RoleSeg) -> Option<&mut NameRef> {
-    match seg {
-        RoleSeg::FromA(n)
-        | RoleSeg::FromB(n)
-        | RoleSeg::FromMember { of: n, .. }
-        | RoleSeg::SplitFragment { parent: n, .. }
-        | RoleSeg::FromTarget(n)
-        | RoleSeg::InPart { of: n }
-        | RoleSeg::Instance { of: n, .. } => Some(n),
-        _ => None,
-    }
+    wrapped_edge_of!(seg)
 }
 
 /// A sequence of role segments (N1). Usually length 1; composition

@@ -4287,3 +4287,173 @@ mod crossings_rank_along_the_line {
         assert_eq!(two, want, "the order handed in does not rank");
     }
 }
+
+#[cfg(test)]
+mod edge_pieces_of_one_line_tie {
+    //! **Pieces of two parents on one line with one pair of ends are
+    //! N4's tie** (N2, *Edge pieces*), as two pieces of one parent are:
+    //! both are spelled on the line, so their names are one name. A rod
+    //! cut flat leaves its top rim two half circles between the same two
+    //! vertices; named as pieces of two parent edges that lie on one
+    //! line, they mint one tied row rather than a duplicate.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{EdgePieces, Lone, name_edge_pieces};
+    use crate::edit::DocEdit;
+    use crate::eval::{BooleanValue, CancelToken, EvalOptions, ValuePayload, evaluate};
+    use crate::ident::DocumentId;
+    use crate::names::defer::TieRows;
+    use crate::names::role::{EntityKind, NameRef, Qualifier, RoleSeg, StableName};
+    use crate::names::table::{Entry, NameTable};
+    use crate::node::{BooleanOp, Node, RecipeNodeId};
+    use crate::program::{LoopProgram, ProfileProgram};
+    use crate::test_support::{frame, len};
+    use crate::{ProfileDoc, RefusingReach};
+    use geom_core::Tol;
+
+    fn ins(doc: ProfileDoc, node: crate::AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
+        let a = crate::apply(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Box::new(node),
+            },
+            Tol::witness(),
+            &RefusingReach,
+        )
+        .expect("inserts");
+        (a.doc, a.record.minted.expect("a node"))
+    }
+
+    fn extrude(
+        doc: ProfileDoc,
+        z0: f64,
+        dz: f64,
+        loop_: LoopProgram<crate::Formula>,
+    ) -> (ProfileDoc, RecipeNodeId) {
+        let (doc, plane) = ins(doc, frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+        let (doc, profile) = ins(
+            doc,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: vec![loop_],
+                ids: Vec::new(),
+            }),
+        );
+        ins(
+            doc,
+            Node::Extrude {
+                profile,
+                distance: len(dz),
+                side: crate::ExtrudeSide::Along,
+            },
+        )
+    }
+
+    #[test]
+    fn pieces_of_two_parents_with_one_pair_of_ends_tie() {
+        let doc = ProfileDoc::empty(DocumentId::derive("edge-pieces-one-line"), Tol::witness());
+        let (doc, rod) = extrude(
+            doc,
+            0.0,
+            1.5,
+            LoopProgram::circle_split(0.0, 0.0, 1.0, 2, 0.0).unwrap(),
+        );
+        let (doc, top) = extrude(
+            doc,
+            1.0,
+            1.0,
+            LoopProgram::polygon([(-2.0, -2.0), (2.0, -2.0), (2.0, 2.0), (-2.0, 2.0)])
+                .expect("finite"),
+        );
+        let (doc, cut) = ins(
+            doc,
+            Node::Boolean {
+                op: BooleanOp::Subtract,
+                a: rod,
+                b: top,
+                declare: Vec::new(),
+            },
+        );
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        let value = ev.value(cut).expect("the cut evaluates");
+        let ValuePayload::Boolean(BooleanValue::Body { body, .. }) = &value.payload else {
+            panic!("a body");
+        };
+        // The two half circles of the top rim, and a table holding only
+        // the vertex rows, where their pieces are minted.
+        let top_rim: Vec<topo::EdgeKey> = body
+            .edges()
+            .map(|(e, _)| e)
+            .filter(|&e| {
+                let (v0, v1) = super::edge_ends(body, e).unwrap();
+                let z = |v| super::vertex_point(body, v).unwrap().z;
+                v0 != v1 && (z(v0) - 1.0).abs() < 1e-9 && (z(v1) - 1.0).abs() < 1e-9
+            })
+            .collect();
+        assert_eq!(top_rim.len(), 2, "the rim is two half circles: {top_rim:?}");
+        let ends = |e| {
+            let (v0, v1) = super::edge_ends(body, e).unwrap();
+            let mut vs = [v0, v1];
+            vs.sort();
+            vs
+        };
+        assert_eq!(
+            ends(top_rim[0]),
+            ends(top_rim[1]),
+            "between the same two vertices"
+        );
+        let mut t = NameTable::new();
+        for (name, entry) in value.name_table.iter() {
+            if let (EntityKind::Vertex, Entry::Unique(e)) = (name.kind, entry) {
+                t.insert(name.clone(), *e).unwrap();
+            }
+        }
+        // Two parent edges on one line `X`: `X` with two different
+        // piece qualifiers, each wrapped as an operand's edge.
+        let x = StableName {
+            kind: EntityKind::Edge,
+            node: rod,
+            path: vec![RoleSeg::OutputBody],
+        };
+        let parent = |marker: StableName| {
+            let mut p = x.clone();
+            p.path
+                .push(RoleSeg::Fragment(Qualifier::Ends(vec![marker])));
+            StableName {
+                kind: EntityKind::Edge,
+                node: cut,
+                path: vec![RoleSeg::FromA(NameRef::new(p))],
+            }
+        };
+        let (p1, p2) = (
+            parent(x.clone()),
+            parent(StableName {
+                kind: EntityKind::Vertex,
+                node: rod,
+                path: vec![RoleSeg::OutputBody],
+            }),
+        );
+        let mut pieces = EdgePieces::default();
+        let mut tie = TieRows::default();
+        for (base, e) in [(&p1, top_rim[0]), (&p2, top_rim[1])] {
+            name_edge_pieces(&mut pieces, &t, false, base, (body, 0), &[e], Lone::Piece).unwrap();
+        }
+        pieces.mint(&mut t, &mut tie).unwrap();
+        tie.flush(&mut t).unwrap();
+        let rows: Vec<&Entry> = t
+            .iter()
+            .filter(|(n, _)| n.kind == EntityKind::Edge)
+            .map(|(_, e)| e)
+            .collect();
+        assert!(
+            matches!(rows.as_slice(), [Entry::Tied(es)] if es.len() == 2),
+            "one tied row of the two pieces: {rows:?}"
+        );
+    }
+}

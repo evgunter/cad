@@ -75,7 +75,7 @@ use topo::{Body, EdgeKey, FaceKey, VertexKey};
 use super::canonical;
 use super::defer::{TieRows, put as put_row, upstream_name};
 use super::emit::{NamingError, check_total, ent, name1};
-use super::role::{EntityKind, RimSupport, RoleSeg, StableName};
+use super::role::{EntityKind, RimSupport, RoleSeg, StableName, edge_line};
 use super::table::{EntityKey, NameTable};
 use crate::node::RecipeNodeId;
 
@@ -223,7 +223,11 @@ pub(super) fn name_blend<T: geom_core::Real>(
         let (band, band_tied) = band_set(band)?;
         put(
             EntityKey::Vertex(*v),
-            canonical::minted_segment(RoleSeg::BandCross { edge: m.name, band }),
+            // A vertex cites the edge it lies on by its line (N2).
+            canonical::minted_segment(RoleSeg::BandCross {
+                edge: edge_line(&m.name),
+                band,
+            }),
             m.tied || band_tied,
         )?;
     }

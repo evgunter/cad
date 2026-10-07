@@ -1572,7 +1572,7 @@ fn line_rows<'a, T: Decide>(
 
 /// **Every name `name` cites by its line**, at every depth, `name`
 /// itself read as a line where `is_line`: a crossing's
-/// edges, a seam vertex's, a `Keeps` entry, the parent an edge piece
+/// edges, a band crossing's, a seam vertex's, a `Keeps` entry, the parent an edge piece
 /// wraps, and the parent a line wraps in turn (`names::role::edge_line`).
 /// By address, so a reader can tell a name in a line position from an
 /// equal one elsewhere in the tree.
@@ -1592,7 +1592,9 @@ fn cited_lines(name: &StableName, is_line: bool) -> Vec<&StableName> {
         }
         for seg in &n.path {
             match seg {
-                RoleSeg::Crossing { edge, .. } | RoleSeg::CrossingVertex { edge, .. } => {
+                RoleSeg::Crossing { edge, .. }
+                | RoleSeg::CrossingVertex { edge, .. }
+                | RoleSeg::BandCross { edge, .. } => {
                     lines.push(edge);
                 }
                 RoleSeg::EdgeCrossing { a, b, .. } => lines.extend([&**a, &**b]),
