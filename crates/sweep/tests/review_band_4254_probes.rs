@@ -603,3 +603,90 @@ fn probe_j_a_chain_ending_at_a_corner_patch() {
         );
     }
 }
+
+/// K. A jointed chain at the REAL door (which breaks chains at turns, so
+/// a multi-link chain there runs through valence-2 joints only): the
+/// top-front edge of a prism whose end face at `x = 4` leans back over
+/// the edge (the acute corner `(4,0) → (2,3)`), cut by a station at
+/// `x = s` into two collinear links. The end face is `L1`'s own and
+/// lies at no vertex of `L0`; within the band it spans `x ∈ [3.67, 4]`.
+#[test]
+fn probe_k_a_jointed_chain_into_a_leaning_cut_off() {
+    for s in [None, Some(2.0), Some(3.5), Some(3.8), Some(3.95)] {
+        let body = prism(
+            &[
+                Point2::new(0.0, 0.0),
+                Point2::new(4.0, 0.0),
+                Point2::new(2.0, 3.0),
+                Point2::new(0.0, 3.0),
+            ],
+            0.0,
+            2.0,
+        );
+        let rim = edges_with_corners(&body, |q| near(q.y, 0.0) && near(q.z, 2.0));
+        assert_eq!(rim.len(), 1);
+        let body = match s {
+            None => body,
+            Some(s) => crate::common::stations::cut_stations(
+                body,
+                rim[0],
+                &[Point3::new(s, 0.0, 2.0)],
+                tol(),
+            ),
+        };
+        let edges = edges_with_corners(&body, |q| near(q.y, 0.0) && near(q.z, 2.0));
+        let bands = [Convex90 {
+            a: Point3::new(0.0, 0.0, 2.0),
+            b: Point3::new(3.6, 0.0, 2.0),
+            na: Vec3::new(0.0, -1.0, 0.0),
+            nb: Vec3::new(0.0, 0.0, 1.0),
+            pad: 1.0,
+        }];
+        door(
+            &format!("K leaning cut-off, station {s:?} ({} links)", edges.len()),
+            &body,
+            &edges,
+            0.5,
+            &bands,
+        );
+    }
+}
+
+/// L. Probe K at milder leans: the end face from `(4, 0)` to `(4 − a, 3)`
+/// spans `x ∈ [4 − a/6, 4]` inside the band; a station inside that span
+/// and one far from it.
+#[test]
+fn probe_l_a_jointed_chain_into_a_mildly_leaning_cut_off() {
+    for a in [0.3, 0.6, 1.2] {
+        for s in [None, Some(2.0), Some(4.0 - a / 12.0)] {
+            let body = prism(
+                &[
+                    Point2::new(0.0, 0.0),
+                    Point2::new(4.0, 0.0),
+                    Point2::new(4.0 - a, 3.0),
+                    Point2::new(0.0, 3.0),
+                ],
+                0.0,
+                2.0,
+            );
+            let rim = edges_with_corners(&body, |q| near(q.y, 0.0) && near(q.z, 2.0));
+            let body = match s {
+                None => body,
+                Some(s) => crate::common::stations::cut_stations(
+                    body,
+                    rim[0],
+                    &[Point3::new(s, 0.0, 2.0)],
+                    tol(),
+                ),
+            };
+            let edges = edges_with_corners(&body, |q| near(q.y, 0.0) && near(q.z, 2.0));
+            door(
+                &format!("L lean a={a}, station {s:?} ({} links)", edges.len()),
+                &body,
+                &edges,
+                0.5,
+                &[],
+            );
+        }
+    }
+}
