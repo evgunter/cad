@@ -5,6 +5,7 @@ title: the mint has no route to a spline carrier on an analytic chart, so such a
 status: open
 opened: 2026-10-02
 priority: P1
+needs_ev: true
 ---
 
 Filed by PCERT's `pcert/at-rest-rows-mandatory` (PR 3759), which makes

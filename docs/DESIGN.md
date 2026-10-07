@@ -570,18 +570,16 @@ READMEs, and its schedule is the tracker. The lettered entries below
 are the ones other documents cite by letter ((a) composition surgery
 and (b) the SSI generic-`T` lift are discharged and keep no entry):
 
-- **(c) the oblique analytic-chart classes** — a sphere's general
-  circle mints through the fitted route
-  (`FittedLane::sphere_circle_image`, certified by `certify_fitted`'s
-  Circle-carrier arm), so the oblique-trihedron octant faces store
-  their rows; a torus's Villarceau circle and a cone's tilted section
-  mint their exact image (`Pcurve::FocalSection`), and a circle within
-  the band of a cone or torus that is none of its circles refuses as a
-  defect (`CarrierGrazesChart`). C4's exemption, a face left uncached
-  until its class's route lands, covers a spline carrier at the
-  closed-form door and the mirror-torus spiric and no-fitted classes,
-  each on its own PCERT row: the spline carrier, and the spiric and
-  no-fitted classes together.
+- **(c) the oblique analytic-chart classes** — a carrier with no
+  closed-form image on an analytic chart (a spline carrier, a sphere's
+  general circle) stores its projected image (C4), so the
+  oblique-trihedron octant faces store their rows; a torus's
+  Villarceau circle and a cone's tilted section mint their exact image
+  (`Pcurve::FocalSection`), and a circle within the band of a cone or
+  torus that is none of its circles refuses as a defect
+  (`CarrierGrazesChart`). C4's exemption, a face left uncached until
+  its class's route lands, covers the mirror-torus spiric and
+  no-fitted classes, on their PCERT row.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
