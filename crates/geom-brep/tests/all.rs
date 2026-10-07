@@ -269,6 +269,8 @@ mod mesh12_saturated_span;
 #[path = "pcurve_mirror_v.rs"]
 mod pcurve_mirror_v;
 
+#[path = "one_sum_differential.rs"]
+mod one_sum_differential;
 #[path = "pcurve_spiric.rs"]
 mod pcurve_spiric;
 #[path = "r2_mesh7_door_probes.rs"]

@@ -9,8 +9,8 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 use crate::dihedral::decide;
 use crate::extent::{ExtentBall, Reach};
 use crate::intersect::{
-    ParallelAxes, PlaneCylinder, RuledSection, axes_tilt, cylinder_axes_parallel, decide_across,
-    parallel_axes_at, parallel_cylinder_gap, plane_cylinder_ruled,
+    ParallelAxes, PlaneCylinder, RuledSection, cylinder_axes_parallel, decide_across,
+    parallel_axes_at, parallel_cylinder_gap, parallel_swing, plane_cylinder_ruled,
 };
 
 /// **The certified-lane tangent LOCUS** (M9-2, the M9-1 PR-2 DEV-1
@@ -210,7 +210,7 @@ pub fn tangent_locus<T: Decide>(
                 d_vec: w,
                 d: dist,
             } = parallel_axes_at(reach, (*o1, *a1), (*o2, *a2));
-            let swing = axes_tilt(reach, (*o1, *a1), (*o2, *a2));
+            let swing = parallel_swing(reach, (*o1, *a1), (*o2, *a2), dist);
             // External tangency first (|w| = r1 + r2): the common case
             // and the flush detector's; internal (|w| = |r1 − r2|)
             // second. Fixed probe order (D9).
