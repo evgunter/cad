@@ -79,6 +79,10 @@ mod chart_box_span;
 
 #[path = "axis_rows_read_as_one_sum.rs"]
 mod axis_rows_read_as_one_sum;
+#[path = "review_band_edges.rs"]
+mod review_band_edges;
+#[path = "review_one_sum_probe.rs"]
+mod review_one_sum_probe;
 #[path = "curved_torus_arc_residual.rs"]
 mod curved_torus_arc_residual;
 #[path = "cylinder_green_conditioning.rs"]

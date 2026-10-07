@@ -1,0 +1,63 @@
+import subprocess, sys, os, re
+os.chdir('/home/user/mut')
+I='crates/geom-brep/src/intersect.rs'; L='crates/geom-brep/src/locus.rs'
+M = {
+ 'A1_tilt_dropped': [(I,'let swing = swing.value().abs();','let swing = swing.value().abs() * T::zero();')],
+ 'A2_datum_dropped': [(I,'Margin::of(datum.abs() + swing)','Margin::of(swing)')],
+ 'A3_sum_to_max': [(I,'Margin::of(datum.abs() + swing)','Margin::of(datum.abs().max(swing))')],
+ 'A4_pc_lever_radius': [(I,'        r - gap_signed.abs(),\n        Margin::levered(c, lever),','        r - gap_signed.abs(),\n        Margin::levered(c, r),')],
+ 'A5_cc_lever_radius': [(I,'let swing = axes_tilt(reach, (o1, a1), (o2, a2));','let swing = Margin::levered(a1.cross(a2).norm(), r1);')],
+ 'A6_coc_lever_radius': [(I,'["coc_coaxial", "coc_coaxial_floor"], d, tilt, band)','["coc_coaxial", "coc_coaxial_floor"], d, Margin::levered(a.cross(b).norm(), big_r), band)')],
+ 'B1_floor_uses_sum': [(I,'let near = (datum - swing).max(T::zero()) + (datum + swing).min(T::zero());','let near = (datum + swing).max(T::zero()) + (datum - swing).min(T::zero());')],
+ 'B2_straddle_serves_zero': [(I,'''            Ok(match decide_nonzero(floor, Margin::of(near), band)? {
+                NonzeroSign::Positive => Sign::Positive,
+                NonzeroSign::Negative => Sign::Negative,
+            })''','''            let _ = decide_nonzero::<T>;
+            Ok(decide(floor, Margin::of(near), band)?)''')],
+ 'B3_floor_swing_third': [(I,'let near = (datum - swing).max(T::zero()) + (datum + swing).min(T::zero());','let fs = swing * T::from_f64(1.0 / 3.0);\n            let near = (datum - fs).max(T::zero()) + (datum + fs).min(T::zero());')],
+ 'B4_floor_ignores_tilt': [(I,'let near = (datum - swing).max(T::zero()) + (datum + swing).min(T::zero());','let near = datum;')],
+ 'B5_pt_cap_reverted': [(I,'decide_across(["pt_cap_gap", "pt_cap_gap_floor"], r - h.abs(), tilt, band)','decide("pt_cap_gap", Margin::of(r - h.abs()), band)')],
+ 'B6_pt_axis_plane_gap_reverted': [(I,'''decide_across(
+                ["pt_axis_plane_gap", "pt_axis_plane_gap_floor"],
+                d,
+                tilt,
+                band,
+            )''','decide("pt_axis_plane_gap", Margin::of(d), band)')],
+ 'B7_pt_spiric_reverted': [(I,'''decide_across(
+                        ["pt_spiric_two_ovals", "pt_spiric_two_ovals_floor"],
+                        (big_r - r) - d.abs(),
+                        tilt,
+                        band,
+                    )''','decide("pt_spiric_two_ovals", Margin::of((big_r - r) - d.abs()), band)')],
+ 'B8_pn_apex_reverted': [(I,'''decide_across(
+                ["pn_apex_section", "pn_apex_section_floor"],
+                Margin::levered(discr, extent).value(),
+                Margin::of(apex_gap),
+                band,
+            )''','decide("pn_apex_section", Margin::levered(discr, extent), band)')],
+ 'B9_cc_coaxial_reverted': [(I,'decide_across(["cc_coaxial", "cc_coaxial_floor"], d, swing, band)','decide("cc_coaxial", Margin::of(d), band)')],
+ 'B10_internal_gap_reverted': [(L,'''decide_across(
+                [internal, "tangent_locus_internal_gap_floor"],
+                (*r1 - *r2).abs() - dist,
+                swing,
+                band,
+            )''','decide(internal, Margin::of((*r1 - *r2).abs() - dist), band)')],
+ 'B11_coc_floor_ignores_tilt_only_coc': [(I,'["coc_coaxial", "coc_coaxial_floor"], d, tilt, band)','["coc_coaxial", "coc_coaxial_floor"], d, tilt, band).and_then(|s| if s == Sign::Zero { Ok(s) } else { decide("coc_coaxial_floor", Margin::of(d), band) })')],
+}
+names = sys.argv[1:] or list(M)
+env=dict(os.environ, CARGO_TARGET_DIR='/home/user/tgt-mut')
+for name in names:
+    subprocess.run(['git','checkout','--','crates'],check=True)
+    for f,o,n in M[name]:
+        s=open(f).read()
+        if s.count(o)!=1: print(name,'PATTERN COUNT',s.count(o),f); break
+        open(f,'w').write(s.replace(o,n))
+    else:
+        r=subprocess.run(['cargo','test','-p','geom-brep','--test','all','--no-fail-fast','-q'],capture_output=True,text=True,env=env)
+        out=r.stdout+r.stderr
+        if 'error[' in out or 'error:' in out and 'test result' not in out:
+            print(name,'BUILD FAIL', '\n'.join(l for l in out.splitlines() if l.startswith('error'))[:800]); continue
+        fails=sorted(set(re.findall(r'^\s+(\S+)$', out.split('failures:')[-1], re.M))) if 'failures:' in out else []
+        res=re.findall(r'test result: \w+\. (\d+) passed; (\d+) failed', out)
+        print(name, 'result', res, 'KILLED by' if fails else 'SURVIVED', fails, flush=True)
+subprocess.run(['git','checkout','--','crates'],check=True)
