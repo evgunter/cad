@@ -78,7 +78,11 @@ at `MEET`, and the void in it is `nest_polygon(arch, 0.7)`
 - "over a quad void in a bare quad arch": the arch less the void, pairs
   alone. It refuses the same way on main.
 
+`y ∪ x` (the arch first) refuses the same way in both scenes, at every
+pose, since PR 4249 (JOIN's one vertex per cone at insertion) let it
+build; before that it refused `ClassificationInvariant` in the boolean.
+
 The boolean's edge classes at the vertex hold against an analytic germ
-in both. `crates/editor-core/src/names/emit_topo.rs`,
+in `x ∪ y`. `crates/editor-core/src/names/emit_topo.rs`,
 `touch_reread_rows::no_rule`, allows exactly these cells and cites this
 item.

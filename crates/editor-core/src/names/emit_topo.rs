@@ -5040,9 +5040,9 @@ mod touch_reread_rows {
     /// - `y ∩ x` where the pyramid crosses into a void in an arch, a
     ///   seam vertex no rule parents in that order
     ///   (`work/emit/an-intersection-into-a-void-at-a-vertex-has-no-seam-vertex-rule-in-one-order.md`);
-    /// - `x ∪ y` over a quadrilateral void in a quadrilateral arch, a
-    ///   seam vertex whose parentage its incident edges leave
-    ///   underdetermined
+    /// - a union in either order over a quadrilateral void in a
+    ///   quadrilateral arch, a seam vertex whose parentage its incident
+    ///   edges leave underdetermined
     ///   (`work/wire/a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission.md`).
     fn no_rule(label: &str, what: &str, e: &NamingError) -> bool {
         const SEAM: [&str; 5] = [
@@ -5059,7 +5059,7 @@ mod touch_reread_rows {
         match e {
             NamingError::SeamVertexParentage { .. } => what == "y ∩ x" && SEAM.contains(&label),
             NamingError::Emission { what: why } => {
-                what == "x ∪ y"
+                (what == "x ∪ y" || what == "y ∪ x")
                     && QUADS.contains(&label)
                     && why.starts_with("seam vertex parentage underdetermined")
             }
