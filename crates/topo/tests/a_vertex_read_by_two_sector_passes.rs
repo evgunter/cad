@@ -32,7 +32,8 @@
 //!   inside an island in the void, and one inside a void in the arch;
 //! - a pyramid with an edge lying **along** the arch's face;
 //! - a pyramid **lying** on the plate, an edge on its top, which a
-//!   touching vertex refuses to pair with (`vtxfac::partner_side`);
+//!   touching vertex refuses to pair with (`vtxfac::partner_side`), and
+//!   a **dart**, whose apex is a reflex edge no reading reads;
 //! - the plate alone, and the arches without it, read once.
 //!
 //! The operands' own contacts do not reach a result
@@ -80,6 +81,15 @@ fn hanging(bearing: f64, drop: f64, r: f64, pose: &Pose) -> AtRestBody<f64> {
 /// The cavity's void: a pyramid hanging from [`MEET`] inside the plate.
 fn void() -> [[f64; 3]; 3] {
     corners(120.0, -0.5, 0.4)
+}
+
+/// A dart's base: a quadrilateral above [`MEET`] with a dent.
+fn dart() -> [[f64; 3]; 4] {
+    let at = |deg: f64, r: f64| {
+        let (s, k) = deg.to_radians().sin_cos();
+        [r * k, r * s, 0.5]
+    };
+    [at(30.0, 0.45), at(60.0, 0.6), at(90.0, 0.45), at(60.0, 0.5)]
 }
 
 /// The arch: a pyramid standing on [`MEET`].
@@ -413,6 +423,7 @@ struct Scene {
     cross_in: AtRestBody<f64>,
     along: AtRestBody<f64>,
     lying: AtRestBody<f64>,
+    dart: AtRestBody<f64>,
     blocks: AtRestBody<f64>,
     prism: AtRestBody<f64>,
     leaned: AtRestBody<f64>,
@@ -523,6 +534,12 @@ impl Scene {
             lying: built(
                 "the plate and a lying pyramid",
                 union(&plate, &tet(lie, pose), t()),
+            ),
+            // A pyramid over a quadrilateral with a dent: its apex is a
+            // reflex edge, read neither as a cone nor through one.
+            dart: built(
+                "the plate and a dart",
+                union(&plate, &apex_pyramid(&dart(), pose, t()), t()),
             ),
             blocks: posed_boxes(
                 "two blocks in face contact",
@@ -677,6 +694,10 @@ fn a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_o
         ] {
             refuses(label, x, &s.lying, &pose, "pair", false);
         }
+        // A partner read neither way leaves the touching vertex's edges
+        // undecided (`vtxfac::touch_classes`).
+        refuses("beside a dart", &s.cone, &s.dart, &pose, "pair", false);
+        refuses("over a dart", &s.over, &s.dart, &pose, "pair", false);
         refuses("two blocks", &s.cone, &s.blocks, &pose, "pierce", false);
         // The prism's edge crosses the contact at `MEET`, so its first
         // pierce would hang struts there: only a refusal before that
@@ -693,7 +714,7 @@ fn a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_o
 }
 
 /// **Every scene, at every pose, in every op and both orders, builds
-/// sound or refuses typed**: 45 scenes, 1350 op cells.
+/// sound or refuses typed**: 47 scenes, 1410 op cells.
 #[test]
 fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
     let mut held = 0;
@@ -752,6 +773,10 @@ fn every_scene_builds_sound_or_refuses_typed_at_every_pose() {
         ] {
             refuses(label, x, &s.lying, &pose, "pair", false);
         }
+        // A partner read neither way leaves the touching vertex's edges
+        // undecided (`vtxfac::touch_classes`).
+        refuses("beside a dart", &s.cone, &s.dart, &pose, "pair", false);
+        refuses("over a dart", &s.over, &s.dart, &pose, "pair", false);
         refuses(
             "a prism through the top",
             &s.prism,
