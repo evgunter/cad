@@ -625,3 +625,20 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
   - **Filed rows:** one FUSE row for the name, the new RoleSeg and the
     six-order document witness, blocked on an EMIT issue row for the
     `MissingUpstream` failure.
+- 2026-10-07 — PR 4233 lands: the curved join.
+  - **What it builds:** one joinable predicate; closed joins with a
+    conventional vertex; records and census at that vertex. Naming it
+    refuses typed, and the edge-derived name is filed behind EMIT's
+    `MissingUpstream` row.
+  - **Review:** dual. Lane A (ruling) found the curved name was a
+    second spelling of the flush rule and could read the vertex's
+    position. Lane B (correctness) found nothing blocking; two mutants
+    of the conventional predicate survived. Both were fixed, and a
+    delta re-review checked them.
+  - **Rulings:**
+    - later cuts reuse the vertex; lane B showed a literal
+      edge-interior split would refuse;
+    - the names README's closed-edge sentence lands as Ev's 4198 ruling
+      applied, quoted in the PR body for Ev.
+  - **Rows:** `curved-joinable-vertices-are-left-unjoined` closes, and
+    seven residue rows were filed. Step 3 (the tier-2 check) is next.

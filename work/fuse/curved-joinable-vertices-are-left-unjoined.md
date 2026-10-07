@@ -2,9 +2,9 @@
 id: curved-joinable-vertices-are-left-unjoined
 kind: issue
 title: The join takes planar joinable vertices only: curved valence-2 vertices (arcs of one rim circle, Chart seams of one surface) are left unjoined and unrefused
-status: review
+status: closed
+closed: 2026-10-07
 pr: 4233
-branch: fuse/curved-join
 opened: 2026-10-06
 priority: P1
 cost: H
@@ -167,3 +167,27 @@ from the designers' reading of the ruling:
 - **Not now:** closed edges with no vertex at all, which would need
   the Euler operators restructured. Ev put this out of scope until
   something else needs it.
+
+## Landed (FUSE, PR 4233, 2026-10-07)
+
+- **One joinable predicate** serves the join and `joinable_vertices`.
+  It has three arms: planar; a locus of the surface pair (transverse or
+  tangent); an iso family of one chart. Poles and apexes never join.
+  An in-band reading refuses typed (`JoinUndecided`).
+- **Closed joins** leave a conventional vertex, defined by structure
+  (`is_conventional_vertex`):
+  - records at it are `(u, E)`;
+  - the census backs a touch there by E's record;
+  - later cuts reuse the vertex and build the same body.
+- **Names:** option (b) plus the guard. Naming a conventional vertex
+  refuses typed (`ConventionalVertex`). The edge-derived name is filed
+  (`a-conventional-vertex-mints-no-edge-derived-name`). The names
+  README's flush clause reads along the carrier; its closed-edge
+  sentence lands as Ev's 4198 ruling applied (PR body, "Names README").
+- **Review:** dual, plus a delta re-review. The fix pass:
+  - typed frontier refusals;
+  - one shared flush walk;
+  - the census keeps the point;
+  - mutant-killing rows for the conventional predicate and the
+    pole/apex exclusion.
+- **Residue:** the PR body lists every row filed or edited.
