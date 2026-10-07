@@ -4741,7 +4741,7 @@ mod nurbs_crossings_rank_by_parameter {
     //! (`CurvedEdgeUnsupported`).
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-    use super::{CrossedEdge, Crossed, param_span, rank_crossings};
+    use super::{Crossed, CrossedEdge, param_span, rank_crossings};
     use crate::edit::DocEdit;
     use crate::eval::{CancelToken, EvalOptions, ValuePayload, evaluate};
     use crate::ident::DocumentId;
@@ -4777,7 +4777,12 @@ mod nurbs_crossings_rank_by_parameter {
         for (k, dx) in [-a, a, -a, a].into_iter().enumerate() {
             let z = [0.0, 1.0, 2.0, 3.0][k];
             let (d, plane) = ins(doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
-            let square = [(dx - 1.0, -1.0), (dx + 1.0, -1.0), (dx + 1.0, 1.0), (dx - 1.0, 1.0)];
+            let square = [
+                (dx - 1.0, -1.0),
+                (dx + 1.0, -1.0),
+                (dx + 1.0, 1.0),
+                (dx - 1.0, 1.0),
+            ];
             let (d, profile) = ins(
                 d,
                 Node::Profile(ProfileProgram {
@@ -4821,7 +4826,9 @@ mod nurbs_crossings_rank_by_parameter {
             .iter()
             .find_map(|(name, entry)| {
                 let Entry::Unique(r) = entry else { return None };
-                let EntityKey::Edge(e) = r.key else { return None };
+                let EntityKey::Edge(e) = r.key else {
+                    return None;
+                };
                 let edge = body.get_edge(e)?;
                 let carrier = body.get_curve_geom(edge.curve)?.certified()?.carrier();
                 let (v0, v1) = super::edge_ends(body, e).ok()?;
@@ -4836,8 +4843,7 @@ mod nurbs_crossings_rank_by_parameter {
     /// `x = c` its two ends straddle evenly, with the sign of `x − c`
     /// after each: test-side root finding, the subject being the ranks.
     fn crossings_of(body: &Body<f64>, e: EdgeKey) -> Vec<(f64, bool)> {
-        let edge = body.get_edge(e).unwrap();
-        let carrier = body.get_curve_geom(edge.curve).unwrap().certified().unwrap().carrier();
+        let carrier = carrier(body, e);
         let (t0, t1) = param_span(body, e).unwrap();
         let c = (carrier.eval(t0).x + carrier.eval(t1).x) / 2.0;
         let f = |t: f64| carrier.eval(t).x - c;
@@ -4921,9 +4927,17 @@ mod nurbs_crossings_rank_by_parameter {
         one
     }
 
-    fn point_at(body: &Body<f64>, e: EdgeKey, t: f64) -> Point3<f64> {
+    fn carrier(body: &Body<f64>, e: EdgeKey) -> &geom::Curve3<f64> {
         let edge = body.get_edge(e).unwrap();
-        body.get_curve_geom(edge.curve).unwrap().certified().unwrap().carrier().eval(t)
+        body.get_curve_geom(edge.curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .carrier()
+    }
+
+    fn point_at(body: &Body<f64>, e: EdgeKey, t: f64) -> Point3<f64> {
+        carrier(body, e).eval(t)
     }
 
     #[test]
@@ -4934,7 +4948,11 @@ mod nurbs_crossings_rank_by_parameter {
         let (t0, t1) = param_span(body, e).unwrap();
         assert!(t0 < t1, "the corner runs as its carrier: {t0} to {t1}");
         let roots = crossings_of(body, e);
-        assert_eq!(roots.len(), 3, "the plane meets the corner three times: {roots:?}");
+        assert_eq!(
+            roots.len(),
+            3,
+            "the plane meets the corner three times: {roots:?}"
+        );
         let ((first, s0), (third, s2)) = (roots[0], roots[2]);
         assert_eq!(s0, s2, "the first and third crossings have one sense");
         let (p, q) = (point_at(body, e, first), point_at(body, e, third));
@@ -4952,12 +4970,11 @@ mod nurbs_crossings_rank_by_parameter {
         let (e, name) = corner(body, &value.name_table);
         let first = crossings_of(body, e)[0].0;
         let p = point_at(body, e, first);
-        let edge = body.get_edge(e).unwrap();
-        let carrier = body.get_curve_geom(edge.curve).unwrap().certified().unwrap().carrier();
-        let along = carrier.deriv(first);
+        let along = carrier(body, e).deriv(first);
         let zero = geom_core::Band::linear(Tol::witness()).unwrap().zero();
-        let q = p + along * (zero / 4.0 / along.norm());
-        assert_eq!(ranks(loft, &value, e, &name, p, q), None, "{zero} m apart");
+        let apart = zero / 4.0;
+        let q = p + along * (apart / along.norm());
+        assert_eq!(ranks(loft, &value, e, &name, p, q), None, "{apart} m apart");
         assert_eq!(ranks(loft, &value, e, &name, p, p), None, "one point");
     }
 }
