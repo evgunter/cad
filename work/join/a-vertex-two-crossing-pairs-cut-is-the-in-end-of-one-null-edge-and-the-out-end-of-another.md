@@ -2,12 +2,13 @@
 id: a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another
 kind: issue
 title: A vertex two crossing pairs cut refuses ClassificationInvariant: the In end of one null edge and the Out end of another
-status: review
+status: closed
 opened: 2026-10-05
 priority: P1
 cost: M
 branch: join/pinch-cones-split-at-insertion
 pr: 4249
+closed: 2026-10-07
 ---
 
 

@@ -1132,3 +1132,14 @@ Signed (JOIN orchestrator).
   (filed by PR 4249) follows when 4249 lands.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-07: PR 4249 landed (the 217 In/Out lines build)
+
+- **PR 4249 merged.** `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another` is closed.
+  - `insert::hang_in_turned` hangs a turned run's siblings at its copy. The 217 `pinch_runs_battery` lines build `SOUND`, one vertex per cone on one key.
+  - Where the hang leaves an operand's own pinch on several point keys, the boolean refuses `PinchConesOnSeparateKeys` instead of shipping a body the census cannot read. That covers three or four pairs at one vertex.
+- **Reviews.** It had a dual review (DR-101, excluded), then a second FULL review on the fix head: 0/2/4, with every prior finding confirmed fixed. The last pass dropped a dead class extension and moved `hung_points` onto `zip::Roots`.
+- **Filed by the unit.** A curved shared vertex builds bodies the census and the reuse check refuse: none definite, filed P2. "Holds whole" is spelled three ways, filed P3.
+- **Dispatched next:** `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings` (P1 M; 102 `ba` lines). Branch `join/nested-pairing-shared-vertex`.
+
+Signed (JOIN orchestrator).
