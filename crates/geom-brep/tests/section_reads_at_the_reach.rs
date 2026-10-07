@@ -214,3 +214,41 @@ fn a_measured_lever_reaches_the_pivots_distance() {
         }
     }
 }
+
+/// **A finite tilt is never read parallel over a short axial lever.** A
+/// unit wall about `z` read at `(1, 0, 0)` over an axial lever of zero
+/// (a consumed region at one station, as a degenerate face's boundary
+/// reads), cut by the plane `z = 0` and by planes tilted 30° and 60° off
+/// it. Levered along the axis alone, the tilt moves nothing and reads
+/// Zero, and the axis-in-plane lane answers rulings; the plane also
+/// turns across the wall by `1 − cos` of the tilt, which the row reads,
+/// so each cut is the rim or a tilted ellipse.
+#[test]
+fn a_finite_tilt_is_never_read_parallel_over_a_short_axial_lever() {
+    let wall = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let reach = Reach::Measured {
+        at: Point3::new(1.0, 0.0, 0.0),
+        lever: 0.0,
+    };
+    for degrees in [90.0_f64, 60.0, 30.0] {
+        let tilt = degrees.to_radians();
+        let cut = Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::new(tilt.cos(), 0.0, tilt.sin()),
+            u_ref: Vec3::unit_y(),
+        };
+        let got = plane_cylinder_section(&cut, &wall, &reach, band());
+        assert!(
+            matches!(
+                got,
+                Ok(PlaneCylinderSection::Rim(_) | PlaneCylinderSection::TiltedEllipse(_))
+            ),
+            "{degrees}° off the axis: a bounded cut, got {got:?}"
+        );
+    }
+}

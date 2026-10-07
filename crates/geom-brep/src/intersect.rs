@@ -834,7 +834,9 @@ pub enum PlaneCylinderSection<T: Real> {
 ///
 /// 1. `pc_axis_plane_parallel` — margin `(axis·normal)·lever`, the
 ///    axis' angle off the plane levered from that foot by `reach`
-///    ([`Reach::lever_from`]): Zero ⇒ the axis lies in the plane
+///    ([`Reach::lever_from`]) plus the reach across the wall a finite
+///    tilt also moves (`(r + |gap|)·|c|/(1 + cos)`, `c = axis·normal`,
+///    second order in the tilt): Zero ⇒ the axis lies in the plane
 ///    (the parallel degenerate lane, step 2); definite ⇒ a bounded cut
 ///    (step 3).
 /// 2. `pc_parallel_gap` — margin `r − |signed axis-to-plane gap|` at
@@ -925,15 +927,24 @@ pub(crate) fn plane_cylinder_ruled<T: Decide>(
 ) -> Result<Option<RuledSection<T>>, Indeterminate> {
     let &PlaneCylinder { q, n, o, a, r } = pc;
     let o = reach.foot_on(o, a);
+    let c = a.dot(n);
+    let gap_signed = (o - q).dot(n);
+    // The plane parts from the rulings' plane about their common line
+    // through the foot's projection. At a consumed point a sine `c` off
+    // the axis moves it by `|c|` times its axial distance from the foot,
+    // and by `1 − cos` times its reach across the wall, at most
+    // `r + |gap|`: `|c|·(r + |gap|)/(1 + cos)` levers the second term,
+    // which a lever measured along the axis alone does not carry.
+    let across = (r + gap_signed.abs()) * c.abs()
+        / (T::one() + (T::one() - c.powi(2)).max(T::zero()).sqrt());
     match decide(
         "pc_axis_plane_parallel",
-        Margin::levered(a.dot(n), reach.lever_from(o)),
+        Margin::levered(c, reach.lever_from(o) + across),
         band,
     )? {
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => return Ok(None),
     }
-    let gap_signed = (o - q).dot(n);
     let section = match decide("pc_parallel_gap", Margin::of(r - gap_signed.abs()), band)? {
         Sign::Positive => {
             // Cross-section chord: the plane cuts the circle at
