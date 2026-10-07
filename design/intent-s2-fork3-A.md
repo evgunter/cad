@@ -37,10 +37,9 @@ doctrine stands) and the GUI's pick is the *authored* form of a select, as a
 **Why a definition and not a node.** A select has nothing a node has and
 needs nothing a node offers.
 
-- It makes no value and decides nothing numeric: a name-table lookup is exact,
-  its verdict log is empty, and there is nothing to memoize. A node's value
-  would be an entity key into another node's arena, a new value kind every
-  evaluation consumer (scene, tree, picking) would have to skip.
+- It makes no value and decides nothing numeric: a name-table lookup is exact
+  and there is nothing to memoize. A node's value would be an entity key into
+  another node's arena, a new value kind every consumer would have to skip.
 - It needs no document-order position, no label and no tree row. Its human
   handle is a variable *name* (VR2): "mouth" is what a person wants to call
   the edge, and a named select is then readable from a fillet, a measure and a
@@ -101,15 +100,13 @@ alternative (drop `target`, derive the body from the edges) is close and
 reversible; I lean to keeping it. `FaceFrame { face }`, measures and mates
 drop their body operand, since a singleton select carries its body.
 
-**What the user sees.** Picking an edge is authoring a select's definition
+**What the user sees.** Picking an edge authors a select's definition
 `(body, name)`; the commit mints the variable or finds it. A fillet's panel
 lists its edge slots, each spoken as its variable: by name when it has one,
 else as the entity's spoken name in its body. A select is selectable in the
-panel like a parameter (`Selection::Param` generalises to any variable) and
-shows its readers; a viewport pick on an edge that is already a select
-variable shows that variable. Python: `Node.fillet(target, radius, names)`
-keeps its spelling as sugar lowering to one select per name;
-`Doc.select(body, name) -> Var` is how a selection is named and shared.
+panel like a parameter and shows its readers. Python's
+`Node.fillet(target, radius, names)` stays as sugar lowering to one select
+per name; `Doc.select(body, name) -> Var` is how one is named and shared.
 
 **Final states compared.** *Node:* one row per select (or a multi-port
 select with positional ports over a mutable name list), a label nobody needs,
@@ -139,15 +136,13 @@ binding regardless of FORK-5: *sure*.
   a variable; `rebind_payload_names` shrinks to declared pairs and the
   appearance store.
 - **The latent name-rebind defect** (rewriting a site where `from` still
-  resolves, when a downstream boolean is what stranded it) is today's; I did
-  not file it since E retires the path. File it if E slips.
+  resolves) is today's; not filed since E retires the path. File it if E slips.
 - **Vertex kind.** `MeasurePrimitive` docs refuse a vertex reference typed, so
   no `Vertex` kind is needed for E; D10's trio stands. If FORK-1 adds one,
   nothing here changes.
 - **Canonical form of a `Vec<Edge>` slot** is over the selects' definitions,
-  not their ids (ids are mint order). The door check and the content key both
-  read through `Doc::vars`; the fillet's key feed (`feed_scalar_join`) today
-  hashes the names, so the key is unchanged by construction.
+  not their ids (mint order). The door check and the content key read through
+  `Doc::vars`; `feed_scalar_join` hashes names today, so the key is unchanged.
 - **Not checked:** whether `Shell` with an empty `open` is admitted today (no
   refusal found by grep; the variant docs imply a closed cavity is legal).
   If it is refused, the "drop `target`" alternative gains and the lean flips.
