@@ -200,7 +200,7 @@ impl<T: Decide> Quadric<T> {
                 // is decided past the band that offset lies in.
                 let (ua, ub) = (ra / ra.norm(), rb / rb.norm());
                 // Along `from`'s ruling to `to`'s height, then round.
-                let turned = apex + axis * hb + ua * rb.norm();
+                let turned = if r4_mut("seam") { apex + axis * hb + ra * (hb / ha) } else { apex + axis * hb + ua * rb.norm() };
                 let (e, slant) = ruling(from);
                 let round = parallel(apex + axis * hb, axis, rb.norm(), turned, to);
                 paths.push(Path {
@@ -217,7 +217,7 @@ impl<T: Decide> Quadric<T> {
                 });
                 // Round `from`'s parallel to `to`'s ruling, then along it.
                 let (e, slant) = ruling(to);
-                let below = apex + axis * ha + ub * ra.norm();
+                let below = if r4_mut("seam") { apex + axis * ha + rb * (ha / hb) } else { apex + axis * ha + ub * ra.norm() };
                 let rise = slant - (below - apex).norm();
                 let along = decide("split_ring_path_rise", Margin::of(rise), band)?;
                 if along != Sign::Zero {
@@ -516,8 +516,11 @@ pub(crate) fn path_parity<T: Decide>(
                         // margin is the displacement that moves the root
                         // past the span's end.
                         let (st, ct) = t.sin_cos();
-                        let slope = (cb * ct - ca * st).abs();
-                        let [p0, p1] = in_span(t, p.span, p.radius * slope)?;
+                        let slope = if r4_mut("sign") { (cb * ct + ca * st).abs() } else if r4_mut("conic_len") { T::one() } else { (cb * ct - ca * st).abs() };
+                        if std::env::var("R4_LOG").is_ok() {
+                            std::eprintln!("R4 conic: r {:?} b {:?} rho {:?} gap {:?} slope {:?} t {:?} pspan {:?} s {:?} span {:?}", p.radius, b, rho, p.radius * rho - d.abs(), slope, t, p.span, s, span);
+                        }
+                        let [p0, p1] = in_span(t, p.span, if r4_mut("circ_b") { b * slope } else { p.radius * slope })?;
                         let [a0, a1] = in_span(s, span, b * slope)?;
                         readings.push([p0, p1, a0, a1]);
                     }
@@ -538,7 +541,7 @@ pub(crate) fn path_parity<T: Decide>(
                     let t = p.param(origin + dir * s);
                     // The plane moved by δ moves the root by δ over the
                     // slope the ruling crosses it at, `|m̂·d̂|`.
-                    let slope = across.abs();
+                    let slope = if r4_mut("line_len") { T::one() } else { across.abs() };
                     let [p0, p1] = in_span(t, p.span, p.radius * slope)?;
                     let [a0, a1] = in_span(s, span, slope)?;
                     readings.push([p0, p1, a0, a1]);
@@ -571,7 +574,7 @@ pub(crate) fn path_parity<T: Decide>(
                     let s = branch((w.dot(v_ref) / b).atan2(w.dot(u_ref) / a), span);
                     // The plane moved by δ moves the root by δ over the
                     // slope the segment crosses it at, `|n̂·d̂|`.
-                    let slope = ((d0 - d1) / (to - from).norm()).abs();
+                    let slope = if r4_mut("segden") { (d0 - d1).abs() } else if r4_mut("seg_len") { T::one() } else { ((d0 - d1) / (to - from).norm()).abs() };
                     let [a0, a1] = in_span(s, span, b * slope)?;
                     readings.push([Sign::Positive, Sign::Positive, a0, a1]);
                 }
@@ -613,6 +616,15 @@ mod cone_path_grid;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod graze_rows;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::print_stdout, clippy::too_many_arguments)]
+mod review4_probes;
+
+/// Review-4 probe mutant toggle (scratch).
+fn r4_mut(name: &str) -> bool {
+    std::env::var("R4_MUT").map(|v| v.split(',').any(|x| x == name)).unwrap_or(false)
+}
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
