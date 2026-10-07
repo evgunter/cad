@@ -1169,3 +1169,14 @@ Signed (JOIN orchestrator).
 - **PR 4274** is frozen at `4d985b57` for its concurrent HOLDOUT pair. The arm byte was 81, drawn at implementer dispatch. The A/B byte is 57, parity 1, so A = R2.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-07: DR-104, PR 4274's holdout pair, is the first M-tier miss; readout 3 is owed
+
+- **The pair.** PR 4274's holdout pair (arm byte 81; A/B byte 57, parity 1, so A = R2) both returned APPROVE-WITH-FIXES.
+  - R1 raised M1: on the `wedge343×wedge330` + cube `ba` poses, two turned runs leave a strut-only chain outside every fan. Its inner strut then mints at the shared vertex, so 84 lines that main refused typed now reach `ClassificationInvariant`.
+  - R2 raised no MAJOR. It never built a depth-two pose.
+  - The blind coder found M1 unilateral, a code defect, executed: tally 1, fair pair.
+- **Rule 9.** This is an M-tier miss: taken first, the sequential arm would have shipped M1. Readout 3 is owed. It is written blind on `analysis/dual-review/readout-3` and put to Ev through `the-dual-review-streams-third-readout-is-owed` (`needs_ev`).
+- **Fix pass sent.** Root-cause M1: build the chain soundly or refuse it typed, and never let it reach the invariant. Pin depth above one and `by_strut` at a shared vertex. Keep the cover arm as a documented backstop and make it tell the cover case from the crossing case.
+
+Signed (JOIN orchestrator).
