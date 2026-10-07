@@ -284,6 +284,17 @@ impl<T: Real> SweptChord<T> for SweptSeg<T> {
 }
 
 impl<T: Real> SweptSeg<T> {
+    /// This segment continued into `next` on one carrier: `next`'s end,
+    /// the kind [`Traversed::continued`], and this segment's start and
+    /// canonical indices (a collapsed run's, [`collapse_runs`]).
+    pub(crate) fn continued(self, next: &Self) -> Self {
+        Self {
+            b: next.b,
+            kind: self.kind.continued(next.kind),
+            ..self
+        }
+    }
+
     /// Segment `j` of the FORWARD traversal of `lp` — canonical segment
     /// `j` as itself, which is what the loft's walls read
     /// (`skin::vertex_segment`) outside a swept loop, and what
@@ -929,8 +940,8 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
 
 /// One wall's run of a swept loop (crate README, "Walls: one per
 /// run"): segments `first, first + 1, …, first + len − 1` (mod n) in
-/// swept order. Vertex `first` carries the wall's leading strut; the
-/// `len − 1` vertices after it are the run's stations.
+/// swept order. Vertex `first` leads the run; the `len − 1` vertices
+/// after it are the run's stations.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Run {
     /// The run's first segment (and leading vertex), swept order.
@@ -943,11 +954,6 @@ impl Run {
     /// The run's segments, swept order, wrapping at `n`.
     pub(crate) fn segments(self, n: usize) -> impl Iterator<Item = usize> {
         (0..self.len).map(move |k| (self.first + k) % n)
-    }
-
-    /// The vertex the run ends at: the next run's leading vertex.
-    pub(crate) fn end(self, n: usize) -> usize {
-        (self.first + self.len) % n
     }
 }
 
@@ -962,50 +968,29 @@ pub(crate) enum Join {
     /// station has no strut.
     Run,
     /// One carrier, two walls: a strut between walls that share one
-    /// surface key — a circle's canonical cut (C12.5), or the arcs of a
-    /// verb that splits a curved run ([`CurvedRuns::Split`]).
+    /// surface key — a circle's canonical cut (C12.5).
     Cut,
-}
-
-/// Whether a verb builds a run of cocircular arcs as one wall.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum CurvedRuns {
-    /// A run of cocircular arcs is one wall.
-    Whole,
-    /// Each arc keeps its own wall, on the run's one surface key.
-    Split,
 }
 
 /// A loop's [`Join`]s, read off its cosurface verdicts `pair`
 /// ([`cosurface_pairs`], which is false across a side that sweeps no
-/// wall). A one-carrier join is a [`Join::Run`] for lines, and for arcs
-/// where `arcs` is [`CurvedRuns::Whole`]; otherwise a [`Join::Cut`]. A
-/// loop whose every join continues one carrier is a circle cut into
-/// arcs — collinear lines cannot close a simple loop — and it keeps its
-/// canonical cut (C12.5): every join a `Cut`.
-pub(crate) fn joins<T: Real, S: SweptChord<T>>(
-    segs: &[S],
-    pair: &[bool],
-    arcs: CurvedRuns,
-) -> Vec<Join> {
-    let is_line = |j: usize| matches!(segs[j].kind().get(), SegmentKind::Line);
+/// wall): a one-carrier join is a [`Join::Run`]. A loop whose every
+/// join continues one carrier is a circle cut into arcs — collinear
+/// lines cannot close a simple loop — and it keeps its canonical cut
+/// (C12.5): every join a `Cut`.
+pub(crate) fn joins<T: Real, S: SweptChord<T>>(segs: &[S], pair: &[bool]) -> Vec<Join> {
     if pair.iter().all(|&p| p) {
         // A cosurface pair never mixes kinds, so the loop is all lines
         // or all arcs.
-        if is_line(0) {
+        if matches!(segs[0].kind().get(), SegmentKind::Line) {
             unreachable!(
                 "a run of collinear lines closes the whole loop, which validation refuses"
             );
         }
         return vec![Join::Cut; pair.len()];
     }
-    (0..pair.len())
-        .map(|j| match (pair[j], arcs) {
-            (false, _) => Join::Corner,
-            (true, CurvedRuns::Whole) => Join::Run,
-            (true, CurvedRuns::Split) if is_line(j) => Join::Run,
-            (true, CurvedRuns::Split) => Join::Cut,
-        })
+    pair.iter()
+        .map(|&p| if p { Join::Run } else { Join::Corner })
         .collect()
 }
 
@@ -1072,111 +1057,124 @@ pub(crate) fn cosurface_pairs<T: Decide, S: SweptChord<T>, E>(
         .collect()
 }
 
-/// Which vertices lead a run (carry its strut / start meridian), by
-/// swept position.
-pub(crate) fn run_leads(runs: &[Run], n: usize) -> Vec<bool> {
-    let mut lead = vec![false; n];
-    for run in runs {
-        lead[run.first] = true;
-    }
-    lead
+/// A swept loop with each wall run collapsed to one segment (crate
+/// README, "Walls: one per run"), so a station inside a run reaches no
+/// builder: the run's wall is one face and each of its rims one edge.
+pub(crate) struct Collapsed<S> {
+    /// The collapsed segments, in run order: each run's first segment
+    /// continued to the run's end.
+    pub(crate) segs: Vec<S>,
+    /// Per collapsed segment, how its wall meets the previous one's: a
+    /// [`Join::Corner`], or a [`Join::Cut`] on a circle cut into arcs.
+    pub(crate) joins: Vec<Join>,
+    /// Per collapsed segment, the swept positions its run holds, in
+    /// swept order.
+    pub(crate) members: Vec<Vec<usize>>,
 }
 
-/// The wall whose SURFACE KEY the wall leading at `j` shares, across a
-/// [`Join::Cut`]: the previous wall's, and for a chain of cuts reaching
-/// `origin` (the first run's lead) through the wrap, the first wall's.
-/// The first run shares nothing. `faces` holds the walls minted so far,
-/// by swept position.
-pub(crate) fn shared_wall(
+impl<S> Collapsed<S> {
+    /// [`Collapsed::members`] with each swept position read through
+    /// `canonical` (a swept position's canonical segment): per
+    /// collapsed segment, the canonical segments its run holds.
+    pub(crate) fn canonical_members(&self, canonical: impl Fn(usize) -> usize) -> Vec<Vec<usize>> {
+        self.members
+            .iter()
+            .map(|run| run.iter().map(|&s| canonical(s)).collect())
+            .collect()
+    }
+}
+
+/// Collapses a swept loop's wall runs ([`Collapsed`]), from its
+/// [`Join`]s. `continued(seg, next)` is `seg` continued into `next` on
+/// one carrier ([`SweptSeg::continued`]); the cosurface verdict made
+/// the run one carrier, so nothing is re-decided.
+pub(crate) fn collapse_runs<S: Copy>(
+    segs: &[S],
     joins: &[Join],
-    faces: &[Option<FaceKey>],
-    j: usize,
-    origin: usize,
-) -> Option<FaceKey> {
+    continued: impl Fn(S, &S) -> S,
+) -> Collapsed<S> {
+    let n = segs.len();
+    let runs = wall_runs(joins);
+    Collapsed {
+        segs: runs
+            .iter()
+            .map(|run| {
+                run.segments(n)
+                    .skip(1)
+                    .fold(segs[run.first], |seg, s| continued(seg, &segs[s]))
+            })
+            .collect(),
+        joins: runs.iter().map(|run| joins[run.first]).collect(),
+        members: runs.iter().map(|run| run.segments(n).collect()).collect(),
+    }
+}
+
+/// The wall whose SURFACE KEY wall `j` of a [`Collapsed`] loop shares,
+/// across a [`Join::Cut`]: the previous wall's, and for a chain of cuts
+/// reaching wall 0 through the wrap, wall 0's. Wall 0 shares nothing.
+/// `faces` holds the walls minted so far.
+pub(crate) fn shared_wall(joins: &[Join], faces: &[Option<FaceKey>], j: usize) -> Option<FaceKey> {
     let n = joins.len();
     let cut = |k: usize| joins[k] == Join::Cut;
-    let rank = |k: usize| (k + n - origin) % n;
-    if rank(j) == 0 {
+    if j == 0 {
         None
     } else if cut(j) {
-        faces[(j + n - 1) % n]
-    } else if cut(origin) && ((rank(j) + 1)..n).all(|r| cut((origin + r) % n)) {
-        faces[origin]
+        faces[j - 1]
+    } else if cut(0) && ((j + 1)..n).all(cut) {
+        faces[0]
     } else {
         None
     }
 }
 
-/// What [`build_run_walls`] minted, by swept position: each segment's
-/// wall, and its far-side chain edge (extrude's top rim, a partial
-/// revolve's end meridian). `None` where a run was not walled.
-pub(crate) struct RunWalls {
+/// What [`build_walls`] minted, by position in the collapsed loop:
+/// each wall, and its far-side edge (extrude's top rim, a partial
+/// revolve's end meridian). `None` where a segment sweeps no wall.
+pub(crate) struct Walls {
     pub(crate) faces: Vec<Option<FaceKey>>,
     pub(crate) tops: Vec<Option<EdgeKey>>,
 }
 
-/// **The one run-wall builder** extrude and the partial revolve share
-/// (crate README, "Walls: one per run"). For each run in order, from
-/// `at(first)` — the strut's minus half at the run's lead — a
-/// `mev` chain lays the far-side edge of every segment but the last,
-/// minting each station's far vertex (`chain(s)`: the far end of
-/// segment `s` and its edge spec, or the caller's typed refusal); then the closing `mef` lays the last
-/// segment's edge and splits the wall off. It closes against the first
-/// far-side half the first run laid when the run ends at the first
-/// run's lead (the strut minus there was consumed), and against
-/// `at(end)` otherwise. `wall(body, run, faces)` gives the
-/// closing edge's spec and the wall's surface, or `None` for a run
-/// that sweeps no wall (a revolve's on-axis segment).
-pub(crate) fn build_run_walls<T: Decide + topo::AtRestPolicy, E: From<EulerOpError>>(
+/// **The one wall builder** extrude and the partial revolve share,
+/// over a [`Collapsed`] loop of `n` segments: for each segment in
+/// order, one `mef` from `at(j)` — the strut's minus half at its lead —
+/// lays its far-side edge and splits the wall off. It closes against
+/// the far-side half the first wall laid when the segment ends at
+/// vertex 0 (the strut minus there was consumed), and against
+/// `at(j + 1)` otherwise. `wall(body, j, faces)` gives the far-side
+/// edge's spec and the wall's surface, or `None` for a segment that
+/// sweeps no wall (a revolve's on-axis segment).
+pub(crate) fn build_walls<T: Decide + topo::AtRestPolicy, E: From<EulerOpError>>(
     body: &mut Body<T>,
-    runs: &[Run],
     n: usize,
     at: impl Fn(usize) -> HalfEdgeKey,
-    mut chain: impl FnMut(usize) -> Result<(Point3<T>, EdgeCurveSpec<T>), E>,
     mut wall: impl FnMut(
         &mut Body<T>,
-        Run,
+        usize,
         &[Option<FaceKey>],
     ) -> Result<Option<(EdgeCurveSpec<T>, FaceSurface<T>)>, E>,
     tol: Tol,
-) -> Result<RunWalls, E> {
+) -> Result<Walls, E> {
     let mut faces: Vec<Option<FaceKey>> = vec![None; n];
     let mut tops: Vec<Option<EdgeKey>> = vec![None; n];
     let mut first_top: Option<HalfEdgeKey> = None;
-    let origin = runs.first().map_or(0, |r| r.first);
-    for (ri, run) in runs.iter().enumerate() {
-        let Some((closing, surface)) = wall(body, *run, &faces)? else {
+    for j in 0..n {
+        let Some((far, surface)) = wall(body, j, &faces)? else {
             continue;
         };
-        let mut he1 = at(run.first);
-        let segments: Vec<usize> = run.segments(n).collect();
-        let Some((&last, stations)) = segments.split_last() else {
-            unreachable!("a wall run holds at least one segment")
-        };
-        for (k, &s) in stations.iter().enumerate() {
-            let (far, spec) = chain(s)?;
-            let m = body.mev(MevSite::Fan { he1, he2: he1 }, far, spec, tol)?;
-            if ri == 0 && k == 0 {
-                first_top = Some(m.he_plus);
-            }
-            tops[s] = Some(m.edge);
-            he1 = m.he_minus;
-        }
-        let end = run.end(n);
+        let end = (j + 1) % n;
         let he2 = match first_top {
-            Some(top) if end == origin => top,
+            Some(top) if end == 0 => top,
             _ => at(end),
         };
-        let mef = body.mef(MefSite::Chords { he1, he2 }, closing, surface, tol)?;
-        if ri == 0 && first_top.is_none() {
+        let mef = body.mef(MefSite::Chords { he1: at(j), he2 }, far, surface, tol)?;
+        if j == 0 {
             first_top = Some(mef.he_plus);
         }
-        tops[last] = Some(mef.edge);
-        for &s in &segments {
-            faces[s] = Some(mef.face);
-        }
+        tops[j] = Some(mef.edge);
+        faces[j] = Some(mef.face);
     }
-    Ok(RunWalls { faces, tops })
+    Ok(Walls { faces, tops })
 }
 
 /// The surface key of `face`, a face the calling driver minted.

@@ -1161,7 +1161,7 @@ pub fn vname(node: RecipeNodeId, seg: RoleSeg) -> StableName {
 /// **A cap RIM edge of an extrude**, by name — the arc cap `end`
 /// shares with the wall over outer- or hole-loop segment `edge`.
 pub fn rim_edge(node: RecipeNodeId, end: CapEnd, edge: ProfileEdgeRef) -> StableName {
-    ename(node, RoleSeg::RimEdge(end, edge))
+    ename(node, RoleSeg::RimEdge(end, edge.into()))
 }
 
 /// **A cap VERTEX of an extrude**, by name — the corner cap `end`

@@ -256,7 +256,7 @@ fn stale_program_refs_refuse_vanished() {
         node: doc.ids()[2],
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::no_piece(), // the program draws no such piece
+            crate::fixture::no_piece().into(), // the program draws no such piece
         )],
     };
     let table = &ev.value(doc.ids()[2]).expect("extrude").name_table;
@@ -272,7 +272,7 @@ fn stale_program_refs_refuse_vanished() {
         node: doc.ids()[2],
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&doc, doc.ids()[2], 0, 0),
+            crate::fixture::piece(&doc, doc.ids()[2], 0, 0).into(),
         )],
     };
     assert!(table.lookup(&real).is_some());

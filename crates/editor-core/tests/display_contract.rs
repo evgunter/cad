@@ -3260,7 +3260,8 @@ fn a_step_id_fault_names_the_id_or_the_count() {
                         editor_core::ProfileEdgeRef::Piece {
                             step: StepId::new(0, tagged(9)),
                             role: editor_core::PieceRole::Leg,
-                        },
+                        }
+                        .into(),
                     )],
                 },
                 held(3, "Extrude"),

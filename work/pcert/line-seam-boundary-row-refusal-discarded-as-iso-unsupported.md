@@ -4,6 +4,7 @@ kind: issue
 title: pcert: the LINE-seam arm discards boundary_iso_u's refusal as IsoUnsupported
 status: open
 opened: 2026-09-29
+priority: P2
 ---
 
 

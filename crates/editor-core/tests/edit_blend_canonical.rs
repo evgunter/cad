@@ -64,7 +64,8 @@ fn edge(doc: &ProfileDoc, node: RecipeNodeId, segment: u32) -> StableName {
             editor_core::ProfileEdgeRef::Piece {
                 step,
                 role: editor_core::PieceRole::Piece(segment),
-            },
+            }
+            .into(),
         )],
     }
 }
