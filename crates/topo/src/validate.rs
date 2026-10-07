@@ -1421,9 +1421,8 @@ pub enum ValidationError {
         /// What the contact is, and which entities carry it.
         contact: RingContact,
     },
-    /// **Tier 3, check 9 — escalated.** A contact margin between a
-    /// ring and another loop of its face — the outer loop, or an
-    /// earlier ring — landed in the ambiguity band, so whether the two loops meet
+    /// **Tier 3, check 9 — escalated.** A ring-vs-outer contact margin
+    /// landed in the ambiguity band, so whether the two loops meet
     /// cannot be certified either way. Reported rather than rounded to
     /// "disjoint": escalate-never-guess (D4 paragraph 3), and rounding
     /// it toward blessing was exactly the direction that let the
@@ -1484,13 +1483,11 @@ pub enum ValidationError {
         /// What the containment walk stopped on.
         source: ContainError,
     },
-    /// **Tier 3, check 9 — two rings.** Two RINGS of one face meet:
-    /// in any of the shapes [`RingContact`] names, read with `other`
-    /// in the outer loop's seat (its `outer_*` fields name `other`'s
-    /// entities). A pinch is one vertex per cone, so a figure-eight
-    /// hole is ONE ring through two vertices on one point key, never
-    /// two rings touching: two loops of one face meeting is a crossing
-    /// wherever it happens.
+    /// **Tier 3, check 9 — two rings.** Two RINGS of one face meet, in
+    /// any of the shapes [`RingPairContact`] names. A pinch is one
+    /// vertex per cone, so a figure-eight hole is ONE ring through two
+    /// vertices on one point key, never two rings touching: two loops
+    /// of one face meeting is a crossing wherever it happens.
     RingMeetsRing {
         /// The face whose two rings meet.
         face: FaceKey,
@@ -1498,8 +1495,23 @@ pub enum ValidationError {
         ring: LoopKey,
         /// The earlier ring of the face it meets.
         other: LoopKey,
-        /// What the contact is; `outer_*` fields name `other`'s.
-        contact: RingContact,
+        /// What the contact is, and which entities of each ring carry
+        /// it.
+        contact: RingPairContact,
+    },
+    /// **Tier 3, check 9 — two rings, escalated.** A contact margin
+    /// between two rings of one face landed in the ambiguity band, so
+    /// whether they meet cannot be certified. Reported rather than
+    /// rounded to "disjoint", as [`Self::RingContactEscalated`] is.
+    RingPairContactEscalated {
+        /// The face whose rings could not be separated.
+        face: FaceKey,
+        /// The ring compared.
+        ring: LoopKey,
+        /// The earlier ring of the face it was compared with.
+        other: LoopKey,
+        /// The predicate-layer escalation.
+        source: Indeterminate,
     },
     /// **Tier 3, check 9 — a corner crosses its face.** One loop of
     /// `face` passes a point key at two or more corners, and the
@@ -2479,6 +2491,9 @@ const RING_TORUS: SizedDecision = geom_brep::TorusConvention::Ring.sized();
 /// A hole against its face's outline: the lever of check 9's contact
 /// arms, whose refusals do not carry which of their gaps decided.
 const HOLE_INSIDE: &str = "Recourse: move the hole so it lies strictly inside the outline";
+
+/// The recourse for two holes of one face that meet.
+const HOLES_APART: &str = "Recourse: keep the holes apart, or make them one hole";
 
 /// A census subject in words, without its keys (they ride in `Debug`).
 fn subject_noun(subject: &CensusSubject) -> &'static str {
@@ -3509,16 +3524,24 @@ impl fmt::Display for ValidationError {
             Self::RingMeetsRing { contact, .. } => write!(
                 f,
                 "two holes in a face touch {}, so the face encloses no single region. \
-                 Recourse: keep the holes apart, or make them one hole",
+                 {HOLES_APART}",
                 match contact {
-                    RingContact::Vertex { .. } => "at a corner",
-                    RingContact::VertexOnEdge { .. } | RingContact::OuterVertexOnEdge { .. } => {
+                    RingPairContact::Vertex { .. } => "at a corner",
+                    RingPairContact::VertexOnEdge { .. }
+                    | RingPairContact::OtherVertexOnEdge { .. } => {
                         "where a corner of one meets an edge of the other"
                     }
-                    RingContact::Edge { .. } => "along an edge",
-                    RingContact::Circles { .. } => "where the two circles cross or touch",
-                    RingContact::EdgesMeet { .. } => "where two of their edges cross or touch",
+                    RingPairContact::Edge { .. } => "along an edge",
+                    RingPairContact::Circles { .. } => "where the two circles cross or touch",
+                    RingPairContact::EdgesMeet { .. } => {
+                        "where two of their edges cross or touch"
+                    }
                 }
+            ),
+            Self::RingPairContactEscalated { source, .. } => write!(
+                f,
+                "whether two holes in a face touch is too close to call at this tolerance. {}",
+                own_close(&source.margin, HOLES_APART)
             ),
             Self::PinchCornerCrossed { .. } => write!(
                 f,
@@ -3934,6 +3957,163 @@ impl fmt::Display for RingContact {
             } => write!(
                 f,
                 "{ring_edge:?} crosses or touches the outer loop's {outer_edge:?} at a point"
+            ),
+        }
+    }
+}
+
+/// How two rings of one face meet ([`ValidationError::RingMeetsRing`]):
+/// [`RingContact`]'s six shapes, read between `ring` and an earlier
+/// ring `other` of the same face.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(RingPairContactKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
+pub enum RingPairContact {
+    /// A vertex of `ring` stands on a vertex of `other`.
+    Vertex {
+        /// `ring`'s vertex.
+        ring_vertex: VertexKey,
+        /// `other`'s vertex it stands on.
+        other_vertex: VertexKey,
+    },
+    /// A vertex of `ring` stands on the interior of an edge of `other`.
+    VertexOnEdge {
+        /// `ring`'s vertex.
+        ring_vertex: VertexKey,
+        /// `other`'s edge it stands on.
+        other_edge: EdgeKey,
+    },
+    /// An edge of `ring` runs along an edge of `other`.
+    Edge {
+        /// `ring`'s edge.
+        ring_edge: EdgeKey,
+        /// `other`'s edge it runs along.
+        other_edge: EdgeKey,
+    },
+    /// A vertex of `other` stands on the interior of an edge of `ring`.
+    OtherVertexOnEdge {
+        /// `other`'s vertex.
+        other_vertex: VertexKey,
+        /// `ring`'s edge it stands on.
+        ring_edge: EdgeKey,
+    },
+    /// The two rings are two whole circles that cross or touch.
+    Circles {
+        /// `ring`'s loop.
+        ring_loop: LoopKey,
+        /// `other`'s loop.
+        other_loop: LoopKey,
+    },
+    /// An edge of each crosses or touches the other at a point that is
+    /// a vertex of neither.
+    EdgesMeet {
+        /// `ring`'s edge.
+        ring_edge: EdgeKey,
+        /// `other`'s edge it meets.
+        other_edge: EdgeKey,
+    },
+}
+
+impl RingPairContact {
+    /// The pair's contact from the arms' answer for `other` read in the
+    /// outer loop's seat ([`ring_outer_contact_about`]).
+    fn of(contact: RingContact) -> Self {
+        match contact {
+            RingContact::Vertex {
+                ring_vertex,
+                outer_vertex,
+            } => Self::Vertex {
+                ring_vertex,
+                other_vertex: outer_vertex,
+            },
+            RingContact::VertexOnEdge {
+                ring_vertex,
+                outer_edge,
+            } => Self::VertexOnEdge {
+                ring_vertex,
+                other_edge: outer_edge,
+            },
+            RingContact::Edge {
+                ring_edge,
+                outer_edge,
+            } => Self::Edge {
+                ring_edge,
+                other_edge: outer_edge,
+            },
+            RingContact::OuterVertexOnEdge {
+                outer_vertex,
+                ring_edge,
+            } => Self::OtherVertexOnEdge {
+                other_vertex: outer_vertex,
+                ring_edge,
+            },
+            RingContact::Circles {
+                ring_loop,
+                outer_loop,
+            } => Self::Circles {
+                ring_loop,
+                other_loop: outer_loop,
+            },
+            RingContact::EdgesMeet {
+                ring_edge,
+                outer_edge,
+            } => Self::EdgesMeet {
+                ring_edge,
+                other_edge: outer_edge,
+            },
+        }
+    }
+}
+
+impl fmt::Display for RingPairContact {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Vertex {
+                ring_vertex,
+                other_vertex,
+            } => write!(
+                f,
+                "{ring_vertex:?} stands on the other ring's {other_vertex:?}"
+            ),
+            Self::VertexOnEdge {
+                ring_vertex,
+                other_edge,
+            } => write!(
+                f,
+                "{ring_vertex:?} stands on the interior of the other ring's {other_edge:?}"
+            ),
+            Self::Edge {
+                ring_edge,
+                other_edge,
+            } => write!(
+                f,
+                "{ring_edge:?} runs along the other ring's {other_edge:?}"
+            ),
+            Self::OtherVertexOnEdge {
+                other_vertex,
+                ring_edge,
+            } => write!(
+                f,
+                "the other ring's {other_vertex:?} stands on the interior of {ring_edge:?}"
+            ),
+            Self::Circles {
+                ring_loop,
+                other_loop,
+            } => write!(
+                f,
+                "the ring's circle {ring_loop:?} crosses or touches the other ring's circle \
+                 {other_loop:?}"
+            ),
+            Self::EdgesMeet {
+                ring_edge,
+                other_edge,
+            } => write!(
+                f,
+                "{ring_edge:?} crosses or touches the other ring's {other_edge:?} at a point"
             ),
         }
     }
@@ -6713,8 +6893,10 @@ pub(crate) fn tier3_local_checks_marked<
     // The residue is a floor, not a ceiling: what it costs is that a
     // body carrying one of those shapes validates. The shapes this
     // check exists for — a surgery re-labelling a copied boundary as a
-    // ring — are all in the matched set, and the shell verb's own
-    // door refuses ahead of them.
+    // ring — are all in the matched set. The shell verb's own door
+    // refuses a new ring meeting its host's outer loop ahead of this
+    // check, but not one meeting a ring the host already holds
+    // (`work/shell/shell-glue-precondition-skips-the-hosts-existing-rings.md`).
     //
     // **The nesting half**, its instrument and ITS residue, in the
     // same honesty. The question is, for each vertex of the ring: is
@@ -6780,9 +6962,10 @@ pub(crate) fn tier3_local_checks_marked<
     // vertex per cone (Ev, PR 4057), so no face's boundary crosses
     // between cones there: a figure-eight hole is one ring through two
     // vertices on one point key, never two rings touching. So the
-    // contact arms run over every pair of rings too, `other` in the
-    // outer loop's seat (`RingMeetsRing`), with the same residue. Two
-    // rings are not asked which lies inside which. And where one loop
+    // contact arms run over every pair of rings too (`RingMeetsRing`,
+    // `RingPairContactEscalated`), with the same residue. Two rings are
+    // not asked which lies inside which
+    // (`work/restfront/check-9-does-not-check-a-ring-nested-inside-another-ring.md`). And where one loop
     // passes a point key at two or more corners, each corner must be a
     // slice of the face: its wedge holds none of that loop's other
     // edges at the point (`pinch_corner_errors`, which states its
@@ -6831,25 +7014,25 @@ pub(crate) fn tier3_local_checks_marked<
                 }
             }
         }
-        for (i, &ring) in face.rings.iter().enumerate() {
-            for &other in &face.rings[..i] {
-                match ring_outer_contact_about(body, other, ring, normal, band) {
-                    RingOuterVerdict::Disjoint => {}
-                    RingOuterVerdict::Contact(contact) => {
-                        errors.push(ValidationError::RingMeetsRing {
-                            face: face_key,
-                            ring,
-                            other,
-                            contact,
-                        });
-                    }
-                    RingOuterVerdict::Escalated(source) => {
-                        errors.push(ValidationError::RingContactEscalated {
-                            face: face_key,
-                            ring,
-                            source,
-                        });
-                    }
+        for (i, j) in ring_pairs(body, &face.rings, band) {
+            let (ring, other) = (face.rings[i], face.rings[j]);
+            match ring_outer_contact_about(body, other, ring, normal, band) {
+                RingOuterVerdict::Disjoint => {}
+                RingOuterVerdict::Contact(contact) => {
+                    errors.push(ValidationError::RingMeetsRing {
+                        face: face_key,
+                        ring,
+                        other,
+                        contact: RingPairContact::of(contact),
+                    });
+                }
+                RingOuterVerdict::Escalated(source) => {
+                    errors.push(ValidationError::RingPairContactEscalated {
+                        face: face_key,
+                        ring,
+                        other,
+                        source,
+                    });
                 }
             }
         }
@@ -6876,11 +7059,77 @@ pub(crate) fn tier3_local_checks_marked<
     (errors, certificate)
 }
 
+/// The pairs `(i, j)`, `j < i`, of `rings` whose padded certified
+/// boxes meet, ascending in `i` and then `j`: the order a loop over
+/// every pair reads them in, less the pairs the boxes clear (D9).
+///
+/// A ring's box is the hull of its edges' boxes
+/// ([`crate::boolean::boxes::edge_box`]: a superset of each edge's
+/// locus, the poison box where an edge has none), padded by the
+/// sweep's own pad, `escalate + 2·zero`. A pair is cleared only when
+/// the two boxes are strictly disjoint on some axis, so the rings are
+/// more than twice that apart. Every contact the arms report needs the
+/// two within `zero`, and every escalation about the pair's own
+/// interface within `escalate`, so no finding is reachable on a cleared
+/// pair. What a cleared pair could still have drawn is an escalation
+/// about the infinite CARRIERS of two far edges (arms 2 and 3 meter a
+/// vertex's gap to an edge's line or circle before its trim); the boxes
+/// answer the question the check asks, whether the RINGS meet, with a
+/// definite no. The census's filter prunes on the same terms
+/// (`census.rs`'s `Trees`). A poison box clears nothing, and an empty
+/// ring, which meets nothing, is in no pair.
+fn ring_pairs<T: Decide + geom_core::Bounds>(
+    body: &Body<T>,
+    rings: &[LoopKey],
+    band: Band,
+) -> Vec<(usize, usize)> {
+    if rings.len() < 2 {
+        return Vec::new();
+    }
+    let pad = crate::boolean::boxes::sweep_pad(band);
+    let (index, boxes): (Vec<usize>, Vec<bvh::Aabb>) = rings
+        .iter()
+        .enumerate()
+        .filter_map(|(i, &ring)| {
+            let cycle = loop_cycle_of(body, ring)?;
+            let ring_box = cycle
+                .iter()
+                .filter_map(|&he| body.half_edges.get(he))
+                .map(|h| crate::boolean::boxes::edge_box(body, h.edge, pad))
+                .reduce(|a, b| a.hull(&b))?;
+            Some((i, ring_box))
+        })
+        .unzip();
+    let tree = bvh::Bvh::build(&boxes);
+    let mut pairs = Vec::new();
+    for (k, ring_box) in boxes.iter().enumerate() {
+        for m in tree.overlapping(ring_box) {
+            if m < k {
+                pairs.push((index[k], index[m]));
+            }
+        }
+    }
+    pairs
+}
+
 /// Check 9's corner half on one face: where one of its loops passes a
 /// point key at two or more corners, each corner's wedge
-/// ([`wedge_holds`]) holds none of that loop's other edges at the
+/// ([`wedge_holds`]) holds none of that loop's other sides at the
 /// point. Two LOOPS meeting at a point are the contact arms'; this
-/// reads one loop against itself.
+/// reads one loop against itself. One refusal per point: the first
+/// corner, in the loop's order, found holding a side.
+///
+/// A side is a half-edge leaving the point, so a closed edge through
+/// the point brings two sides, one at each end, and each is read. A
+/// side that is one of the corner's own two half-edges is skipped: it
+/// is that corner's bound, which a seam puts in another corner too
+/// (its edge used both ways in one loop).
+///
+/// The wedge is read about the outward normal the face's stored sense
+/// gives. A face check 6 has refused (`LoopRoleInverted`,
+/// `CurvedSenseInverted`) is not read: its corners would be the
+/// complements of its true ones, and an inside-out face would report
+/// its inversion a second time as a crossing.
 ///
 /// The wedge is read in the tangent plane at the point, about the
 /// face's outward normal there ([`crate::face_normal::face_outward_normal_at`]),
@@ -6901,6 +7150,14 @@ fn pinch_corner_errors<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) {
+    let inverted = errors.iter().any(|e| {
+        matches!(e,
+            ValidationError::LoopRoleInverted { face, .. }
+            | ValidationError::CurvedSenseInverted { face } if *face == face_key)
+    });
+    if inverted {
+        return;
+    }
     for l in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
         let Some(cycle) = loop_cycle_of(body, l) else {
             continue;
@@ -6927,11 +7184,11 @@ fn pinch_corner_errors<T: Decide>(
 
 /// One corner side: the half-edge leaving the point, its edge, and
 /// its departure there.
-type CornerSide<T> = (EdgeKey, Option<geom_core::Vec3<T>>);
+type CornerSide<T> = (HalfEdgeKey, EdgeKey, Option<geom_core::Vec3<T>>);
 
 /// [`pinch_corner_errors`] at one point key, whose corners are the
 /// half-edges of `cycle` at the indices `group` carries: the first
-/// corner found holding another edge, or whose reading escalated.
+/// corner found holding another side, or whose reading escalated.
 fn pinch_corners_at<T: Decide>(
     body: &Body<T>,
     face_key: FaceKey,
@@ -6946,50 +7203,59 @@ fn pinch_corners_at<T: Decide>(
         .iter()
         .filter_map(|&(_, i)| {
             let he = cycle[i];
-            let prev = cycle[(i + n - 1) % n];
+            let prev = mate(body, cycle[(i + n - 1) % n])?;
             let vertex = body.half_edges.get(he)?.start;
-            Some((vertex, [side(body, he)?, side(body, mate(body, prev)?)?]))
+            Some((vertex, [side(body, he)?, side(body, prev)?]))
         })
         .collect();
-    let mut normal = None;
-    for (k, &(vertex, [(out_edge, a), (in_edge, b)])) in corners.iter().enumerate() {
-        let escalated = |source| ValidationError::PinchCornerEscalated {
-            face: face_key,
-            vertex,
-            source,
-        };
+    // Every (corner, other side) pair to read. A side that IS one of
+    // the corner's own two half-edges is skipped: it lies on the
+    // corner's bound, where a seam's two uses of one edge put it.
+    let mut pairs = Vec::new();
+    for (k, &(vertex, [(out_he, _, a), (in_he, _, b)])) in corners.iter().enumerate() {
         for (j, (_, sides)) in corners.iter().enumerate() {
-            for &(edge, d) in sides {
-                if j == k || edge == out_edge || edge == in_edge {
+            for &(he, edge, d) in sides {
+                if j == k || he == out_he || he == in_he {
                     continue;
                 }
-                let (Some(a), Some(b), Some(d)) = (a, b, d) else {
-                    continue;
-                };
-                if normal.is_none() {
-                    let p = vertex_point(body, vertex);
-                    let at = p.map(|p| {
-                        crate::face_normal::face_outward_normal_at(body, face_key, p, band)
-                    });
-                    normal = Some(match at {
-                        Some(Ok(Some(n))) => Some(n.vec()),
-                        Some(Err(crate::face_normal::NormalAtError::Escalated {
-                            diag, ..
-                        })) => return Err(escalated(diag)),
-                        _ => None,
-                    });
-                }
-                let Some(Some(nrm)) = normal else {
-                    return Ok(());
-                };
-                if wedge_holds(nrm, a, b, d, band).map_err(escalated)? {
-                    return Err(ValidationError::PinchCornerCrossed {
-                        face: face_key,
-                        vertex,
-                        edge,
-                    });
+                if let (Some(a), Some(b), Some(d)) = (a, b, d) {
+                    pairs.push((vertex, a, b, edge, d));
                 }
             }
+        }
+    }
+    let Some(&(first, ..)) = pairs.first() else {
+        return Ok(());
+    };
+    let Some(p) = vertex_point(body, first) else {
+        return Ok(());
+    };
+    let nrm = match crate::face_normal::face_outward_normal_at(body, face_key, p, band) {
+        Ok(Some(nrm)) => nrm.vec(),
+        Err(crate::face_normal::NormalAtError::Escalated { diag, .. }) => {
+            return Err(ValidationError::PinchCornerEscalated {
+                face: face_key,
+                vertex: first,
+                source: diag,
+            });
+        }
+        // No normal here: the residue (`pinch_corner_errors`).
+        Ok(None) | Err(_) => return Ok(()),
+    };
+    for (vertex, a, b, edge, d) in pairs {
+        let crossed = wedge_holds(nrm, a, b, d, band).map_err(|source| {
+            ValidationError::PinchCornerEscalated {
+                face: face_key,
+                vertex,
+                source,
+            }
+        })?;
+        if crossed {
+            return Err(ValidationError::PinchCornerCrossed {
+                face: face_key,
+                vertex,
+                edge,
+            });
         }
     }
     Ok(())
@@ -7028,7 +7294,7 @@ fn side<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Option<CornerSide<T>> {
         }
         geom::Curve3::Nurbs(_) => None,
     };
-    Some((h.edge, departure))
+    Some((he, h.edge, departure))
 }
 
 /// Whether `d` lies strictly inside the wedge swept counterclockwise
@@ -11204,20 +11470,7 @@ mod tests {
         // than asserting full tier-3 cleanliness — the holed box has
         // its own epsilon-sensitive rows at 1e-12, which are not this
         // test's subject.
-        let report = validate_geometric(&body, tol);
-        let ours: Vec<&ValidationError> = match &report {
-            Ok(()) => Vec::new(),
-            Err(errors) => errors
-                .iter()
-                .filter(|e| {
-                    matches!(
-                        e,
-                        ValidationError::RingMeetsOuter { .. }
-                            | ValidationError::RingContactEscalated { .. }
-                    )
-                })
-                .collect(),
-        };
+        let ours = check_9_words(&body, band, tol);
         assert!(
             ours.is_empty(),
             "check 9 must be silent on the fixture as it stands; got {ours:?}"
@@ -11274,27 +11527,7 @@ mod tests {
             (f.outer, f.rings[0])
         };
 
-        let check_9 = |body: &Body<f64>| -> Vec<ValidationError> {
-            let (errors, _) = tier3_local_checks(
-                body,
-                band,
-                tol,
-                None,
-                Some(crate::props::QuadLane::certified()),
-            );
-            errors
-                .into_iter()
-                .filter(|e| {
-                    matches!(
-                        e,
-                        ValidationError::RingMeetsOuter { .. }
-                            | ValidationError::RingContactEscalated { .. }
-                            | ValidationError::RingOutsideOuter { .. }
-                            | ValidationError::RingNestingUndecided { .. }
-                    )
-                })
-                .collect()
-        };
+        let check_9 = |body: &Body<f64>| check_9_words(body, band, tol);
         let inverted_roles = |body: &Body<f64>| -> Vec<LoopKey> {
             let (errors, _) = tier3_local_checks(
                 body,
@@ -11447,7 +11680,7 @@ mod tests {
             .collect()
     }
 
-    /// All four of check 9's words, on `body`.
+    /// Every one of check 9's words, on `body`.
     fn check_9_words(body: &Body<f64>, band: Band, tol: Tol) -> Vec<ValidationError> {
         let (errors, _) = tier3_local_checks(
             body,
@@ -11499,19 +11732,121 @@ mod tests {
             (3.0, 3.0),
             (-3.0, 3.0),
         ];
-        let p = crate::test_support_fixtures::prism::<f64>(&profile, 1.0, tol);
+        prism_through(&profile, [2, 5], tol)
+    }
+
+    /// `profile` extruded `z ∈ [0, 1]`, its corners `at` (two entries
+    /// at one position) put on one point key per cap. Returns the body,
+    /// its caps `[bottom, top]` and the four pinch vertices
+    /// `[bottom, bottom, top, top]`.
+    fn prism_through(
+        profile: &[(f64, f64)],
+        at: [usize; 2],
+        tol: Tol,
+    ) -> (Body<f64>, [FaceKey; 2], [VertexKey; 4]) {
+        let p = crate::test_support_fixtures::prism::<f64>(profile, 1.0, tol);
         let mut body = p.body;
         for vs in [&p.bottom, &p.top] {
-            let keep = body.get_vertex(vs[2]).unwrap().point;
-            let gone = body.get_vertex(vs[5]).unwrap().point;
-            body.vertices.get_mut(vs[5]).unwrap().point = keep;
+            let keep = body.get_vertex(vs[at[0]]).unwrap().point;
+            let gone = body.get_vertex(vs[at[1]]).unwrap().point;
+            body.vertices.get_mut(vs[at[1]]).unwrap().point = keep;
             body.points.remove(gone);
         }
         (
             body,
             [p.bottom_face, p.top_face],
-            [p.bottom[2], p.bottom[5], p.top[2], p.top[5]],
+            [p.bottom[at[0]], p.bottom[at[1]], p.top[at[0]], p.top[at[1]]],
         )
+    }
+
+    /// The faces and vertices check 9 names on `body`, every word a
+    /// `PinchCornerCrossed`.
+    fn crossed_corners(body: &Body<f64>, tol: Tol) -> Vec<(FaceKey, VertexKey)> {
+        let band = Band::linear(tol).expect("the run's band");
+        let mut got: Vec<(FaceKey, VertexKey)> = check_9_words(body, band, tol)
+            .into_iter()
+            .map(|e| match e {
+                ValidationError::PinchCornerCrossed { face, vertex, .. } => (face, vertex),
+                other => panic!("only crossed corners: {other:?}"),
+            })
+            .collect();
+        got.sort();
+        got
+    }
+
+    /// Each cap of a pinched prism refuses once, at one of its two
+    /// passes of the pinch.
+    fn each_cap_refuses_once(
+        body: &Body<f64>,
+        caps: [FaceKey; 2],
+        pinch: [VertexKey; 4],
+        tol: Tol,
+    ) {
+        assert_eq!(validate_closed(body), Ok(()), "the prism is tier 2");
+        let got = crossed_corners(body, tol);
+        assert_eq!(got.len(), 2, "one word per cap: {got:?}");
+        for (cap, pair) in caps.iter().zip([&pinch[..2], &pinch[2..]]) {
+            assert!(
+                got.iter().any(|(f, v)| f == cap && pair.contains(v)),
+                "{cap:?} refuses at one of its passes {pair:?}: {got:?}"
+            );
+        }
+    }
+
+    /// **A REFLEX corner crossing its face refuses.** One pass arrives
+    /// up `−y` and leaves along `+x`, so its corner sweeps the 270° from
+    /// `+x` round to `−y`. The other passes in a thin wedge, leaving at
+    /// 225° and arriving back from 235°, inside the first corner's
+    /// reflex part, where a side more than a half turn from `+x` lies;
+    /// it holds neither of the first corner's sides. So only the reflex
+    /// reading refuses. (The walk crosses itself once more, away from
+    /// the pinch.) Red where a reflex wedge is read as a convex one
+    /// (inside BOTH bounds).
+    #[test]
+    fn check_9_refuses_a_reflex_corner_crossing_its_face() {
+        let tol = Tol::witness();
+        let polar = |deg: f64| {
+            let t = deg.to_radians();
+            (2.0 * t.cos(), 2.0 * t.sin())
+        };
+        let profile = [
+            (0.0, -2.0),
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 3.0),
+            (-3.0, 3.0),
+            (-3.0, -3.0),
+            polar(235.0),
+            (0.0, 0.0),
+            polar(225.0),
+            (0.5, -3.0),
+        ];
+        let (body, caps, pinch) = prism_through(&profile, [1, 7], tol);
+        each_cap_refuses_once(&body, caps, pinch, tol);
+    }
+
+    /// **A STRAIGHT corner crossing its face refuses.** One pass runs
+    /// straight through the origin along `x`, its corner the half plane
+    /// above; the other passes in a thin wedge (80° to 100°) inside
+    /// that half plane, which holds neither of the straight corner's
+    /// sides. So only the straight reading refuses. (The walk crosses
+    /// itself once more, above the origin, where no corner is.) Red
+    /// where a straight wedge is not read.
+    #[test]
+    fn check_9_refuses_a_straight_corner_crossing_its_face() {
+        let tol = Tol::witness();
+        let profile = [
+            (-2.0, 0.0),
+            (0.0, 0.0),
+            (2.0, 0.0),
+            (2.0, 3.0),
+            (-0.35, 2.0),
+            (0.0, 0.0),
+            (0.35, 2.0),
+            (-2.0, 3.0),
+        ];
+        let (body, caps, pinch) = prism_through(&profile, [1, 5], tol);
+        each_cap_refuses_once(&body, caps, pinch, tol);
     }
 
     /// **A corner crossing its face at a pinch refuses typed**, and the
@@ -11614,13 +11949,466 @@ mod tests {
                     face: f,
                     ring,
                     other,
-                    contact: RingContact::Vertex { .. },
+                    contact: RingPairContact::Vertex { .. },
                 },
             ] => assert_eq!((*f, *ring, *other), (face, r[1], r[0])),
             got => panic!("one RingMeetsRing at a vertex: {got:?}"),
         }
     }
 
+    /// Two squares meeting at a corner, walked as a figure eight, on
+    /// the unit cylinder's wall, `u` the azimuth and `v` the height: a
+    /// lamina whose wall face's one loop passes `(u, v) = (1, 0)` twice,
+    /// at two vertices on one point key. Each pass runs straight
+    /// through the point (in along one square's side, out along the
+    /// other's), so each corner is a half plane holding the other's
+    /// sides. Rims are circle arcs cut by the plane at their
+    /// height, meridians chord lines. `sense` is the wall face's.
+    fn cylinder_bowtie(sense: bool, tol: Tol) -> (Body<f64>, FaceKey, [VertexKey; 2]) {
+        use crate::test_support_fixtures::CylFrame;
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+        let frame = CylFrame::canonical(1.0);
+        // Started at a corner whose closing edge is a meridian: `mef`
+        // takes the closing edge's description from the two faces it
+        // joins, and only a chord line needs none.
+        let walk = [
+            (1.4, 0.4),
+            (1.0, 0.4),
+            (1.0, 0.0),
+            (1.0, -0.2),
+            (0.8, -0.2),
+            (0.8, 0.0),
+            (1.0, 0.0),
+            (1.4, 0.0),
+        ];
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(frame.at(walk[0].0, walk[0].1), true).unwrap();
+        let cyl = body.add_surface(frame.surface());
+        let spec = |body: &mut Body<f64>, (u0, v0): (f64, f64), (u1, v1): (f64, f64)| {
+            if v0 != v1 {
+                return EdgeCurveSpec::line_between(frame.at(u0, v0), frame.at(u1, v1));
+            }
+            let centre = frame.origin + frame.axis * v0;
+            let plane = body.add_surface(geom::Surface::Plane {
+                origin: centre,
+                normal: frame.axis,
+                u_ref: frame.u_ref,
+            });
+            let (axis, seam, t0, t1) = if u1 > u0 {
+                (frame.axis, frame.u_ref, u0, u1)
+            } else {
+                (-frame.axis, frame.radial(u0), 0.0, u0 - u1)
+            };
+            EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: cyl,
+                    s2: plane,
+                    witness: frame.at((u0 + u1) * 0.5, v0),
+                },
+                carrier: geom::Curve3::Circle {
+                    center: centre,
+                    axis,
+                    radius: frame.radius,
+                    u_ref: seam,
+                },
+                param_start: t0,
+                param_end: t1,
+            }
+        };
+        let first_spec = spec(&mut body, walk[0], walk[1]);
+        let first = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                frame.at(walk[1].0, walk[1].1),
+                first_spec,
+                tol,
+            )
+            .unwrap();
+        let mut vs = vec![seed.vertex, first.vertex];
+        let mut prev = first;
+        for k in 2..walk.len() {
+            let e = spec(&mut body, walk[k - 1], walk[k]);
+            prev = body
+                .mev(
+                    MevSite::Fan {
+                        he1: prev.he_minus,
+                        he2: prev.he_minus,
+                    },
+                    frame.at(walk[k].0, walk[k].1),
+                    e,
+                    tol,
+                )
+                .unwrap();
+            vs.push(prev.vertex);
+        }
+        let last = walk.len() - 1;
+        let he = body
+            .find_half_edge(seed.face, vs[last], vs[last - 1])
+            .unwrap();
+        let close = spec(&mut body, walk[last], walk[0]);
+        let face = body
+            .mef(
+                MefSite::Chords {
+                    he1: he,
+                    he2: first.he_plus,
+                },
+                close,
+                crate::FaceSurface::Shared { key: cyl, sense },
+                tol,
+            )
+            .unwrap()
+            .face;
+        let keep = body.get_vertex(vs[2]).unwrap().point;
+        let gone = body.get_vertex(vs[6]).unwrap().point;
+        body.vertices.get_mut(vs[6]).unwrap().point = keep;
+        body.points.remove(gone);
+        (body, face, [vs[2], vs[6]])
+    }
+
+    /// **A crossed corner on a CURVED face refuses**, and an inside-out
+    /// one is check 6's alone. A figure eight drawn on a cylinder wall
+    /// ([`cylinder_bowtie`]): the corner arm reads the two passes in the tangent
+    /// plane at the point, about the wall's outward normal there. With
+    /// the wall's sense reversed, check 6 refuses the face
+    /// (`CurvedSenseInverted`) and the corner arm does not read it, as
+    /// its corners would be the complements of its true ones. Red where
+    /// the arm reads only planes, or where it reads a face check 6 has
+    /// refused.
+    #[test]
+    fn check_9_refuses_a_crossed_corner_on_a_cylinder_wall() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the run's band");
+        let inverted = |body: &Body<f64>, wall: FaceKey| {
+            let (all, _) = tier3_local_checks(
+                body,
+                band,
+                tol,
+                None,
+                Some(crate::props::QuadLane::certified()),
+            );
+            all.iter().any(
+                |e| matches!(e, ValidationError::CurvedSenseInverted { face } if *face == wall),
+            )
+        };
+        let (body, wall, pinch) = cylinder_bowtie(false, tol);
+        assert_eq!(validate_closed(&body), Ok(()), "the lamina is tier 2");
+        assert!(!inverted(&body, wall), "the wall's sense is its loop's");
+        match &crossed_corners(&body, tol)[..] {
+            [(face, vertex)] => {
+                assert_eq!(*face, wall);
+                assert!(pinch.contains(vertex), "{vertex:?} is a pass of the pinch");
+            }
+            got => panic!("one crossed corner on the wall: {got:?}"),
+        }
+        let (body, wall, _) = cylinder_bowtie(true, tol);
+        assert!(inverted(&body, wall), "check 6 refuses the reversed wall");
+        assert_eq!(crossed_corners(&body, tol), Vec::new());
+    }
+
+    /// Check 9's ring-pair loop on one face with `k` rings, timed.
+    /// Measurement only (prints); not an assertion.
+    #[test]
+    #[ignore = "measurement: cargo test --release -- --ignored --nocapture ring_pair_cost"]
+    fn ring_pair_cost() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        for side in [5usize, 10, 20, 40] {
+            let span = side as f64 * 3.0 + 3.0;
+            let outer = [
+                Point3::new(-1.0, -1.0, 0.0),
+                Point3::new(span, -1.0, 0.0),
+                Point3::new(span, span, 0.0),
+                Point3::new(-1.0, span, 0.0),
+            ];
+            let tri = |i: usize, j: usize| {
+                let (x, y) = (i as f64 * 3.0 + 1.0, j as f64 * 3.0 + 1.0);
+                [
+                    Point3::new(x, y, 0.0),
+                    Point3::new(x + 1.0, y, 0.0),
+                    Point3::new(x, y + 1.0, 0.0),
+                ]
+            };
+            let (mut body, face) = lamina_with_ring(&outer, &tri(0, 0), tol);
+            let at = match body
+                .get_loop(body.get_face(face).unwrap().outer)
+                .unwrap()
+                .boundary
+            {
+                LoopBoundary::Cycle { first } => first,
+                LoopBoundary::Empty { .. } => unreachable!(),
+            };
+            for i in 0..side {
+                for j in 0..side {
+                    if i + j > 0 {
+                        plant_ring_face(&mut body, at, &tri(i, j), tol);
+                    }
+                }
+            }
+            plane_every_face(&mut body, tol);
+            let k = body.get_face(face).unwrap().rings.len();
+            let t = std::time::Instant::now();
+            let words = check_9_words(&body, band, tol);
+            eprintln!(
+                "REVIEWPROBE rings={k} check9+tier3 {:?} words={}",
+                t.elapsed(),
+                words.len()
+            );
+        }
+    }
+
+    /// The unit direction at `deg` degrees in the `xy` plane.
+    fn dir(deg: f64) -> geom_core::Vec3<f64> {
+        let t = deg.to_radians();
+        geom_core::Vec3::new(t.cos(), t.sin(), 0.0)
+    }
+
+    /// `wedge_holds` over convex, reflex, straight and cusp wedges,
+    /// at bounds and off them, and mirrored through `-n`.
+    #[test]
+    fn wedge_holds_reads_every_class() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let n = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        #[rustfmt::skip]
+        let rows = [
+            (0., 90., 45., true), (0., 90., 135., false), (0., 90., 270., false),
+            (0., 90., 0., false), (0., 90., 90., false), (0., 90., 180., false),
+            (0., 90., -45., false),
+            (0., 270., 90., true), (0., 270., 180., true), (0., 270., 300., false),
+            (0., 270., 0., false), (0., 270., 270., false), (0., 270., 269., true),
+            (0., 270., 1., true),
+            (0., 180., 90., true), (0., 180., 270., false), (0., 180., 0., false),
+            (0., 180., 180., false),
+            (10., 350., 0., false), (10., 350., 180., true),
+            // a cusp is not read: silent either way
+            (0., 0., 90., false), (0., 0., 270., false),
+        ];
+        for (a, b, d, want) in rows {
+            let got = wedge_holds(n, dir(a) * 2.0, dir(b) * 3.0, dir(d) * 0.5, band).unwrap();
+            assert_eq!(got, want, "a={a} b={b} d={d}");
+            let got = wedge_holds(-n, dir(b) * 2.0, dir(a) * 3.0, dir(d) * 0.5, band).unwrap();
+            assert_eq!(got, want, "mirrored a={a} b={b} d={d}");
+        }
+    }
+
+    /// Escalation fires in band and not otherwise: a side whose lever
+    /// off a bound lands between `zero` and `escalate` escalates; one
+    /// decided outside the wedge by its other bound does not; a turn
+    /// in band escalates whatever the side.
+    #[test]
+    fn wedge_holds_escalates_in_band_only() {
+        let band = Band::new(1e-6, 1e-3).unwrap();
+        let n = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let at = |lever: f64| geom_core::Vec3::new((1.0 - lever * lever).sqrt(), lever, 0.0);
+        let (a, b) = (dir(0.0), dir(90.0));
+        // after_a in band, before_b positive: undecidable.
+        assert!(wedge_holds(n, a, b, at(1e-4), band).is_err());
+        // decided inside / on the bound.
+        assert_eq!(wedge_holds(n, a, b, at(1e-2), band), Ok(true));
+        assert_eq!(wedge_holds(n, a, b, at(1e-8), band), Ok(false));
+        // after_a in band but before_b certifies outside: decided.
+        let back = geom_core::Vec3::new(-1.0, 1e-4, 0.0);
+        assert_eq!(wedge_holds(n, a, b, back, band), Ok(false));
+        // the turn itself in band: escalates even for a side at 270.
+        assert!(wedge_holds(n, a, at(1e-4), dir(270.0), band).is_err());
+        // a certified straight wedge reads the leaving bound alone.
+        assert_eq!(wedge_holds(n, a, dir(180.0), dir(90.0), band), Ok(true));
+        assert_eq!(wedge_holds(n, a, dir(180.0), dir(270.0), band), Ok(false));
+    }
+
+    fn recarry_line(body: &mut Body<f64>, edge: EdgeKey, tol: Tol) {
+        let e = body.get_edge(edge).unwrap().clone();
+        let (s, t) = edge_endpoints(body, e.he_plus).unwrap();
+        let spec = geom_brep::EdgeCurveSpec::line_between(s, t);
+        let curve = geom_brep::EdgeCurve::certify(spec, s, t, |_| None, Band::linear(tol).unwrap())
+            .expect("the chord certifies");
+        *body.curves.get_mut(e.curve).unwrap() = CurveGeom::Certified(curve);
+    }
+
+    /// One edge, both ends at `p`: the whole circle about `center`,
+    /// walked by `he_plus` counterclockwise about `axis`.
+    fn recarry_full_circle(
+        body: &mut Body<f64>,
+        edge: EdgeKey,
+        center: Point3<f64>,
+        axis: geom_core::Vec3<f64>,
+        tol: Tol,
+    ) {
+        let e = body.get_edge(edge).unwrap().clone();
+        let (s, t) = edge_endpoints(body, e.he_plus).unwrap();
+        assert!(s.distance(t) == 0.0, "a closed edge");
+        let radius = (s - center).norm();
+        let u_ref = (s - center) / radius;
+        let carrier = geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        };
+        let spec =
+            geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, std::f64::consts::TAU).unwrap();
+        let curve = geom_brep::EdgeCurve::certify(spec, s, t, |_| None, Band::linear(tol).unwrap())
+            .expect("the whole circle certifies against its one end point");
+        *body.curves.get_mut(e.curve).unwrap() = CurveGeom::Certified(curve);
+    }
+
+    /// A lamina whose face holds one ring through two vertices on
+    /// one point key `P = (0, 0)`: the triangle `P, (0.5, -0.87),
+    /// (0, -1)` and one closed arc about `(0, 0.2)`, tangent to the
+    /// x axis at `P`, radius 0.2 (its area under the triangle's, so the
+    /// loop's signed area keeps the ring's role). `crossed: false` walks the arc in the
+    /// triangle's sense (a figure-eight hole, the ruling's legal
+    /// shape); `crossed: true` walks it the other way, so each
+    /// corner at `P` bridges the triangle and the disc.
+    /// Returns the body, the ringed face and the oracle: whether
+    /// some corner at `P` holds a side of the other corner,
+    /// ignoring which edge the side lies on.
+    fn closed_arc_pinch(crossed: bool, tol: Tol) -> (Body<f64>, FaceKey, bool) {
+        let band = Band::linear(tol).unwrap();
+        let p = Point3::new(0.0, 0.0, 0.0);
+        let outer = [
+            Point3::new(-5.0, -5.0, 0.0),
+            Point3::new(5.0, -5.0, 0.0),
+            Point3::new(5.0, 5.0, 0.0),
+            Point3::new(-5.0, 5.0, 0.0),
+        ];
+        // The membrane's outward-CCW order, so the host's ring
+        // walks P -> (0.3, 0) -> (0.5, -0.87) -> (0, -1): clockwise.
+        let rim = [
+            p,
+            Point3::new(0.0, -1.0, 0.0),
+            Point3::new(0.5, -0.87, 0.0),
+            Point3::new(0.3, 0.0, 0.0),
+        ];
+        let (mut body, face) = lamina_with_ring(&outer, &rim, tol);
+        let ring = body.get_face(face).unwrap().rings[0];
+        let cycle = loop_cycle_of(&body, ring).unwrap();
+        // The vertices at P and at (0.3, 0): merge the second onto P.
+        let at = |body: &Body<f64>, q: Point3<f64>| {
+            cycle
+                .iter()
+                .map(|&h| body.get_half_edge(h).unwrap().start)
+                .find(|&v| vertex_point(body, v).unwrap().distance(q) < 1e-12)
+                .unwrap()
+        };
+        let (vp, vq) = (at(&body, p), at(&body, rim[3]));
+        let arc_he = *cycle
+            .iter()
+            .find(|&&h| {
+                let e = body.get_half_edge(h).unwrap();
+                let end = body.half_edge_end(h).unwrap();
+                (e.start == vp && end == vq) || (e.start == vq && end == vp)
+            })
+            .unwrap();
+        let arc_edge = body.get_half_edge(arc_he).unwrap().edge;
+        let keep = body.get_vertex(vp).unwrap().point;
+        let gone = body.get_vertex(vq).unwrap().point;
+        body.vertices.get_mut(vq).unwrap().point = keep;
+        body.points.remove(gone);
+        let others: Vec<EdgeKey> = cycle
+            .iter()
+            .map(|&h| body.get_half_edge(h).unwrap().edge)
+            .filter(|&e| e != arc_edge)
+            .collect();
+        for e in others {
+            recarry_line(&mut body, e, tol);
+        }
+        // The triangle's sense in the ring, about the outward normal.
+        let n = crate::face_normal::face_outward_normal_at(&body, face, p, band)
+            .unwrap()
+            .unwrap()
+            .vec();
+        let pts: Vec<Point3<f64>> = cycle
+            .iter()
+            .filter(|&&h| h != arc_he)
+            .map(|&h| vertex_point(&body, body.get_half_edge(h).unwrap().start).unwrap())
+            .collect();
+        let mut area = geom_core::Vec3::new(0.0, 0.0, 0.0);
+        for i in 0..pts.len() {
+            let (a, b) = (pts[i], pts[(i + 1) % pts.len()]);
+            area = area + (a - Point3::origin()).cross(b - Point3::origin());
+        }
+        let tri_ccw = n.dot(area) > 0.0;
+        let arc_ccw = tri_ccw != crossed;
+        let ring_walks_plus = body.get_edge(arc_edge).unwrap().he_plus == arc_he;
+        let axis = if arc_ccw == ring_walks_plus { n } else { -n };
+        recarry_full_circle(&mut body, arc_edge, Point3::new(0.0, 0.2, 0.0), axis, tol);
+        // The oracle: every side of every corner at P, edges ignored.
+        let len = cycle.len();
+        let corners: Vec<[geom_core::Vec3<f64>; 2]> = (0..len)
+            .filter(|&i| {
+                let v = body.get_half_edge(cycle[i]).unwrap().start;
+                vertex_point(&body, v).unwrap().distance(p) < 1e-12
+            })
+            .map(|i| {
+                let prev = cycle[(i + len - 1) % len];
+                [
+                    side(&body, cycle[i]).unwrap().2.unwrap(),
+                    side(&body, mate(&body, prev).unwrap()).unwrap().2.unwrap(),
+                ]
+            })
+            .collect();
+        assert_eq!(corners.len(), 2, "the ring passes P twice");
+        let holds = (0..2).any(|k| {
+            corners[1 - k]
+                .iter()
+                .any(|&d| wedge_holds(n, corners[k][0], corners[k][1], d, band).unwrap())
+        });
+        (body, face, holds)
+    }
+
+    /// Check 9's words on the ringed face alone. The membrane
+    /// covering the hole is a bow-tie (two loops' worth of region
+    /// through one point as one outer loop), crossed under the
+    /// ruling either way, and it refuses in both rows below.
+    fn host_words(body: &Body<f64>, face: FaceKey, tol: Tol) -> Vec<ValidationError> {
+        check_9_words(body, Band::linear(tol).unwrap(), tol)
+            .into_iter()
+            .filter(|e| {
+                matches!(e,
+                    ValidationError::PinchCornerCrossed { face: f, .. }
+                    | ValidationError::PinchCornerEscalated { face: f, .. }
+                    | ValidationError::RingMeetsOuter { face: f, .. }
+                    | ValidationError::RingMeetsRing { face: f, .. }
+                    | ValidationError::RingContactEscalated { face: f, .. }
+                    | ValidationError::RingOutsideOuter { face: f, .. }
+                    | ValidationError::RingNestingUndecided { face: f, .. } if *f == face)
+            })
+            .collect()
+    }
+
+    /// The legal figure-eight hole with a closed arc: its ring's
+    /// two corners at P are disjoint, and the host face passes.
+    #[test]
+    fn a_figure_eight_hole_with_a_closed_arc_passes() {
+        let tol = Tol::witness();
+        let (body, face, holds) = closed_arc_pinch(false, tol);
+        assert!(!holds, "the oracle reads the legal ring uncrossed");
+        assert_eq!(host_words(&body, face, tol), Vec::new());
+    }
+
+    /// **The crossed twin refuses.** The ring's corners at P are
+    /// (leaving the arc at 0 deg, arriving from 270 deg) and (leaving at
+    /// 300 deg, arriving off the arc at 180 deg): they overlap, each
+    /// holding the OTHER end of the arc as a side. Both corners hold the
+    /// arc's edge, so the arm reads sides, not edges: a closed edge
+    /// brings one side at each end. Red where a side is skipped for
+    /// lying on an edge the corner holds.
+    #[test]
+    fn a_crossed_pinch_through_a_closed_arc_refuses() {
+        let tol = Tol::witness();
+        let (body, face, holds) = closed_arc_pinch(true, tol);
+        assert!(holds, "the oracle reads the crossed ring crossed");
+        assert!(
+            matches!(
+                &host_words(&body, face, tol)[..],
+                [ValidationError::PinchCornerCrossed { face: f, .. }] if *f == face
+            ),
+            "{:?}",
+            host_words(&body, face, tol)
+        );
+    }
     /// A planar lamina whose one face carries one ring, both polygons
     /// chosen by the caller — the operator-built shape
     /// [`ops_holed_box`] has, at points a row can choose. Every step

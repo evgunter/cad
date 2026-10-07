@@ -19,13 +19,11 @@
 //! carries nothing to fill it — the "no `getattr` trap" rule the
 //! projected doors already keep.
 
-use pncad::topo::{
-    CensusContact, CensusSubject, EntityId, RingContact, StaleDeclaration, ValidationError,
-};
+use pncad::topo::{CensusContact, CensusSubject, EntityId, StaleDeclaration, ValidationError};
 
 use crate::tags::{
-    census_contact_tag, census_subject_tag, entity_id_tag, ring_contact_tag, stale_declaration_tag,
-    validation_error_tag,
+    census_contact_tag, census_subject_tag, entity_id_tag, ring_contact_tag, ring_pair_contact_tag,
+    stale_declaration_tag, validation_error_tag,
 };
 
 /// One validator finding, as words.
@@ -34,8 +32,9 @@ use crate::tags::{
 /// `Body` handle and no key crosses it. What crosses is the
 /// discriminant a caller acts on — which arm refused, what it was
 /// about, which coincidence it found, which declaration went
-/// unwitnessed, how a ring meets its outer loop — and the kernel's own
-/// `Display` prose on the joined message carries the rest.
+/// unwitnessed, how a ring meets its outer loop or another ring — and
+/// the kernel's own `Display` prose on the joined message carries the
+/// rest.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Finding {
     /// Which `ValidationError` arm refused.
@@ -53,8 +52,8 @@ pub struct Finding {
     /// Which declared record lost its witness. `None` on every arm
     /// that reports no unconfirmed declaration.
     pub stale_kind: Option<&'static str>,
-    /// How a ring meets its face's own outer loop. `None` on every
-    /// arm that reports no ring contact.
+    /// How a ring meets its face's own outer loop, or another ring of
+    /// that face. `None` on every arm that reports no ring contact.
     pub ring_contact_kind: Option<&'static str>,
 }
 
@@ -67,7 +66,7 @@ pub fn project(err: &ValidationError) -> Finding {
         entity_kind: subject.and_then(subject_entity).map(entity_id_tag),
         contact_kind: census_contact(err).map(census_contact_tag),
         stale_kind: stale_declaration(err).map(stale_declaration_tag),
-        ring_contact_kind: ring_contact(err).map(ring_contact_tag),
+        ring_contact_kind: ring_contact_word(err),
     }
 }
 
@@ -116,16 +115,17 @@ fn stale_declaration(err: &ValidationError) -> Option<&StaleDeclaration> {
     }
 }
 
-/// The contact a ring arm carries, if it carries one: against the
-/// outer loop, or against another ring.
+/// The word for the contact a ring arm carries, if it carries one:
+/// against the outer loop, or against another ring.
 ///
-/// The escalated sibling (`RingContactEscalated`) carries no contact
-/// to name: an undecidable separation is a margin, not a shape, so
-/// this answers `None` there and the finding's word is the arm's.
-fn ring_contact(err: &ValidationError) -> Option<&RingContact> {
+/// The escalated siblings (`RingContactEscalated`,
+/// `RingPairContactEscalated`) carry no contact to name: an
+/// undecidable separation is a margin, not a shape, so this answers
+/// `None` there and the finding's word is the arm's.
+fn ring_contact_word(err: &ValidationError) -> Option<&'static str> {
     match err {
-        ValidationError::RingMeetsOuter { contact, .. }
-        | ValidationError::RingMeetsRing { contact, .. } => Some(contact),
+        ValidationError::RingMeetsOuter { contact, .. } => Some(ring_contact_tag(contact)),
+        ValidationError::RingMeetsRing { contact, .. } => Some(ring_pair_contact_tag(contact)),
         _ => None,
     }
 }

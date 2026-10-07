@@ -4192,7 +4192,7 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
 fn every_ring_contact_arm_projects_the_payload_it_carries() {
     use crate::validation::project;
     use pncad::geom_core::{Band, Indeterminate, MarginDiag};
-    use pncad::topo::{RingContact, ValidationError};
+    use pncad::topo::{RingContact, RingPairContact, ValidationError};
 
     let word = |contact: RingContact| {
         project(&ValidationError::RingMeetsOuter {
@@ -4246,19 +4246,19 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
         Some("circle_circle")
     );
 
-    // Two rings meeting carry the same contact, so the same word.
+    // Two rings meeting carry the pair's contact, read by the same words.
     assert_eq!(
         project(&ValidationError::RingMeetsRing {
             face: FaceKey::default(),
             ring: Default::default(),
             other: Default::default(),
-            contact: RingContact::Vertex {
-                ring_vertex: VertexKey::default(),
-                outer_vertex: VertexKey::default(),
+            contact: RingPairContact::OtherVertexOnEdge {
+                other_vertex: VertexKey::default(),
+                ring_edge: Default::default(),
             },
         })
         .ring_contact_kind,
-        Some("vertex_vertex")
+        Some("vertex_on_ring_edge")
     );
 
     // The escalated sibling carries a margin, not a shape: it is a
@@ -4269,6 +4269,21 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
         project(&ValidationError::RingContactEscalated {
             face: FaceKey::default(),
             ring: Default::default(),
+            source: Indeterminate {
+                margin: MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).expect("a well-ordered band"),
+                predicate: Some("ring_contact"),
+                terminal_sliver: false,
+            },
+        })
+        .ring_contact_kind,
+        None
+    );
+    assert_eq!(
+        project(&ValidationError::RingPairContactEscalated {
+            face: FaceKey::default(),
+            ring: Default::default(),
+            other: Default::default(),
             source: Indeterminate {
                 margin: MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).expect("a well-ordered band"),
@@ -5870,6 +5885,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "ring_pair_contact_tag",
+        values: &[
+            "circle_circle",
+            "edge_along_edge",
+            "edge_edge_point",
+            "vertex_on_edge",
+            "vertex_on_ring_edge",
+            "vertex_vertex",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "root_fault_tag",
         values: &[
             "root_ancestor",
@@ -6330,6 +6357,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "ring_meets_ring",
             "ring_nesting_undecided",
             "ring_outside_outer",
+            "ring_pair_contact_escalated",
             "scaffold_at_rest",
             "scaffolding_empty_loop",
             "scaffolding_strut_vertex",

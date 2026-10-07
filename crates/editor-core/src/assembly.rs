@@ -1833,6 +1833,7 @@ fn attribute(
         | ValidationError::RingOutsideOuter { .. }
         | ValidationError::RingNestingUndecided { .. }
         | ValidationError::RingMeetsRing { .. }
+        | ValidationError::RingPairContactEscalated { .. }
         | ValidationError::PinchCornerCrossed { .. }
         | ValidationError::PinchCornerEscalated { .. }
         | ValidationError::ShellWinding { .. }

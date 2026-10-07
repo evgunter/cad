@@ -1167,6 +1167,9 @@ BOUND_AS = {
     "CensusContact": "ValidationFinding.contact_kind",
     "CensusSubject": "ValidationFinding.subject_kind",
     "RingContact": "ValidationFinding.ring_contact_kind",
+    # `ring_meets_ring`'s, the same words for the same shapes between
+    # two rings of one face.
+    "RingPairContact": "ValidationFinding.ring_contact_kind",
     "StaleDeclaration": "ValidationFinding.stale_kind",
     # NAME RESOLUTION across re-evaluation, the verdict a stored name
     # gets on the next run. `Resolution` is spelled identically and is
@@ -3958,6 +3961,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::RingOutsideOuter": "ValidationFinding.variant",
     "ValidationError::RingNestingUndecided": "ValidationFinding.variant",
     "ValidationError::RingMeetsRing": "ValidationFinding.variant",
+    "ValidationError::RingPairContactEscalated": "ValidationFinding.variant",
     "ValidationError::PinchCornerCrossed": "ValidationFinding.variant",
     "ValidationError::PinchCornerEscalated": "ValidationFinding.variant",
     "ValidationError::ShellWinding": "ValidationFinding.variant",

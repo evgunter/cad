@@ -300,8 +300,9 @@ class ValidationFinding:
       wrote, never a declaration: a stale one is the op's defect, and
       there is nothing to withdraw.
     - `ring_contact_kind` — how a ring meets its face's own outer loop,
-      or another ring of that face (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
-      `"edge_along_edge"`, `"edge_edge_point"`, `"circle_circle"`).
+      or another ring of that face (`"vertex_vertex"`,
+      `"vertex_on_edge"`, `"vertex_on_ring_edge"`, `"edge_along_edge"`,
+      `"edge_edge_point"`, `"circle_circle"`).
       The word says where the ring has to move: a shared position one
       vertex clears, a shared arc no single vertex move separates, or
       a crossing or touching point no vertex carries.
