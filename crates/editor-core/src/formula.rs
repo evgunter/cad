@@ -445,7 +445,9 @@ impl Formula {
                     _ => Formula::named(name.clone(), dim),
                 },
                 AuthoredLeaf::Fresh(index) => Formula::fresh(*index, dim),
-                AuthoredLeaf::Quantity(q) => Formula::own_leaf(AuthoredLeaf::Quantity(q.clone()), dim),
+                AuthoredLeaf::Quantity(q) => {
+                    Formula::own_leaf(AuthoredLeaf::Quantity(q.clone()), dim)
+                }
             })
         });
         held
