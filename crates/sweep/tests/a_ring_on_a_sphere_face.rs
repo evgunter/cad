@@ -8,8 +8,9 @@
 //! (`chord_join::sphere_ring_side`).
 //!
 //! Every pose runs every op in both member orders. A body is held to
-//! tiers 3 and 3′ and to its volume against a slice integral of the
-//! ball and box: each slice is a disc against a rectangle, exact, and
+//! tier 3, to tier 3′ (or, for a result in two lumps, to the census
+//! refusal its curved lumps draw), and to its volume against a slice
+//! integral of the ball and box: each slice is a disc against a rectangle, exact, and
 //! only the stack over height is quadrature. A result whose ball face
 //! keeps the ring as a hole (the ball's side of ∪ and of ball ∖ box)
 //! refuses at the result gate, `VolumeUncomputable { RingOnCurvedFace }`
@@ -20,10 +21,12 @@
 use core::f64::consts::FRAC_PI_2;
 
 use geom_core::{Affine3, Point3, Tol, Vec3};
-use sweep::test_support::{ball_poled_y, ball_poled_z, brick, finished};
+use sweep::test_support::{ball_poled, ball_poled_y, ball_poled_z, brick, finished};
 use topo::{AtRestBody, BooleanDeclarations, BooleanError, BooleanResult};
 
 use crate::common::oracles::{ball_volume, lens_volume};
+
+use Want::{Body, Gate, Lumps};
 
 /// A box `[x0, x1] × [y0, y1] × [z0, z1]`.
 type Bounds = [(f64, f64); 3];
@@ -72,49 +75,64 @@ fn box_volume(b: Bounds) -> f64 {
     b.iter().map(|(lo, hi)| hi - lo).product()
 }
 
-/// What one op yields: a body at this volume, or the result gate's
-/// refusal of the ball face the ring holes.
+/// What one op yields.
 #[derive(Clone, Copy, Debug)]
 enum Want {
-    Body(f64),
-    /// A body in two lumps at this volume, which tier 3′ cannot census:
-    /// its lumps' curved faces are within reach of each other
+    /// A body at tiers 3 and 3′ and at its volume.
+    Body,
+    /// Two lumps at tier 3 and at their volume, whose tier 3′ the census
+    /// cannot decide: curved faces of the two lumps are within reach of
+    /// each other
     /// (`work/contact/census-cross-solid-curved-pairs-undecidable-on-shell-results.md`).
-    TwoLumps(f64),
-    RingedSphere,
+    Lumps,
+    /// The result gate's refusal of the ball face the ring holes.
+    Gate,
 }
 
 /// `a ∪ b`, `b ∪ a`, `a ∖ b`, `b ∖ a`, `a ∩ b`, `b ∩ a` against `wants`,
-/// in that order. A body holds tier 3 and its volume, and tier 3′ or the
-/// census refusal [`Want::TwoLumps`] names.
-fn assert_six(pose: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, wants: [Want; 6]) {
+/// in that order, each body's volume read from the operands' volumes
+/// `va`, `vb` and the volume they share.
+fn assert_six(
+    pose: &str,
+    a: &AtRestBody<f64>,
+    b: &AtRestBody<f64>,
+    (va, vb, shared): (f64, f64, f64),
+    wants: [Want; 6],
+) {
     let (tol, none) = (Tol::witness(), BooleanDeclarations::none());
     let ops = [
-        ("a ∪ b", topo::union_with(a, b, &none, tol)),
-        ("b ∪ a", topo::union_with(b, a, &none, tol)),
-        ("a ∖ b", topo::subtract_with(a, b, &none, tol)),
-        ("b ∖ a", topo::subtract_with(b, a, &none, tol)),
-        ("a ∩ b", topo::intersect_with(a, b, &none, tol)),
-        ("b ∩ a", topo::intersect_with(b, a, &none, tol)),
+        (
+            "a ∪ b",
+            va + vb - shared,
+            topo::union_with(a, b, &none, tol),
+        ),
+        (
+            "b ∪ a",
+            va + vb - shared,
+            topo::union_with(b, a, &none, tol),
+        ),
+        ("a ∖ b", va - shared, topo::subtract_with(a, b, &none, tol)),
+        ("b ∖ a", vb - shared, topo::subtract_with(b, a, &none, tol)),
+        ("a ∩ b", shared, topo::intersect_with(a, b, &none, tol)),
+        ("b ∩ a", shared, topo::intersect_with(b, a, &none, tol)),
     ];
-    for ((op, out), want) in ops.into_iter().zip(wants) {
+    for ((op, volume, out), want) in ops.into_iter().zip(wants) {
         let label = format!("{pose}, {op}");
         match (out, want) {
-            (Ok(BooleanResult::Body(bb)), Want::Body(volume) | Want::TwoLumps(volume)) => {
+            (Ok(BooleanResult::Body(bb)), Body | Lumps) => {
                 topo::validate_geometric(&bb.body, tol)
                     .unwrap_or_else(|e| panic!("{label}: tier 3: {e:?}"));
-                let census = topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol);
-                if let Want::TwoLumps(_) = want {
-                    assert_eq!(bb.body.shells().count(), 2, "{label}: two lumps");
-                    assert!(
-                        matches!(&census, Err(errors) if errors.iter().all(|e| matches!(
-                            e,
-                            topo::ValidationError::CensusUndecidable { .. }
-                        ))),
-                        "{label}: tier 3′ wanted the census refusal, got {census:?}"
-                    );
-                } else {
-                    census.unwrap_or_else(|e| panic!("{label}: tier 3′: {e:?}"));
+                match (
+                    topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol),
+                    want,
+                ) {
+                    (Ok(()), Body) => {}
+                    (Err(errors), Lumps)
+                        if bb.body.shells().count() == 2
+                            && errors.iter().all(|e| {
+                                matches!(e, topo::ValidationError::CensusUndecidable { .. })
+                            }) => {}
+                    (got, _) => panic!("{label}: tier 3′ for {want:?}: {got:?}"),
                 }
                 let v = topo::mass_properties(&bb.body, tol).unwrap().volume;
                 assert!(
@@ -122,7 +140,7 @@ fn assert_six(pose: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, wants: [Want
                     "{label}: volume {v} against the slice integral {volume}"
                 );
             }
-            (Err(BooleanError::ResultInvalid { errors }), Want::RingedSphere)
+            (Err(BooleanError::ResultInvalid { errors }), Gate)
                 if matches!(
                     errors.as_slice(),
                     [topo::ValidationError::VolumeUncomputable {
@@ -141,17 +159,16 @@ fn assert_six(pose: &str, a: &AtRestBody<f64>, b: &AtRestBody<f64>, wants: [Want
 /// A box against a ball whose face keeps the section as a hole on the
 /// ball's side of ∪ and of ball ∖ box: those two refuse at the result
 /// gate in both member orders, and the box's ∖ and ∩ build.
-fn box_ring_wants(bounds: Bounds, r: f64, c: Vec3<f64>) -> [Want; 6] {
-    let shared = ball_in_box(r, c, bounds);
-    let (ring, common) = (Want::RingedSphere, Want::Body(shared));
-    [
-        ring,
-        ring,
-        Want::Body(box_volume(bounds) - shared),
-        ring,
-        common,
-        common,
-    ]
+const BOX_RING: [Want; 6] = [Gate, Gate, Body, Gate, Body, Body];
+
+/// The operand and shared volumes of the box `bounds` against the ball
+/// `(r, c)`.
+fn box_ball(bounds: Bounds, r: f64, c: Vec3<f64>) -> (f64, f64, f64) {
+    (
+        box_volume(bounds),
+        ball_volume(r),
+        ball_in_box(r, c, bounds),
+    )
 }
 
 /// **The review probe's pose builds wherever its result has a closed
@@ -172,7 +189,8 @@ fn a_slab_edge_through_a_ball_face_winds_its_island() {
             pose,
             &boxed(SLAB),
             &ball_y(0.5, c),
-            box_ring_wants(SLAB, 0.5, c),
+            box_ball(SLAB, 0.5, c),
+            BOX_RING,
         );
     }
 }
@@ -189,7 +207,7 @@ fn an_outer_point_on_the_runs_side_is_read_by_a_path() {
     for tilt in [0.3, -0.3, 0.6] {
         let pose = format!("tilt {tilt}");
         let ball = ball_z(0.5, c, tilt, 3.0 * FRAC_PI_2);
-        assert_six(&pose, &boxed(SLAB), &ball, box_ring_wants(SLAB, 0.5, c));
+        assert_six(&pose, &boxed(SLAB), &ball, box_ball(SLAB, 0.5, c), BOX_RING);
     }
 }
 
@@ -207,7 +225,8 @@ fn a_box_corner_and_a_box_edge_inside_a_ball_wind_their_islands() {
             pose,
             &boxed(bounds),
             &ball_y(1.0, o),
-            box_ring_wants(bounds, 1.0, o),
+            box_ball(bounds, 1.0, o),
+            BOX_RING,
         );
     }
 }
@@ -221,20 +240,12 @@ fn a_box_corner_and_a_box_edge_inside_a_ball_wind_their_islands() {
 fn a_ring_on_the_section_circle_winds_by_its_arc() {
     let (c, d) = (Vec3::new(0.72, 0.0, 0.96), 1.2);
     let (big, small) = (ball_y(1.0, Vec3::new(0.0, 0.0, 0.0)), ball_y(0.6, c));
-    let shared = lens_volume(1.0, 0.6, d);
-    let ring = Want::RingedSphere;
     assert_six(
         "the unit ball against ball(0.6)",
         &big,
         &small,
-        [
-            ring,
-            ring,
-            ring,
-            Want::Body(ball_volume(0.6) - shared),
-            Want::Body(shared),
-            Want::Body(shared),
-        ],
+        (ball_volume(1.0), ball_volume(0.6), lens_volume(1.0, 0.6, d)),
+        [Gate, Gate, Gate, Body, Body, Body],
     );
 }
 
@@ -245,22 +256,12 @@ fn a_ring_on_the_section_circle_winds_by_its_arc() {
 #[test]
 fn a_section_across_the_seam_meridian_divides_the_outer_loop() {
     let c = Vec3::new(0.3, 2.0, 0.8);
-    let shared = ball_in_box(0.5, c, SLAB);
-    let (slab, ball) = (box_volume(SLAB), ball_volume(0.5));
-    let common = Want::Body(shared);
-    let union = Want::Body(slab + ball - shared);
     assert_six(
         "the seam through the slab",
         &boxed(SLAB),
         &ball_y(0.5, c),
-        [
-            union,
-            union,
-            Want::Body(slab - shared),
-            Want::Body(ball - shared),
-            common,
-            common,
-        ],
+        box_ball(SLAB, 0.5, c),
+        [Body; 6],
     );
 }
 
@@ -298,12 +299,12 @@ fn a_pierce_ring_beside_a_sphere_island_stays_outside() {
     .unwrap()
     .volume;
     assert!(common > 0.0 && common < vb, "the shared volume {common}");
-    let (u, k) = (Want::Body(va + vb - common), Want::Body(common));
     assert_six(
         "the lens union against a crease ball",
         &lens,
         &small,
-        [u, u, Want::Body(va - common), Want::Body(vb - common), k, k],
+        (va, vb, common),
+        [Body; 6],
     );
 }
 
@@ -348,50 +349,121 @@ fn a_ring_inside_a_sphere_island_moves_and_stops_at_the_role_read() {
     }
 }
 
-/// A `y`-poled ball of radius `r` at `c`, its poles turned onto `pole`.
-fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>) -> AtRestBody<f64> {
-    let at = ball_poled_y(r, Vec3::new(0.0, 0.0, 0.0), Tol::witness());
-    let (y, n) = (Vec3::new(0.0, 1.0, 0.0), pole.normalize());
-    let axis = y.cross(n);
-    let turn = Affine3::rotation_about_axis(Point3::origin(), axis.normalize(), y.dot(n).acos());
-    placed(at, turn, c)
+/// The unit ball at the origin, its poles along `pole`, spun `spin`
+/// about world `+y` and then tilted `tilt` about `tilt_axis`.
+fn unit_ball(pole: Vec3<f64>, spin: f64, (tilt_axis, tilt): (Vec3<f64>, f64)) -> AtRestBody<f64> {
+    let o = Point3::origin();
+    let at = ball_poled(1.0, Vec3::new(0.0, 0.0, 0.0), pole, Tol::witness());
+    let spin = Affine3::rotation_about_axis(o, Vec3::new(0.0, 1.0, 0.0), spin);
+    let tilt = Affine3::rotation_about_axis(o, tilt_axis, tilt);
+    placed(at, tilt * spin, Vec3::new(0.0, 0.0, 0.0))
+}
+
+/// **An island that holds the far cap's pole.** A tool covering the
+/// unit ball but for the cap `x > 0.6`, widened by a notch, against the
+/// ball poled on `y` and spun so its seam meridian lies in `x = 0`, on
+/// the run's side of the section plane `x = 0.6`. The outer-loop point
+/// is read by the path to the far cap's pole and lies inside the inner
+/// region, so the island is the region holding that pole. Ball ∖ tool
+/// is the cap with the notch: it keeps no ring and builds.
+#[test]
+fn an_island_holding_the_far_pole_winds_by_an_inner_outer_point() {
+    let big: Bounds = [(-2.0, 0.6), (-2.0, 2.0), (-2.0, 2.0)];
+    let o = Vec3::new(0.0, 0.0, 0.0);
+    for (name, notch) in [
+        ("notch y > 0.5", [(0.4, 3.0), (0.5, 3.0), (-0.3, 0.3)]),
+        ("notch y > 0.3", [(0.3, 3.0), (0.3, 3.0), (-0.25, 0.35)]),
+        ("notch y < −0.4", [(0.45, 3.0), (-3.0, -0.4), (-0.2, 0.3)]),
+    ] {
+        let tol = Tol::witness();
+        let tool = topo::subtract(&boxed(big), &boxed(notch), tol)
+            .unwrap()
+            .body()
+            .unwrap()
+            .body
+            .clone();
+        let vt = topo::mass_properties(&tool, tol).unwrap().volume;
+        let cut: Bounds = [(notch[0].0, 0.6), notch[1], notch[2]];
+        let shared = ball_in_box(1.0, o, big) - ball_in_box(1.0, o, cut);
+        for tilt in [
+            (Vec3::new(1.0, 0.0, 0.0), 0.0),
+            (Vec3::new(1.0, 0.0, 0.0), 0.15),
+            (Vec3::new(0.0, 0.0, 1.0), -0.2),
+        ] {
+            for spin in [FRAC_PI_2, -FRAC_PI_2] {
+                assert_six(
+                    &format!("{name}, tilt {}, spin {spin:.2}", tilt.1),
+                    &tool,
+                    &unit_ball(Vec3::new(0.0, 1.0, 0.0), spin, tilt),
+                    (vt, ball_volume(1.0), shared),
+                    [Body, Body, Gate, Body, Gate, Gate],
+                );
+            }
+        }
+    }
+}
+
+/// **A bar through the ball** leaves two rings on its face; bar ∖ ball
+/// is two lumps.
+#[test]
+fn a_bar_through_a_ball_winds_both_rings() {
+    let o = Vec3::new(0.0, 0.0, 0.0);
+    for pole in [
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.3, 0.8, 0.52).normalize(),
+    ] {
+        for (name, b) in [
+            ("bar x", [(-2.0, 2.0), (-0.2, 0.25), (0.1, 0.4)]),
+            ("bar x off", [(-2.0, 2.0), (0.3, 0.5), (-0.45, -0.2)]),
+            ("bar z", [(-0.3, 0.1), (0.2, 0.45), (-2.0, 2.0)]),
+        ] {
+            let ball = unit_ball(pole, 0.0, (Vec3::new(1.0, 0.0, 0.0), 0.0));
+            assert_six(
+                &format!("{name}, pole {pole:?}"),
+                &boxed(b),
+                &ball,
+                box_ball(b, 1.0, o),
+                [Gate, Gate, Lumps, Gate, Body, Body],
+            );
+        }
+    }
 }
 
 /// **A ring re-homed where every vertex of the old face's outer loop is
-/// on the run** reads its side from an edge midpoint of that loop. A
-/// bar through the unit ball, and a box over a corner of it, each with
-/// the ball's poles turned off every axis: the old face's outer loop is
-/// all copies of run vertices, so a path to any of its vertices ends on
-/// the run and says nothing. Box ∖ ball is two lumps.
+/// on the run** reads its side from an edge midpoint of that loop. Two
+/// bars through the unit ball and a box over a corner of it, the ball's
+/// poles turned off every axis: the old face's outer loop is all copies
+/// of run vertices, so a path to any of its vertices ends on the run and
+/// says nothing (review finding m1).
 #[test]
 fn a_ring_beside_an_outer_loop_on_the_run_is_read_from_an_edge_midpoint() {
     let o = Vec3::new(0.0, 0.0, 0.0);
-    for (pose, bounds, pole) in [
-        (
-            "the bar",
-            [(-2.0, 2.0), (-0.2, 0.25), (0.1, 0.4)],
-            Vec3::new(-0.6, 0.2, 0.77),
-        ),
-        (
-            "the corner box",
-            [(-0.624, 1.233), (-0.563, 0.347), (-0.792, -0.239)],
-            Vec3::new(0.636, -0.720, -0.279),
-        ),
+    let pole = Vec3::new(-0.6, 0.2, 0.77).normalize();
+    for b in [
+        [(-2.0, 2.0), (-0.2, 0.25), (0.1, 0.4)],
+        [(-0.3, 0.1), (0.2, 0.45), (-2.0, 2.0)],
     ] {
-        let shared = ball_in_box(1.0, o, bounds);
-        let (ring, common) = (Want::RingedSphere, Want::Body(shared));
+        let ball = unit_ball(pole, 0.0, (Vec3::new(1.0, 0.0, 0.0), 0.0));
         assert_six(
-            pose,
-            &boxed(bounds),
-            &ball_poled(1.0, o, pole),
-            [
-                ring,
-                ring,
-                Want::TwoLumps(box_volume(bounds) - shared),
-                ring,
-                common,
-                common,
-            ],
+            &format!("bar {b:?}"),
+            &boxed(b),
+            &ball,
+            box_ball(b, 1.0, o),
+            [Gate, Gate, Lumps, Gate, Body, Body],
         );
     }
+    let b: Bounds = [
+        (-0.6237172865476482, 1.233346104703386),
+        (-0.5631024588741076, 0.346881547918797),
+        (-0.7919341754260856, -0.23917581093071405),
+    ];
+    let pole = Vec3::new(0.6355369378990602, -0.7198546525528592, -0.2791094404779036);
+    let ball = unit_ball(pole, 0.0, (Vec3::new(1.0, 0.0, 0.0), 0.0));
+    assert_six(
+        "the corner box",
+        &boxed(b),
+        &ball,
+        box_ball(b, 1.0, o),
+        [Gate, Gate, Lumps, Gate, Body, Body],
+    );
 }
