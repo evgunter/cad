@@ -1,6 +1,10 @@
-//! PR 4246 reviewer probes: random spherical islands on a sphere sheet,
-//! whose runs often reach both sides of the closing chord's plane (the
-//! 4211 m2 shape), wound and re-homed against a stereographic oracle.
+//! **Random islands on a sphere sheet wind and re-home as a stereographic
+//! oracle says** ([`super::path_island_winding`],
+//! [`super::path_ring_side`]). Their runs often reach both sides of the
+//! closing chord's plane, the shape the sphere's first reading refused.
+//! Each row is a fixed draw of islands — its seed is a fixture
+//! identifier, every draw at three frames and three scales (1, 1e-3,
+//! 1e3) — not a counterexample search.
 
 use super::*;
 use crate::MevSite;
@@ -20,7 +24,8 @@ struct Sph {
 impl Sph {
     fn at(&self, az: f64, z: f64) -> Point3<f64> {
         let s = (1.0 - z * z).sqrt();
-        self.f.at(self.r * s * az.cos(), self.r * s * az.sin(), self.r * z)
+        self.f
+            .at(self.r * s * az.cos(), self.r * s * az.sin(), self.r * z)
     }
     /// The point at angular distance `rho` from `+x`, bearing `theta`.
     fn polar(&self, rho: f64, theta: f64) -> Point3<f64> {
@@ -116,11 +121,26 @@ fn sheet(s: Sph, sense: bool) -> (Body<f64>, FaceKey, SurfaceKey) {
             },
         )
         .unwrap();
-    let e = spec(&mut body, surface, &arc3(s, start, s.at(0.0, lo), s.at(t, lo)));
+    let e = spec(
+        &mut body,
+        surface,
+        &arc3(s, start, s.at(0.0, lo), s.at(t, lo)),
+    );
     let first = body
-        .mev(MevSite::Lone { r#loop: seed.r#loop }, s.at(t, lo), e, tol())
+        .mev(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            s.at(t, lo),
+            e,
+            tol(),
+        )
         .unwrap();
-    let e = spec(&mut body, surface, &arc3(s, s.at(t, lo), s.at(t, 0.0), s.at(t, hi)));
+    let e = spec(
+        &mut body,
+        surface,
+        &arc3(s, s.at(t, lo), s.at(t, 0.0), s.at(t, hi)),
+    );
     let up = body
         .mev(
             MevSite::Fan {
@@ -132,7 +152,11 @@ fn sheet(s: Sph, sense: bool) -> (Body<f64>, FaceKey, SurfaceKey) {
             tol(),
         )
         .unwrap();
-    let e = spec(&mut body, surface, &arc3(s, s.at(t, hi), s.at(0.0, hi), s.at(-t, hi)));
+    let e = spec(
+        &mut body,
+        surface,
+        &arc3(s, s.at(t, hi), s.at(0.0, hi), s.at(-t, hi)),
+    );
     let last = body
         .mev(
             MevSite::Fan {
@@ -144,7 +168,11 @@ fn sheet(s: Sph, sense: bool) -> (Body<f64>, FaceKey, SurfaceKey) {
             tol(),
         )
         .unwrap();
-    let e = spec(&mut body, surface, &arc3(s, start, s.at(-t, 0.0), s.at(-t, hi)));
+    let e = spec(
+        &mut body,
+        surface,
+        &arc3(s, start, s.at(-t, 0.0), s.at(-t, hi)),
+    );
     let face = body
         .mef(
             MefSite::Chords {
@@ -193,7 +221,12 @@ struct Island {
 impl Island {
     fn edge(&self, s: Sph, k: usize) -> Arc3 {
         let n = self.corners.len();
-        arc3(s, self.corners[k % n], self.vias[k % n], self.corners[(k + 1) % n])
+        arc3(
+            s,
+            self.corners[k % n],
+            self.vias[k % n],
+            self.corners[(k + 1) % n],
+        )
     }
     fn reversed(&self) -> Island {
         let n = self.corners.len();
@@ -227,7 +260,9 @@ fn winding(poly: &[(f64, f64)], (px, py): (f64, f64)) -> f64 {
 
 fn simple(poly: &[(f64, f64)]) -> bool {
     let n = poly.len();
-    let cross = |o: (f64, f64), a: (f64, f64), b: (f64, f64)| (a.0 - o.0) * (b.1 - o.1) - (a.1 - o.1) * (b.0 - o.0);
+    let cross = |o: (f64, f64), a: (f64, f64), b: (f64, f64)| {
+        (a.0 - o.0) * (b.1 - o.1) - (a.1 - o.1) * (b.0 - o.0)
+    };
     for i in 0..n {
         for j in i + 2..n {
             if i == 0 && j == n - 1 {
@@ -291,24 +326,30 @@ fn random_island(s: Sph, rng: &mut Rng) -> Option<Island> {
     simple(&poly).then_some(island)
 }
 
-/// Winding: every random island, from every corner, both directions,
-/// both senses, three frames, three scales.
+/// Every island, from every corner, in both directions and at both
+/// senses, winds as the oracle's left-of-run membership says.
 #[test]
-fn rp_random_sphere_islands_wind_as_the_oracle_does() {
+fn a_random_sphere_island_winds_as_its_stereographic_oracle_does() {
     let mut rng = Rng(0x0123456789abcdef);
     let (mut seen, mut m2, mut asked) = ([0usize; 2], 0usize, 0usize);
     let mut failures = Vec::new();
     let mut built = 0;
-    let target: usize = std::env::var("RP_ISL").ok().and_then(|s| s.parse().ok()).unwrap_or(120);
+    let target = 36;
     while built < target {
         let f = frames()[built % 3];
         let r = [1.0, 1e-3, 1e3][(built / 3) % 3];
         let s = Sph { f, r };
-        let Some(island) = random_island(s, &mut rng) else { continue };
+        let Some(island) = random_island(s, &mut rng) else {
+            continue;
+        };
         built += 1;
         let poly = island.polyline(s);
         for back in [false, true] {
-            let island = if back { island.reversed() } else { island.clone() };
+            let island = if back {
+                island.reversed()
+            } else {
+                island.clone()
+            };
             let n = island.corners.len();
             for c in 0..n {
                 // The run leaves corner `c`; the chord is edge c-1.
@@ -355,7 +396,10 @@ fn rp_random_sphere_islands_wind_as_the_oracle_does() {
                                 he2: h.he_minus,
                             },
                         };
-                        halves.push(body.mev(site, island.corners[(c + k + 1) % n], e, tol()).unwrap());
+                        halves.push(
+                            body.mev(site, island.corners[(c + k + 1) % n], e, tol())
+                                .unwrap(),
+                        );
                     }
                     let run = (halves[0].he_plus, halves[n - 2].he_plus);
                     let cs = spec(&mut body, key, &closing);
@@ -373,26 +417,28 @@ fn rp_random_sphere_islands_wind_as_the_oracle_does() {
             }
         }
     }
-    eprintln!("RP sphere islands: asked {asked}, run on both sides of the chord's plane {m2}, seen {seen:?}, failures {}", failures.len());
-    for f in failures.iter().take(500) {
-        eprintln!("RP FAIL {f}");
-    }
-    assert!(failures.is_empty());
+    assert!(
+        failures.is_empty() && seen[0] > 0 && seen[1] > 0 && m2 > 0,
+        "asked {asked}, a run on both sides of the chord's plane {m2}, windings {seen:?}: {:?}",
+        &failures[..failures.len().min(10)]
+    );
 }
 
-/// Re-homing: a bystander ring inside the island moves, one outside
-/// stays, after the chord's `mef`.
+/// After the chord's `mef`, a bystander ring inside the island moves and
+/// one outside stays.
 #[test]
-fn rp_random_sphere_islands_rehome_as_the_oracle_does() {
+fn a_bystander_of_a_random_sphere_island_is_re_homed_as_its_oracle_says() {
     let mut rng = Rng(0xfedcba9876543210);
     let (mut asked, mut failures) = (0usize, Vec::new());
     let mut built = 0;
-    let target: usize = std::env::var("RP_ISL").ok().and_then(|s| s.parse().ok()).unwrap_or(60);
+    let target = 18;
     while built < target {
         let f = frames()[built % 3];
         let r = [1.0, 1e-3, 1e3][(built / 3) % 3];
         let s = Sph { f, r };
-        let Some(island) = random_island(s, &mut rng) else { continue };
+        let Some(island) = random_island(s, &mut rng) else {
+            continue;
+        };
         let poly = island.polyline(s);
         // Bystanders: a grid point inside, one outside (still on the sheet,
         // off the boundary).
@@ -417,7 +463,9 @@ fn rp_random_sphere_islands_rehome_as_the_oracle_does() {
                 }
             }
         }
-        let (Some(pin), Some(pout)) = (pin, pout) else { continue };
+        let (Some(pin), Some(pout)) = (pin, pout) else {
+            continue;
+        };
         built += 1;
         let n = island.corners.len();
         for c in 0..n {
@@ -436,17 +484,25 @@ fn rp_random_sphere_islands_rehome_as_the_oracle_does() {
                         he2: h.he_minus,
                     },
                 };
-                halves.push(body.mev(site, island.corners[(c + k + 1) % n], e, tol()).unwrap());
+                halves.push(
+                    body.mev(site, island.corners[(c + k + 1) % n], e, tol())
+                        .unwrap(),
+                );
             }
             let run = (halves[0].he_plus, halves[n - 2].he_plus);
             let after = body.get_half_edge(run.1).unwrap().next;
-            let site = MefSite::Chords { he1: run.0, he2: after };
+            let site = MefSite::Chords {
+                he1: run.0,
+                he2: after,
+            };
             let back = island.reversed();
             // The chord from corner c back to corner c-1 is the reversed
             // island's edge from its corner (n - c) % n.
             let chord = back.edge(s, (n - c) % n);
             let cs = spec(&mut body, key, &chord);
-            let made = body.mef(site, cs, FaceSurface::Shared { key, sense: true }, tol()).unwrap();
+            let made = body
+                .mef(site, cs, FaceSurface::Shared { key, sense: true }, tol())
+                .unwrap();
             let remainder = body.get_half_edge(after).unwrap().parent_loop;
             let mut joiner = ChordJoiner::new(band());
             asked += 1;
@@ -455,15 +511,19 @@ fn rp_random_sphere_islands_rehome_as_the_oracle_does() {
                 Ok(_) => {
                     let face_of = |ring| body.get_loop(ring).unwrap().face;
                     if face_of(ring_in) != made.face || face_of(ring_out) != face {
-                        failures.push(format!("r {r:e} corner {c}: in on new {}, out on old {}", face_of(ring_in) == made.face, face_of(ring_out) == face));
+                        failures.push(format!(
+                            "r {r:e} corner {c}: in on new {}, out on old {}",
+                            face_of(ring_in) == made.face,
+                            face_of(ring_out) == face
+                        ));
                     }
                 }
             }
         }
     }
-    eprintln!("RP sphere rehome: asked {asked}, failures {}", failures.len());
-    for f in failures.iter().take(500) {
-        eprintln!("RP FAIL {f}");
-    }
-    assert!(failures.is_empty());
+    assert!(
+        failures.is_empty() && asked > 0,
+        "asked {asked}: {:?}",
+        &failures[..failures.len().min(10)]
+    );
 }

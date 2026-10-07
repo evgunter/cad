@@ -2344,7 +2344,7 @@ fn choose_roles<T: Decide>(
     let on_quadric = body
         .get_face(face)
         .and_then(|f| body.get_surface(f.surface))
-        .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. } | geom::Surface::Cone { .. }));
+        .is_some_and(|s| crate::ring_path::Quadric::of(s).is_some());
     let ring = match closure {
         RingClosure::Wall(_) if on_quadric => RingFace::Quadric,
         RingClosure::Wall(section) => RingFace::Wall(section),

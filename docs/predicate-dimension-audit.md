@@ -564,7 +564,7 @@ which is what actually moves the number.
 | ring_path.rs (`Quadric::paths`) | split_ring_path_span | `‖â × b̂‖` (the sine between a sphere path's ends), levered at the sphere's radius | m | OK (TANG) |
 | ring_path.rs (`Quadric::paths`) | split_ring_path_nappe | a cone path end's height along the axis from the apex | m | OK (TANG) |
 | ring_path.rs (`Quadric::paths`) | split_ring_path_rise | the difference of a cone path's ends' slant distances from the apex | m | OK (TANG) |
-| ring_path.rs (`path_parity`) | split_ring_path_meets_plane | `r·√(A² + B²) − \|D\|`: a circle piece's reach across a loop conic's plane less its centre's offset from it | m | OK (TANG) |
+| ring_path.rs (`path_parity`) | split_ring_path_meets_plane | the signed half-chord `±√\|r²(A² + B²) − D²\|` a circle piece cuts across a loop conic's plane (`D` its centre's offset from the plane), linear in the angle it crosses at | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_segment_side | a ruling segment's end's offset from a loop conic's plane, `n̂·(p − c)` | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_line_across | `m̂·d̂` (the cosine between a circle piece's plane normal and a loop ruling), levered at the piece's radius | m | OK (TANG) |
 | ring_path.rs (`path_parity`) | split_ring_path_rulings_apart | `‖ê × d̂‖` (the sine between a segment's ruling and a loop ruling), levered at the segment's distance from the apex | m | OK (TANG) |

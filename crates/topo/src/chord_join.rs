@@ -2581,8 +2581,10 @@ fn loop_points<T: Decide>(body: &Body<T>, l: LoopKey) -> Result<Vec<Point3<T>>, 
 /// left normal, levered at [`Quadric::lever`]). CCW is `w` off the left.
 ///
 /// Positive for CCW, as the cylinder arm's chart sign. A path whose lean
-/// or crossings land in the zero band says nothing, and the next path or
-/// `w` is asked; a reading in the escalation band escalates. A run
+/// or crossings land in the zero band or the escalation band says
+/// nothing, and the next path or `w` is asked: the parity is the same on
+/// every path, so the first decided one is the reading. The first
+/// escalation escalates only where no path decides. A run
 /// bounded by an edge the face's loops do not carry, or a chord through
 /// a cone's apex, is a ring the lane does not read
 /// ([`SplitJoinError::RingIslandUnread`]); an outer loop no point of
@@ -2646,10 +2648,17 @@ pub(crate) fn path_island_winding<T: Decide>(
     let outward = quadric.outward(q, face_data.sense);
     let left = outward.cross(travel);
     let lever = quadric.lever(q);
+    // An escalated reading says nothing about the parity, which no path
+    // changes: the first decided path is the reading, and an escalation
+    // escalates only where no path decides.
+    let mut escalated = None;
     for w in outer_references(body, face, &[])? {
         let paths = match quadric.paths((w, q), band) {
             Ok(paths) => paths,
-            Err(diag) => return Ok(Err(diag)),
+            Err(diag) => {
+                escalated.get_or_insert(diag);
+                continue;
+            }
         };
         for path in paths {
             let lean = match decide(
@@ -2659,10 +2668,18 @@ pub(crate) fn path_island_winding<T: Decide>(
             ) {
                 Ok(Sign::Zero) => continue,
                 Ok(lean) => lean,
-                Err(diag) => return Ok(Err(diag)),
+                Err(diag) => {
+                    escalated.get_or_insert(diag);
+                    continue;
+                }
             };
-            let Some(odd) = path_parity(face, &path, &arcs, Some(arrives_on), band)? else {
-                continue;
+            let odd = match path_parity(&path, &arcs, Some(arrives_on), band) {
+                Ok(Some(odd)) => odd,
+                Ok(None) => continue,
+                Err(diag) => {
+                    escalated.get_or_insert(diag);
+                    continue;
+                }
             };
             let w_left = (lean == Sign::Positive) != odd;
             return Ok(Ok(if w_left {
@@ -2671,6 +2688,9 @@ pub(crate) fn path_island_winding<T: Decide>(
                 Sign::Positive
             }));
         }
+    }
+    if let Some(diag) = escalated {
+        return Ok(Err(diag));
     }
     Err(invariant(
         "no outer-loop point of a sphere or cone face reads which side of a ring-lane island it \
@@ -2687,9 +2707,10 @@ pub(crate) fn path_island_winding<T: Decide>(
 /// copy of a run vertex ([`crate::ring_path::path_parity`]). A path with
 /// a reading in the zero band says nothing and the next path or pair is
 /// asked: one ending on the run does, so a ring vertex on the run never
-/// decides. A reading in the escalation band escalates. A ring no pair
-/// decides is [`RingSide::Undecided`], as on a wall's chart
-/// ([`chart_ring_side`]).
+/// decides. One with a reading in the escalation band says nothing
+/// either; the first escalation escalates only where no pair decides. A
+/// ring no pair decides otherwise is [`RingSide::Undecided`], as on a
+/// wall's chart ([`chart_ring_side`]).
 fn path_ring_side<T: Decide>(
     body: &Body<T>,
     (surface, quadric): (&geom::Surface<T>, &Quadric<T>),
@@ -2707,19 +2728,31 @@ fn path_ring_side<T: Decide>(
         .map(|&he| Ok(body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?.edge))
         .collect::<Result<Vec<_>, SplitJoinError>>()?;
     let outside = outer_references(body, oldf, &run_edges)?;
+    let mut escalated = None;
     for p in loop_points(body, ring)? {
         for &w in &outside {
-            let paths = quadric
-                .paths((p, w), band)
-                .map_err(|diag| SplitJoinError::Escalated { face: newf, diag })?;
+            let paths = match quadric.paths((p, w), band) {
+                Ok(paths) => paths,
+                Err(diag) => {
+                    escalated.get_or_insert(diag);
+                    continue;
+                }
+            };
             for path in paths {
-                if let Some(odd) = path_parity(newf, &path, &arcs, None, band)? {
-                    return Ok(if odd { RingSide::In } else { RingSide::Out });
+                match path_parity(&path, &arcs, None, band) {
+                    Ok(Some(odd)) => return Ok(if odd { RingSide::In } else { RingSide::Out }),
+                    Ok(None) => {}
+                    Err(diag) => {
+                        escalated.get_or_insert(diag);
+                    }
                 }
             }
         }
     }
-    Ok(RingSide::Undecided)
+    match escalated {
+        Some(diag) => Err(SplitJoinError::Escalated { face: newf, diag }),
+        None => Ok(RingSide::Undecided),
+    }
 }
 
 /// **The chord of a section segment that is an edge of BOTH solids**
@@ -3612,7 +3645,7 @@ pub(crate) fn ring_representative<T: Decide>(
 mod cone_ring_rows;
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod rp_sphere_rows;
+mod sphere_island_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

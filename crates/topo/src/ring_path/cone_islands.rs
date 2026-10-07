@@ -9,19 +9,29 @@ pub(crate) fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
-/// A rigid frame: the cone's local `x`, `y`, `z` and its apex.
+/// A rigid frame and a scale: the cone's local `x`, `y`, `z`, its apex,
+/// and the length one local unit is.
 #[derive(Clone, Copy)]
 pub(crate) struct Frame {
     pub(crate) x: Vec3<f64>,
     pub(crate) y: Vec3<f64>,
     pub(crate) z: Vec3<f64>,
     pub(crate) o: Point3<f64>,
+    pub(crate) s: f64,
 }
 
 impl Frame {
+    /// The point at local coordinates `(x, y, z)`.
     pub(crate) fn at(&self, x: f64, y: f64, z: f64) -> Point3<f64> {
-        self.o + self.dir(x, y, z)
+        self.o + self.dir(x, y, z) * self.s
     }
+
+    /// This frame with one local unit `s` long.
+    pub(crate) fn scaled(self, s: f64) -> Self {
+        Self { s, ..self }
+    }
+
+    /// The direction of local `(x, y, z)`, unscaled.
     pub(crate) fn dir(&self, x: f64, y: f64, z: f64) -> Vec3<f64> {
         self.x * x + self.y * y + self.z * z
     }
@@ -35,6 +45,7 @@ pub(crate) fn frames() -> [Frame; 3] {
         y: Vec3::unit_y(),
         z: Vec3::unit_z(),
         o: Point3::origin(),
+        s: 1.0,
     };
     let z = Vec3::new(0.3, -0.5, 0.8).normalize();
     let x = Vec3::new(1.0, 0.2, 0.0).cross(z).normalize();
@@ -43,12 +54,14 @@ pub(crate) fn frames() -> [Frame; 3] {
         y: z.cross(x),
         z,
         o: Point3::new(0.7, -1.1, 2.3),
+        s: 1.0,
     };
     let flipped = Frame {
         x: Vec3::unit_x(),
         y: -Vec3::unit_y(),
         z: -Vec3::unit_z(),
         o: Point3::new(-0.4, 0.2, 0.1),
+        s: 1.0,
     };
     [id, turned, flipped]
 }
@@ -80,9 +93,14 @@ pub(crate) fn plane(o: Point3<f64>, n: Vec3<f64>) -> geom::Surface<f64> {
     }
 }
 
-/// The section of `cone` by the plane through `o` with normal `n`.
-fn section(cone: &geom::Surface<f64>, o: Point3<f64>, n: Vec3<f64>) -> geom::Curve3<f64> {
-    match geom_brep::plane_cone_section(&plane(o, n), cone, 4.0, band()).unwrap() {
+/// The section of `cone` by the plane through `o` with normal `n`, on a
+/// cone a few `s` across.
+fn section(
+    cone: &geom::Surface<f64>,
+    (o, n): (Point3<f64>, Vec3<f64>),
+    s: f64,
+) -> geom::Curve3<f64> {
+    match geom_brep::plane_cone_section(&plane(o, n), cone, 4.0 * s, band()).unwrap() {
         geom_brep::PlaneConeSection::TiltedEllipse(c)
         | geom_brep::PlaneConeSection::AxisNormalCircle(c) => c,
         other => panic!("the fixture's planes cut ellipses: {other:?}"),
@@ -124,12 +142,12 @@ pub(crate) struct IslandEdge {
 /// The arc of the section by `(o, n)` from `x0` to `x1` whose
 /// midpoint `keep` holds.
 fn arc_between(
-    cone: &geom::Surface<f64>,
+    (cone, s): (&geom::Surface<f64>, f64),
     (o, n): (Point3<f64>, Vec3<f64>),
     (x0, x1): (Point3<f64>, Point3<f64>),
     keep: &dyn Fn(Point3<f64>) -> bool,
 ) -> IslandEdge {
-    let c = section(cone, o, n);
+    let c = section(cone, (o, n), s);
     let (t0, mut t1) = (conic_param(&c, x0), conic_param(&c, x1));
     if t1 < t0 {
         t1 += 2.0 * PI;
@@ -181,8 +199,8 @@ pub(crate) fn lune(f: Frame, cone: &geom::Surface<f64>, s: f64) -> Island {
     Island {
         corners: vec![xa, xb],
         edges: vec![
-            arc_between(cone, (e, n1), (xa, xb), &side(n2, c2)),
-            arc_between(cone, (e, n2), (xb, xa), &side(n1, c1)),
+            arc_between((cone, f.s), (e, n1), (xa, xb), &side(n2, c2)),
+            arc_between((cone, f.s), (e, n2), (xb, xa), &side(n1, c1)),
         ],
         inside: Box::new(move |p| side(n1, c1)(p) && side(n2, c2)(p)),
     }
@@ -196,7 +214,7 @@ pub(crate) fn lune(f: Frame, cone: &geom::Surface<f64>, s: f64) -> Island {
 pub(crate) fn sector(f: Frame, cone: &geom::Surface<f64>) -> Island {
     let (ta, tb, top) = (-0.6f64, 0.9f64, 2.2);
     let n = f.dir(0.5, 0.0, 0.75f64.sqrt());
-    let lowest = |t: f64| 0.6 / n.dot(on_nappe(f, 1.0, t) - f.o);
+    let lowest = |t: f64| 0.6 * f.s / n.dot(on_nappe(f, 1.0, t) - f.o);
     let azimuth = move |p: Point3<f64>| {
         let w = p - f.o;
         w.dot(f.y).atan2(w.dot(f.x))
@@ -210,18 +228,25 @@ pub(crate) fn sector(f: Frame, cone: &geom::Surface<f64>) -> Island {
     ];
     let edges = vec![
         arc_between(
-            cone,
+            (cone, f.s),
             (f.at(0.0, 0.0, top), f.z),
             (corners[0], corners[1]),
             &between,
         ),
         ruling(f.o, (corners[1], corners[2])),
-        arc_between(cone, (f.o + n * 0.6, n), (corners[2], corners[3]), &between),
+        arc_between(
+            (cone, f.s),
+            (f.o + n * (0.6 * f.s), n),
+            (corners[2], corners[3]),
+            &between,
+        ),
         ruling(f.o, (corners[3], corners[0])),
     ];
     Island {
         corners,
         edges,
-        inside: Box::new(move |p| between(p) && n.dot(p - f.o) > 0.6 && (p - f.o).dot(f.z) < top),
+        inside: Box::new(move |p| {
+            between(p) && n.dot(p - f.o) > 0.6 * f.s && (p - f.o).dot(f.z) < top * f.s
+        }),
     }
 }

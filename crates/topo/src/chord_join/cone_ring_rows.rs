@@ -1,9 +1,15 @@
 //! **A ring on a cone face winds its island and re-homes its rings
 //! without a chart** ([`super::path_island_winding`],
-//! [`super::path_ring_side`]). No boolean reaches a cone face's ring lane
-//! yet — the operand gate refuses a cone operand
-//! (`work/germ/boolean-sector-algebra-has-no-cone-arm.md`) — so these
-//! rows build the lane's input on a cone sheet: a face of the cone
+//! [`super::path_ring_side`]). No public door reaches a cone face's ring
+//! lane yet. The boolean's operand gate refuses a cone operand
+//! (`work/germ/boolean-sector-algebra-has-no-cone-arm.md`). The plane
+//! split admits a cone face and re-homes through the same
+//! [`super::ChordJoiner`], but nothing it is handed carries a ring on one:
+//! a body at rest cannot (its volume refuses
+//! `MassPropsError::RingOnCurvedFace`), and a plane's section of a cone
+//! goes round the axis, so it reaches the face's seam rather than
+//! landing as a ring. So these rows build the lane's input on a cone
+//! sheet: a face of the cone
 //! between two rims and two rulings, a ring of it whose run is an
 //! island's boundary less one edge, and that edge as the closing chord.
 //! Each reading is held to the islands' membership oracles
@@ -54,7 +60,7 @@ fn rim(f: Frame, h: f64, (t0, t1): (f64, f64)) -> IslandEdge {
         carrier: geom::Curve3::Circle {
             center: centre,
             axis: f.z,
-            radius: h * FRAC_PI_6.tan(),
+            radius: h * f.s * FRAC_PI_6.tan(),
             u_ref: f.x,
         },
         params: (t0, t1),
@@ -65,7 +71,18 @@ fn rim(f: Frame, h: f64, (t0, t1): (f64, f64)) -> IslandEdge {
 /// **A face of `cone` between its rims at heights 0.05 and 3 and its
 /// rulings at azimuths ±1.2**, of sense `sense`, and its surface.
 fn sheet(f: Frame, cone: geom::Surface<f64>, sense: bool) -> (Body<f64>, FaceKey, SurfaceKey) {
-    let (lo, hi, t) = (0.05, 3.0, 1.2);
+    sheet_to(f, cone, sense, 1.2)
+}
+
+/// [`sheet`] between the rulings at azimuths `±t`, its first vertex on
+/// the rim at height 0.05 and azimuth `−t`.
+fn sheet_to(
+    f: Frame,
+    cone: geom::Surface<f64>,
+    sense: bool,
+    t: f64,
+) -> (Body<f64>, FaceKey, SurfaceKey) {
+    let (lo, hi) = (0.05, 3.0);
     let mut body = Body::<f64>::new();
     let start = on_nappe(f, lo, -t);
     let seed = body.mvfs(start, sense).unwrap();
@@ -229,22 +246,23 @@ fn oracle_winding(
 /// The islands every row reads, each with the step its oracle reads at.
 fn islands(f: Frame, cone: &geom::Surface<f64>) -> Vec<(&'static str, Island, f64)> {
     vec![
-        ("lune", lune(f, cone, 1.0), 1e-4),
-        ("lune by the apex", lune(f, cone, 0.1), 1e-5),
-        ("sector", sector(f, cone), 1e-4),
+        ("lune", lune(f, cone, 1.0), 1e-4 * f.s),
+        ("lune by the apex", lune(f, cone, 0.1), 1e-5 * f.s),
+        ("sector", sector(f, cone), 1e-4 * f.s),
     ]
 }
 
 /// **The island a cone ring's run walls off winds as its oracle says**:
 /// every island, from every corner and in both directions, on both
-/// nappes, in three frames and at both senses — the island on the far
+/// nappes, in three frames at two scales (1 and 1e-3) and at both
+/// senses — the island on the far
 /// side of the closing chord's section or on its apex side, near the
 /// apex or not, closed by an ellipse, a parallel, or a ruling (straight,
 /// and as a line segment). Both windings are read.
 #[test]
 fn a_cone_ring_run_winds_its_island_as_the_oracle_does() {
     let mut seen = [0usize; 2];
-    for f in frames() {
+    for f in frames().into_iter().flat_map(|f| [f, f.scaled(1e-3)]) {
         for mirror in [false, true] {
             for sense in [true, false] {
                 let surface = cone(f, mirror);
@@ -301,11 +319,11 @@ fn bystanders(f: Frame, island: &Island) -> (Point3<f64>, Point3<f64>) {
 /// off when it lies inside it, and stays when it does not**: the island
 /// is walled off by its closing chord (a section arc, or the straight
 /// chord along a ruling), and ring re-homing reads each bystander by a
-/// path. Every island, from every corner, on both nappes and in three
-/// frames; no reading refuses.
+/// path. Every island, from every corner, on both nappes, in three
+/// frames at two scales (1 and 1e-3); no reading refuses.
 #[test]
 fn a_ring_on_a_cone_face_is_re_homed_by_a_path() {
-    for f in frames() {
+    for f in frames().into_iter().flat_map(|f| [f, f.scaled(1e-3)]) {
         for mirror in [false, true] {
             let surface = cone(f, mirror);
             for (name, island, _) in islands(f, &surface) {
@@ -348,5 +366,179 @@ fn a_ring_on_a_cone_face_is_re_homed_by_a_path() {
                 }
             }
         }
+    }
+}
+
+/// A point's height along the frame's axis and its azimuth.
+fn height_azimuth(f: Frame, p: Point3<f64>) -> (f64, f64) {
+    let w = p - f.o;
+    (w.dot(f.z) / f.s, w.dot(f.y).atan2(w.dot(f.x)))
+}
+
+/// The offsets a path is moved off a corner by, from the band's zero
+/// threshold to ten times its escalation threshold, geometrically.
+fn offsets_through_the_band() -> impl Iterator<Item = f64> {
+    let b = band();
+    let (lo, hi) = (b.zero(), 10.0 * b.escalate());
+    let steps = 120;
+    (0..=steps).map(move |k| lo * (hi / lo).powf(f64::from(k) / f64::from(steps)))
+}
+
+/// **A path whose reading escalates by an island's corner says nothing,
+/// and the next path winds the island.** The sector's run from its
+/// corner on the low ellipse at 0.9, closed by its ruling at 0.9, on a
+/// sheet whose ruling at `−t` passes a hair outside the sector's corner
+/// at height 2.2 and azimuth −0.6. The first path, down that ruling from
+/// the sheet's first outer-loop point and round the parallel through the
+/// chord's midpoint (arriving across the ruling, so its lean is
+/// decided), reads the corner's arcs in the escalation band at some
+/// offset. The winding still reads as the oracle says.
+#[test]
+fn a_path_escalating_by_a_corner_hands_the_winding_to_the_next() {
+    let f = frames()[0];
+    let surface = cone(f, false);
+    let island = sector(f, &surface);
+    let want = oracle_winding(&surface, true, &island, 2, 1e-4);
+    let (h_c, az_c) = height_azimuth(f, island.corners[0]);
+    let rho = h_c * FRAC_PI_6.tan();
+    let quadric = Quadric::of(&surface).unwrap();
+    let mut escalated = 0;
+    for delta in offsets_through_the_band() {
+        let (mut body, face, key) = sheet_to(f, surface.clone(), true, delta / rho - az_c);
+        let (run, closing) = run_from(&mut body, (face, key), &island, 2);
+        assert!(
+            closing.plane.is_none(),
+            "the closing chord is the ruling at 0.9"
+        );
+        let spec = edge_spec(&mut body, key, &closing);
+        let cycle = body.loop_cycle(run.0).unwrap();
+        let end = cycle.iter().position(|&he| he == run.1).unwrap();
+        let mut arcs = run_loop_arcs(&body, face, (&surface, &quadric), &cycle[..=end]).unwrap();
+        arcs.push(LoopArc::of(&spec.carrier, (spec.param_start, spec.param_end)).unwrap());
+        let q = spec.carrier.mid_point(spec.param_start, spec.param_end);
+        let w = outer_references(&body, face, &[]).unwrap()[0];
+        let first = quadric.paths((w, q), band()).unwrap().remove(0);
+        if path_parity(&first, &arcs, Some(arcs.len() - 1), band()).is_err() {
+            escalated += 1;
+            let got = path_island_winding(&body, face, run, Some(&spec), band());
+            assert!(
+                matches!(got, Ok(Ok(sign)) if sign == want),
+                "offset {delta:e}: {got:?}, the oracle {want:?}"
+            );
+        }
+    }
+    assert!(
+        escalated > 0,
+        "no offset puts the first path in the escalation band"
+    );
+}
+
+/// **A path whose reading escalates by an island's corner says nothing,
+/// and the next path re-homes the ring.** A bystander outside the lune on
+/// the ruling a hair past its second corner: the first path from it,
+/// along that ruling to the first outer-loop point's height, reads the
+/// corner's arcs in the escalation band at some offset, and the path
+/// round its own parallel puts it outside.
+#[test]
+fn a_path_escalating_by_a_corner_hands_re_homing_to_the_next() {
+    let f = frames()[0];
+    let surface = cone(f, false);
+    let island = lune(f, &surface, 1.0);
+    let quadric = Quadric::of(&surface).unwrap();
+    let (h_c, az_c) = height_azimuth(f, island.corners[1]);
+    let rho = h_c * FRAC_PI_6.tan();
+    let mut escalated = 0;
+    for delta in offsets_through_the_band() {
+        for h in [1.0, 2.0] {
+            let p = on_nappe(f, h, az_c - delta * h / (h_c * rho));
+            assert!(!(island.inside)(p), "the bystander is outside the lune");
+            let (mut body, face, key) = sheet(f, surface.clone(), true);
+            let ring = empty_ring(&mut body, face, p);
+            let (run, closing) = run_from(&mut body, (face, key), &island, 0);
+            let after = body.get_half_edge(run.1).unwrap().next;
+            let back = IslandEdge {
+                params: (closing.params.1, closing.params.0),
+                ..closing
+            };
+            let spec = edge_spec(&mut body, key, &back);
+            let site = MefSite::Chords {
+                he1: run.0,
+                he2: after,
+            };
+            let shared = FaceSurface::Shared { key, sense: true };
+            let made = body.mef(site, spec, shared, tol()).unwrap();
+            let remainder = body.get_half_edge(after).unwrap().parent_loop;
+            let cycle = outer_cycle(&body, made.face).unwrap().unwrap();
+            let arcs = run_loop_arcs(&body, made.face, (&surface, &quadric), &cycle).unwrap();
+            let skip: Vec<_> = cycle
+                .iter()
+                .map(|&he| body.get_half_edge(he).unwrap().edge)
+                .collect();
+            let w = outer_references(&body, face, &skip).unwrap()[0];
+            let first = quadric.paths((p, w), band()).unwrap().remove(0);
+            if path_parity(&first, &arcs, None, band()).is_ok() {
+                continue;
+            }
+            escalated += 1;
+            ChordJoiner::new(band())
+                .rehome_rings(&mut body, face, made.face, remainder)
+                .unwrap_or_else(|e| panic!("offset {delta:e}, height {h}: {e:?}"));
+            assert_eq!(
+                body.get_loop(ring).unwrap().face,
+                face,
+                "offset {delta:e}, height {h}: the ring stays"
+            );
+        }
+    }
+    assert!(
+        escalated > 0,
+        "no offset puts the first path in the escalation band"
+    );
+}
+
+/// **The arrival arc reads the closing chord's second meeting with it.**
+/// The sector's run from its corner on the low ellipse at −0.6, closed by
+/// that ellipse, whose midpoint sits just off its lowest point: the
+/// parallel through the midpoint meets the ellipse again at about the
+/// mirror azimuth, inside the closing arc. The first path, down the
+/// sheet's ruling at −1.2 from its first outer-loop point and round that
+/// parallel, crosses the island's boundary there and nowhere else before
+/// it arrives, so it decides by itself, odd; the winding is the
+/// oracle's.
+#[test]
+fn the_arrival_arc_reads_its_second_meeting_with_the_closing_chord() {
+    for f in [frames()[0], frames()[1].scaled(1e-3)] {
+        let surface = cone(f, false);
+        let island = sector(f, &surface);
+        let (mut body, face, key) = sheet(f, surface.clone(), true);
+        let (run, closing) = run_from(&mut body, (face, key), &island, 3);
+        assert!(
+            closing.plane.is_some(),
+            "the closing chord is the low ellipse"
+        );
+        let spec = edge_spec(&mut body, key, &closing);
+        let quadric = Quadric::of(&surface).unwrap();
+        let cycle = body.loop_cycle(run.0).unwrap();
+        let end = cycle.iter().position(|&he| he == run.1).unwrap();
+        let mut arcs = run_loop_arcs(&body, face, (&surface, &quadric), &cycle[..=end]).unwrap();
+        arcs.push(LoopArc::of(&spec.carrier, (spec.param_start, spec.param_end)).unwrap());
+        let q = spec.carrier.mid_point(spec.param_start, spec.param_end);
+        let w = outer_references(&body, face, &[]).unwrap()[0];
+        assert!(
+            !(island.inside)(w),
+            "the outer-loop point is off the island"
+        );
+        let first = quadric.paths((w, q), band()).unwrap().remove(0);
+        assert_eq!(
+            path_parity(&first, &arcs, Some(arcs.len() - 1), band()),
+            Ok(Some(true)),
+            "the arrival arc's second root is the one crossing"
+        );
+        let want = oracle_winding(&surface, true, &island, 3, 1e-4 * f.s);
+        let got = path_island_winding(&body, face, run, Some(&spec), band());
+        assert!(
+            matches!(got, Ok(Ok(sign)) if sign == want),
+            "{got:?}, the oracle {want:?}"
+        );
     }
 }

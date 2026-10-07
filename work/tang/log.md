@@ -703,3 +703,14 @@ reaches a cone ring yet: GERM's cone gate comes first. So the cone rows
 are a cone sheet in `topo` (`chord_join::cone_ring_rows`) held to
 plane-inequality oracles, plus the sweep's crossings
 (`a_ring_on_a_cone_face`).
+
+2026-10-07 — PR 4246's fix pass (FULL review, APPROVE-WITH-FIXES, 1 MAJOR).
+The review's scan found no wrong body, winding or side. Its MAJOR was
+that a sphere pair that builds on main refused, because one path's
+in-band reading aborted the op. Now a path or reference whose reading
+escalates says nothing: the first decided path is the reading, and
+the op escalates only when no path decides. The meets-plane margin
+is now the half-chord, linear in the graze angle; either change alone
+restores the pair. The review's sphere-island and cone-grid fixtures
+are rows now. Across the review's 10,254 probe ops, the outcomes
+match main's again.

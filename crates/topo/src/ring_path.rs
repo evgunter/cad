@@ -17,8 +17,11 @@
 //! The parity does not depend on the path because the curve is
 //! null-homotopic where the paths run. Every closed curve on a sphere
 //! is. On a cone, the paths run on the punctured nappe, an annulus, and
-//! the curve bounds a disc of it: it lies on one face, and a face that
-//! reaches round the axis is cut by its seam, so no curve on it winds
+//! the curve bounds a disc of it: it lies on one face, and no face winds
+//! round the axis — at rest, tier 3's pcurve mint refuses a face whose
+//! outer loop spans a full period or whose loop wraps
+//! (`PcurveMintError::{OuterSpansPeriod, LoopWraps}`), so a face that
+//! reaches round the axis is cut by its seam, and no curve on it winds
 //! round the apex.
 //!
 //! Each comparison is a named trilean metered in metres. A crossing is
@@ -29,8 +32,6 @@
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
-use crate::chord_join::SplitJoinError;
-use crate::entity::FaceKey;
 use crate::validate::decide;
 
 /// The surface a path runs on: the kinds the ring lane reads without a
@@ -389,13 +390,17 @@ impl<T: Real> LoopArc<T> {
 /// docs). `arrives_on` names the arc the path's end lies on, at an
 /// interior point; its crossing there is the arrival and is not
 /// counted. `None` when a reading of a crossing not passed over lands
-/// in the zero band. A reading in the escalation band escalates.
+/// in the zero band; `Err` when one lands in the escalation band, which
+/// says nothing about the parity either: the caller asks another path.
 ///
 /// - A circle piece meets a conic's plane where
 ///   `A cos θ + B sin θ = −D/r` (`A`, `B` the plane normal's components
 ///   on the piece's frame, `D` the piece's centre's offset from the
 ///   plane): at two parameters when `r·√(A² + B²) > |D|`
-///   (**`split_ring_path_meets_plane`**). On the arrival arc, the one
+///   (**`split_ring_path_meets_plane`**, read as the signed half-chord
+///   `±√|r²(A² + B²) − D²|` in metres, which is linear in the angle the
+///   piece crosses the plane at where `r·√(A² + B²) − |D|` is
+///   quadratic). On the arrival arc, the one
 ///   nearer the piece's end is the arrival.
 /// - A segment meets a conic's plane where its ends' offsets from it
 ///   (**`split_ring_path_segment_side`**) differ in sign.
@@ -410,16 +415,13 @@ impl<T: Real> LoopArc<T> {
 ///   less a span end, levered at the circle's radius or a conic's
 ///   minor semi-axis; a line's parameter is a length).
 pub(crate) fn path_parity<T: Decide>(
-    face: FaceKey,
     path: &Path<T>,
     arcs: &[LoopArc<T>],
     arrives_on: Option<usize>,
     band: Band,
-) -> Result<Option<bool>, SplitJoinError> {
-    let decide_m = |name, margin| {
-        decide(name, margin, band).map_err(|diag| SplitJoinError::Escalated { face, diag })
-    };
-    let in_span = |t: T, (lo, hi): (T, T), arm: T| -> Result<[Sign; 2], SplitJoinError> {
+) -> Result<Option<bool>, Indeterminate> {
+    let decide_m = |name, margin| decide(name, margin, band);
+    let in_span = |t: T, (lo, hi): (T, T), arm: T| -> Result<[Sign; 2], Indeterminate> {
         Ok([
             decide_m("split_ring_path_in_span", Margin::levered(t - lo, arm))?,
             decide_m("split_ring_path_in_span", Margin::levered(hi - t, arm))?,
@@ -446,9 +448,12 @@ pub(crate) fn path_parity<T: Decide>(
                     let (ca, cb) = (axis.dot(p.u_ref), axis.dot(p.v_ref()));
                     let d = axis.dot(p.centre - centre);
                     let rho = (ca.powi(2) + cb.powi(2)).sqrt();
+                    // The signed half-chord `±√|(rρ)² − D²|`, linear in
+                    // the angle the piece crosses the plane at.
+                    let reach = (p.radius * rho).powi(2) - d.powi(2);
                     match decide_m(
                         "split_ring_path_meets_plane",
-                        Margin::of(p.radius * rho - d.abs()),
+                        Margin::of(reach.abs().sqrt().copysign(reach)),
                     )? {
                         Sign::Negative => continue,
                         Sign::Zero => return Ok(None),
@@ -458,7 +463,11 @@ pub(crate) fn path_parity<T: Decide>(
                     let offset = (-d / (p.radius * rho)).max(-T::one()).min(T::one()).acos();
                     let [r0, r1] = [phase + offset, phase - offset].map(|t| branch(t, p.span));
                     // On the arrival arc, the root nearer the end is the
-                    // arrival; the other is read.
+                    // arrival; the other is read. The arrival lies on the
+                    // plane up to rounding, and a decided meeting puts the
+                    // two roots at least two half-chords apart (the
+                    // half-chord in the piece's plane is the margin over
+                    // `ρ ≤ 1`), so the nearer one is never in doubt.
                     let nearer = (r0 - p.span.1).abs() - (r1 - p.span.1).abs();
                     let roots = if arrival {
                         [nearer.select_le_zero(r1, r0), r1]
@@ -554,7 +563,7 @@ pub(crate) mod cone_islands;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod rp_cone_probe;
+mod cone_path_grid;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -597,9 +606,7 @@ mod tests {
                             let want = (island.inside)(a) != (island.inside)(b);
                             for path in quadric.paths((a, b), band()).unwrap() {
                                 asked += 1;
-                                let got =
-                                    path_parity(FaceKey::default(), &path, &arcs, None, band())
-                                        .unwrap();
+                                let got = path_parity(&path, &arcs, None, band()).unwrap();
                                 if let Some(got) = got {
                                     assert_eq!(got, want, "{name}, mirror {mirror}: {a:?} → {b:?}");
                                     decided += 1;
@@ -615,5 +622,50 @@ mod tests {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod graze_rows {
+    use super::cone_islands::band;
+    use super::*;
+
+    /// **A path grazing a section's plane is read by its half-chord.** A
+    /// great-circle arc of a millimetre sphere meets the plane of a small
+    /// circle of it whose offset from the arc's farthest reach,
+    /// `r·ρ − |D|`, sits inside the band, while the half-chord it cuts,
+    /// `√((rρ)² − D²)`, is micrometres: the meeting is decided, and the
+    /// arc crosses the loop arc once.
+    #[test]
+    fn a_graze_within_the_band_of_its_gap_is_decided_by_its_half_chord() {
+        let b = band();
+        let r = 1e-3;
+        let gap = (b.zero() * b.escalate()).sqrt();
+        let half = (r * r - (r - gap) * (r - gap)).sqrt();
+        assert!(
+            half > 10.0 * b.escalate(),
+            "the half-chord {half:e} is decided"
+        );
+        let piece = CircleArc {
+            centre: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::new((-0.5f64).cos(), (-0.5f64).sin(), 0.0),
+            span: (0.0, 1.0),
+        };
+        let path = Path {
+            pieces: vec![Piece::Arc(piece)],
+            arrival: piece.tangent(1.0),
+        };
+        let small = LoopArc::Conic {
+            centre: Point3::new(r - gap, 0.0, 0.0),
+            axis: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+            a: half,
+            b: half,
+            span: (-1.0, 1.0),
+        };
+        assert_eq!(path_parity(&path, &[small], None, band()), Ok(Some(true)));
     }
 }
