@@ -167,11 +167,16 @@ impl Shape {
     }
 }
 
+/// A point rounded to a micron.
+fn micron(x: f64, y: f64, z: f64) -> Point {
+    let n = |x: f64| (x * 1e6).round() as i64;
+    (n(x), n(y), n(z))
+}
+
 /// A vertex's point, rounded to a micron.
 fn at_point(body: &Body<f64>, v: topo::VertexKey) -> Point {
     let p = point(body, v);
-    let n = |x: f64| (x * 1e6).round() as i64;
-    (n(p.x), n(p.y), n(p.z))
+    micron(p.x, p.y, p.z)
 }
 
 fn shape(body: &Body<f64>) -> Shape {
@@ -317,13 +322,11 @@ fn at(s: &Shape, p: Point) -> usize {
     s.vertices.get(&p).copied().unwrap_or(0)
 }
 
-/// The pinch point on the plate's top, [`MEET`] in the shape's
-/// micrometre grid.
-const TOP: Point = (
-    (MEET[0] * 1e6) as i64,
-    (MEET[1] * 1e6) as i64,
-    (MEET[2] * 1e6) as i64,
-);
+/// The pinch point on the plate's top: [`MEET`], rounded as
+/// [`at_point`] rounds a vertex.
+fn top() -> Point {
+    micron(MEET[0], MEET[1], MEET[2])
+}
 
 /// Every order of `0..n`.
 fn orders(n: usize) -> Vec<Vec<usize>> {
@@ -474,7 +477,7 @@ fn a_pinch_union_builds_one_body_in_every_member_order() {
         pinch,
         [19, 48, 31],
         UNION_VOLUME,
-        &[TOP],
+        &[top()],
         &[([1, 2], &p1_p2())],
     );
     every_order(
@@ -504,7 +507,7 @@ fn two_pinches_build_one_body_in_every_member_order() {
         through,
         [24, 60, 38],
         6.0 + (2.5 - 0.5) + (2.17 - 0.5),
-        &[TOP, (1_500_000, 1_000_000, 0)],
+        &[top(), (1_500_000, 1_000_000, 0)],
         &[(
             [1, 2],
             &[
@@ -522,7 +525,7 @@ fn two_pinches_build_one_body_in_every_member_order() {
         two_pinches,
         [26, 66, 42],
         UNION_VOLUME + 0.5 * (0.9 + 0.5),
-        &[TOP, (1_000_000, 1_000_000, 1_000_000)],
+        &[top(), (1_000_000, 1_000_000, 1_000_000)],
         &[
             ([1, 2], &p1_p2()),
             (
@@ -550,7 +553,7 @@ fn holes_touching_at_a_corner_build_one_body_in_every_member_order() {
         corner_holes,
         [16, 36, 23],
         6.0 + 0.25 * (2.0 - 1.0) + 0.25 * (1.7 - 1.0),
-        &[TOP],
+        &[top()],
         touches,
     );
     every_order(
@@ -558,7 +561,7 @@ fn holes_touching_at_a_corner_build_one_body_in_every_member_order() {
         notch_and_hole,
         [17, 42, 27],
         6.0 + 0.5 * 2.0 * (2.0 - 1.0) + 0.5 * 1.0 * (1.0 - 0.5) + 0.25 * (1.7 - 1.0),
-        &[TOP],
+        &[top()],
         touches,
     );
     let wedge = 0.5
@@ -569,7 +572,7 @@ fn holes_touching_at_a_corner_build_one_body_in_every_member_order() {
         reflex_hole,
         [17, 39, 25],
         6.0 + wedge * (2.0 - 1.0) + 0.75 * (1.7 - 1.0),
-        &[TOP],
+        &[top()],
         touches,
     );
 }
@@ -639,7 +642,7 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
         checked(&ev, notched, "plate ∖ blocks", 6.0 - NOTCHES),
         &below(&[("VertexOnEdge", 500_000)]),
     );
-    assert_eq!(at(&s, TOP), 1, "plate ∖ blocks: vertices at the pinch");
+    assert_eq!(at(&s, top()), 1, "plate ∖ blocks: vertices at the pinch");
     let tops = s
         .faces
         .keys()
@@ -653,7 +656,7 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
         &below(&[("VertexOnEdge", 500_000), ("VertexVertex", 1_000_000)]),
     );
     assert_eq!(
-        at(&s, TOP),
+        at(&s, top()),
         2,
         "plate ∩ blocks: the footprints' corners stay one vertex each"
     );
@@ -793,7 +796,7 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
         }
         let s = o.shape;
         assert_eq!(s.counts(), counts, "{what}: faces, edges, vertices");
-        assert_eq!(at(&s, TOP), pinch, "{what}: vertices at the pinch");
+        assert_eq!(at(&s, top()), pinch, "{what}: vertices at the pinch");
         shapes.push(s);
     }
     assert_eq!(shapes[2], shapes[3], "X ∪ plate and plate ∪ X: one body");
@@ -869,7 +872,14 @@ fn wedges_meeting_at_a_vertex_build_one_body_in_every_member_order() {
         ),
     ];
     for (label, holes, fixture, counts) in rows {
-        every_order(label, fixture, counts, tilted_volume(&holes()), &[TOP], &[]);
+        every_order(
+            label,
+            fixture,
+            counts,
+            tilted_volume(&holes()),
+            &[top()],
+            &[],
+        );
     }
 }
 
@@ -894,7 +904,14 @@ fn holes_with_a_reflex_sector_at_their_vertex_build_one_body_in_every_member_ord
         ),
     ];
     for (label, holes, fixture, counts) in rows {
-        every_order(label, fixture, counts, tilted_volume(&holes()), &[TOP], &[]);
+        every_order(
+            label,
+            fixture,
+            counts,
+            tilted_volume(&holes()),
+            &[top()],
+            &[],
+        );
     }
 }
 
@@ -937,7 +954,7 @@ fn the_junction_where_the_wedges_meet_has_one_name_in_every_member_order() {
         if let Some(e) = failure(&ev, u) {
             panic!("member order {order:?}: refused: {e:?}");
         }
-        let names = names_at(&ev, u, TOP);
+        let names = names_at(&ev, u, top());
         assert_eq!(
             names.len(),
             1,
