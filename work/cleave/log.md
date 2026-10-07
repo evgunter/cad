@@ -629,3 +629,13 @@ Signed (CLEAVE orchestrator).
   `UnitVec3::levered` margin gap is filed on FLUX.
 - **PR 4179 merged** (in-band graze; single FULL review, fix pass done). Its row is closed. The
   residue-root class is filed on HONE, and the convex-graze row is narrowed to the apex pose.
+- **Main reds owned and fixed:**
+  - PR 4199: `carrier_touch::ball_off_face` reads the boundary before placing the foot. This fixed
+    the `rest_zip_admission` 1e-6 red that #4128 introduced. Orchestrator read; merged.
+  - PR 4205: `one_segment_loop` held a quadrature midpoint to a fixed tolerance, the 1e-6 red from
+    #4169. It is merged, and the latent instances of the class are filed on QUAD.
+  - #4208, a REACH bounds-census roster line, was ported into PRs 4177 and 4181 ahead of its merge.
+- **Re-dispatched after the merges:**
+  - `revolve-seam-split-volumes-miss-their-closed-forms-at-eps-1e-6`, raised to P1 because it is a
+    nightly red; it is probably the #4205 class. Lane `cleave/revseam-1e6`.
+  - `lily-walls-curved-clearance-crowds-the-band-under-k-lint`, P2. Lane `cleave/lily-clearance`.
