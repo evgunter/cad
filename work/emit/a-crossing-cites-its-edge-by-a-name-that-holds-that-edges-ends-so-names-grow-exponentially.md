@@ -6,6 +6,8 @@ status: open
 opened: 2026-10-06
 priority: P1
 design: true
+needs_ev: true
+branch: emit/ev-cite-the-line
 refs: [a-second-crossing-by-one-face-renames-the-first-and-its-pieces, edge-pieces-are-named-by-their-ends]
 ---
 
