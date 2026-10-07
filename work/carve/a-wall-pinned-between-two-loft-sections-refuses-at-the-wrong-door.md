@@ -57,3 +57,18 @@ with the hinge moved off strip 0. Whether a pinned wall should refuse
 at all (a loft that touches itself along an edge) or build, and with
 what refusal, is a design question; the v-parameterization item
 (`refs`) changes which arm strip 0 takes.
+
+## Evidence (2026-10-06, after `loft-v-parameterization-…` landed on its branch)
+
+The loft's v is now Eq. 10.8 over every row of the OUTER loop, so a
+section hinged on one of its own edges no longer pins the
+parameterization: the loop's other rows step. Both hinges in
+`one_door_for_coincident_sections` (the exact strip-0 hinge, and the one
+pinned only up to rounding) now parameterize normally (`[0, 0.1487, 1]`
+for the rounding one), `loft_geometry` answers walls the size of the
+sections, and `loft_body` refuses at the attach gate. The exact hinge:
+`Euler(Certification { Escalated { check: ParamSpan, predicate:
+"nurbs_span_meter", margin −0.349 } })`. The hinge's pinned corners make
+their seams double back. Before, the refusal depended on WHICH edge was
+the hinge (strip 0: `NoParameterStep`; any other edge: this one). It is
+now the same for every edge, and still at the wrong door.

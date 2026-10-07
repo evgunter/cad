@@ -179,7 +179,7 @@ const FINE_GAP: f64 = 5e-4;
 ///
 /// Round wire is the natural section, and it is wall 1: the swept
 /// `circle_split` wire builds, and its volume refuses
-/// `QuadratureBudget` (width 1.7e-3 m, past even ε = 1e-6's target)
+/// `QuadratureBudget` (width 3.59e-3 m, past even ε = 1e-6's target)
 /// (`work/quad/a-swept-circle-section-loop-decides-its-volume-sign-only-at-the-origin`).
 fn standing_spring(tol: Tol) -> (pncad::topo::Body<f64>, f64) {
     let round: Vec<ConstructedLoop<f64>> = vec![
