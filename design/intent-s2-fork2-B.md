@@ -1,5 +1,75 @@
 # FORK-2 — how the explicit product list is kept
 
+## For Ev — round 3
+
+**Recommendation (likely): the two reports now converge. Nothing is left
+for Ev to rule between them; Ev rules the whole design.** It replaces
+ratified A10 text, so it needs Ev's sign-off.
+
+1. A body-defining insert or delete, and re-pointing a body read, carries a
+   product clause: `follow` (the default, and what a bare edit means),
+   `leave` or `append`.
+2. The door lowers the clause into a concrete list change and records that
+   change: `Append`, `ReplaceAt { at, remove }` or `Leave`. Replay
+   re-validates it like any list edit.
+3. `follow` is A10's tip transfer, restricted to a *body-defining operation*
+   (one with a `Body` output) reading a `Body` variable.
+   - A body that reads no listed body appends.
+   - One that reads listed bodies takes the earliest one's place, and the
+     others leave the list.
+   - Deleting a listed body puts its orphaned operands in its place.
+   - Nothing else moves the list.
+4. A delete always removes the deleted body's own entry. Under `leave` it
+   reports the removal (`Maintenance::Unlisted`), so no dead entry ever
+   exists.
+5. Two edits state their own list changes:
+   - split: the part's product is the cut's listed bodies, and the instance
+     takes the first one's place;
+   - inline: the part's product is spliced back into the instance's place.
+6. Never listed and never moving the list: Promote, mates, measures,
+   assertions and selects.
+7. `SetProduct` states the whole list. An empty product is a valid
+   document; only the gather refuses.
+
+**What dropping the clause would buy, now that both forms record the
+lowered change: almost nothing.**
+- What remains is one authored field on three edits and in the Python
+  constructor's signature. That field is invisible to anyone who takes the
+  default, which every caller does unless they mean otherwise.
+- The cost is real. Keeping a cut's tool becomes insert-then-`SetProduct`.
+  The log then records a `ReplaceAt` that drops the tool and a `SetProduct`
+  that puts it back, and an undo that splits the two lands between them.
+- My round-2 move to the bare door rule answered A's round-1 objection that
+  a clause "earns nothing". Once the change is recorded either way, that
+  objection no longer holds.
+
+**Does my round-1 argument stand? Yes (likely).**
+- Of the two concerns, the replay concern is now met by recording the
+  change, under either form.
+- The intent concern still stands. With a clause, a deviation is one edit
+  that says what was meant; without it, a deviation is a correction of
+  something the door just did.
+- I return to the clause, which is where A now stands.
+
+**Is any remaining difference worth Ev? No.**
+- The delete-under-`leave` disagreement is gone: I conceded in round 2 that
+  the entry is removed and reported.
+- I accept A's wording ("a body-defining operation reading a `Body`
+  variable"). The two wordings agree on every node today.
+- One small difference remains: a split whose cut holds no listed body.
+  - I would refuse it at the split door.
+  - A's design would let it mint a part whose instance refuses
+    `EmptyProduct` at every evaluation.
+  - This is an implementation-level refusal, for the PR C implementer to
+    settle. It is not a design fork.
+
+**Confidence.**
+- The rule: sure.
+- The clause, lowered and recorded: likely.
+- Nothing left to fork between the reports: sure.
+
+---
+
 ## For Ev — round 2
 
 **Recommendation (likely), revised.**
