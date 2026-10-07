@@ -37,8 +37,9 @@ use crate::node::RecipeNodeId;
 /// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::MergedChord`], [`Self::MergedChordOffRim`],
-///    [`Self::MergedChordConstituents`], [`Self::MemberEdgeTied`] and
-///    [`Self::ConventionalVertex`], reached from recipes nothing is wrong with,
+///    [`Self::MergedChordConstituents`], [`Self::MemberEdgeTied`],
+///    [`Self::ConventionalVertex`] and [`Self::ClosedCarrierUnread`],
+///    reached from recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
 ///    because telling an author to file a kernel bug over their own
@@ -291,6 +292,18 @@ pub enum NamingError {
         /// The output-body index it lives in.
         body: u32,
     },
+    /// A **closed joined edge on a carrier with no period**: the flush
+    /// rule reads a closed edge over its carrier's whole period
+    /// (`names/README.md`, "Flush edges"), and a carrier with none (a
+    /// spline closed on itself) gives it no span to read. The join
+    /// refuses to close one (`topo::BooleanError::JoinCarrierUnsupported`),
+    /// so no body reaches here today.
+    ClosedCarrierUnread {
+        /// The joined edge.
+        edge: EdgeKey,
+        /// Its carrier's kind.
+        carrier: geom::CurveKind,
+    },
     /// A union's member edge whose crossings cannot be ranked along it,
     /// because a tie stands where one edge is needed: the member's own
     /// table ties the edge's name to several edges, or the fold tied
@@ -473,6 +486,12 @@ impl crate::spoken::Say for NamingError {
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces and is \
                  the join's own edge, so neither face nor key says which operand's rim it is"
+            ),
+            Self::ClosedCarrierUnread { edge, carrier } => write!(
+                f,
+                "{UNRULED_FRAMING}: joined edge {edge:?} is closed on its {} carrier, which has \
+                 no period to read the operand edges it lies along over",
+                carrier.name()
             ),
             Self::ConventionalVertex { vertex, body } => write!(
                 f,
@@ -1733,6 +1752,13 @@ mod display_tests {
                 vec!["merged face", "holds 2 faces", "no rule picks"],
             ),
             (
+                NamingError::ClosedCarrierUnread {
+                    edge: EdgeKey::default(),
+                    carrier: geom::CurveKind::Nurbs,
+                },
+                vec!["closed on its", "no period"],
+            ),
+            (
                 NamingError::ConventionalVertex {
                     vertex: topo::VertexKey::default(),
                     body: 3,
@@ -1803,7 +1829,8 @@ mod display_tests {
                 | NamingError::MergedChordOffRim { .. }
                 | NamingError::MergedChordConstituents { .. }
                 | NamingError::MemberEdgeTied { .. }
-                | NamingError::ConventionalVertex { .. } => Some(UNRULED_FRAMING),
+                | NamingError::ConventionalVertex { .. }
+                | NamingError::ClosedCarrierUnread { .. } => Some(UNRULED_FRAMING),
                 NamingError::Band(_) | NamingError::Escalated { .. } => None,
             }
         };
@@ -1825,6 +1852,7 @@ mod display_tests {
                 NamingError::MemberEdgeTied { .. } => 13,
                 NamingError::MergedChordConstituents { .. } => 14,
                 NamingError::ConventionalVertex { .. } => 15,
+                NamingError::ClosedCarrierUnread { .. } => 16,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

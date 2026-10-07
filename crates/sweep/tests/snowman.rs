@@ -1562,6 +1562,7 @@ fn a_corner_at_a_caps_conventional_vertex_reads_the_circles_interior() {
                      {stripped:?}"
                 );
             } else {
+                // The gap, pinned: `work/fuse/a-corner-on-a-circles-interior-is-unseen-at-tier-three-prime`.
                 assert!(
                     stripped.is_empty(),
                     "{label}: off the vertex the touch is on a curved edge's interior, \

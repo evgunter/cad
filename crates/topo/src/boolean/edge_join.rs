@@ -646,10 +646,23 @@ mod conventional {
                 tol,
             )
             .unwrap();
-        assert!(
-            !is_conventional_vertex(&body, born.vertex),
-            "a self-loop's vertex another edge leaves"
-        );
+        // Whichever half-edge the vertex records as its first, the
+        // strut leaving it is read: the closed edge's two halves, and
+        // the strut's own.
+        let e = body.get_edge(closed.edge).unwrap();
+        let s = body.get_edge(strut.edge).unwrap();
+        let out = [s.he_plus, s.he_minus]
+            .into_iter()
+            .find(|&h| body.get_half_edge(h).unwrap().start == born.vertex)
+            .unwrap();
+        let firsts = [e.he_plus, e.he_minus, out];
+        for first in firsts {
+            body.vertices.get_mut(born.vertex).unwrap().emanating = Some(first);
+            assert!(
+                !is_conventional_vertex(&body, born.vertex),
+                "a self-loop's vertex another edge leaves, first {first:?}"
+            );
+        }
         let far = body
             .half_edge_end(body.get_edge(strut.edge).unwrap().he_plus)
             .unwrap();

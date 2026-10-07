@@ -534,7 +534,7 @@ fn pierce_curvature(margin: f64) -> Result<(), BooleanError> {
 // shorter of the vertex's two edges, so a few-ε arc beside an
 // otherwise joinable vertex reads the wedge in the band and refuses
 // the whole boolean (`JoinUndecided`), where the boolean built before
-// the curved join.
+// the curved join (`work/fuse/a-sliver-arc-beside-a-joinable-vertex-refuses-the-boolean`).
 const EDGE_JOIN_SITE: Door = Door::Site(
     "a valence-2 vertex's distance from its chart's pole is read inside the join's predicate, \
      on a vertex an output stage leaves between two edges of one carrier, which no pair of \

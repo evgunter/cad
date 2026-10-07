@@ -288,7 +288,7 @@ are different cells on the line, and a name cites only what its cell lies on.
 A pair boolean names a joined edge by the same reading over its two operands'
 edges, read along the edge's carrier: its line, or the curve a curved edge is
 carried by, where "along" is overlapping it over a length of that curve. A
-closed edge, one the output stage joined into a whole circle, lies within a
+closed edge, one the output stage joined round a closed carrier, lies within a
 closed operand edge alone and is covered over its whole period, so its name
 reads nothing off where its vertex sits. A seam vertex cites a member edge
 whole, `FromMember(m, e)`, never a piece and never a set: the one it lies on,

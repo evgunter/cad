@@ -2661,6 +2661,7 @@ test_utils::f6_variants! {
         MergedChordConstituents,
         MemberEdgeTied,
         ConventionalVertex,
+        ClosedCarrierUnread,
         Band,
         Escalated,
     ];
@@ -2798,6 +2799,13 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 several: 2,
             },
             vec!["merged face", "holds 2 faces", "no rule picks"],
+        ),
+        (
+            NamingError::ClosedCarrierUnread {
+                edge: topo::EdgeKey::default(),
+                carrier: geom::CurveKind::Nurbs,
+            },
+            vec!["closed on its", "no period"],
         ),
         (
             NamingError::ConventionalVertex {

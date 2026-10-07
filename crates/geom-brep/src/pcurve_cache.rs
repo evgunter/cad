@@ -6830,9 +6830,12 @@ impl core::fmt::Display for IsoFamilyRefusal {
 
 /// The iso family `carrier`'s image on `surface`'s chart lies on, read
 /// off the class arm [`chart_pcurve`]'s derivation selects for it, so
-/// the family is the mint's own structure and never decided a second
-/// way. `None` for a planar chart and for an image on no family (a
-/// cylinder's oblique section, a cone's tilted one).
+/// the family is the mint's own structure. One reading is taken again:
+/// where the derivation took the cylinder's ruling form, its class
+/// verdict (`pcurve_chart_radial_moving`, the same margin) is re-read,
+/// because the mint takes that form for an in-band verdict too, as a
+/// tie-break. `None` for a planar chart, a spiric carrier, and an image
+/// on no family (a cylinder's oblique section, a cone's tilted one).
 ///
 /// # Errors
 ///

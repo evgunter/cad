@@ -1450,18 +1450,20 @@ enum JoinedCover {
 }
 
 /// **The operand edges joined edge `e` lies along** (`names/README.md`,
-/// "Flush edges"): the straight edges of either operand between two
-/// faces that `e`'s two faces descend from (a merged face from each of
-/// its constituents) that lie on `e`'s line and overlap it over a
-/// length ([`Segment::cover`], through [`ON_MEMBER_EDGE`]). One that
-/// holds `e` whole makes `e` a piece of it, the least such in key order
-/// with A's before B's; otherwise several that overlap it and together
-/// cover it name it as a set, since a set name says the edge lies on
-/// its constituents. A curved `e` reads its cover off the curved rims
-/// lying on its carrier ([`curved_cover`]). Anything else — one that
-/// runs along a seam for part of its length — is named from its two faces,
-/// never from the lineage of the key the join kept, which holds only
-/// part of it.
+/// "Flush edges"): the edges of either operand between two faces that
+/// `e`'s two faces descend from (a merged face from each of its
+/// constituents), straight where `e` is and curved where `e` is, that
+/// lie on `e`'s carrier and overlap it over a length, read through
+/// [`ON_MEMBER_EDGE`] along `e`'s line ([`Segment::cover`]) or its
+/// curved carrier ([`Track::cover`]). One that holds `e` whole makes
+/// `e` a piece of it, the least such in key order with A's before B's;
+/// otherwise several that overlap it and together cover it name it as a
+/// set, since a set name says the edge lies on its constituents.
+/// Anything else — one that runs along a seam for part of its length —
+/// is named from its two faces, never from the lineage of the key the
+/// join kept, which holds only part of it. A closed `e`, two pieces the
+/// join made one, lies within a closed rim only and is covered over its
+/// whole period, so where its vertex sits says nothing.
 #[allow(clippy::too_many_arguments)]
 fn joined_cover<T: Decide>(
     e: EdgeKey,
@@ -1484,9 +1486,10 @@ fn joined_cover<T: Decide>(
         })
     };
     let (d0, d1) = (descents(*f0)?, descents(*f1)?);
-    if topo::query::edge_carrier_kind(body, e) != Some(topo::query::CurveKind::Line) {
-        return curved_cover(e, body, a, b, (&d0, &d1), bnd);
-    }
+    let straight = |body: &Body<T>, k: EdgeKey| {
+        topo::query::edge_carrier_kind(body, k) == Some(topo::query::CurveKind::Line)
+    };
+    let line = straight(body, e);
     let mut candidates: BTreeSet<OpSide<EdgeKey>> = BTreeSet::new();
     for &g0 in &d0 {
         for &g1 in d1
@@ -1496,59 +1499,7 @@ fn joined_cover<T: Decide>(
             let (op, k0) = g0.of(a, b);
             let (_, k1) = g1.of(a, b);
             for r in rims_between(op.body, k0, k1)? {
-                if topo::query::edge_carrier_kind(op.body, r) == Some(topo::query::CurveKind::Line)
-                {
-                    candidates.insert(g0.with(r));
-                }
-            }
-        }
-    }
-    let mut ends = Vec::with_capacity(candidates.len());
-    for r in candidates {
-        let (op, k) = r.of(a, b);
-        let (v0, v1) = edge_ends(op.body, k)?;
-        ends.push((r, vertex_point(op.body, v0)?, vertex_point(op.body, v1)?));
-    }
-    let cover = Segment::of_edge(body, e)?.cover(ends, ON_MEMBER_EDGE, bnd)?;
-    if let Some(&r) = cover.within.first() {
-        return Ok(JoinedCover::One(r));
-    }
-    Ok(if cover.covered {
-        JoinedCover::Set(cover.along)
-    } else {
-        JoinedCover::Faces
-    })
-}
-
-/// [`joined_cover`] for a curved joined edge `e` between faces that
-/// descend to `d0` and `d1`: the flush rule read along `e`'s carrier
-/// ([`Track::cover`]) over the curved rims of one operand between two
-/// of those faces. One that holds `e` whole makes `e` a piece of it,
-/// the least in key order with A's before B's; several that overlap
-/// it and together cover it name it as their set; anything else names
-/// `e` from its faces. A closed `e` — two pieces the join made one
-/// circle — lies within a closed rim only, and is covered over its
-/// whole period, so where its vertex sits says nothing.
-fn curved_cover<T: Decide>(
-    e: EdgeKey,
-    body: &Body<T>,
-    a: &OperandCtx<'_, T>,
-    b: &OperandCtx<'_, T>,
-    (d0, d1): (&[OpSide<FaceKey>], &[OpSide<FaceKey>]),
-    bnd: geom_core::Band,
-) -> Result<JoinedCover, NamingError> {
-    let bug = |what| NamingError::Emission { what };
-    let mut candidates: BTreeSet<OpSide<EdgeKey>> = BTreeSet::new();
-    for &g0 in d0 {
-        for &g1 in d1
-            .iter()
-            .filter(|g1| g1.operand() == g0.operand() && **g1 != g0)
-        {
-            let (op, k0) = g0.of(a, b);
-            let (_, k1) = g1.of(a, b);
-            for r in rims_between(op.body, k0, k1)? {
-                if topo::query::edge_carrier_kind(op.body, r) != Some(topo::query::CurveKind::Line)
-                {
+                if straight(op.body, r) == line {
                     candidates.insert(g0.with(r));
                 }
             }
@@ -1558,27 +1509,40 @@ fn curved_cover<T: Decide>(
     for r in candidates {
         let (op, k) = r.of(a, b);
         let (v0, v1) = edge_ends(op.body, k)?;
-        let mid = op
-            .body
-            .get_edge(k)
-            .and_then(|d| op.body.get_curve_geom(d.curve))
-            .and_then(topo::CurveGeom::certified)
-            .map(|c| {
-                let (r0, r1) = c.params();
-                c.carrier().mid_point(r0, r1)
-            })
-            .ok_or(bug("a joined edge's cover has no certified curve"))?;
+        let (p0, p1) = (vertex_point(op.body, v0)?, vertex_point(op.body, v1)?);
+        // A segment is read by its ends alone.
+        let mid = if line {
+            p0
+        } else {
+            op.body
+                .get_edge(k)
+                .and_then(|d| op.body.get_curve_geom(d.curve))
+                .and_then(topo::CurveGeom::certified)
+                .map(|c| {
+                    let (r0, r1) = c.params();
+                    c.carrier().mid_point(r0, r1)
+                })
+                .ok_or(bug("a joined edge's cover has no certified curve"))?
+        };
         arcs.push((
             r,
             CarrierArc {
-                p0: vertex_point(op.body, v0)?,
+                p0,
                 mid,
-                p1: vertex_point(op.body, v1)?,
+                p1,
                 closed: v0 == v1,
             },
         ));
     }
-    let cover = Track::of_edge(body, e)?.cover(arcs, ON_MEMBER_EDGE, bnd)?;
+    let cover = if line {
+        Segment::of_edge(body, e)?.cover(
+            arcs.into_iter().map(|(r, arc)| (r, arc.p0, arc.p1)),
+            ON_MEMBER_EDGE,
+            bnd,
+        )?
+    } else {
+        Track::of_edge(body, e)?.cover(arcs, ON_MEMBER_EDGE, bnd)?
+    };
     if let Some(&r) = cover.within.first() {
         return Ok(JoinedCover::One(r));
     }
@@ -2442,69 +2406,95 @@ impl<T: Decide> Segment<T> {
     /// **How this segment lies along `candidates`**, each a key and its
     /// two end points: the candidates on its line that overlap it over
     /// a length, those of them it lies within, and whether together
-    /// they cover it end to end. Every verdict goes through
-    /// `predicate`.
+    /// they cover it end to end ([`walk_cover`]). Every verdict goes
+    /// through `predicate`.
     pub(super) fn cover<K>(
         &self,
         candidates: impl IntoIterator<Item = (K, Point3<T>, Point3<T>)>,
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<Cover<K>, NamingError> {
-        let mut out = Cover {
-            within: Vec::new(),
-            along: Vec::new(),
-            covered: false,
-        };
-        let mut spans: Vec<(Point3<T>, Point3<T>)> = Vec::new();
+        let mut read = Vec::new();
         for (k, p0, p1) in candidates {
-            if !self.on_line(p0, predicate, bnd)? || !self.on_line(p1, predicate, bnd)? {
+            let stretch =
+                if self.on_line(p0, predicate, bnd)? && self.on_line(p1, predicate, bnd)? {
+                    match self.ahead(p0, p1, predicate, bnd)? {
+                        Sign::Positive => vec![(p1, p0)],
+                        _ => vec![(p0, p1)],
+                    }
+                } else {
+                    Vec::new()
+                };
+            read.push((k, stretch, true));
+        }
+        walk_cover(read, (self.q0, self.q1), |p, q| {
+            Ok(self.ahead(p, q, predicate, bnd)? == Sign::Positive)
+        })
+    }
+}
+
+/// **The flush rule's walk** (`names/README.md`, "Flush edges"), one
+/// for a straight edge ([`Segment::cover`]) and a curved one
+/// ([`Track::cover`]): over an edge's span from `start` to `end`, where
+/// `ahead(p, q)` says `p` lies strictly past `q` along the edge. Each
+/// candidate comes as the stretches of the span's parameter it holds
+/// (a segment's one; an arc's, and that arc a period back) and whether
+/// it may hold the edge whole. A candidate one of whose stretches
+/// overlaps the span over a length runs along it; one that also holds
+/// it end to end, the edge lies within; and the walk from the start,
+/// each step to the farthest end of a stretch that starts at or before
+/// the cursor and reaches past it, says whether they cover it.
+fn walk_cover<K, S: Copy>(
+    candidates: impl IntoIterator<Item = (K, Vec<(S, S)>, bool)>,
+    (start, end): (S, S),
+    ahead: impl Fn(S, S) -> Result<bool, NamingError>,
+) -> Result<Cover<K>, NamingError> {
+    let mut out = Cover {
+        within: Vec::new(),
+        along: Vec::new(),
+        covered: false,
+    };
+    let mut spans: Vec<(S, S)> = Vec::new();
+    for (k, stretches, may_hold) in candidates {
+        let (mut overlaps, mut within) = (false, false);
+        for (lo, hi) in stretches {
+            if !ahead(hi, start)? || !ahead(end, lo)? {
                 continue;
             }
-            let (lo, hi) = match self.ahead(p0, p1, predicate, bnd)? {
-                Sign::Positive => (p1, p0),
-                _ => (p0, p1),
-            };
-            if self.ahead(hi, self.q0, predicate, bnd)? != Sign::Positive
-                || self.ahead(self.q1, lo, predicate, bnd)? != Sign::Positive
-            {
-                continue;
-            }
-            if self.ahead(lo, self.q0, predicate, bnd)? != Sign::Positive
-                && self.ahead(self.q1, hi, predicate, bnd)? != Sign::Positive
-            {
-                out.within.push(k);
-            } else {
-                out.along.push(k);
-            }
+            overlaps = true;
+            within |= may_hold && !ahead(lo, start)? && !ahead(end, hi)?;
             spans.push((lo, hi));
         }
-        // Walk from the start, each step to the farthest end of a span
-        // that starts at or before the cursor and reaches past it.
-        let mut at = self.q0;
-        loop {
-            if self.ahead(self.q1, at, predicate, bnd)? != Sign::Positive {
-                out.covered = true;
-                break;
-            }
-            let mut next: Option<Point3<T>> = None;
-            for &(lo, hi) in &spans {
-                if self.ahead(lo, at, predicate, bnd)? != Sign::Positive
-                    && self.ahead(hi, at, predicate, bnd)? == Sign::Positive
-                    && match next {
-                        None => true,
-                        Some(n) => self.ahead(hi, n, predicate, bnd)? == Sign::Positive,
-                    }
-                {
-                    next = Some(hi);
+        if within {
+            out.within.push(k);
+        } else if overlaps {
+            out.along.push(k);
+        }
+    }
+    let mut at = start;
+    loop {
+        if !ahead(end, at)? {
+            out.covered = true;
+            break;
+        }
+        let mut next: Option<S> = None;
+        for &(lo, hi) in &spans {
+            if !ahead(lo, at)?
+                && ahead(hi, at)?
+                && match next {
+                    None => true,
+                    Some(n) => ahead(hi, n)?,
                 }
-            }
-            match next {
-                Some(n) => at = n,
-                None => break,
+            {
+                next = Some(hi);
             }
         }
-        Ok(out)
+        match next {
+            Some(n) => at = n,
+            None => break,
+        }
     }
+    Ok(out)
 }
 
 /// What [`Segment::cover`] found: the candidates the segment lies
@@ -2568,7 +2558,12 @@ impl<T: Decide> Track<T> {
         let closed = v0 == v1;
         let len = match (closed, period) {
             (true, Some(p)) => p,
-            (true, None) => return Err(bug("a closed edge's carrier has no period")),
+            (true, None) => {
+                return Err(NamingError::ClosedCarrierUnread {
+                    edge: e,
+                    carrier: carrier.kind(),
+                });
+            }
             (false, _) => t1 - t0,
         };
         let mid = geom::mid_param(t0, t1);
@@ -2662,71 +2657,25 @@ impl<T: Decide> Track<T> {
     }
 
     /// **How this edge lies along `candidates`** — [`Segment::cover`]
-    /// over the carrier's parameter: the candidates on the carrier that
-    /// overlap the edge over a length, those it lies within, and
-    /// whether together they cover it end to end. A closed edge lies
-    /// within a closed candidate only, and is covered over its whole
-    /// period.
+    /// over the carrier's parameter ([`walk_cover`]): the candidates on
+    /// the carrier that overlap the edge over a length, those it lies
+    /// within, and whether together they cover it end to end. A closed
+    /// edge lies within a closed candidate only, and is covered over
+    /// its whole period.
     pub(super) fn cover<K>(
         &self,
         candidates: impl IntoIterator<Item = (K, CarrierArc<T>)>,
         predicate: &'static str,
         bnd: geom_core::Band,
     ) -> Result<Cover<K>, NamingError> {
-        let mut out = Cover {
-            within: Vec::new(),
-            along: Vec::new(),
-            covered: false,
-        };
-        let pos = |x: T| -> Result<bool, NamingError> {
-            Ok(self.sign(x, predicate, bnd)? == Sign::Positive)
-        };
-        let mut spans: Vec<(T, T)> = Vec::new();
+        let mut read = Vec::new();
         for (k, arc) in candidates {
-            let Some(stretches) = self.stretches(&arc, predicate, bnd)? else {
-                continue;
-            };
-            let (mut overlaps, mut within) = (false, false);
-            for (lo, hi) in stretches {
-                if !pos(hi)? || !pos(self.len - lo)? {
-                    continue;
-                }
-                overlaps = true;
-                within |= !pos(lo)? && !pos(self.len - hi)? && (arc.closed || !self.closed);
-                spans.push((lo, hi));
-            }
-            if within {
-                out.within.push(k);
-            } else if overlaps {
-                out.along.push(k);
-            }
+            let stretches = self.stretches(&arc, predicate, bnd)?.unwrap_or_default();
+            read.push((k, stretches, arc.closed || !self.closed));
         }
-        // Walk from the start, each step to the farthest end of a span
-        // that starts at or before the cursor and reaches past it.
-        let mut at = T::zero();
-        loop {
-            if !pos(self.len - at)? {
-                out.covered = true;
-                break;
-            }
-            let mut next: Option<T> = None;
-            for &(lo, hi) in &spans {
-                if !pos(lo - at)?
-                    && pos(hi - at)?
-                    && match next {
-                        None => true,
-                        Some(n) => pos(hi - n)?,
-                    }
-                {
-                    next = Some(hi);
-                }
-            }
-            match next {
-                Some(n) => at = n,
-                None => break,
-            }
-        }
-        Ok(out)
+        walk_cover(read, (T::zero(), self.len), |p, q| {
+            Ok(self.sign(p - q, predicate, bnd)? == Sign::Positive)
+        })
     }
 }
 
