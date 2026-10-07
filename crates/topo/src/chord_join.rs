@@ -4117,10 +4117,11 @@ mod tests {
 
     /// **A wall's pose is levered at its axial extent, its rim's bulge
     /// included, not the distance round it.** A unit wall about `z`
-    /// trimmed at `φ = 45°`, its rim one closed ellipse on the seam vertex
-    /// `(1, 0, 1)` (`oblique_rim_wall`), and the plane through the vertex
-    /// tilted so the axis meets it at `sin β = k·ε/2`. The rim reaches
-    /// `2·tan φ = 2` along the axis from the vertex's foot, so
+    /// trimmed at `φ = ±45°`, its rim one closed ellipse on the seam vertex
+    /// `(1, 0, ±1)` (`oblique_rim_wall`), the rim's highest point or its
+    /// lowest, and the plane through the vertex tilted so the axis meets
+    /// it at `sin β = k·ε/2`. The rim reaches `2·tan |φ| = 2` down or up
+    /// the axis from the vertex's foot, at its low crest or its high one, so
     /// `pc_axis_plane_parallel` reads `k·ε` and escalates at every `k` in
     /// the band. The vertex alone levers nothing and reads Zero (the
     /// tangent ruling); the rim's Euclidean reach from the vertex,
@@ -4129,10 +4130,13 @@ mod tests {
     #[test]
     fn a_rims_bulge_levers_the_pose_along_the_axis() {
         let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
-        let (body, face, vertex) =
-            crate::test_support_fixtures::oblique_rim_wall(core::f64::consts::FRAC_PI_4);
-        let base = body.resolve_vertex_point(vertex, Proven);
-        for frac in [0.12, 0.8, 0.9, 0.99] {
+        let quarter = core::f64::consts::FRAC_PI_4;
+        for (phi, frac) in [quarter, -quarter]
+            .into_iter()
+            .flat_map(|phi| [0.12, 0.8, 0.9, 0.99].map(|frac| (phi, frac)))
+        {
+            let (body, face, vertex) = crate::test_support_fixtures::oblique_rim_wall(phi);
+            let base = body.resolve_vertex_point(vertex, Proven);
             let k = frac * Tol::witness().k();
             let sin_beta: f64 = k * band.zero() / 2.0;
             let normal = UnitVec3::new(
@@ -4148,7 +4152,7 @@ mod tests {
                     Err(SplitJoinError::Escalated { ref diag, .. })
                         if diag.predicate == Some("pc_axis_plane_parallel")
                 ),
-                "k = {k}: an in-band tilt over the rim must escalate, got {:?}",
+                "φ = {phi}, k = {k}: an in-band tilt over the rim must escalate, got {:?}",
                 got.map(|w| w.map(|w| match w.case {
                     SectionCase::Straight(_) => "straight",
                     SectionCase::Tangent(_) => "tangent",

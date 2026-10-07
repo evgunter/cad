@@ -696,21 +696,27 @@ mod tests {
     /// **A face's axial range reaches its rim's bulge past every vertex,
     /// and not round the wall.** The wall about `z` trimmed at `φ`, its
     /// rim one closed ellipse on the seam vertex (`oblique_rim_wall`), the
-    /// rim's highest point: from that vertex the rim reaches `2·tan φ`
-    /// down the axis and nothing up it, which the vertex alone (zero)
-    /// misses, and [`face_extent`]'s distance round the rim, `2/cos φ`,
-    /// over-states.
+    /// rim's highest point at `φ > 0` and its lowest at `φ < 0`: from that
+    /// vertex the rim reaches `2·tan |φ|` down the axis (its low crest) or
+    /// up it (its high one) and nothing the other way, which the vertex
+    /// alone (zero) misses, and [`face_extent`]'s distance round the rim,
+    /// `2/cos φ`, over-states.
     #[test]
     fn a_faces_axial_extent_reaches_its_rims_bulge() {
-        for phi in [0.2, core::f64::consts::FRAC_PI_4, 1.2] {
+        for phi in [0.2, core::f64::consts::FRAC_PI_4, 1.2, -0.2, -1.2] {
             let (body, face, vertex) = crate::test_support_fixtures::oblique_rim_wall(phi);
             let at = body.resolve_vertex_point(vertex, Proven);
             let (below, above) =
                 face_axial_range(&body, face, at, geom_core::Vec3::unit_z()).unwrap();
             let euclid = face_extent(&body, vertex, face).unwrap();
-            let bulge = 2.0 * phi.tan();
+            let bulge = 2.0 * phi.tan().abs();
+            let (far, near) = if phi > 0.0 {
+                (below, above)
+            } else {
+                (above, below)
+            };
             assert!(
-                (below - bulge).abs() <= 1e-12 * bulge && above.abs() <= 1e-12,
+                (far - bulge).abs() <= 1e-12 * bulge && near.abs() <= 1e-12,
                 "φ = {phi}: the rim reaches {below} below and {above} above, not the bulge {bulge}"
             );
             assert!(

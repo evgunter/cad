@@ -1634,7 +1634,8 @@ pub fn kill_under_a_null_strut(
 /// origin of normal `(−sin φ, 0, cos φ)`. The rim's centre is the origin,
 /// its major semi-axis `1/cos φ` along `(cos φ, 0, sin φ)`, and its one
 /// vertex the major end `(1, 0, tan φ)`; the rim reaches `tan φ` either
-/// side of the origin along the axis, `2·tan φ` from the vertex. Returns
+/// side of the origin along the axis, `2·tan φ` from the vertex: the
+/// rim's highest point at `φ > 0`, its lowest at `φ < 0`. Returns
 /// the body, one of the two faces the rim bounds (each is bounded by the
 /// rim alone) and the vertex.
 #[cfg(test)]
