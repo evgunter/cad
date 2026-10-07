@@ -103,7 +103,7 @@ fn rim_removed(big_r: f64, s: f64, r: f64) -> f64 {
 
 /// The fillet builds, tier-3 valid, at the volume `want`.
 fn builds(body: &Body<f64>, edges: &[EdgeKey], r: f64, want: f64, what: &str) {
-    let out = fillet_edges(body, edges, r, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol())
         .unwrap_or_else(|e| panic!("{what}: r = {r} builds, got {:?}", e.error));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{what}: r = {r} is tier-3 valid, got {e:?}"));
@@ -116,7 +116,7 @@ fn builds(body: &Body<f64>, edges: &[EdgeKey], r: f64, want: f64, what: &str) {
 
 /// The fillet refuses `RingClearance` at the margin `want`.
 fn refuses_at(body: &Body<f64>, edges: &[EdgeKey], r: f64, want: f64, what: &str) {
-    let err = fillet_edges(body, edges, r, tol())
+    let err = fillet_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol())
         .err()
         .unwrap_or_else(|| panic!("{what}: r = {r} refuses"))
         .error;
@@ -132,7 +132,7 @@ fn refuses_at(body: &Body<f64>, edges: &[EdgeKey], r: f64, want: f64, what: &str
 
 /// The fillet escalates in band, decided by `fillet3_ring_clearance`.
 fn escalates(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
-    let err = fillet_edges(body, edges, r, tol())
+    let err = fillet_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol())
         .err()
         .unwrap_or_else(|| panic!("{what}: r = {r} escalates"))
         .error;
@@ -339,9 +339,14 @@ fn a_curved_mates_ring_refuses_at_the_ladder_gate() {
     let body = sub(&holed, &notch);
     validate_geometric(&body, tol()).expect("the notched hole is valid");
     let rim = rim_at(&body, 1.0, 0.3);
-    let err = fillet_edges(&body, &rim, 0.09, tol())
-        .expect_err("refuses")
-        .error;
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &rim,
+        0.09,
+        tol(),
+    )
+    .expect_err("refuses")
+    .error;
     assert!(
         matches!(&err, BlendError::UnsupportedChain { detail, .. }
             if detail.contains("curved support carries rings")),
@@ -356,7 +361,11 @@ fn a_curved_mates_ring_refuses_at_the_ladder_gate() {
 #[test]
 fn an_elliptical_ring_beside_a_hole_rim_refuses_unmetered() {
     let holed = sub(&cube(1.0, tol()), &bore(0.3, 0.5, 0.15, -0.2, 1.4));
-    let body = sub(&holed, &at(crate::common::tilted_bore(), 0.3, 0.0, 0.0));
+    let body = sweep::test_support::finished(
+        "body",
+        sub(&holed, &at(crate::common::tilted_bore(), 0.3, 0.0, 0.0)),
+        tol(),
+    );
     validate_geometric(&body, tol()).expect("the twice-bored cube is valid");
     let rim = rim_at(&body, 1.0, 0.15);
     for r in [0.05, 0.1] {
@@ -421,7 +430,7 @@ fn a_ring_pinched_to_a_rim_vertex_builds_and_its_rim_fillet_refuses() {
         };
         topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol())
             .unwrap_or_else(|e| panic!("{what}: tier 3′: {e:?}"));
-        let body = bb.body.into_body();
+        let body = bb.body;
         validate_geometric(&body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3: {e:?}"));
         let got = topo::mass_properties(&body, tol()).unwrap().volume;
         assert!(
@@ -473,7 +482,7 @@ mod interval_lane {
     use sweep::blend::build::fillet_edges;
     use sweep::test_support::{cube, finished, prism};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-    use topo::{Body, BooleanDeclarations, EdgeKey};
+    use topo::{AtRestBody, BooleanDeclarations, EdgeKey};
 
     fn t() -> Tol {
         Tol::witness()
@@ -493,7 +502,7 @@ mod interval_lane {
         );
         let diamond =
             topo::transform_rigid(&diamond, &Affine3::translation(v3(0.0, 0.0, 0.8)), t()).unwrap();
-        let body: Body<Interval> = boolean_op_with(
+        let body: AtRestBody<Interval> = boolean_op_with(
             BooleanOp::Subtract,
             &finished("the cube", cube(1.0, t()), t()),
             &finished("the diamond", diamond, t()),
@@ -505,8 +514,7 @@ mod interval_lane {
         .body()
         .expect("a body")
         .body
-        .clone()
-        .into_body();
+        .clone();
         let on = |c: Interval| c.lo().abs() < 1e-9 || (c.lo() - 1.0).abs() < 1e-9;
         let outer: Vec<EdgeKey> = body
             .edges()

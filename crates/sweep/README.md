@@ -225,9 +225,10 @@ outer cycle or, at an annulus's inner circle, its ring, whose trim then
 replaces that ring. Its one crossing takes the strut, and the trim is
 minted so the host keeps its key (`lone_host_trim`); both rims of such
 an annulus are annulus rims, and carve in one call. A CURVED single face
-carrying every arc is authorable through `topo`'s `kef` and refuses at
-the half-band gate on both routes
-(`work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`).
+carrying every arc is authorable through `topo`'s `kef_describing` (a
+cylinder wall merged over one seam meridian, the other restated as its
+wrap edge), finishes, and refuses at the half-band gate on both routes
+(`fillet_h5_r2_probes::a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`).
 
 **A3-3 — the genuine mid-curve run-out is named and not implemented.**
 Stopping a band part-way along a smooth rim, at a station with no

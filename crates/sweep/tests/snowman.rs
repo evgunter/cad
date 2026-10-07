@@ -709,8 +709,13 @@ fn the_snowman_waist_fillets() {
                 .all(|a| *a == sweep::blend::BlendArm::SphereSphereTorus),
         "every waist link takes the sphere × sphere arm, got {arms:?}"
     );
-    let out = sweep::blend::build::fillet_edges(&body, &waist, r, Tol::witness())
-        .unwrap_or_else(|e| panic!("the waist fillets, got {e:?}"));
+    let out = sweep::blend::build::fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &waist,
+        r,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the waist fillets, got {e:?}"));
     assert_eq!(
         topo::validate_geometric(&out.body, Tol::witness()),
         Ok(()),

@@ -58,7 +58,7 @@ fn sequential(src: &Body<f64>, order: &[(f64, f64)], r: f64) -> f64 {
     for &sel in order {
         let arcs = rim_arcs_at(&body, sel.0, sel.1);
         assert!(!arcs.is_empty(), "rim {sel:?} still selectable");
-        body = fillet_edges(&body, &arcs, r, tol())
+        body = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("rim {sel:?} fillets sequentially at r = {r}, got {e:?}"))
             .body;
     }
@@ -78,7 +78,7 @@ fn sequential(src: &Body<f64>, order: &[(f64, f64)], r: f64) -> f64 {
 /// sequential order.
 #[test]
 fn r2_p1_zone_pair_equality_off_the_fixture_radius() {
-    let body = zone();
+    let body = sweep::test_support::finished("body", zone(), tol());
     let (lo, hi) = (
         one_edge_rim_at(&body, ZONE_SPHERE_LO.0, ZONE_SPHERE_LO.1),
         one_edge_rim_at(&body, ZONE_SPHERE_HI.0, ZONE_SPHERE_HI.1),
@@ -119,7 +119,7 @@ fn r2_p2_lantern_triple_equality_off_the_fixture_radius() {
     for sel in rims {
         all.extend(rim_arcs_at(&body, sel.0, sel.1));
     }
-    let one = fillet_edges(&body, &all, r, tol())
+    let one = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &all, r, tol())
         .unwrap_or_else(|e| panic!("the triple builds at r = {r}, got {e:?}"));
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
     let v1 = volume(&one.body);
@@ -142,8 +142,13 @@ fn r2_p3_two_rims_sharing_a_plane_cap_compose_in_one_call() {
         one_edge_rim_at(&body, ZONE_SPHERE_HI.0, ZONE_SPHERE_HI.1),
         one_edge_rim_at(&body, ZONE_BORE_HI.0, ZONE_BORE_HI.1),
     );
-    let one = fillet_edges(&body, &[sph, bore], r, tol())
-        .unwrap_or_else(|e| panic!("the cap-sharing pair builds in one call, got {e:?}"));
+    let one = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[sph, bore],
+        r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the cap-sharing pair builds in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 2, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
     let v1 = volume(&one.body);
@@ -174,7 +179,7 @@ fn r2_p4_four_rims_in_a_sharing_cycle_compose_in_one_call() {
         .into_iter()
         .map(|sel| one_edge_rim_at(&body, sel.0, sel.1))
         .collect();
-    let one = fillet_edges(&body, &all, r, tol())
+    let one = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &all, r, tol())
         .unwrap_or_else(|e| panic!("the four-rim cycle builds in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 4, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
@@ -247,7 +252,7 @@ fn partition_check(src: &Body<f64>, out: &Filleted<f64>) {
 /// on a plane cap shared by two rims and on up to three earlier bands.
 #[test]
 fn r2_p34_cap_and_cycle_carves_keep_the_records_a_partition() {
-    let body = zone();
+    let body = sweep::test_support::finished("body", zone(), tol());
     let pair: Vec<EdgeKey> = [ZONE_SPHERE_HI, ZONE_BORE_HI]
         .into_iter()
         .map(|sel| one_edge_rim_at(&body, sel.0, sel.1))
