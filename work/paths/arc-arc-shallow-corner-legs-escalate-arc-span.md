@@ -2,11 +2,11 @@
 id: arc-arc-shallow-corner-legs-escalate-arc-span
 kind: issue
 title: A fillet's own legs escalate a span predicate against each other at small turns, so the loop cannot validate whatever the fillet does
-status: dispatched
+status: closed
 opened: 2026-09-13
 priority: P0
 cost: H
-branch: claude/clever-bardeen-4itqb3
+closed: 2026-10-07
 ---
 
 
@@ -91,3 +91,53 @@ never mints a declaration validation contradicts, and cannot promise
 that every loop with a small-turn fillet in it validates — the legs
 around the fillet are the other half of that, and they are this item's
 subject.
+
+## Outcome
+
+**Re-measured on main (`19f9037063`), after #4264 and #4276.** The
+witness still escalated. The `arc_arc` fixture was swept over 10⁻⁸ to
+10⁻¹ rad, at radii 0.02, 0.05, 0.2, 0.5 and 1, and at ε = 1e-6, 1e-9
+and 1e-12. At 1e-9 and 1e-12 every corner the door builds validates;
+the door refuses the shallow turns first, at the offset-lever gate. At
+1e-6, 19 of 331 built corners escalated in validation: 15 between legs
+0 and 2 (`arc_span`) and 4 between leg 0 and the fillet. The line × arc
+instances in "The class, widened" already validate on main at every ε.
+
+**Root cause: not honest.** An independent distance between the legs
+(closed form: endpoints, common normals, crossings) put every
+escalating leg pair at 1.01 to 2.02 Kε, so definitely apart. The
+separation is the fillet's chord, r × turn, not the O(R·t²) carrier gap
+the item supposed, so it moves with the fillet radius. The pair pass
+read the carriers' crossing, which stands about half that chord past
+each leg's end, in band on both spans. A crossing at angle φ stands for
+a stretch ε/sin φ long, so at a shallow turn its position is not a
+question the segments need answered (the #4276 argument).
+
+**Change (`crates/profile/src/seg.rs`).** A candidate that a span reads
+in band is settled by the segments' ends, as after a definite miss. This
+applies when, for each segment that reads it in band, the end nearest
+the candidate (`nearer_end`, a new predicate) reads on the other
+carrier. Otherwise the escalation stands. At a steep crossing that end
+lies off the other carrier, so the escalation stands there. After the
+change, 0 of the 15 leg-pair escalations remain. The 4 adjacent ones
+remain, at the smallest buildable turn per radius: the fillet's far end
+is 1.0 Kε from its leg along a quarter turn, which is inside
+`arc_span`'s documented reach.
+
+**Rows.**
+- `seg::pair_contact_tests::a_crossing_read_in_band_settles_on_the_ends_inside_its_stretch`
+  (f64 and Interval). On the unfixed code, 8 of its rows are wrong at
+  every ε. The no-guard mutant reds its square row, and the swapped-end
+  mutant reds 8 rows.
+- `rejections::legs_stopping_short_either_side_of_a_shallow_crossing_validate`
+  (every ε).
+- `fillet_stored_tangency::a_shallow_arc_x_arc_corner_validates_wherever_its_legs_stand_apart`
+  (the witness, and 36 corners within 10 Kε at 1e-6).
+- `seg_reach_fuzz` gains a shallow-crossing family. It finds 0 misses
+  at effort 10 at all three ε, against 122 to 171 for the no-guard
+  mutant.
+
+**Moved.** The sym11 past-the-ceiling receipts for the bracket and the
+pad now replay past validation. This closes
+`the-past-the-ceiling-row-replays-only-validation-on-the-bracket-and-pad`
+(SYM). D10's hold did not bind.
