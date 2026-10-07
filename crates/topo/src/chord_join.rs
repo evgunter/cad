@@ -2563,7 +2563,7 @@ fn sphere_path_parity<T: Decide>(
         let v_ref = arc.axis.cross(arc.u_ref);
         let (ca, cb) = (m.dot(arc.u_ref), m.dot(v_ref));
         let d = m.dot(arc.centre - centre);
-        let rho = (ca * ca + cb * cb).sqrt();
+        let rho = (ca.powi(2) + cb.powi(2)).sqrt();
         match decide_m(
             "split_sphere_path_meets_circle",
             Margin::of(arc.radius * rho - d.abs()),
@@ -2770,22 +2770,11 @@ fn sphere_ring_side<T: Decide>(
     ring: LoopKey,
     band: Band,
 ) -> Result<RingSide, SplitJoinError> {
-    let run = body.get_face(newf).ok_or_else(|| corrupt_face(newf))?.outer;
     let outer = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?.outer;
-    let first = match body
-        .get_loop(run)
-        .ok_or_else(|| corrupt_loop(run))?
-        .boundary
-    {
-        LoopBoundary::Cycle { first } => first,
-        LoopBoundary::Empty { .. } => {
-            return Err(SplitJoinError::SectionInvariant {
-                face: newf,
-                what: "ring re-homing on a sphere: the run is not a cycle",
-            });
-        }
-    };
-    let cycle = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
+    let cycle = outer_cycle(body, newf)?.ok_or(SplitJoinError::SectionInvariant {
+        face: newf,
+        what: "ring re-homing on a sphere: the run is not a cycle",
+    })?;
     let loop_arcs = sphere_run_arcs(body, newf, &cycle)?;
     let outside = loop_points(body, outer)?;
     for p in loop_points(body, ring)? {
