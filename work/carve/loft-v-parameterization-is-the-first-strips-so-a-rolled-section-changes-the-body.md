@@ -2,11 +2,13 @@
 id: loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body
 kind: issue
 title: loft_geometry takes the whole surface's v from the first strip, so a section rolled about its own normal builds a different body
-status: dispatched
+status: closed
 opened: 2026-09-12
 priority: P0
 cost: H
 branch: carve/loft-v-is-the-whole-sets
+pr: 4193
+closed: 2026-10-07
 ---
 
 
