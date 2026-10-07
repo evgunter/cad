@@ -4432,6 +4432,7 @@ mod touch_reread_rows {
         ));
         let cone = tet(corners(240.0, 0.7, 0.5));
         let over = tet(corners(50.0, 0.7, 0.5));
+        let (over_180, over_300) = (tet(corners(170.0, 0.7, 0.5)), tet(corners(290.0, 0.7, 0.5)));
         let pair = |x, y| built(union(&tet(x), &tet(y), t()));
         let two_up = pair(corners(40.0, 0.6, 0.5), corners(280.0, 0.6, 0.5));
         let two_down = pair(corners(200.0, -0.6, 0.5), corners(110.0, -0.6, 0.5));
@@ -4445,6 +4446,9 @@ mod touch_reread_rows {
             ("two up over the arch and void", &two_up, &both),
             ("two down beside the void", &two_down, &both),
             ("two up over the bare arch", &two_up, &arch),
+            ("over the arch and void", &over, &both),
+            ("over the second arch", &over_180, &arches),
+            ("over the third arch", &over_300, &arches),
         ] {
             let (xn, yn) = (RecipeNodeId(1), RecipeNodeId(2));
             let (xt, yt) = (table(x, xn), table(y, yn));
@@ -4476,8 +4480,8 @@ mod touch_reread_rows {
             }
         }
         assert_eq!(
-            named, 44,
-            "every built cell named: 48 cells, 4 of them empty"
+            named, 62,
+            "every built cell named: 66 cells, 4 of them empty"
         );
     }
 }

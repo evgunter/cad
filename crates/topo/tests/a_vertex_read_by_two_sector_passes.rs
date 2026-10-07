@@ -554,14 +554,13 @@ fn a_touching_vertex_paired_on_the_face_builds_sound_in_every_op() {
         &s.cavity,
         pose,
     );
-    // The crossed arch is one of three partners, whichever the pairs'
-    // order reads first.
-    builds(
-        "a standing pyramid over the arches",
-        &s.over,
-        &s.arches,
-        pose,
-    );
+    // The crossed arch is one of three partners, each in turn, whichever
+    // the pairs' order reads first.
+    for b in [50.0, 170.0, 290.0] {
+        let over = standing(b, 0.7, 0.5, pose);
+        let what = format!("a standing pyramid over the arch at {b}°");
+        builds(&what, &over, &s.arches, pose);
+    }
 }
 
 /// **A vertex in several pairs, or touching a face beside nested
