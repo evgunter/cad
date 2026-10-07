@@ -1247,16 +1247,38 @@ pub enum EulerOpError {
         /// The typed certification failure, nested whole.
         error: geom_brep::PcurveCertifyError,
     },
-    /// [`Body::kev_describing`]: whether a killed half's image closes on
-    /// itself — the turn a general unsplice crosses it whole by — is
-    /// undecided at the door's band, so the joint the kill bridges
-    /// across it has no element to write. Raised in the plan phase, so
-    /// the body is untouched.
-    KillTurnEscalated {
-        /// The killed half-edge whose turn escalated.
+    /// [`Body::split_edge`]: the one joint decision
+    /// (`crate::pcurves::decide_joint`) decided no element for the joint
+    /// between the two children of a half-edge's row. The gap there is
+    /// exactly zero, so what refused is the split point's lever: a mark
+    /// at it escalated (`diag` is `Some`), or the lever is so short that
+    /// the zero gap reads on a mark (`None`), as on a narrow cone near
+    /// its apex. The split writes no element nothing decided. Raised
+    /// before any mutation, so the body is untouched.
+    SplitJointUndecided {
+        /// The edge being split.
+        edge: EdgeKey,
+        /// The parent half-edge whose joint was not decided.
         half_edge: HalfEdgeKey,
-        /// The in-band/poisoned margin diagnostics.
-        diag: geom_core::Indeterminate,
+        /// The escalated mark's in-band/poisoned margin diagnostics,
+        /// where one escalated.
+        diag: Option<geom_core::Indeterminate>,
+    },
+    /// [`Body::kev_describing`]: the turn a general unsplice crosses a
+    /// killed half whole by is not decided at the door's band, so the
+    /// joint the kill bridges across it has no element to write. Either
+    /// whether the half's ends meet escalated, or they meet and the
+    /// joint decision there missed: a mark at the vertex escalated, or
+    /// its lever is so short that the gap reads on a mark, or the
+    /// periods lie past the branch reach. Raised in the plan phase, so
+    /// the body is untouched.
+    KillTurnUndecided {
+        /// The killed half-edge whose turn was not decided.
+        half_edge: HalfEdgeKey,
+        /// The escalated margin's in-band/poisoned diagnostics, where
+        /// one escalated; `None` where the joint decision decided a
+        /// miss.
+        diag: Option<geom_core::Indeterminate>,
     },
     /// [`Body::mev`], [`Body::mef`] or [`Body::mekr`] would add a
     /// half-edge to a face the site mint re-mints — one whose **pcurve
@@ -1523,11 +1545,30 @@ impl EulerOpError {
                 "split_edge: on edge {edge:?}, half-edge {half_edge:?}'s stored pcurve \
                  row does not re-certify over a child's sub-interval: {error}"
             ),
-            Self::KillTurnEscalated { half_edge, diag } => format!(
-                "kev_describing: whether killed half-edge {half_edge:?}'s pcurve image meets \
-                 itself across its closed carrier is undecided: {}. Recourse: kill the edge at \
-                 a tolerance that decides its ends, or move the geometry",
-                diag.payload()
+            Self::SplitJointUndecided {
+                edge,
+                half_edge,
+                diag,
+            } => format!(
+                "split_edge: on edge {edge:?}, the joint between half-edge {half_edge:?}'s two \
+                 children is not decided at the split point: {}. Recourse: split at a \
+                 parameter farther from the chart's axis, or move the geometry",
+                diag.as_ref().map_or_else(
+                    || "the point's lever is too short to tell one azimuth period from the next"
+                        .to_owned(),
+                    |d| d.payload().to_string()
+                )
+            ),
+            Self::KillTurnUndecided { half_edge, diag } => format!(
+                "kev_describing: the turn of killed half-edge {half_edge:?} across its carrier \
+                 is not decided: {}. Recourse: kill the edge at a tolerance that decides its \
+                 ends, or move the geometry",
+                diag.as_ref().map_or_else(
+                    || "its ends meet, but at a lever too short to tell one azimuth period from \
+                        the next, or past the branch reach"
+                        .to_owned(),
+                    |d| d.payload().to_string()
+                )
             ),
             Self::PcurveMint { face, refusal } => format!(
                 "the operator would add a half-edge to face {face:?}, whose pcurve rows are \
@@ -1779,14 +1820,24 @@ pub(crate) fn every_euler_op_error_once()
                 terminal_sliver: false,
             },
         },
-        EulerOpError::KillTurnEscalated {
-            half_edge: HalfEdgeKey::default(),
-            diag: geom_core::Indeterminate {
+        EulerOpError::SplitJointUndecided {
+            edge: ek,
+            half_edge: he,
+            diag: Some(geom_core::Indeterminate {
                 margin: geom_core::MarginDiag::value(5e-9),
                 band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("pcurve_loop_continuity"),
+                predicate: Some("pcurve_loop_branch"),
                 terminal_sliver: false,
-            },
+            }),
+        },
+        EulerOpError::KillTurnUndecided {
+            half_edge: HalfEdgeKey::default(),
+            diag: Some(geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::value(5e-9),
+                band: Band::new(1e-9, 1e-8).unwrap(),
+                predicate: Some("pcurve_turn_closes"),
+                terminal_sliver: false,
+            }),
         },
         EulerOpError::PcurveSplit {
             edge: ek,
@@ -4134,7 +4185,7 @@ impl<T: Decide> Body<T> {
         touched: &[LoopKey],
         faces: impl FnOnce(
             &Self,
-            &[(FaceKey, crate::pcurves::SiteFrom<T>)],
+            &[(FaceKey, crate::pcurves::SiteFrom)],
         ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
         curves: crate::pcurves::SiteCarriers<'_, T>,
         tol: Tol,
@@ -4180,12 +4231,12 @@ impl<T: Decide> Body<T> {
         read: impl IntoIterator<Item = FaceKey>,
         faces: impl FnOnce(
             &Self,
-            &[(FaceKey, crate::pcurves::SiteFrom<T>)],
+            &[(FaceKey, crate::pcurves::SiteFrom)],
         ) -> Result<Vec<SiteFace<T>>, EulerOpError>,
         curves: crate::pcurves::SiteCarriers<'_, T>,
         tol: Option<Tol>,
     ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
-        let mut minted: Vec<(FaceKey, crate::pcurves::SiteFrom<T>)> = Vec::new();
+        let mut minted: Vec<(FaceKey, crate::pcurves::SiteFrom)> = Vec::new();
         let mut seen: Vec<FaceKey> = Vec::new();
         for face in read {
             if seen.contains(&face) {

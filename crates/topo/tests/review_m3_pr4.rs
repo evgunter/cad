@@ -740,8 +740,12 @@ fn not_adjacent_edges(errors: &[topo::ValidationError]) -> Vec<topo::EdgeKey> {
 /// The cone-relabelled brick does not finish: the at-rest gate refuses
 /// it on the relabelled face — one `DescriptionNotAdjacent` for each of
 /// the face's four boundary edges, whose lines do not lie on the cone,
-/// and one pcurve finding, a loop discontinuity on one of the face's
-/// own half-edges — and on nothing else.
+/// and one pcurve finding, a certification refusal on one of the face's
+/// own half-edges (its chart image does not map back onto its line, check
+/// 4's map residual) — and on nothing else. One, though all four lines
+/// are off the cone: the relabelled face stores no rows, so tier 3
+/// re-derives it whole and reports the derivation's refusal, which is the
+/// face's first owed one (`topo::pcurves::validate_pcurves`, step 1).
 fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
     assert!(
         matches!(
@@ -760,14 +764,22 @@ fn assert_cone_face_refuses_at_rest(b: Body<f64>, face: topo::FaceKey) {
         .iter()
         .filter_map(|e| match e {
             topo::ValidationError::Pcurve {
-                finding: topo::PcurveMintError::LoopDiscontinuity { half_edge },
+                finding:
+                    topo::PcurveMintError::Certify {
+                        half_edge,
+                        error:
+                            geom_brep::PcurveCertifyError::ResidualExceeded {
+                                check: geom_brep::PcurveCheck::MapResidual,
+                                ..
+                            },
+                    },
             } => Some(*half_edge),
             _ => None,
         })
         .collect();
     assert!(
         matches!(pcurve[..], [he] if hes.contains(&he)),
-        "one loop discontinuity, on the cone face's loop: {errors:?}"
+        "one map-residual refusal, on the cone face's loop: {errors:?}"
     );
 }
 
