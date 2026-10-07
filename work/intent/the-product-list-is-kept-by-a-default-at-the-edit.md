@@ -1,7 +1,7 @@
 ---
 id: the-product-list-is-kept-by-a-default-at-the-edit
 kind: issue
-title: Stage 2 FORK-2: how the explicit product list is kept under edits (A10's maintenance clause)
+title: "Stage 2 FORK-2: what the product is (re-run as FORK-2b: the world, every copy a world placement defines)"
 status: open
 opened: 2026-10-07
 priority: P0
@@ -14,3 +14,4 @@ Stage 2 replaces A10's product rule (the root set is the sink set of the consumi
 
 A designer pair converged after four rounds: one default applied at the edit, and `SetProduct` as the one override. The question and both reports are in the `[ev]` PR. Ev's answer closes this row and writes A10.
 
+**Re-run as FORK-2b (2026-10-07).** Ev's comments on #4220 showed that the edit-time default carried A10's "the tip replaces its operands" over from the consuming model. A fresh designer pair took Ev's direction as stated (no node replaces another; operands do not appear because nothing places them in the world) and converged: the product is the world, the copies that world placements define. The `[ev]` PR now carries that answer; fork-log rows 80 (superseded) and 85.
