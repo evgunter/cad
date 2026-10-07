@@ -2759,8 +2759,8 @@ pub(super) fn param_along<T: Decide>(
     })
 }
 
-/// The edge a group of crossings lies on: edge `edge` of `body`, named
-/// `name` in its own table `table`.
+/// The edge a group of crossings is ranked along: edge `edge` of
+/// `body`, named `name` in its own table `table`.
 pub(super) struct CrossedEdge<'a, T: geom_core::Real> {
     pub(super) body: &'a Body<T>,
     pub(super) table: &'a NameTable,
@@ -2801,10 +2801,10 @@ impl<T: geom_core::Real> OnLine<T> {
     }
 }
 
-/// **Ranks the crossings of one edge by one face with one sense** (N2):
+/// **Ranks the crossings of one line by one face with one sense** (N2):
 /// a lone crossing is `base`, and several, each an entity and the point
-/// it lies at on the crossed edge, take `base` + `Fragment(OrderAlong)`
-/// by the edge's carrier parameter, oriented by
+/// it lies at on the line, take `base` + `Fragment(OrderAlong)` by the
+/// carrier parameter of `crossed`, an edge on the line, oriented by
 /// [`crossed_edge_orientation`]; with no orientation or no parameter
 /// they tie.
 pub(super) fn rank_crossings<T: Decide>(
