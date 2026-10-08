@@ -1,0 +1,2 @@
+Fork: the join lane for a non-planar section (cylinder x sphere, skew cylinders, torus pairs). Row cylinder-sphere-germ-pair-has-no-join-lane.
+Byte 44 (even) -> A = Opus, B = Fable. Protocol 26db1af89e. Dispatched 2026-10-08 concurrently, same problem statement.
