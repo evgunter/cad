@@ -727,6 +727,8 @@ mod decide_7_rule_g_cost_interval;
 mod edit_refusal_recourse;
 #[path = "emit_crossing_sense.rs"]
 mod emit_crossing_sense;
+#[path = "emit_curved_rim_chord.rs"]
+mod emit_curved_rim_chord;
 #[path = "emit_edge_piece_locality.rs"]
 mod emit_edge_piece_locality;
 #[path = "emit_nested_union_flat.rs"]
