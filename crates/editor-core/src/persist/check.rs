@@ -2117,6 +2117,7 @@ mod tests {
             Vars,
             OutputSignature,
             DefinitionRead,
+            ObservedRead,
             DefinitionCycle,
             SlotRead,
             PayloadRead,

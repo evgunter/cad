@@ -760,7 +760,7 @@ mod tests {
         };
         let caps = vec![cap(CapEnd::Start), cap(CapEnd::End)];
         let across = || MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-        let measure = |doc: &Doc<_>, expr: MeasureExpr<Formula>| {
+        let measure = |doc: &Doc<_>, expr: MeasureExpr| {
             inserted(
                 doc,
                 Node::measure(expr, caps.clone()).expect("both caps are referenced"),

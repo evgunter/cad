@@ -875,6 +875,15 @@ fn tangent_poison_forfeits_its_uses_and_never_refuses() {
 #[test]
 fn the_pairing_hook_is_red_capable_on_a_stale_build() {
     let (doc, measure, assertion) = plate(None, None);
+    // Named, so the web outlives the assertion the structural edit below
+    // removes (VR7: an unnamed variable lives as long as its reader).
+    let doc = push(
+        &doc,
+        &DocEdit::RenameVar {
+            var: measure.into(),
+            name: Some(name("web")),
+        },
+    );
     let handed = eval(&doc);
     let fresh = sensitivities(
         &doc,

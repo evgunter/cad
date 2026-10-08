@@ -348,7 +348,7 @@ const fn _binds_every_kernel_direction(kernel: d::AssertionDir) -> AssertionDir 
 /// second.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct MeasureExpr(pub(crate) d::MeasureExpr<d::Formula>);
+pub(crate) struct MeasureExpr(pub(crate) d::MeasureExpr);
 
 #[pymethods]
 impl MeasureExpr {

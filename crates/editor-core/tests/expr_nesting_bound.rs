@@ -146,11 +146,14 @@ fn both_saves(r: &Recorder) -> [(&'static str, String); 2] {
     ]
 }
 
-/// The value a measurement node evaluated to.
+/// The value an assertion compared.
 fn measured(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
     match ev.result(id) {
         Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Measure { value, .. } => *value,
+            ValuePayload::Assertion(
+                editor_core::AssertionVerdict::Holds { measured, .. }
+                | editor_core::AssertionVerdict::Violated { measured, .. },
+            ) => *measured,
             other => panic!("node {id:?} is a {}", other.kind_name()),
         },
         _ => panic!("node {id:?} did not evaluate"),

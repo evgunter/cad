@@ -1415,22 +1415,15 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
 // The finiteness door `eval_measure` does not have
 // ===============================================================
 
-/// **A measured expression can evaluate to a non-finite quantity and
-/// report it as an ordinary typed success.**
-///
-/// `expr::eval` refuses a non-finite RESULT at its "door 2"
-/// (`EvalError::NonFiniteResult`), so no slot expression can ever hand
-/// an infinity to an op. `eval::measure::eval_measure` restates the
-/// arithmetic — `Div` is a bare `x / y` — and does not restate that
-/// door, so the measurement language, which the module doc calls "the
-/// same arithmetic", is missing the one refusal the arithmetic had.
+/// **A measured quotient that is not finite refuses; it is never a
+/// typed success.**
 ///
 /// **Oracle.** `distance(v0, v1) / s` with the document parameter
-/// `s = 0`. Each VALUE leaf is finiteness-checked on its own (`s` is a
-/// finite 0.0 and passes); the division that produces the infinity
-/// happens inside `eval_measure`, downstream of every door.
+/// `s = 0`. The measure is the distance alone and is finite; the
+/// quotient is the assertion's definition, evaluated by `expr::eval`,
+/// whose "door 2" refuses a non-finite result (`EvalError::NonFiniteResult`).
 #[test]
-fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
+fn r2_a_measured_quotient_that_is_not_finite_refuses() {
     let d0 = empty("r2-nonfinite");
     let d0 = push(
         &d0,
@@ -1452,47 +1445,42 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
         MeasureExpr::value(Formula::named(VarName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar is a Length");
-    let (d2, id) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);
-
-    // The same shape in a SLOT refuses, which is the comparison: an
-    // extrude distance of `13 / s` would never reach an op.
-    let slotted = try_push(
+    let (d2, measured) = crate::fixture::measure(d1.clone(), &expr, &[
+        SitedRef::at_mint(vs[0].clone()),
+        SitedRef::at_mint(vs[7].clone()),
+    ]);
+    let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Extrude {
-                profile: d1.ids()[1].into(),
-                distance: Formula::div(
-                    len(13.0),
-                    Formula::named(VarName::from_static("s"), Dimension::Scalar),
-                )
-                .expect("Length / Scalar"),
-                side: ExtrudeSide::Along,
+            node: Box::new(Node::Assertion {
+                value: measured.value,
+                bound: len(1.0),
+                dir: AssertionDir::AtLeast,
             }),
             fresh: Vec::new(),
         },
     );
-    if let Ok(doc) = slotted {
-        let sid = crate::fixture::newest(&doc);
-        let sev = eval(&doc);
-        eprintln!(
-            "R2/nonfinite: the same division in a SLOT evaluates to {:?}",
-            sev.nodes.get(&sid).map(|r| match r {
-                NodeResult::Ok(_) => "Ok".to_string(),
-                NodeResult::Failed(e) => format!("Failed({:?})", e.kind),
-                other => format!("{other:?}"),
-            })
-        );
-    }
-
-    match outcome(&eval(&d2), id) {
-        Ok(v) => {
-            eprintln!("R2/nonfinite: the MEASURE reported {v} as a typed success");
-            assert!(
-                !v.is_finite(),
-                "the probe is only meaningful if the value is non-finite; got {v}"
-            );
-        }
-        Err(e) => eprintln!("R2/nonfinite: the measure refused: {e}"),
+    let assertion = crate::fixture::newest(&d3);
+    let ev = eval(&d3);
+    // The measure itself is finite: the distance between two corners.
+    assert!(outcome(&ev, measured.measures[0]).is_ok_and(f64::is_finite));
+    // The quotient is a definition, and the assertion reading it refuses
+    // at the door every expression shares rather than reporting a
+    // verdict over an infinity.
+    match ev.nodes.get(&assertion) {
+        Some(NodeResult::Failed(e)) => assert!(
+            matches!(
+                e.kind,
+                editor_core::NodeErrorKind::PayloadExpr {
+                    index: 0,
+                    source: editor_core::EvalError::NonFiniteResult,
+                    ..
+                }
+            ),
+            "{:?}",
+            e.kind
+        ),
+        other => panic!("an infinite measured value must refuse, got {other:?}"),
     }
 }
 
@@ -1521,12 +1509,15 @@ fn r2_an_assertion_over_a_non_finite_measure() {
         MeasureExpr::value(Formula::named(VarName::from_static("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
-    let (d2, measure) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);
+    let (d2, measured) = crate::fixture::measure(d1.clone(), &expr, &[
+        SitedRef::at_mint(vs[0].clone()),
+        SitedRef::at_mint(vs[7].clone()),
+    ]);
     let Ok(d3) = try_push(
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                value: crate::fixture::value_of(&d2, measure),
+                value: measured.value,
                 bound: len(1.0),
                 dir: AssertionDir::AtLeast,
             }),
