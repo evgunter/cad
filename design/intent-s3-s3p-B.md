@@ -352,3 +352,56 @@ it changes. It fits FORK-S3M as agreed:
 
 `BodyFrame` is well-defined only because the one-space refusal guarantees that every body
 reaches exactly one root. That is one more reason the refusal sits at every door.
+
+## Round 5 correction, checked against Ev's words (`5f7a1c71e3`)
+
+**What I withdraw.** Round 5's "new space" root operation, which "reads nothing and defines one
+`Frame`", is the blank frame of round 1 under another name. Ev's words win over it: "parts don't
+sit at (0,0,0) in their own space; they just don't have a location (or orientation)". No frame is
+made from nothing, apart from the one exception Ev named, the world.
+
+**What replaces it: the root is a shape, not a frame.**
+- A sketch that reads no pose is written in its own 2-D coordinates. That is D10's rule that a
+  2-D value lives in the node that holds it, and those coordinates are never compared with
+  anything outside the node.
+- An extrude of that sketch is a body with no location. It is a root because it reads no pose.
+- Every 3-D pose in the part is read off a shape:
+  - `FaceFrame`, the body's axes, projections, or `Offset`s of these;
+  - `BodyFrame(body)`, the frame the body's own construction wrote it in. It reads the body,
+    so it is a relation, not a location.
+- A space is what one root shape reaches through reads and placements, and anything reaching two
+  roots refuses.
+- Examples:
+  - The plate's holes are `Offset { FaceFrame(plate top), (x, y) }` or sketch points on that face.
+  - The pip is `Place { ball, [BodyFrame(ball) ≅ Offset { BodyFrame(die), chain }] }`.
+  - Two blocks unioned refuse until one is placed against the other (Ev: "yes, exactly!").
+
+**The world is a special undeletable node.** In Ev's words it "looks like a part in the sense
+that other things can relate to it kind of like it's a part, but it actually just sets the
+coordinates". Only placements' mates and export read it. A part's world is not readable by a
+parent document: no instance port exposes it. That would make location "something real", which
+Ev rules out.
+
+**Principles from the transcript this relies on.**
+- (a) Parts have no location; spaces are implicit in what is constrained to what; there is no
+  canonical main space.
+- (b) A placement relates two inherently unplaced parts, and two placements are two copies.
+- (c) "you can't Transform an already placed part": `Transform` retires into copies.
+- (d) No raw numbers: the sketch's 2-D coordinates are scalar variables.
+- (e) The world just sets the coordinates, and is "one number rather than a profusion".
+- (f) The computing frame is internal and local: "use local coordinates when available … none of
+  those choices depend on the world node", plus the later "whatever behaves well numerically" (#4324).
+- (g) No constraint falls back to an assertion. Nothing here admits a mate and keeps less than
+  it says.
+
+**What it bends.** `BodyFrame` exposes the frame a root construction wrote its body in. That is a
+convention internal to the body, read through a relation, but it is the nearest thing here to a
+location. If Ev reads it as one, placements should read only geometry-derived poses (`FaceFrame`,
+axes), and `BodyFrame` retires.
+
+**Final text.**
+- *Variables:* "the poses (…), which are always defined, read off a shape or from another pose".
+- *Spaces:* "A part has no location: raw coordinates are never compared with each other. A
+  construction that reads no pose starts a space, and a space is what that construction reaches
+  through reads and placements; anything reaching two refuses. The **world** is one undeletable
+  node that copies relate to like a part; it only sets export's coordinates."
