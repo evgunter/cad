@@ -1,0 +1,810 @@
+
+running 12 tests
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z30 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z30 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z30 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z30 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z30 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z30 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE path=cut-in | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE path=cut-in | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE path=cut-in | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE path=cut-in | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE path=cut-in | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE path=cut-in | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z90 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z90 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z90 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z90 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z90 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z90 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE meshbase unit ball chordal=0.005 | Ok(Ok(()))
+R1PROBE meshbase unit ball chordal=0.02 | Ok(Ok(()))
+R1PROBE path=ordinary | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE path=ordinary | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE path=ordinary | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE interval plain eps=1e-9 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.25000000000000044, hi: -0.2499999999
+R1PROBE interval plain eps=1e-9 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.25000000000000044, hi: -0.2499999999
+R1PROBE interval plain eps=1e-9 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.25000000000000044, hi: -0.2499999999
+R1PROBE interval plain eps=1e-9 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.25000000000000044, hi: -0.2499999999
+R1PROBE interval plain eps=1e-9 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.25000000000000044, hi: -0.2499999999
+R1PROBE interval plain eps=1e-9 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.25000000000000044, hi: -0.2499999999
+R1PROBE path=ordinary | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(4v3), source: NotIsoRectangle { what: "pr
+R1PROBE path=ordinary | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(4v1), source: NotIsoRectangle { what: "pr
+R1PROBE path=ordinary | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(6v5), source: NotIsoRectangle { what: "pr
+R1PROBE operand unit | F2 E2 V2 S1 sph[2]
+R1PROBE operand small | F2 E2 V2 S1 sph[2]
+R1PROBE-SUMMARY cut_in_against_ordinary bad=0
+test review_sphpair_r1_probes::r1_cut_in_against_ordinary ... ok
+R1PROBE pole=1 theta-alpha=3e-1 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=3e-1 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=3e-1 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=3e-1 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=3e-1 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=3e-1 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=1e-1 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=1e-1 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=1e-1 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=1e-1 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=1e-1 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=1e-1 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=1e-3 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=1e-3 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=1e-3 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=1e-3 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=1e-3 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=1e-3 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=1 theta-alpha=1e-5 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=1 theta-alpha=1e-5 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=1 theta-alpha=1e-5 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=1 theta-alpha=1e-5 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=1 theta-alpha=1e-5 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=1 theta-alpha=1e-5 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=1 theta-alpha=1e-7 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=1 theta-alpha=1e-7 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=1 theta-alpha=1e-7 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=1 theta-alpha=1e-7 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=1 theta-alpha=1e-7 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=1 theta-alpha=1e-7 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE interval z30 eps=1e-9 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.25000000000000044, hi: -0.2499999999
+R1PROBE interval z30 eps=1e-9 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.25000000000000044, hi: -0.2499999999
+R1PROBE interval z30 eps=1e-9 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.25000000000000044, hi: -0.2499999999
+R1PROBE interval z30 eps=1e-9 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.25000000000000044, hi: -0.2499999999
+R1PROBE interval z30 eps=1e-9 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.25000000000000044, hi: -0.2499999999
+R1PROBE interval z30 eps=1e-9 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.25000000000000044, hi: -0.2499999999
+R1PROBE pole=1 theta-alpha=1e-9 | a∪b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=1e-9 | b∪a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=1e-9 | a∖b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=1e-9 | b∖a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=1e-9 | a∩b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=1e-9 | b∩a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=1e-11 | a∪b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=1e-11 | b∪a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=1e-11 | a∖b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=1e-11 | b∖a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=1e-11 | a∩b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=1e-11 | b∩a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=-1e-11 | a∪b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=-1e-11 | b∪a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=-1e-11 | a∖b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=-1e-11 | b∖a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=-1e-11 | a∩b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=-1e-11 | b∩a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=-1e-9 | a∪b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=-1e-9 | b∪a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=-1e-9 | a∖b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=-1e-9 | b∖a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=-1e-9 | a∩b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=1 theta-alpha=-1e-9 | b∩a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE interval tilt eps=1e-9 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.20027773492406276, hi: -0.2002777349
+R1PROBE interval tilt eps=1e-9 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.20027773492406276, hi: -0.2002777349
+R1PROBE interval tilt eps=1e-9 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.20027773492406276, hi: -0.2002777349
+R1PROBE interval tilt eps=1e-9 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.20027773492406276, hi: -0.2002777349
+R1PROBE interval tilt eps=1e-9 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.20027773492406276, hi: -0.2002777349
+R1PROBE interval tilt eps=1e-9 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Enclosure { lo: -0.20027773492406276, hi: -0.2002777349
+R1PROBE-SUMMARY interval bad=0
+test review_sphpair_r1_probes::r1_interval ... ok
+R1PROBE coinc r=1 d=1e-2 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0100000000000000 | 
+R1PROBE coinc r=1 d=1e-2 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0100000000000000 | 
+R1PROBE coinc r=1 d=1e-2 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0100000000000000 | 
+R1PROBE coinc r=1 d=1e-2 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0100000000000000 | 
+R1PROBE coinc r=1 d=1e-2 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0100000000000000 | 
+R1PROBE coinc r=1 d=1e-2 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0100000000000000 | 
+R1PROBE coinc r=1 d=1e-3 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999999999998 | 
+R1PROBE coinc r=1 d=1e-3 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999999999998 | 
+R1PROBE coinc r=1 d=1e-3 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999999999998 | 
+R1PROBE coinc r=1 d=1e-3 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999999999998 | 
+R1PROBE coinc r=1 d=1e-3 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999999999998 | 
+R1PROBE coinc r=1 d=1e-3 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999999999998 | 
+R1PROBE coinc r=1 d=1e-4 | a∪b | ERR Escalated { decision: Coincidence(VertexOnCurvedFace, Moot), diag: Indeterminate { margin: MarginDiag(Value(4. | 
+R1PROBE coinc r=1 d=1e-4 | b∪a | ERR Escalated { decision: Coincidence(VertexOnCurvedFace, Moot), diag: Indeterminate { margin: MarginDiag(Value(4. | 
+R1PROBE coinc r=1 d=1e-4 | a∖b | ERR Escalated { decision: Coincidence(VertexOnCurvedFace, Moot), diag: Indeterminate { margin: MarginDiag(Value(4. | 
+R1PROBE coinc r=1 d=1e-4 | b∖a | ERR Escalated { decision: Coincidence(VertexOnCurvedFace, Moot), diag: Indeterminate { margin: MarginDiag(Value(4. | 
+R1PROBE coinc r=1 d=1e-4 | a∩b | ERR Escalated { decision: Coincidence(VertexOnCurvedFace, Moot), diag: Indeterminate { margin: MarginDiag(Value(4. | 
+R1PROBE coinc r=1 d=1e-4 | b∩a | ERR Escalated { decision: Coincidence(VertexOnCurvedFace, Moot), diag: Indeterminate { margin: MarginDiag(Value(4. | 
+R1PROBE coinc r=1 d=1e-5 | a∪b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=1 d=1e-5 | b∪a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=1 d=1e-5 | a∖b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=1 d=1e-5 | b∖a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=1 d=1e-5 | a∩b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=1 d=1e-5 | b∩a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=1.0000001 d=1e-2 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0099998999999999 | 
+R1PROBE coinc r=1.0000001 d=1e-2 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0099998999999999 | 
+R1PROBE coinc r=1.0000001 d=1e-2 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0099998999999999 | 
+R1PROBE coinc r=1.0000001 d=1e-2 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0099998999999999 | 
+R1PROBE coinc r=1.0000001 d=1e-2 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0099998999999999 | 
+R1PROBE coinc r=1.0000001 d=1e-2 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0099998999999999 | 
+R1PROBE ordinary-x d=0.95 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=4.237662294 want=4.237662294 | F3 E5 V4 S1 sph[1,2] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=1.0000001 d=1e-3 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009998999999998 | 
+R1PROBE coinc r=1.0000001 d=1e-3 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009998999999998 | 
+R1PROBE coinc r=1.0000001 d=1e-3 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009998999999998 | 
+R1PROBE coinc r=1.0000001 d=1e-3 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009998999999998 | 
+R1PROBE coinc r=1.0000001 d=1e-3 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009998999999998 | 
+R1PROBE coinc r=1.0000001 d=1e-3 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009998999999998 | 
+R1PROBE coinc r=1.0000001 d=1e-4 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.98999999999306e- | 
+R1PROBE coinc r=1.0000001 d=1e-4 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.98999999999306e- | 
+R1PROBE coinc r=1.0000001 d=1e-4 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.98999999999306e- | 
+R1PROBE coinc r=1.0000001 d=1e-4 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.98999999999306e- | 
+R1PROBE coinc r=1.0000001 d=1e-4 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.98999999999306e- | 
+R1PROBE coinc r=1.0000001 d=1e-4 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.98999999999306e- | 
+R1PROBE coinc r=1.0000001 d=1e-5 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.900000000007125e | 
+R1PROBE coinc r=1.0000001 d=1e-5 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.900000000007125e | 
+R1PROBE coinc r=1.0000001 d=1e-5 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.900000000007125e | 
+R1PROBE coinc r=1.0000001 d=1e-5 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.900000000007125e | 
+R1PROBE coinc r=1.0000001 d=1e-5 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.900000000007125e | 
+R1PROBE coinc r=1.0000001 d=1e-5 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.900000000007125e | 
+R1PROBE coinc r=0.9999999 d=1e-2 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0099998999999999 | 
+R1PROBE coinc r=0.9999999 d=1e-2 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0099998999999999 | 
+R1PROBE coinc r=0.9999999 d=1e-2 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0099998999999999 | 
+R1PROBE coinc r=0.9999999 d=1e-2 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0099998999999999 | 
+R1PROBE coinc r=0.9999999 d=1e-2 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0099998999999999 | 
+R1PROBE coinc r=0.9999999 d=1e-2 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0099998999999999 | 
+R1PROBE ordinary-x d=0.95 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=4.237662294 want=4.237662294 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=0.9999999 d=1e-3 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999000000000 | 
+R1PROBE coinc r=0.9999999 d=1e-3 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999000000000 | 
+R1PROBE coinc r=0.9999999 d=1e-3 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999000000000 | 
+R1PROBE coinc r=0.9999999 d=1e-3 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999000000000 | 
+R1PROBE coinc r=0.9999999 d=1e-3 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999000000000 | 
+R1PROBE coinc r=0.9999999 d=1e-3 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999000000000 | 
+R1PROBE coinc r=0.9999999 d=1e-4 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.990000000015264e | 
+R1PROBE coinc r=0.9999999 d=1e-4 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.990000000015264e | 
+R1PROBE coinc r=0.9999999 d=1e-4 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.990000000015264e | 
+R1PROBE coinc r=0.9999999 d=1e-4 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.990000000015264e | 
+R1PROBE coinc r=0.9999999 d=1e-4 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.990000000015264e | 
+R1PROBE coinc r=0.9999999 d=1e-4 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.990000000015264e | 
+R1PROBE coinc r=0.9999999 d=1e-5 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.900000000007125e | 
+R1PROBE coinc r=0.9999999 d=1e-5 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.900000000007125e | 
+R1PROBE coinc r=0.9999999 d=1e-5 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.900000000007125e | 
+R1PROBE coinc r=0.9999999 d=1e-5 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.900000000007125e | 
+R1PROBE coinc r=0.9999999 d=1e-5 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.900000000007125e | 
+R1PROBE coinc r=0.9999999 d=1e-5 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-9.900000000007125e | 
+R1PROBE-SUMMARY near_coincident bad=0
+test review_sphpair_r1_probes::r1_near_coincident ... ok
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE ordinary-x d=0.95 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.124564959 want=4.124564959 | F4 E8 V6 S1 sph[2,2] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE ratio r=1e-3 t=0.5 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999999999998 | 
+R1PROBE ratio r=1e-3 t=0.5 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999999999998 | 
+R1PROBE ratio r=1e-3 t=0.5 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999999999998 | 
+R1PROBE ratio r=1e-3 t=0.5 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999999999998 | 
+R1PROBE ratio r=1e-3 t=0.5 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999999999998 | 
+R1PROBE ratio r=1e-3 t=0.5 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0009999999999998 | 
+R1PROBE ratio r=1e-3 t=0.1 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0001999999999999 | 
+R1PROBE ratio r=1e-3 t=0.1 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0001999999999999 | 
+R1PROBE ratio r=1e-3 t=0.1 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0001999999999999 | 
+R1PROBE ratio r=1e-3 t=0.1 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0001999999999999 | 
+R1PROBE ratio r=1e-3 t=0.1 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0001999999999999 | 
+R1PROBE ratio r=1e-3 t=0.1 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0001999999999999 | 
+R1PROBE ratio r=1e-3 t=0.9 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0017999999999998 | 
+R1PROBE ratio r=1e-3 t=0.9 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0017999999999998 | 
+R1PROBE ratio r=1e-3 t=0.9 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0017999999999998 | 
+R1PROBE ratio r=1e-3 t=0.9 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0017999999999998 | 
+R1PROBE ratio r=1e-3 t=0.9 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0017999999999998 | 
+R1PROBE ratio r=1e-3 t=0.9 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0017999999999998 | 
+R1PROBE ratio r=1e-3 t=0.001 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.9999999998354667 | 
+R1PROBE ratio r=1e-3 t=0.001 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.9999999998354667 | 
+R1PROBE ratio r=1e-3 t=0.001 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.9999999998354667 | 
+R1PROBE ratio r=1e-3 t=0.001 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.9999999998354667 | 
+R1PROBE ratio r=1e-3 t=0.001 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.9999999998354667 | 
+R1PROBE ratio r=1e-3 t=0.001 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.9999999998354667 | 
+R1PROBE ratio r=1e-3 t=0.999 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0019979999999997 | 
+R1PROBE ratio r=1e-3 t=0.999 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0019979999999997 | 
+R1PROBE ratio r=1e-3 t=0.999 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0019979999999997 | 
+R1PROBE ratio r=1e-3 t=0.999 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0019979999999997 | 
+R1PROBE ratio r=1e-3 t=0.999 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0019979999999997 | 
+R1PROBE ratio r=1e-3 t=0.999 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0019979999999997 | 
+R1PROBE ratio r=1e3 t=0.5 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.0, None)) } } | 
+R1PROBE ratio r=1e3 t=0.5 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.0, None)) } } | 
+R1PROBE ratio r=1e3 t=0.5 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.0, None)) } } | 
+R1PROBE ratio r=1e3 t=0.5 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.0, None)) } } | 
+R1PROBE ratio r=1e3 t=0.5 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.0, None)) } } | 
+R1PROBE ratio r=1e3 t=0.5 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.0, None)) } } | 
+R1PROBE ratio r=1e3 t=0.1 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2000000000000454 | 
+R1PROBE ratio r=1e3 t=0.1 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2000000000000454 | 
+R1PROBE ratio r=1e3 t=0.1 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2000000000000454 | 
+R1PROBE ratio r=1e3 t=0.1 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2000000000000454 | 
+R1PROBE ratio r=1e3 t=0.1 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2000000000000454 | 
+R1PROBE ratio r=1e3 t=0.1 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2000000000000454 | 
+R1PROBE ratio r=1e3 t=0.9 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.7999999999999545 | 
+R1PROBE ratio r=1e3 t=0.9 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.7999999999999545 | 
+R1PROBE ratio r=1e3 t=0.9 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.7999999999999545 | 
+R1PROBE ratio r=1e3 t=0.9 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.7999999999999545 | 
+R1PROBE ratio r=1e3 t=0.9 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.7999999999999545 | 
+R1PROBE ratio r=1e3 t=0.9 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.7999999999999545 | 
+R1PROBE ordinary-x d=0.95 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE ratio r=1e3 t=0.001 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0019999999999527 | 
+R1PROBE ratio r=1e3 t=0.001 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0019999999999527 | 
+R1PROBE ratio r=1e3 t=0.001 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0019999999999527 | 
+R1PROBE ratio r=1e3 t=0.001 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0019999999999527 | 
+R1PROBE ratio r=1e3 t=0.001 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0019999999999527 | 
+R1PROBE ratio r=1e3 t=0.001 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.0019999999999527 | 
+R1PROBE ratio r=1e3 t=0.999 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.9980000000000473 | 
+R1PROBE ratio r=1e3 t=0.999 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.9980000000000473 | 
+R1PROBE ratio r=1e3 t=0.999 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.9980000000000473 | 
+R1PROBE ratio r=1e3 t=0.999 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.9980000000000473 | 
+R1PROBE ratio r=1e3 t=0.999 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.9980000000000473 | 
+R1PROBE ratio r=1e3 t=0.999 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.9980000000000473 | 
+R1PROBE-SUMMARY radius_ratios bad=0
+test review_sphpair_r1_probes::r1_radius_ratios ... ok
+R1PROBE rechart operand | F4 E4 V4 S2 sph[2,2]
+R1PROBE rechart+cut other shell | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(3v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE rechart+cut other shell | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(7v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE rechart+cut other shell | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(3v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE rechart+cut other shell | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(7v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE rechart+cut other shell | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(3v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE rechart+cut other shell | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(7v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE-SUMMARY rechart_beside bad=0
+test review_sphpair_r1_probes::r1_rechart_beside_a_cut_in_on_another_shell ... ok
+R1PROBE ordinary-x d=0.95 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E5 V4 S1 sph[1,2] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE seamcircle side=small off=0e0 | a∪b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=0e0 | b∪a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=0e0 | a∖b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=0e0 | b∖a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=0e0 | a∩b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=0e0 | b∩a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE seamcircle side=small off=1e-12 | a∪b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=1e-12 | b∪a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=1e-12 | a∖b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=1e-12 | b∖a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=1e-12 | a∩b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=1e-12 | b∩a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=-1e-12 | a∪b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=-1e-12 | b∪a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=-1e-12 | a∖b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=-1e-12 | b∖a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=-1e-12 | a∩b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=-1e-12 | b∩a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE ordinary-x d=0.95 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE seamcircle side=small off=1e-9 | a∪b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=1e-9 | b∪a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=1e-9 | a∖b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=1e-9 | b∖a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=1e-9 | a∩b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=1e-9 | b∩a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=-1e-9 | a∪b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=-1e-9 | b∪a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=-1e-9 | a∖b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=-1e-9 | b∖a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=-1e-9 | a∩b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=-1e-9 | b∩a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=small off=1e-7 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539393014169455 | 
+R1PROBE seamcircle side=small off=1e-7 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539393014169455 | 
+R1PROBE seamcircle side=small off=1e-7 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539393014169455 | 
+R1PROBE seamcircle side=small off=1e-7 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539393014169455 | 
+R1PROBE seamcircle side=small off=1e-7 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539393014169455 | 
+R1PROBE seamcircle side=small off=1e-7 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539393014169455 | 
+R1PROBE seamcircle side=small off=-1e-7 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539391014169456 | 
+R1PROBE seamcircle side=small off=-1e-7 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539391014169456 | 
+R1PROBE seamcircle side=small off=-1e-7 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539391014169456 | 
+R1PROBE seamcircle side=small off=-1e-7 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539391014169456 | 
+R1PROBE seamcircle side=small off=-1e-7 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539391014169456 | 
+R1PROBE seamcircle side=small off=-1e-7 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539391014169456 | 
+R1PROBE seamcircle side=small off=1e-5 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539492014169455 | 
+R1PROBE seamcircle side=small off=1e-5 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539492014169455 | 
+R1PROBE seamcircle side=small off=1e-5 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539492014169455 | 
+R1PROBE seamcircle side=small off=1e-5 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539492014169455 | 
+R1PROBE seamcircle side=small off=1e-5 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539492014169455 | 
+R1PROBE seamcircle side=small off=1e-5 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539492014169455 | 
+R1PROBE seamcircle side=small off=-1e-5 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539292014169456 | 
+R1PROBE seamcircle side=small off=-1e-5 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539292014169456 | 
+R1PROBE seamcircle side=small off=-1e-5 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539292014169456 | 
+R1PROBE seamcircle side=small off=-1e-5 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539292014169456 | 
+R1PROBE seamcircle side=small off=-1e-5 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539292014169456 | 
+R1PROBE seamcircle side=small off=-1e-5 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.2539292014169456 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE seamcircle side=unit off=0e0 | a∪b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=0e0 | b∪a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=0e0 | a∖b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=0e0 | b∖a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=0e0 | a∩b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=0e0 | b∩a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=1e-12 | a∪b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=1e-12 | b∪a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=1e-12 | a∖b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=1e-12 | b∖a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=1e-12 | a∩b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=1e-12 | b∩a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE pole=1 theta-alpha=-1e-7 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE pole=1 theta-alpha=-1e-7 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE seamcircle side=unit off=-1e-12 | a∪b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=-1e-12 | b∪a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=-1e-12 | a∖b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=-1e-12 | b∖a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=-1e-12 | a∩b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=-1e-12 | b∩a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=1e-9 | a∪b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=1e-9 | b∪a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=1e-9 | a∖b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=1e-9 | b∖a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=1e-9 | a∩b | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=1e-9 | b∩a | ERR Join(SectionLoopUndecided { face: FaceKey(3v1) }) | 
+R1PROBE seamcircle side=unit off=-1e-9 | a∪b | ERR Join(Euler(Certification { error: Escalated { check: EndpointStart, sample: 0, cause: Indeterminate { margin:  | 
+R1PROBE seamcircle side=unit off=-1e-9 | b∪a | ERR Join(Euler(Certification { error: Escalated { check: EndpointStart, sample: 0, cause: Indeterminate { margin:  | 
+R1PROBE seamcircle side=unit off=-1e-9 | a∖b | ERR Join(Euler(Certification { error: Escalated { check: EndpointStart, sample: 0, cause: Indeterminate { margin:  | 
+R1PROBE seamcircle side=unit off=-1e-9 | b∖a | ERR Join(Euler(Certification { error: Escalated { check: EndpointStart, sample: 0, cause: Indeterminate { margin:  | 
+R1PROBE seamcircle side=unit off=-1e-9 | a∩b | ERR Join(Euler(Certification { error: Escalated { check: EndpointStart, sample: 0, cause: Indeterminate { margin:  | 
+R1PROBE seamcircle side=unit off=-1e-9 | b∩a | ERR Join(Euler(Certification { error: Escalated { check: EndpointStart, sample: 0, cause: Indeterminate { margin:  | 
+R1PROBE seamcircle side=unit off=1e-7 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819661112501049 | 
+R1PROBE seamcircle side=unit off=1e-7 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819661112501049 | 
+R1PROBE seamcircle side=unit off=1e-7 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819661112501049 | 
+R1PROBE seamcircle side=unit off=1e-7 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819661112501049 | 
+R1PROBE seamcircle side=unit off=1e-7 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819661112501049 | 
+R1PROBE seamcircle side=unit off=1e-7 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819661112501049 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE seamcircle side=unit off=-1e-7 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819659112501050 | 
+R1PROBE seamcircle side=unit off=-1e-7 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819659112501050 | 
+R1PROBE seamcircle side=unit off=-1e-7 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819659112501050 | 
+R1PROBE seamcircle side=unit off=-1e-7 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819659112501050 | 
+R1PROBE seamcircle side=unit off=-1e-7 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819659112501050 | 
+R1PROBE seamcircle side=unit off=-1e-7 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819659112501050 | 
+R1PROBE seamcircle side=unit off=1e-5 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819760112501051 | 
+R1PROBE seamcircle side=unit off=1e-5 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819760112501051 | 
+R1PROBE seamcircle side=unit off=1e-5 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819760112501051 | 
+R1PROBE seamcircle side=unit off=1e-5 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819760112501051 | 
+R1PROBE seamcircle side=unit off=1e-5 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819760112501051 | 
+R1PROBE seamcircle side=unit off=1e-5 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819760112501051 | 
+R1PROBE pole=1 theta-alpha=-1e-7 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.182048871 want=4.182048871 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=1 theta-alpha=-1e-7 | b∖a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE pole=1 theta-alpha=-1e-7 | a∩b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: Face { face: FaceKey(3v1), source: | 
+R1PROBE pole=1 theta-alpha=-1e-7 | b∩a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: Face { face: FaceKey(2v3), source: | 
+R1PROBE seamcircle side=unit off=-1e-5 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819560112501050 | 
+R1PROBE seamcircle side=unit off=-1e-5 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819560112501050 | 
+R1PROBE seamcircle side=unit off=-1e-5 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819560112501050 | 
+R1PROBE seamcircle side=unit off=-1e-5 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819560112501050 | 
+R1PROBE seamcircle side=unit off=-1e-5 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819560112501050 | 
+R1PROBE seamcircle side=unit off=-1e-5 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.3819560112501050 | 
+R1PROBE-SUMMARY seam_on_the_circle bad=0
+test review_sphpair_r1_probes::r1_seam_on_the_circle ... ok
+R1PROBE ordinary-negx d=0.95 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=4.237662294 want=4.237662294 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE ordinary-negx d=0.95 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=4.237662294 want=4.237662294 | F3 E5 V4 S1 sph[1,2] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE ordinary-negx d=0.95 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.124564959 want=4.124564959 | F4 E8 V6 S1 sph[2,2] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE ordinary-negx d=0.95 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE ordinary-negx d=0.95 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E5 V4 S1 sph[1,2] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE ordinary-negx d=0.95 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=1 theta-alpha=-1e-5 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE pole=1 theta-alpha=-1e-5 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE three +z,-x | a∪b | ERR CurvedPairUnsupported { op: Some(Union), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sphere | 
+R1PROBE three +z,-x | b∪a | ERR CurvedPairUnsupported { op: Some(Union), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sphere | 
+R1PROBE three +z,-x | a∖b | ERR CurvedPairUnsupported { op: Some(Subtract), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sph | 
+R1PROBE three +z,-x | b∖a | ERR CurvedPairUnsupported { op: Some(Subtract), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sph | 
+R1PROBE three +z,-x | a∩b | ERR CurvedPairUnsupported { op: Some(Intersect), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sp | 
+R1PROBE three +z,-x | b∩a | ERR CurvedPairUnsupported { op: Some(Intersect), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sp | 
+R1PROBE three +z,-z | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three +z,-z | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three +z,-z | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three +z,-z | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three +z,-z | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three +z,-z | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=1 theta-alpha=-1e-5 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.182048871 want=4.182048871 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=1 theta-alpha=-1e-5 | b∖a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE ordinary-x d=1.1 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=4.277135598 want=4.277135598 | F4 E8 V6 S1 sph[2,2] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE ordinary-x d=1.1 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=4.277135598 want=4.277135598 | F4 E8 V6 S1 sph[2,2] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE ordinary-x d=1.1 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.164038263 want=4.164038263 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=1 theta-alpha=-1e-5 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.006741334 want=0.006741334 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE ordinary-x d=1.1 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.088345393 want=0.088345393 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE ordinary-x d=1.1 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.024751942 want=0.024751942 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE pole=1 theta-alpha=-1e-5 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.006741334 want=0.006741334 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE ordinary-x d=1.1 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.024751942 want=0.024751942 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE three +z,tilt | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | 
+R1PROBE three +z,tilt | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(5 | 
+R1PROBE three +z,tilt | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | 
+R1PROBE three +z,tilt | b∖a | ERR CurvedPairUnsupported { op: Some(Subtract), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sph | 
+R1PROBE three +z,tilt | a∩b | ERR CurvedPairUnsupported { op: Some(Intersect), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sp | 
+R1PROBE three +z,tilt | b∩a | ERR CurvedPairUnsupported { op: Some(Intersect), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sp | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE three lens-circle | a∪b (shape only) | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6
+R1PROBE-SUMMARY three_balls bad=0
+test review_sphpair_r1_probes::r1_three_balls ... ok
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z30 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z30 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z30 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z30 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE ordinary-negx d=1.1 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=4.277135598 want=4.277135598 | F4 E8 V6 S1 sph[2,2] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z30 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE ordinary-negx d=1.1 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=4.277135598 want=4.277135598 | F4 E8 V6 S1 sph[2,2] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z30 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE ordinary-negx d=1.1 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.164038263 want=4.164038263 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=1 theta-alpha=-1e-3 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE pole=1 theta-alpha=-1e-3 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE ordinary-negx d=1.1 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.088345393 want=0.088345393 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=1 theta-alpha=-1e-3 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.182048871 want=4.182048871 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=1 theta-alpha=-1e-3 | b∖a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE ordinary-negx d=1.1 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.024751942 want=0.024751942 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE ordinary-negx d=1.1 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.024751942 want=0.024751942 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 +z,-x | a∪b | ERR CurvedPairUnsupported { op: Some(Union), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sphere | 
+R1PROBE three2 +z,-x | b∪a | ERR CurvedPairUnsupported { op: Some(Union), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sphere | 
+R1PROBE three2 +z,-x | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | 
+R1PROBE three2 +z,-x | b∖a | ERR CurvedPairUnsupported { op: Some(Subtract), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sph | 
+R1PROBE three2 +z,-x | a∩b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE three2 +z,-x | b∩a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(3 | 
+R1PROBE meshbase ball-minus-slab | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=3.534291735 want=3.534291735 | F3 E4 V3 S1 sph[2] mesh=ok
+R1PROBE-SUMMARY mesh_baseline bad=0
+test review_sphpair_r1_probes::r1_mesh_baseline ... ok
+R1PROBE pole=1 theta-alpha=-1e-3 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.006741334 want=0.006741334 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE t3pdetail partner | F4 E4 V4 S2 sph[2,2]
+test review_sphpair_r1_probes::r1_three_balls_t3p_detail ... ok
+R1PROBE pole=1 theta-alpha=-1e-3 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.006741334 want=0.006741334 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE three2 +z,-z | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 +z,-z | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 +z,-z | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 +z,-z | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 +z,-z | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 +z,-z | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z90 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z90 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z90 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE three2 +z,tilt | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 +z,tilt | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 +z,tilt | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 +z,tilt | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 +z,tilt | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 +z,tilt | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 tilt,tilt2 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 tilt,tilt2 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 tilt,tilt2 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 tilt,tilt2 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 tilt,tilt2 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE three2 tilt,tilt2 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.25, None)) } } | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z90 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z90 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE pole=1 theta-alpha=-5e-2 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE pole=1 theta-alpha=-5e-2 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z90 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=1 theta-alpha=-5e-2 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.182048871 want=4.182048871 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=1 theta-alpha=-5e-2 | b∖a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE pole=1 theta-alpha=-5e-2 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.006741334 want=0.006741334 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=1 theta-alpha=-5e-2 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.006741334 want=0.006741334 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=3e-1 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=3e-1 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=3e-1 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=3e-1 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=3e-1 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=3e-1 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=1e-1 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=1e-1 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=1e-1 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=1e-1 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=1e-1 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=1e-1 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=1e-3 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=1e-3 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=1e-3 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=1e-3 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=1e-3 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=1e-3 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5000000000000002 | 
+R1PROBE pole=-1 theta-alpha=1e-5 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=-1 theta-alpha=1e-5 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=-1 theta-alpha=1e-5 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=-1 theta-alpha=1e-5 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=-1 theta-alpha=1e-5 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=-1 theta-alpha=1e-5 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=-1 theta-alpha=1e-7 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=-1 theta-alpha=1e-7 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=-1 theta-alpha=1e-7 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=-1 theta-alpha=1e-7 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=-1 theta-alpha=1e-7 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=-1 theta-alpha=1e-7 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.5, None)) } } | 
+R1PROBE pole=-1 theta-alpha=1e-9 | a∪b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=1e-9 | b∪a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=1e-9 | a∖b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=1e-9 | b∖a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=1e-9 | a∩b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=1e-9 | b∩a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=1e-11 | a∪b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=1e-11 | b∪a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=1e-11 | a∖b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=1e-11 | b∖a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=1e-11 | a∩b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=1e-11 | b∩a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=-1e-11 | a∪b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=-1e-11 | b∪a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=-1e-11 | a∖b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=-1e-11 | b∖a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=-1e-11 | a∩b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=-1e-11 | b∩a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=-1e-9 | a∪b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=-1e-9 | b∪a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=-1e-9 | a∖b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=-1e-9 | b∖a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=-1e-9 | a∩b | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE pole=-1 theta-alpha=-1e-9 | b∩a | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(2v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+R1PROBE three2 -x,tilt | a∪b | ERR CurvedPairUnsupported { op: Some(Union), site: InteriorLoopGuard, operand: A, face: FaceKey(2v1), kind: Sphere | 
+R1PROBE three2 -x,tilt | b∪a | ERR CurvedPairUnsupported { op: Some(Union), site: InteriorLoopGuard, operand: A, face: FaceKey(3v1), kind: Sphere | 
+R1PROBE three2 -x,tilt | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE three2 -x,tilt | b∖a | ERR CurvedPairUnsupported { op: Some(Subtract), site: InteriorLoopGuard, operand: A, face: FaceKey(3v1), kind: Sph | 
+R1PROBE three2 -x,tilt | a∩b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE three2 -x,tilt | b∩a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE-SUMMARY three_balls_off_both_seams bad=0
+test review_sphpair_r1_probes::r1_three_balls_off_both_seams ... ok
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-1e-7 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(5 | 
+R1PROBE pole=-1 theta-alpha=-1e-7 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-1e-7 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.182048871 want=4.182048871 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-1e-7 | b∖a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | 
+R1PROBE pole=-1 theta-alpha=-1e-7 | a∩b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: Face { face: FaceKey(2v1), source: | 
+R1PROBE pole=-1 theta-alpha=-1e-7 | b∩a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: Face { face: FaceKey(5v5), source: | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-1e-5 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(5 | 
+R1PROBE pole=-1 theta-alpha=-1e-5 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | 
+R1PROBE pole=-1 theta-alpha=-1e-5 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.182048871 want=4.182048871 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-1e-5 | b∖a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE pole=-1 theta-alpha=-1e-5 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.006741334 want=0.006741334 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-1e-5 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.006741334 want=0.006741334 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-1e-3 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(5 | 
+R1PROBE pole=-1 theta-alpha=-1e-3 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE pole=-1 theta-alpha=-1e-3 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.182048871 want=4.182048871 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-1e-3 | b∖a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-1e-3 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.006741334 want=0.006741334 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-1e-3 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.006741334 want=0.006741334 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z30 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z30 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z30 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z30 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-5e-2 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(5 | 
+R1PROBE pole=-1 theta-alpha=-5e-2 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z30 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-5e-2 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.182048871 want=4.182048871 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-5e-2 | b∖a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z30 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-5e-2 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.006741334 want=0.006741334 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE pole=-1 theta-alpha=-5e-2 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.006741334 want=0.006741334 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE-SUMMARY near_a_pole bad=0
+test review_sphpair_r1_probes::r1_near_a_pole ... ok
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z90 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z90 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z90 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z90 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z90 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z90 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z30 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z30 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z30 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z30 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z30 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z30 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z90 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z90 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z90 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z90 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z90 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z90 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z30 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.9000000000000001 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z30 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.9000000000000001 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z30 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.9000000000000001 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z30 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.9000000000000001 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z30 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.9000000000000001 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z30 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.9000000000000001 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z90 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.9000000000000001 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z90 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.9000000000000001 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z90 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.9000000000000001 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z90 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.9000000000000001 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z90 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.9000000000000001 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z90 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.9000000000000001 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z30 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z30 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z30 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z30 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z30 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z30 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z90 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z90 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z90 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z90 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z90 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z90 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-0.8999999999999999 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z30 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z30 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z30 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z30 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z30 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z30 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z90 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z90 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z90 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z90 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z90 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z90 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=x45 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=x45 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=x45 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=x45 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=x45 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=x45 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z30 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z30 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z30 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z30 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z30 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z30 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z90 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z90 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z90 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z90 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z90 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z90 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z30 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z30 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z30 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z30 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z30 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z30 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z90 | a∪b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z90 | b∪a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z90 | a∖b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z90 | b∖a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z90 | a∩b | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z90 | b∩a | ERR SpheresMeet { operand: A, face: FaceKey(1v1), verdict: Negative { margin: MarginDiag(Value(-1.5, None)) } } | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE-SUMMARY charts_not_parallel bad=0
+test review_sphpair_r1_probes::r1_charts_not_parallel ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 2520 filtered out; finished in 5.44s
+

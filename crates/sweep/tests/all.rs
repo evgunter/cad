@@ -199,6 +199,8 @@ mod shellfix1_bitdump;
 mod shellfix1_r1_probes;
 #[path = "spheres_crossing_off_every_edge.rs"]
 mod spheres_crossing_off_every_edge;
+#[path = "review_sphpair_r1_probes.rs"]
+mod review_sphpair_r1_probes;
 #[path = "spiric_faces_fuzz.rs"]
 mod spiric_faces_fuzz;
 #[path = "sym11_far_placement_rows.rs"]
