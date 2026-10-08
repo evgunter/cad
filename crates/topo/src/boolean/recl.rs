@@ -12,7 +12,8 @@
 //!   keyed by their noncoplanar bound vs the reference sector, Table II
 //!   plus Table III) and **edge-edge coincidence** (the derived
 //!   membership rule subsuming the angular sort and the Table I tie
-//!   rules — see `resolve_edge_edge`).
+//!   rules — see `resolve_edge_edge`), applied pair by pair where one
+//!   solid holds several coincident edges on the ray (a contact line).
 //!
 //! Germ attribution: a crossing along an on-edge is recorded on the
 //! flanking sector the one fold rule
@@ -506,8 +507,12 @@ fn mark_germ(rec: &mut PairRecord) -> Result<(), BooleanError> {
 ///   is genuinely crossed iff its two halves' outer keys transition.
 /// - several real edges of one solid ⇒ a **contact line** that solid
 ///   holds: each of its edges against each of the other solid's by the
-///   edge-edge rule. Two crossings on the ray, or a contact line met off
-///   an edge of the other solid, refuse typed (unbuilt).
+///   edge-edge rule. Two crossings on the ray, a contact line lying in a
+///   face of the other solid, and one whose ray holds a bisector, refuse
+///   typed (unbuilt).
+///
+/// A group is every mention the first one reads on its ray; three or
+/// more must read so pairwise too, or the event refuses.
 ///
 /// The event's germ is marked on ONE deterministic record; every other
 /// surviving record carrying an On in the event is cancelled (unless it
@@ -597,6 +602,18 @@ pub(super) fn recl_edges<T: Decide>(
                 group.push(mentions[j]);
             }
         }
+        // Each member was read against the seed alone; three or more are
+        // one ray only if every pair reads so.
+        for (p, &m) in group.iter().enumerate().skip(1) {
+            for &n in &group[p + 1..] {
+                if !parallel_same_dir(m.dir, n.dir, m.arm.min(n.arm), band)? {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "a ray event's directions are each on the seed's ray but not \
+                               on one another's",
+                    });
+                }
+            }
+        }
         let a_ms: Vec<Mention<T>> = group.iter().filter(|m| m.a_side).copied().collect();
         let b_ms: Vec<Mention<T>> = group.iter().filter(|m| !m.a_side).copied().collect();
         // One real edge of each solid on the ray: the edge-edge rule.
@@ -635,10 +652,15 @@ pub(super) fn recl_edges<T: Decide>(
             // of its material, the wedges apart, so a wedge the other
             // solid's crosses is crossed whatever else lies round the
             // line.
-            if a_ms.is_empty() || b_ms.is_empty() || group.iter().any(|m| !m.real) {
+            if a_ms.is_empty() || b_ms.is_empty() {
                 return Err(BooleanError::ClassificationInvariant {
-                    what: "a solid's coincident edges on one ray meet the other solid off an \
-                           edge of its own (unbuilt)",
+                    what: "a solid's coincident edges on one ray lie in a face of the other \
+                           (unbuilt)",
+                });
+            }
+            if group.iter().any(|m| !m.real) {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a contact line's ray holds a subdivision bisector (unbuilt)",
                 });
             }
             let mut germs = Vec::new();
