@@ -106,7 +106,7 @@ impl<T: Decide> Quadric<T> {
             } => {
                 let (h, w) = Self::axial(apex, axis, p);
                 let (s, c) = half_angle.sin_cos();
-                w / w.norm() * c - axis * s.copysign(h)
+                w / w.norm() * c - axis * h.select_le_zero(-s, s)
             }
         }
     }
@@ -260,7 +260,7 @@ fn parallel<T: Decide>(
     // ends, and the parity is the same on every path.
     CircleArc {
         centre,
-        axis: axis * T::one().copysign(phi),
+        axis: axis * phi.select_le_zero(-T::one(), T::one()),
         radius,
         u_ref: u,
         span: (T::zero(), phi.abs()),
