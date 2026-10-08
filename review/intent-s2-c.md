@@ -182,7 +182,7 @@ scan) plus a `strict_ancestors` walk per placement, per mate side.
   - Executed on both trees: the asm2a, name_words_corpus, docm4, p2_gauges, lib_g16 name-digest and perf2 keying rows (66 tests) pass at B with B's pins and at head with C's.
   - "the world copy of" is four words, matching the name-words +4.
 - **C5:** see the table above.
-- **C6 — four mutants run.**
+- **C6 — five mutants run (the stranded one was two edits).**
   - Placement order and the stranded skip: killed.
   - The `k` pick: killed (two rows).
   - The unplaced-mate skip (MINOR-1): **survived**.
