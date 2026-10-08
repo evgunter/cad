@@ -226,8 +226,9 @@ enum RingClosure<T: geom_core::Real> {
     /// A planar face: the island closes on the face's own plane, by the
     /// segment's curve.
     Planar,
-    /// A curved face: the island closes along this section plane, on
-    /// the face's chart.
+    /// A curved face: a cylinder's island closes along this section
+    /// plane, on the face's chart; a sphere's or a cone's by the
+    /// segment's curve.
     Wall((Point3<T>, UnitVec3<T>)),
     /// A segment along an edge of both solids (this solid the named
     /// operand) reads no section: a planar face's island closes on its
@@ -246,10 +247,10 @@ enum IslandClosing<'a, T: geom_core::Real> {
     /// A wall face: closed along the section plane its chords lie in,
     /// on the face's chart.
     Wall((Point3<T>, UnitVec3<T>)),
-    /// A sphere face: closed by the segment's curve, an arc of the
-    /// section plane's circle
-    /// ([`crate::chord_join::sphere_island_winding`]).
-    Sphere((Point3<T>, UnitVec3<T>), &'a SegmentCurve<T>),
+    /// A sphere or a cone face: closed by the segment's curve, an arc of
+    /// a plane section or a cone's ruling
+    /// ([`crate::chord_join::path_island_winding`]).
+    Quadric(&'a SegmentCurve<T>),
 }
 
 /// Per-solid joining state: the shared chord core plus the F9 side
@@ -811,11 +812,11 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // the PR 5.5 discipline): cross-solid seam orientation is
         // carried by the sense attributes alone; role order only
         // decides the face partition of a same-loop split, which each
-        // solid resolves against its OWN geometry. A wall face's ring
-        // lane winds its island on the face's chart, closed along this
-        // solid's section plane, before the curve; a planar face's ring
-        // lane waits on the segment's curve, below; an along-edge
-        // segment reads no section.
+        // solid resolves against its OWN geometry. A cylinder face's
+        // ring lane winds its island on the face's chart, closed along
+        // this solid's section plane, before the curve; a planar, sphere
+        // or cone face's ring lane waits on the segment's curve, below;
+        // an along-edge segment reads no section.
         let (a_closure, b_closure) = lane.map_or(
             (
                 RingClosure::AlongEdge(Operand::A),
@@ -2450,23 +2451,23 @@ fn choose_roles<T: Decide>(
             .map(RoleLane::Decided)
             .ok_or(desync("every chord arc separates a loose scaffolding pair"));
     }
-    // Ring lane: decided by the run's winding. A planar or sphere
+    // Ring lane: decided by the run's winding. A planar, sphere or cone
     // face's run is closed by the segment's curve, so it waits on that
-    // curve ([`RoleLane::resolve`]); a wall face's closes along its section
+    // curve ([`RoleLane::resolve`]); a cylinder face's closes along its section
     // plane on its chart, decided here, before the curve is computed in
     // the order it decides. An along-edge segment reads no section: a
     // curved face there refuses typed, before any chord is computed.
     enum RingFace<T: geom_core::Real> {
         Plane(Vec3<T>),
         Wall((Point3<T>, UnitVec3<T>)),
-        Sphere((Point3<T>, UnitVec3<T>)),
+        Quadric,
     }
-    let on_sphere = body
+    let on_quadric = body
         .get_face(face)
         .and_then(|f| body.get_surface(f.surface))
-        .is_some_and(|s| matches!(s, geom::Surface::Sphere { .. }));
+        .is_some_and(|s| crate::ring_path::Quadric::of(s).is_some());
     let ring = match closure {
-        RingClosure::Wall(section) if on_sphere => RingFace::Sphere(section),
+        RingClosure::Wall(_) if on_quadric => RingFace::Quadric,
         RingClosure::Wall(section) => RingFace::Wall(section),
         RingClosure::Planar => RingFace::Plane(
             face_outward_normal(body, face)
@@ -2526,7 +2527,7 @@ fn choose_roles<T: Decide>(
     }
     match ring {
         RingFace::Plane(normal) => Ok(RoleLane::Ring { face, normal }),
-        RingFace::Sphere(section) => Ok(RoleLane::SphereRing { face, section }),
+        RingFace::Quadric => Ok(RoleLane::QuadricRing { face }),
         RingFace::Wall(section) => {
             let ccw = ring_run_ccw(body, face, (ea, ra), IslandClosing::Wall(section), band)?;
             ring_order(body, (ea, ra), loose, ccw).map(RoleLane::Decided)
@@ -2544,11 +2545,8 @@ enum RoleLane<T: geom_core::Real> {
     Decided((HalfEdgeKey, HalfEdgeKey)),
     /// A ring of the planar `face`, with its outward `normal`.
     Ring { face: FaceKey, normal: Vec3<T> },
-    /// A ring of the sphere `face`, whose chords lie in `section`.
-    SphereRing {
-        face: FaceKey,
-        section: (Point3<T>, UnitVec3<T>),
-    },
+    /// A ring of the sphere or cone `face`.
+    QuadricRing { face: FaceKey },
 }
 
 impl<T: Decide> RoleLane<T> {
@@ -2558,7 +2556,7 @@ impl<T: Decide> RoleLane<T> {
     fn curve_order(&self, given: (HalfEdgeKey, HalfEdgeKey)) -> (HalfEdgeKey, HalfEdgeKey) {
         match *self {
             RoleLane::Decided(order) => order,
-            RoleLane::Ring { .. } | RoleLane::SphereRing { .. } => given,
+            RoleLane::Ring { .. } | RoleLane::QuadricRing { .. } => given,
         }
     }
 
@@ -2585,7 +2583,7 @@ impl<T: Decide> RoleLane<T> {
     ) -> Result<(HalfEdgeKey, HalfEdgeKey), BooleanError> {
         let (face, closing) = match self {
             RoleLane::Ring { face, normal } => (face, IslandClosing::Planar(normal, curve)),
-            RoleLane::SphereRing { face, section } => (face, IslandClosing::Sphere(section, curve)),
+            RoleLane::QuadricRing { face } => (face, IslandClosing::Quadric(curve)),
             RoleLane::Decided(_) => return Ok(self.curve_order((ea, ra))),
         };
         let ccw = ring_run_ccw(body, face, (ea, ra), closing, band)?;
@@ -2637,9 +2635,9 @@ fn ring_order<T: Decide>(
 ///
 /// A wall face ([`IslandClosing::Wall`]) asks the same question on its
 /// own chart, [`crate::chord_join::chart_island_winding`], with the run
-/// closed along the plane this solid's chords lie in; a sphere face
-/// ([`IslandClosing::Sphere`]) asks it without a chart,
-/// [`crate::chord_join::sphere_island_winding`], closed by the curve.
+/// closed along the plane this solid's chords lie in; a sphere or cone
+/// face ([`IslandClosing::Quadric`]) asks it without a chart,
+/// [`crate::chord_join::path_island_winding`], closed by the curve.
 fn ring_run_ccw<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -2655,21 +2653,13 @@ fn ring_run_ccw<T: Decide>(
                     .map_err(BooleanError::Join)?;
             return ring_winding_order(wound);
         }
-        IslandClosing::Sphere(section, curve) => {
-            let closing = curve
-                .run_closing(h1, face)
-                .map_err(BooleanError::Join)?
-                .ok_or(BooleanError::Join(SplitJoinError::SectionInvariant {
-                    face,
-                    what: "a sphere ring run is closed by a straight chord (the section lanes \
-                           mint an arc on a sphere)",
-                }))?;
-            let wound = crate::chord_join::sphere_island_winding(
+        IslandClosing::Quadric(curve) => {
+            let closing = curve.run_closing(h1, face).map_err(BooleanError::Join)?;
+            let wound = crate::chord_join::path_island_winding(
                 body,
                 face,
                 (h1, h2),
-                section,
-                &closing,
+                closing.as_ref(),
                 band,
             )
             .map_err(BooleanError::Join)?;

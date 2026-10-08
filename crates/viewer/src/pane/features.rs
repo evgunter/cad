@@ -1231,7 +1231,9 @@ mod tests {
             slot: SlotId::Distance,
             dimension: Dimension::Length,
             structural: false,
-            driver: SlotDriver::Expression { params: Vec::new() },
+            driver: SlotDriver::Expression {
+                variables: Vec::new(),
+            },
             value: Ok(SlotValue::Continuous(HEIGHT)),
             unit: None,
             source: Some("height".to_owned()),

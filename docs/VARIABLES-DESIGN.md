@@ -19,10 +19,12 @@ resolved only by the formula text door and written only by `unparse`.
 Setting, changing or clearing it is one edit that recomputes nothing.
 A name is not a node label: a formula reads a name, so it must resolve
 and be unique, where a label is never resolved and need not be. The
-kernel mints no name; the GUI proposes one and stores it only when the
-person commits it. An unnamed variable reads as its value and its
-reader ("5 mm, the depth of Extrude "base plate""), and as a hex tag in
-diagnostics, as a node does.
+kernel mints no name and the GUI proposes none: the person types one
+when a value is first shared or promoted, and a caller gives one when
+it declares. An unnamed variable has exactly one reader, a slot or a
+definition, and reads as its value and that reader ("5 mm, the depth of
+Extrude "base plate""), and as a hex tag in diagnostics, as a node does.
+An output reads as its operation and port, a name optional.
 
 **VR3 — Kind and definition.** `Var { kind, def }`. Stage 1's kinds are
 `Length`, `Angle`, `Scalar` and `Count`, fixed at minting: a new kind is
@@ -56,7 +58,8 @@ caller writes is a `Formula`: names, variable ids, written quantities
 (`5 mm`, `90 deg`) and constants. The edit door lowers a `Formula` to
 an `Expr`, resolving names in the document's scope and minting an
 anonymous free variable for each written quantity, so `w + 5 mm` stores
-`w + v` with `v` editable, nameable and offerable. The spelling decides
+`w + v` with `v` editable, nameable and offerable; until it is named, `v`
+belongs to that definition. The spelling decides
 the meaning: `90 deg` is a value from a continuous family and becomes a
 variable; `turn/4` is the exact constant. The document's types cannot
 hold a written quantity. A lone number at a slot's root is a typed value too:
@@ -64,8 +67,10 @@ hold a written quantity. A lone number at a slot's root is a typed value too:
 number inside an operator tree is a constant, and `turn/4` alone is a
 formula, so a constant.
 
-**VR7 — Lifecycle.** An anonymous variable is read by something: the
-edit that detaches its last reader removes it. Deleting a named
+**VR7 — Lifecycle.** An unnamed variable belongs to its one reader and
+goes when that reader is deleted or stops reading it; an edit that would
+give it a second reader, or clear the name of a variable two readers
+share, refuses until it is named. Deleting a named
 variable leaves its readers unresolved and typed, never re-pointed, and
 evaluation refuses at each reader (D10's deletion rule; the mint log
 keeps the id from being reused). The doors: declare, set value / unit
@@ -90,8 +95,9 @@ document; `ParamScope::Root` / `Part` prefix its tokens. Persistence
 holds the variable table, the names and the mint log; a file this build
 cannot read refuses typed with the regenerate recourse, and the load
 door checks VR2's uniqueness, VR3's acyclicity and kinds, VR4's slot
-kinds and VR7's anonymous-is-read. The façade's slot arguments accept a
+kinds and VR7's unnamed-has-one-reader. The façade's slot arguments accept a
 variable, a `Formula`, or a written quantity (which mints an anonymous
-variable for that call); passing a variable is how two slots share one.
+variable for that call); passing a named variable is how two slots share
+one.
 Python mirrors it. Split moves a variable with its readers; inline
 carries every variable of the part under a new id.

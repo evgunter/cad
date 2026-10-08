@@ -33,10 +33,10 @@ fn session(tol: Tol) -> (DocSession, pncad::document::RecipeNodeId) {
 /// The distance edit these rows use: the extrude carries a DRIVEN
 /// distance, so the literal slot they move is the profile's — but the
 /// simplest editable literal in this fixture is a new document
-/// parameter, which every row below shares.
+/// variable, which every row below shares.
 fn set_thickness(session: &mut DocSession, metres: f64) -> Vec<DocEdit<ProfileProgram>> {
     session
-        .perform(SessionOp::SetParam {
+        .perform(SessionOp::SetVariable {
             var: common::thickness_var(session.committed_doc()),
             value: SlotValue::Continuous(metres),
         })
@@ -44,14 +44,14 @@ fn set_thickness(session: &mut DocSession, metres: f64) -> Vec<DocEdit<ProfilePr
 }
 
 fn thickness_of(doc: &Doc<ProfileProgram>) -> f64 {
-    match props::param_rows(doc)
+    match props::variable_rows(doc)
         .into_iter()
         .find(|row| row.label.name() == Some(&common::thickness_param()))
-        .expect("the fixture declares the parameter")
+        .expect("the fixture declares the variable")
         .value
     {
         SlotValue::Continuous(v) => v,
-        SlotValue::Count(_) => panic!("the fixture's parameter is continuous"),
+        SlotValue::Count(_) => panic!("the fixture's variable is continuous"),
     }
 }
 

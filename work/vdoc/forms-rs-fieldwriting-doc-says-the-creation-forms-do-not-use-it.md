@@ -1,7 +1,7 @@
 ---
 id: forms-rs-fieldwriting-doc-says-the-creation-forms-do-not-use-it
 kind: issue
-title: FieldWriting's doc comment says the creation forms all hand-pick their tick; add_param_ui is a creation form and derives it
+title: FieldWriting's doc comment says the creation forms all hand-pick their tick; add_variable_ui is a creation form and derives it
 status: open
 opened: 2026-09-15
 priority: P4
@@ -16,12 +16,12 @@ universal about the creation forms that one of them falsifies:
 
 > **The two panel fields this answers for are the SLOT field
 > (`ViewerBehavior::slot_value_ui`) and the DOCUMENT PARAMETER's
-> (`ViewerBehavior::properties_ui`'s `Selection::Param` arm)** — the
+> (`ViewerBehavior::properties_ui`'s `Selection::Variable` arm)** — the
 > two a user drags to move the same kind of number. **It is not the
 > creation forms' answer: those hold canonical drafts and pick their
 > tick from the four constants by hand at each field.**
 
-`ViewerBehavior::add_param_ui` (`crates/viewer/src/pane/properties.rs`)
+`ViewerBehavior::add_variable_ui` (`crates/viewer/src/pane/properties.rs`)
 is a creation form — it MINTS a document parameter — and it does not
 pick from the four constants. It derives its tick:
 `FieldWriting::of(dimension, None).tick`, naming `FIELD_DRAG_SPEED`
@@ -35,9 +35,9 @@ So two claims in that paragraph are wrong:
 1. **"The two panel fields this answers for"** — there are four callers
    of `FieldWriting::of`, all in `pane/properties.rs`
    (`git grep -n 'FieldWriting::of' -- crates/viewer/src`): the two
-   named, the free-move probe, and `add_param_ui`.
+   named, the free-move probe, and `add_variable_ui`.
 2. **"It is not the creation forms' answer"** — it is exactly
-   `add_param_ui`'s answer, and that site is the shipped precedent for
+   `add_variable_ui`'s answer, and that site is the shipped precedent for
    the change `work/forms/drag-tick-has-three-homes.md` proposes for
    the rest of them. The comment hides the one piece of evidence that
    the proposed unification already works.

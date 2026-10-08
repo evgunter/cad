@@ -268,7 +268,12 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    coincident-distinct-edges class, each edge classifying separately.
    Consumers with no wedge-0/2π answer (fillet, offset, mesh sizing,
    sector classification) refuse typed at the consumer.
-   Also at tier 3: **prefer-intrinsic enforcement** (D2) and the
+   Also at tier 3: **maximal edges** (a joinable vertex at rest is a
+   construction that stopped half-way, `JoinableVertexAtRest`; a
+   vertex whose regularity reading lands in the sliver band, so that
+   whether it is joinable is undecided, refuses too, with the
+   tighten-the-tolerance recourse: a size the run's ε cannot tell from
+   a pole or apex), **prefer-intrinsic enforcement** (D2) and the
    **positive-volume orientation invariant** (exact-B-rep signed volume
    definitely-negative ⇒ invalid; margin V/A_total, a length; zero and
    escalated exempt — an orientation probe, not a thinness gate, so
@@ -543,7 +548,11 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   the unique complex with maximal faces and maximal edges over its face
   partition, up to the position of each closed edge's conventional
   vertex, so a union's body does not depend on its member order, and
-  the form is checked at tier 2 on the result alone, with no history.
+  the form is checked at rest on the result alone, with no history, by
+  the one predicate the join takes a vertex by: every door that
+  finishes a body, import included, ends with the join, and a vertex
+  whose regularity reading lands in the sliver band refuses at rest,
+  naming the tolerance below which it would be decided.
   Load-bearing dependency: `merge_coplanar_faces` **never fuses two
   vertices into one**. A contact record is a pair of cells, one from each
   touching shell (vertex, edge or face), whose interiors meet, plus its
@@ -570,18 +579,16 @@ READMEs, and its schedule is the tracker. The lettered entries below
 are the ones other documents cite by letter ((a) composition surgery
 and (b) the SSI generic-`T` lift are discharged and keep no entry):
 
-- **(c) the oblique analytic-chart classes** — a sphere's general
-  circle mints through the fitted route
-  (`FittedLane::sphere_circle_image`, certified by `certify_fitted`'s
-  Circle-carrier arm), so the oblique-trihedron octant faces store
-  their rows; a torus's Villarceau circle and a cone's tilted section
-  mint their exact image (`Pcurve::FocalSection`), and a circle within
-  the band of a cone or torus that is none of its circles refuses as a
-  defect (`CarrierGrazesChart`). C4's exemption, a face left uncached
-  until its class's route lands, covers a spline carrier at the
-  closed-form door and the mirror-torus spiric and no-fitted classes,
-  each on its own PCERT row: the spline carrier, and the spiric and
-  no-fitted classes together.
+- **(c) the oblique analytic-chart classes** — a carrier with no
+  closed-form image on an analytic chart (a spline carrier, a sphere's
+  general circle) stores its projected image (C4), so the
+  oblique-trihedron octant faces store their rows; a torus's
+  Villarceau circle and a cone's tilted section mint their exact image
+  (`Pcurve::FocalSection`), and a circle within the band of a cone or
+  torus that is none of its circles refuses as a defect
+  (`CarrierGrazesChart`). C4's exemption, a face left uncached until
+  its class's route lands, covers the mirror-torus spiric and
+  no-fitted classes, on their PCERT row.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
   exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
@@ -1224,7 +1231,10 @@ nor inside a formula: the only constants are dimensionless rationals and
 rational fractions of a turn, which are the shape of a formula rather
 than a dimension. Typing a value in the GUI mints a free variable and
 offers an existing variable of equal value; declining the offer is what
-makes the two distinct.
+makes the two distinct. A variable without a name is read by exactly
+one slot or definition, which is how it is spoken; a variable two
+readers share has a name the person gave it; an output is spoken by
+its operation.
 
 A pose is a frame known up to its kind's symmetry, a subgroup of the
 rigid motions and the same `Subgroup` the mates fold (A11 (1)): a plane
