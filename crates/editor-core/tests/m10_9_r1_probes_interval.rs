@@ -307,7 +307,14 @@ fn r1_split_bore_disc_end_to_end() {
                         println!("      render| {line}");
                     }
                     let stack = editor_core::stackup::stackup(
-                        &doc, crate::fixture::output(&doc, measure), &analyzed, &v, None, false, None, tol,
+                        &doc,
+                        crate::fixture::output(&doc, measure),
+                        &analyzed,
+                        &v,
+                        None,
+                        false,
+                        None,
+                        tol,
                     );
                     println!("      stackup {stack:?}");
                     let a =

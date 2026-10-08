@@ -536,7 +536,12 @@ fn a_document_without_measures_is_untouched() {
 fn cylinder_distance_is_the_axis_separation() {
     let (doc, _, holes) = plate();
     let walls = hole_walls(&eval(&doc), holes);
-    let doc = crate::fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), walls).0;
+    let doc = crate::fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        walls,
+    )
+    .0;
     let (d, dim) = measured(&eval(&doc), last(&doc));
     assert_eq!(dim, Dimension::Length);
     assert!(
@@ -573,7 +578,12 @@ fn plane_angle_between_opposed_caps_is_pi() {
         };
         vec![pick(CapEnd::End), pick(CapEnd::Start)]
     };
-    let doc = crate::fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }), caps).0;
+    let doc = crate::fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
+        caps,
+    )
+    .0;
     let (a, dim) = measured(&eval(&doc), last(&doc));
     assert_eq!(dim, Dimension::Angle, "an angle is an Angle");
     assert!(
@@ -602,7 +612,12 @@ fn a_plane_gap_over_disjoint_slabs_is_positive_both_ways() {
         (top_of_lower.clone(), bottom_of_upper.clone()),
         (bottom_of_upper, top_of_lower),
     ] {
-        let doc = crate::fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), vec![o, i]).0;
+        let doc = crate::fixture::measure_node(
+            &doc,
+            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+            vec![o, i],
+        )
+        .0;
         let (g, dim) = measured(&eval(&doc), last(&doc));
         assert_eq!(dim, Dimension::Length);
         assert!(
@@ -624,7 +639,12 @@ fn a_plane_gap_over_an_aligned_pair_negates_under_a_role_swap() {
     let top_of_upper = cap(&ev, upper, editor_core::CapEnd::End);
 
     let read = |o: SitedRef, i: SitedRef| {
-        let doc = crate::fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), vec![o, i]).0;
+        let doc = crate::fixture::measure_node(
+            &doc,
+            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+            vec![o, i],
+        )
+        .0;
         measured(&eval(&doc), last(&doc)).0
     };
     let forward = read(top_of_lower.clone(), top_of_upper.clone());
@@ -658,7 +678,12 @@ fn the_gap_sign_convention_walks_all_three_regimes() {
         let (doc, bore, pin) = coaxial_pair(bore_r, pin_r);
         let ev = eval(&doc);
         let refs = vec![hole_wall_of(&ev, bore), hole_wall_of(&ev, pin)];
-        let doc = crate::fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), refs).0;
+        let doc = crate::fixture::measure_node(
+            &doc,
+            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+            refs,
+        )
+        .0;
         let (g, dim) = measured(&eval(&doc), last(&doc));
         assert_eq!(dim, Dimension::Length, "a gap is a signed Length");
         let want = bore_r - pin_r;
@@ -882,10 +907,15 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
     // The SAME vertex name, read at the two sites: the distance between
     // the authored carrier and the placed one is exactly the
     // translation. Nothing else in the document differs.
-    let doc = crate::fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), vec![
-                        SitedRef::new(solid, vname.clone()),
-                        SitedRef::new(placed, vname),
-                    ]).0;
+    let doc = crate::fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        vec![
+            SitedRef::new(solid, vname.clone()),
+            SitedRef::new(placed, vname),
+        ],
+    )
+    .0;
     let (d, _) = measured(&eval(&doc), last(&doc));
     assert!(
         (d - SHIFT).abs() < 1e-9,
@@ -945,7 +975,12 @@ fn a_reference_that_stops_resolving_refuses_typed() {
             path: vec![RoleSeg::OutputBody],
         },
     );
-    let doc = crate::fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), walls).0;
+    let doc = crate::fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        walls,
+    )
+    .0;
     let ev = eval(&doc);
     let err = failed_kind(&ev, last(&doc));
     assert!(
@@ -963,7 +998,12 @@ fn a_reference_that_stops_resolving_refuses_typed() {
 fn deleting_a_referenced_node_leaves_the_measure_refusing() {
     let (doc, _, holes) = plate();
     let walls = hole_walls(&eval(&doc), holes);
-    let doc = crate::fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), walls).0;
+    let doc = crate::fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        walls,
+    )
+    .0;
     let measure = last(&doc);
     assert!(
         doc.upstream(measure).contains(&holes[0]),
@@ -990,7 +1030,12 @@ fn an_unsupported_carrier_pair_refuses_naming_the_pair() {
         .map(|name| SitedRef::new(body, name))
         .collect();
     assert_eq!(whole.len(), 1, "one output body");
-    let doc = crate::fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 0 }), whole).0;
+    let doc = crate::fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 0 }),
+        whole,
+    )
+    .0;
     let ev = eval(&doc);
     match failed_kind(&ev, last(&doc)) {
         NodeErrorKind::MeasureUnsupported(refusal) => {
@@ -1014,7 +1059,12 @@ fn a_mixed_carrier_pair_refuses() {
         faces_of_kind(&ev, body, geom::SurfaceKind::Plane).remove(0),
         faces_of_kind(&ev, holes[0], geom::SurfaceKind::Cylinder).remove(0),
     ];
-    let doc = crate::fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), refs).0;
+    let doc = crate::fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        refs,
+    )
+    .0;
     let ev = eval(&doc);
     let err = failed_kind(&ev, last(&doc));
     assert!(

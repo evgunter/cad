@@ -717,7 +717,12 @@ fn a_measure_reused_across_an_offset_clear_refuses_across_spaces() {
         top,
         Some(Placement::literal(&Frame::translation([0.0, 0.0, 1.0]))),
     );
-    let measure = Node::Measure { primitive: editor_core::MeasurePrimitive::Distance { a: editor_core::SitedRef::at_mint(p.base_cap(base)), b: editor_core::SitedRef::at_mint(p.top_cap(top)) } };
+    let measure = Node::Measure {
+        primitive: editor_core::MeasurePrimitive::Distance {
+            a: editor_core::SitedRef::at_mint(p.base_cap(base)),
+            b: editor_core::SitedRef::at_mint(p.top_cap(top)),
+        },
+    };
     let (doc, m) = insert(doc, measure);
     let ev = run(&doc, &o);
     assert!(ev.value(m).is_some());

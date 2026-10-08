@@ -444,7 +444,16 @@ fn r2_evidence_the_d_tab_end_to_end() {
             if let Some(l) = verdict.certified().first() {
                 println!("      first certified leaf's receipt: {:?}", l.decisions);
             }
-            match stackup(&doc, crate::fixture::output(&doc, measure), &analyzed, &verdict, None, false, None, tol) {
+            match stackup(
+                &doc,
+                crate::fixture::output(&doc, measure),
+                &analyzed,
+                &verdict,
+                None,
+                false,
+                None,
+                tol,
+            ) {
                 Ok(r) => println!(
                     "      stackup: worst case [{:.6e}, {:.6e}] over {} leaves; nominal {:?}",
                     r.worst_case.lo, r.worst_case.hi, r.worst_case.leaves, r.nominal

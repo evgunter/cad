@@ -41,8 +41,8 @@ use editor_core::AuthoredNode;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    AssertionDir, Datum, DocEdit, EditError, EvalOptions, Formula, Node, NodeErrorKind,
-    OperandKind, PartSelect, PatternKind, ProfileDoc, RecipeNodeId, SplitHalf, TubeWindow, VarKind,
+    Datum, DocEdit, EditError, EvalOptions, Formula, Node, NodeErrorKind, OperandKind, PartSelect,
+    PatternKind, ProfileDoc, RecipeNodeId, SplitHalf, TubeWindow, VarKind,
 };
 use fixture::{ang, desc, insert, len, on_frame_keeping, scl, square};
 use geom_core::Tol;

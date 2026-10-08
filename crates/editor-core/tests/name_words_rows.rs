@@ -662,11 +662,14 @@ fn a_resolve_row_names_the_slot_that_failed() {
     let mut r = Recorder::new();
     let (block, split) = block_and_split(&mut r);
     let cap = fixture::fname(block, RoleSeg::Cap(CapEnd::End));
-    let measured = r.measure(&MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), &[
-                SitedRef::new(block, cap.clone()),
-                SitedRef::new(split, cap.clone()),
-            ]);
-    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
+    let measured = r.measure(
+        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        &[
+            SitedRef::new(block, cap.clone()),
+            SitedRef::new(split, cap.clone()),
+        ],
+    );
+    let (measure, _measure_value) = (measured.measures[0], measured.outputs[0]);
     let said = failure_of(&r, measure);
     assert!(
         said.contains("this measure's reference 1 "),

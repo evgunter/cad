@@ -1376,13 +1376,17 @@ fn r1_a_cut_root_on_no_gauge_refuses_where_the_cut_anchors_on_a_gauge() {
     let doc = set_gauge(doc, top, Some(g));
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
     let measure_of = |doc: ProfileDoc| {
-        crate::fixture::measure_node(&doc, editor_core::MeasureExpr::primitive(editor_core::MeasurePrimitive::Distance {
-                    a: 0,
-                    b: 1,
-                }), vec![
-                    editor_core::SitedRef::new(base, p.base_cap(base)),
-                    editor_core::SitedRef::new(base, base_bottom(&p, base)),
-                ])
+        crate::fixture::measure_node(
+            &doc,
+            editor_core::MeasureExpr::primitive(editor_core::MeasurePrimitive::Distance {
+                a: 0,
+                b: 1,
+            }),
+            vec![
+                editor_core::SitedRef::new(base, p.base_cap(base)),
+                editor_core::SitedRef::new(base, base_bottom(&p, base)),
+            ],
+        )
     };
     let (measured, measure) = measure_of(doc.clone());
     let (asserted, assertion) = insert(

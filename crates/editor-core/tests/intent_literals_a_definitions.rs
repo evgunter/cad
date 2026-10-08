@@ -23,9 +23,9 @@ use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
     CancelToken, CarryForwardDoor, Dimension, Distribution, DocEdit, DocumentId, EditError,
     EvalError, EvalOptions, Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, InlineError,
-    Maintenance, MeasureExpr, Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError,
-    ProfileDoc, ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply,
-    evaluate, inline, load, save, split, var_env_over,
+    Maintenance, Node, NodeErrorKind, NodeResult, ParamBox, ParamValue, PersistError, ProfileDoc,
+    ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply, evaluate,
+    inline, load, save, split, var_env_over,
 };
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{Bounds, Interval, Real, Sym, SymBudget, SymRules, Tol};
@@ -238,16 +238,7 @@ fn a_defined_variable_carries_its_inputs_derivative_and_takes_no_seed() {
         },
     )
     .doc;
-    let entries = sensitivities(
-        &doc,
-        h,
-        None,
-        None,
-        false,
-        None,
-        Tol::witness(),
-    )
-    .unwrap();
+    let entries = sensitivities(&doc, h, None, None, false, None, Tol::witness()).unwrap();
     assert_eq!(
         entries.iter().map(|e| e.param).collect::<Vec<_>>(),
         vec![w],

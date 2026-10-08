@@ -216,7 +216,11 @@ fn a_measure_reference_that_is_no_scope_refuses_naming_what_it_found() {
         } else {
             vertex
         };
-        let (doc, measure) = crate::fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }), vec![SitedRef::at_mint(name), SitedRef::at_mint(face)]);
+        let (doc, measure) = crate::fixture::measure_node(
+            &doc,
+            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+            vec![SitedRef::at_mint(name), SitedRef::at_mint(face)],
+        );
         let got = refusal(&doc, measure);
         assert!(
             matches!(got, NodeErrorKind::MeasureSelectionKind { .. }),

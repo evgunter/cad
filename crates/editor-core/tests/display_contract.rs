@@ -18,12 +18,12 @@ use editor_core::mate::SurfaceKind;
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, Clash, ContactClass, DeclareError, Diagnosis, Dimension,
     DimensionError, DocRef, DocumentId, EditError, EntityKind, EvalError, FreeValue, HitTestError,
-    InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide, MeasureNodeFault,
-    MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError,
-    ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
-    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg,
-    RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId,
-    StepIdFault, StepSegmentsError, UnnamedEntity, VarName,
+    InterrogateError, Lever, LeverRefusal, Maintenance, MateFault, MateSide, MeshPickError,
+    MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError, ParseError,
+    PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId, RecordedProgramError,
+    RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route,
+    SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault,
+    StepSegmentsError, UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
 use geom_core::BandError;
@@ -1085,7 +1085,10 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
             slot: editor_core::SlotId::Distance,
             var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None),
         },
-        &["slot distance reads", "a measured value, which only an assertion reads"],
+        &[
+            "slot distance reads",
+            "a measured value, which only an assertion reads",
+        ],
         &dumps,
     );
 }
@@ -3648,7 +3651,10 @@ fn an_edit_refusal_does_not_repeat_the_noun_its_spoken_node_says() {
             EditError::ConstructionReadsObserved {
                 node: held(5, "Extrude"),
                 slot: editor_core::SlotId::Distance,
-                var: Box::new(editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), None)),
+                var: Box::new(editor_core::SpokenVar::new(
+                    editor_core::VarId::new(0, 7),
+                    None,
+                )),
             },
             vec![held(5, "Extrude")],
         ),

@@ -151,16 +151,19 @@ fn dumbbell() -> Dumbbell {
             angle: ang(0.0),
         },
     ));
-    let measured = r.measure(&MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }), &[
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
-                ),
-            ]);
+    let measured = r.measure(
+        &MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+        &[
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+            ),
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+            ),
+        ],
+    );
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure_value),
@@ -513,15 +516,18 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
-    let measured = r.measure(&MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }), &[
-                // A real EDGE name — the extrude's own lateral edge at
-                // profile vertex 0 — so the reference resolves and the
-                // refusal is about its KIND rather than about a name
-                // that names nothing.
-                SitedRef::at_mint(fixture::prism_edges(&r.doc, solid, 4).remove(2)),
-                SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
-            ]);
-    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
+    let measured = r.measure(
+        &MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+        &[
+            // A real EDGE name — the extrude's own lateral edge at
+            // profile vertex 0 — so the reference resolves and the
+            // refusal is about its KIND rather than about a name
+            // that names nothing.
+            SitedRef::at_mint(fixture::prism_edges(&r.doc, solid, 4).remove(2)),
+            SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
+        ],
+    );
+    let (measure, _measure_value) = (measured.measures[0], measured.outputs[0]);
     let ev = eval_over::<geom_core::Interval>(&r.doc, None);
     let Some(NodeResult::Failed(err)) = ev.result(measure) else {
         panic!("an edge is not a selection, so the measure refuses");

@@ -870,9 +870,10 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     let not_a_measure = sensitivities(&doc, body, None, None, false, None, Tol::witness())
         .expect_err("a body is not a value");
     assert!(
-        not_a_measure
-            .to_string()
-            .starts_with(&format!("{} is not a scalar variable", doc.spoken_var(body))),
+        not_a_measure.to_string().starts_with(&format!(
+            "{} is not a scalar variable",
+            doc.spoken_var(body)
+        )),
         "{not_a_measure}"
     );
 
@@ -959,9 +960,9 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         mc.render(&doc)
     );
     assert!(
-        histogram
-            .render(&doc)
-            .starts_with(&format!("ADVISORY leaf-mass histogram of the value of {plate} — ")),
+        histogram.render(&doc).starts_with(&format!(
+            "ADVISORY leaf-mass histogram of the value of {plate} — "
+        )),
         "{}",
         histogram.render(&doc)
     );

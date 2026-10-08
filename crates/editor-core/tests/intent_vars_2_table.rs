@@ -24,9 +24,9 @@ use editor_core::mc::{McConfig, sample_offsets};
 use editor_core::persist::SnapshotError;
 use editor_core::stackup::{SensitivityOutcome, sensitivities};
 use editor_core::{
-    Dimension, Distribution, DocEdit, EditError, Formula, FreeValue, FreeVar, MeasureExpr, Node,
-    ParamBox, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, UnitSym, VarDecl, VarId,
-    VarKind, VarName, apply, load, save, var_env_over,
+    Dimension, Distribution, DocEdit, EditError, Formula, FreeValue, FreeVar, ParamBox,
+    PersistError, ProfileDoc, ProfileProgram, UnitSym, VarDecl, VarId, VarKind, VarName, apply,
+    load, save, var_env_over,
 };
 use geom_core::Tol;
 use geom_core::predicate::{Band, Margin, Sign};

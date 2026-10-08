@@ -182,17 +182,20 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         },
     ));
     // The two facing walls of the unit square: their distance is 1.0.
-    let measured = r.measure(&MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), &[
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 1)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 3)),
-                ),
-            ]);
-    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
+    let measured = r.measure(
+        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        &[
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 1)),
+            ),
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 3)),
+            ),
+        ],
+    );
+    let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure_value),
         // The bound IS the measured value, so no enclosure separates
@@ -422,10 +425,13 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         distance: len(2.0),
         side: ExtrudeSide::Along,
     });
-    let measured = r.measure(&MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }), &[
-                SitedRef::new(c, bname(c)),
-                SitedRef::new(block, bname(block)),
-            ]);
+    let measured = r.measure(
+        &MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+        &[
+            SitedRef::new(c, bname(c)),
+            SitedRef::new(block, bname(block)),
+        ],
+    );
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure_value),

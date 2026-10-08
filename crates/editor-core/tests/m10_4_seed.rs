@@ -34,8 +34,8 @@ use editor_core::UnitSym;
 use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram,
     MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc,
-    ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SeedError, SitedRef,
-    ValuePayload, VarName, evaluate, seed_env,
+    ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, SeedError, SitedRef, VarName,
+    evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
@@ -157,11 +157,8 @@ fn two_param_web() -> ProfileDoc {
     let distance = measure_node(&doc);
     let m = Formula::add(
         Formula::sub(
-            Formula::sub(
-                Formula::var(distance, Dimension::Length),
-                param("hole_r"),
-            )
-            .expect("Length"),
+            Formula::sub(Formula::var(distance, Dimension::Length), param("hole_r"))
+                .expect("Length"),
             param("hole_r"),
         )
         .expect("Length"),
@@ -215,7 +212,7 @@ fn width_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
     ];
     let width = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
     let m_measured = r.measure(&width, &refs);
-    let (m, m_value) = (m_measured.measures[0], m_measured.outputs[0]);
+    let (_m, m_value) = (m_measured.measures[0], m_measured.outputs[0]);
     (r.doc, m_value)
 }
 
@@ -364,13 +361,15 @@ fn the_web_tangent_is_the_plates_own_formula_through_the_public_door() {
     let f = run::<f64>(&doc, None, &EvalOptions::default());
     let web = crate::fixture::reading(&doc, &f, m).expect("the measured value reads");
     for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-        let on_r = measured(&doc, 
+        let on_r = measured(
+            &doc,
             &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"), lift)),
             m,
         );
         assert_eq!(on_r.deriv.to_bits(), (-2.0f64).to_bits(), "{lift:?}");
         assert_eq!(on_r.value.to_bits(), web.to_bits(), "{lift:?}");
-        let on_d = measured(&doc, 
+        let on_d = measured(
+            &doc,
             &run::<Dual64>(&doc, None, &opts(&doc, Some("depth"), lift)),
             m,
         );
@@ -387,11 +386,13 @@ fn the_web_tangent_is_the_plates_own_formula_through_the_public_door() {
 fn a_seeded_pass_is_schedule_independent() {
     let doc = two_param_web();
     let m = measure_node(&doc);
-    let seq = measured(&doc, 
+    let seq = measured(
+        &doc,
         &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"), ProfileLift::Guided)),
         m,
     );
-    let par = measured(&doc, 
+    let par = measured(
+        &doc,
         &run::<Dual64>(
             &doc,
             None,
@@ -425,7 +426,10 @@ fn the_memo_never_serves_one_parameters_pass_to_another() {
         Some(&on_r),
         &opts(&doc, Some("depth"), ProfileLift::Guided),
     );
-    let (fresh, threaded) = (measured(&doc, &on_d_fresh, m), measured(&doc, &on_d_threaded, m));
+    let (fresh, threaded) = (
+        measured(&doc, &on_d_fresh, m),
+        measured(&doc, &on_d_threaded, m),
+    );
     assert_eq!(threaded.deriv.to_bits(), fresh.deriv.to_bits());
     assert_eq!(threaded.deriv.to_bits(), 1.0f64.to_bits());
     assert_eq!(threaded.value.to_bits(), fresh.value.to_bits());
@@ -468,7 +472,8 @@ fn the_memo_never_serves_one_parameters_pass_to_another() {
 #[test]
 fn a_profile_dimension_seed_propagates_through_the_guided_lift() {
     let (doc, m) = width_slab(2.0);
-    let guided = measured(&doc, 
+    let guided = measured(
+        &doc,
         &run::<Dual64>(&doc, None, &opts(&doc, Some("w"), ProfileLift::Guided)),
         m,
     );
@@ -479,7 +484,8 @@ fn a_profile_dimension_seed_propagates_through_the_guided_lift() {
         "∂width/∂w through the guided lift is 1, got {}",
         guided.deriv
     );
-    let pinned = measured(&doc, 
+    let pinned = measured(
+        &doc,
         &run::<Dual64>(&doc, None, &opts(&doc, Some("w"), ProfileLift::Pinned)),
         m,
     );

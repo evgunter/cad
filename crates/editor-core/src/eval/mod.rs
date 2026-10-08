@@ -271,10 +271,9 @@ impl<T: Decide> Evaluation<T> {
         doc: &Doc<P>,
         var: crate::VarId,
     ) -> Result<measure::Observed<T>, measure::ObservedRefusal> {
-        let dim = doc
-            .var(var)
-            .and_then(|v| v.kind().dimension())
-            .ok_or(measure::ObservedRefusal::Expr(EvalError::UnresolvedVar { var }))?;
+        let dim = doc.var(var).and_then(|v| v.kind().dimension()).ok_or(
+            measure::ObservedRefusal::Expr(EvalError::UnresolvedVar { var }),
+        )?;
         measure::observe(doc, &self.env, &self.nodes, var, dim)
     }
 

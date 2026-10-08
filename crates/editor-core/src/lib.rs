@@ -130,6 +130,7 @@ pub use edit::{
     MaintenanceNet, MeasureOutcome, Measured, Recorded, Recording, RegaugeThenMateOutcome, Took,
     apply, apply_replayed, cascade_delete_order, measure, regauge_then_mate,
 };
+pub use eval::measure::{Observed, ObservedRefusal};
 pub use eval::{
     Arity, BooleanValue, CancelToken, CanonicalSegment, CarriedChain, CarriedIn, CarriedLevel,
     ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch, EvalOptions, EvalOutcome,
@@ -138,7 +139,6 @@ pub use eval::{
     ProfileLift, ProfilePieces, SectionScalar, SplitSide, StepTurns, ValuePayload, VerbKind,
     evaluate, mate_reach,
 };
-pub use eval::measure::{Observed, ObservedRefusal};
 pub use refusal::Refusal;
 pub use sentence::{Labelled, Labels, PASS_A_RESOLVER, Recourse, Staged};
 pub use spoken::{

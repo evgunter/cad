@@ -3336,8 +3336,8 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
     use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
         BifurcationKind, BooleanCoincidence, BranchMarginEvidence, DirectionRefusal, EntityKind,
-        FaceName, FlushEvidence, FlushFinding, FlushRung, Implicated, InterrogateError,
-        MeasureNodeFault, PartFault, SitedRef, WitnessAge, WitnessBifurcation,
+        FaceName, FlushEvidence, FlushFinding, FlushRung, Implicated, InterrogateError, PartFault,
+        SitedRef, WitnessAge, WitnessBifurcation,
     };
     use geom_core::UnitVec3Error;
     use payloads::*;
@@ -4474,7 +4474,11 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
             spin: ang(0.0),
         }),
     );
-    let (doc, measure) = crate::fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }), vec![SitedRef::at_mint(vertex), SitedRef::at_mint(face)]);
+    let (doc, measure) = crate::fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+        vec![SitedRef::at_mint(vertex), SitedRef::at_mint(face)],
+    );
     let mut ev = evaluate::<f64>(
         &doc,
         None,

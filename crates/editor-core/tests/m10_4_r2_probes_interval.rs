@@ -49,9 +49,9 @@ use editor_core::stackup::{
 };
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
-    FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ParamValue,
-    ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
-    Observed, SitedRef, ValuePayload, VarId, VarName, evaluate, seed_env,
+    FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, Observed,
+    ParamValue, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId,
+    RoleSeg, SitedRef, VarId, VarName, evaluate, seed_env,
 };
 use geom_core::interval::Interval;
 use geom_core::{CertifiedEnclosure, Dual64, Tol};
@@ -351,7 +351,11 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, VarId) {
     });
     let ev = eval(&r.doc);
     let refs = vec![cyl_wall(&ev, &r.doc, bore), cyl_wall(&ev, &r.doc, pin)];
-    let m = r.value("m", &MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), &refs);
+    let m = r.value(
+        "m",
+        &MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        &refs,
+    );
     (r.doc, m)
 }
 
@@ -406,7 +410,11 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
         SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
         SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
     ];
-    let angle = r.value("angle", &MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }), &refs);
+    let angle = r.value(
+        "angle",
+        &MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
+        &refs,
+    );
     let h = || MeasureExpr::value(param("h", Dimension::Length));
     let one = || MeasureExpr::value(len(1.0));
     let kink = MeasureExpr::max(
@@ -478,7 +486,11 @@ fn loft() -> (ProfileDoc, VarId) {
         vertex_at(&ev, loft, [0.0, 0.0, 0.0]),
         vertex_at(&ev, loft, [2.0, 0.0, 0.0]),
     ];
-    let m = r.value("m", &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), &refs);
+    let m = r.value(
+        "m",
+        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        &refs,
+    );
     (r.doc, m)
 }
 

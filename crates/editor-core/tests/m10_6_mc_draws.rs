@@ -33,8 +33,7 @@ use geom_core::Tol;
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
 use editor_core::mc::{McConfig, McRefusal, monte_carlo, sample_offsets};
 use editor_core::{
-    Dimension, Distribution, DocEdit, Formula, FreeVar, Node, ProfileDoc, RecipeNodeId, UnitSym,
-    VarName,
+    Dimension, Distribution, DocEdit, FreeVar, ProfileDoc, RecipeNodeId, UnitSym, VarName,
 };
 
 /// The nominal, and a number with no dyadic shortcuts in it: a mean

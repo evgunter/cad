@@ -21,7 +21,7 @@ use editor_core::expr::DimensionError;
 use editor_core::{
     AssertionDir, Datum, Dimension, DocEdit, DocumentId, EditError, EntityKind, Formula, FreeVar,
     MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedRef, SnapshotError, StableName, VarName, apply, load, save,
+    RoleSeg, SitedRef, StableName, VarName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -297,7 +297,6 @@ fn a_measure_indexing_past_its_refs_refuses_at_the_builder() {
     ));
 }
 
-
 /// An assertion's bound must be dimensioned like its measure — refused
 /// at the edit door, so a document never carries a comparison of
 /// metres with radians.
@@ -336,7 +335,9 @@ fn a_dimension_mismatched_bound_refuses_at_the_edit_door() {
 #[test]
 fn an_assertion_over_a_non_scalar_refuses() {
     let doc = angular();
-    let point = doc.output(doc.ids()[0], 0).expect("a point defines its pose");
+    let point = doc
+        .output(doc.ids()[0], 0)
+        .expect("a point defines its pose");
     let err = apply(
         &doc,
         &DocEdit::InsertNode {

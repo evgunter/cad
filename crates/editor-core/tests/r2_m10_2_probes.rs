@@ -1390,8 +1390,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
 
     // (b) the assertion's value repointed at a body, which is no value.
     let tgt_corrupt = doctored(&text, |wire| {
-        let target =
-            &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["value"];
+        let target = &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["value"];
         assert_eq!(
             *target,
             serde_json::json!(

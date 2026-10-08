@@ -730,7 +730,8 @@ fn inline_carries_the_name_on_an_instances_body() {
 #[test]
 fn a_slot_reading_an_output_refuses_naming_it() {
     let (doc, _, _, extrude) = block("s2a-observed");
-    let (doc, measure) = crate::fixture::measure_node(&doc, editor_core::MeasureExpr::value(len(0.5)), Vec::new());
+    let (doc, measure) =
+        crate::fixture::measure_node(&doc, editor_core::MeasureExpr::value(len(0.5)), Vec::new());
     let gap = doc.output(measure, 0).expect("a measure defines its value");
     assert_eq!(doc.var(gap).unwrap().kind(), VarKind::Length);
     let doc = named(doc, gap, "gap");

@@ -845,10 +845,9 @@ pub(crate) fn observe<T: Decide, P>(
                 observed.insert(at, false);
                 continue;
             };
-            let value = super::usable_in(results, node, || super::NodeStanding::NotEvaluated {
-                node,
-            })
-            .map_err(ObservedRefusal::Measure)?;
+            let value =
+                super::usable_in(results, node, || super::NodeStanding::NotEvaluated { node })
+                    .map_err(ObservedRefusal::Measure)?;
             match &value.payload {
                 super::ValuePayload::Measure { value, .. } => {
                     local.bindings.insert(
@@ -889,7 +888,9 @@ pub(crate) fn observe<T: Decide, P>(
             );
             continue;
         }
-        let reads_observed = reads.iter().any(|(read, _)| observed.get(read) == Some(&true));
+        let reads_observed = reads
+            .iter()
+            .any(|(read, _)| observed.get(read) == Some(&true));
         if reads_observed {
             if doc.var_name(at).is_none() {
                 local.written.insert(at);
@@ -940,7 +941,9 @@ pub(crate) fn unavailable_at<P>(doc: &crate::Doc<P>, var: crate::VarId) -> crate
     });
     match clearance.or_else(|| measures.first().copied()) {
         Some(node) => node,
-        None => unreachable!("{var:?} is read as a measured value, and every reader asks that it is one"),
+        None => unreachable!(
+            "{var:?} is read as a measured value, and every reader asks that it is one"
+        ),
     }
 }
 
@@ -953,14 +956,16 @@ pub(crate) fn unavailable_at<P>(doc: &crate::Doc<P>, var: crate::VarId) -> crate
 pub(crate) fn certified<P>(doc: &crate::Doc<P>, var: crate::VarId) -> crate::measure::Certified {
     use crate::measure::Certified;
     let clearance = |out: &crate::VarId| {
-        doc.operation_of(*out).and_then(|node| doc.node(node)).is_some_and(|node| {
-            matches!(
-                node,
-                crate::Node::Measure {
-                    primitive: MeasurePrimitive::MinClearance { .. }
-                }
-            )
-        })
+        doc.operation_of(*out)
+            .and_then(|node| doc.node(node))
+            .is_some_and(|node| {
+                matches!(
+                    node,
+                    crate::Node::Measure {
+                        primitive: MeasurePrimitive::MinClearance { .. }
+                    }
+                )
+            })
     };
     let outputs = doc.observed_outputs(var);
     if outputs == [var] && clearance(&var) {

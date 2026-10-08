@@ -299,12 +299,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // the bulged extrude's caps, which is its depth: the golden must
     // evaluate GREEN. The other primitives' wire forms are pinned by
     // round-trip in `m10_2_measure_wire.rs`.
-    let cap = |end| {
-        editor_core::SitedRef::new(
-            bulged,
-            fixture::fname(bulged, RoleSeg::Cap(end)),
-        )
-    };
+    let cap = |end| editor_core::SitedRef::new(bulged, fixture::fname(bulged, RoleSeg::Cap(end)));
     let (measured_doc, measured) = fixture::measure(
         doc,
         &editor_core::MeasureExpr::sub(

@@ -471,7 +471,11 @@ fn the_two_hole_plate_stackup() {
         },
     );
     let rendered = report.render(&named, &analyzed);
-    assert_eq!(rendered.lines().next(), Some("stackup of web"), "{rendered}");
+    assert_eq!(
+        rendered.lines().next(),
+        Some("stackup of web"),
+        "{rendered}"
+    );
     let distance = doc
         .operation_of(doc.observed_outputs(measure)[0])
         .expect("the web reads a measure");
@@ -1452,7 +1456,10 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     });
     let ev = eval(&r.doc);
     let refs = vec![cyl_wall(&ev, &r.doc, bore), cyl_wall(&ev, &r.doc, pin)];
-    let measured = r.measure(&MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), &refs);
+    let measured = r.measure(
+        &MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        &refs,
+    );
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let doc = r.doc;
 
@@ -1588,8 +1595,11 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
         vertex_at(&ev, loft, [0.0, 0.0, 0.0]),
         vertex_at(&ev, loft, [2.0, 0.0, 0.0]),
     ];
-    let measured = r.measure(&MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), &refs);
-    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
+    let measured = r.measure(
+        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        &refs,
+    );
+    let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let doc = r.doc;
 
     let entries =

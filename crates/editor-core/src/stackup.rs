@@ -136,11 +136,11 @@ use topo::Body;
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
 use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, Receipt};
+use crate::eval::measure::Observed;
 use crate::eval::{
     BooleanValue, CancelToken, ContentKey, DatumValue, EvalOptions, EvalOutcome, Evaluation,
     NodeErrorKind, NodeResult, ProfileLift, SplitSide, ValuePayload, evaluate,
 };
-use crate::eval::measure::Observed;
 use crate::measure::AssertionVerdict;
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
@@ -1468,7 +1468,11 @@ impl Stackup {
     /// # Panics
     ///
     /// When `doc` is not the document the stackup was taken of.
-    pub fn render<P: crate::ProfilePayload>(&self, doc: &Doc<P>, analyzed: &crate::analysis::AnalyzedBox) -> String {
+    pub fn render<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        analyzed: &crate::analysis::AnalyzedBox,
+    ) -> String {
         use core::fmt::Write as _;
         crate::spoken::assert_taken_of("this stackup", self.document, doc);
         let mut s = String::new();
@@ -1621,7 +1625,10 @@ fn sensitivity_text(
         SensitivityOutcome::TangentDegraded { tangent } => {
             format!("degraded tangent ({tangent})")
         }
-        SensitivityOutcome::MeasureRefused { node: Some(id), cause } => {
+        SensitivityOutcome::MeasureRefused {
+            node: Some(id),
+            cause,
+        } => {
             format!("refused at {}: {cause}", node(*id))
         }
         SensitivityOutcome::MeasureRefused { node: None, cause } => format!("refused: {cause}"),

@@ -4461,7 +4461,10 @@ impl<P: crate::ProfilePayload> Node<P> {
         let dim = |var: &VarId| doc.vars.get(var).and_then(|v| v.kind().dimension());
         let (v, b) = (dim(value), dim(bound));
         let either = v.or(b).unwrap_or(Dimension::Scalar);
-        Some(vec![(*value, v.unwrap_or(either)), (*bound, b.unwrap_or(either))])
+        Some(vec![
+            (*value, v.unwrap_or(either)),
+            (*bound, b.unwrap_or(either)),
+        ])
     }
 }
 

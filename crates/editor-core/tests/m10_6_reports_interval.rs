@@ -108,16 +108,19 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     // distance(wall 0, wall 2) — two parallel walls of the prism, 2 m
     // apart, measured at the PLACED node.
     let web = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measured = r.measure(&web, &[
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
-            ]);
+    let measured = r.measure(
+        &web,
+        &[
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+            ),
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+            ),
+        ],
+    );
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure_value),
@@ -420,7 +423,13 @@ fn the_histogram_joins_leaf_mass_to_the_measures_enclosure() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
         .expect("the nominal builds");
-    let histogram = leaf_histogram(&doc, &analyzed, &verdict, crate::fixture::output(&doc, measure), Tol::witness());
+    let histogram = leaf_histogram(
+        &doc,
+        &analyzed,
+        &verdict,
+        crate::fixture::output(&doc, measure),
+        Tol::witness(),
+    );
     assert_eq!(
         histogram.rows.len(),
         verdict.certified().len(),

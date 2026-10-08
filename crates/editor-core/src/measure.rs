@@ -1018,7 +1018,6 @@ pub const ASSERT_BOUND_DECISION: SizedDecision = SizedDecision {
     at_zero: None,
 };
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

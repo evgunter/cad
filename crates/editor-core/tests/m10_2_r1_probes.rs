@@ -179,7 +179,11 @@ fn r1_plane_plane_distance_is_the_extrude_depth() {
     let (doc, slab) = slab();
     let ev = eval(&doc);
     let [bottom, top] = caps(&ev, slab);
-    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([bottom, top]));
+    let (doc, m) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        at_mint([bottom, top]),
+    );
     let (d, dim) = measured(&eval(&doc), m);
     assert_eq!(dim, Dimension::Length);
     assert!(
@@ -214,7 +218,11 @@ fn r1_vertex_plane_distance_is_the_depth() {
         })
         .expect("the slab has bottom vertices")
         .clone();
-    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([bottom_vert, top]));
+    let (doc, m) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        at_mint([bottom_vert, top]),
+    );
     let (d, _) = measured(&eval(&doc), m);
     assert!(
         (d - DEPTH).abs() < 1e-12,
@@ -257,7 +265,11 @@ fn r1_vertex_vertex_distance_matches_the_authored_corners() {
         );
     }
     let expect = ((pb.x - pa.x).powi(2) + (pb.y - pa.y).powi(2) + (pb.z - pa.z).powi(2)).sqrt();
-    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([a, b]));
+    let (doc, m) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        at_mint([a, b]),
+    );
     let (d, _) = measured(&eval(&doc), m);
     assert!(
         (d - expect).abs() < 1e-12,
@@ -294,8 +306,16 @@ fn r1_plane_angles_have_the_authored_values() {
         .expect("a y-normal wall")
         .clone();
 
-    let (doc, opposed) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }), at_mint([bottom, top]));
-    let (doc, square) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }), at_mint([x_wall, y_wall]));
+    let (doc, opposed) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
+        at_mint([bottom, top]),
+    );
+    let (doc, square) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
+        at_mint([x_wall, y_wall]),
+    );
     let ev = eval(&doc);
     let (a_pi, dim) = measured(&ev, opposed);
     assert_eq!(dim, Dimension::Angle);
@@ -336,8 +356,16 @@ fn r1_plane_gap_matches_its_formula_and_rides_the_outer_chart_normal() {
     let expect_bt = dot(o_t, o_b, n_b); // gap(bottom, top)
     let expect_tb = dot(o_b, o_t, n_t); // gap(top, bottom)
 
-    let (doc, g_bt) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([bottom.clone(), top.clone()]));
-    let (doc, g_tb) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([top, bottom]));
+    let (doc, g_bt) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        at_mint([bottom.clone(), top.clone()]),
+    );
+    let (doc, g_tb) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        at_mint([top, bottom]),
+    );
     let ev = eval(&doc);
     let (bt, dim) = measured(&ev, g_bt);
     assert_eq!(dim, Dimension::Length);
@@ -421,7 +449,11 @@ fn r1_sphere_gap_three_regimes_on_revolved_balls() {
             .first()
             .expect("the ball revolve mints a sphere face")
             .clone();
-        let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([socket_face, ball_face]));
+        let (doc, m) = fixture::measure_node(
+            &doc,
+            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+            at_mint([socket_face, ball_face]),
+        );
         let (g, dim) = measured(&eval(&doc), m);
         assert_eq!(dim, Dimension::Length);
         assert!(
@@ -499,7 +531,11 @@ fn r1_cylinder_gap_three_regimes_on_real_geometry() {
     ] {
         let (doc, bore, pin) = cylinders(bore_r, pin_r, off);
         let ev = eval(&doc);
-        let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([wall(&ev, bore), wall(&ev, pin)]));
+        let (doc, m) = fixture::measure_node(
+            &doc,
+            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+            at_mint([wall(&ev, bore), wall(&ev, pin)]),
+        );
         let (g, _) = measured(&eval(&doc), m);
         assert!(
             (g - expect).abs() < 1e-12,
@@ -520,8 +556,16 @@ fn r1_cylinder_gap_role_swap_negates() {
     let (doc, bore, pin) = cylinders(0.3, 0.2, 0.0);
     let ev = eval(&doc);
     let (b_wall, p_wall) = (wall(&ev, bore), wall(&ev, pin));
-    let (doc, fwd) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([b_wall.clone(), p_wall.clone()]));
-    let (doc, rev) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([p_wall, b_wall]));
+    let (doc, fwd) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        at_mint([b_wall.clone(), p_wall.clone()]),
+    );
+    let (doc, rev) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        at_mint([p_wall, b_wall]),
+    );
     let ev = eval(&doc);
     let (f, _) = measured(&ev, fwd);
     let (r, _) = measured(&ev, rev);
@@ -586,8 +630,16 @@ fn r1_skew_cylinder_axes_refuse_typed() {
     );
     let ev = eval(&doc);
     let (b_wall, p_wall) = (wall(&ev, bore), wall(&ev, pin));
-    let (doc, g) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([b_wall.clone(), p_wall.clone()]));
-    let (doc, d) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([b_wall, p_wall]));
+    let (doc, g) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        at_mint([b_wall.clone(), p_wall.clone()]),
+    );
+    let (doc, d) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        at_mint([b_wall, p_wall]),
+    );
     let ev = eval(&doc);
     for id in [g, d] {
         let err = failed_kind(&ev, id);
@@ -625,7 +677,11 @@ fn r1_measure_at_dual64_value_channel_is_bit_identical_tangent_zero() {
     let (doc, slab) = slab();
     let ev = eval(&doc);
     let [bottom, top] = caps(&ev, slab);
-    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([bottom, top]));
+    let (doc, m) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        at_mint([bottom, top]),
+    );
     let (doc, a) = insert(
         &doc,
         Node::Assertion {
@@ -676,7 +732,11 @@ fn r1_gap_and_angle_at_interval_contain_the_f64_values() {
     use geom_core::{Bounds, Interval};
     let (doc, bore, pin) = cylinders(0.3, 0.2, 0.04);
     let ev = eval(&doc);
-    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([wall(&ev, bore), wall(&ev, pin)]));
+    let (doc, m) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        at_mint([wall(&ev, bore), wall(&ev, pin)]),
+    );
     let at_f64 = measured(&eval(&doc), m).0;
     let ev_i = evaluate::<Interval>(
         &doc,
@@ -711,7 +771,11 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
     let (doc, slab) = slab();
     let ev = eval(&doc);
     let [bottom, top] = caps(&ev, slab);
-    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([bottom, top]));
+    let (doc, m) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        at_mint([bottom, top]),
+    );
     // Exactly at the bound: comparand 0, non-strict holds.
     let (doc_eq, a_eq) = insert(
         &doc,
@@ -753,7 +817,11 @@ fn r1_ops_refuse_measurement_operands_typed() {
     let (doc, slab) = slab();
     let ev = eval(&doc);
     let [bottom, top] = caps(&ev, slab);
-    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([bottom, top]));
+    let (doc, m) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        at_mint([bottom, top]),
+    );
     let (doc, a) = insert(
         &doc,
         Node::Assertion {
@@ -850,7 +918,11 @@ fn r1_a_wall_selected_from_a_transform_measures_the_unmoved_carrier() {
         );
     }
     let moved_wall = transform_walls[0].clone();
-    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([bore_wall, moved_wall]));
+    let (doc, m) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        at_mint([bore_wall, moved_wall]),
+    );
     let (d, _) = measured(&eval(&doc), m);
     assert!(
         (d - 0.5).abs() < 1e-12,
@@ -867,7 +939,11 @@ fn corruptible() -> ProfileDoc {
     let (doc, slab) = slab();
     let ev = eval(&doc);
     let [bottom, top] = caps(&ev, slab);
-    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([bottom, top]));
+    let (doc, m) = fixture::measure_node(
+        &doc,
+        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        at_mint([bottom, top]),
+    );
     let (doc, _) = insert(
         &doc,
         Node::Assertion {

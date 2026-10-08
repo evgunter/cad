@@ -2419,7 +2419,9 @@ fn scope_of(key: names::EntityKey) -> Option<Scope> {
 
 impl<'v, T: Decide> Selected<'v, T> {
     /// This selection as one side of a `min_clearance`.
-    fn clearance_operand(&self) -> Result<crate::measure::MinClearanceOperand<'v, T>, NodeErrorKind> {
+    fn clearance_operand(
+        &self,
+    ) -> Result<crate::measure::MinClearanceOperand<'v, T>, NodeErrorKind> {
         Ok(crate::measure::MinClearanceOperand {
             at: self.at,
             index: self.index,

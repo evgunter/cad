@@ -185,10 +185,14 @@ fn notch(bound: f64, dir: AssertionDir) -> (ProfileDoc, editor_core::VarId, Reci
         &[(1.25, 1.25), (1.75, 1.25), (1.75, 1.75), (1.25, 1.75)],
         0.5,
     );
-    let measure = r.value("measure", &MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }), &[
-                SitedRef::at_mint(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
-                SitedRef::at_mint(fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
-            ]);
+    let measure = r.value(
+        "measure",
+        &MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+        &[
+            SitedRef::at_mint(fixture::fname(ell, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::at_mint(fixture::fname(block, RoleSeg::Cap(CapEnd::Start))),
+        ],
+    );
     let assertion = r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure),
         bound: len(bound),
@@ -456,16 +460,20 @@ fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, editor_core::VarId, 
             len(0.0),
         ],
     );
-    let measure = r.value("measure", &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), &[
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
-            ]);
+    let measure = r.value(
+        "measure",
+        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        &[
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+            ),
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+            ),
+        ],
+    );
     let assertion = r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure),
         bound: len(bound),
@@ -742,16 +750,20 @@ fn neck_dir(
             len(0.0),
         ],
     );
-    let measure = r.value("measure", &MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }), &[
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, wall_b)),
-                ),
-            ]);
+    let measure = r.value(
+        "measure",
+        &MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+        &[
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+            ),
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, wall_b)),
+            ),
+        ],
+    );
     let assertion = r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure),
         bound: len(bound),
@@ -902,16 +914,20 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
             Formula::named(name("lift"), Dimension::Length),
         ],
     );
-    let measure = r.value("measure", &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), &[
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
-            ]);
+    let measure = r.value(
+        "measure",
+        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        &[
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+            ),
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+            ),
+        ],
+    );
     r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure),
         bound: len(1.0),
@@ -1017,33 +1033,41 @@ fn bracket(
         ],
     );
     // web = distance(post's x=1 wall, base's x=0 wall) = 1 + offset.
-    let web = r.value("web", &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), &[
-                SitedRef::new(
-                    post,
-                    fixture::fname(post_solid, fixture::wall(&r.doc, post_solid, 3)),
-                ),
-                SitedRef::at_mint(fixture::fname(base, fixture::wall(&r.doc, base, 3))),
-            ]);
+    let web = r.value(
+        "web",
+        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        &[
+            SitedRef::new(
+                post,
+                fixture::fname(post_solid, fixture::wall(&r.doc, post_solid, 3)),
+            ),
+            SitedRef::at_mint(fixture::fname(base, fixture::wall(&r.doc, base, 3))),
+        ],
+    );
     let web_ok = r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, web),
         bound: len(0.9),
         dir: AssertionDir::AtLeast,
     });
-    let clearance = r.value("clearance", &MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }), &[
-                SitedRef::new(
-                    post,
-                    editor_core::StableName {
-                        kind: editor_core::EntityKind::Body,
-                        node: post_solid,
-                        path: vec![RoleSeg::OutputBody],
-                    },
-                ),
-                SitedRef::at_mint(editor_core::StableName {
+    let clearance = r.value(
+        "clearance",
+        &MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+        &[
+            SitedRef::new(
+                post,
+                editor_core::StableName {
                     kind: editor_core::EntityKind::Body,
-                    node: base,
+                    node: post_solid,
                     path: vec![RoleSeg::OutputBody],
-                }),
-            ]);
+                },
+            ),
+            SitedRef::at_mint(editor_core::StableName {
+                kind: editor_core::EntityKind::Body,
+                node: base,
+                path: vec![RoleSeg::OutputBody],
+            }),
+        ],
+    );
     let clear_ok = r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, clearance),
         bound: len(0.1),

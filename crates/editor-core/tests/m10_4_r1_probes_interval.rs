@@ -25,8 +25,8 @@ use editor_core::stackup::{
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
     LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamValue, ProfileDoc, ProfileLift,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, UnitSym,
-    ValuePayload, VarName, evaluate, seed_env,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, SitedRef, UnitSym, VarName,
+    evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
@@ -167,7 +167,11 @@ fn stepped_shaft_sized(
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
         SitedRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::End))),
     ];
-    let m = r.value("m", &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), &refs);
+    let m = r.value(
+        "m",
+        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        &refs,
+    );
     (r.doc, m)
 }
 
@@ -241,7 +245,11 @@ fn arc_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
         SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 3))),
         SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 1))),
     ];
-    let m = r.value("m", &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), &refs);
+    let m = r.value(
+        "m",
+        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        &refs,
+    );
     (r.doc, m)
 }
 
@@ -320,7 +328,8 @@ fn r1_seed_hygiene_and_schedule_independence_on_a_stepped_shaft() {
     assert!((nominal - 1.5).abs() < 1e-12, "nominal {nominal}");
     for p in ["h1", "h2"] {
         for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-            let d = measured(&doc, 
+            let d = measured(
+                &doc,
                 &evaluate(
                     &doc,
                     None,
@@ -377,7 +386,10 @@ fn r1_dl2_two_passes_share_a_subgraph_without_aliasing() {
         &opts(&doc, Some("h2"), ProfileLift::Guided),
         Tol::witness(),
     );
-    let (fresh, threaded) = (measured(&doc, &on_h2_fresh, m), measured(&doc, &on_h2_threaded, m));
+    let (fresh, threaded) = (
+        measured(&doc, &on_h2_fresh, m),
+        measured(&doc, &on_h2_threaded, m),
+    );
     assert_eq!(
         threaded.deriv.to_bits(),
         fresh.deriv.to_bits(),
@@ -597,14 +609,10 @@ fn r1_another_documents_verdict_certifies_this_one() {
 /// clause is about.
 #[test]
 fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
-    let (doc, m) = scalar_measure(
-        0.0,
-        uniform(eps() / 16.0),
-        |a: &dyn Fn() -> MeasureExpr| {
-            MeasureExpr::max(a(), MeasureExpr::neg(a()).expect("a shallow negation"))
-                .expect("Scalar lattice max")
-        },
-    );
+    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> MeasureExpr| {
+        MeasureExpr::max(a(), MeasureExpr::neg(a()).expect("a shallow negation"))
+            .expect("Scalar lattice max")
+    });
     let entries =
         sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
     match &entries[0].outcome {
@@ -628,11 +636,9 @@ fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
 #[test]
 fn r1_tangent_degraded_does_not_check_that_the_value_is_finite() {
     // m = a / a at a = 0 → 0/0 in the VALUE channel as well.
-    let (doc, m) = scalar_measure(
-        0.0,
-        uniform(eps() / 16.0),
-        |a: &dyn Fn() -> MeasureExpr| MeasureExpr::div(a(), a()).expect("Scalar / Scalar"),
-    );
+    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> MeasureExpr| {
+        MeasureExpr::div(a(), a()).expect("Scalar / Scalar")
+    });
     let entries =
         sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
     println!(
@@ -893,7 +899,8 @@ fn r1_rss_totality_and_the_fixed_parameter_door() {
 #[test]
 fn r1_an_arc_carrying_profile_propagates_the_seed() {
     let (doc, m) = arc_slab(2.0);
-    let guided = measured(&doc, 
+    let guided = measured(
+        &doc,
         &evaluate(
             &doc,
             None,
@@ -908,7 +915,8 @@ fn r1_an_arc_carrying_profile_propagates_the_seed() {
         guided.value, guided.deriv
     );
     assert!(guided.deriv.is_finite(), "an arc profile's seed is finite");
-    let pinned = measured(&doc, 
+    let pinned = measured(
+        &doc,
         &evaluate(
             &doc,
             None,

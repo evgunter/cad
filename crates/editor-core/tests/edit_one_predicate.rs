@@ -48,8 +48,8 @@ use editor_core::CapEnd;
 use editor_core::{
     Alignment, AxisSense, ContactClass, Dimension, DocEdit, DocRef, DocumentId, EditError,
     EntityKind, FaceName, Formula, Frame, FreeVar, InterfaceCrossing, InterfaceRecord, MateFrame,
-    MatePrimitive, MeasureExpr, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg,
-    SnapshotError, StableName, VarName, apply, load, save,
+    MatePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SnapshotError,
+    StableName, VarName, apply, load, save,
 };
 use editor_core::{VarNameReason, parse_formula};
 use fixture::resolver::{PartStore, in_part};
@@ -103,7 +103,9 @@ fn an_assertion_over_a_non_scalar_is_refused_at_both_doors() {
     // The sketch frame (the first node) is live and precedes any
     // assertion, so the only thing wrong with the document is that its
     // output is no scalar.
-    let frame = doc.output(doc.ids()[0], 0).expect("a frame defines its pose");
+    let frame = doc
+        .output(doc.ids()[0], 0)
+        .expect("a frame defines its pose");
     match apply(
         &doc,
         &DocEdit::InsertNode {

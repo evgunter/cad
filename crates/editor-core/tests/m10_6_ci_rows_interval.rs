@@ -435,16 +435,19 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
             angle: ang(0.0),
         },
     ));
-    let measured = r.measure(&MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }), &[
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
-                ),
-                SitedRef::new(
-                    placed,
-                    fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
-                ),
-            ]);
+    let measured = r.measure(
+        &MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+        &[
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+            ),
+            SitedRef::new(
+                placed,
+                fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
+            ),
+        ],
+    );
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure_value),
@@ -879,11 +882,14 @@ fn plain_distance_doc() -> ProfileDoc {
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
-    let measured = r.measure(&MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), &[
-                SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 0))),
-                SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
-            ]);
-    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
+    let measured = r.measure(
+        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        &[
+            SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 0))),
+            SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
+        ],
+    );
+    let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     r.insert(Node::Assertion {
         value: fixture::read_var(&r.doc, measure_value),
         bound: len(0.5),
