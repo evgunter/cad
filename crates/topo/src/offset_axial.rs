@@ -41,6 +41,18 @@
 //! ([`ReplaceFaceError::TogetherAxialCorner`]) rather than being
 //! written on the presumption that something will need them.
 //!
+//! # Charts, not material
+//!
+//! Each move's distance is along its chart's stored normal, and no
+//! face's sense decides the move: its argument is stated against charts
+//! alone, so it takes construction state, a [`Body`] tier 2 in and
+//! tier 2 out, where a door whose argument means something about
+//! material takes an [`crate::AtRestBody`] (`crates/topo/README.md`,
+//! "Shell and offset surgery"). Its result becomes finished only
+//! through [`crate::AtRestBody::validate`]: on an inside-out solid the
+//! charts move as they would on any other, and the result refuses
+//! there as the operand would, `NegativeVolume`.
+//!
 //! # The reduction
 //!
 //! Every surface this door accepts is a surface of revolution about ONE
@@ -416,7 +428,7 @@ impl<T: Decide> Profile<T> {
 /// **Offset every chart of an axial `body` at once** (module docs).
 ///
 /// `moves` names each chart and its signed distance along the chart's
-/// stored outward direction. Every face of every SOLID the moves touch
+/// stored normal. Every face of every SOLID the moves touch
 /// must appear exactly once across them, and no solid may be touched in
 /// part; a solid the moves do not name is not offset and its geometry
 /// is not written.
@@ -509,7 +521,7 @@ pub(crate) fn offset_charts_together_staged<T: Decide + crate::props::AtRestPoli
         // [`geom_brep::ConeOffset`]'s action is the pushforward along
         // the continuous extension of the OPENING nappe's normal field
         // — `n₊` does not flip across the apex — so a mirror-nappe
-        // face's material moves `−d` along its OWN chart normal. A
+        // face's surface moves `−d` along its OWN chart normal. A
         // `ChartMove`'s distance is along that chart normal, so below
         // the apex it and `n₊` are opposite and the caller's number is
         // turned over before it reaches the mint.

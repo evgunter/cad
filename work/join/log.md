@@ -1240,3 +1240,20 @@ Signed (JOIN orchestrator).
   - `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone`, on D10.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-08: the near-tangent measurement landed; two forks with Ev; the w345 reading dispatched
+
+- **PR 4328 merged** (the measurement unit; orchestrator read; probe, classifier and filed rows only, no kernel code).
+  - Every escalated body measured is right.
+  - The escalations are the census's: f64 formulas that lose the margin (b-arith), or a line or plane read in place of a segment or face (b-proxy). At ε = 1e-12 the same arithmetic gives 845 definite false `EdgeEdgeCross` findings.
+  - The real in-band residue: thin corners, a vertex 9.55e-9 off a face, and sliver lumps.
+  - Ten rows filed, across CONTACT, JOIN, ENCL and CLEAVE.
+- **`[ev]` PR 4313: the join on one certified section per face pair** (fork row 90, recommendation half). The non-planar section designers agreed on their first reports.
+- **`[ev]` PR 4335: near-tangent census** (fork row 91, recommendation half). It converged after two reconciliation rounds, the first a crossover. The outcome: no door ships an uncertified body; CONTACT re-poses the census on cell gaps; the split refuses in band; the door's gate types in-band findings `Escalated` and definite ones `ResultInvalid`. It proposes three DESIGN.md additions.
+- **Dispatched:** `a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded` (P0 M), branch `join/near-tangent-vertex-in-band`. Both designers call it a split reading defect under the already-ratified Q1, so it does not wait on 4335. If the vertex turns out to be a composed quantity rather than a missed reading, the lane stops with a draft PR. Rule-1 arm: byte 71, mod 3 = 2, SEQUENTIAL.
+- **In flight:**
+  - wrap-edge (H) and sphere pair (H);
+  - battery hygiene (E, PR 4334);
+  - walk order (M, PR 4317), under its sequential review.
+
+Signed (JOIN orchestrator).

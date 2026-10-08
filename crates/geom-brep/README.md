@@ -259,7 +259,7 @@ wall's image, or the door refuses (`SsiError::WindowShortOfWall`), so a
 march ends only at the knot rectangle. The ℝ³ lane still ends an open
 branch at the caller's slab by its boundary search
 (`ssi_branch_open_end`), and the slab is not
-geometry (`work/ssi/ssi-r3-slab-is-not-geometry.md`). Neither candidate
+geometry (`work/ssiedge/ssi-r3-slab-is-not-geometry.md`). Neither candidate
 is trusted, its pairing of crossings included: the certificate decides
 each on the chart lane, so limb 3 proves its tube one arc in the knot
 rectangle, and a cubic to another branch's crossing either leaves the
