@@ -1267,6 +1267,15 @@ fn check_read<P: crate::ProfilePayload>(
             var: Box::new(doc.spoken_var(var)),
         });
     }
+    if let Some((placement, _)) = held.def().output()
+        && matches!(doc.node(placement), Some(Node::PlaceInWorld { .. }))
+    {
+        return Err(EditError::ReadsWorldCopy {
+            node: spoken(),
+            slot,
+            placement: doc.spoken(placement),
+        });
+    }
     Ok(var)
 }
 
@@ -1718,6 +1727,17 @@ pub enum EditError {
         half: crate::SplitHalf,
         /// The output it reads, boxed so the refusal stays a small `Err`.
         var: Box<SpokenVar>,
+    },
+    /// A read names a world placement's copy (D10: construction never
+    /// reads the world): only the product gather and export read a
+    /// placement's pose, so a slot reads the body the placement reads.
+    ReadsWorldCopy {
+        /// The reading node.
+        node: SpokenNode,
+        /// The slot.
+        slot: SlotId,
+        /// The placement whose copy it reads.
+        placement: SpokenNode,
     },
     /// The recipe graph would contain a cycle (defensive: insertion
     /// referencing only pre-existing nodes cannot cycle, but the
@@ -3021,6 +3041,14 @@ impl EditError {
                 *node = node.respoken(doc);
                 **var = var.respoken(doc);
             }
+            Self::ReadsWorldCopy {
+                node,
+                slot: _,
+                placement,
+            } => {
+                *node = node.respoken(doc);
+                *placement = placement.respoken(doc);
+            }
             Self::AmbiguousOutput { input, slot: _ } | Self::DefinesNothing { input, slot: _ } => {
                 *input = input.respoken(doc);
             }
@@ -3308,6 +3336,18 @@ impl EditError {
             Self::PartHalfPort { node, half, var } => {
                 write!(f, "{node} selects the {} half but reads {var}", half.name())?;
                 tail.recourse(f, format_args!("read the split's {} output", half.name()))
+            }
+            Self::ReadsWorldCopy {
+                node,
+                slot,
+                placement,
+            } => {
+                write!(
+                    f,
+                    "{node}'s {slot} reads the world copy {placement} makes, and construction \
+                     never reads the world"
+                )?;
+                tail.recourse(f, format_args!("read the body {placement} reads"))
             }
             Self::UnknownSlot { id, slot } => {
                 write!(f, "{id} has no slot {}", slot.label())?;

@@ -1104,6 +1104,7 @@ test_utils::f6_variants! {
         OperandUnminted,
         SlotVarKind,
         PartHalfPort,
+        ReadsWorldCopy,
         ReadCycle,
         WitnessSite,
         WitnessOnMissingNode,
@@ -1235,6 +1236,14 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 )),
             },
             vec!["selects the below half but reads #9:"],
+        ),
+        (
+            SnapshotError::ReadsWorldCopy {
+                node: node(),
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::A),
+                placement: absent(9),
+            },
+            vec!["reads the world copy", "construction never reads the world"],
         ),
         (
             SnapshotError::ReadCycle { at: absent(9) },
@@ -3551,6 +3560,16 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             InlineError::InstanceOutputUncarried {
                 name: name.clone(),
                 why: editor_core::Uncarried::HeirNamed { held: name.clone() },
+            }
+            .to_string(),
+        ),
+        (
+            "InlineError::InstanceOutputUncarried (posed)",
+            InlineError::InstanceOutputUncarried {
+                name: name.clone(),
+                why: editor_core::Uncarried::Posed {
+                    placement: editor_core::SpokenNode::absent(RecipeNodeId::new(0, tagged(3))),
+                },
             }
             .to_string(),
         ),

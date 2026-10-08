@@ -724,9 +724,16 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                     expected: slot.kind(),
                 });
             }
-            let (split, port) = held.def().output()?;
+            let (from, port) = held.def().output()?;
+            if matches!(snapshot.node(from), Some(Node::PlaceInWorld { .. })) {
+                return Some(SnapshotError::ReadsWorldCopy {
+                    node: snapshot.spoken(id),
+                    slot: SlotId::Operand(slot),
+                    placement: snapshot.spoken(from),
+                });
+            }
             (half.is_some_and(|half| u32::from(port) != half.output_body())
-                && matches!(snapshot.node(split), Some(Node::Split { .. })))
+                && matches!(snapshot.node(from), Some(Node::Split { .. })))
             .then(|| SnapshotError::PartHalfPort {
                 node: snapshot.spoken(id),
                 half: half.unwrap_or(crate::SplitHalf::Above),
@@ -1104,6 +1111,16 @@ pub enum SnapshotError {
         half: crate::SplitHalf,
         /// The output it reads, boxed so the refusal stays a small `Err`.
         var: Box<SpokenVar>,
+    },
+    /// An operand reads a world placement's copy — the edit doors'
+    /// [`crate::EditError::ReadsWorldCopy`].
+    ReadsWorldCopy {
+        /// The reading node.
+        node: SpokenNode,
+        /// The slot.
+        slot: SlotId,
+        /// The placement whose copy it reads.
+        placement: SpokenNode,
     },
     /// The nodes' reads close a loop ([`crate::Doc::upstream`]): no edit
     /// leaves a document so, since every door that writes a read asks
@@ -1499,6 +1516,15 @@ impl core::fmt::Display for SnapshotError {
             Self::PartHalfPort { node, half, var } => {
                 write!(f, "{node} selects the {} half but reads {var}", half.name())
             }
+            Self::ReadsWorldCopy {
+                node,
+                slot,
+                placement,
+            } => write!(
+                f,
+                "{node}'s {slot} reads the world copy {placement} makes, and construction never \
+                 reads the world"
+            ),
             Self::ReadCycle { at } => write!(
                 f,
                 "the nodes' reads close a loop through {at} — no edit writes one. {}",
@@ -2166,6 +2192,7 @@ mod tests {
             DeclaredNameNotUpstream,
             OperandUnminted,
             PartHalfPort,
+            ReadsWorldCopy,
             ReadCycle,
             WitnessSite,
             WitnessOnMissingNode,
@@ -2225,9 +2252,9 @@ mod tests {
                 Walk::SlotRead
             }
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
-            SnapshotError::OperandUnminted { .. } | SnapshotError::PartHalfPort { .. } => {
-                Walk::OperandRead
-            }
+            SnapshotError::OperandUnminted { .. }
+            | SnapshotError::PartHalfPort { .. }
+            | SnapshotError::ReadsWorldCopy { .. } => Walk::OperandRead,
             SnapshotError::AnonymousVarUnread { .. } => Walk::AnonymousVar,
             SnapshotError::DefinitionReadsUnmintedVar { .. }
             | SnapshotError::DefinitionVarKind { .. } => Walk::DefinitionRead,
@@ -2325,6 +2352,11 @@ mod tests {
                 node: node(),
                 half: crate::SplitHalf::Below,
                 var: Box::new(crate::SpokenVar::new(crate::VarId::new(0, 7), None)),
+            },
+            SnapshotError::ReadsWorldCopy {
+                node: node(),
+                slot: SlotId::Operand(crate::OperandSlot::A),
+                placement: node(),
             },
             SnapshotError::ReadCycle { at: at(9) },
             SnapshotError::WitnessSite { node: node() },

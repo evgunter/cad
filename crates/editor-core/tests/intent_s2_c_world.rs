@@ -493,3 +493,89 @@ fn split_and_inline_narrow_the_closure_to_the_cuts_world() {
         "the boolean reads the inlined body"
     );
 }
+
+/// **Construction never reads the world** (D10). A block placed, and a
+/// boolean that would read the placement's copy: the edit door refuses
+/// it at insert and at `SetParam`, naming the placement, and a file
+/// that holds such a read refuses at load. Only the gather and export
+/// read a placement's pose.
+///
+/// Red if a `Body` slot admits the copy: the boolean then evaluates,
+/// and its geometry moves with the pose.
+#[test]
+fn no_slot_reads_a_world_copy_at_the_door_or_at_load() {
+    let doc = ProfileDoc::empty_derived("intent-c-copy-read", Tol::witness());
+    let (doc, a) = block(doc, 0.0);
+    let (doc, b) = block(doc, 0.75);
+    let (doc, placement) = place(doc, a);
+    let copy = doc
+        .output(placement, 0)
+        .expect("the placement defines its copy");
+    let boolean = |a: editor_core::Operand| Node::Boolean {
+        op: BooleanOp::Union,
+        a,
+        b: b.into(),
+        declare: Vec::new(),
+    };
+    let refused_naming_placement =
+        |result: Result<_, editor_core::EditError>, at: &str| match result {
+            Err(editor_core::EditError::ReadsWorldCopy {
+                placement: named, ..
+            }) => assert_eq!(
+                named.id(),
+                placement,
+                "{at}: the refusal names the placement"
+            ),
+            Err(other) => panic!("{at}: refused otherwise: {other}"),
+            Ok(_) => panic!("{at}: a slot read the world copy"),
+        };
+    refused_naming_placement(
+        doc.apply(
+            &DocEdit::InsertNode {
+                node: Box::new(boolean(copy.into())),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        ),
+        "insert",
+    );
+
+    let (doc, fused) = insert(doc, boolean(a.into()));
+    refused_naming_placement(
+        doc.apply(
+            &DocEdit::SetParam {
+                node: fused,
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::A),
+                value: editor_core::SlotValue::Read(copy.into()),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        ),
+        "SetParam",
+    );
+
+    // The same read written into a file: the boolean's `a` swapped for
+    // the copy, on the wire.
+    let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
+    let wire = |var| serde_json::to_string(&var).expect("an id serializes");
+    let body_a = doc.output(a, 0).expect("the block's body");
+    let read = format!("\"a\": {}", wire(body_a));
+    assert_eq!(
+        text.matches(&read).count(),
+        1,
+        "the boolean's one read of the block"
+    );
+    let forged = text.replace(&read, &format!("\"a\": {}", wire(copy)));
+    match editor_core::persist::load(&forged, Tol::witness()) {
+        Err(error) => {
+            let said = error.to_string();
+            assert!(
+                said.contains("reads the world copy"),
+                "the load names the read: {said}"
+            );
+        }
+        Ok(_) => panic!("a file whose boolean reads a world copy loads"),
+    }
+}

@@ -5145,6 +5145,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "promote_on_non_instance",
             "promote_without_offset",
             "read_site_missing_node",
+            "reads_world_copy",
             "rebind_appearance_collision",
             "rebind_identity",
             "rebind_kind_mismatch",
@@ -6179,6 +6180,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_rule",
             "read_cycle",
             "reader_of_unminted_var",
+            "reads_world_copy",
             "slot_var_kind",
             "step_ids",
             "var_kind",
@@ -6702,6 +6704,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // `program`, which leaves `profile` to the operand the slot
     // alphabet forwards.
     ("profile", 2),
+    // One fact at the edit and load doors: a slot reads a world
+    // placement's copy.
+    ("reads_world_copy", 2),
     ("revolve", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
     ("scaffolding_operand", 2),

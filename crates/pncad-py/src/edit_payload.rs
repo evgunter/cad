@@ -404,6 +404,12 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(node.id()),
             ..none
         },
+        EditError::ReadsWorldCopy { node, slot, .. } => EditPayload {
+            node: Some(node.id()),
+            slot: Some(slot_id_tag(slot)),
+            index: operand_index(slot),
+            ..none
+        },
         EditError::UnknownSlot { id, slot } => EditPayload {
             node: Some(id.id()),
             slot: Some(slot_id_tag(slot)),
