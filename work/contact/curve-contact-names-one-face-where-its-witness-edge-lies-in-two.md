@@ -2,12 +2,13 @@
 id: curve-contact-names-one-face-where-its-witness-edge-lies-in-two
 kind: issue
 title: CurveContact { face_a, face_b, witness } names one face of a solid whose witness is an operand edge lying in two, the face-pair ambiguity JOIN-1 retires from the join's germs
-status: open
+status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
 design: true
 refs: [JOIN-1]
+blocked_on: [coincidences-are-recorded-at-one-door]
 ---
 
 
@@ -32,3 +33,7 @@ reduction's germs and the census's records. C3 is ratified, though, and the
 census is the at-rest door, so changing the record's shape is an `[ev]`
 question of its own, citing JOIN-1 as where the concept comes from. Not
 blocked on JOIN-1, but cheapest once its cell type exists.
+
+## Parked on the D10 hold (2026-10-08)
+
+It changes the shape of the `CurveContact` record, which the one recording door replaces. (CONTACT close-out triage; `work/contact/log.md`.)

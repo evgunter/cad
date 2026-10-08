@@ -2,11 +2,12 @@
 id: contact-verify-lane-gate-answers-a-crossing-not-certifiable
 kind: issue
 title: tangent_locus_relation refuses a declared contact across a transverse out-of-lane crossing NotCertifiable, where in lane it refuses Contradicted: the lane gate runs before the first-order reading
-status: open
+status: parked
 opened: 2026-09-28
 priority: P3
 cost: M
 design: true
+blocked_on: [booleans-glue-on-zero]
 ---
 
 
@@ -60,3 +61,7 @@ an out-of-lane crossing through this door; whether any public path
 reaches it with such a pair is the first thing to measure. Both answers
 are refusals, so nothing is stored wrong; what differs is the refusal's
 kind and recourse.
+
+## Parked on the D10 hold (2026-10-08)
+
+Same verifier as the row above. (CONTACT close-out triage; `work/contact/log.md`.)
