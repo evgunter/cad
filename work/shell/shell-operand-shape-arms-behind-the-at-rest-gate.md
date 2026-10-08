@@ -44,8 +44,9 @@ Retiring a variant crosses `editor-core/src/verbs/shell.rs`'s mapping,
 
 The piece sort, `ShellError::Pieces` and `ShellError::OperandOuterShells`
 are retired. Check 10 reads the same roles at the same tolerance and
-lane, and finishes a body only with every role decided and exactly one
-`Outer` per multi-shell solid. The role count in `shell_open` is now an
+lane, and finishes a body only with every role decided and at most one
+`Outer` per multi-shell solid; check 7 refuses a solid of shells each
+decided negative. The role count in `shell_open` is now an
 `unreachable!` invariant. `ChartSenseMixed` is reachable from a STEP
 import that cites one plane in both senses. It stays, pinned by
 `crates/step-import/tests/shell_reads_a_chart_worn_both_ways.rs`. The

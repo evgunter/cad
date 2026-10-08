@@ -43,8 +43,8 @@
 //!
 //! # Charts, not material
 //!
-//! Each move's distance is along its chart's stored normal, and the
-//! door reads no face's sense: its argument is stated against charts
+//! Each move's distance is along its chart's stored normal, and no
+//! face's sense decides the move: its argument is stated against charts
 //! alone, so it takes construction state, a [`Body`] tier 2 in and
 //! tier 2 out, where a door whose argument means something about
 //! material takes an [`crate::AtRestBody`] (`crates/topo/README.md`,

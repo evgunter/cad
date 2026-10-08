@@ -1,7 +1,7 @@
 //! **The axial door moves charts, not material** — the body-of-revolution
 //! row of `crates/topo/tests/offset_doors_read_charts_not_material.rs`.
 //! `offset_charts_together` takes construction state and reads each
-//! move along its chart's stored normal; it reads no sense.
+//! move along its chart's stored normal; no face's sense decides it.
 //!
 //! The revolve door winds its result from the profile it is given, so a
 //! clockwise profile builds the same right-way drum as the

@@ -1,10 +1,11 @@
 //! **The offset doors move charts, not material.** `replace_face_offset`
 //! and `offset_planes_together` take construction state (`&mut Body`)
-//! and read `d` along each chart's stored normal; neither reads the
-//! solid's sense. On the wedge prism wound either way the chart normals
-//! are the loop's, so the top face's signed volume change is `+A·d` in
-//! both windings, and the inside-out operand and its result alike are
-//! refused `NegativeVolume` where a body becomes finished
+//! and read `d` along each chart's stored normal; no face's sense
+//! decides the move. The wedge prism's top face moves by `d` along its
+//! chart in either winding, on the reverted wedge, and where the face
+//! wears its plane reversed, so the signed volume changes by
+//! `sense·A·d`. The inside-out operand and its result alike are refused
+//! `NegativeVolume` where a body becomes finished
 //! (`AtRestBody::validate`). The axial door's row is
 //! `crates/sweep/tests/offset_axial_door_reads_charts_not_material.rs`,
 //! where a body of revolution can be built.
@@ -30,6 +31,52 @@ fn wedge_profile(ccw: bool) -> [(f64, f64); 3] {
 /// The wedge prism over z ∈ (0.5, 1).
 fn wedge(ccw: bool) -> Body<f64> {
     common::prism_z::<f64>(&wedge_profile(ccw), 0.5, 1.0, Tol::witness()).body
+}
+
+/// [`wedge`] with its top face wearing its plane reversed: the chart
+/// normal negated and the face's sense `false`, so the face bounds the
+/// same material against the opposite chart. Charted before the edges
+/// are described, so every description reads the chart it ends on.
+fn wedge_top_reversed(ccw: bool) -> Body<f64> {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    let ops = common::prism_ops(
+        &mut body,
+        &wedge_profile(ccw),
+        (0.5, 1.0),
+        common::identity_map,
+        common::FaceGeometry::Certified,
+        tol,
+    );
+    let top = ops.seed.face;
+    let outer = body.get_face(top).unwrap().outer;
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the top face's outer loop is a cycle");
+    };
+    let mut corners: Vec<_> = body
+        .loop_cycle(first)
+        .unwrap()
+        .iter()
+        .map(|&he| {
+            let v = body.get_half_edge(he).unwrap().start;
+            *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+        })
+        .collect();
+    assert!(
+        corners.iter().all(|p| p.z == 1.0),
+        "the seed face is the top"
+    );
+    corners.reverse();
+    body.set_face_surface(
+        top,
+        topo::FaceSurface::New {
+            surface: common::plane(&corners, tol),
+            sense: false,
+        },
+    )
+    .unwrap();
+    common::describe_as_intersections(&mut body, tol);
+    body
 }
 
 /// The profile's area, `½·sin 110°`.
@@ -64,12 +111,14 @@ fn volume(body: &Body<f64>) -> f64 {
     mass_properties(body, Tol::witness()).unwrap().volume
 }
 
-/// `body` finishes when `ccw`, and refuses on check 7 alone when not.
-fn finishes_iff(what: &str, body: &Body<f64>, ccw: bool) {
+/// `body` finishes when `right_way`, and refuses on check 7 alone when
+/// not.
+fn finishes_iff(what: &str, body: &Body<f64>, right_way: bool) {
     match AtRestBody::validate(body.clone(), Tol::witness()) {
-        Ok(_) => assert!(ccw, "{what}: the inside-out body finished"),
+        Ok(_) => assert!(right_way, "{what}: the inside-out body finished"),
         Err(errors) => assert!(
-            !ccw && errors.len() == 1
+            !right_way
+                && errors.len() == 1
                 && matches!(errors[0], ValidationError::NegativeVolume { .. }),
             "{what}: want NegativeVolume alone on the inside-out body only, got {errors:?}"
         ),
@@ -92,36 +141,60 @@ fn top_move(body: &Body<f64>, d: f64) -> Vec<ChartMove<f64>> {
         .collect()
 }
 
-/// One door, both windings: the top chart moves by `d` along its
-/// stored normal — up on the counterclockwise wedge, down on the
-/// clockwise one, whose chart faces −z — so the signed volume changes
-/// by `+A·d` in each, and the operand and the result finish exactly
-/// when the winding is counterclockwise.
+/// One door, five wedges. The top chart moves by `d` along its stored
+/// normal whatever the solid's winding and whatever the face's sense,
+/// so the signed volume changes by `sense·A·d`: `+A·d` on either
+/// winding, and on the reverted wedge, whose planes carry the reversal
+/// in their normals; `−A·d` where the top face wears its plane reversed
+/// (`sense` false). A door that read the sense would move that face
+/// the other way. Each operand and result finishes exactly when its
+/// winding is the right way round.
 fn moves_by_chart(door: &str, offset: impl Fn(&mut Body<f64>, f64)) {
     let d = 0.1;
-    for ccw in [true, false] {
-        let what = format!("{door}, ccw = {ccw}");
-        let mut body = wedge(ccw);
+    let a_d = cap_area() * d;
+    let rows = [
+        ("ccw", wedge(true), true, 1.0, true, a_d),
+        ("cw", wedge(false), false, -1.0, true, a_d),
+        ("ccw reverted", wedge(true).revert(), false, -1.0, true, a_d),
+        (
+            "ccw, top reversed",
+            wedge_top_reversed(true),
+            true,
+            -1.0,
+            false,
+            -a_d,
+        ),
+        (
+            "cw, top reversed",
+            wedge_top_reversed(false),
+            false,
+            1.0,
+            false,
+            -a_d,
+        ),
+    ];
+    for (row, mut body, right_way, normal_z, sense, want) in rows {
+        let what = format!("{door}, {row}");
+        let f = body.get_face(top(&body)).unwrap();
         assert_eq!(
-            top_normal_z(&body),
-            if ccw { 1.0 } else { -1.0 },
-            "{what}: the top chart's normal is the loop's"
+            (top_normal_z(&body), f.sense),
+            (normal_z, sense),
+            "{what}: the top chart's normal and the face's sense"
         );
         let before = volume(&body);
-        let want_before = if ccw { 0.5 } else { -0.5 } * cap_area();
+        let want_before = if right_way { 0.5 } else { -0.5 } * cap_area();
         assert!(
             (before - want_before).abs() < 1e-12,
             "{what}: signed volume {before}, want {want_before}"
         );
-        finishes_iff(&format!("{what}, the operand"), &body, ccw);
+        finishes_iff(&format!("{what}, the operand"), &body, right_way);
         offset(&mut body, d);
         let delta = volume(&body) - before;
         assert!(
-            (delta - cap_area() * d).abs() < 1e-12,
-            "{what}: signed ΔV {delta}, want +A·d = {}",
-            cap_area() * d
+            (delta - want).abs() < 1e-12,
+            "{what}: signed ΔV {delta}, want {want}"
         );
-        finishes_iff(&format!("{what}, the result"), &body, ccw);
+        finishes_iff(&format!("{what}, the result"), &body, right_way);
     }
 }
 

@@ -29,5 +29,7 @@ make it an invariant; otherwise pin the reaching input.
 
 Confirmed and retired on SHELL's
 `shell-operand-shape-arms-behind-the-at-rest-gate`: the zero-outers arm
-is check 10's `ShellWinding` on a finished operand, and the role count
-is now an `unreachable!` invariant.
+is check 7's `NegativeVolume` on a finished operand (shells each
+decided negative cannot certify a positive sum; check 10 can stay silent
+where a shell's witnesses do not read), and the role count is now an
+`unreachable!` invariant.

@@ -30,7 +30,8 @@
 //! and tier 2 out. [`crate::replace_faces_offset`],
 //! [`crate::offset_planes_together`] and
 //! [`crate::offset_charts_together`] are the second kind: each reads
-//! `d` along a chart's stored normal and no sense, and this verb runs
+//! `d` along a chart's stored normal, no face's sense deciding the
+//! move, and this verb runs
 //! them over a clone that is mid-construction between charts, where no
 //! verdict can be read. What turns a face's material side into that
 //! chart-normal number is `inward`, here; what finishes the result is
@@ -1110,17 +1111,19 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         }
         let roles = crate::props::classify_shells_through(body, shells, tol, T::quad_lane())
             .map_err(|error| ShellError::Roles { error })?;
-        // Check 10 read these roles, through the same sign walk at the
-        // same band, and finished the operand only with every one
-        // decided and exactly one `Outer`: none is its `ShellWinding`,
-        // two its `SolidOuterShells`. The classification reads a role
-        // only where that walk read the same one
-        // (`props::role_at_target`), so it cannot count otherwise.
+        // The gate read these roles through the same sign walk at the
+        // same band: check 10 finished the operand only with every one
+        // decided and at most one `Outer` (two is its
+        // `SolidOuterShells`), and check 7 only with the solid's volume
+        // positive, which shells each decided negative cannot sum to.
+        // The classification reads a role only where that walk read the
+        // same one (`props::role_at_target`), so it cannot count
+        // otherwise.
         let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
         if outer != 1 {
             unreachable!(
                 "{outer} decided outer shells under one solid of a finished operand, whose \
-                 check 10 read every role the classification reads"
+                 checks 7 and 10 read every role the classification reads"
             );
         }
         voids.extend(
