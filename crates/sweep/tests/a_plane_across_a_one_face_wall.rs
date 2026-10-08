@@ -202,3 +202,28 @@ fn a_plane_across_a_full_revolved_ball() {
         (4.0 / 3.0 * PI, 6.0 * 6.0 * 1.8, cap),
     );
 }
+
+/// **A one-site loop beside matched ones**: the CLEAVE tube under the box
+/// `(−1.5, 0.4) × (0, 1) × (−1.5, 1.5)`. Its face `x = 0.4` misses the
+/// inner wall and cuts the outer one along two rulings, so in the faces
+/// `y = 0` and `y = 1` the inner wall's whole circle, through its seam,
+/// lies beside the outer wall's arc, whose ends are on the box's edges.
+/// Box 5.7; overlap the annulus `r ∈ [0.3, 0.5]` less the outer disc's
+/// segment beyond `x = 0.4`, `0.25·acos 0.8 − 0.4·0.3`.
+#[test]
+fn a_one_site_loop_beside_matched_ones() {
+    let p = |x, y| (Point2::new(x, y), 0.0);
+    let tube = revolved_about_y(
+        vec![p(0.3, -0.5), p(0.5, -0.5), p(0.5, 1.5), p(0.3, 1.5)],
+        Revolution::Full,
+        tol(),
+    );
+    let block = brick((-1.5, 0.4), (0.0, 1.0), (-1.5, 1.5), tol());
+    let segment = 0.25 * 0.8f64.acos() - 0.4 * 0.3;
+    every_op(
+        "the tube beside the box's edge",
+        tube,
+        block,
+        (0.32 * PI, 5.7, 0.16 * PI - segment),
+    );
+}

@@ -608,11 +608,14 @@ pub(super) fn section_segments<T: Decide>(
 /// loop: both its germs are inside a face on both operands, with one
 /// locus pair and a conic section frame; no germ of another record
 /// names that locus pair; every real edge at the site, on each operand,
-/// has both halves in the germ's face there (the wrap edge on the
-/// wall, none inside the other's face); and the two germs turn round
-/// the conic in opposite senses. Any other one-site record is left for
-/// the [`SplitJoinError::SingleSiteSectionLoop`] refusal — among them a
-/// conic lying along an operand edge, which is a coincidence.
+/// has both halves in the germ's face there — the wall's wrap edge on
+/// one, and on the other either a wrap edge too or none, a pierce of a
+/// planar face ([`crate::chord_join::ChordJoiner::join_lone_ring`]);
+/// and the two germs turn round the conic in opposite senses. Any other
+/// one-site record is left for the
+/// [`SplitJoinError::SingleSiteSectionLoop`] refusal — among them a
+/// conic lying along an operand edge, which is a coincidence, and a
+/// pierce of a curved face.
 fn wrap_site_segments<T: Decide>(
     red: &BooleanReduction<T>,
     matched: &[SectionSegment<T>],
@@ -646,7 +649,22 @@ fn wrap_site_segments<T: Decide>(
                     .iter()
                     .any(|(g, _)| g.a_locus == g0.a_locus && g.b_locus == g0.b_locus)
         });
-        if shared || !wrap_site(&red.a, fa, g0.he)? || !wrap_site(&red.b, fb, rec.b[0].0.he)? {
+        let planar = |body: &Body<T>, f: FaceKey| {
+            matches!(
+                body.get_face(f).and_then(|d| body.get_surface(d.surface)),
+                Some(geom::Surface::Plane { .. })
+            )
+        };
+        let crossed = match (
+            wrap_site(&red.a, fa, g0.he)?,
+            wrap_site(&red.b, fb, rec.b[0].0.he)?,
+        ) {
+            (Some(na), Some(nb)) => {
+                na + nb > 0 && (na > 0 || planar(&red.a, fa)) && (nb > 0 || planar(&red.b, fb))
+            }
+            _ => false,
+        };
+        if shared || !crossed {
             continue;
         }
         if sa.is_up(&red.a, g0.he)? == sa.is_up(&red.a, g1.he)?
@@ -680,14 +698,14 @@ fn wrap_site_segments<T: Decide>(
     Ok(out)
 }
 
-/// Whether every real edge at the site of null half `he` has both its
-/// halves in `face`: on a wall, the site lies on the face's wrap edge;
-/// inside a face, no real edge reaches it.
+/// How many real edges reach the site of null half `he`, where every
+/// one has both its halves in `face` (`None` otherwise): on a wall, the
+/// pieces of the face's wrap edge; inside a face, none.
 fn wrap_site<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     he: HalfEdgeKey,
-) -> Result<bool, BooleanError> {
+) -> Result<Option<usize>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let start = body
         .get_half_edge(he)
@@ -698,6 +716,7 @@ fn wrap_site<T: Decide>(
         .ok_or(desync("germ half no longer resolves"))?;
     let site =
         crate::chord_join::null_site(body, &[start, end]).map_err(super::sectors::stale_site)?;
+    let mut real = 0;
     for v in site {
         for k in body.edges_of_vertex_linked(v) {
             let e = body
@@ -708,12 +727,13 @@ fn wrap_site<T: Decide>(
             }
             for h in [e.he_plus, e.he_minus] {
                 if body.face_of_half_edge(h) != Some(face) {
-                    return Ok(false);
+                    return Ok(None);
                 }
             }
+            real += 1;
         }
     }
-    Ok(true)
+    Ok(Some(real))
 }
 
 /// [`section_segments`] read as sites: the pair-record count and each

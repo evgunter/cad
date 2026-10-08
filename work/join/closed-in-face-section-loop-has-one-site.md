@@ -79,3 +79,25 @@ This becomes common when PATHS unit 4 (`circle-lowers-to-one-segment`)
 lowers `circle` to one segment: a pocket floor or a slab through any
 circular boss is this cut, and today's two-arc cylinder (two seams, two
 sites per section circle) builds it.
+
+## The original witness is transverse (branch `join/wrap-edge-section-loop`, 2026-10-08)
+
+At `872b33cc` the "strutted tube" of `germ_coplanar_conic.rs` revolves
+to ONE outer wall face: its profile vertex at `(1, 0)` leaves no circle
+edge at `ρ = 1`, `y = 0`. Both one-site loops of the fixture are
+therefore transverse wrap-edge crossings (the outer wall's seam at
+`(1, 0, 0)`, the inner wall's at `(0.5, 0, 0)`), and the boolean's
+wrap-edge arm (`a-plane-across-a-one-face-wall-meets-its-wrap-edge-once`)
+builds all three ops to their closed forms. The fixture is renamed
+"the box top across both tube walls" and the refusal row
+`a_closed_section_loop_with_one_site_refuses_typed` is deleted.
+
+So no fixture in the tree reaches the class this row names, a conic
+lying in the partner's face. Its refusal stands: the arm admits a
+one-site record only where every real edge at the site, on both
+operands, has both halves in the germ's face. A conic lying along an
+operand's edge has that edge at its site, and still refuses
+`SingleSiteSectionLoop`. The declared-REST lane, reached only when the
+join refuses, reads `section_segments` alone and does not see the arm's
+segments: a declared op whose join refuses for another reason with a
+one-site loop on it falls back to that join refusal, as before.
