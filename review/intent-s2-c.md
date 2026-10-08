@@ -138,10 +138,9 @@ on any body now says "the world copy of" first. Consider eliding the
 qualifier in words when the body has exactly one placement. Taste.
 **unsure**.
 
-**NOTE-7 — Cost.** `Doc::placements()` is a full node scan, and
-`resolve_face` runs it plus one `strict_ancestors` walk per placement for
-each mate side: O(mates × placements × N). That is fine at corpus size
-and invisible at assembly size. **unsure**.
+**NOTE-7 — Cost.** `resolve_face` runs `Doc::placements()` (a full
+scan) plus a `strict_ancestors` walk per placement, per mate side.
+**unsure**.
 
 ## The rulings
 
@@ -189,11 +188,9 @@ and invisible at assembly size. **unsure**.
   - The unplaced-mate skip (MINOR-1): **survived**.
   - Pose ignored (MAJOR-2): **survived**.
 
-**Runs:** editor-core at head, `--profile default` (slow set included):
-2886/2887. The one failure is
-`name_words_rows::a_large_table_of_names_alike_at_no_citation_is_said_in_bounded_time`,
-which also fails at B's tip on this box, so it is a timing row and not
-C's. Mutants ran under `--profile ci`.
+**Runs:** editor-core at head, `--profile default` (slow set): 2886/2887;
+the one red is the `name_words_rows::a_large_table_…_in_bounded_time`
+timing row, also red at B's tip here. Mutants ran under `--profile ci`.
 
 **Not exercised:**
 - the viewer, pncad, pncad-py and Python suites; test 9's viewer and Python halves; tour;
@@ -218,10 +215,5 @@ scheduled), Q7 (NOTE-6, NOTE-7) and Q8 (I read `product_in`,
   Both are instances of the defect the unit closes. **likely**.
 - `held_placement` (`node.rs:~4027`) gained a `PlaceInWorld` arm but has
   no caller in the workspace. Dead code grew. **sure**.
-- `wire_place_in_world` re-derives the split-half port → `SplitHalf`
-  mapping inline (`port == 0` twice). `wire_part` already has one. Taste.
-  **unsure**.
-- Test 6 rewrites each committed file's `"epsilon"` line before loading,
-  so at 1e-6 it reads a 1e-9 document as a 1e-6 one. It holds (my B probe
-  agrees), but the comparison is of a re-stamped file, which deserves a
-  sentence at the record. **unsure**.
+- Test 6 re-stamps each file's `"epsilon"` before loading; it holds (my
+  B probe agrees) but deserves a sentence at the record. **unsure**.
