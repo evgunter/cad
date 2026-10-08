@@ -2119,7 +2119,7 @@ mod tests {
     /// within the band. Its `−c` names no side, so the cone is labelled
     /// unpointed; read through `−c` regardless, the cone took whatever
     /// side that arbitrary direction read (PR 4289's fourth review,
-    /// NoPointedGate).
+    /// NoPointedGate). Read at ε = 1e-9, where the rise is in band.
     #[test]
     fn a_saddle_whose_mean_bound_is_in_band_is_not_pointed() {
         let ring: Vec<_> = [
@@ -2132,7 +2132,7 @@ mod tests {
         .map(|&(x, y, z)| Vec3::new(x, y, z))
         .collect();
         let saddle = cone_sectors(&ring, true);
-        let read = cone_read(&probes(&[Vec3::new(0.0, 0.0, -1.0)]), &saddle, band())
+        let read = cone_read(&probes(&[Vec3::new(0.0, 0.0, -1.0)]), &saddle, fuzz_band())
             .unwrap()
             .unwrap();
         assert!(
