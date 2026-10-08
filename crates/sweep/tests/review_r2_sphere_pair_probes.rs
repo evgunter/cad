@@ -461,3 +461,145 @@ fn r2_ratio_refusals_in_full() {
         println!("P10 r={r:e} t={t:e}: {:?}", out.err());
     }
 }
+
+/// P11: P2's ring refusals in full, and the same pose with the big
+/// ball's pole turned perpendicular to the centre line (P1's shape)
+/// and with the small ball's chart turned instead.
+#[test]
+#[ignore = "review probe"]
+fn r2_pole_ring_in_full() {
+    let th = f64::to_radians(35.0);
+    let n = Vec3::new(th.sin(), th.cos(), 0.0);
+    for (r, d) in [(0.2, 1.0), (0.3, 0.9)] {
+        let pb = n.cross(unit_z());
+        let b = ball_frame(r, n * d, pb, unit_z());
+        let a_y = ball_frame(1.0, Vec3::new(0.0, 0.0, 0.0), unit_y(), -unit_x());
+        let a_z = ball_frame(1.0, Vec3::new(0.0, 0.0, 0.0), unit_z(), -unit_x());
+        let want = (ball_volume(1.0), ball_volume(r), lens(1.0, r, d));
+        println!("P11 r={r} a∪b full: {:?}", topo::union(&a_y, &b, tol()).err());
+        println!("P11 r={r} a∩b full: {:?}", topo::intersect(&a_y, &b, tol()).err());
+        six(&format!("P11 bigpole⟂ r={r}"), &a_z, &b, want);
+        // The small ball poled along the centre line instead (its seam
+        // then crosses the circle: the crossing layer's door).
+        let b_n = ball_frame(r, n * d, n, unit_z());
+        six(&format!("P11 smallpole∥ r={r}"), &a_y, &b_n, want);
+    }
+}
+
+/// P12: which pose shape rings. The big ball's pole tilted `beta`
+/// toward the centre line `n` inside the plane `(pa, n)`; the small
+/// ball poled `pa` (cuts coplanar) or `perp(n, 1.1)` (cuts not).
+#[test]
+#[ignore = "review probe"]
+fn r2_coplanar_cuts_with_tilted_pole() {
+    for dir in [Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.3, -0.2, 0.93)] {
+        let n = dir / dir.norm();
+        let pa = perp(n, 0.0);
+        for beta_deg in [0.0, 5.0, 35.0, 60.0] {
+            let beta = f64::to_radians(beta_deg);
+            let p = pa * beta.cos() + n * beta.sin();
+            let a = ball_frame(1.0, Vec3::new(0.0, 0.0, 0.0), p, pa.cross(n));
+            for (r, d) in [(0.2, 1.0), (0.3, 0.9), (0.7, 0.9)] {
+                let want = (ball_volume(1.0), ball_volume(r), lens(1.0, r, d));
+                for (tag, pb) in [("coplanar", pa), ("apart", perp(n, 1.1))] {
+                    let b = ball_frame(r, n * d, pb, pb.cross(n));
+                    six(
+                        &format!("P12 n={:.2},{:.2},{:.2} beta={beta_deg} r={r} {tag}", n.x, n.y, n.z),
+                        &a,
+                        &b,
+                        want,
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// P13: a seam on the cut's own great circle. The big ball poled
+/// `pa ⟂ n` with its seam toward `-n` (the antipode of the half-meridian
+/// its cut runs on), and/or the small ball poled `pa` with its seam
+/// toward `+n` (likewise for its cut, which runs on the `-n` side).
+#[test]
+#[ignore = "review probe"]
+fn r2_seam_on_the_cut_great_circle() {
+    for dir in [Vec3::new(0.0, 0.0, 1.0), Vec3::new(0.3, -0.2, 0.93)] {
+        let n = dir / dir.norm();
+        let pa = perp(n, 0.0);
+        for (r, d) in [(0.2, 1.0), (0.3, 0.9), (0.7, 0.9), (1.5, 1.2)] {
+            let want = (ball_volume(1.0), ball_volume(r), lens(1.0, r, d));
+            for (tag, ua, ub) in [
+                ("A-seam-on-cut", -n, pa.cross(n)),
+                ("B-seam-on-cut", pa.cross(n), n),
+                ("both", -n, n),
+            ] {
+                let a = ball_frame(1.0, Vec3::new(0.0, 0.0, 0.0), pa, ua);
+                let b = ball_frame(r, n * d, pa, ub);
+                six(
+                    &format!("P13 n={:.2},{:.2},{:.2} r={r} {tag}", n.x, n.y, n.z),
+                    &a,
+                    &b,
+                    want,
+                );
+            }
+        }
+    }
+}
+
+/// P14: D5 provenance of each face of `a ∪ b`, scan path vs crossing
+/// layer, same point sets (P6's r = 0.7 pose).
+#[test]
+#[ignore = "review probe"]
+fn r2_face_provenance() {
+    let o = Vec3::new(0.0, 0.0, 0.0);
+    for (tag, pole) in [("scan", unit_y()), ("layer", unit_z())] {
+        let a = ball_frame(1.0, o, pole, unit_x());
+        let b = ball_frame(0.7, unit_z() * 0.9, pole, unit_x());
+        if let Ok(BooleanResult::Body(bb)) = topo::union(&a, &b, tol()) {
+            for (f, _) in bb.body.faces() {
+                let p = bb.body.provenance(topo::EntityId::Face(f));
+                println!("P14 {tag} {f:?}: {}", format!("{p:?}").chars().take(160).collect::<String>());
+            }
+        }
+    }
+}
+
+/// P15: `Interval` near tangency and at a 1e-2 ratio: whether the
+/// radical-plane cut (`R − s` cancelling as `s → R`) still certifies.
+#[test]
+#[ignore = "review probe"]
+fn r2_interval_near_tangency() {
+    use crate::common::interval::iv;
+    use geom_core::{Bounds, Interval};
+    let ball_iv = |r: f64, z: f64| -> AtRestBody<Interval> {
+        let at = ball_poled_y(iv(r), Vec3::new(iv(0.0), iv(0.0), iv(z)), tol());
+        finished("ball", at, tol())
+    };
+    for (r, d) in [(0.3, 1.3 - 1e-4), (0.3, 0.7 + 1e-4), (0.01, 1.0), (0.3, 1.3 - 1e-6)] {
+        let (a, b) = (ball_iv(1.0, 0.0), ball_iv(r, d));
+        let sh = lens(1.0, r, d);
+        for (op, want, out) in [
+            ("a∪b", ball_volume(1.0) + ball_volume(r) - sh, topo::union(&a, &b, tol())),
+            ("a∩b", sh, topo::intersect(&a, &b, tol())),
+        ] {
+            let line = match out {
+                Ok(res) => match res.body() {
+                    Some(bb) => {
+                        let t3 = topo::validate_geometric(&bb.body, tol()).is_ok();
+                        match topo::mass_properties(&bb.body, tol()) {
+                            Ok(m) => format!(
+                                "OK t3={t3} v=[{:.12}, {:.12}] want={want:.12} in={}",
+                                m.volume.lo(),
+                                m.volume.hi(),
+                                m.volume.lo() - 1e-9 <= want && want <= m.volume.hi() + 1e-9
+                            ),
+                            Err(e) => format!("OK t3={t3} unmeasured {e:?}"),
+                        }
+                    }
+                    None => "EMPTY".into(),
+                },
+                Err(e) => format!("ERR {}", format!("{e:?}").chars().take(200).collect::<String>()),
+            };
+            println!("P15 eps={} r={r} d={d} {op} => {line}", tol().eps());
+        }
+    }
+}
