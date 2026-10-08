@@ -9,6 +9,7 @@ cost: M
 refs: [shell-open-refuses-a-curved-designated-face]
 pr: 4356
 closed: 2026-10-08
+branch: shell/apex-and-tangent-corner
 ---
 
 

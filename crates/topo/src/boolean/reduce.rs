@@ -2445,14 +2445,14 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   its rulings, which answer `Constant`, and no line lies on a
         //   sphere or a torus. For a CIRCLE against a sphere: a circle
         //   lying on it is centred on its axis, answered `LiesOn`. For a
-        //   CIRCLE against a torus: a circle lying on it is either
-        //   coaxial (a rim or latitude circle, answered `LiesOn`) or has
-        //   `F ≡ 0`, whose pole no anchor can put definitely off the
-        //   torus (`Unsettled`). And its interior meets this face
-        //   nowhere: the edge meets the carrier only at its certified
-        //   roots, each root strictly inside the span was placed outside
-        //   the trim, and each root at an end is that end's own
-        //   incidence. So the ends decide, under the same rule as the
+        //   CIRCLE against a torus: a circle lying on it is coaxial (a
+        //   rim or latitude circle) or a meridian, both answered
+        //   `LiesOn`, or a Villarceau circle, whose `F ≡ 0` puts the
+        //   pole on the torus at every anchor (`Unsettled`). And its
+        //   interior meets this face nowhere: the edge meets the carrier
+        //   only at its certified roots, each root strictly inside the
+        //   span was placed outside the trim, and each root at an end is
+        //   that end's own incidence. So the ends decide, under the same rule as the
         //   mixed-sign arm ([`Placement::undeclared_no_interior`]).
         // - **`OffFace`**: every meeting of the span with the carrier, the
         //   ends' among them, lies off this face whether or not the edge
