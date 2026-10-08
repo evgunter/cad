@@ -1839,11 +1839,11 @@ fn in_sector<T: Decide>(
 /// point it cannot locate.
 ///
 /// Each reading is the sine `(a × b)·n` of two of the four
-/// (`"bool_cone_within"`, the reading [`in_sector`] takes past a
-/// bound), levered at the least joint deviation of the two points it
-/// reads ([`least_lever`]), each at its own reach: `d` at the
-/// direction's, `p` at its arm, a bound at the bound's. `false` where
-/// no line decides it, a reading zero or in band counting as no side.
+/// (`"bool_cone_apart"`), less its rounding, levered at the least joint
+/// deviation of the two points it reads ([`least_lever`]), each at its
+/// own reach: `d` at the direction's, `p` at its arm, a bound at the
+/// bound's. `false` where no line decides it, a reading zero or in band
+/// counting as no side.
 fn apart<T: Decide>(s: &BoolSector<T>, arc: GreatArc<T>, band: Band) -> bool {
     let one = T::from_f64(1.0);
     let n = s.normal.vec();
@@ -1851,14 +1851,17 @@ fn apart<T: Decide>(s: &BoolSector<T>, arc: GreatArc<T>, band: Band) -> bool {
     let v = (s.end, s.end_reach.length());
     let d = (arc.dir.normalize(), arc.reach.length());
     let p = (arc.p, arc.p_arm);
+    let (zero, rounding) = (T::from_f64(0.0), T::from_f64(8.0 * f64::EPSILON));
     // The decided sign of `(a × b)·n`, `None` where it is zero or in band.
+    // The triple product of unit vectors rounds by a few ulp, which the
+    // lever magnifies: what of it a rounding could account for is no
+    // deviation of the points, so it is taken off first, as in
+    // [`arc_side`].
     let sine = |(a, la): (Vec3<T>, T), (b, lb): (Vec3<T>, T)| {
-        let lever = least_lever([(la, one), (lb, one)]).unwrap_or(T::from_f64(0.0));
-        match decide(
-            "bool_cone_within",
-            Margin::levered(a.cross(b).dot(n), lever),
-            band,
-        ) {
+        let lever = least_lever([(la, one), (lb, one)]).unwrap_or(zero);
+        let x = a.cross(b).dot(n);
+        let certain = (x - rounding).max(zero) + (x + rounding).min(zero);
+        match decide("bool_cone_apart", Margin::levered(certain, lever), band) {
             Ok(Sign::Positive) => Some(1),
             Ok(Sign::Negative) => Some(-1),
             Ok(Sign::Zero) | Err(_) => None,
@@ -2387,7 +2390,11 @@ mod tests {
     /// the turn of lines that part them; each arc puts one end's two
     /// lines within a 1e-12 rad hair of touching, so the other end's line
     /// alone decides it. An arc through the sector is not apart, nor is
-    /// one apart only within the band at its points' 1 mm reach.
+    /// one apart only within the band, read at its two points' joint
+    /// lever: at a 1 mm reach, where the sine reads zero; at two 1 m
+    /// reaches, where it lies between the zero band and the escalation
+    /// band, and either reach alone would decide it; and at 1 km and
+    /// 1 mm, where the longer would.
     #[test]
     fn an_arc_and_a_sector_in_one_plane_are_apart_across_a_bound_line() {
         let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
@@ -2401,17 +2408,34 @@ mod tests {
             far: o + d * l,
         };
         let hair = 1e-12f64.to_degrees();
-        for (what, d, p, l, want) in [
-            ("past u's line alone", 185.0, 190.0 + hair, 1.0, true),
-            ("past v's line alone", 185.0, 180.0 - hair, 1.0, true),
-            ("past d's line alone", 100.0, 190.0 + hair, 1.0, true),
-            ("past p's line alone", 190.0 + hair, 100.0, 1.0, true),
-            ("through the sector", -20.0, 30.0, 1.0, false),
+        let rad = f64::to_degrees;
+        // Each arc: its ends' bearings, the direction's reach, and the
+        // reach of the reference and the sector's bounds.
+        for (what, d, p, (l_d, l), want) in [
+            ("past u's line alone", 185.0, 190.0 + hair, (1.0, 1.0), true),
+            ("past v's line alone", 185.0, 180.0 - hair, (1.0, 1.0), true),
+            ("past d's line alone", 100.0, 190.0 + hair, (1.0, 1.0), true),
+            ("past p's line alone", 190.0 + hair, 100.0, (1.0, 1.0), true),
+            ("through the sector", -20.0, 30.0, (1.0, 1.0), false),
             (
                 "apart within the band at a 1 mm reach",
-                180.0 + 1e-7f64.to_degrees(),
+                180.0 + rad(1e-7),
                 190.0 + hair,
-                1e-3,
+                (1e-3, 1e-3),
+                false,
+            ),
+            (
+                "apart within the band at the joint lever of two 1 m reaches",
+                180.0 + rad(1.5e-8),
+                190.0 + hair,
+                (1.0, 1.0),
+                false,
+            ),
+            (
+                "apart within the band at the joint lever of 1 km and 1 mm",
+                180.0 + rad(1e-7),
+                190.0 + hair,
+                (1e3, 1e-3),
                 false,
             ),
         ] {
@@ -2427,12 +2451,58 @@ mod tests {
             };
             let arc = GreatArc {
                 dir: at(d),
-                reach: chord(at(d), l),
+                reach: chord(at(d), l_d),
                 p: at(p),
                 p_arm: l,
             };
             assert_eq!(apart(&sector, arc, fuzz_band()), want, "{what}");
         }
+    }
+
+    /// **An arc and a sector are not parted by a sine's rounding**: a
+    /// sector from `(2, 3, 0)` turned 10° about `z`, and an arc from
+    /// `−(2, 3, 0)`, exactly on its start bound's line, to the end
+    /// bound's opposite, every point a million metres out. The sine of
+    /// the start bound and the direction is exactly zero; the unit
+    /// vectors' product rounds to an ulp of it, which at that lever reads
+    /// decided at ε = 1e-12 and parts them across one line or another,
+    /// unless the rounding is taken off first. No line parts them
+    /// strictly, so they are not apart.
+    #[test]
+    fn an_arc_and_a_sector_are_not_parted_by_a_sines_rounding() {
+        let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let band = Band::linear_at(Tol::witness(), 1e-12).unwrap();
+        let far = 1e6;
+        let u = Vec3::new(2.0, 3.0, 0.0).normalize();
+        let (s, c) = 10f64.to_radians().sin_cos();
+        let v = Vec3::new(c * u.x - s * u.y, s * u.x + c * u.y, 0.0);
+        let d_far = Vec3::new(-2.0, -3.0, 0.0) * far;
+        let chord = |far: Vec3<f64>| Reach::Chord {
+            base: o,
+            far: o + far,
+        };
+        let sector = BoolSector {
+            he: HalfEdgeKey::from(key(1)),
+            start: u,
+            end: v,
+            start_reach: chord(u * far),
+            end_reach: chord(v * far),
+            face: FaceKey::from(key(11)),
+            normal: OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true),
+            arm: far,
+        };
+        let arc = GreatArc {
+            dir: d_far,
+            reach: chord(d_far),
+            p: -v,
+            p_arm: far,
+        };
+        assert!(
+            u.cross(d_far.normalize()).z != 0.0,
+            "the sine rounds off zero"
+        );
+        assert!(!apart(&sector, arc, band), "parted by a rounding");
     }
 
     /// **An arc whose side of a bound reads nothing is read apart**: the
@@ -4025,18 +4095,9 @@ mod tests {
         assert!(!matches!(read, Ok(Some(_))), "coplanar, read {read:?}");
     }
 
-    /// **A plane through a reference and a bound is read at the shorter
-    /// of the two sectors' arms**: a fin 1e-4° wide with a 1 mm edge,
-    /// whose references lie within that span's band of the fin's
-    /// bounds at the 1 mm arm. The arc to the fourth face's reference
-    /// escalates at the fin's bound: read at the longer arm, the plane's
-    /// normal passes the gate, though at the shorter arm it is not
-    /// resolved (fuzz seed 1, cone 82, probe 81, 1.9e-7 rad off the
-    /// link, exactly `In`). The probe is still decided, `In`, through a
-    /// reference whose faces left unread lie decidedly apart from its
-    /// arc ([`apart`]).
-    #[test]
-    fn a_plane_through_a_reference_and_a_bound_is_read_at_the_shorter_arm() {
+    /// A fin 1e-4° wide with a 1 mm edge, and a probe 1.9e-7 rad off its
+    /// link, exactly `In` (fuzz seed 1, cone 82, probe 81).
+    fn shorter_arm_fin() -> (Vec<BoolSector<f64>>, Vec3<f64>) {
         let cone = fuzz_cone(&[
             [
                 0.17364817766686433,
@@ -4145,6 +4206,18 @@ mod tests {
             ],
         ]);
         let far = Vec3::new(1.2249034581828435, -0.7761906779756366, 0.15803647000763973);
+        (cone, far)
+    }
+
+    /// **A plane through a reference and a bound is read at the shorter
+    /// of the two sectors' arms**: the fin ([`shorter_arm_fin`]), whose
+    /// references lie within that span's band of the fin's bounds at
+    /// the 1 mm arm. The arc to the fourth face's reference escalates at
+    /// the fin's bound: read at the longer arm, the plane's normal passes
+    /// the gate, though at the shorter arm it is not resolved.
+    #[test]
+    fn a_plane_through_a_reference_and_a_bound_is_read_at_the_shorter_arm() {
+        let (cone, far) = shorter_arm_fin();
         let o = Point3::new(0.0, 0.0, 0.0);
         let (s0, s) = (&cone[3], &cone[1]);
         let arc = GreatArc {
@@ -4162,6 +4235,16 @@ mod tests {
             }
             other => panic!("the span at the shorter arm escalates, got {other:?}"),
         }
+    }
+
+    /// **A probe whose arcs meet unread faces apart from their sectors
+    /// is decided**: the fin's probe ([`shorter_arm_fin`]), whose every
+    /// reference leaves some face unread, reads `In`, as it exactly is,
+    /// through a reference whose unread faces lie decidedly apart from
+    /// its arc ([`apart`]).
+    #[test]
+    fn a_probe_whose_arcs_meet_unread_faces_apart_from_their_sectors_is_decided() {
+        let (cone, far) = shorter_arm_fin();
         let read = cone_read(&probes(&[far]), &cone, fuzz_band())
             .unwrap()
             .unwrap();

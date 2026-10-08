@@ -994,3 +994,223 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
         wrong.join("\n")
     );
 }
+
+/// Whether the arc from `d` to `p` meets the closed sector `u → v` on
+/// the plane of normal `n`, exactly, every vector an exact rational
+/// direction: where both ends lie on the plane, the arc and the sector
+/// overlap in it; where one does, that end lies in the sector; where
+/// they lie on opposite sides, the point the arc crosses at does.
+fn arc_meets_sector(d: &V, p: &V, u: &V, v: &V, n: &V) -> bool {
+    let within = |x: &V| dot(&cross(u, x), n).sign() >= 0 && dot(&cross(x, v), n).sign() >= 0;
+    let (hd, hp) = (dot(d, n), dot(p, n));
+    let abs = |q: &Q| {
+        if q.sign() < 0 {
+            q.mul(&Q::int(-1))
+        } else {
+            q.clone()
+        }
+    };
+    match (hd.sign(), hp.sign()) {
+        (a, b) if a != 0 && a == b => false,
+        (0, 0) => {
+            let s = dot(&cross(d, p), n).sign();
+            let in_arc = |x: &V| {
+                if s == 0 {
+                    return false;
+                }
+                let a = dot(&cross(d, x), n).sign();
+                let b = dot(&cross(x, p), n).sign();
+                (a == 0 || a == s) && (b == 0 || b == s)
+            };
+            within(d) || within(p) || in_arc(u) || in_arc(v)
+        }
+        (0, _) => within(d),
+        (_, 0) => within(p),
+        _ => within(&vadd(&vscale(d, &abs(&hp)), &vscale(p, &abs(&hd)))),
+    }
+}
+
+/// **No arc and sector [`apart`] parts meet, exactly or within the
+/// band** (PR 4358's review): sectors from 1e-9 rad wide to a hair
+/// under 180°, arcs aimed at multiples of the band off each bound line
+/// and its opposite, a hair off the plane or nearly square to it, each
+/// point at a reach from 1 µm to 1 km, at ε 1e-6, 1e-9 and 1e-12. Each
+/// pair it parts is moved, every point by just under the escalation
+/// band at its own reach, toward each of its worst ways, and read
+/// exactly ([`arc_meets_sector`]): none may meet.
+#[test]
+fn apart_never_parts_an_arc_and_a_sector_that_meet_within_the_band() {
+    let mut rng = test_utils::fuzz::start("sectors_apart_fuzz");
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let reaches = [1e-6, 1e-4, 1e-2, 1.0, 1e2, 1e3];
+    let factors = [
+        0.0, 0.3, 0.55, 0.7, 0.8, 0.9, 0.95, 0.999, 1.0, 1.001, 1.01, 1.1, 2.0, 2.1, 10.0, 1e3, 1e6,
+    ];
+    let mut wrong = Vec::new();
+    let (mut tried, mut decided, mut checks) = (0usize, 0usize, 0usize);
+    for eps in [1e-6, 1e-9, 1e-12] {
+        let band = Band::linear_at(Tol::witness(), eps).unwrap();
+        // The escalation threshold: a decided reading's margin is at least
+        // this, so no move of each point by less flips it.
+        let zero = band.escalate();
+        for _ in 0..test_utils::fuzz::scaled(1_000) {
+            let n = norm3([
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+                rng.range(-1.0, 1.0),
+            ]);
+            let e1 = norm3(cross3(
+                n,
+                if n[0].abs() < 0.9 {
+                    [1.0, 0.0, 0.0]
+                } else {
+                    [0.0, 1.0, 0.0]
+                },
+            ));
+            let e2 = cross3(n, e1);
+            let pick = |rng: &mut Rng| reaches[rng.below(reaches.len())];
+            let (lu, lv, ld, lp) = (
+                pick(&mut rng),
+                pick(&mut rng),
+                pick(&mut rng),
+                pick(&mut rng),
+            );
+            let alpha = rng.range(0.0, std::f64::consts::TAU);
+            let width = match rng.below(3) {
+                0 => rng.range(1e-9, 1e-5),
+                1 => rng.range(0.01, 3.1),
+                _ => std::f64::consts::PI - rng.range(1e-9, 1e-3),
+            };
+            let beta = alpha + width;
+            // A corner the boolean builds: convex under every move within
+            // the band (the probe's own `within` reads a convex sector).
+            if width.sin() / (1.0 / lu + 1.0 / lv) <= 1.01 * zero {
+                continue;
+            }
+            let dir = |th: f64, ph: f64| {
+                let (s, c) = th.sin_cos();
+                let (sp, cp) = ph.sin_cos();
+                norm3([0, 1, 2].map(|i| cp * (c * e1[i] + s * e2[i]) + sp * n[i]))
+            };
+            let u = dir(alpha, 0.0);
+            let v = dir(beta, 0.0);
+            let anchors = [
+                alpha,
+                beta,
+                alpha + std::f64::consts::PI,
+                beta + std::f64::consts::PI,
+            ];
+            let anchor = rng.below(4);
+            let anchor_l = [lu, lv, lu, lv][anchor];
+            let aim = |rng: &mut Rng, l: f64| {
+                let th = if rng.below(6) == 0 {
+                    rng.range(0.0, std::f64::consts::TAU)
+                } else {
+                    let f = factors[rng.below(factors.len())];
+                    let sgn = if rng.below(2) == 0 { 1.0 } else { -1.0 };
+                    let lever = 1.0 / (1.0 / l + 1.0 / anchor_l);
+                    anchors[anchor] + sgn * f * zero / lever
+                };
+                let ph = match rng.below(5) {
+                    0 => 0.0,
+                    1 => rng.range(-1.0, 1.0) * zero / l * factors[rng.below(factors.len())],
+                    2 => {
+                        (std::f64::consts::FRAC_PI_2 - rng.range(0.0, 1e-6))
+                            * if rng.below(2) == 0 { 1.0 } else { -1.0 }
+                    }
+                    _ => rng.range(-1.5, 1.5),
+                };
+                dir(th, ph)
+            };
+            let d = aim(&mut rng, ld);
+            let p = aim(&mut rng, lp);
+            let dp = d[0] * p[0] + d[1] * p[1] + d[2] * p[2];
+            if dp < -1.0 + 1e-9 {
+                continue;
+            }
+            tried += 1;
+            let v3 = |a: [f64; 3]| Vec3::new(a[0], a[1], a[2]);
+            let key = |k: u64| slotmap::KeyData::from_ffi((1 << 32) | k);
+            let sector = BoolSector {
+                he: HalfEdgeKey::from(key(1)),
+                start: v3(u),
+                end: v3(v),
+                start_reach: Reach::Chord {
+                    base: o,
+                    far: o + v3(u) * lu,
+                },
+                end_reach: Reach::Chord {
+                    base: o,
+                    far: o + v3(v) * lv,
+                },
+                face: FaceKey::from(key(11)),
+                normal: OutwardNormal::from_chart(v3(n), true),
+                arm: lu.min(lv),
+            };
+            let arc = GreatArc {
+                dir: v3(d),
+                reach: Reach::Chord {
+                    base: o,
+                    far: o + v3(d) * ld,
+                },
+                p: v3(p),
+                p_arm: lp,
+            };
+            if !apart(&sector, arc, band) {
+                continue;
+            }
+            decided += 1;
+            // Each point moved by just under the band, at its own reach:
+            // a direction turned by `δ/L` toward each of its worst ways.
+            let qn = qv(n);
+            let moved = |x: [f64; 3], l: f64, ways: &[[f64; 3]]| -> Vec<V> {
+                let t = 0.999 * zero / l;
+                let mut out = vec![qv(x)];
+                for w in ways {
+                    for s in [1.0, -1.0] {
+                        out.push(vadd(&qv(x), &vscale(&qv(*w), &Q::of(s * t))));
+                    }
+                }
+                out
+            };
+            let side = |x: [f64; 3]| norm3(cross3(n, x));
+            let (dw, pw) = (side(d), side(p));
+            let ds = moved(d, ld, &[dw, n]);
+            let ps = moved(p, lp, &[pw, n]);
+            let us = moved(u, lu, &[side(u)]);
+            let vs = moved(v, lv, &[side(v)]);
+            'all: for dd in &ds {
+                for pp in &ps {
+                    for uu in &us {
+                        for vv in &vs {
+                            checks += 1;
+                            if arc_meets_sector(dd, pp, uu, vv, &qn) {
+                                wrong.push(format!(
+                                    "ε {eps:e}: apart, yet they meet within the band: n {n:?} \
+                                     u {u:?} @{lu} v {v:?} @{lv} d {d:?} @{ld} p {p:?} @{lp}; {}",
+                                    test_utils::fuzz::replay()
+                                ));
+                                break 'all;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    println!(
+        "[fuzz] sectors_apart_fuzz: {tried} tried, {decided} parted, {checks} exact checks, {} wrong",
+        wrong.len()
+    );
+    assert!(
+        decided > 100,
+        "the sweep parts too few to read anything: {decided}; {}",
+        test_utils::fuzz::replay()
+    );
+    assert!(
+        wrong.is_empty(),
+        "{} wrong:\n{}",
+        wrong.len(),
+        wrong[..wrong.len().min(20)].join("\n")
+    );
+}

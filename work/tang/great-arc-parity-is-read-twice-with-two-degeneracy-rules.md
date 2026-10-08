@@ -28,10 +28,18 @@ sphere by the parity of a great-circle path's crossings:
   sectors, which are great-circle arcs. A face is passed over only on a
   decided reading (`in_sector`). A reading zero or in band passes over
   the reference, and the next is tried.
+- Since PR 4358, `cone_side` has a third rule. Where a reading would
+  pass the reference over, the face is read as not crossed if the arc
+  and its sector lie decidedly apart in the face's plane: a line through
+  one of the four bounds (the sector's two, the arc's two ends) has
+  the other wedge strictly on its far side (`sectors::apart`,
+  `bool_cone_apart`). It reads no heights over the plane, so it decides
+  an arc lying in the plane, which `ring_path` would treat as a graze.
 
 Both are the same instrument: a crossing count along a great-circle
-path, with the side at one end known. Their degeneracy rules differ,
-and so do their margins. So a fix to one (PR 4289's review found two
+path, with the side at one end known. Their degeneracy rules differ
+(two in `cone_side` against one in `path_parity`), and so do their
+margins. So a fix to one (PR 4289's review found two
 exemptions in `cone_side` that held only for an exact zero) does not
 reach the other.
 

@@ -219,7 +219,7 @@ pub fn decision_words(predicate: &str) -> Option<&'static str> {
         "bool_conic_face_plane_offset" => Coincide::EdgeOnPlane.subject(),
         "bool_line_cylinder_clearance" => Coincide::EdgeOnCurvedFace.subject(),
         "bool_sector_within" | "bool_flank_offset" | "bool_wedge_reflex" | "bool_cone_arc"
-        | "bool_cone_arc_span" | "bool_cone_within" | "bool_cone_facing" => {
+        | "bool_cone_arc_span" | "bool_cone_within" | "bool_cone_facing" | "bool_cone_apart" => {
             Coincide::Sectors.subject()
         }
         "bool_cone_pointed" => "whether a corner's link leans to one side of its vertex",
@@ -3684,6 +3684,21 @@ impl core::fmt::Display for BooleanError {
                  several corners that only touch each other, and the result would keep \
                  them apart in a way its checks cannot read. There is no way through this \
                  in the kernel yet",
+                operand_word(*operand)
+            ),
+            Self::VertexReadTwice {
+                operand,
+                reads: [SectorRead::Pair(_), SectorRead::Pair(_)],
+                ..
+            } => write!(
+                f,
+                "a corner of the {} solid lands where two corners of the other solid meet \
+                 at one point, and one of those corners gives no side for its edges: its \
+                 faces fold onto one another, exactly or to within the input tolerance \
+                 (ε_input, K·ε), or it lies on fewer than two faces. The Boolean cannot \
+                 classify the first corner against both without it. Recourse: move the \
+                 parts so the other solid's corners do not meet at that point, or open its \
+                 folded faces apart by more than ε_input",
                 operand_word(*operand)
             ),
             Self::VertexReadTwice { operand, reads, .. } => write!(

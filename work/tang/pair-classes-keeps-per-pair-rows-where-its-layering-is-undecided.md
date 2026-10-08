@@ -36,17 +36,38 @@ them as given.
 An instrumented run (`pair_classes` logging each fallback, at `b7e31045`
 plus the fix that filed this):
 
-- topo, 2 645 tests: 102 vertices reach "outermost disagree", 150
-  reach "edge undecided", all in
-  `crates/topo/tests/union_flush_onto_edge_contact.rs`. The cases are
-  `a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op`,
-  `two_dangling_null_edges_with_one_segment*`,
-  `every_tied_strut_witness_holds_with_its_vertex_pairs_reversed`
-  (disagree), and the flush-pinch, fold and crossing-at-a-corner rows
-  (undecided).
-- editor-core: 48 "edge undecided", in the three
-  `union_flush_onto_edge_contact` naming rows of the union node.
+- topo, 2 645 tests: 102 vertices reach "outermost disagree" and 150
+  "edge undecided", all in
+  `crates/topo/tests/union_flush_onto_edge_contact.rs`:
+  - outermost disagree:
+    `a_dangling_null_edge_inside_another_along_one_end_builds_in_every_op`
+    (12), `two_dangling_null_edges_with_one_segment_build_in_every_op`
+    (12), `two_dangling_null_edges_with_one_segment_ending_in_the_cubes_face_build_in_every_op`
+    (27), `every_tied_strut_witness_holds_with_its_vertex_pairs_reversed`
+    (51);
+  - edge undecided: `two_pinches_crossing_on_one_line_refuse_their_union_typed`
+    (48), `every_order_folds_a_flush_partner_onto_the_edge_contact` (16),
+    `carried_records_certify_every_order_of_the_fold` (16),
+    `joined_folds_certify_and_build_one_body_in_every_order` (16),
+    `four_crossings_at_one_corner_build_in_every_op` (16),
+    `three_crossings_at_one_corner_build_in_every_op` (14),
+    `a_vertex_crossing_both_sides_of_a_pinch_builds_in_every_op` (12),
+    `a_four_row_remap_group_certifies_a_subtract_of_two_pinches` (8),
+    `three_pieces_two_of_whose_cuts_tie_build_in_every_op` (2),
+    `every_tied_strut_witness_holds_with_its_vertex_pairs_reversed` (2).
+- editor-core: 48 "edge undecided", 16 in each of three
+  `union_flush_onto_edge_contact` naming rows:
+  `the_union_node_publishes_one_table_in_every_member_order`,
+  `the_union_node_folds_a_flush_partner_onto_the_edge_contact` and
+  `chained_pair_unions_fold_a_flush_partner_onto_the_edge_contact`.
 - sweep: none.
+- no outermost cone: no witness is known. No suite row reaches it,
+  nor does `sectors::cone_fuzz`'s pair oracle.
+
+`layered`'s `p.read.as_ref()?` arm, which also leaves an edge
+undecided, is not reached from `pair_classes`: it refuses typed beside
+a partner that reads nothing before it layers. `touch_classes` refuses
+beside one too.
 
 None is checked against an oracle: those scenes build and their own
 rows pass, but no germ reads these edges. The exact-oracle pair fuzz in

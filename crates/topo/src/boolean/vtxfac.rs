@@ -310,14 +310,17 @@ pub(super) fn pair_classes<T: Decide>(
     if let Some(unread) = pairs.iter().position(|p| p.read.is_none()) {
         return Err(refuse(unread, usize::from(unread == 0)));
     }
-    Ok(layered_alone(pairs, band, refuse)?.unwrap_or_else(alone))
+    // Every partner reads, so this keeps one read per pair.
+    let reads: Vec<_> = pairs.iter().filter_map(|p| p.read.as_ref()).collect();
+    Ok(layered_alone(pairs, &reads, band, refuse)?.unwrap_or_else(alone))
 }
 
-/// [`pair_classes`]' layering of partners that each read, or `None`
-/// where it cannot decide; `refuse(j, i)` where partner `j`'s cone
-/// reads nothing against partner `i`'s edges.
+/// [`pair_classes`]' layering of partners that each read (`reads`, one
+/// per pair), or `None` where it cannot decide; `refuse(j, i)` where
+/// partner `j`'s cone reads nothing against partner `i`'s edges.
 fn layered_alone<T: Decide>(
     pairs: &[PairRead<T>],
+    reads: &[&super::sectors::WedgeRead],
     band: Band,
     refuse: impl Fn(usize, usize) -> BooleanError,
 ) -> Result<Option<Vec<(HalfEdgeKey, SideCode)>>, BooleanError> {
@@ -329,7 +332,7 @@ fn layered_alone<T: Decide>(
         Ok(!read.rows.is_empty() && read.rows.iter().all(|&(_, c)| held(c, read.met)))
     };
     let mut base = None;
-    for i in 0..pairs.len() {
+    for (i, read) in reads.iter().enumerate() {
         let mut outermost = true;
         for j in (0..pairs.len()).filter(|&j| j != i) {
             if inside(i, j)? {
@@ -337,9 +340,6 @@ fn layered_alone<T: Decide>(
             }
         }
         if outermost {
-            let Some(read) = pairs[i].read.as_ref() else {
-                return Ok(None);
-            };
             let here = if read.met {
                 SideCode::Out
             } else {
@@ -354,10 +354,10 @@ fn layered_alone<T: Decide>(
             base = Some(here);
         }
     }
-    let (Some(base), Some(first)) = (base, pairs[0].read.as_ref()) else {
+    let Some(base) = base else {
         return Ok(None);
     };
-    Ok(first
+    Ok(reads[0]
         .rows
         .iter()
         .map(|&(he, _)| Some((he, layered(base, he, pairs.iter())?)))
@@ -1580,11 +1580,6 @@ mod tests {
         }
         let band = Band::linear(Tol::witness()).unwrap();
         let own = VertexKey::from(key(6));
-        let refused = |reads| BooleanError::VertexReadTwice {
-            operand: Operand::B,
-            vertex: own,
-            reads,
-        };
         let (pw, px) = (SectorRead::Pair(w), SectorRead::Pair(x));
         for (what, pairs, want) in [
             (
@@ -1605,24 +1600,39 @@ mod tests {
             (
                 "an arch beside a partner that reads nothing",
                 vec![read(w, None, true, &three), unread(x, None)],
-                Err(refused([px, pw])),
+                Err([px, pw]),
             ),
             (
                 "a partner that reads nothing beside an arch",
                 vec![unread(x, None), read(w, None, true, &three)],
-                Err(refused([px, pw])),
+                Err([px, pw]),
             ),
             (
                 "two arches, each on fewer than two faces",
                 vec![read(w, None, true, &three), read(x, None, true, &three)],
-                Err(refused([px, pw])),
+                Err([px, pw]),
             ),
         ] {
-            assert_eq!(
-                format!("{:?}", pair_classes(Operand::B, own, &pairs, band)),
-                format!("{:?}", want),
-                "{what}"
-            );
+            let got = pair_classes(Operand::B, own, &pairs, band);
+            if let Err(e) = &got {
+                assert!(
+                    e.to_string()
+                        .contains("two corners of the other solid meet at one point"),
+                    "{what}: the refusal names its cause: {e}"
+                );
+            }
+            match (got, want) {
+                (Ok(got), Ok(want)) => assert_eq!(got, want, "{what}"),
+                (
+                    Err(BooleanError::VertexReadTwice {
+                        operand: Operand::B,
+                        vertex,
+                        reads,
+                    }),
+                    Err(want),
+                ) if vertex == own => assert_eq!(reads, want, "{what}"),
+                (got, want) => panic!("{what}: got {got:?}, want {want:?}"),
+            }
         }
     }
 
