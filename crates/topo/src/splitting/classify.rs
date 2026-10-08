@@ -526,7 +526,9 @@ pub(crate) fn conic_plane_candidates<T: Decide>(
         Ok(Sign::Zero) => return Err(ConicPlaneMeet::Parallel { offset: d0 }),
         Ok(Sign::Positive | Sign::Negative) => {}
         Err(diag) => {
-            return Err(ConicPlaneMeet::Roots(Err(ConicRootFault::PlaneParallel(diag))));
+            return Err(ConicPlaneMeet::Roots(Err(ConicRootFault::PlaneParallel(
+                diag,
+            ))));
         }
     }
     // 1. Does the sinusoid reach zero at all — and how many roots?

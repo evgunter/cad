@@ -2110,7 +2110,10 @@ fn boundary_crossings<T: Decide>(
         }),
     };
     let Some(face) = body.get_face(f.key) else {
-        refused(CrossRefusal::Unsupported(ContainError::StaleFace(f.key)), errors);
+        refused(
+            CrossRefusal::Unsupported(ContainError::StaleFace(f.key)),
+            errors,
+        );
         return None;
     };
     let mut cuts = Vec::new();
@@ -10491,8 +10494,13 @@ mod tests {
                 .find(|f| f.boundary.len() == 2)
                 .expect("the spiric cap")
                 .key;
-            let lp = carrier_loop(&body, body.get_face(cap).unwrap().outer, EF_CROSS_ROWS, band())
-                .unwrap_or_else(|_| panic!("the cap's loop reads"));
+            let lp = carrier_loop(
+                &body,
+                body.get_face(cap).unwrap().outer,
+                EF_CROSS_ROWS,
+                band(),
+            )
+            .unwrap_or_else(|_| panic!("the cap's loop reads"));
             let arc = lp
                 .edges
                 .iter()
@@ -10517,7 +10525,10 @@ mod tests {
                     arc.clears_segment(p - across, p + across, EF_CROSS_REACH, band())
                 })
                 .collect();
-            assert!(cleared.is_empty(), "segments through the arc cleared at v = {cleared:?}");
+            assert!(
+                cleared.is_empty(),
+                "segments through the arc cleared at v = {cleared:?}"
+            );
         }
 
         /// A planar cap bounded by one ellipse arc `(t0, t1)` of
