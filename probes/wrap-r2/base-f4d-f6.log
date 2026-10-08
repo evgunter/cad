@@ -1,0 +1,49 @@
+
+running 2 tests
+
+thread 'wrap_r2_probes::r2_f4d_in_face_conic_supported_lanes' (11559) panicked at crates/sweep/src/test_support.rs:318:10:
+called `Result::unwrap()` on an `Err` value: UndeclaredTangency { first: SegmentRef { loop_index: 0, segment_index: 1 }, second: SegmentRef { loop_index: 0, segment_index: 2 }, joint: 2, suggestion: "declare the coincidence, or move the geometry (declare: add 2 to loop 0's tangent_joints, or author the corner with the PATHS .fillet(r) door, which declares by construction)" }
+stack backtrace:
+R2 F6 touching seam beta=60 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=60 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=60 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=60 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=60 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=60 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::result::unwrap_failed
+   3: sweep::test_support::revolved_about_y_at::<f64>
+   4: sweep::test_support::revolved_about_y
+   5: all::wrap_r2_probes::r2_f4d_in_face_conic_supported_lanes
+   6: <all::wrap_r2_probes::r2_f4d_in_face_conic_supported_lanes::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+R2 F6 touching seam beta=30 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=30 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=30 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=30 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=30 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=30 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=-45 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=-45 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=-45 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=-45 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=-45 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=-45 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 control inward AuB | OK SOUND t2=true t3p=true cert=true operand=true v=512.776104285 want=512.776104285 | mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "props_meridian_great" } }
+R2 F6 control inward BuA | OK SOUND t2=true t3p=true cert=true operand=true v=512.776104285 want=512.776104285 | mesh=ERR UnsupportedCurvedShape { face: FaceKey(8v3), source: NotIsoRectangle { what: "props_meridian_great" } }
+R2 F6 control inward AnB | OK SOUND t2=true t3p=true cert=true operand=true v=3.412685920 want=3.412685920 | mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "props_meridian_great" } }
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test wrap_r2_probes::r2_f4d_in_face_conic_supported_lanes ... FAILED
+R2 F6 control inward BnA | OK SOUND t2=true t3p=true cert=true operand=true v=3.412685920 want=3.412685920 | mesh=ERR UnsupportedCurvedShape { face: FaceKey(6v3), source: NotIsoRectangle { what: "props_meridian_great" } }
+R2 F6 control inward A-B | OK SOUND t2=true t3p=true cert=true operand=true v=0.776104285 want=0.776104285 | mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "props_meridian_great" } }
+R2 F6 control inward B-A | OK SOUND t2=true t3p=true cert=true operand=true v=508.587314080 want=508.587314080 | mesh=ERR UnsupportedCurvedShape { face: FaceKey(8v3), source: NotIsoRectangle { what: "props_meridian_great" } }
+test wrap_r2_probes::r2_f6_a_circle_touching_the_seam ... ok
+
+failures:
+
+failures:
+    wrap_r2_probes::r2_f4d_in_face_conic_supported_lanes
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 2533 filtered out; finished in 0.13s
+
+EXIT

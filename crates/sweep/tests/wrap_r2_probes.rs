@@ -419,3 +419,188 @@ fn r2_d_steep() {
         detail(&format!("steep one-seg short tilt-y{deg} AuB"), topo::union(&a, &b, tol()));
     }
 }
+
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn r2_f6_a_circle_touching_the_seam() {
+    // A y-poled unit ball's seam meridian is the half great circle
+    // z = 0, x > 0. The plane through P = (1, 0, 0) with normal
+    // (cos β, 0, sin β) holds the meridian's tangent there, so its circle
+    // touches the seam at P without crossing it: one site, not transverse.
+    for bdeg in [60.0f64, 30.0, -45.0] {
+        let b = bdeg.to_radians();
+        let n = Vec3::new(b.cos(), 0.0, b.sin());
+        let axis = Vec3::new(0.0, 0.0, 1.0).cross(n).normalize();
+        let turn = Affine3::rotation_about_axis(Point3::origin(), axis, n.z.acos());
+        let d = b.cos();
+        let h = 1.0 - d;
+        let cap = PI * h * h * (3.0 - h) / 3.0;
+        let ball = ball_poled_y(1.0, Vec3::new(0.0, 0.0, 0.0), tol());
+        every_op(&format!("F6 touching seam beta={bdeg}"), ball, below(Point3::new(1.0, 0.0, 0.0), turn), (4.0 * PI / 3.0, 512.0, 4.0 * PI / 3.0 - cap));
+    }
+    // Control: the same plane moved 0.05 inward, crossing the seam twice.
+    let b = 60f64.to_radians();
+    let n = Vec3::new(b.cos(), 0.0, b.sin());
+    let axis = Vec3::new(0.0, 0.0, 1.0).cross(n).normalize();
+    let turn = Affine3::rotation_about_axis(Point3::origin(), axis, n.z.acos());
+    let d = b.cos() - 0.05;
+    let h = 1.0 - d;
+    let cap = PI * h * h * (3.0 - h) / 3.0;
+    let at = Point3::new(0.0, 0.0, 0.0) + n * d;
+    every_op("F6 control inward", ball_poled_y(1.0, Vec3::new(0.0, 0.0, 0.0), tol()), below(at, turn), (4.0 * PI / 3.0, 512.0, 4.0 * PI / 3.0 - cap));
+}
+
+/// The half-space below the plane through `at`, as a box `2w` wide.
+fn below_w(at: Point3<f64>, turn: Affine3<f64>, w: f64) -> Body<f64> {
+    let raw = brick((-w, w), (-w, w), (-8.0, 0.0), tol());
+    let to = Affine3::translation(at - Point3::origin());
+    topo::transform_rigid(&raw, &(to * turn), tol()).unwrap()
+}
+
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn r2_f1s_steep_planes_wide_box() {
+    // The plane meets the wrap edge at 90° − θ: shallow for steep θ.
+    // The box is wide enough that only its top face reaches the wall.
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let w = 60.0;
+    for (deg, az) in [(78.0f64, 0.0), (80.0, 0.0), (85.0, 0.0), (88.0, 0.0), (85.0, PI), (85.0, PI / 2.0)] {
+        let t = deg.to_radians().tan();
+        assert!(1.0 / deg.to_radians().cos() < w - 2.0);
+        let h = 2.0 * t + 2.0;
+        let turn = Affine3::rotation_about_axis(Point3::origin(), y, deg.to_radians());
+        let vb = 4.0 * w * w * 8.0;
+        every_op(
+            &format!("F1s tilt-y {deg}deg az={az:.2}"),
+            seam_cyl(1.0, (0.0, 0.0), 0.0, h, az),
+            below_w(Point3::new(0.0, 0.0, h / 2.0), turn, w),
+            (PI * h, vb, PI * h / 2.0),
+        );
+    }
+}
+
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn r2_f7_nested_tubes_control() {
+    // Two coaxial full-revolve tubes, one nested in the other's bore and
+    // touching nothing: their union is two lumps with full-turn walls
+    // within reach, reached on base with no one-site loop.
+    let inner = fin("i", tube(0.1, 0.3));
+    let outer = fin("o", tube(0.5, 0.7));
+    line("F7 nested tubes AuB", topo::union(&outer, &inner, tol()), 0.64 * PI);
+    detail("F7 nested tubes AuB", topo::union(&outer, &inner, tol()));
+}
+
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn r2_f1s_control_two_arc() {
+    // F1s with the two-arc cylinder (two walls, no wrap edge; its two
+    // seams at azimuths 0 and π), the same plane and box.
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let w = 60.0;
+    for deg in [85.0f64, 88.0] {
+        let t = deg.to_radians().tan();
+        let h = 2.0 * t + 2.0;
+        let turn = Affine3::rotation_about_axis(Point3::origin(), y, deg.to_radians());
+        let vb = 4.0 * w * w * 8.0;
+        every_op(
+            &format!("F1s-ctl two-arc tilt-y {deg}deg"),
+            two_arc_cyl(1.0, 0.0, h),
+            below_w(Point3::new(0.0, 0.0, h / 2.0), turn, w),
+            (PI * h, vb, PI * h / 2.0),
+        );
+    }
+}
+
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn r2_d_mesh() {
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let w = 60.0;
+    for deg in [80.0f64, 85.0, 88.0] {
+        let t = deg.to_radians().tan();
+        let h = 2.0 * t + 2.0;
+        let op = seam_cyl(1.0, (0.0, 0.0), 0.0, h, 0.0);
+        for chordal in [2e-2, 5e-3, 1e-3] {
+            let m = mesh::tessellate(&op, chordal, tol()).map(|m| mesh::validate::check_mesh(&m));
+            println!("M2 operand h={h:.1} chordal={chordal} -> {m:?}");
+        }
+        let turn = Affine3::rotation_about_axis(Point3::origin(), y, deg.to_radians());
+        let a = fin("A", op);
+        let b = fin("B", below_w(Point3::new(0.0, 0.0, h / 2.0), turn, w));
+        let r = topo::intersect(&a, &b, tol()).unwrap();
+        let body = &r.body().unwrap().body;
+        for chordal in [2e-2, 5e-3, 1e-3] {
+            let m = mesh::tessellate(body, chordal, tol()).map(|m| mesh::validate::check_mesh(&m));
+            println!("M2 AnB tilt-y {deg} chordal={chordal} -> {m:?}");
+        }
+        // The two-arc result at the same chordal ladder.
+        let a2 = fin("A2", two_arc_cyl(1.0, 0.0, h));
+        let r2 = topo::intersect(&a2, &b, tol()).unwrap();
+        let body2 = &r2.body().unwrap().body;
+        for chordal in [2e-2, 5e-3, 1e-3] {
+            let m = mesh::tessellate(body2, chordal, tol()).map(|m| mesh::validate::check_mesh(&m));
+            println!("M2 two-arc AnB tilt-y {deg} chordal={chordal} -> {m:?}");
+        }
+    }
+}
+
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn r2_d_mesh_split_control() {
+    // The split lane builds the same one-face wall pieces on base
+    // (`d9244fd60`): split the one-segment cylinder by the steep plane.
+    for deg in [85.0f64, 88.0] {
+        let th = deg.to_radians();
+        let t = th.tan();
+        let h = 2.0 * t + 2.0;
+        let n = Vec3::new(th.sin(), 0.0, th.cos());
+        let plane = topo::test_support::split_plane(Point3::new(0.0, 0.0, h / 2.0), n, tol());
+        let op = fin("op", seam_cyl(1.0, (0.0, 0.0), 0.0, h, 0.0));
+        match topo::split(&op, &plane, tol()) {
+            Err(e) => println!("M3 split {deg}: refused {e:?}"),
+            Ok(r) => {
+                for (side, part) in [("below", &r.below), ("above", &r.above)] {
+                    let Some(b) = part.body() else { continue };
+                    for chordal in [2e-2, 5e-3] {
+                        let m = mesh::tessellate(b, chordal, tol()).map(|m| mesh::validate::check_mesh(&m));
+                        println!("M3 split {deg} {side} chordal={chordal} -> {m:?}");
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "review probe; run with --ignored --nocapture"]
+fn r2_f4d_in_face_conic_supported_lanes() {
+    // A bored tube whose outer wall turns from the cylinder ρ = 0.5
+    // (y ≤ 0) to the sphere |p| = 0.5 (y ≥ 0) on the circle y = 0,
+    // tangent-continuous; its inner wall ρ = 0.3 crosses y = 0 across
+    // its seam. The box face y = 0 holds that circle edge: the parked
+    // parent row's in-face conic, beside a transverse wrap crossing.
+    // Sphere about (0, −0.2) through (0.5, 0): it meets the wall at an
+    // angle there (no tangent joint), and the bore ρ = 0.3 at y = ytop.
+    let r2: f64 = 0.29;
+    let ytop = (r2 - 0.09f64).sqrt() - 0.2;
+    let (a0, a1) = (0.2f64.atan2(0.5), (ytop + 0.2).atan2(0.3));
+    let bulge = ((a1 - a0) / 4.0).tan();
+    let tube = revolved_about_y(
+        vec![
+            (Point2::new(0.3, -0.5), 0.0),
+            (Point2::new(0.5, -0.5), 0.0),
+            (Point2::new(0.5, 0.0), bulge),
+            (Point2::new(0.3, ytop), 0.0),
+        ],
+        Revolution::Full,
+        tol(),
+    );
+    let up = PI * ((r2 - 0.09) * ytop - ((ytop + 0.2).powi(3) - 0.008) / 3.0);
+    let tv = 0.08 * PI + up;
+    for (y0, y1) in [(0.0, 2.0), (-2.0, 0.0)] {
+        let block = brick((-1.5, 1.5), (y0, y1), (-1.5, 1.5), tol());
+        let ov = if y0 == 0.0 { up } else { 0.08 * PI };
+        every_op(&format!("F4d in-face circle box y=[{y0},{y1}]"), tube.clone(), block, (tv, 9.0 * (y1 - y0), ov));
+    }
+}

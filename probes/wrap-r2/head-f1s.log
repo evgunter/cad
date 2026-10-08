@@ -1,0 +1,36 @@
+R2 F1s tilt-y 78deg az=0.00 AuB | OK BAD t2=true t3p=true cert=true operand=false v=115217.921624037 want=115217.921624043 | mesh=ok
+R2 F1s tilt-y 78deg az=0.00 BuA | OK BAD t2=true t3p=true cert=true operand=false v=115217.921624037 want=115217.921624043 | mesh=ok
+R2 F1s tilt-y 78deg az=0.00 AnB | OK BAD t2=true t3p=true cert=true operand=false v=17.921624050 want=17.921624043 | mesh=ok
+R2 F1s tilt-y 78deg az=0.00 BnA | OK BAD t2=true t3p=true cert=true operand=false v=17.921624050 want=17.921624043 | mesh=ok
+R2 F1s tilt-y 78deg az=0.00 A-B | OK BAD t2=true t3p=true cert=true operand=false v=17.921624037 want=17.921624043 | mesh=ok
+R2 F1s tilt-y 78deg az=0.00 B-A | OK BAD t2=true t3p=true cert=true operand=false v=115182.078375950 want=115182.078375957 | mesh=ok
+R2 F1s tilt-y 80deg az=0.00 AuB | OK BAD t2=true t3p=true cert=true operand=false v=115220.958449946 want=115220.958449955 | mesh=ok
+R2 F1s tilt-y 80deg az=0.00 BuA | OK BAD t2=true t3p=true cert=true operand=false v=115220.958449946 want=115220.958449955 | mesh=ok
+R2 F1s tilt-y 80deg az=0.00 AnB | OK BAD t2=true t3p=true cert=true operand=false v=20.958449963 want=20.958449955 | mesh=ok
+R2 F1s tilt-y 80deg az=0.00 BnA | OK BAD t2=true t3p=true cert=true operand=false v=20.958449963 want=20.958449955 | mesh=ok
+R2 F1s tilt-y 80deg az=0.00 A-B | OK BAD t2=true t3p=true cert=true operand=false v=20.958449946 want=20.958449955 | mesh=ok
+R2 F1s tilt-y 80deg az=0.00 B-A | OK BAD t2=true t3p=true cert=true operand=false v=115179.041550037 want=115179.041550045 | mesh=ok
+R2 F1s tilt-y 85deg az=0.00 AuB | OK BAD t2=true t3p=true cert=true operand=false v=115239.050160980 want=115239.050160998 | mesh=ok
+R2 F1s tilt-y 85deg az=0.00 BuA | OK BAD t2=true t3p=true cert=true operand=false v=115239.050160980 want=115239.050160998 | mesh=ok
+R2 F1s tilt-y 85deg az=0.00 AnB | OK BAD t2=true t3p=true cert=true operand=false v=39.050161016 want=39.050160998 | mesh=BAD NonManifoldEdge { edge: (906, 911), count: 4 }
+R2 F1s tilt-y 85deg az=0.00 BnA | OK BAD t2=true t3p=true cert=true operand=false v=39.050161016 want=39.050160998 | mesh=BAD NonManifoldEdge { edge: (862, 867), count: 4 }
+R2 F1s tilt-y 85deg az=0.00 A-B | OK BAD t2=true t3p=true cert=true operand=false v=39.050160980 want=39.050160998 | mesh=ok
+R2 F1s tilt-y 85deg az=0.00 B-A | OK BAD t2=true t3p=true cert=true operand=false v=115160.949838984 want=115160.949839002 | mesh=ok
+R2 F1s tilt-y 88deg az=0.00 AuB | OK BAD t2=true t3p=true cert=true operand=false v=115293.105035548 want=115293.105035594 | mesh=ok
+R2 F1s tilt-y 88deg az=0.00 BuA | OK BAD t2=true t3p=true cert=true operand=false v=115293.105035548 want=115293.105035594 | mesh=ok
+R2 F1s tilt-y 88deg az=0.00 AnB | OK BAD t2=true t3p=true cert=true operand=false v=93.105035639 want=93.105035594 | mesh=BAD NonManifoldEdge { edge: (3376, 3529), count: 4 }
+R2 F1s tilt-y 88deg az=0.00 BnA | OK BAD t2=true t3p=true cert=true operand=false v=93.105035639 want=93.105035594 | mesh=BAD NonManifoldEdge { edge: (3332, 3485), count: 4 }
+R2 F1s tilt-y 88deg az=0.00 A-B | OK BAD t2=true t3p=true cert=true operand=false v=93.105035548 want=93.105035594 | mesh=ok
+R2 F1s tilt-y 88deg az=0.00 B-A | OK BAD t2=true t3p=true cert=true operand=false v=115106.894964361 want=115106.894964406 | mesh=ok
+R2 F1s tilt-y 85deg az=3.14 AuB | OK BAD t2=true t3p=true cert=true operand=false v=115239.050161016 want=115239.050160998 | mesh=ok
+R2 F1s tilt-y 85deg az=3.14 BuA | OK BAD t2=true t3p=true cert=true operand=false v=115239.050161016 want=115239.050160998 | mesh=ok
+R2 F1s tilt-y 85deg az=3.14 AnB | OK BAD t2=true t3p=true cert=true operand=false v=39.050160980 want=39.050160998 | mesh=ok
+R2 F1s tilt-y 85deg az=3.14 BnA | OK BAD t2=true t3p=true cert=true operand=false v=39.050160980 want=39.050160998 | mesh=ok
+R2 F1s tilt-y 85deg az=3.14 A-B | OK BAD t2=true t3p=true cert=true operand=false v=39.050161016 want=39.050160998 | mesh=BAD NonManifoldEdge { edge: (906, 911), count: 4 }
+R2 F1s tilt-y 85deg az=3.14 B-A | OK BAD t2=true t3p=true cert=true operand=false v=115160.949839020 want=115160.949839002 | mesh=ok
+R2 F1s tilt-y 85deg az=1.57 AuB | OK BAD t2=true t3p=true cert=true operand=false v=115239.050160998 want=115239.050160998 | mesh=ok
+R2 F1s tilt-y 85deg az=1.57 BuA | OK BAD t2=true t3p=true cert=true operand=false v=115239.050160998 want=115239.050160998 | mesh=ok
+R2 F1s tilt-y 85deg az=1.57 AnB | OK BAD t2=true t3p=true cert=true operand=false v=39.050160998 want=39.050160998 | mesh=ok
+R2 F1s tilt-y 85deg az=1.57 BnA | OK BAD t2=true t3p=true cert=true operand=false v=39.050160998 want=39.050160998 | mesh=ok
+R2 F1s tilt-y 85deg az=1.57 A-B | OK BAD t2=true t3p=true cert=true operand=false v=39.050160998 want=39.050160998 | mesh=ok
+R2 F1s tilt-y 85deg az=1.57 B-A | OK BAD t2=true t3p=true cert=true operand=false v=115160.949839002 want=115160.949839002 | mesh=ok

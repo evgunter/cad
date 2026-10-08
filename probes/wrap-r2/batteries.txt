@@ -1,0 +1,7 @@
+pinch base=3030 head=3030
+corner base=16387 head=16387
+rcw0 base=486 head=486
+rcw41 base=486 head=486
+rcw83 base=486 head=486
+pocket base=4404 head=4404
+mods base=80 head=79

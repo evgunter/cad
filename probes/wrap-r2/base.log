@@ -1,0 +1,351 @@
+
+running 6 tests
+R2 F1v tangent-at-vertex AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1v tangent-at-vertex BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1v tangent-at-vertex AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(0.0, 0.0) az=0 z=0.3 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1v tangent-at-vertex BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1v tangent-at-vertex A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1v tangent-at-vertex B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(0.0, 0.0) az=0 z=0.3 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(0.0, 0.0) az=0 z=0.3 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(0.0, 0.0) az=0 z=0.3 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(0.0, 0.0) az=0 z=0.3 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(0.0, 0.0) az=0 z=0.3 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(0.7, -0.4) az=2 z=1.7 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(0.7, -0.4) az=2 z=1.7 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(0.7, -0.4) az=2 z=1.7 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(0.7, -0.4) az=2 z=1.7 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(0.7, -0.4) az=2 z=1.7 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(0.7, -0.4) az=2 z=1.7 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(-1.1, 0.9) az=4 z=1 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(-1.1, 0.9) az=4 z=1 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(-1.1, 0.9) az=4 z=1 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(-1.1, 0.9) az=4 z=1 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(-1.1, 0.9) az=4 z=1 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(-1.1, 0.9) az=4 z=1 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 0.05deg AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 0.05deg BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 0.05deg AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 0.05deg BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 0.05deg A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 0.05deg B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 1deg AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 1deg BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 1deg AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 1deg BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 1deg A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 1deg B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 10deg AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 10deg BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 10deg AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 10deg BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 10deg A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 10deg B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 30deg AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 30deg BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 30deg AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 30deg BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 30deg A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 30deg B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 44deg AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 44deg BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 44deg AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 44deg BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 44deg A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-x 44deg B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 0.5deg AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 0.5deg BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 0.5deg AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 0.5deg BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 0.5deg A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 0.5deg B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 30deg AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 30deg BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 30deg AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 30deg BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 30deg A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 30deg B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 60deg AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 60deg BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 60deg AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 60deg BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 60deg A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 60deg B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 tilt-y 80deg AuB | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | mesh=-
+R2 F1 tilt-y 80deg BuA | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(8 | mesh=-
+R2 F1v through-vertex k=0.3 AuB | OK BAD t2=true t3p=true cert=true operand=false v=516.709069318 want=516.709069319 | mesh=ok
+R2 F1 tilt-y 80deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=12.760227138 want=20.958449955 | mesh=ok
+R2 F1v through-vertex k=0.3 BuA | OK BAD t2=true t3p=true cert=true operand=false v=516.709069318 want=516.709069319 | mesh=ok
+R2 F1v through-vertex k=0.3 AnB | OK BAD t2=true t3p=true cert=true operand=false v=1.574115989 want=1.574115988 | mesh=ok
+R2 F1 tilt-y 80deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=12.760227138 want=20.958449955 | mesh=ok
+R2 F1 tilt-y 80deg A-B | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | mesh=-
+R2 F1v through-vertex k=0.3 BnA | OK BAD t2=true t3p=true cert=true operand=false v=1.574115989 want=1.574115988 | mesh=ok
+R2 F1 tilt-y 80deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=499.239772862 want=491.041550045 | mesh=ok
+R2 F1 tilt-y 85deg AuB | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | mesh=-
+R2 F1 tilt-y 85deg BuA | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(8 | mesh=-
+R2 F1v through-vertex k=0.3 A-B | OK BAD t2=true t3p=true cert=true operand=false v=4.709069318 want=4.709069319 | mesh=ok
+R2 F1 tilt-y 85deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=12.614372110 want=39.050160998 | mesh=ok
+R2 F1v through-vertex k=0.3 B-A | OK BAD t2=true t3p=true cert=true operand=false v=510.425884011 want=510.425884012 | mesh=ok
+R2 F1 tilt-y 85deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=12.614372110 want=39.050160998 | mesh=ok
+R2 F1v through-vertex k=0.8 AuB | ERR VolumeUnmeasured { operand: None, source: Face { face: FaceKey(6v1), source: Escalated { cause: Indeterminate  | mesh=-
+R2 F1 tilt-y 85deg A-B | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | mesh=-
+R2 F1v through-vertex k=0.8 BuA | OK BAD t2=true t3p=true cert=true operand=false v=516.610247785 want=516.610247786 | mesh=ok
+R2 F1 tilt-y 85deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=499.385627890 want=472.949839002 | mesh=ok
+R2 F1 tilt-y 88deg AuB | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | mesh=-
+R2 F1 tilt-y 88deg BuA | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(8 | mesh=-
+R2 F1v through-vertex k=0.8 AnB | OK BAD t2=true t3p=true cert=true operand=false v=1.672937522 want=1.672937521 | mesh=ok
+R2 F1 tilt-y 88deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=12.574030375 want=93.105035594 | mesh=ok
+R2 F1v through-vertex k=0.8 BnA | OK BAD t2=true t3p=true cert=true operand=false v=1.672937522 want=1.672937521 | mesh=ok
+R2 F1v through-vertex k=0.8 A-B | ERR VolumeUnmeasured { operand: None, source: Face { face: FaceKey(6v1), source: Escalated { cause: Indeterminate  | mesh=-
+R2 F1 tilt-y 88deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=12.574030375 want=93.105035594 | mesh=ok
+R2 F1 tilt-y 88deg A-B | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | mesh=-
+R2 F1v through-vertex k=0.8 B-A | OK BAD t2=true t3p=true cert=true operand=false v=510.327062478 want=510.327062479 | mesh=ok
+test wrap_r2_probes::r2_f1v_planes_through_the_wrap_edges_end_vertex ... ok
+R2 F2 tube r=[0.3,0.5] y=[0,1] AuB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.3,0.5] y=[0,1] BuA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.3,0.5] y=[0,1] AnB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.3,0.5] y=[0,1] BnA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.3,0.5] y=[0,1] A-B | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.3,0.5] y=[0,1] B-A | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.3,0.5] y=[-0.2,0.3] AuB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.3,0.5] y=[-0.2,0.3] BuA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.3,0.5] y=[-0.2,0.3] AnB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.3,0.5] y=[-0.2,0.3] BnA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.3,0.5] y=[-0.2,0.3] A-B | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.3,0.5] y=[-0.2,0.3] B-A | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.05,0.1] y=[0,1] AuB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.05,0.1] y=[0,1] BuA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.05,0.1] y=[0,1] AnB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.05,0.1] y=[0,1] BnA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.05,0.1] y=[0,1] A-B | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.05,0.1] y=[0,1] B-A | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.05,0.1] y=[-0.2,0.3] AuB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.05,0.1] y=[-0.2,0.3] BuA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.05,0.1] y=[-0.2,0.3] AnB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.05,0.1] y=[-0.2,0.3] BnA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.05,0.1] y=[-0.2,0.3] A-B | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.05,0.1] y=[-0.2,0.3] B-A | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.9,1.2] y=[0,1] AuB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.9,1.2] y=[0,1] BuA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.9,1.2] y=[0,1] AnB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.9,1.2] y=[0,1] BnA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.9,1.2] y=[0,1] A-B | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.9,1.2] y=[0,1] B-A | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.9,1.2] y=[-0.2,0.3] AuB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.9,1.2] y=[-0.2,0.3] BuA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.9,1.2] y=[-0.2,0.3] AnB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.9,1.2] y=[-0.2,0.3] BnA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.9,1.2] y=[-0.2,0.3] A-B | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.9,1.2] y=[-0.2,0.3] B-A | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.45,0.5] y=[0,1] AuB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.45,0.5] y=[0,1] BuA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.45,0.5] y=[0,1] AnB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.45,0.5] y=[0,1] BnA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.45,0.5] y=[0,1] A-B | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.45,0.5] y=[0,1] B-A | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.45,0.5] y=[-0.2,0.3] AuB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.45,0.5] y=[-0.2,0.3] BuA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.45,0.5] y=[-0.2,0.3] AnB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.45,0.5] y=[-0.2,0.3] BnA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.45,0.5] y=[-0.2,0.3] A-B | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube r=[0.45,0.5] y=[-0.2,0.3] B-A | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube off-centre AuB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube off-centre BuA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube off-centre AnB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube off-centre BnA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube off-centre A-B | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube off-centre B-A | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-z 3deg AuB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-z 3deg BuA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-z 3deg AnB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-z 3deg BnA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-z 3deg A-B | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-z 3deg B-A | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-z 15deg AuB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-z 15deg BuA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-z 15deg AnB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-z 15deg BnA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-z 15deg A-B | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-z 15deg B-A | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-x 3deg AuB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-x 3deg BuA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F1 tilt-y 88deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=499.425969625 want=418.894964406 | mesh=ok
+R2 F2 tube slab-turned-x 3deg AnB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-x 3deg BnA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F1 axis0 tilt15 r=0.37 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F2 tube slab-turned-x 3deg A-B | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F1 axis0 tilt15 r=0.37 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis0 tilt15 r=0.37 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis0 tilt15 r=0.37 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F2 tube slab-turned-x 3deg B-A | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F1 axis0 tilt15 r=0.37 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis0 tilt15 r=0.37 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis0 tilt60 r=0.37 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis0 tilt60 r=0.37 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis0 tilt60 r=0.37 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F2 tube slab-turned-x 15deg AuB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F1 axis0 tilt60 r=0.37 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis0 tilt60 r=0.37 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis0 tilt60 r=0.37 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F2 tube slab-turned-x 15deg BuA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-x 15deg AnB | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F2 tube slab-turned-x 15deg BnA | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F1 axis45 tilt15 r=0.57 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis45 tilt15 r=0.57 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F2 tube slab-turned-x 15deg A-B | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F1 axis45 tilt15 r=0.57 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis45 tilt15 r=0.57 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F2 tube slab-turned-x 15deg B-A | ERR Join(SingleSiteSectionLoop { count: 4 }) | mesh=-
+R2 F1 axis45 tilt15 r=0.57 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+test wrap_r2_probes::r2_f2_tubes_under_boxes ... ok
+R2 F1 axis45 tilt15 r=0.57 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis45 tilt60 r=0.57 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis45 tilt60 r=0.57 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis45 tilt60 r=0.57 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis45 tilt60 r=0.57 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis45 tilt60 r=0.57 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis45 tilt60 r=0.57 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis90 tilt15 r=0.77 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis90 tilt15 r=0.77 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+
+thread 'wrap_r2_probes::r2_f3_rings_in_the_pierced_face' (6810) panicked at crates/sweep/tests/wrap_r2_probes.rs:233:74:
+called `Result::unwrap()` on an `Err` value: Join(SingleSiteSectionLoop { count: 2 })
+stack backtrace:
+R2 F1 axis90 tilt15 r=0.77 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis90 tilt15 r=0.77 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis90 tilt15 r=0.77 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis90 tilt15 r=0.77 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis90 tilt60 r=0.77 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis90 tilt60 r=0.77 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis90 tilt60 r=0.77 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis90 tilt60 r=0.77 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis90 tilt60 r=0.77 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis90 tilt60 r=0.77 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis135 tilt15 r=0.97 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis135 tilt15 r=0.97 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis135 tilt15 r=0.97 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis135 tilt15 r=0.97 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis135 tilt15 r=0.97 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis135 tilt15 r=0.97 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis135 tilt60 r=0.97 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis135 tilt60 r=0.97 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis135 tilt60 r=0.97 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis135 tilt60 r=0.97 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis135 tilt60 r=0.97 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::result::unwrap_failed
+   3: all::wrap_r2_probes::r2_f3_rings_in_the_pierced_face
+   4: <all::wrap_r2_probes::r2_f3_rings_in_the_pierced_faceR2 F1 axis135 tilt60 r=0.97 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+R2 F1 axis200 tilt15 r=1.17 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis200 tilt15 r=1.17 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis200 tilt15 r=1.17 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis200 tilt15 r=1.17 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis200 tilt15 r=1.17 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis200 tilt15 r=1.17 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis200 tilt60 r=1.17 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis200 tilt60 r=1.17 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis200 tilt60 r=1.17 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis200 tilt60 r=1.17 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis200 tilt60 r=1.17 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 axis200 tilt60 r=1.17 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.01 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.01 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.01 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.01 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.01 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.01 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.0001 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.0001 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.0001 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.0001 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.0001 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.0001 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.000001 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.000001 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.000001 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.000001 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.000001 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 near-end c=0.000001 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+test wrap_r2_probes::r2_f1_planes_across_a_one_segment_cylinder ... ok
+R2 F4a torus y>=0.2 az=0.00 AuB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=0.2 az=0.00 BuA | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=0.2 az=0.00 AnB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=0.2 az=0.00 BnA | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=0.2 az=0.00 A-B | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=0.2 az=0.00 B-A | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=-0.1 az=0.00 AuB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=-0.1 az=0.00 BuA | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=-0.1 az=0.00 AnB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=-0.1 az=0.00 BnA | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=-0.1 az=0.00 A-B | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=-0.1 az=0.00 B-A | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=0.2 az=1.57 AuB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=0.2 az=1.57 BuA | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=0.2 az=1.57 AnB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=0.2 az=1.57 BnA | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=0.2 az=1.57 A-B | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=0.2 az=1.57 B-A | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4b in-face conic AuB | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F4b in-face conic BuA | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F4b in-face conic AnB | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F4b in-face conic BnA | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F4b in-face conic A-B | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F4b in-face conic B-A | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F4c cap in face (touch) AuB | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (touch) BuA | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (touch) AnB | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (touch) BnA | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (touch) A-B | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (touch) B-A | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (flush top) AuB | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (flush top) BuA | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (flush top) AnB | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (flush top) BnA | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (flush top) A-B | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (flush top) B-A | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+test wrap_r2_probes::r2_f4_gate_probes ... ok
+R2 F5 cone-tube cyl-az=0 AuB | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F5 cone-tube cyl-az=0 BuA | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F5 cone-tube cyl-az=0 AnB | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F5 cone-tube cyl-az=0 BnA | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F5 cone-tube cyl-az=0 A-B | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F5 cone-tube cyl-az=0 B-A | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F5 cone-tube cyl-az=1.3 AuB | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F5 cone-tube cyl-az=1.3 BuA | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F5 cone-tube cyl-az=1.3 AnB | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F5 cone-tube cyl-az=1.3 BnA | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F5 cone-tube cyl-az=1.3 A-B | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F5 cone-tube cyl-az=1.3 B-A | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F5 cone-tube cyl-az=-0.000001 AuB | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F5 cone-tube cyl-az=-0.000001 BuA | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F5 cone-tube cyl-az=-0.000001 AnB | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F5 cone-tube cyl-az=-0.000001 BnA | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F5 cone-tube cyl-az=-0.000001 A-B | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F5 cone-tube cyl-az=-0.000001 B-A | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F5 ball cyl-az=0 AuB | ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(2v1), b_kind: Cylinder } | mesh=-
+R2 F5 ball cyl-az=0 BuA | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Cylinder, b_face: FaceKey(1v1), b_kind: Sphere } | mesh=-
+R2 F5 ball cyl-az=0 AnB | ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(2v1), b_kind: Cylinder } | mesh=-
+R2 F5 ball cyl-az=0 BnA | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Cylinder, b_face: FaceKey(1v1), b_kind: Sphere } | mesh=-
+R2 F5 ball cyl-az=0 A-B | ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(2v1), b_kind: Cylinder } | mesh=-
+R2 F5 ball cyl-az=0 B-A | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Cylinder, b_face: FaceKey(1v1), b_kind: Sphere } | mesh=-
+R2 F5 ball cyl-az=1.3 AuB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Sphere, b_face: FaceKey(2v1), b_kind: Cylinder } | mesh=-
+R2 F5 ball cyl-az=1.3 BuA | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere } | mesh=-
+R2 F5 ball cyl-az=1.3 AnB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Sphere, b_face: FaceKey(2v1), b_kind: Cylinder } | mesh=-
+R2 F5 ball cyl-az=1.3 BnA | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere } | mesh=-
+R2 F5 ball cyl-az=1.3 A-B | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Sphere, b_face: FaceKey(2v1), b_kind: Cylinder } | mesh=-
+R2 F5 ball cyl-az=1.3 B-A | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere } | mesh=-
+test wrap_r2_probes::r2_f5_curved_partners ... ok
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test wrap_r2_probes::r2_f3_rings_in_the_pierced_face ... FAILED
+
+failures:
+
+failures:
+    wrap_r2_probes::r2_f3_rings_in_the_pierced_face
+
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 2520 filtered out; finished in 0.42s
+
+EXIT 101

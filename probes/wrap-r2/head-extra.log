@@ -1,0 +1,98 @@
+D2 one-seg tilt0 AuB | t3p=None | far-union-err=None
+D2 one-seg tilt10 AnB | t3p=None | far-union-err=Some(Containment(VolumeUncertified))
+D2 one-seg tilt10 AuB | t3p=None | far-union-err=Some(Containment(VolumeUncertified))
+D2 one-seg slab AnB | t3p=None | far-union-err=None
+D2 two-arc tilt0 AnB | t3p=None | far-union-err=None
+D2 two-arc tilt0 AuB | t3p=None | far-union-err=None
+D2 two-arc tilt10 AnB | t3p=None | far-union-err=Some(Containment(VolumeUncertified))
+D2 two-arc tilt10 AuB | t3p=None | far-union-err=Some(Containment(VolumeUncertified))
+D2 two-arc slab AnB | t3p=None | far-union-err=None
+D2 tube B-A | t3p=Some([CensusUndecidable { a: Face(FaceKey(14v3)), b: Face(FaceKey(17v3)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(14v3)), b: Face(FaceKey(8v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(14v3)), b: Face(FaceKey(12v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(17v3)), b: Face(FaceKey(3v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(17v3)), b: Face(FaceKey(5v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(3v1)), b: Face(FaceKey(8v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(5v1)), b: Face(FaceKey(12v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(2v1)), what: "another finding left their boundaries unchecked, and this one cannot be decided until that is resolved. Recourse: resolve that finding first" }]) | far-union-err=None
+D2 two-arc annulus B-A | t3p=None | far-union-err=None
+D2 one-seg tilt-y60 AuB | t3p=None | far-union-err=Some(Containment(VolumeUncertified))
+D2 one-seg tilt-y60 AnB | t3p=None | far-union-err=Some(Containment(VolumeUncertified))
+D2 two-arc tilt-y60 AuB | t3p=None | far-union-err=Some(Containment(VolumeUncertified))
+D2 two-arc tilt-y60 AnB | t3p=None | far-union-err=Some(Containment(VolumeUncertified))
+D2 one-seg tilt-y80 AuB | refused Some(ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2v1) } }] })
+D2 one-seg tilt-y80 AnB | t3p=None | far-union-err=Some(Containment(VolumeUncertified))
+D2 two-arc tilt-y80 AuB | t3p=None | far-union-err=Some(Containment(VolumeUncertified))
+D2 two-arc tilt-y80 AnB | t3p=None | far-union-err=Some(Containment(VolumeUncertified))
+M2 operand h=13.3 chordal=0.005 -> Ok(Ok(()))
+M2 operand h=13.3 chordal=0.001 -> Ok(Ok(()))
+M2 AnB tilt-y 80 chordal=0.02 -> Ok(Ok(()))
+M2 AnB tilt-y 80 chordal=0.005 -> Ok(Ok(()))
+M2 AnB tilt-y 80 chordal=0.001 -> Ok(Ok(()))
+M2 two-arc AnB tilt-y 80 chordal=0.02 -> Ok(Ok(()))
+M2 two-arc AnB tilt-y 80 chordal=0.005 -> Ok(Ok(()))
+M2 two-arc AnB tilt-y 80 chordal=0.001 -> Ok(Ok(()))
+M2 operand h=24.9 chordal=0.02 -> Ok(Ok(()))
+M2 operand h=24.9 chordal=0.005 -> Ok(Ok(()))
+M2 operand h=24.9 chordal=0.001 -> Ok(Ok(()))
+M2 AnB tilt-y 85 chordal=0.02 -> Ok(Err(NonManifoldEdge { edge: (436, 474), count: 4 }))
+M2 AnB tilt-y 85 chordal=0.005 -> Ok(Err(NonManifoldEdge { edge: (906, 911), count: 4 }))
+M2 AnB tilt-y 85 chordal=0.001 -> Ok(Ok(()))
+M2 two-arc AnB tilt-y 85 chordal=0.02 -> Ok(Ok(()))
+M2 two-arc AnB tilt-y 85 chordal=0.005 -> Ok(Ok(()))
+M2 two-arc AnB tilt-y 85 chordal=0.001 -> Ok(Ok(()))
+M2 operand h=59.3 chordal=0.02 -> Ok(Ok(()))
+M2 operand h=59.3 chordal=0.005 -> Ok(Ok(()))
+M2 operand h=59.3 chordal=0.001 -> Ok(Ok(()))
+M2 AnB tilt-y 88 chordal=0.02 -> Ok(Err(NonManifoldEdge { edge: (1634, 1819), count: 4 }))
+M2 AnB tilt-y 88 chordal=0.005 -> Ok(Err(NonManifoldEdge { edge: (3376, 3529), count: 4 }))
+M2 AnB tilt-y 88 chordal=0.001 -> Ok(Ok(()))
+M2 two-arc AnB tilt-y 88 chordal=0.02 -> Ok(Ok(()))
+M2 two-arc AnB tilt-y 88 chordal=0.005 -> Ok(Ok(()))
+M2 two-arc AnB tilt-y 88 chordal=0.001 -> Ok(Ok(()))
+M3 split 85 below chordal=0.005 -> Ok(Err(NonManifoldEdge { edge: (906, 911), count: 4 }))
+M3 split 85 above chordal=0.02 -> Ok(Ok(()))
+M3 split 85 above chordal=0.005 -> Ok(Ok(()))
+M3 split 88 below chordal=0.02 -> Ok(Err(NonManifoldEdge { edge: (1634, 1819), count: 4 }))
+M3 split 88 below chordal=0.005 -> Ok(Err(NonManifoldEdge { edge: (3376, 3529), count: 4 }))
+M3 split 88 above chordal=0.02 -> Ok(Ok(()))
+M3 split 88 above chordal=0.005 -> Ok(Ok(()))
+R2 F1s-ctl two-arc tilt-y 85deg BuA | OK BAD t2=true t3p=true cert=true operand=false v=115239.050160958 want=115239.050160998 | mesh=ok
+R2 F1s-ctl two-arc tilt-y 85deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=39.050161016 want=39.050160998 | mesh=ok
+R2 F1s-ctl two-arc tilt-y 85deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=39.050161016 want=39.050160998 | mesh=ok
+R2 F1s-ctl two-arc tilt-y 85deg A-B | OK BAD t2=true t3p=true cert=true operand=false v=39.050160980 want=39.050160998 | mesh=ok
+R2 F1s-ctl two-arc tilt-y 85deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=115160.949838962 want=115160.949839002 | mesh=ok
+R2 F1s-ctl two-arc tilt-y 88deg AuB | OK BAD t2=true t3p=true cert=true operand=false v=115293.105035548 want=115293.105035594 | mesh=ok
+R2 F1s-ctl two-arc tilt-y 88deg BuA | OK BAD t2=true t3p=true cert=true operand=false v=115293.105035494 want=115293.105035594 | mesh=ok
+R2 F1s-ctl two-arc tilt-y 88deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=93.105035639 want=93.105035594 | mesh=ok
+R2 F1s-ctl two-arc tilt-y 88deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=93.105035639 want=93.105035594 | mesh=ok
+R2 F1s-ctl two-arc tilt-y 88deg A-B | OK BAD t2=true t3p=true cert=true operand=false v=93.105035548 want=93.105035594 | mesh=ok
+R2 F1s-ctl two-arc tilt-y 88deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=115106.894964307 want=115106.894964406 | mesh=ok
+R2 F4d in-face circle box y=[0,2] BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F4d in-face circle box y=[0,2] AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F4d in-face circle box y=[0,2] BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F4d in-face circle box y=[0,2] A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F4d in-face circle box y=[0,2] B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F4d in-face circle box y=[-2,0] AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F4d in-face circle box y=[-2,0] BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F4d in-face circle box y=[-2,0] AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F4d in-face circle box y=[-2,0] BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F4d in-face circle box y=[-2,0] A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F4d in-face circle box y=[-2,0] B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=60 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=60 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=60 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=60 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=60 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=30 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=30 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=30 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=30 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=30 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=30 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=-45 AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=-45 BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=-45 AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=-45 BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=-45 A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 touching seam beta=-45 B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F6 control inward AuB | OK SOUND t2=true t3p=true cert=true operand=true v=512.776104285 want=512.776104285 | mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "props_meridian_great" } }
+R2 F6 control inward BuA | OK SOUND t2=true t3p=true cert=true operand=true v=512.776104285 want=512.776104285 | mesh=ERR UnsupportedCurvedShape { face: FaceKey(8v3), source: NotIsoRectangle { what: "props_meridian_great" } }
+R2 F6 control inward AnB | OK SOUND t2=true t3p=true cert=true operand=true v=3.412685920 want=3.412685920 | mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "props_meridian_great" } }
+R2 F6 control inward BnA | OK SOUND t2=true t3p=true cert=true operand=true v=3.412685920 want=3.412685920 | mesh=ERR UnsupportedCurvedShape { face: FaceKey(6v3), source: NotIsoRectangle { what: "props_meridian_great" } }
+R2 F6 control inward A-B | OK SOUND t2=true t3p=true cert=true operand=true v=0.776104285 want=0.776104285 | mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "props_meridian_great" } }
+R2 F6 control inward B-A | OK SOUND t2=true t3p=true cert=true operand=true v=508.587314080 want=508.587314080 | mesh=ERR UnsupportedCurvedShape { face: FaceKey(8v3), source: NotIsoRectangle { what: "props_meridian_great" } }
+D2 F7 nested tubes AuB | t3p=Some([CensusUndecidable { a: Face(FaceKey(2v3)), b: Face(FaceKey(3v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(2v3)), b: Face(FaceKey(5v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(2v3)), b: Face(FaceKey(4v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(2v3)), b: Face(FaceKey(6v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(3v1)), b: Face(FaceKey(7v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(3v1)), b: Face(FaceKey(1v9)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(3v1)), b: Face(FaceKey(8v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(5v1)), b: Face(FaceKey(7v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(5v1)), b: Face(FaceKey(1v9)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(5v1)), b: Face(FaceKey(8v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(7v1)), b: Face(FaceKey(4v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(7v1)), b: Face(FaceKey(6v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(1v9)), b: Face(FaceKey(4v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(6v1)), b: Face(FaceKey(8v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(2v1)), what: "another finding left their boundaries unchecked, and this one cannot be decided until that is resolved. Recourse: resolve that finding first" }]) | far-union-err=None
