@@ -1787,7 +1787,7 @@ use pncad::prelude::*;
 let thicker = apply(&doc, &DocEdit::SetParam {
     node: plate,
     slot: SlotId::Distance,
-    expr: len(1.0),
+    value: len(1.0).into(),
     fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach)?.doc;
 

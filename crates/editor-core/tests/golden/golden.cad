@@ -2373,11 +2373,13 @@ id: 7ddec231df0049f879136a2f7624647d
       "SetParam": {
         "node": "30:d58550393dc9a819",
         "slot": "Distance",
-        "expr": {
-          "Quantity": {
-            "value": 0.5,
-            "dim": "Length",
-            "unit": "mm"
+        "value": {
+          "Formula": {
+            "Quantity": {
+              "value": 0.5,
+              "dim": "Length",
+              "unit": "mm"
+            }
           }
         }
       }
