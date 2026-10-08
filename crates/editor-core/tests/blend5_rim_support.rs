@@ -380,7 +380,7 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
                 .into_iter()
                 .filter_map(|m| match m.path.first() {
                     Some(RoleSeg::BandTrim { support, .. }) => Some((
-                        support.clone(),
+                        *support,
                         support_surface_key(body, edge_of(t, "a trim arc", n)),
                     )),
                     _ => None,
