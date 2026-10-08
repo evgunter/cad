@@ -277,6 +277,10 @@ mod pcurve_spiric;
 mod r2_mesh7_door_probes;
 #[path = "span_reach_differential.rs"]
 mod span_reach_differential;
+#[path = "span_reach_probe.rs"]
+mod span_reach_probe;
+#[path = "own_truth.rs"]
+mod own_truth;
 #[path = "sphere_circle_certificate.rs"]
 mod sphere_circle_certificate;
 #[path = "tcost_k1_budget_exit.rs"]
