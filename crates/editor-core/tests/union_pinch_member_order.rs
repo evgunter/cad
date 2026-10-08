@@ -1167,3 +1167,32 @@ fn solids_touching_along_one_line_build_one_body_in_every_member_order() {
         &[6, 4, 0, 6],
     );
 }
+
+/// Review probe (PR 4346): what each order of the crossing fixtures serves.
+#[test]
+#[ignore = "probe"]
+fn review_4346_crossing_orders() {
+    for (a0, a1) in [(30.0, 60.0), (30.0, 140.0)] {
+        for plate in [true, false] {
+            let fixture = |doc: ProfileDoc| {
+                let (doc, pl) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
+                let (doc, a) = sector_prism(doc, 0.0, 50.0, (0.5, 2.0));
+                let (doc, b) = sector_prism(doc, 120.0, 170.0, (0.47, 1.7));
+                let (doc, c) = sector_prism(doc, a0, a1, (0.44, 1.81));
+                (doc, if plate { vec![pl, a, b, c] } else { vec![a, b, c] })
+            };
+            let n = if plate { 4 } else { 3 };
+            for order in orders(n) {
+                let (doc, m) = fixture(ProfileDoc::empty_derived("probe", Tol::witness()));
+                let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
+                let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
+                let ev = run(&doc);
+                let tag = match failure(&ev, u) {
+                    None => "built".to_string(),
+                    Some(e) => format!("{e:?}").chars().take(220).collect(),
+                };
+                eprintln!("EC {a0}-{a1} plate={plate} {order:?}: {tag}");
+            }
+        }
+    }
+}

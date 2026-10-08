@@ -2755,3 +2755,29 @@ fn eight_crossings_with_a_pinched_cube_battery() {
         }
     }
 }
+
+/// Review probe (PR 4346): every line of `a_pinchs_unions_from_every_root_of_the_ring`.
+#[test]
+#[ignore = "probe"]
+fn review_4346_every_root_lines() {
+    for (names, (a, b), seed, fib) in [
+        ("Ltop asym", (ltop(), asym()), 2296, 21),
+        ("Ltop asym", (ltop(), asym()), 2296, 3),
+        ("Ltop asym", (ltop(), asym()), 2296, 8),
+        ("Ltop asym", (ltop(), asym()), 2959, 3),
+        ("asym asym", (asym(), asym()), 15, 6),
+        ("asym asym", (asym(), asym()), 225, 6),
+    ] {
+        let d = dbl((&a, &b), seed, fib);
+        let want = d.volume + SIDE.powi(3) - d.common;
+        for root in 0..3 {
+            for (order, x, y) in [("xy", &d.pinched, &d.cube), ("yx", &d.cube, &d.pinched)] {
+                let r = fixtures::with_ring_root(root, || {
+                    topo::union_with(x, y, &BooleanDeclarations::default(), tol())
+                });
+                let line = outcome(r, want, tol());
+                eprintln!("ROOT {names} seed={seed} fib{fib} root{root} {order}: {}", line.chars().take(140).collect::<String>());
+            }
+        }
+    }
+}
