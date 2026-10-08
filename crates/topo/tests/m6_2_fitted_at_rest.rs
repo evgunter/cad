@@ -4,17 +4,18 @@
 //!
 //! The cylinder×sphere fixture's small loop of the kernel's own
 //! traced-and-fitted branch, restricted to an edge carrier, certified
-//! into a body, and minted. Its two halves of the between-samples
-//! statement live where C2 and C4 put them:
+//! into a body, and minted. Its between-samples statement lives where C2
+//! and C4 put it:
 //!
-//! - **the edge's certificate** holds the uniqueness tube (C2's limb 3):
-//!   over a chain of boxes around the carrier the pair's crossing is one
-//!   arc spanning it. `mev` runs it through the scalar's lane, and tier
-//!   3 re-derives it;
-//! - **the face's rows** are the projected image, the cylinder chart's
-//!   inverse applied to the carrier (C4), whose envelope bounds
-//!   `|S(P(t)) − C(t)|` over the whole span — the carrier's distance from
-//!   the chart included — and carry no pair certificate.
+//! - **the edge's certificate** (`geom_brep::analytic_rung3`) holds C2's
+//!   three limbs: the carrier's offset from EACH operand over the whole
+//!   span (limbs 1–2), and the uniqueness tube (limb 3) — over a chain
+//!   of boxes around the carrier the pair's crossing is one arc spanning
+//!   it. `mev` runs it through the scalar's lane, and tier 3 re-derives
+//!   it;
+//! - **the face's rows** are the projected image, the chart's inverse
+//!   applied to the carrier (C4), whose envelope bounds `|S(P(t)) − C(t)|`
+//!   over the whole span, and carry no pair certificate.
 //!
 //! Stated at both scalars the lift was for: **`f64`** (the outer rows)
 //! and **`Interval`** (the `certified` module), enclosure-style.
@@ -35,7 +36,7 @@ use geom_core::Band;
 use geom_core::Tol;
 
 /// The full at-rest run at `f64`: build, read the minted rows, run the
-/// edge's tube, validate.
+/// edge's analytic rung-3 certificate, validate.
 #[test]
 fn a_rung3_edge_at_rest_carries_its_projected_rows_and_its_edge_the_tube() {
     let built = fixture::build::<f64>();
@@ -60,20 +61,26 @@ fn a_rung3_edge_at_rest_carries_its_projected_rows_and_its_edge_the_tube() {
             "ROW: certified sup bound within ε"
         );
     }
-    // The tube is the edge's: it certifies on the operand pair, and the
+    // The limbs are the edge's: they certify on the operand pair, and the
     // same carrier against a degenerate pair (its own surface twice,
-    // nowhere transverse) refuses — the limb is live, not vacuous.
-    geom_brep::rung3_tube(&built.carrier, &built.cylinder, &built.sphere, band)
+    // nowhere transverse) passes limbs 1–2 and refuses on the tube — the
+    // limb is live, not vacuous.
+    geom_brep::analytic_rung3(&built.carrier, &built.cylinder, &built.sphere, band)
         .expect("TUBE: the pair's crossing is one arc spanning the carrier");
+    let degenerate =
+        geom_brep::analytic_rung3(&built.carrier, &built.cylinder, &built.cylinder, band);
     assert!(
-        geom_brep::rung3_tube(&built.carrier, &built.cylinder, &built.cylinder, band).is_err(),
-        "TUBE: a pair that crosses nowhere has no tube"
+        matches!(
+            degenerate,
+            Err(geom_brep::AnalyticRung3Refusal::TubeStraddles { .. }
+                | geom_brep::AnalyticRung3Refusal::TubeNotOneArc { .. })
+        ),
+        "TUBE: a pair that crosses nowhere has no tube: {degenerate:?}"
     );
     let findings = topo::pcurves::validate_pcurves(&built.body, band);
     assert!(findings.is_empty(), "AT-REST: {findings:?}");
     // The edge's own re-certification with the lane in hand runs the
-    // tube; with a degenerate mate swapped into its description it would
-    // refuse there.
+    // analytic rung-3 certificate, tube included.
     let ek = built.body.get_half_edge(built.he_plus).unwrap().edge;
     let edge = built.body.get_edge(ek).unwrap();
     let Some(topo::CurveGeom::Certified(curve)) = built.body.get_curve_geom(edge.curve) else {
@@ -269,8 +276,8 @@ mod certified {
     use geom_core::{Band, Bounds, Interval};
 
     /// The same body at the interval scalar: the rows are minted there,
-    /// their envelope is an enclosure inside the band, the edge's tube
-    /// certifies on the lifted pair, and the at-rest pass re-derives it
+    /// their envelope is an enclosure inside the band, the edge's analytic
+    /// rung-3 certificate holds on the lifted pair, and the at-rest pass re-derives it
     /// all. Each assertion names its property.
     #[test]
     fn the_projected_rows_and_the_tube_certify_at_the_interval_scalar() {
@@ -295,7 +302,7 @@ mod certified {
                 env.hi()
             );
         }
-        geom_brep::rung3_tube(&built.carrier, &built.cylinder, &built.sphere, band)
+        geom_brep::analytic_rung3(&built.carrier, &built.cylinder, &built.sphere, band)
             .expect("TUBE: the lifted pair's crossing is one arc spanning the carrier");
         let findings = topo::pcurves::validate_pcurves(&built.body, band);
         assert!(findings.is_empty(), "AT-REST: {findings:?}");

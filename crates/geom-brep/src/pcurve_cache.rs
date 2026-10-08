@@ -15,7 +15,8 @@
 //! a pcurve is a peer **cache** — never a peer of the description. A
 //! [`PcurveCache`] is therefore constructible only through its
 //! certifying doors ([`PcurveCache::certify`],
-//! [`PcurveCache::certify_fitted`], [`PcurveCache::certify_general`])
+//! [`PcurveCache::certify_fitted`], [`PcurveCache::certify_general`],
+//! [`PcurveCache::certify_projected`])
 //! or from a cache one of them built (its fields are private), exactly as
 //! [`crate::EdgeCurve`] is: an uncertified pcurve is unrepresentable.
 //!
@@ -1213,12 +1214,16 @@ pub enum PcurveCheck {
     Sector,
 }
 
-/// One term of check 4's envelope on a periodic chart — the bound the
-/// lemma on [`EnvelopeStatement::MapResidualClosedForm`] states as
-/// their sum. The first six are **incidence**: the carrier against
-/// the chart, read off the carrier's own coefficients and the chart's
-/// data, with no image involved. The last two are **fidelity**: the
-/// stored image against the one `certify` re-derives from the carrier.
+/// One term of check 4's envelope — the bound the lemmas on
+/// [`EnvelopeStatement::MapResidualClosedForm`] and
+/// [`EnvelopeStatement::MapResidualProjected`] state as their sum. The
+/// closed-form envelope reads `Frame`, six **incidence** terms (`Centre`
+/// to `Drift`: the carrier against the chart, read off the carrier's own
+/// coefficients and the chart's data, with no image involved) and two
+/// **fidelity** terms (`FidelityU`, `FidelityV`: the stored image
+/// against the one `certify` re-derives from the carrier). The projected
+/// envelope reads `Frame`, `Incidence`, `Fidelity` and the two channel
+/// fidelities. Both sum one array and name a refusal in one order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EnvelopeTerm {
     /// The carrier's centre is off the chart's axis — off the sphere's
@@ -2487,9 +2492,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             PieceHull {
                 range: (a, b),
                 x_lo: fb.x.0.lo(),
-                rho_lo: ProjectedImage::rho_range(&fb).0.lo(),
                 tube_lo,
-                z: (fb.z.0.lo(), fb.z.1.hi()),
             }
         })
         .collect();
@@ -2521,23 +2524,59 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             return Err(PcurveCertifyError::UnsupportedChart { chart: twin.kind() });
         }
     };
-    let coords = twin_net.certified_coords();
-    let data = CurveCertData::new(twin_net.knots(), twin_net.weights(), &coords)
-        .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
-    let composite = canonical_composite(&data, &form)
-        .map_err(|_| refuse("the canonical composite refused the re-derived net"))?;
-    let breaks = composite.num.breaks().to_vec();
-    let spans = composite
-        .span_bounds()
+    // The composite of the net as it stands, and of the net with each
+    // knot span cut into equal parts by knot insertion: the Bernstein
+    // hull over a part is tighter than over the whole span (its excess
+    // falls as the part's square), but the insertion's own rounding
+    // widens a bracketed net. Each part reads the smaller of its own
+    // bound and its span's, both bounds on `|f|` over the part. Its
+    // floors are read off the part's own controls.
+    let composite_of = |n: &NurbsCurve3<geom_core::Interval>| {
+        let coords = n.certified_coords();
+        let data = CurveCertData::new(n.knots(), n.weights(), &coords)
+            .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
+        let composite = canonical_composite(&data, &form)
+            .map_err(|_| refuse("the canonical composite refused the re-derived net"))?;
+        Ok::<_, PcurveCertifyError>((composite.num.breaks().to_vec(), composite.span_sup_bounds()))
+    };
+    let (whole_breaks, whole_sup) = composite_of(&lift(twin_net)?)?;
+    let runs: Vec<f64> = twin_net.knots().knot_runs().map(|(k, _)| k).collect();
+    let cuts: Vec<f64> = runs
+        .windows(2)
+        .flat_map(|w| {
+            (1..projected::INCIDENCE_CUTS).map(move |j| {
+                #[allow(clippy::cast_precision_loss)]
+                let f = j as f64 / projected::INCIDENCE_CUTS as f64;
+                w[0] + (w[1] - w[0]) * f
+            })
+        })
+        .collect();
+    let twin_net = lift(
+        &twin_net
+            .refine_knots(&cuts)
+            .map_err(|_| refuse("the re-derived net would not take its incidence cuts"))?,
+    )?;
+    let (breaks, part_sup) = composite_of(&twin_net)?;
+    // A bound the composite could not certify is NaN, which `f64::min`
+    // passes over while the other is certified, and which its consumer
+    // refuses (`projected::net_incidence`) when neither is.
+    let spans = part_sup
         .into_iter()
         .enumerate()
-        .map(|(j, b)| SpanHull {
-            range: (breaks[j], breaks[j + 1]),
-            f_sup: if b.is_certified() {
-                b.lo().abs().max(b.hi().abs())
-            } else {
-                f64::NAN
-            },
+        .map(|(j, part)| {
+            let range = (breaks[j], breaks[j + 1]);
+            let whole = whole_breaks
+                .windows(2)
+                .position(|w| w[0] <= range.0 && range.1 <= w[1])
+                .map_or(f64::NAN, |i| whole_sup[i]);
+            let (rho, z) =
+                projected::part_floors(&projected::piece_controls(&twin_net, range.0, range.1));
+            SpanHull {
+                range,
+                f_sup: part.min(whole),
+                rho_lo: rho.lo(),
+                z: (z.0.lo(), z.1.hi()),
+            }
         })
         .collect();
     Ok(ProjectedHull { pieces, spans })
@@ -2630,7 +2669,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
 
 /// The control-net diameter of a carrier, in metres — a convexity fact
 /// (the hull property), not an evaluation.
-fn carrier_diameter<T: Real>(carrier: &NurbsCurve3<T>) -> T {
+pub(crate) fn carrier_diameter<T: Real>(carrier: &NurbsCurve3<T>) -> T {
     let mut ctl = carrier.control().iter();
     let Some(first) = ctl.next() else {
         return T::zero();
@@ -4083,10 +4122,20 @@ fn orthonormal_chart<T: Real>(surface: &Surface<T>) -> Surface<T> {
                 u_ref,
             }
         }
-        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            unreachable!(
-                "orthonormal_chart: check 4's periodic arm reads an analytic periodic chart"
-            )
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => {
+            let (normal, u_ref) = frame(normal, u_ref);
+            Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            }
+        }
+        Surface::Nurbs(_) | Surface::Approx(_) => {
+            unreachable!("orthonormal_chart: a spline chart has no frame to make orthonormal")
         }
     }
 }

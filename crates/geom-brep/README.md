@@ -69,10 +69,15 @@ in metres for an analytic operand (`implicit.rs`); for a NURBS operand
 residual is banded too, so a bad projection cannot launder a bad cache.
 (2) Sup-norm honesty between samples, by control-coefficient hull bounds
 in certification arithmetic (C9): `geom_core::spline::compose` composes
-the implicit form with the carrier (converted to metres exactly for
-plane, cylinder and sphere; cone and torus need a root, and certification
-arithmetic takes none, which is why their rung-3 arms are unretired),
-and `compose::tensor` encloses
+the implicit form with the carrier (converted to metres by a constant
+factor for plane, cylinder and sphere; on the cone and the torus the
+metres form is a root of a polynomial, which no polynomial composite
+carries, so the conversion is a per-span lever instead: a scalar bound
+on the carrier's distance from the axis, whose one square root is of a
+bound, in the scalar's own outward-rounded arithmetic. The edge
+certificate reads it (`pcurve_cache::projected::net_offset_sup`); the
+search's limbs do not yet, which is why their rung-3 arms are
+unretired), and `compose::tensor` encloses
 `S(P(t)) − C(t)` as one composite for a NURBS operand so the
 cancellation that is the whole content of the claim survives into the
 bound. (3) The uniqueness tube: over a chain of boxes of certified radius
@@ -81,7 +86,13 @@ by a mean-value argument each slice holds at most one solution, and each
 connected piece of the solution set in a box ends on the box's boundary
 at two points. The solution set in the chain is one arc, and it spans
 the carrier; the proof is the same at every door, a search's and an
-edge's at rest. Each box, cut to the wall's knot rectangle (and to the
+edge's at rest. For a carrier between two analytic surfaces the three
+limbs are the edge certificate's own (`edge_nurbs::analytic_rung3`,
+through the scalar's certified lane): limb 2 against each operand, its
+distance from that surface over the whole span, whatever faces store
+pcurve rows (a planar face stores none), which implies limb 1; and the
+tube. A door that holds no lane certifies such an edge at the schedule
+alone. Each box, cut to the wall's knot rectangle (and to the
 ℝ³ slab where a search clips to one), holds exactly one piece: two
 simple solutions on its boundary, or a stretch of its boundary on a
 side of the wall's domain that the boundary pass reads within ε of the
@@ -380,9 +391,13 @@ envelope bounds `|S(P(t)) − C(t)|` over the whole span as the
 carrier's distance from the chart (the composite of the chart's
 implicit form along the carrier, in metres through a per-span lever),
 plus the stored net's fidelity to the re-derived one through the
-projection's Lipschitz bound and the frame's defect; per span, the
+projection's Lipschitz bound and the frame's defect; per piece, the
 sector condition is decided, and a span reaching a pole or the apex
-refuses. The row reads no mate surface: an intersection carrier's
+refuses. Every condition is decided over the pieces and spans the
+edge's own interval overlaps: the net's geometry past the edge's ends
+is not the edge's. The period gate reads the image's sweep on a cover
+finer than its pieces, graded toward its two ends, so a whole turn
+certifies and a sweep past one refuses. The row reads no mate surface: an intersection carrier's
 uniqueness tube is the edge's certificate (C2), not the row's. No
 UV-space tolerance appears in any certified statement; the chart's
 stretch is the lever arm. A row certifies against its carrier and chart alone, on one branch (a τ jump
@@ -422,7 +437,11 @@ stored row, a half-minted face's included. A topology door may drop
 rows mid-surgery; every public producer ends with a full mint, so
 validity is judged on what the producer returns. Every class of carrier
 a chart can hold has a route into a certified row, and a face no route
-covers refuses at the producer rather than reaching rest uncached. The
+covers refuses at the producer rather than reaching rest uncached. A
+carrier whose route refuses (a spline or a circle whose projected image
+reaches a pole) refuses at the producer like any other refusal: the
+exemption excuses only a class no route reaches, and a scalar that holds
+no certified lane, at which a net's projected row cannot read its hull. The
 lanes: `Harmonic`, `IsoLine`, `IsoArc`, `Spiric` (the
 plane-cap and torus-wall images of a `Curve3::Spiric`, data-free and
 closed from the carrier's own parameter), `FocalSection` (a conic

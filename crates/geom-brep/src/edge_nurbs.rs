@@ -597,33 +597,69 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     })
 }
 
-/// **The uniqueness tube of a rung-3 carrier between two ANALYTIC
-/// surfaces** — limb 3 of C2, the edge certificate's own (C2: "the proof
-/// is the same at every door, a search's and an edge's at rest"). Over a
-/// chain of boxes around the carrier the enclosure of
-/// `(∇f₁ × ∇f₂)·e` excludes zero, so the solution set in the chain is
-/// one arc and it spans the carrier. Limbs 1 and 2 are not asked here:
-/// the carrier's distance from each face's chart over the whole span is
-/// each face's pcurve row's incidence term (C4).
+/// Whether `surface` is an analytic operand: one with an implicit form
+/// and a chart frame, which the analytic rung-3 certificate reads
+/// ([`analytic_rung3`]). A spline operand's pair is the plane × NURBS
+/// lane's ([`plane_nurbs_limbs`]).
+#[must_use]
+pub fn is_analytic<T: Real>(surface: &Surface<T>) -> bool {
+    !matches!(surface, Surface::Nurbs(_) | Surface::Approx(_))
+}
+
+/// **The between-samples certificate of a rung-3 carrier between two
+/// ANALYTIC surfaces** — C2's limbs, the edge certificate's own (C2:
+/// "the proof is the same at every door, a search's and an edge's at
+/// rest"), stated here for every analytic operand whatever faces store
+/// pcurve rows:
+///
+/// - **limb 2, per operand**: the carrier's distance from the operand,
+///   certified over its whole knot domain
+///   ([`crate::pcurve_cache::projected::net_offset_sup`]: the operand's
+///   canonical implicit form composed along the carrier, converted to
+///   metres per span) and decided zero against the band. Limb 1, the
+///   same distance at the schedule's samples, is implied by it;
+/// - **limb 3**: over a chain of boxes around the carrier the
+///   enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so the solution set in
+///   the chain is one arc and it spans the carrier.
 ///
 /// # Errors
 ///
-/// [`PlaneNurbsRefusal::TubeStraddles`], [`PlaneNurbsRefusal::TubeNotOneArc`]
-/// or [`PlaneNurbsRefusal::Escalated`] when the tube does not certify;
-/// [`PlaneNurbsRefusal::Unsupported`] for a spline operand.
-pub fn rung3_tube<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
+/// [`AnalyticRung3Refusal`]: a limb's measured refusal or escalation,
+/// the tube's verdict, an operand whose distance bound has no
+/// certificate, or a spline operand.
+pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     s1: &Surface<T>,
     s2: &Surface<T>,
     band: Band,
-) -> Result<(), PlaneNurbsRefusal> {
-    if [s1, s2]
-        .iter()
-        .any(|s| matches!(s, Surface::Nurbs(_) | Surface::Approx(_)))
-    {
-        return Err(PlaneNurbsRefusal::Unsupported {
-            what: "the analytic rung-3 tube reads two analytic operands",
+) -> Result<(), AnalyticRung3Refusal> {
+    if !(is_analytic(s1) && is_analytic(s2)) {
+        return Err(AnalyticRung3Refusal::Unsupported {
+            what: "the analytic rung-3 certificate reads two analytic operands",
         });
+    }
+    let lane = crate::FittedLane::<T>::certified();
+    for operand in [s1, s2] {
+        let kind = operand.kind();
+        let offset = crate::pcurve_cache::projected::net_offset_sup(carrier, operand, band, lane)
+            .map_err(|e| AnalyticRung3Refusal::of_offset(kind, e))?;
+        match crate::dihedral::decide("ssi_hull_sup", geom_core::Margin::of(offset), band) {
+            Ok(geom_core::Sign::Zero) => {}
+            Ok(geom_core::Sign::Positive | geom_core::Sign::Negative) => {
+                return Err(AnalyticRung3Refusal::Limb {
+                    operand: kind,
+                    limb: SsiLimb::HullSup,
+                    value: offset.hi(),
+                });
+            }
+            Err(cause) => {
+                return Err(AnalyticRung3Refusal::Escalated {
+                    operand: Some(kind),
+                    limb: SsiLimb::HullSup,
+                    cause,
+                });
+            }
+        }
     }
     crate::ssi::certify::certify_branch(
         carrier,
@@ -635,28 +671,194 @@ pub fn rung3_tube<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         // The ladder's widest rung and its lever, from the object being
         // certified: the carrier's control-net diameter (a closed
         // carrier's chord says nothing about its size).
-        TubeScale::uniform(net_diameter(carrier)),
+        TubeScale::uniform(crate::pcurve_cache::carrier_diameter(carrier)),
         band,
         crate::ssi::certify::Limbs::Tube,
         &mut Vec::new(),
     )
     .map(|_| ())
-    .map_err(refusal)
+    .map_err(AnalyticRung3Refusal::of_tube)
 }
 
-/// The control-net diameter of a carrier, in metres — a convexity fact
-/// (the hull property), not an evaluation.
-fn net_diameter<T: geom_core::Real>(carrier: &NurbsCurve3<T>) -> T {
-    let ctl = carrier.control();
-    let Some(first) = ctl.first() else {
-        return T::zero();
-    };
-    let (mut lo, mut hi) = (*first, *first);
-    for p in ctl {
-        lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
-        hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
+/// [`analytic_rung3`]'s typed refusal — the analytic pair's own
+/// vocabulary, closed, and carrying the measured number where one
+/// exists.
+#[derive(Clone, Copy, Debug, PartialEq)]
+// The variant roster `topo`'s sample-coverage row reads (this
+// crate's `test-support` feature, test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(AnalyticRung3RefusalKind), derive(strum::EnumIter), doc(hidden))
+)]
+pub enum AnalyticRung3Refusal {
+    /// The carrier's certified distance from an operand exceeds the
+    /// band: it is not on that surface between the schedule's samples,
+    /// by this much.
+    Limb {
+        /// The operand the carrier is off.
+        operand: geom::SurfaceKind,
+        /// Which limb refused.
+        limb: SsiLimb,
+        /// The measured bound, in metres.
+        value: f64,
+    },
+    /// A limb's margin escalated.
+    Escalated {
+        /// The operand whose distance escalated; `None` for the tube.
+        operand: Option<geom::SurfaceKind>,
+        /// Which limb.
+        limb: SsiLimb,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
+    /// No certified distance bound exists for the carrier against this
+    /// operand: the composite or its metre conversion refused (on a
+    /// cone, a span reaching the apex's height or the other nappe).
+    NoOffsetBound {
+        /// The operand.
+        operand: geom::SurfaceKind,
+        /// Why, in a clause.
+        why: &'static str,
+    },
+    /// The uniqueness tube's transversality is not certified clear of
+    /// the zero band — a sliver of the pair along the carrier at this
+    /// tolerance ([`PlaneNurbsRefusal::TubeStraddles`] reads the same
+    /// verdict).
+    TubeStraddles {
+        /// The verdict on the transversality's certified clearance.
+        verdict: Refused,
+        /// How many boxes of the chain it was certified over.
+        boxes: u32,
+    },
+    /// The tube was a graph at some rung, but at none was its chain
+    /// proved to hold one arc spanning the carrier and nothing else.
+    TubeNotOneArc {
+        /// How many rungs were graphs but not proved one arc.
+        rungs: u32,
+        /// What the narrowest of them found.
+        cause: OneArcRefusal,
+    },
+    /// The pair is outside this certificate's inventory, named.
+    Unsupported {
+        /// The refused class.
+        what: &'static str,
+    },
+}
+
+impl AnalyticRung3Refusal {
+    fn of_offset(operand: geom::SurfaceKind, e: crate::PcurveCertifyError) -> Self {
+        match e {
+            crate::PcurveCertifyError::Escalated { cause, .. } => Self::Escalated {
+                operand: Some(operand),
+                limb: SsiLimb::HullSup,
+                cause,
+            },
+            crate::PcurveCertifyError::SectorRefused { channel, .. } => Self::NoOffsetBound {
+                operand,
+                why: channel.describe(),
+            },
+            _ => Self::NoOffsetBound {
+                operand,
+                why: "the operand's canonical implicit form composed along the carrier has no \
+                      certified bound",
+            },
+        }
     }
-    (hi - lo).norm()
+
+    fn of_tube(e: SsiError) -> Self {
+        match e {
+            SsiError::TubeStraddles { verdict, boxes } => Self::TubeStraddles { verdict, boxes },
+            SsiError::TubeNotOneArc { rungs, cause } => Self::TubeNotOneArc { rungs, cause },
+            SsiError::CertificateEscalated { limb, cause } => Self::Escalated {
+                operand: None,
+                limb,
+                cause,
+            },
+            SsiError::UnsupportedCertificate { what } => Self::Unsupported { what },
+            _ => Self::Unsupported {
+                what: "the uniqueness tube refused for a reason outside this certificate's \
+                       vocabulary",
+            },
+        }
+    }
+
+    /// The ending this refusal's decision gives it, read at `reading`,
+    /// or `None` for a refusal that is no decision's refused arm
+    /// ([`PlaneNurbsRefusal::ending`]'s structure).
+    #[must_use]
+    pub fn ending(&self, reading: Reading) -> Option<String> {
+        if let Self::TubeNotOneArc { cause, .. } = *self {
+            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, reading));
+        }
+        self.decision()
+            .map(|(check, arm)| recourse(check, arm, reading))
+    }
+
+    /// The decision this refusal is a refused arm of, and which arm.
+    #[must_use]
+    pub fn decision(&self) -> Option<(CertCheck, RefusedArm<'_>)> {
+        Some(match self {
+            Self::Limb { limb, .. } => (limb.check(), RefusedArm::SignCertain),
+            Self::Escalated { limb, cause, .. } => (limb.check(), RefusedArm::Undecided(cause)),
+            Self::TubeStraddles { verdict, .. } => (CertCheck::Transversality, verdict.arm()),
+            Self::NoOffsetBound { .. } | Self::TubeNotOneArc { .. } | Self::Unsupported { .. } => {
+                return None;
+            }
+        })
+    }
+}
+
+impl core::fmt::Display for AnalyticRung3Refusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Limb {
+                operand,
+                limb,
+                value,
+            } => write!(
+                f,
+                "{} measured {value:e} m from the {operand:?} against the run tolerance — the \
+                 carrier leaves that surface between the schedule's samples",
+                limb.name()
+            ),
+            Self::Escalated {
+                operand: Some(operand),
+                limb,
+                cause,
+            } => write!(
+                f,
+                "{} against the {operand:?} escalated: {}",
+                limb.name(),
+                cause.payload()
+            ),
+            Self::Escalated {
+                operand: None,
+                limb,
+                cause,
+            } => write!(f, "{} escalated: {}", limb.name(), cause.payload()),
+            Self::NoOffsetBound { operand, why } => write!(
+                f,
+                "the carrier's distance from the {operand:?} has no certified bound: {why}"
+            ),
+            Self::TubeStraddles { verdict, boxes } => write!(
+                f,
+                "the uniqueness tube's transversality is not certified clear of the zero band \
+                 over {boxes} boxes of the chain — the two surfaces meet in a sliver along the \
+                 carrier at this tolerance; the certificate's proven clearance from zero is {:e} \
+                 m, which is the bound it could prove and not the sliver's own extent",
+                verdict.margin()
+            ),
+            Self::TubeNotOneArc { rungs, cause } => write!(
+                f,
+                "the tube was not proved to hold one arc spanning the carrier at {rungs} rungs; \
+                 at the narrowest, {cause}"
+            ),
+            Self::Unsupported { what } => {
+                write!(f, "outside the analytic rung-3 certificate: {what}")
+            }
+        }
+    }
 }
 
 /// **The chart image of a declared carrier on a NURBS wall** — the one

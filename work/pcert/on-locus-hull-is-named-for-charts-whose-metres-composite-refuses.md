@@ -26,7 +26,11 @@ image. Its incidence term is `implicit_composite`'s span bound read
 through the chart's metres conversion: a constant on the plane, sphere
 and cylinder, and a per-span lever on the cone
 (`ρ_min cos α + (σz)_min sin α`) and the torus (`r((ρ_min+R)²−r²)`).
-The lever takes no root: `ρ_min` comes from the span box's distance to
-the axis (`projected::rho_range`) using Interval ops only.
+The composite takes no root: the metres form on the cone and torus is
+a root of a polynomial, which no polynomial composite carries, and the
+lever replaces it. The lever's own `ρ_min` takes one square root, of a
+scalar bound (the refined twin net's part controls, nearest point
+maxed with the chord-support bound: `projected::part_floors`), in the
+scalar's outward-rounded arithmetic, which encloses it at `Interval`.
 `run_fitted_checks` now refuses a fitted image on an analytic chart
 (`ImageMismatch { image: Fitted, .. }`).

@@ -17,10 +17,12 @@
 //! exactly, for any `a`, `b` (the second harmonics vanish for an
 //! orthonormal frame) — [`off_sphere_coefficients`]. Since
 //! `| |p − s| − R | = | |p − s|² − R² | / (|p − s| + R) ≤ | |p − s|² − R² | / R`,
-//! each coefficient over the lever `R` is a sound metre reading, inside
-//! the sphere and out, and `Σ|kᵢ| / R` bounds the circle's distance from
-//! the sphere over the whole circle ([`off_sphere_sup`]): an upper
-//! bound, which the projected row's certificate reads. (The chart door's incidence
+//! `D = Σ|kᵢ| / R` bounds the circle's distance from the sphere over the
+//! whole circle, inside the sphere and out; and since that distance is
+//! at most `D`, `|p − s| ≥ R − D`, so `Σ|kᵢ| / (R + max(0, R − D))` does
+//! too, within rounding of the distance itself for a circle near the
+//! sphere ([`off_sphere_sup`]): an upper bound, which the projected
+//! row's certificate reads. (The chart door's incidence
 //! test decides `Off` from a lower bound instead, the sampled distance —
 //! `pcurve_cache::chart_incidence`.)
 
@@ -46,11 +48,11 @@ pub(crate) fn off_sphere_coefficients<T: Real>(
     ]
 }
 
-/// `Σ|kᵢ| / R`: a bound in metres on `| |C(t) − s| − R |` over the
-/// whole circle (module docs).
+/// `Σ|kᵢ| / (R + max(0, R − Σ|kᵢ|/R))`: a bound in metres on
+/// `| |C(t) − s| − R |` over the whole circle (module docs).
 pub(crate) fn off_sphere_sup<T: Real>(coefficients: [T; 5], radius: T) -> T {
-    coefficients
+    let sum = coefficients
         .into_iter()
-        .fold(T::zero(), |sum, k| sum + k.abs())
-        / radius
+        .fold(T::zero(), |sum, k| sum + k.abs());
+    sum / (radius + (radius - sum / radius).max(T::zero()))
 }

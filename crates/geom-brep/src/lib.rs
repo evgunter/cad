@@ -95,8 +95,8 @@ pub use dihedral::{
     must_carry_over_edge, tangent_second_order,
 };
 pub use edge_nurbs::{
-    CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal, PlaneNurbsLimbs,
-    PlaneNurbsRefusal, plane_nurbs_limbs, rung3_tube,
+    AnalyticRung3Refusal, CARRIER_DOMAIN_RECOURSE, CarrierDomainFault, CarrierDomainRefusal,
+    PlaneNurbsLimbs, PlaneNurbsRefusal, analytic_rung3, is_analytic, plane_nurbs_limbs,
 };
 pub use enters::{
     EntersMaterial, LeverEscalation, LeverRung, OutwardNormal, ReferenceNormal, WallBend,

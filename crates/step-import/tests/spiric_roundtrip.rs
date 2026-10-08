@@ -122,7 +122,7 @@ fn vessel_cavity() -> topo::Body<f64> {
 /// (uncertainty 1e-4 m), and its `Intersection` reading is a rung-3
 /// carrier between two analytic faces. The edge certificate checks that
 /// carrier's uniqueness tube (C2's limb 3), and the tube does not
-/// certify (`CertifyError::Rung3Tube`). Before the tube lived in the
+/// certify (`CertifyError::AnalyticRung3`). Before the tube lived in the
 /// edge certificate, the reading adopted on its samples alone and the
 /// trip reached tier 3's quadrature lane at the torus wall. Whether the
 /// refusal is the geometry's or the tube's scale is
@@ -182,7 +182,7 @@ fn a_spiric_rim_exports_as_a_spline_and_its_reimport_door_is_pinned() {
             Some(step_import::AdoptionAttempt {
                 candidate: step_import::AdoptionCandidate::Intersection,
                 refusal: topo::EulerOpError::Certification {
-                    error: geom_brep::CertifyError::Rung3Tube(_),
+                    error: geom_brep::CertifyError::AnalyticRung3(_),
                 },
             })
         ),

@@ -671,13 +671,14 @@ BOUNDS_ALLOWLIST=(
   'crates/geom-brep/src/ssi/certify.rs 14 M6-2, the SSI rung-3 certificate'
   # M7-8, the declare-and-check edge lane.
   # 6 -> 8: the edge lane's door value (`NurbsLane`) gained a second
-  # body, `rung3_tube` (`Decide + Bounds + CertifiedEnclosure`, two
-  # occurrences): the rung-3 carrier's uniqueness tube (C2's limb 3)
-  # checked at the edge certificate. It reads no bracket. It hands the
-  # carrier and the two analytic operands to `ssi::certify::
-  # certify_branch` (M6-2's seam, ratified at this bound) with
-  # `Limbs::Tube`, and its bound is its callee's: nothing weaker
-  # compiles. The kernel reaches it only through `NurbsLane::certified`;
+  # body, `analytic_rung3` (`Decide + Bounds + CertifiedEnclosure`, two
+  # occurrences): the analytic rung-3 carrier's C2 limbs checked at the
+  # edge certificate — its offset from each operand (limbs 1–2, through
+  # `pcurve_cache::projected::net_offset_sup`) and the uniqueness tube
+  # (limb 3). It reads no bracket. It hands the carrier and the two
+  # analytic operands to `ssi::certify::certify_branch` (M6-2's seam,
+  # ratified at this bound) with `Limbs::Tube`, and its bound is its
+  # callee's: nothing weaker compiles. The kernel reaches it only through `NurbsLane::certified`;
   # it is public so the at-rest rows can run the limb directly.
   'crates/geom-brep/src/edge_nurbs.rs 8 M7-8, the declare-and-check edge lane; the rung-3 tube body at M6-2'
   # M7-8's 2026-09-02 amendment, the lane's split as a BOUND: the one

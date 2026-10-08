@@ -564,7 +564,10 @@ fn the_projected_envelope_dominates_the_sampled_displacement() {
 /// **Each term is load-bearing**: on every curved chart, for each
 /// respect, some row of a pinned sweep needs that term — the envelope
 /// less it falls under the sampled displacement. Red if a term is
-/// dropped or under-stated. Pinned: a coverage witness, not a search.
+/// dropped or under-stated. The two conditions that refuse rather than
+/// bound are covered with them: a piece grazing its branch's half-plane
+/// refuses its sector, and a wrong nappe refuses on the cone's lever.
+/// Pinned: a coverage witness, not a search.
 #[test]
 fn every_projected_term_is_load_bearing_in_a_pinned_sweep() {
     let mut s = fuzz::pinned("projected_load_bearing", 0x5eed_0c4a_2d1f_7e01);
@@ -581,6 +584,26 @@ fn every_projected_term_is_load_bearing_in_a_pinned_sweep() {
             );
         }
     }
+    assert!(
+        matches!(
+            grazing_piece_refusal(false),
+            PcurveCertifyError::SectorRefused {
+                channel: SectorChannel::Azimuth,
+                ..
+            }
+        ),
+        "the sector condition is load-bearing"
+    );
+    assert!(
+        matches!(
+            wrong_nappe_refusal(),
+            PcurveCertifyError::SectorRefused {
+                channel: SectorChannel::Lever,
+                ..
+            }
+        ),
+        "the cone's lever is load-bearing"
+    );
 }
 
 /// **The sector condition refuses typed**: a piece's branch centre
@@ -649,11 +672,12 @@ fn a_broken_sector_and_an_arc_through_the_pole_refuse() {
     let _ = FRAC_PI_2;
 }
 
-/// **The cone's lever refuses typed**: a stored image whose nappe is not
-/// the carrier's. At the interval scalar, where no schedule runs ahead
-/// of the envelope.
-#[test]
-fn the_wrong_nappe_refuses_on_the_cone_lever() {
+/// A cone rim's image with its nappe turned to the other one, and every
+/// branch centre turned with it (the nappe flips the radial part, so a
+/// half turn puts each piece back in its sector): the image is a valid
+/// branch, and only the cone's lever, `ρ·cos α + (σz)·sin α`, is read
+/// on the wrong nappe.
+fn wrong_nappe_refusal() -> PcurveCertifyError {
     let b = band();
     let cone = Surface::Cone {
         apex: Point3::origin(),
@@ -674,15 +698,27 @@ fn the_wrong_nappe_refuses_on_the_cone_lever() {
     if let super::super::ProjectedChart::Cone { ref mut nappe, .. } = image.chart {
         *nappe = crate::Nappe::Mirror;
     }
+    for m in &mut image.azimuth {
+        *m += 2;
+    }
     let lane = crate::FittedLane::<Interval>::certified();
     let (t0, t1) = (Interval::from_f64(0.0), Interval::from_f64(1.0));
-    let err = PcurveCache::certify_projected(image, t0, t1, &rim, &cone, b, Some(lane))
-        .expect_err("the wrong nappe");
+    PcurveCache::certify_projected(image, t0, t1, &rim, &cone, b, Some(lane))
+        .expect_err("the wrong nappe")
+}
+
+/// **The cone's lever refuses typed, and on the lever**: a stored image
+/// on the wrong nappe with its branch centres turned to hold their
+/// sectors ([`wrong_nappe_refusal`]). At the interval scalar, where no
+/// schedule runs ahead of the envelope.
+#[test]
+fn the_wrong_nappe_refuses_on_the_cone_lever() {
+    let err = wrong_nappe_refusal();
     assert!(
         matches!(
             err,
             PcurveCertifyError::SectorRefused {
-                channel: SectorChannel::Lever | SectorChannel::Azimuth,
+                channel: SectorChannel::Lever,
                 ..
             }
         ),
@@ -716,4 +752,742 @@ fn an_off_chart_spline_refuses_by_incidence() {
         "{err:?}"
     );
     let _ = Tol::witness();
+}
+
+/// Rational quadratic arcs of the circle `c + r·(cos θ·e₁ + sin θ·e₂)`,
+/// one per entry of `spans` (each `≤ 2π/3`), joined at double knots on
+/// the parameter `[0, 1]`: one carrier sweeping their sum.
+fn arcs(
+    c: Point3<f64>,
+    e1: Vec3<f64>,
+    e2: Vec3<f64>,
+    r: f64,
+    a: f64,
+    spans: &[f64],
+) -> Curve3<f64> {
+    let at = |th: f64| c + (e1 * th.cos() + e2 * th.sin()) * r;
+    let mut ctl = vec![at(a)];
+    let mut w = vec![1.0];
+    let mut knots = vec![0.0, 0.0, 0.0];
+    let mut from = a;
+    for (j, span) in spans.iter().enumerate() {
+        let h = 0.5 * span;
+        ctl.push(c + (e1 * (from + h).cos() + e2 * (from + h).sin()) * (r / h.cos()));
+        w.push(h.cos());
+        from += span;
+        ctl.push(at(from));
+        w.push(1.0);
+        if j + 1 < spans.len() {
+            #[allow(clippy::cast_precision_loss)]
+            let k = (j + 1) as f64 / spans.len() as f64;
+            knots.extend([k, k]);
+        }
+    }
+    knots.extend([1.0, 1.0, 1.0]);
+    Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(KnotVector::clamped(knots, 2).unwrap(), ctl, w).unwrap(),
+    ))
+}
+
+fn unit_sphere() -> Surface<f64> {
+    Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+/// A tilted circle on the sphere of radius `r` about the origin, its
+/// plane at `d` from the centre along `n` (`tilt` from the axis).
+fn tilted_on(r: f64, tilt: f64, d: f64) -> Curve3<f64> {
+    let n = Vec3::new(tilt.sin(), 0.0, tilt.cos());
+    Curve3::Circle {
+        center: Point3::origin() + n * d,
+        axis: n,
+        radius: (r * r - d * d).sqrt(),
+        u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()),
+    }
+}
+
+/// The envelope of `c` over `[t0, t1]` on `surf`, derived and certified
+/// at `f64` and at `Interval`.
+fn certify_both(
+    c: &Curve3<f64>,
+    surf: &Surface<f64>,
+    t0: f64,
+    t1: f64,
+) -> [Result<f64, PcurveCertifyError>; 2] {
+    let b = band();
+    let lane = crate::FittedLane::<f64>::certified();
+    let at_f64 = super::super::chart_pcurve_over(c, t0, t1, surf, b).and_then(|image| {
+        let Pcurve::Projected(p) = image else {
+            unreachable!("a carrier with no closed form")
+        };
+        PcurveCache::certify_projected(*p, t0, t1, c, surf, b, Some(lane))
+            .map(|cache| cache.certificate().envelope)
+    });
+    let (ci, si) = (lift(c), surf.map_scalar(Interval::from_f64));
+    let (i0, i1) = (Interval::from_f64(t0), Interval::from_f64(t1));
+    let lane = crate::FittedLane::<Interval>::certified();
+    let at_iv = super::super::chart_pcurve_over(&ci, i0, i1, &si, b).and_then(|image| {
+        let Pcurve::Projected(p) = image else {
+            unreachable!("a carrier with no closed form")
+        };
+        PcurveCache::certify_projected(*p, i0, i1, &ci, &si, b, Some(lane))
+            .map(|cache| cache.certificate().envelope.hi())
+    });
+    [at_f64, at_iv]
+}
+
+/// **The period gate reads the sweep, not the piece boxes** (check 2).
+/// A tilted circle that encircles the sphere's axis certifies over 0.7,
+/// 0.8, 0.95 and a whole turn, at `f64` and at `Interval`, and so does a
+/// whole turn of one that does not; a sweep past a turn refuses, on a
+/// circle and on a net that winds 1.2 times around a cylinder.
+#[test]
+fn the_period_gate_reads_the_sweep_and_refuses_past_a_turn() {
+    let sphere = unit_sphere();
+    for (c, t1) in [
+        (tilted_on(1.0, 0.3, 0.2), 0.7 * TAU),
+        (tilted_on(1.0, 0.3, 0.2), 0.8 * TAU),
+        (tilted_on(1.0, 0.3, 0.2), 0.95 * TAU),
+        (tilted_on(1.0, 0.3, 0.2), TAU),
+        (tilted_on(1.0, 1.2, 0.5), TAU),
+    ] {
+        for (scalar, got) in ["f64", "Interval"]
+            .into_iter()
+            .zip(certify_both(&c, &sphere, 0.0, t1))
+        {
+            let env = got.unwrap_or_else(|e| panic!("{scalar}, {t1}: {e:?}"));
+            assert!(env <= band().zero(), "{scalar}, {t1}: envelope {env:e}");
+        }
+    }
+    let past = tilted_on(1.0, 0.3, 0.2);
+    let [got, _] = certify_both(&past, &sphere, 0.0, 1.05 * TAU);
+    assert!(
+        matches!(got, Err(PcurveCertifyError::AzimuthPeriodExceeded)),
+        "a circle past a turn: {got:?}"
+    );
+    let cylinder = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let winding = arcs(
+        Point3::origin(),
+        Vec3::unit_x(),
+        Vec3::unit_y(),
+        1.0,
+        0.1,
+        &[1.2 * TAU / 5.0; 5],
+    );
+    let [got, _] = certify_both(&winding, &cylinder, 0.0, 1.0);
+    assert!(
+        matches!(got, Err(PcurveCertifyError::AzimuthPeriodExceeded)),
+        "a net winding 1.2 turns: {got:?}"
+    );
+}
+
+/// **An edge reads only its own interval of the net** (C4: a span
+/// reaching a pole refuses; the net's geometry past the edge's ends is
+/// not the edge's). A great-circle arc whose far part runs over the
+/// sphere's pole: an edge on its first fifth derives and certifies, and
+/// the whole net refuses on the pole.
+#[test]
+fn an_edge_reads_only_its_own_interval_of_the_net() {
+    let sphere = unit_sphere();
+    let c = arc(
+        Point3::origin(),
+        Vec3::unit_x(),
+        Vec3::new(0.0, 0.0, -1.0),
+        1.0,
+        0.6,
+        1.4,
+    );
+    for (scalar, got) in ["f64", "Interval"]
+        .into_iter()
+        .zip(certify_both(&c, &sphere, 0.0, 0.2))
+    {
+        let env = got.unwrap_or_else(|e| panic!("{scalar}: the edge clear of the pole: {e:?}"));
+        assert!(env <= band().zero(), "{scalar}: envelope {env:e}");
+    }
+    let [whole, _] = certify_both(&c, &sphere, 0.0, 1.0);
+    assert!(
+        matches!(
+            whole,
+            Err(PcurveCertifyError::SectorRefused { .. }
+                | PcurveCertifyError::Escalated {
+                    check: PcurveCheck::Sector,
+                    ..
+                })
+        ),
+        "the whole net over the pole: {whole:?}"
+    );
+}
+
+/// A carrier at distance exactly `delta` from `surf`, on each chart:
+/// the plane's segment, a cylinder's, sphere's and torus's parallel
+/// circles moved off along the normal, a cone rim moved off its
+/// generator (its arc near azimuth 45°, where a radial floor read off
+/// the box's corners is least tight).
+fn parallel(chart: Chart, delta: f64) -> (Surface<f64>, Curve3<f64>) {
+    let (z, x, y) = (Vec3::unit_z(), Vec3::unit_x(), Vec3::unit_y());
+    match chart {
+        Chart::Plane => (
+            Surface::Plane {
+                origin: Point3::origin(),
+                normal: z,
+                u_ref: x,
+            },
+            segment(Point3::new(0.1, 0.2, delta), Point3::new(1.3, -0.4, delta)),
+        ),
+        Chart::Cylinder => (
+            Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: z,
+                radius: 1.3,
+                u_ref: x,
+            },
+            arc(Point3::new(0.0, 0.0, 0.2), x, y, 1.3 + delta, 0.4, 1.5),
+        ),
+        Chart::Sphere => {
+            let (r, phi) = (1.1 + delta, 0.5_f64);
+            (
+                Surface::Sphere {
+                    center: Point3::origin(),
+                    radius: 1.1,
+                    axis: z,
+                    u_ref: x,
+                },
+                arc(
+                    Point3::new(0.0, 0.0, r * phi.sin()),
+                    x,
+                    y,
+                    r * phi.cos(),
+                    0.4,
+                    1.5,
+                ),
+            )
+        }
+        Chart::Cone => {
+            let alpha = 0.6_f64;
+            let z0 = 1.0;
+            (
+                Surface::Cone {
+                    apex: Point3::origin(),
+                    axis: z,
+                    half_angle: alpha,
+                    u_ref: x,
+                },
+                arc(
+                    Point3::new(0.0, 0.0, z0),
+                    x,
+                    y,
+                    z0 * alpha.tan() + delta / alpha.cos(),
+                    0.7,
+                    0.17,
+                ),
+            )
+        }
+        Chart::Torus => {
+            let (big, small, v) = (1.2, 0.4_f64, 0.7_f64);
+            (
+                Surface::Torus {
+                    center: Point3::origin(),
+                    axis: z,
+                    major_radius: big,
+                    minor_radius: small,
+                    u_ref: x,
+                },
+                arc(
+                    Point3::new(0.0, 0.0, (small + delta) * v.sin()),
+                    x,
+                    y,
+                    big + (small + delta) * v.cos(),
+                    0.4,
+                    1.5,
+                ),
+            )
+        }
+    }
+}
+
+/// **Each chart's metre conversion is tight**: a carrier at distance
+/// exactly `δ` from the chart has an incidence term in `[δ, 1.5·δ]` —
+/// sound, and within a factor well under 2 of the truth, so a halved or
+/// a loosened conversion goes red. On every chart, and for a tilted
+/// circle `δ` off a sphere through its closed form.
+#[test]
+fn each_charts_conversion_is_tight_on_a_parallel_carrier() {
+    let b = band();
+    let lane = crate::FittedLane::<f64>::certified();
+    for chart in CHARTS {
+        for delta in [1e-6, 1e-4] {
+            let (surf, c) = parallel(chart, delta);
+            let image = project(&c, None, &surf, b).unwrap_or_else(|e| panic!("{chart:?}: {e:?}"));
+            let pcurve = Pcurve::Projected(Box::new(image.clone()));
+            let boxed = pcurve.chart_box(0.0, 1.0);
+            let terms = projected_envelope(&image, 0.0, 1.0, &boxed, &c, &surf, b, Some(lane))
+                .unwrap_or_else(|e| panic!("{chart:?}: {e:?}"));
+            let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
+            assert!(
+                incidence >= delta * (1.0 - 1e-6) && incidence <= 1.5 * delta,
+                "{chart:?} δ {delta:e}: incidence {incidence:e}"
+            );
+            let sup = sampled(&pcurve, &c, &surf, 0.0, 1.0);
+            assert!(terms.total() >= sup * (1.0 - 1e-9), "{chart:?} δ {delta:e}");
+        }
+    }
+    let sphere = unit_sphere();
+    for delta in [1e-6, 1e-4] {
+        let c = tilted_on(1.0 + delta, 0.7, 0.3);
+        let image = project(&c, Some((0.3, 2.1)), &sphere, b).expect("clear of the poles");
+        let pcurve = Pcurve::Projected(Box::new(image.clone()));
+        let boxed = pcurve.chart_box(0.3, 2.1);
+        let terms = projected_envelope(&image, 0.3, 2.1, &boxed, &c, &sphere, b, None)
+            .expect("a circle reads no door");
+        let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
+        assert!(
+            incidence >= delta * (1.0 - 1e-6) && incidence <= 1.5 * delta,
+            "a circle δ {delta:e} off the sphere: incidence {incidence:e}"
+        );
+    }
+}
+
+/// **The conversions read the floors they state** (white box): on a
+/// hull of one piece and one part, each chart's incidence is exactly its
+/// formula on the part's own floors — the cone's lever from the twin's
+/// angle on the stored nappe, `(σz)_min` read on that nappe — and the
+/// Lipschitz floor is the part's `ρ_min` less the stored net's distance;
+/// a lever on the wrong side refuses on the lever, and an uncertified
+/// part refuses.
+#[test]
+fn each_conversion_reads_its_stated_floors() {
+    use super::super::projected::{
+        PieceHull, ProjectedChart, ProjectedHull, SpanHull, net_incidence,
+    };
+    let b = band();
+    let (f, d) = (1e-3, 0.25);
+    let hull = |rho_lo: f64, z: (f64, f64)| ProjectedHull {
+        pieces: vec![PieceHull {
+            range: (0.0, 1.0),
+            x_lo: 1.0,
+            tube_lo: 1.0,
+        }],
+        spans: vec![SpanHull {
+            range: (0.0, 1.0),
+            f_sup: f,
+            rho_lo,
+            z,
+        }],
+    };
+    let close = |got: f64, want: f64| (got - want).abs() <= 1e-12 * want.abs();
+    let alpha = 0.6_f64;
+    let cone = Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::unit_z(),
+        half_angle: alpha,
+        u_ref: Vec3::unit_x(),
+    };
+    // The stored scalars are deliberately wrong: the lever reads the
+    // twin's angle, not the row's.
+    let stored = |nappe| ProjectedChart::Cone {
+        sin: 0.0,
+        cos: 0.0,
+        nappe,
+    };
+    let (inc, floor) = net_incidence(
+        &hull(1.0, (0.5, 2.0)),
+        &[0],
+        &stored(crate::Nappe::Opening),
+        &cone,
+        d,
+        b,
+    )
+    .expect("a positive lever");
+    let lever = alpha.cos() + 0.5 * alpha.sin();
+    assert!(
+        close(inc, f / lever) && close(floor, 1.0 - d),
+        "cone: {inc:e}, {floor}"
+    );
+    let mirror = net_incidence(
+        &hull(0.1, (0.5, 2.0)),
+        &[0],
+        &stored(crate::Nappe::Mirror),
+        &cone,
+        d,
+        b,
+    );
+    assert!(
+        matches!(
+            mirror,
+            Err(PcurveCertifyError::SectorRefused {
+                channel: SectorChannel::Lever,
+                ..
+            })
+        ),
+        "{mirror:?}"
+    );
+    let rho = 0.9;
+    for (surf, want) in [
+        (
+            Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            f / (1.0 + rho.max(1.0 - f)),
+        ),
+        (
+            Surface::Sphere {
+                center: Point3::origin(),
+                radius: 1.0,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            f / (1.0 + rho.max(1.0 - f)),
+        ),
+        (
+            Surface::Torus {
+                center: Point3::origin(),
+                axis: Vec3::unit_z(),
+                major_radius: 1.2,
+                minor_radius: 0.4,
+                u_ref: Vec3::unit_x(),
+            },
+            {
+                let outer = (rho + 1.2_f64).powi(2) - 0.4_f64.powi(2);
+                let first = f / (0.4 * outer);
+                f / ((0.4 + (0.4 - first).max(0.0)) * outer)
+            },
+        ),
+    ] {
+        let chart = match surf {
+            Surface::Torus { major_radius, .. } => ProjectedChart::Torus {
+                major: major_radius,
+            },
+            Surface::Sphere { .. } => ProjectedChart::Sphere,
+            _ => ProjectedChart::Cylinder,
+        };
+        let (inc, floor) = net_incidence(&hull(rho, (0.0, 0.0)), &[0], &chart, &surf, d, b)
+            .unwrap_or_else(|e| panic!("{surf:?}: {e:?}"));
+        assert!(close(inc, want), "{surf:?}: {inc:e} against {want:e}");
+        assert!(close(floor, rho - d), "{surf:?}: floor {floor}");
+    }
+    let mut uncertified = hull(1.0, (0.5, 2.0));
+    uncertified.spans[0].f_sup = f64::NAN;
+    let got = net_incidence(
+        &uncertified,
+        &[0],
+        &stored(crate::Nappe::Opening),
+        &cone,
+        d,
+        b,
+    );
+    assert!(
+        matches!(got, Err(PcurveCertifyError::ImageMismatch { .. })),
+        "{got:?}"
+    );
+}
+
+/// **The stored chart scalars, frame and deck are bounded**: a row whose
+/// stored cone angle, torus major radius, circle frame or `v` offset is
+/// moved off the chart's dominates its sampled displacement, so a term
+/// that dropped any of them goes red.
+#[test]
+fn moved_stored_scalars_are_dominated() {
+    use super::super::projected::ProjectedChart;
+    let b = band();
+    let lane = crate::FittedLane::<f64>::certified();
+    // The cone's stored angle moves its foot along the generator at
+    // second order on the cone (the slant is stationary in the angle
+    // there), so its move is the larger one.
+    let (eta, cone_eta) = (1e-6, 1e-3);
+    let check = |what: &str,
+                 image: super::super::projected::ProjectedImage<f64>,
+                 c: &Curve3<f64>,
+                 surf: &Surface<f64>,
+                 t0: f64,
+                 t1: f64| {
+        let pcurve = Pcurve::Projected(Box::new(image.clone()));
+        let boxed = pcurve.chart_box(t0, t1);
+        let env = projected_envelope(&image, t0, t1, &boxed, c, surf, b, Some(lane))
+            .unwrap_or_else(|e| panic!("{what}: {e:?}"))
+            .total();
+        let sup = sampled(&pcurve, c, surf, t0, t1);
+        assert!(sup > 1e-8, "{what}: the move is real ({sup:e})");
+        assert!(
+            env >= sup * (1.0 - 1e-9),
+            "{what}: envelope {env:e} under {sup:e}"
+        );
+    };
+    let (surf, c) = parallel(Chart::Cone, 0.0);
+    let mut image = project(&c, None, &surf, b).unwrap();
+    if let ProjectedChart::Cone {
+        ref mut sin,
+        ref mut cos,
+        ..
+    } = image.chart
+    {
+        (*sin, *cos) = (0.6 + cone_eta).sin_cos();
+    }
+    check("the cone's stored angle", image, &c, &surf, 0.0, 1.0);
+    let (surf, c) = parallel(Chart::Torus, 0.0);
+    let mut image = project(&c, None, &surf, b).unwrap();
+    if let ProjectedChart::Torus { ref mut major } = image.chart {
+        *major += eta;
+    }
+    check(
+        "the torus's stored major radius",
+        image,
+        &c,
+        &surf,
+        0.0,
+        1.0,
+    );
+    let (surf, c) = parallel(Chart::Cylinder, 0.0);
+    let mut image = project(&c, None, &surf, b).unwrap();
+    image.v_off += eta;
+    check("the cylinder's v offset", image, &c, &surf, 0.0, 1.0);
+    let sphere = unit_sphere();
+    let c = tilted_on(1.0, 0.7, 0.3);
+    let mut image = project(&c, Some((0.3, 2.1)), &sphere, b).unwrap();
+    if let FramedCarrier::Circle { ref mut centre, .. } = image.carrier {
+        *centre = *centre + Vec3::new(eta, -eta, eta);
+    }
+    check("the circle's stored centre", image, &c, &sphere, 0.3, 2.1);
+}
+
+/// A net's one-piece image (a 120° arc in one knot span) with its
+/// branch centre turned a half period: `atan2`'s cut then lies inside
+/// the piece, where the image jumps a period, which `S` cannot see. On
+/// a torus the arc is a meridian and the turned centre the tube angle's.
+fn turned_piece_refusal(torus: bool) -> PcurveCertifyError {
+    let b = band();
+    let sweep = 120f64.to_radians();
+    let (surf, c) = if torus {
+        (
+            Surface::Torus {
+                center: Point3::origin(),
+                axis: Vec3::unit_z(),
+                major_radius: 1.2,
+                minor_radius: 0.4,
+                u_ref: Vec3::unit_x(),
+            },
+            arc(
+                Point3::new(1.2, 0.0, 0.0),
+                Vec3::unit_x(),
+                Vec3::unit_z(),
+                0.4,
+                -0.5 * sweep,
+                sweep,
+            ),
+        )
+    } else {
+        (
+            Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            arc(
+                Point3::origin(),
+                Vec3::unit_x(),
+                Vec3::unit_y(),
+                1.0,
+                -0.5 * sweep,
+                sweep,
+            ),
+        )
+    };
+    let mut image = project(&c, None, &surf, b).expect("on the chart");
+    assert_eq!(image.pieces(), 1, "a 120° arc holds one sector");
+    if torus {
+        image.tube[0] += 2;
+    } else {
+        image.azimuth[0] += 2;
+    }
+    let lane = crate::FittedLane::<f64>::certified();
+    PcurveCache::certify_projected(image, 0.0, 1.0, &c, &surf, b, Some(lane))
+        .expect_err("the cut inside the piece")
+}
+
+/// A net's image merged onto one branch centre whose half-plane its
+/// arc grazes: a 120° arc in one knot span starting `1e-14` short of the
+/// branch's boundary (the azimuth's, or on a torus the tube angle's on a
+/// meridian), imaged on several pieces and then stored on one. The
+/// image is continuous and its sweep is a third of a turn, so only the
+/// sector condition, decided against the band, refuses it.
+fn grazing_piece_refusal(torus: bool) -> PcurveCertifyError {
+    let b = band();
+    let (from, sweep) = (-FRAC_PI_2 + 1e-14, 120f64.to_radians());
+    let (surf, c) = if torus {
+        (
+            Surface::Torus {
+                center: Point3::origin(),
+                axis: Vec3::unit_z(),
+                major_radius: 1.2,
+                minor_radius: 0.4,
+                u_ref: Vec3::unit_x(),
+            },
+            arc(
+                Point3::new(1.2, 0.0, 0.0),
+                Vec3::unit_x(),
+                Vec3::unit_z(),
+                0.4,
+                from,
+                sweep,
+            ),
+        )
+    } else {
+        (
+            Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            arc(
+                Point3::origin(),
+                Vec3::unit_x(),
+                Vec3::unit_y(),
+                1.0,
+                from,
+                sweep,
+            ),
+        )
+    };
+    let mut image = project(&c, None, &surf, b).expect("on the chart");
+    image.breaks = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    image.azimuth = vec![0];
+    if torus {
+        image.tube = vec![0];
+    }
+    let lane = crate::FittedLane::<f64>::certified();
+    PcurveCache::certify_projected(image, 0.0, 1.0, &c, &surf, b, Some(lane))
+        .expect_err("a piece grazing its half-plane")
+}
+
+/// **A piece grazing its half-plane refuses its sector**, on the
+/// azimuth and on a torus's tube angle: the one row only the sector
+/// condition reads (a piece across the cut is also over the period).
+#[test]
+fn a_piece_grazing_its_half_plane_refuses_its_sector() {
+    for (torus, channel) in [(false, SectorChannel::Azimuth), (true, SectorChannel::Tube)] {
+        let err = grazing_piece_refusal(torus);
+        assert!(
+            matches!(err, PcurveCertifyError::SectorRefused { channel: c, .. } if c == channel),
+            "{channel:?}: {err:?}"
+        );
+    }
+}
+
+/// **A τ jump inside a piece, and one at a break, refuse.** A piece
+/// whose branch centre puts the azimuth's cut inside it, or the tube
+/// angle's on a torus, refuses its sector (the image jumps a period
+/// there and `S` cannot see it); a last piece turned a whole period
+/// refuses the branch at the break, though each piece holds its own
+/// sector.
+#[test]
+fn a_period_jump_inside_a_piece_or_at_a_break_refuses() {
+    // The cut inside the piece: a period gate reads the jump first, a
+    // sweep of a whole period, and the sector refuses it where no gate
+    // runs first ([`a_piece_grazing_its_half_plane_refuses_its_sector`]).
+    for torus in [false, true] {
+        let err = turned_piece_refusal(torus);
+        assert!(
+            matches!(
+                err,
+                PcurveCertifyError::AzimuthPeriodExceeded
+                    | PcurveCertifyError::TubePeriodExceeded
+                    | PcurveCertifyError::SectorRefused {
+                        channel: SectorChannel::Azimuth | SectorChannel::Tube,
+                        ..
+                    }
+            ),
+            "torus {torus}: {err:?}"
+        );
+    }
+    let b = band();
+    let cylinder = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    // A sweep that DEcreases, so the last piece turned a whole period up
+    // lands a whole period above the joint it leaves, and the image's
+    // sweep reads exactly a period: the gate lets it pass, and only the
+    // branch condition reads the jump.
+    let c = arcs(
+        Point3::origin(),
+        Vec3::unit_x(),
+        Vec3::new(0.0, -1.0, 0.0),
+        1.0,
+        0.3,
+        &[1.0, 1.0],
+    );
+    let image = project(&c, None, &cylinder, b).expect("on the cylinder");
+    let mut turned = image.clone();
+    *turned.azimuth.last_mut().unwrap() += 4;
+    let lane = crate::FittedLane::<f64>::certified();
+    let err = PcurveCache::certify_projected(turned, 0.0, 1.0, &c, &cylinder, b, Some(lane))
+        .expect_err("a whole-turn jump at a break");
+    assert!(
+        matches!(
+            err,
+            PcurveCertifyError::SectorRefused {
+                channel: SectorChannel::Branch,
+                ..
+            }
+        ),
+        "{err:?}"
+    );
+}
+
+/// **The plane's envelope dominates**: a cubic whose middle controls
+/// leave the plane, against its densely sampled distance from it.
+#[test]
+fn the_plane_envelope_dominates_a_carrier_off_the_plane() {
+    let b = band();
+    let plane = Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    let h = 1e-3;
+    let c = Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap(),
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(0.3, 0.2, h),
+                Point3::new(0.7, -0.1, h),
+                Point3::new(1.0, 0.1, 0.0),
+            ],
+            vec![1.0; 4],
+        )
+        .unwrap(),
+    ));
+    let image = project(&c, None, &plane, b).expect("a plane takes every net");
+    let pcurve = Pcurve::Projected(Box::new(image.clone()));
+    let boxed = pcurve.chart_box(0.0, 1.0);
+    let env = projected_envelope(&image, 0.0, 1.0, &boxed, &c, &plane, b, None)
+        .expect("the plane reads no door")
+        .total();
+    let dense = (0..=2048)
+        .map(|i| {
+            let t = f64::from(i) / 2048.0;
+            let q = pcurve.eval(t);
+            plane.eval(q.x, q.y).distance(c.eval(t))
+        })
+        .fold(0.0, f64::max);
+    assert!(
+        env >= dense && dense > 0.5 * h,
+        "envelope {env:e}, dense {dense:e}"
+    );
 }
