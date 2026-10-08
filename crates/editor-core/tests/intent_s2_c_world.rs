@@ -76,8 +76,28 @@ fn documents() -> Vec<(String, ProfileDoc)> {
         .map(|d| (d.name.to_string(), d.doc))
         .collect();
     let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let process_epsilon = editor_core::persist::save(
+        &ProfileDoc::empty_derived("intent-s2-c-epsilon", Tol::witness()),
+        &[],
+        Tol::witness(),
+    )
+    .expect("an empty document saves")
+    .lines()
+    .find(|l| l.trim_start().starts_with("\"epsilon\":"))
+    .expect("a saved document records its ε")
+    .to_owned();
     for file in FILES {
-        let text = std::fs::read_to_string(here.join(file)).expect("reads");
+        // A file records the ε it was saved at, and one process holds
+        // one ε: the record is read at the process's, so the document
+        // is the process's at every ε row.
+        let text: String = std::fs::read_to_string(here.join(file))
+            .expect("reads")
+            .lines()
+            .map(|l| match l.trim_start().starts_with("\"epsilon\":") {
+                true => format!("{}\n", process_epsilon),
+                false => format!("{l}\n"),
+            })
+            .collect();
         let doc = editor_core::persist::load(&text, Tol::witness())
             .unwrap_or_else(|e| panic!("{file} loads: {e}"))
             .doc;
