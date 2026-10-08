@@ -3,13 +3,25 @@
 //! decided class checked against an exact rational reading of the same
 //! cone.
 //!
+//! **What it certifies.** Every `cone_side` reading, on every family.
+//! Every `wedge_classes` reading but the long-probe family's: there its
+//! convex branch reads a corner whose reflex edge is flat within the
+//! band at its short bounds as convex, and classes long edges wrong far
+//! out of band (CLEAVE's
+//! `wedge-classes-reads-a-corner-flat-at-its-short-bounds-as-convex`,
+//! P1, pre-existing). That column is counted and printed as known
+//! wrong, not asserted.
+//!
 //! The cones are stars about an axis, their corners risen and fallen
 //! at random, some with two corners a hair apart (a thin fin or
 //! sliver), some turned off the axis; the graze family of PR 4289's
 //! second review: a flat corner with one face dented a hair, read by
-//! directions a hair off the flat faces; and its third review's bound
-//! family: a short bound, read by directions a hair past it. Every bound is a line edge,
-//! its far point an `f64` vector, and every direction a line edge too.
+//! directions a hair off the flat faces; its third review's bound
+//! family: a short bound, read by directions a hair past it; and its
+//! fourth review's long-probe family: a dart over 1 mm or 1 cm bounds,
+//! its reflex edge dented a hair, read by edges up to 1 km long. Every
+//! bound is a line edge, its far point an `f64` vector, and every
+//! direction a line edge too.
 //!
 //! The oracle reads the same `f64` numbers exactly, as rationals: a
 //! direction is on the cone where it lies on a face's plane within its
@@ -36,6 +48,13 @@
 //! bound's ray and `t` its distance along it. The probe is in band
 //! where that is within the zero band for some face, or it lies exactly
 //! on the cone.
+//!
+//! **Two face models, one cone.** The oracle (`Oracle::new`) reads the
+//! cone as the faces' planes and the bounds' far points exactly;
+//! `least_flip` holds each face's plane and turns its bounds in it.
+//! On a valid cone, unmoved (every bound on its faces' planes within
+//! the band, which is checked), the two read the same cone; they differ
+//! only on moved cones, which only `least_flip` reads.
 //!
 //! A reading is **wrong** where it is a decided class (`In` or `Out`)
 //! the oracle contradicts, or a decided class in band (a band-sized
@@ -511,6 +530,34 @@ fn beside_bound(rng: &mut Rng) -> (Ring, Vec<[f64; 3]>) {
     (ring, probes)
 }
 
+/// Review 4's long-probe family: a dart of four faces over 1 mm or
+/// 1 cm bounds, one edge reflex by a dent `g` within the band or a few
+/// bands at those bounds, read by edges 1 m, 50 m and 1 km long a hair
+/// above or below the flat (`L_d/L_b` up to a million).
+fn dart_long(rng: &mut Rng) -> (Ring, Vec<[f64; 3]>) {
+    let pick = |rng: &mut Rng, xs: &[f64]| xs[rng.below(xs.len())];
+    let g = pick(rng, &[1e-5, -1e-5, 1e-6, -1e-6, 3e-7, -3e-7]);
+    let lb = pick(rng, &[1e-3, 1e-2]);
+    let ring = vec![
+        ([1.0, 0.0, 0.0], lb),
+        ([0.0, 1.0, g], lb),
+        ([-1.0, 0.0, 0.0], lb),
+        ([0.0, -1.0, 0.0], lb),
+    ];
+    let probes = (0..12)
+        .map(|_| {
+            let ld = pick(rng, &[1.0, 50.0, 1000.0]);
+            let az = rng.range(0.05, std::f64::consts::PI - 0.05);
+            let sign = if rng.below(2) == 0 { 1.0 } else { -1.0 };
+            let el = sign * pick(rng, &[3e-9, 1e-8, 3e-8, 1e-7, 1e-6, 1e-5]) * rng.range(0.5, 2.0)
+                / ld
+                * 1e3;
+            norm3([az.cos() * el.cos(), az.sin() * el.cos(), el.sin()]).map(|x| x * ld)
+        })
+        .collect();
+    (ring, probes)
+}
+
 /// Directions about a cone: random ones, and ones on, beside and a
 /// hair off its faces and bounds, each a far point at a random length.
 fn probes_about(rng: &mut Rng, cone: &[Sector]) -> Vec<[f64; 3]> {
@@ -553,6 +600,7 @@ fn check_cone(
     band: Band,
     rng: &mut Rng,
     counts: &mut Counts,
+    wedge_known_wrong: bool,
 ) -> Vec<String> {
     // A face whose bounds stand off its own plane beyond the zero band
     // is no face at this ε: a sector a few nanoradians wide has its
@@ -617,6 +665,10 @@ fn check_cone(
                 _ => in_band.then_some("decided in band"),
             };
             if let Some(defect) = defect {
+                if wedge_known_wrong && reader == "wedge_classes" {
+                    counts.known_wrong += 1;
+                    continue;
+                }
                 wrong.push(format!(
                     "{what}, probe {k} {far:?}: {reader} reads {got:?}, exactly {truth:?}, \
                      flipped by a {flip:.3e} m deviation: {defect}"
@@ -627,20 +679,24 @@ fn check_cone(
     wrong
 }
 
-/// What a run read, and what it left undecided.
+/// What a run read, what it left undecided, and the `wedge_classes`
+/// readings of the long-probe family the CLEAVE item knows wrong.
 #[derive(Default)]
 struct Counts {
+    known_wrong: usize,
     read: usize,
     undecided: usize,
 }
 
 /// **No decided class the polygon-cone reader gives contradicts the
 /// exact oracle or lies in band**, over random stars, thin fins and
-/// slivers, turned stars, and the graze family (module docs).
+/// slivers, turned stars, and the graze, bound and long-probe families;
+/// `wedge_classes` on the long-probe family is counted, not asserted
+/// (module docs).
 #[test]
 fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
     let mut rng = test_utils::fuzz::start("sectors_cone_fuzz");
-    let cones = test_utils::fuzz::scaled(80);
+    let cones = test_utils::fuzz::scaled(90);
     let mut wrong = Vec::new();
     let mut counts = Counts::default();
     let session = Tol::witness().get().eps;
@@ -652,10 +708,13 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
         let band = Band::linear_at(Tol::witness(), eps).unwrap();
         for c in 0..cones {
             let hollow = rng.below(2) == 0;
-            let (ring, probes) = if c % 4 == 0 {
+            let long = c % 5 == 2;
+            let (ring, probes) = if c % 5 == 0 {
                 graze(&mut rng)
-            } else if c % 4 == 1 {
+            } else if c % 5 == 1 {
                 beside_bound(&mut rng)
+            } else if long {
+                dart_long(&mut rng)
             } else {
                 let n = 3 + rng.below(9);
                 let thin = rng.unit() < 0.3;
@@ -684,14 +743,18 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
                 band,
                 &mut rng,
                 &mut counts,
+                long,
             ));
         }
     }
     println!(
-        "[fuzz] sectors_cone_fuzz: {} readings, {} undecided, {} wrong",
+        "[fuzz] sectors_cone_fuzz: {} readings, {} undecided, {} wrong, {} wedge_classes \
+         readings of the long-probe family known wrong (CLEAVE's \
+         wedge-classes-reads-a-corner-flat-at-its-short-bounds-as-convex)",
         counts.read,
         counts.undecided,
-        wrong.len()
+        wrong.len(),
+        counts.known_wrong
     );
     assert!(
         wrong.is_empty(),

@@ -814,6 +814,17 @@ PR 4289's third review (REQUEST-CHANGES, MAJOR 1). The fix pass:
   ε 1e-12 too, and takes the review's bound family.
 - **Moved:** `in-sector-is-a-second-spelling-of-within` to HONE.
 
+PR 4289's fourth review (APPROVE-WITH-FIXES, 0 MAJOR). The fix pass:
+- **Joint lever.** `least_lever` is the least joint move of every point a
+  reading reads, `1/Σ(rate/L)`, and `crossing` levers through it: one
+  spelling of the least deviation, sound for any `K > 1`.
+- **Rows** for the two guards nothing killed: a direction in band of a
+  face within its sector refuses, and a saddle whose mean bound is in
+  band is not pointed.
+- **Filed:** `wedge-classes-reads-a-corner-flat-at-its-short-bounds-as-convex`
+  on CLEAVE (P1, pre-existing): `cone_fuzz`'s new long-probe family
+  counts it, and asserts `cone_side` there.
+
 2026-10-07 — PR 4246's third fix pass (third review, interim
 REQUEST-CHANGES, 1 MAJOR). A root at a smooth vertex under a graze is
 decided by its in-span readings, and those were levered by arc length,
