@@ -1224,7 +1224,10 @@ nor inside a formula: the only constants are dimensionless rationals and
 rational fractions of a turn, which are the shape of a formula rather
 than a dimension. Typing a value in the GUI mints a free variable and
 offers an existing variable of equal value; declining the offer is what
-makes the two distinct.
+makes the two distinct. A variable without a name is read by exactly
+one slot or definition, which is how it is spoken; a variable two
+readers share has a name the person gave it; an output is spoken by
+its operation.
 
 A pose is a frame known up to its kind's symmetry, a subgroup of the
 rigid motions and the same `Subgroup` the mates fold (A11 (1)): a plane
