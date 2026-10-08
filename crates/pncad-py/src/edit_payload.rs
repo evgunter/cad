@@ -30,7 +30,7 @@
 //! cannot hold two types.
 //!
 //! A NESTED REFUSAL is not flattened: `ProfileProgramRefused`,
-//! `MeasureMalformed`, `Dimension`, `InvalidDistribution`,
+//! `Dimension`, `InvalidDistribution`,
 //! `PlacementAxis` and `MetaUnversioned` each hold another error type,
 //! `inner_variant` names its arm, and the fields inside it belong to
 //! that type's own door. `Roots` is the exception and it is not a

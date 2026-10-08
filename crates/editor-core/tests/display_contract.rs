@@ -1174,8 +1174,8 @@ fn a_node_refusal_names_its_slot_by_its_label() {
 /// `Debug` dump.
 ///
 /// The payload-carrying arms forward their payload's own `Display`
-/// (`RootFault`, `PlacementRuleFault`, `MeasureNodeFault`,
-/// `InputFault`, `MetaVersionError`) rather than restating it, and the
+/// (`RootFault`, `PlacementRuleFault`, `InputFault`,
+/// `MetaVersionError`) rather than restating it, and the
 /// two placement-frame arms forward the frame rule's clause — so each
 /// case below asks for the payload's words, which is what proves the
 /// forwarding happened.

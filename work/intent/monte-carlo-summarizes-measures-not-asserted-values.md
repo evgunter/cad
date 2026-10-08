@@ -2,8 +2,9 @@
 id: monte-carlo-summarizes-measures-not-asserted-values
 kind: issue
 title: Monte Carlo summarizes each Measure node, so a measurement with arithmetic has no population row
-status: open
+status: closed
 opened: 2026-10-08
+closed: 2026-10-08
 ---
 
 
@@ -23,3 +24,9 @@ The natural shape is a row per observed variable an assertion reads (the
 stackup already takes any scalar `VarId`), or the asserted value's
 statistics on `McAssertion`. Either is an API change to `McReport` and
 Python's `McMeasure`.
+
+Closed in the same unit's fix pass: `McReport.values` keeps a row per
+value an assertion reads (`McValue`, keyed by the variable), read per
+sample through `Evaluation::reading`; the per-measure rows stay beside
+it. The tour's `mcplate` and `tolerance` cut-wall rows read the web's
+row again.
