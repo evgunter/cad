@@ -427,10 +427,15 @@ fn a_split_records_its_pinch_and_nothing_where_it_only_cuts() {
             "the side verdict's own margin"
         );
     }
-    // A plane that misses the tip by less than the band reads it ON all
-    // the same (D1 tier 3′ (i): a value coincidence however small), and
-    // the pinch it makes is recorded just as one at the tip is.
-    let near = split(&operand, &plane_y(1.0 + 1e-10), Tol::witness()).unwrap();
+    // A plane that misses the tip by a tenth of ε reads it ON all the
+    // same (D1 tier 3′ (i): a value coincidence however small), and the
+    // pinch it makes is recorded just as one at the tip is.
+    let near = split(
+        &operand,
+        &plane_y(1.0 + Tol::witness().eps() / 10.0),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_eq!(
         near.coincidences.len(),
         2,

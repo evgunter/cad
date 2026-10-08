@@ -150,7 +150,8 @@ more runs on a side, `splitting::reduce` records a `topo::Coincidence`
 document lints it as an `unproven-coincidence`. Row:
 `crates/topo/tests/m3_pr3_split.rs`
 `a_split_records_its_pinch_and_nothing_where_it_only_cuts` — the
-`NOTCHED` tip at `y = 1` and at `y = 1 + 1e-10` each record two rows, and
+`NOTCHED` tip at `y = 1` and a tenth of ε above it each record two
+rows, and
 a transversal cut none.
 
 A document cannot yet reach a pinch split at all: the split's naming
