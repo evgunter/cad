@@ -405,3 +405,36 @@ axes), and `BodyFrame` retires.
   construction that reads no pose starts a space, and a space is what that construction reaches
   through reads and placements; anything reaching two refuses. The **world** is one undeletable
   node that copies relate to like a part; it only sets export's coordinates."
+
+## Final (S3P), checked against `5f7a1c71e3`
+
+**The first body.** Its construction reads a profile and leaves the frame slot empty. Nothing
+supplies a frame, and nothing is made up to fill it. The extrude builds in coordinates of its
+own that no variable stands for and nothing reads; the kernel picks them for numerics (Ev:
+"local coordinates … none of those choices depend on the world node"). That body is the root of
+its space. Everything after it reads geometry off it: a face's frame, an axis, an `Offset` of
+these. The same profile can be read through other frames elsewhere (Ev: "reuse the same profile
+in multiple positions").
+
+**One port, and why it is not a blank frame.** A root construction defines its base frame as an
+output: the plane its cap lies on, with the profile's 2-D axes. That is read off the
+construction's own geometry, like a face frame, so it is not a frame from nothing. It replaces
+`BodyFrame` and is how a symmetric root is pinned. A sphere offers no frame of its own, so
+without the port a ball placed with only its centre point would refuse as underconstrained
+(likely; this is the S3M designers' call).
+
+Nothing defines a frame from nothing except the world, which Ev named: an undeletable node that
+"just sets the coordinates" and is read only by placements and export.
+
+**D10 Variables:** "… the poses (…), which are always defined: read off geometry (a face's frame,
+an axis, a construction's base frame), combined or offset from other poses, or pinned by a
+placement. A profile is 2-D content with no frame; a reader supplies one."
+
+**D10 Spaces:** "A part has no location: raw coordinates are never compared with one another. A
+construction that reads no pose builds in coordinates of its own, which nothing reads, and starts
+a space. A space is what such a construction reaches through reads and placements, and anything
+reaching two refuses. The **world** is one undeletable node that copies relate to like a part;
+it only sets export's coordinates. The kernel computes each operation in a frame chosen for
+numerics from that operation's own reads, never the world's."
+
+(S3M is not mine to answer.)
