@@ -732,3 +732,21 @@ layer. The germ oracle, 69 scenes at five poses, reads 0 wrong, 0
 missing and 0 doubled at ε 1e-9 and 1e-6 (main: 270 wrong, 855
 missing, 180 cells refused). A touching vertex beside a dart now builds.
 Evidence added to CONTACT's `a-touch-at-a-saddle-corner-refuses-unanalysed`.
+
+## 2026-10-07 — position and tilt as one sum (TANG implementer)
+
+The section classifiers decide a served verdict's position datum and
+the term beside it as one margin across the reach (`decide_across`):
+plane×cylinder's gap, the cylinder pair's coaxial and gap rows and the
+witness's internal gap (the axes' distance's exact range), cone×cylinder's
+coaxial row, and, from the sweep, plane×torus's two-oval and cap rows
+and plane×cone's apex section. Closes
+`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time`. Filed on this
+slate `ball-lever-reads-the-3d-distance-not-the-axial-travel`,
+`face-hinge-lever-applies-its-larger-side-both-ways`,
+`cone-cylinder-levers-at-the-extent-not-the-circle-station`,
+`plane-torus-oval-tilt-levered-at-the-extent-not-the-tube-height`,
+`decide-across-and-carrier-eq-floor-are-two-spellings` and
+`plane-cylinder-gap-reads-the-3d-distance-not-the-in-section-stand-off`;
+the sweep's siblings went to OFFSET, CLEAVE, CHART, CONTACT, FLUX and
+GERM.

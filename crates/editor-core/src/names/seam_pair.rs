@@ -133,11 +133,18 @@ fn seam_through(name: &StableName, kind: EntityKind) -> Option<(&StableName, &St
 /// Whether face name `n` denotes face `x`, or a face descended from it:
 /// `x` itself or `x` followed by discriminators, through any number of
 /// the wrappers [`head`] passes through, or a merged face with such a
-/// constituent.
+/// constituent. Where `x` is itself a merged face, read through its
+/// wrappers, a face descended from one of its constituents descends from
+/// it too: a merge over `x` lists those, never `x` (N3).
 pub(crate) fn face_descends_from(n: &StableName, x: &StableName) -> bool {
+    let parts = super::merged::constituents_through_wrappers(x);
+    let xs: Vec<&StableName> = core::iter::once(x).chain(parts.iter().flatten()).collect();
     let mut names = vec![n];
     while let Some(n) = names.pop() {
-        if n.kind == x.kind && n.node == x.node && n.path.starts_with(&x.path) {
+        if xs
+            .iter()
+            .any(|x| n.kind == x.kind && n.node == x.node && n.path.starts_with(&x.path))
+        {
             return true;
         }
         match n.path.first().map(head) {

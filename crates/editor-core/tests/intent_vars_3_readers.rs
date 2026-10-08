@@ -143,7 +143,7 @@ fn evidence(a: &Body<f64>, b: &Body<f64>) -> RadiusEvidence {
 }
 
 /// What `node`'s `slot` reads, as written (`Doc::slot_expansion`).
-fn slot(doc: &ProfileDoc, node: RecipeNodeId, slot: SlotId) -> editor_core::Expr {
+fn slot(doc: &ProfileDoc, node: RecipeNodeId, slot: SlotId) -> editor_core::Formula {
     doc.slot_expansion(node, slot).expect("the slot is there")
 }
 
@@ -581,8 +581,13 @@ fn an_anonymous_variable_lives_as_long_as_its_readers() {
     assert_eq!(anonymous.slot(blend, SlotId::Radius), Some(w));
     assert_eq!(
         anonymous.unparse(&editor_core::Expr::var(w, Dimension::Length)),
+        "0.125 m",
+        "an anonymous reader writes what it holds"
+    );
+    assert_eq!(
+        editor_core::unparse(&editor_core::Expr::var(w, Dimension::Length), &|_| None),
         format!("#{}", w.full()),
-        "an anonymous reader writes its full id"
+        "and its full id where no document speaks it"
     );
     match try_step(&anonymous, DocEdit::DeleteVar { var: w.into() }) {
         Err(EditError::DeleteAnonymousVar { var }) => assert_eq!(var.id(), w),
@@ -1376,10 +1381,20 @@ fn inline_carries_an_anonymous_variable_whole() {
     );
     let reads = definition_reads(&out.doc, host_defined);
     let part_reads = definition_reads(&part, defined);
-    assert_eq!(
-        reads,
-        BTreeSet::from([id(&out.doc, "d")]),
+    let host_d = id(&out.doc, "d");
+    assert!(
+        reads.contains(&host_d),
         "the definition reads the carried d"
+    );
+    let quantity: Vec<_> = reads.iter().copied().filter(|&v| v != host_d).collect();
+    assert_eq!(
+        quantity.len(),
+        1,
+        "and its own typed 0.25, a variable (VR6)"
+    );
+    assert!(
+        out.doc.is_typed_value(quantity[0]),
+        "carried anonymous: {quantity:?}"
     );
     assert!(
         reads.is_disjoint(&part_reads),
