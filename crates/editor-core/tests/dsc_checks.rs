@@ -704,7 +704,10 @@ fn the_registry_order_is_every_check() {
             // `Separation`, this resident would lose every finding on
             // exactly the documents that do not gather.
             CheckId::ChartCoherence => 1,
-            CheckId::Separation => 2,
+            // Before `Separation`, for the same reason: it reads node
+            // values, never the subject.
+            CheckId::UnprovenCoincidence => 2,
+            CheckId::Separation => 3,
         };
         assert_eq!(
             CheckId::ALL[position],
@@ -714,7 +717,7 @@ fn the_registry_order_is_every_check() {
     }
     assert_eq!(
         CheckId::ALL.len(),
-        3,
+        4,
         "a variant added without a place in `ALL` is a resident the \
          registry would never gather for"
     );

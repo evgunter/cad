@@ -21,6 +21,7 @@ pub mod appearance;
 pub mod assembly;
 pub mod checks;
 pub mod clearance;
+pub mod coincide;
 mod decision;
 pub mod diff;
 pub mod distribution;
@@ -114,6 +115,7 @@ pub use checks::{
     ChecksConfig, ChecksError, ChecksReport, Severity, Subject, enforce_checks, run_checks,
     run_checks_on, subject_body,
 };
+pub use coincide::{NamedCell, NamedCoincidence, Proof, Residual, Rung};
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{

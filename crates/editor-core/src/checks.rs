@@ -87,6 +87,13 @@ pub enum CheckId {
     /// ([`CheckEvidence::ChartCoherenceUnavailable`]) rather than
     /// reporting a clean body it never read.
     ChartCoherence,
+    /// The `unproven-coincidence` lint (D10): a coincidence an
+    /// operation decided from values that the door
+    /// ([`crate::coincide::prove`]) does not prove structural, so it
+    /// holds at the current values only. Read off every evaluated
+    /// node's [`crate::eval::NodeValue::coincidences`]; it refuses
+    /// nothing and changes no body.
+    UnprovenCoincidence,
 }
 
 impl CheckId {
@@ -114,6 +121,9 @@ impl CheckId {
             // metres, which is a theorem about the data — never that
             // the body is wrong, which it does not say.
             Self::ChartCoherence => CheckKind::Certified,
+            // Certified in the direction it stays SILENT: a row it does
+            // not report is one the door proved structural.
+            Self::UnprovenCoincidence => CheckKind::Certified,
         }
     }
 }
@@ -131,7 +141,12 @@ impl CheckId {
     /// subject-less resident placed after [`Self::Separation`] would
     /// lose its findings on exactly the documents that have no
     /// product.
-    pub const ALL: [Self; 3] = [Self::Connectedness, Self::ChartCoherence, Self::Separation];
+    pub const ALL: [Self; 4] = [
+        Self::Connectedness,
+        Self::ChartCoherence,
+        Self::UnprovenCoincidence,
+        Self::Separation,
+    ];
 
     /// Whether this resident reads the registry's [`Subject`].
     ///
@@ -147,6 +162,8 @@ impl CheckId {
             // output exactly as connectedness is; no product, nothing
             // to gather.
             Self::ChartCoherence => false,
+            // The rows ride each node's value: no product.
+            Self::UnprovenCoincidence => false,
         }
     }
 }
@@ -161,6 +178,7 @@ impl fmt::Display for CheckId {
             // would make the list unreadable at the boundary between
             // two entries.
             Self::ChartCoherence => f.write_str("chart-coherence"),
+            Self::UnprovenCoincidence => f.write_str("unproven-coincidence"),
         }
     }
 }
@@ -330,6 +348,12 @@ pub struct ChecksConfig {
     /// Turning it on is one field, and `Off` is VISIBLY off
     /// ([`ChecksReport::skipped`]).
     pub chart_coherence: Advisory,
+    /// [`CheckId::UnprovenCoincidence`]'s severity — [`Advisory`]: the
+    /// quieting record is an assertion at the coincidence's site, which
+    /// the check does not read yet, so `Error` is unrepresentable. A
+    /// per-run choice and never a document's: turning it off removes
+    /// reports, never changes a body (DS3).
+    pub unproven_coincidence: Advisory,
 }
 
 impl Default for ChecksConfig {
@@ -339,6 +363,7 @@ impl Default for ChecksConfig {
             expected_components: BTreeMap::new(),
             separation: Advisory::Warn,
             chart_coherence: Advisory::Off,
+            unproven_coincidence: Advisory::Warn,
         }
     }
 }
@@ -351,6 +376,7 @@ impl ChecksConfig {
             CheckId::Connectedness => self.connectedness,
             CheckId::Separation => self.separation.severity(),
             CheckId::ChartCoherence => self.chart_coherence.severity(),
+            CheckId::UnprovenCoincidence => self.unproven_coincidence.severity(),
         }
     }
 
@@ -489,6 +515,16 @@ pub enum CheckEvidence {
     /// from a body with nothing to report, which is the one thing this
     /// resident may not be.
     ChartCoherenceUnavailable,
+    /// A coincidence the finding's node decided from values that the
+    /// door does not prove structural ([`crate::coincide::prove`]).
+    UnprovenCoincidence {
+        /// The row, its cells named in the node's inputs' tables.
+        row: crate::coincide::NamedCoincidence,
+        /// What separates the two cells' constructions.
+        residual: crate::coincide::Residual,
+        /// What would make it structural.
+        recourse: crate::coincide::Recourse,
+    },
 }
 
 impl CheckEvidence {
@@ -513,10 +549,12 @@ impl CheckEvidence {
 pub struct CheckFinding {
     /// The check that fired.
     pub check: CheckId,
-    /// The root whose value carries the subject body.
+    /// The root whose value carries the subject body; for
+    /// [`CheckId::UnprovenCoincidence`], the node that decided the row,
+    /// root or not.
     pub root: RecipeNodeId,
     /// Which output body of that root (multi-output ops; 0 for a
-    /// single-body root).
+    /// single-body root, and for an unproven coincidence).
     pub output_ix: u32,
     /// What was found.
     pub evidence: CheckEvidence,
@@ -536,13 +574,22 @@ pub struct CheckFinding {
 impl crate::finding::Finding for SaidFinding<'_> {
     fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self(finding, by) = *self;
-        write!(
-            f,
-            "check {}: {} output {}",
-            finding.check,
-            by.node_as(finding.root, "root"),
-            finding.output_ix
-        )
+        match finding.check {
+            // The deciding node, which need not be a root.
+            CheckId::UnprovenCoincidence => write!(
+                f,
+                "check {}: {}",
+                finding.check,
+                by.node_as(finding.root, "node")
+            ),
+            CheckId::Connectedness | CheckId::Separation | CheckId::ChartCoherence => write!(
+                f,
+                "check {}: {} output {}",
+                finding.check,
+                by.node_as(finding.root, "root"),
+                finding.output_ix
+            ),
+        }
     }
 
     fn story(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -626,6 +673,24 @@ impl crate::finding::Finding for SaidFinding<'_> {
             CheckEvidence::ChartCoherenceUnavailable => f.write_str(
                 "this evaluation's lane does not examine chart coherence, so nothing was read",
             ),
+            CheckEvidence::UnprovenCoincidence { row, residual, .. } => {
+                let cell = |c: &crate::coincide::NamedCell| match c {
+                    crate::coincide::NamedCell::Entity { name, .. } => by.name(name).to_string(),
+                    crate::coincide::NamedCell::Tool { input } => {
+                        format!("the plane of {}", by.node_as(*input, "node"))
+                    }
+                };
+                write!(
+                    f,
+                    "{} {} {}, decided from values ({}, margin {:e}), holds only at the \
+                     current values: {residual}",
+                    cell(&row.cells[0]),
+                    crate::coincide::relation_words(row.relation),
+                    cell(&row.cells[1]),
+                    crate::coincide::site_words(row.site),
+                    row.margin,
+                )
+            }
         }
     }
 
@@ -662,6 +727,7 @@ impl crate::finding::Finding for SaidFinding<'_> {
                 "Recourse: evaluate the document at f64 to measure it, or turn this check \
                  off rather than reading its silence as a clean body"
             }
+            CheckEvidence::UnprovenCoincidence { recourse, .. } => recourse.words(),
             CheckEvidence::Escalated { .. }
             | CheckEvidence::Unsupported { .. }
             | CheckEvidence::StaleExpectation { .. }
@@ -1135,6 +1201,11 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
     } else {
         chart_coherence(doc, ev, tol, &mut report)?;
     }
+    if cfg.severity(CheckId::UnprovenCoincidence) == Severity::Off {
+        report.skipped.push(CheckId::UnprovenCoincidence);
+    } else {
+        unproven_coincidence(ev, &mut report);
+    }
     if cfg.severity(CheckId::Separation) == Severity::Off {
         report.skipped.push(CheckId::Separation);
     } else if let Subject::Unavailable { refusal } = &subject {
@@ -1148,6 +1219,33 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
         separation(&subject, tol, &mut report);
     }
     Ok(report)
+}
+
+/// The `unproven-coincidence` resident's pass (D10): every evaluated
+/// node's rows, in evaluation order then decision order, each the door
+/// leaves unproven a finding attributed to the node that decided it.
+fn unproven_coincidence<T: Decide>(ev: &Evaluation<T>, report: &mut ChecksReport) {
+    for &node in &ev.order {
+        let Some(value) = ev.value(node) else {
+            continue;
+        };
+        for row in value.coincidences.iter() {
+            if let crate::coincide::Proof::Unproven { residual, recourse } =
+                crate::coincide::prove(ev, row)
+            {
+                report.findings.push(CheckFinding {
+                    check: CheckId::UnprovenCoincidence,
+                    root: node,
+                    output_ix: 0,
+                    evidence: CheckEvidence::UnprovenCoincidence {
+                        row: row.clone(),
+                        residual,
+                        recourse,
+                    },
+                });
+            }
+        }
+    }
 }
 
 /// The connectedness resident's own pass (I1(0b)) — [`run_checks`]'s
