@@ -25,7 +25,7 @@ sign change of the outer span, so the flip is the lane's, not the
 part's.
 
 Independent of the subtract's volume-bound tie a full-depth cut meets
-(`work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`):
+(`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`):
 that tie does not arise here, and this refuses anyway. Possibly the
 same mechanism as `chart-bound-outer-span-decides-a-poisoned-margin.md`
 (an `Invalid` outcome on one side of the vector); unmeasured.

@@ -297,7 +297,7 @@ fn booleans_beside_a_far_carrier_never_answer_wrong() {
     // from its far carrier, inside the escalate band, and the door's
     // tier-3 result gate cannot certify the ring's containment: ∪ and ∖
     // refuse it there, at every k and every ε, and nothing else refuses
-    // (`work/reach/a-nested-brick-k-eps-from-a-far-carrier-escalates-at-the-result-gate.md`).
+    // (`work/tally/a-nested-brick-k-eps-from-a-far-carrier-escalates-at-the-result-gate.md`).
     let want: Vec<(String, bool)> = [2.0, 5.0, 9.0]
         .iter()
         .flat_map(|k| ["Union", "Subtract"].map(|op| (format!("k={k} through the top {op}"), true)))

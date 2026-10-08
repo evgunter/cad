@@ -4524,7 +4524,7 @@ fn a_seed_settled_outside_the_slab_is_no_branch_and_the_arc_is_still_found() {
             vacuity::stood_down(
                 "ε 1e-6",
                 "a march state lands within the band of the face, and the open end escalates \
-                 (work/ssi/ssi-r3-a-state-landing-in-band-outside-the-slab-escalates-the-open-end.md)",
+                 (work/ssiedge/ssi-r3-a-state-landing-in-band-outside-the-slab-escalates-the-open-end.md)",
             );
             assert!(
                 !cause.margin.is_invalid(),
@@ -5888,7 +5888,7 @@ fn bent_path_flat_wall(alpha: f64, width: f64, kappa: f64, mu: f64) -> NurbsSurf
 /// it inside the band at ε 1e-9, where the chart's reading refuses. One
 /// branch on the line at ε 1e-9 and 1e-12; at 1e-6 the angle is itself
 /// inside the band. (`μ` 0.1 refuses on limb 3 at ε 1e-12:
-/// `work/ssi/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md`.)
+/// `work/ssimarch/ssi-limb-three-refuses-a-bent-chart-path-line-at-eps-1e-12.md`.)
 #[test]
 fn a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is() {
     let eps = band().zero();
