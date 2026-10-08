@@ -1431,7 +1431,7 @@ mod tests {
     /// lane once placed tens of bands from the truth, each as `[t0, t1 |
     /// centre | axis | ρ | u_ref | torus centre | torus axis | R, r]` with
     /// its true crossings over the turn (mpmath at 70 digits on these
-    /// exact inputs, `v̂ = n̂ × û` exact).
+    /// inputs' exact binary values, `v̂ = n̂ × û` exact).
     pub(super) const SHALLOW_POSES: [(&str, [f64; 20], &[f64]); 3] = [
         (
             "a near-parallel circle at the tube's top, its tilt in the gap",
@@ -1457,7 +1457,7 @@ mod tests {
                 1.0,
                 0.25,
             ],
-            &[2.685_922_410_923_398, 2.710_943_695_213_426_3],
+            &[2.685_922_411_422_998_5, 2.710_943_694_713_821_5],
         ),
         (
             "a ten-metre-scale torus",
@@ -1484,10 +1484,10 @@ mod tests {
                 0.302_517_561_644_429_8,
             ],
             &[
-                4.839_135_368_952_223e-5,
-                0.027_670_534_202_976_136,
-                1.475_588_767_894_032_3,
-                6.283_137_001_763_05,
+                4.839_154_770_862_667_4e-5,
+                0.027_670_534_202_302_89,
+                1.475_588_767_894_032_7,
+                6.283_137_001_569_704,
             ],
         ),
         (
@@ -1515,10 +1515,10 @@ mod tests {
                 0.25,
             ],
             &[
-                3.126_815_815_599_285e-5,
-                0.589_305_912_820_224_2,
-                6.278_594_383_971_98,
-                6.283_153_825_682_388,
+                3.126_822_588_620_022e-5,
+                0.589_305_912_820_224,
+                6.278_594_383_972_917_5,
+                6.283_153_825_613_722,
             ],
         ),
     ];
@@ -1555,7 +1555,7 @@ mod tests {
     /// refuses** (`bool_circle_torus_sub_root_slack`). At these poses the
     /// residual's slope along the carrier at a root is `1e-8`–`1e-6`, so
     /// the `f64` residual's rounding moves its sign change by up to
-    /// 1.85e-9 m of arc, 185 bands at `ε = 1e-12`, while the root still
+    /// 1.66e-9 m of arc, 166 bands at `ε = 1e-12`, while the root still
     /// reads ON the torus. Each pose is outside the band (at least
     /// 1.2 `Kε` deep); on both lanes a certified answer must hold every
     /// true root and each of its roots within `Kε` of arc of one.

@@ -132,6 +132,9 @@ mod circle_wall_rows;
 mod cone_rows;
 #[cfg(test)]
 mod ellipse_rows;
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod shallow_sweep;
 
 /// The arm switch's row (module docs, "Two arms").
 const SECOND_HARMONIC: &str = "bool_conic_quadric_second_harmonic";

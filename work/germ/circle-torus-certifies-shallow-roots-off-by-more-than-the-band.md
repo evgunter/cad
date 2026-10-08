@@ -2,10 +2,12 @@
 id: circle-torus-certifies-shallow-roots-off-by-more-than-the-band
 kind: issue
 title: The circle x torus door certifies shallow-crossing roots up to 185 K-eps along the carrier from the truth at eps 1e-12: its subdivision passes no root-slack meter
-status: open
+status: closed
 opened: 2026-10-08
+closed: 2026-10-08
+branch: germ/circle-torus-outside-band
 priority: P0
-refs: [the-half-angle-ladder-certifies-in-band-configurations, circle-torus-meters-accept-an-unreadable-reading]
+refs: [the-half-angle-ladder-certifies-in-band-configurations, circle-torus-meters-accept-an-unreadable-reading, degree-2-subdivision-doors-carry-no-root-slack-meter]
 ---
 
 
@@ -116,22 +118,75 @@ torus axis | R r`. Torus `u_ref` does not enter.
   Its depth is 1.72e-11 m. The door's θ = 3.126831593869284e-5 is
   3.49e-10 m from the true 3.12681581559929e-5.
 
-## What would close it
+## The measurement, corrected
 
-Pass this door a `RootSlack` meter, as `ellipse_torus` does
-(`ellipse_torus.rs:120`, the running-bound residual
-`geom_brep::conic_torus_residual`). A shallow crossing whose root the
-`f64` residual cannot place then refuses. Pin the three poses above
-with a row at `Band::new(1e-12, 1e-11)`. The probe's oracle shape for
-that row: mpmath roots on the exact inputs, with arc distance compared
-against `Kε`.
+The mpmath oracle above read each input from its decimal string
+(`mp.mpf("0.0191…")`), not from the `f64` it rounds to, so its truths
+belong to inputs up to half an ulp away. At a shallow crossing that
+moves the root as far as the defect does. Re-measured against the
+exact oracle (`boolean::conic_oracle::exact`: double-double on the
+inputs' binary values, which agrees with mpmath on those values to
+the bit on the three poses below), main certifies **321** wrong
+answers outside the band (and 1 inside), all `f64`, all at
+`ε = 1e-12`, all root placements; the worst is 1.66e-9 m (166 `Kε`,
+the pole family). The three poses' errors are 2.2e-10 and 3.8e-10 m
+(near-parallel), 1.66e-9 m (ten-metre) and 2.0e-10 m (unit torus).
+The defect stands as filed; the table's counts and worst errors above
+are the decimal oracle's.
 
-## A sibling, unmeasured
+## Fixed (PR NNNN)
 
-`conic_quadric::conic_quadric_roots` passes `None` to the same
-`half_angle_roots` too
-(`crates/topo/src/boolean/conic_quadric/mod.rs:270`; it handles a
-circle tilted to a cylinder wall and an ellipse against a sphere or a
-wall). The bisection is the same, so the same placement error is
-expected at shallow crossings at `ε = 1e-12`. This lane did not
-measure it. The cone arm (`:375`) passes a meter.
+The general arm hands the subdivision a `RootSlack` meter
+(`bool_circle_torus_sub_root_slack`). Its reading is `F` itself, the
+torus quartic in its factored form `((ρ − R)² + h² − r²)((ρ + R)² +
+h² − r²)` at the root with a running bound on its rounding
+(`geom_brep::conic_torus_implicit`), so no ceiling on `|F|` per metre
+of residual enters (the residual-and-ceiling form of
+`ellipse_torus` refused 183 more correct `f64` answers at `1e-12` on
+this set). The true root lies within (reading + bound) over `F`'s
+least slope near the root of the located one, the piece holding
+exactly one true root (definite end signs, certified monotone); at the
+top speed `ρ` that is an arc, and a root whose arc the band does not
+read as zero refuses. The subdivision's derivative charges now cover
+the dropped third and fourth harmonics (`16·dropped`, Bernstein at
+degree four against the walk's degree two), which the meter's slope
+reads; that alone refuses 6 answers on this set.
+
+After, on the same 9,000 poses × 3 ε × 2 lanes: **0 wrong**, inside
+or outside the band. What newly refuses (correct answers before):
+
+| ε | `f64` | `Interval` |
+|---|---|---|
+| 1e-12 | 1,780 of 8,175 | 1,193 of 4,804 |
+| 1e-9 | 4 of 5,698 | 1,134 of 5,130 |
+| 1e-6 | 0 | 11 of 2,655 |
+
+The `Interval` lane's cost is the meter reading `F` over the root's
+whole enclosure, where the dependency problem widens it by `|∇F|·ρ`
+rather than the slope along the carrier; filed as
+`work/germ/root-slack-meter-reads-an-interval-root-at-its-whole-width.md`.
+
+Rows: `circle_torus::tests::a_shallow_crossings_root_is_within_the_band_or_refused`
+(the three poses below, pinned truths), the gated sweep
+`circle_torus::shallow_sweep::no_certified_root_of_a_shallow_crossing_is_placed_past_the_band`
+(three families, three ε, both lanes, the exact oracle) and
+`the_exact_oracle_agrees_with_mpmath_on_the_pinned_poses`.
+
+## The sibling, measured and fixed
+
+`conic_quadric::conic_quadric_roots`'s ladder arm (a circle tilted to a
+wall, an ellipse against a sphere or a wall) passed `None` too.
+Measured with the exact oracle on 3,000 shallow poses (graze depth
+`1e-11`–`1e-3` m) × 3 ε × 2 lanes, it certified **123** wrong answers outside the band
+(35 circle × wall, 39 ellipse × sphere, 49 ellipse × wall), all `f64`,
+all at `ε = 1e-12`, all root placements, the worst 7.4e-10 m (74
+`Kε`); `1e-9` and `1e-6` were clean (worst 2.7e-11 m). It now meters each
+root (`bool_conic_quadric_sub_root_slack`, the residual read by
+`geom_brep::conic_quadric_residual`, ceiling `1` since `F` is the
+residual): **0 wrong**. It newly refuses 747 of 2,831 correct `f64`
+answers at `1e-12` (none at `1e-9` or `1e-6`), and on the `Interval`
+lane 342 of 1,678 at `1e-12`, 432 of 1,708 at `1e-9` and 1 at `1e-6`.
+Pinned by the gated sweep
+`conic_quadric::shallow_sweep::no_certified_root_of_a_shallow_ladder_crossing_is_placed_past_the_band`. The open HONE row
+`degree-2-subdivision-doors-carry-no-root-slack-meter` covered both
+doors and closes with this fix.
