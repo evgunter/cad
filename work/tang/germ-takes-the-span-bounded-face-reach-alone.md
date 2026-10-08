@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P3
 cost: E
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 ## What
@@ -32,3 +32,7 @@ Before chord_join took the agreed reading, the span alone served the rulings in 
 ## The shape of a fix
 
 Once the declared path is built, a section read where no declaration is carried takes `face_reach_from` alone, and `face_reach_round_from` and `agreed_section` go.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: it waits until a reading can be told value-inferred from declared, which is the stage-4 door recording every value-decided coincidence. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
