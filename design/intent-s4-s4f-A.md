@@ -146,3 +146,52 @@ verdict.
 - **Provenance:** the 2026-10-03 transcripts are not in this shallow clone; part 2 was read
   through the GitHub contents API at `3d70e5de72`. I filed no defects; I found none off
   the question.
+
+## Round 2
+
+**1. One rung or two: I move to B's single rung, with one condition.** B's argument decides it.
+The ladders' margins already read each kind modulo its symmetry. The plane ladder, for
+example, decides `‖n₁ × n₂‖·arm` and then `d₁ − σ·d₂`. My rung 2 would state that
+quotient a second time at the door: a per-kind copy of the predicates, which is the kind
+of second description my round-1 report argued against. My argument for keeping it is only
+half answered. Some margins read computed points: the plane ladder reads its offsets at
+the extent's centre, and a vertex is a quotient of determinants. The `Sym` lane holds
+`Div` as `Mul(a, Inv(b))`, so such a margin may freeze where a carrier comparison would
+prove. That loses proofs; it is never unsound.
+- **The condition:** where the measurement shows a carrier-relation row freezing, the fix
+  is to phrase that predicate's margin over carriers, in the kernel where the decision is
+  made, not to add a door-side rung 2.
+- **The other difference is row matching.** B matches a row across lanes by (node, site,
+  ordinal, cell names), which assumes D9's decision order holds at `Sym<Interval>`. Mine
+  looked carriers up by `StableName` and needed no match. Both are sound when a row is
+  unmatched, because an unmatched row stays unproven.
+- **Is it a choice for Ev?** No; it is a measurement. Reversing later is cheap either way:
+  rung 2 is "one more rung that may only prove more" at the same door.
+
+**2. Soundness: I hold, and laundering breaks B's "never a false proven" as worded.** E12's
+theorem covers the expression the lane saw. If a construction launders a computed value
+through `T::from_f64`, that expression is no longer the construction's dependence on its
+inputs. Two typed `5 mm` slots both become `Lit(5)`, and their difference is the zero
+polynomial. Both designs read the same replay, so both need the guard. One test covers
+every verb: re-value each corpus document's variables at random, evaluate the derived
+forms there, and compare them with the f64 build. B's claim survives with a contract
+attached: no construction turns a value it computed back into a constant.
+- **A second, milder limit applies to both designs.** A kernel branch taken by value fixes
+  the form to that branch. An `abs` written as `if x < 0 { -x } else { x }` yields `x`. So
+  "proven" means proven on the region where the construction makes the same decisions.
+  Outside that region the build differs and the row is re-decided, so this is honest, but
+  D10's "across the family" should say "for every value" only with this scope.
+
+**3. Units: I move to B on C, D and H, and agree on the discharge kind.**
+- C and D merge, and C needs nothing from stage 2: slots and placement steps have been
+  `VarId`s since stage 1, so the replay sees symbols.
+- H becomes a measurement after stage 3: does a mate-placed face's contact discharge as a
+  theorem? It becomes a build only if not. The opaque placement atom goes.
+- Unit B's record needs the discharge. `Decided` has no theorem arm, so the `Sym` replay's
+  rows carry `Discharge::Theorem` versus numeric, as a field on the row or an arm on
+  `MarginDiag`.
+
+**D10 text I now propose.** Take B's two replacements as written. Add one sentence after "a
+theorem for every value (E12)": "A construction never turns a value it computed back into
+a constant, which is what keeps its code the definition; and the theorem holds wherever
+the construction takes the decisions it took here."
