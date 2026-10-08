@@ -552,35 +552,42 @@ pub(crate) fn corrupt_face(face: FaceKey) -> SplitJoinError {
 
 /// Where the section table reads a wall's pose, and how far `face`
 /// reaches from there: the base vertex `at`'s point, [`face_extent`]
-/// (the cone lane's lever), and the cylinder lane's
-/// [`geom_brep::Reach::Face`]: the face's axial range from the vertex
+/// (the cone lane's lever), and the cylinder lane's two
+/// [`geom_brep::Reach::Face`]s: the face's axial range from the vertex
 /// ([`face_axial_range`], the curved edges' bulge included) and its
-/// distance from it ([`face_extent`]), which the table reads from the
-/// rulings' hinge.
+/// distance from it, each edge read over its span ([`face_extent`]) and
+/// round its whole carrier (`face_reach_round_from`), which the table
+/// reads from the rulings' hinge and [`agreed_section`] together. Off a
+/// cylinder the second reach is the first.
 fn section_reach<T: Decide>(
     body: &Body<T>,
     at: VertexKey,
     face: FaceKey,
     wall: &geom::Surface<T>,
-) -> Result<(T, geom_brep::Reach<T>), SplitJoinError> {
+) -> Result<(T, geom_brep::Reach<T>, geom_brep::Reach<T>), SplitJoinError> {
     let p = body.resolve_vertex_point(at, Proven);
     let extent = face_extent(body, at, face).map_err(unbounded)?;
-    let reach = match wall {
+    Ok(match wall {
         geom::Surface::Cylinder { axis, .. } => {
             let (below, above) = face_axial_range(body, face, p, *axis).map_err(unbounded)?;
-            geom_brep::Reach::Face {
+            let round =
+                crate::splitting::rules::face_reach_round_from(body, face, p).map_err(unbounded)?;
+            let face_reach = |across| geom_brep::Reach::Face {
                 at: p,
                 below,
                 above,
-                across: extent,
-            }
+                across,
+            };
+            (extent, face_reach(extent), face_reach(round))
         }
-        _ => geom_brep::Reach::Measured {
-            at: p,
-            lever: extent,
-        },
-    };
-    Ok((extent, reach))
+        _ => {
+            let reach = geom_brep::Reach::Measured {
+                at: p,
+                lever: extent,
+            };
+            (extent, reach.clone(), reach)
+        }
+    })
 }
 
 /// [`face_extent`]'s refusal as the join's typed frontier: a face with
@@ -859,6 +866,40 @@ pub(crate) enum SectionCase<T: Real> {
     Tangent(geom::Curve3<T>),
 }
 
+/// **A plane×cylinder section, served only where a wall face's two
+/// measures of its reach across agree**: read over each edge's span
+/// (`splitting::rules::face_reach_from`) and round its whole carrier
+/// (`face_reach_round_from`). Both the chord lane ([`section_case`])
+/// and the germ frame (`boolean::join::pair_section_frame_at`) read
+/// the section on the declared-tangency path, which a shorter lever must
+/// not widen: an escalation under either reading escalates, and two
+/// served readings of different classes escalate under the row whose
+/// verdict they split (`pc_axis_plane_parallel_disagreement` between a
+/// conic and the rulings' lane, `pc_parallel_gap_disagreement` within
+/// that lane), two sound bounds straddling the band.
+pub(crate) fn agreed_section<T: Decide>(
+    span: Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError>,
+    round: Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError>,
+    band: Band,
+) -> Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError> {
+    use geom_brep::PlaneCylinderSection as S;
+    let conic = |s: &S<T>| matches!(s, S::Rim(_) | S::TiltedEllipse(_));
+    match (span, round) {
+        (Err(e), _) | (Ok(_), Err(e)) => Err(e),
+        (Ok(s), Ok(r)) if core::mem::discriminant(&s) == core::mem::discriminant(&r) => Ok(s),
+        (Ok(s), Ok(r)) => Err(geom_brep::SectionError::Escalated(
+            crate::invalid_margin::invalid(
+                band,
+                if conic(&s) == conic(&r) {
+                    "pc_parallel_gap_disagreement"
+                } else {
+                    "pc_axis_plane_parallel_disagreement"
+                },
+            ),
+        )),
+    }
+}
+
 /// The section of the surface PAIR `(s1, s2)` under THE C5 table, as
 /// the conic a chord takes an arc of — **one implementation for both
 /// chord lanes** — this classification was written twice in this file,
@@ -883,7 +924,7 @@ fn section_case<T: Decide>(
     band: Band,
     s1: &geom::Surface<T>,
     s2: &geom::Surface<T>,
-    (extent, reach): (T, geom_brep::Reach<T>),
+    (extent, reach, round): (T, geom_brep::Reach<T>, geom_brep::Reach<T>),
 ) -> Result<SectionCase<T>, SplitJoinError> {
     let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
     // The pair normalization: exactly one member must be the plane the
@@ -980,7 +1021,8 @@ fn section_case<T: Decide>(
             )),
         };
     }
-    let sec = geom_brep::plane_cylinder_section(plane_s, wall, &reach, band).map_err(table)?;
+    let read = |reach| geom_brep::plane_cylinder_section(plane_s, wall, reach, band);
+    let sec = agreed_section(read(&reach), read(&round), band).map_err(table)?;
     match sec {
         geom_brep::PlaneCylinderSection::TiltedEllipse(c)
         | geom_brep::PlaneCylinderSection::Rim(c) => conic(c),
@@ -1399,7 +1441,10 @@ fn chord_spec<T: Decide>(
 /// the face ([`chord_spec`]) and the split's pairing of the face's
 /// crossings along it (`splitting::join`) — so the two cannot read
 /// different conics. It is lane-neutral: the pair is the face and a
-/// plane, and nothing here knows which lane asks.
+/// plane, and nothing here knows which lane asks. So a cylinder wall is
+/// read as the most guarded lane needs it, the Boolean's germ join on the
+/// declared-tangency path: served only where the face's reach over its
+/// edges' spans and round their whole turn agree ([`agreed_section`]).
 ///
 /// # Errors
 ///
@@ -4222,14 +4267,16 @@ mod tests {
         }
     }
 
-    /// **A short patch on a large wall is levered at its own reach
-    /// across the wall, not its rims' whole turn.** A `1e5·ε × 1e3·ε`
+    /// **A short patch on a large wall never takes its rims' whole turn
+    /// for a conic.** A `1e5·ε × 1e3·ε`
     /// patch (100 µm × 1 µm at ε = 1e-9) of a 1 km wall, bounded by two rim
     /// arcs and two rulings, read at a corner and cut by the plane through that corner and the axis
     /// tilted by `sin β = k·zero/e` about the radial: the patch stands
-    /// within `k·zero` of the corner's ruling, so the section over it is
-    /// that ruling, never a conic. Levered round the rims' whole turn
-    /// (2 km across) the turn reads definite and serves a conic.
+    /// within `k·zero` of the corner's ruling. Read over its arcs' spans
+    /// the turn is Zero (the rulings); round the arcs' whole turn (2 km
+    /// across) it reads definite (a conic). The section serves only what
+    /// both readings serve ([`agreed_section`]), so it escalates on the
+    /// split, and never serves the whole turn's conic.
     #[test]
     fn a_rim_patchs_turn_is_levered_at_its_arcs_not_their_whole_turn() {
         let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
@@ -4256,16 +4303,113 @@ mod tests {
                 UnitVec3::new(Vec3::new(0.0, (1.0 - c * c).sqrt(), c), "rim patch", band).unwrap();
             let got = wall_section(&body, band, base, normal, face, corner);
             assert!(
-                !matches!(
-                    got,
-                    Ok(Some(WallSection {
-                        case: SectionCase::Conic(_),
-                        ..
-                    }))
+                matches!(
+                    &got,
+                    Err(SplitJoinError::Escalated { diag, .. })
+                        if diag.predicate == Some("pc_axis_plane_parallel_disagreement")
                 ),
-                "k = {k}: within the band of the corner's ruling, got a conic"
+                "k = {k}: the span's rulings against the whole turn's conic, got {:?}",
+                got.map(|w| w.map(|w| match w.case {
+                    SectionCase::Straight(_) => "straight",
+                    SectionCase::Tangent(_) => "tangent",
+                    SectionCase::Conic(_) => "conic",
+                }))
             );
         }
+    }
+
+    /// **The Boolean's germ join never serves a rim patch where main
+    /// escalated.** The germ join's wall side mints its chord through the
+    /// split lane ([`JoinLane::Split`], `boolean::join`'s `split_curve`).
+    /// A `1e5·ε × 1e3·ε` patch on a wall of radius `3·zero/c²` is cut by
+    /// the plane through a corner and the axis tilted by
+    /// `c = 0.5·zero/e`. Round the rims' whole turn the turn moves the
+    /// patch by about `c²·r = 3·zero`, in the band, so main escalates.
+    /// Over the arcs' spans it moves the patch by about `0.5·zero`, so the
+    /// span alone serves the rulings. The chord escalates.
+    #[test]
+    fn the_germ_join_escalates_a_rim_patch_main_escalated() {
+        let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
+        let eps = Tol::witness().eps();
+        let (e, w) = (1e3 * eps, 1e5 * eps);
+        let c: f64 = 0.5 * band.zero() / e;
+        let r = 3.0 * band.zero() / (c * c);
+        let mut body = crate::Body::<f64>::new();
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut body,
+            crate::test_support_fixtures::CylFrame::canonical(r),
+            None,
+            (0.0, w / r),
+            (0.0, e),
+            Tol::witness(),
+        );
+        let base = Point3::new(r, 0.0, 0.0);
+        let corners: Vec<_> = body.vertex_points().collect();
+        let corner = corners
+            .iter()
+            .find(|(_, p)| (*p - base).norm() < 1e-9 * r)
+            .map(|(v, _)| *v)
+            .expect("the patch's corner");
+        let other = corners
+            .iter()
+            .find(|(v, _)| *v != corner)
+            .map(|(v, _)| *v)
+            .expect("a second corner");
+        let normal = Vec3::new(0.0, (1.0 - c * c).sqrt(), c);
+        let plane = geom::Surface::Plane {
+            origin: base,
+            normal,
+            u_ref: Vec3::unit_x(),
+        };
+        let wall = crate::test_support_fixtures::CylFrame::canonical(r).surface::<f64>();
+        let (below, above) =
+            crate::splitting::rules::face_axial_range(&body, face, base, Vec3::unit_z()).unwrap();
+        let read = |across| {
+            let reach = geom_brep::Reach::Face {
+                at: base,
+                below,
+                above,
+                across,
+            };
+            geom_brep::plane_cylinder_section(&plane, &wall, &reach, band)
+        };
+        let span = crate::splitting::rules::face_reach_from(&body, face, base).unwrap();
+        let round = crate::splitting::rules::face_reach_round_from(&body, face, base).unwrap();
+        assert!(
+            matches!(read(round), Err(geom_brep::SectionError::Escalated(_))),
+            "main's whole-turn reading escalates"
+        );
+        assert!(
+            matches!(
+                read(span),
+                Ok(geom_brep::PlaneCylinderSection::ParallelLines { .. }
+                    | geom_brep::PlaneCylinderSection::TangentLine(_))
+            ),
+            "the span alone serves the rulings"
+        );
+        let mut ctx = SectionCtx {
+            origin: base,
+            normal: UnitVec3::new(normal, "rim patch", band).unwrap(),
+            plane_key: None,
+        };
+        let leave = Departure {
+            dir: Vec3::unit_z(),
+            datum: Datum::Germ,
+        };
+        let got = chord_spec(
+            &mut body,
+            band,
+            JoinLane::Split(&mut ctx),
+            face,
+            corner,
+            other,
+            leave,
+        );
+        assert!(
+            matches!(got, Err(SplitJoinError::Escalated { .. })),
+            "the germ join's chord escalates, got {:?}",
+            got.map(|s| s.is_some())
+        );
     }
 
     /// **A face at one station is cut by a plane across the axis in a
@@ -4629,14 +4773,14 @@ mod section_case_pair_tests {
         Band::linear(Tol::witness()).expect("a linear band")
     }
 
-    fn reach() -> (f64, geom_brep::Reach<f64>) {
+    fn reach() -> (f64, geom_brep::Reach<f64>, geom_brep::Reach<f64>) {
         let reach = geom_brep::Reach::Face {
             at: Point3::origin(),
             below: 4.0,
             above: 4.0,
             across: 4.0,
         };
-        (4.0, reach)
+        (4.0, reach.clone(), reach)
     }
 
     fn plane() -> geom::Surface<f64> {

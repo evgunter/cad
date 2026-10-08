@@ -1566,7 +1566,8 @@ pub(super) enum FrameExtent<T> {
         /// the span it holds.
         across: T,
         /// The same with each edge levered round its whole carrier, which
-        /// the germ also reads ([`agreed_section`]).
+        /// the germ also reads
+        /// ([`agreed_section`](crate::chord_join::agreed_section)).
         round: T,
     },
 }
@@ -1581,7 +1582,8 @@ pub(super) enum FrameExtent<T> {
 /// ([`face_reach_from`](crate::splitting::rules::face_reach_from)) and
 /// round its whole carrier
 /// ([`face_reach_round_from`](crate::splitting::rules::face_reach_round_from)),
-/// which [`agreed_section`] reads together. Every other pair takes the
+/// which [`agreed_section`](crate::chord_join::agreed_section) reads
+/// together. Every other pair takes the
 /// walls' `span`.
 ///
 /// # Errors
@@ -2024,7 +2026,7 @@ pub(super) fn pair_section_frame_at<T: Decide>(
                 };
                 geom_brep::plane_cylinder_section(plane_s, cyl_s, &reach, band)
             };
-            agreed_section(read(across), read(round), band)
+            crate::chord_join::agreed_section(read(across), read(round), band)
         }
         FrameExtent::Radii | FrameExtent::Span(_) => geom_brep::plane_cylinder_section(
             plane_s,
@@ -2050,37 +2052,6 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
         Err(_) => Err(FrameError::Desync(
             "germ pair's section refused at match time",
-        )),
-    }
-}
-
-/// **The germ's plane×cylinder section, served only where the wall's
-/// two measures of its reach across agree** ([`FrameExtent::Wall`]).
-/// The germ is a declared-tangency path, which a shorter lever must not
-/// widen: an escalation under either reading escalates, and two served
-/// readings of different classes escalate under the row whose verdict
-/// they split (`pc_axis_plane_parallel_disagreement` between a conic and
-/// the rulings' lane, `pc_parallel_gap_disagreement` within that lane),
-/// two sound bounds straddling the band.
-fn agreed_section<T: Decide>(
-    span: Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError>,
-    round: Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError>,
-    band: Band,
-) -> Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError> {
-    use geom_brep::PlaneCylinderSection as S;
-    let conic = |s: &S<T>| matches!(s, S::Rim(_) | S::TiltedEllipse(_));
-    match (span, round) {
-        (Err(e), _) | (Ok(_), Err(e)) => Err(e),
-        (Ok(s), Ok(r)) if core::mem::discriminant(&s) == core::mem::discriminant(&r) => Ok(s),
-        (Ok(s), Ok(r)) => Err(geom_brep::SectionError::Escalated(
-            crate::invalid_margin::invalid(
-                band,
-                if conic(&s) == conic(&r) {
-                    "pc_parallel_gap_disagreement"
-                } else {
-                    "pc_axis_plane_parallel_disagreement"
-                },
-            ),
         )),
     }
 }
@@ -3667,6 +3638,133 @@ mod frame_dispatch_tests {
                         "φ = {phi}, k = {k} ({label}): levered at the arc's reach {d}"
                     );
                 }
+            }
+        }
+    }
+
+    /// **On the declared-tangency path head serves nothing main does
+    /// not.** Rim patches of walls of radius 1e-3, 1 and 1e3 (axes at
+    /// random, 1e3 off the origin; arcs of 1e-6 to 3 rad, heights to ten
+    /// radii) cut by a plane through a corner, tilted off a radial (or off
+    /// its normal, through the axis) by a tilt near the band. Head's
+    /// reading through chord_join's [`crate::chord_join::wall_section`] at
+    /// the corner, and through the germ frame at the corners' centre,
+    /// serves only what main's whole-turn reading at the same point
+    /// serves, of the same class: the span-bounded reach never widens
+    /// either.
+    #[test]
+    fn head_serves_nothing_main_does_not_on_a_rim_patch() {
+        use crate::chord_join::{SectionCase, WallSection, wall_section};
+        use geom_brep::PlaneCylinderSection as S;
+        use test_utils::fuzz;
+        let eps = Tol::witness().eps();
+        let b = band();
+        let mut g = fuzz::start("rim_patch_served_subset");
+        let mut unit = |g: &mut fuzz::Rng| loop {
+            let v = Vec3::new(g.range(-1., 1.), g.range(-1., 1.), g.range(-1., 1.));
+            if (0.2..1.0).contains(&v.norm()) {
+                return v.normalize();
+            }
+        };
+        let log = |g: &mut fuzz::Rng, lo: f64, hi: f64| (lo.ln() + (hi / lo).ln() * g.unit()).exp();
+        let class = |got: &Result<S<f64>, geom_brep::SectionError>| match got {
+            Ok(S::TiltedEllipse(_) | S::Rim(_)) => "conic",
+            Ok(S::ParallelLines { .. }) => "lines",
+            Ok(S::TangentLine(_)) => "tangent",
+            Ok(S::Empty) => "empty",
+            Err(_) => "refused",
+        };
+        for _ in 0..fuzz::scaled(2000) {
+            let r = [1e-3, 1.0, 1e3][g.below(3)];
+            let axis = unit(&mut g);
+            let seam = {
+                let v = unit(&mut g);
+                (v - axis * v.dot(axis)).normalize()
+            };
+            let frame = crate::test_support_fixtures::CylFrame {
+                origin: Point3::origin() + unit(&mut g) * 1e3,
+                axis,
+                radius: r,
+                u_ref: seam,
+            };
+            let du = log(&mut g, 1e-6_f64.max(1e4 * eps / r), 3.0);
+            let h = log(&mut g, 1e-6_f64.max(1e4 * eps / r), 10.0) * r;
+            let mut body = crate::Body::<f64>::new();
+            let (face, _) = crate::test_support_fixtures::cyl_wall_sheet_keyed(
+                &mut body,
+                frame,
+                crate::test_support_fixtures::CylKey::OnSeed,
+                None,
+                (0.0, du),
+                (0.0, h),
+                Tol::witness(),
+            );
+            let corners: Vec<_> = body.vertex_points().collect();
+            let (corner, through) = corners[g.below(corners.len())];
+            let radial = {
+                let w = through - frame.origin;
+                (w - axis * w.dot(axis)).normalize()
+            };
+            let w = if g.unit() < 0.3 {
+                axis.cross(radial)
+            } else {
+                let v = unit(&mut g);
+                (v - axis * v.dot(axis)).normalize()
+            };
+            let sin_beta = (log(&mut g, 0.05, 3.0 * Tol::witness().k()) * b.zero() / h).min(1.0);
+            let normal = w * (1.0 - sin_beta * sin_beta).sqrt() + axis * sin_beta;
+            let plane = geom::Surface::Plane {
+                origin: through,
+                normal,
+                u_ref: Vec3::new(0.0, 1.0, 0.0).cross(normal).normalize(),
+            };
+            let wall = frame.surface::<f64>();
+            let main_at = |at: Point3<f64>| {
+                let rules = crate::splitting::rules::face_axial_range(&body, face, at, axis);
+                let (below, above) = rules.expect("a bounded patch");
+                let across = crate::splitting::rules::face_reach_round_from(&body, face, at)
+                    .expect("a bounded patch");
+                let reach = geom_brep::Reach::Face {
+                    at,
+                    below,
+                    above,
+                    across,
+                };
+                class(&geom_brep::plane_cylinder_section(&plane, &wall, &reach, b))
+            };
+            // chord_join, read at the corner.
+            let unit_normal = geom_core::UnitVec3::new(normal, "rim patch", b).unwrap();
+            let head = match wall_section(&body, b, through, unit_normal, face, corner) {
+                Ok(Some(WallSection { case, .. })) => match case {
+                    SectionCase::Conic(_) => "conic",
+                    SectionCase::Straight(_) => "lines",
+                    SectionCase::Tangent(_) => "tangent",
+                },
+                _ => "refused",
+            };
+            let main = main_at(through);
+            assert!(
+                head == "refused" || head == main,
+                "chord_join: head serves {head} where main reads {main} ({du} rad × {h} on r = {r}, \
+                 sin β = {sin_beta}); {}",
+                fuzz::replay()
+            );
+            // The germ frame, read at the corners' centre.
+            for (label, got) in plane_frames(&body, face, through, normal) {
+                let on = super::super::rest::face_witnesses(&body, face).unwrap();
+                let (at, _) = super::frame_reading(&plane, &wall, Vec::new(), on).unwrap();
+                let main = main_at(at);
+                let served = match got {
+                    Ok(Some(_)) => Some(main == "conic"),
+                    Ok(None) => Some(main == "lines" || main == "tangent"),
+                    Err(_) => None,
+                };
+                assert!(
+                    served != Some(false),
+                    "germ ({label}): head serves a frame main reads as {main} ({du} rad × {h} \
+                     on r = {r}, sin β = {sin_beta}); {}",
+                    fuzz::replay()
+                );
             }
         }
     }

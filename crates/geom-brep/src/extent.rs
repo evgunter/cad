@@ -229,8 +229,8 @@ fn conic_arc_range<T: Real>(
 /// `[cos h, 1]`. The conic is that circle's affine image, so each piece
 /// lies in the parallelogram on its ends shifted by
 /// `S = (1 − cos h)·(x(m) − c)`, and a distance from a point is convex,
-/// so it peaks at a corner. The bound passes the arc by at most a
-/// piece's bulge `|S|`; it is read from the ends and the shift, never
+/// so it peaks at a corner. The bound is never short of the arc, to
+/// rounding, and passes it by at most a piece's bulge `|S|`; it is read from the ends and the shift, never
 /// from a difference of carrier-sized squares, so a short arc far from
 /// its centre loses nothing to cancellation.
 fn conic_arc_reach<T: Real>(
@@ -368,8 +368,9 @@ impl<T: Real> Reach<T> {
     /// ellipse [`Self::Span`] is read over `[t0, t1]`
     /// ([`conic_arc_reach`]) rather than round its whole turn, which on
     /// a short arc of a large conic is the conic's size, not the arc's.
-    /// Never past [`Self::lever_from`], and past the arc by at most a
-    /// quarter of its span's bulge. The face measures read it
+    /// Never short of the arc, to rounding, never past
+    /// [`Self::lever_from`], and past the arc by at most a quarter of
+    /// its span's bulge. The face measures read it
     /// (`splitting::rules::face_reach_from` in `topo`); the section
     /// arms' anchors read [`Self::lever_from`].
     #[must_use]
@@ -514,8 +515,8 @@ impl<T: Real> Reach<T> {
     /// `c` and cosine `cos` about the hinge through `hinge` moves a point
     /// standing `x` across the wall from it by `(1 − cos)·x`. The face
     /// bounds `x` by `across` plus `at`'s own distance across the wall
-    /// from the hinge: `|(at − hinge)·m|/|m|`, `m` the normal's part off
-    /// the axis, widened by the rounding in `m`'s direction, and never
+    /// from the hinge: `|(at − hinge)⊥·m|/|m|`, `(at − hinge)⊥` and `m`
+    /// the offset's and the normal's parts off the axis, widened by the rounding in `m`'s direction, and never
     /// past `at − hinge` off the axis, which it reaches where `m` is too
     /// short to name a direction (the normal on the axis to rounding,
     /// where `cos` read from `c` is not). Returned as a lever,
@@ -525,11 +526,12 @@ impl<T: Real> Reach<T> {
         match self {
             Self::Face { at, across, .. } => {
                 let off = *at - hinge;
-                let off_axis = (off - a * off.dot(a)).norm();
+                let off_perp = off - a * off.dot(a);
+                let off_axis = off_perp.norm();
                 let m = n - a * n.dot(a);
                 let len = m.norm().max(T::from_f64(f64::MIN_POSITIVE));
                 let along_normal =
-                    (off.dot(m).abs() + off_axis * T::from_f64(8.0 * f64::EPSILON)) / len;
+                    (off_perp.dot(m).abs() + off_axis * T::from_f64(8.0 * f64::EPSILON)) / len;
                 (*across + off_axis.min(along_normal)) * c.abs() / (T::one() + cos)
             }
             Self::Ball(_) | Self::Measured { .. } | Self::Span { .. } => T::zero(),
@@ -750,15 +752,18 @@ mod tests {
     /// `r ∈ {1e-3, 1, 1e3}` (offset `1e3` from the origin), arcs of span
     /// 0.01 to 0.5 rad and stored backwards, a whole turn and a turn
     /// and a half, each read from its own end (where the far end binds),
-    /// from the far side of its centre opposite a point inside a quarter
-    /// (the crest of the bulge binds there), from inside its bulge (an
-    /// end binds), and from off its plane. Against the farthest of 20,000
+    /// from the far side of its centre opposite a point inside a quarter,
+    /// near and a million radii out (the crest of the bulge binds there,
+    /// and far out a quarter's chord moves the reach by less than the
+    /// bulge does), from inside its bulge (an end binds), and from off
+    /// its plane. Against the farthest of 20,000
     /// sampled points the reach is never short (to the coordinates'
     /// rounding), never past it by more than a quarter's bulge
     /// `(1 − cos(span/8))·max(|a|, |b|)`, and never past the whole turn's
-    /// [`Reach::lever_from`]. Dropping the bulge, or setting it on the
-    /// chord's inner side, falls short at the crest; the span read the
-    /// other way round reaches past the slack.
+    /// [`Reach::lever_from`]. Dropping the bulge, setting it on the
+    /// chord's inner side, or aiming it from a quarter's start rather than
+    /// its middle falls short at the crest; the span read the other way
+    /// round reaches past the slack.
     #[test]
     fn a_conic_arcs_reach_is_its_farthest_point_over_the_span() {
         let off = Point3::new(1e3, -1e3, 1e3);
@@ -801,6 +806,7 @@ mod tests {
                     for pivot in [
                         start,
                         off - outward * 3.0,
+                        off - outward * 1e6,
                         off + outward * 0.999,
                         start + normal * (2.0 * r),
                     ] {
@@ -816,7 +822,10 @@ mod tests {
                                 (carrier.eval(t) - pivot).norm()
                             })
                             .fold(0.0_f64, f64::max);
-                        let ulps = 1e-15 * ((off - Point3::origin()).norm() + big);
+                        let ulps = 1e-15
+                            * ((off - Point3::origin()).norm()
+                                + (pivot - Point3::origin()).norm()
+                                + big);
                         let span = (t1 - t0).abs().min(core::f64::consts::TAU);
                         let slack = (1.0 - (span / 8.0).cos()) * big;
                         let label = format!("{carrier:?} over [{t0}, {t1}] from {pivot:?}");
