@@ -432,7 +432,8 @@ fields named now):
 - `ParamDef.distribution: Option<Distribution>` (E2 forms, offsets
   dimensioned per F1, shortest-round-trip floats as ratified);
 - the `Measure` node (E3) with its StableName references;
-- `Assertion { measure: NodeId, bound: Quantity, dir: AtLeast | AtMost }`
+- `Assertion { value, bound, dir: AtLeast | AtMost }`, `value` a
+  scalar variable (a measure's output, or a definition over outputs)
   — tolerance *requirements* as recorded design intent (the CAD
   analog of a test suite: "min wall ≥ 0.5 mm" lives in the document,
   versioned and diffable, not in a script beside it).

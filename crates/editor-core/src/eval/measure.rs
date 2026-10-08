@@ -31,8 +31,9 @@
 //! its answer comes from the E7 subdivision engine
 //! (`clearance::min_separation`) as a certified BRACKET, and
 //! the value is computed in the node's wiring — where the bodies are —
-//! rather than here. [`eval_measure`] intercepts that primitive before
-//! this dispatch is consulted, and the arm below says so.
+//! rather than here. The wiring (`wire::wire_measure`) intercepts that
+//! primitive before this dispatch is consulted, and the arm below says
+//! so.
 //!
 //! # Which trileans this module consumes
 //!
@@ -756,7 +757,7 @@ pub(crate) fn finite<T: Decide>(value: T) -> Result<T, PrimitiveRefusal> {
 
 /// **What an observed variable is worth in one evaluation** (D10): a
 /// value at the evaluation's scalar, or the typed absence a measure
-/// under it carries at that scalar ([`MeasureUnavailableAt`]).
+/// under it carries at that scalar ([`crate::MeasureUnavailableAt`]).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Observed<T> {
     /// The value, in kernel units.
