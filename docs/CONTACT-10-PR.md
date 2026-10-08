@@ -160,6 +160,12 @@ The margin is in band at ±5e-9 m, with band (1e-9, 1e-8), K = 10. "Note" is "; 
 - The Python suite and the text-asserting editor-core rows did not move.
 - `every_check_finding_renders_within_the_budget` went red once, on main's newer subject rule: an escalation must say what was decided. The walk's `Display` now leads with its decision's subject.
 
+**One red row, not this change's.** At `CAD_TOLERANCE_EPS=1e-12` (local battery on `9414addd6`), `sweep::parallel_cylinder_join::a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings` refuses as `CrossingInsertion { Certification { Escalated { check: MappedSource, cause: carrier_matches_mapped_source, margin 1.25e-12 } } }`.
+- That is edge certification inside a crossing insertion, a path this diff does not touch. The diff changes no verdict anywhere; it changes refusal words and carried types.
+- The row came in on main with TANG's `7641c3271`.
+- Main's nightly full suite is red. I could not read which tests, because the job log is served from a host the session's `gh` does not reach.
+- It is not re-run on main here: the disk has 4.7 GB free, too little for a second target directory.
+
 ## Sweep: "lower the tolerance" in `crates/topo/src`
 
 | hit | disposition |
