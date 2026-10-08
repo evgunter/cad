@@ -19,24 +19,24 @@ The unit waits on stage 4's retirement of A5's hard error on an unattributed con
 
 Closes `mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion` (with A11 (4)), `a-box-over-a-solved-clocking-widens-thirty-thousandfold` and `an-identically-zero-margin-escalates-at-a-fine-eps`. Re-reads `a-far-meeting-point-fails-membership-by-its-own-rounding` and `a-box-independent-mate-fault-bisects-the-whole-leaf-budget`.
 
-FORK-S3-4 was weighed with FORK-S4-5 as FORK-S3O (fork log row 96) and
-went to Ev in an `[ev]` PR; this unit builds on the answer
-provisionally. After Ev's comments on #4325, a placement's mates fold in
-order. Each mate is projected onto the residual subgroup the earlier
-ones leave and fixes only that, exactly, by construction, never
-checking what earlier mates fixed. The only refusal is `Overconstrained`:
-a mate that fixes nothing (on a pinned copy no predicate runs). A
-degenerate configuration (a secondary plane parallel to the primary)
-refuses as its construction does, banded like `Meet` (FORK-1b).
-`Contradictory`, its measured clash, `member_of`'s re-measure and
-`trivial_member` retire. The two-peg plate with separately typed
-spacings is admitted: peg 2 fixes the spin, and whether it meets hole 2
-is an at-rest contact the census records and the lint proves or reports
-(`s` against `t`), quieted by an `Assert` like any contact. Nothing
-symbolic runs at the mate door. The migration drops only mates that fix
-nothing, naming each. When it lands, A11 (1) reads: "A placement's mates
-fold in order, each projected onto the residual subgroup the earlier
-ones leave, to DETERMINED or UNDER, or refuse OVERCONSTRAINED (a mate
-that fixes nothing; on a pinned copy no predicate runs); a degenerate
-configuration refuses as its construction does." The GUI shows a
-placement's mates in order (primary, secondary, tertiary).
+FORK-S3-4 was weighed with FORK-S4-5 as FORK-S3O (fork log row 96) and is
+with Ev in an `[ev]` PR. Corrected against Ev's 2026-10-03 words
+(`5f7a1c71e3`): no cleverness, uniformly. A mate is admitted only when
+every one of its equations fixes something the bundle's other mates
+left free (codim(held) + codim(added) = codim(result)). Otherwise it
+refuses `Overconstrained`, pinned or not, by subgroup algebra alone, with
+nothing measured and nothing symbolic. In practice a pin is one `Frame`
+mate between two constructed frames (`FaceFrame` plus `Offset`,
+`Through { axis, point }`, `Meet`). A `Plane` or `Axis` mate alone leaves
+the copy `Under`. The two-peg plate is
+`Through { peg-1 axis, peg-2 centre } = Through { hole-1 axis, hole-2 centre }`.
+Peg 2 in hole 2 is then a contact the census records and the lint proves
+or reports, and the recourse is an assertion. `Contradictory`, the
+table's measured case splits, `member_of` and `trivial_member` retire. A
+configuration degenerate at its values refuses as its construction does
+(`Through`/`Meet`, FORK-1b). The migration rewrites each multi-mate
+bundle (the MSOLVE fixtures) as one constructed `Frame` mate, naming each.
+When this lands, A11 (1) reads: "a placement's mates fold by subgroup
+algebra, measuring nothing, to DETERMINED or UNDER, or refuse
+OVERCONSTRAINED (a mate any of whose equations the bundle already fixes,
+named)".
