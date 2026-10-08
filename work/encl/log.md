@@ -1337,3 +1337,9 @@ coincidence is now a margined verdict (no declarations), checked by the
     - the retired ssi row's residue (march.rs still says "too close to call" on a definite collapse) is re-filed on ssimarch;
     - one sign→variant mapping; the two arm texts tell one story;
     - validate's lost text check is restored.
+- 2026-10-08 — The re-review of PR 4331 at `34e975f490` came back REQUEST-CHANGES, and the fault was my own order.
+  - The F3(c) Zero-arm sentence forked one decision's recourse on the run's zero-or-in-band verdict, against D4 ¶1 (i).
+  - poleband_eps12 read "file states the coincidence … kernel defect" at 1e-9, and "re-export and tighten" at 1e-12, for the same sub-ε_in feature.
+  - Ruled: one import-door sentence for every band-decided arm at or below ε_in. It quotes declare and tighten values where they exist; otherwise the lever plus `otherwise`. It makes no coincidence claim and has no `BandArm`.
+  - Also ordered: a default-ε pin on the carried residual margin; the D4 item 3 reword; the hedge for an interval straddling ε_in; the gate's truncated fired-name; style.
+  - The second fix pass is with the same lane.
