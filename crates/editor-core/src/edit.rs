@@ -5030,17 +5030,6 @@ fn written<P>(doc: &Doc<P>, id: RecipeNodeId, node: &Node<P>) -> SpokenNode {
     }
 }
 
-/// **A node an edit's result names, as its refusal speaks it**: from
-/// `before` when it holds the node, else by its kind as `after` mints
-/// it ([`written`]), else [`SpokenNode::absent`]: a refusal speaks the
-/// node as the author handed it.
-fn spoken_before_else_after<P>(before: &Doc<P>, after: &Doc<P>, id: RecipeNodeId) -> SpokenNode {
-    match after.node(id) {
-        Some(node) => written(before, id, node),
-        None => before.spoken(id),
-    }
-}
-
 /// A broken E2 invariant as the edit door reports it, in ONE place.
 ///
 /// The split is by CLASS, not by door: a non-finite offset is a
