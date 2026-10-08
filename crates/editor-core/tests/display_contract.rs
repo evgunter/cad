@@ -962,7 +962,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     assert_f6(
         &EditError::VarValueKindMismatch {
             var: editor_core::SpokenVar::new(editor_core::VarId::new(0, 7), Some(name.clone())),
-            declared: editor_core::Dimension::Length,
+            declared: Dimension::Length,
             offered: FreeValue::Count(2),
         },
         &["is declared length"],
@@ -3471,7 +3471,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             PersistError::DisplayUnit {
                 var: spoken.clone(),
                 unit: Dimension::Angle,
-                declared: editor_core::Dimension::Length,
+                declared: Dimension::Length,
             }
             .to_string(),
         ),
