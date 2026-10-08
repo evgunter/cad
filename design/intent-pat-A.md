@@ -2,65 +2,66 @@
 
 ## For Ev
 
-**Recommendation (likely): yes.** Retire every pattern preset from the kernel and add one
-construct, **`map`**: apply one definer to every key of a finite **domain**. The definer can be
-an `Expr` definition, a construction, a placement, a selection or an assertion. Each output port
-of the definer becomes a **family**, a finite keyed collection of that kind. `Bodies` becomes
-the family of `Body`, and pose families get a kind too. The same `map` places a pattern, builds
-the die's pips and asserts over members or pairs of members (Q2, Q5). Presets live in the façade
-and the GUI: each lowers to a `map`, is recognised from one, and is never stored (Q4). Mirror
-leaves patterns: a reflection is not a pose, so mirror is its own construction.
+**Recommendation (likely): yes. Maps over numbers are the kernel's only pattern; presets are
+façade helpers.** Retire every pattern preset and add one construct, **`map`**: apply one definer
+(an `Expr` definition, a construction, a placement, a selection or an assertion) to every index
+of a finite range of `Count`s. Each output port becomes a **family**, a finite indexed
+collection of that kind; `Bodies` is the family of `Body`, and pose families get a kind too. The
+same `map` places a pattern, builds repeated constructions and asserts over members or pairs of
+members (Q2, Q5). Presets lower to a `map` in the façade and the GUI, are recognised from one,
+and are never stored (Q4).
 
-**Premise check.** Your two questions are one question. A `PatternKind` is a value-level map
-(N poses computed from a few slots). "Declare over all the outputs" is an operation-level map
-(one operation per member). D10 already treats definitions and operations alike, as things that
-read variables and define variables, so one higher-order construct covers both. The presets were
-a hand-enumerated subset of it. A second defect, from your own list: today a member's identity is its position (`Instance(i)`,
-`Explicit`'s list order, D10's "`Bodies`, an ordered list"). Deleting pip 3 silently re-points
-"pip 5" at what was pip 6, which DM6 forbids. Keys must not be positions where the author did
-not write positions.
+**Two things are not maps over numbers.**
+- **Mirror.** A reflection is not a pose, so mirror is its own construction.
+- **An explicit list of placements** (the die's pips). It is computed from no index, and
+  positional identity there is a defect: deleting pip 3 silently re-points "pip 5", which DM6
+  forbids. So it retires into what it is: N separate operations, which a façade helper emits from
+  a list and an n-ary `Union` (DM4, named by member) gathers.
+
+**Premise check.** Your two questions are one: a `PatternKind` is a value-level map; "declare
+over all the outputs" is an operation-level map. D10 already treats definitions and operations alike (they
+read variables and define variables), so one higher-order construct covers both, and the presets
+were a hand-enumerated subset of it.
 
 ### The vocabulary (Q1)
 
 - **Domain.** A product of `Count` ranges `a..b` (a later bound may read an earlier index:
-  `0..N` a ring, `0..M × 0..N` a grid, `i in 0..N, j in i+1..N` every unordered pair), or the
-  keys of an existing family. No nested families; keys compose outer first, so copies of a
-  multi-body master are keyed (member, body), P5's placement-major layout.
-- **Key.** An index tuple, or the `VarId` of an element of a **literal family** `[p, q, r]`,
-  each element a variable defined as usual (#4324). Editing the list moves no other member.
-- **Body.** One definer, which may read the bound key: index `Expr`s, `F[key]` from a family with
-  the same key set (a mismatch refuses typed), and selections whose name segment carries the key.
+  `0..N` a ring, `0..M × 0..N` a grid, `i in 0..N, j in i+1..N` every unordered pair). No
+  nested families; indices compose outer first, so copies of a multi-body master are indexed
+  (member, body), P5's layout; the index tuple, which the formula reads, is the identity.
+- **Body.** One definer, which may read the bound indices: index `Expr`s, `F[k]` from a family
+  a `map` defined (an index outside its range refuses typed), and selections whose name segment
+  carries the index.
 - **New vocabulary.** `Expr` gains a bound-index leaf, exact `Count` arithmetic with `mod`, and
   `Count/Count` as an exact `Scalar`. Poses gain `Offset(pose, direction, length)` (already
   planned in stage 3) and `Rotate(pose, axis, angle)`.
 - **Total.** Counts are read at nominal (A11 (5)), so the domain is finite. A body that refuses
-  at one key refuses the whole `map`, naming the key; there is no partial family.
+  at one index refuses the whole `map`, naming it; there is no partial family.
 
 **Today's presets as maps** (`p` a base pose read off geometry): linear
 `map(k in 0..N, Offset(p,d,k*s))`; circular by step `Rotate(p,A,k*step)`; full ring
 `Rotate(p,A,k*turn/N)`; grid `map(i in 0..M, j in 0..N, Offset(Offset(p,d1,i*s1),d2,j*s2))`;
-explicit, a literal family. **Beyond the presets:** a bolt circle missing one hole (`1..N`), a
+explicit: separate operations, not a `map` (above). **Beyond the presets:** a bolt circle missing one hole (`1..N`), a
 helix (`Rotate(Offset(p,A,k*h),A,k*θ)`), and the full ring (below). **The nodes:** a pattern is
-`map(x in F, Place(body, mate(pose of body, F[x])))`; `PlacedUnion` becomes `Union` reading a
+`map(k in 0..N, Place(body, mate(pose of body, F[k])))`; `PlacedUnion` becomes `Union` reading a
 family; `Part{Instance(i)}` becomes `F[k]`; `Transform` retires (#4326).
 
-**The full ring is the case presets cannot say.** Twelve teeth at a free 30° step close the ring
-only at the current values, so the closure is an `unproven-coincidence`. With `turn/N` the
-closure is one construction. That is D10's "construct the coincidence", applied to patterns, and
-the strongest reason for the change. It needs the symbolic tier to treat `Rotate` by a rational
-turn exactly (unsure).
+**The full ring is the strongest reason.** Twelve teeth at a free 30° step close only at the
+current values (an `unproven-coincidence`); with `turn/N` the closure is one construction, D10's
+"construct the coincidence". It needs the symbolic tier to take `Rotate` by a rational turn
+exactly (unsure).
 
 **Mirror (P1–P6).** A pose is a rigid frame up to a subgroup of the rigid motions, and a
 mirrored body is a different shape, not a copy. So mirror is `Mirror{body, plane}`, a
 construction defining a new `Body` in the plane's space. P1–P3 stand, applied to it. A
-symmetric part is `Union(A, Mirror(A, P))`; a mirrored family `map(x in F, Mirror(F[x], P))`.
+symmetric part is `Union(A, Mirror(A, P))`; a mirrored family `map(k in 0..N, Mirror(F[k], P))`.
 
 ### Q2: assertions over members — the same `map`
 The body is `Assert`, and the `map` defines nothing. Each bolt against its hole is
 `map(k in 0..N, Assert(gap(bolts[k].shank, plate.hole[k]) = -b))`; adjacent teeth of a ring,
 `map(k in 0..N, Assert(gap(T[k].right, T[(k+1) mod N].left) = 0))`. Each member assertion is checked on its own, so an assertion still speaks only for its own pair,
 and a named pair that does not meet is loud. When N grows, the new members bring their own
-assertions: it is said once for the pattern. **Will it suffice?** Yes, when the pairing is index arithmetic or the same key in two families.
+assertions: it is said once for the pattern. **Will it suffice?** Yes, when the pairing is index arithmetic or the same index in two families.
 No for irregular adjacency (which pip neighbours which); those pairs are written out.
 
 **Pattern interference itself.** Under #4326 a pattern is several copies. An overlap between
@@ -82,12 +83,11 @@ deriving it from the stored `map`, never by declaring it:
   (#4324's computing frame): the 21 pip balls are one entry, and D9 caches per member.
 - **A11 and names.** The coset algebra reads pose kinds, not families; the member walk through
   `Pattern` already retires (stage 3, #4326), and a mate reads `F[k]`'s pose like any pose.
-  `RoleSeg::Instance{i}` becomes `Member{key}`.
-- **Member k when `Count` changes.** Member k is the one at key k, and it follows the formula:
-  in a full ring it moves when N changes, as written. A key that leaves the domain strands its
-  readers typed (DM7); nothing is re-pointed. An author who wants a member to keep its identity
-  across insertions writes a literal family. Only with this design is the banked flag
-  ("references into indexed families never degrade to positional guessing") true.
+  `RoleSeg::Instance{i}` stays, as the map's index.
+- **Member k when `Count` changes.** Member k is the one at index k, and it follows the formula:
+  in a full ring it moves when N changes, as written. An index that leaves the range strands its
+  readers typed (DM7); nothing is re-pointed. Members that must keep identity across insertions
+  are separate operations, so an index is only ever what a formula reads (the banked flag holds).
 
 ### Q4: presets live in the façade and the GUI
 The façade offers `linear`, `circular` (by step or full ring), `grid` and `bolt_circle`, each
@@ -98,25 +98,26 @@ document written without the presets reads exactly like one written with them.
 
 ### Q5: constructions over a family — the same `map`
 
-The die's pip frames are a literal family `P` of 21 poses, each read off a die face's frame;
-`cutter = map(x in P, Revolve(halfdisc, through P[x]))`, `die = Subtract(cube, Union(cutter))`,
-and each cavity face is named `Member(x)/…`. Whether members are copies or constructions is
+Yes where the frames are computed (a row of holes: `map(k in 0..N, Extrude(hole, through
+F[k]))`). The die's 21 pips are not computed: each frame is read off a face by hand. So they are
+21 `Revolve`s (a façade helper loops over a Python list), and
+`die = Subtract(cube, Union(pip_1, …, pip_21))`, each cavity face named by its member. Whether members are copies or constructions is
 decided by the `map`'s body (#4326's distinction), not by the `map`. This replaces P4 ("feature
 patterns are sugar"): P4 rejected a second instancing semantics, and there is still only one.
 
 ### Ratified text this changes
 
-- **D10.** Variables: `Bodies` as "an ordered list" becomes keyed families of any kind.
+- **D10.** Variables: `Bodies` becomes the family of `Body`, and families exist of any kind.
   Operations, as #4326 words it: `Pattern` becomes a `map` of a placement, and
   `Pattern`/`PlacedUnion` are no longer nodes.
-- **VR4 and VR5.** The domain bounds, the key read, the bound-index leaf, and the `Count`
+- **VR4 and VR5.** The domain bounds, the member read, the bound-index leaf, and the `Count`
   operators.
-- **MIRROR-DESIGN.** P4 is replaced. P5's `SegPat` instance predicate becomes a key predicate,
-  and its layout becomes compound keys.
+- **MIRROR-DESIGN.** P4 is replaced. P5's layout becomes compound indices; its `SegPat`
+  instance predicate stands.
 - **ASSEMBLY.** A6 says "mirror is a construction", not "a pattern whose frame is improper".
   A11 (3) loses its pattern clause, and A11 (5) loses the walk's pattern level.
 - **Other pages.** REFERENCES DM3: the pick becomes a member read. The editor-core README's
-  group boolean: `PlacedUnion` and `Explicit` retire, the certificate becoming `Union`'s
+  group boolean: `PlacedUnion` and `Explicit` retire (an explicit list is separate operations), the certificate becoming `Union`'s
   pre-check on a family of copies. NAMES N1: `Instance` becomes `Member`. Stage-5 spec Q5:
   overlap between pattern members becomes an at-rest finding.
 
@@ -135,15 +136,15 @@ already names every preset.
   façade; viewer `forms.rs:53`, `session/author.rs:224`, `combine.rs`, `session/op.rs`. Corpus
   `die_tool` (and its `.pncad` bytes), `heatsink_union`, `sink`, `part_select`; ~40 test files.
 - **Migration.** `Linear`/`Circular` map as listed, keeping `k*step` (never infer a full ring;
-  the closure lint proposes `turn/N`). `Explicit` becomes a literal family (stage 3 A already
-  makes its frames `Frame` variables). `Part{Instance(i)}` becomes `F[i]`; `PlacedUnion`,
-  `Union(map …)`. Explicit-list names move from positions to element ids: a deliberate naming
-  re-baseline.
-- **Sequencing.** This lands after #4324 and #4326. It supersedes stage 3's plan to give
-  `Linear` a `Direction` slot, so check the INTENT unit list before that is built.
+  the closure lint proposes `turn/N`). `Explicit(frames)` becomes one operation or placement per
+  frame, gathered by an n-ary `Union` where it fused. `Part{Instance(i)}` becomes `F[i]`; `PlacedUnion`,
+  `Union(map …)`. Explicit-list names move from `Instance(i)` to member names: a deliberate
+  naming re-baseline.
+- **Sequencing.** After #4324 and #4326; supersedes stage 3's `Linear` `Direction` slot.
 - **Unchecked.** Whether E12 can decide `Rotate(k*turn/N)` closure exactly (cyclotomic
   constants; if not, the ring argument weakens, the unification stands), and whether content
   keys can be made frame-relative.
-- **Brief.** No errors. Ev's 2026-10-03 words agree with D10 wherever this fork touches it. The
-  one tension: "`Bodies`, an ordered list" is the "by position" defect in miniature. No PR
+- **Brief.** No errors. Ev's 2026-10-03 words agree with D10 wherever this fork touches it. Revised
+  after Ev's clarification ("maps over numbers + some facade helper functions"): literal
+  families are dropped, since they were the one non-numeric domain. No PR
   comments were fetched.
