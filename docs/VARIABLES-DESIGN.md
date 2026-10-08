@@ -48,7 +48,9 @@ its value leaves and an assertion's bound are slots.
 
 **VR5 — `Expr` holds no float.** Its leaves are `Var(VarId)` (caching
 the kind, which cannot change), exact rational constants (`Scalar`,
-reduced; integers for `Count`) and `turn` (`Angle`, one full rotation).
+reduced; integers for `Count`), `turn` (`Angle`, one full rotation) and
+`0`, the one constant that takes any dimension (it is the same in every
+unit, so `gap = 0` states contact rather than naming a value).
 A right angle is `turn/4`. The dimension lattice, the operators and the
 nesting bound stay; the `Literal` leaf and every literal constructor
 go.

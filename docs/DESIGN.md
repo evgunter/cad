@@ -1227,8 +1227,9 @@ which only an operation defines; and the selections of a shape
 **free** — a value, its written unit (D6) and optionally a distribution
 — or **defined**, by an `Expr` over other variables, by a selection of a
 `Body` variable, or as an output of an operation. A dimensioned literal stands nowhere, neither in a slot
-nor inside a formula: the only constants are dimensionless rationals and
-rational fractions of a turn, which are the shape of a formula rather
+nor inside a formula: the only constants are dimensionless rationals,
+rational fractions of a turn, and zero, which is the same in every unit
+and so stands at any dimension; each is the shape of a formula rather
 than a dimension. Typing a value in the GUI mints a free variable and
 offers an existing variable of equal value; declining the offer is what
 makes the two distinct. A variable without a name is read by exactly
@@ -1327,11 +1328,18 @@ sliver band.
 the bound a variable) checks and never places. At rest, contact
 between copies is an `unproven-coincidence` finding unless it is
 structural (a mate-placed face is), and interference is a finding of
-its own; neither refuses where the census has a lane. A finding is
-quiet exactly when an assertion on the same measure at the same site has
-a bound the observation meets and that does not straddle zero: a
-contact finding under an assertion that the gap is zero, an
-interference finding under a bound on one side of zero.
+its own; neither refuses where the census has a lane. A finding
+observes the sign of the gap (CONTACT-DESIGN C5) between two copies: a contact
+is `g = 0` at two cells, an interference `g < 0` over one connected
+overlap of their material. It is quiet exactly when holding assertions
+say the same: each reads a `Gap`'s output directly, over an opposed
+pair of faces of the two copies, and admits only values of the
+finding's sign (`= 0` for a contact; `≤ b` or `= b` with `b` negative
+for an interference). A contact is quiet when such an assertion's two
+faces are the two cells the census found coincident; an interference,
+when every face bounding the overlap lies between the carriers of one
+such pair. An overlap the kernel cannot bound is loud, and nothing
+quiets it.
 
 D10 governs where a companion clause disagrees, and these retire as
 the program that builds it reaches them: the declared-contact seats
