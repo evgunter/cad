@@ -3183,8 +3183,12 @@ fn wire_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 /// independent of whether the fold fed the pair or consumed its face
 /// ([`drop_consumed`]), and tells a mistyped name from a consumed one.
 ///
-/// **The verdict depends on the members, never on their order**: pairs
-/// are visited in ascending node-id order, the lesser id as operand A.
+/// **Whether it refuses depends on the members, never on their
+/// order**: every pair that touches or carries a declaration is judged,
+/// in the author's list order (#4323: the list is the author's stated
+/// order, and nothing here sorts it away), the listed-first member as
+/// operand A. So the rows come out in that order, and where two pairs
+/// would refuse, the one the list reaches first is the one named.
 ///
 /// `judge(p, q, decls)` runs the pair verb on members `p` (operand A)
 /// and `q` (operand B) and hands back its record; this function decides
