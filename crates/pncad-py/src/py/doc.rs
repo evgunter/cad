@@ -3449,7 +3449,8 @@ impl Node {
     ///
     /// `value` is the scalar this bounds: a measure's output
     /// (`Doc.output(measure)`), `Doc.measure`'s `value`, or any formula
-    /// or variable — read at the bound's dimension. A failed or poisoned
+    /// or variable — a variable at its own kind's dimension, anything
+    /// else at the bound's. A failed or poisoned
     /// measure under it poisons the assertion rather than producing a
     /// verdict about nothing. `dir` is which side of `bound` the value
     /// must fall on, and `bound` is a `Formula` from `Doc.parse_formula`.
@@ -3478,7 +3479,16 @@ impl Node {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Assertion {
-                value: value.formula(py, bound.0.dim())?,
+                // A variable is read at its own kind's dimension, so a
+                // mismatch with the bound is the door's
+                // `assertion_dimension`; anything else at the bound's.
+                value: match &value {
+                    super::expr::SlotArg::Var(Var(id, Some(kind))) => match kind.dimension() {
+                        Some(dim) => d::Formula::var(*id, dim),
+                        None => value.formula(py, bound.0.dim())?,
+                    },
+                    _ => value.formula(py, bound.0.dim())?,
+                },
                 bound: bound.0.clone(),
                 dir: dir.to_kernel(),
             },

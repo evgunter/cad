@@ -619,12 +619,15 @@ WrittenLength.canonical_in(0.025, mm)  # ty: error
 # A DIRECTION IS NOT A BOUND, and a bound is not a direction. The two
 # sit side by side on `Node.assertion` and the types are what keep the
 # order from being a thing to remember.
-Node.assertion(solid, doc.parse_formula("1 m"), AssertionDir.AtLeast)  # ty: error
-Node.assertion(solid, AssertionDir.AtLeast, AssertionDir.AtMost)  # ty: error
+_value = doc.output(solid)
+assert _value is not None
+Node.assertion(_value, doc.parse_formula("1 m"), AssertionDir.AtLeast)  # ty: error
+Node.assertion(_value, AssertionDir.AtLeast, AssertionDir.AtMost)  # ty: error
 
-# A MEASURE IS NOT A NODE. The expression is a value the node is built
-# FROM; handing it where an id belongs confuses the two halves the
-# measurement vocabulary keeps apart.
+# A MEASUREMENT IS NOT A VALUE. The expression is what measures are
+# recorded FROM (`Doc.measure`); handing it where the value it measures
+# belongs confuses the two halves the measurement vocabulary keeps
+# apart.
 _span = MeasureExpr.primitive(MeasurePrimitive.distance(0, 1))
 Node.assertion(_span, AssertionDir.AtLeast, doc.parse_formula("1 m"))  # ty: error
 doc.insert(MeasureExpr.primitive(MeasurePrimitive.distance(0, 1)))  # ty: error
@@ -641,8 +644,8 @@ Node.measure(_span, ["a face", "another"])  # ty: error
 
 # The bound takes the expression door and not the quantity one: a
 # typed length cannot be an angle bound, and the whole point of the
-# `Formula` seat is that the dimension is the measure's.
-Node.assertion(solid, AssertionDir.AtLeast, 1 * mm)  # ty: error
+# `Formula` seat is that the dimension is the value's.
+Node.assertion(_value, AssertionDir.AtLeast, 1 * mm)  # ty: error
 
 # The verb vocabulary is a frozen value: a primitive is restated by
 # building a new one, never by editing one in place.

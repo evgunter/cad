@@ -11,6 +11,8 @@ from pncad import (
     MeasurePrimitive,
     Placement,
     MeasureExpr,
+    Measured,
+    Measurement,
     AssertionDir,
     Advisory,
     AnalysisPolicy,
@@ -861,7 +863,7 @@ symbol: str | None = declared.unit
 table: dict[VarName, FreeVar] = doc.params
 
 # Authoring a measurement. The verb vocabulary is a value class, the
-# expression is checked as it is built, and the node takes the
+# expression is checked as it is built, and the builder takes the
 # reference list its primitives index — each entry a node and a name,
 # the pair `Node.mate` already takes each of its two sides as.
 reach: MeasurePrimitive = MeasurePrimitive.distance(0, 1)
@@ -872,14 +874,16 @@ pad: MeasureExpr = MeasureExpr.value(doc.parse_formula("bore_r"))
 web: MeasureExpr = MeasureExpr.sub(span, MeasureExpr.add(pad, pad))
 measured_kind: str = web.dimension
 leaves: list[MeasurePrimitive] = web.primitives
-sink: NodeId = doc.insert(
-    Node.measure(web, [(upright, cap_name), (upright, cap_name)])
-)
-# The bound is an EXPRESSION, because its dimension is the measure's
-# and a slot address cannot fix it.
+recorded: Measured = doc.measure(web, [(upright, cap_name), (upright, cap_name)])
+spans: list[NodeId] = recorded.measures
+spanned: list[Var] = recorded.outputs
+lone: NodeId = doc.insert(Node.measure(span, [(upright, cap_name), (upright, cap_name)]))
+# The bound is an EXPRESSION, because its dimension is the value's and
+# a slot address cannot fix it.
 requirement: NodeId = doc.insert(
-    Node.assertion(sink, AssertionDir.AtLeast, doc.parse_formula("0.5 mm"))
+    Node.assertion(recorded.value, AssertionDir.AtLeast, doc.parse_formula("0.5 mm"))
 )
+read_back: Measurement = evaluate(doc).reading(recorded.value)
 which_way: str = AssertionDir.AtMost.symbol
 
 # The two words a refusal carries, typed. Both are OPTIONAL strings and

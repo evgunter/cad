@@ -125,7 +125,7 @@ def scene(distribution=None, bound=None):
     assertion = None
     if bound is not None:
         assertion = doc.insert(
-            Node.assertion(measure, AssertionDir.AtLeast, doc.parse_formula(bound))
+            Node.assertion(doc.output(measure), AssertionDir.AtLeast, doc.parse_formula(bound))
         )
     return doc, analyzed_box(doc), measure, assertion
 
@@ -269,7 +269,7 @@ class TestTheAssertionRowsAreEmpirical(unittest.TestCase):
             )
         )
         assertion = doc.insert(
-            Node.assertion(clearance, AssertionDir.AtLeast, doc.parse_formula("1 mm"))
+            Node.assertion(doc.output(clearance), AssertionDir.AtLeast, doc.parse_formula("1 mm"))
         )
         report = monte_carlo(doc, analyzed_box(doc), McConfig(samples=8))
         row = next(r for r in report.assertions if r.node == assertion)

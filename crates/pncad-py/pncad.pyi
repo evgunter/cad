@@ -1138,20 +1138,17 @@ class MeasureUnavailable(PncadError):
     param: str
 
 class MeasureNodeFault(PncadError):
-    """`Node.measure` was handed an expression that reads a reference
-    the node does not carry.
+    """`Node.measure` was handed a primitive that reads a reference
+    it was not handed.
 
     `variant` is `ref_index_out_of_range`; `verb` is which primitive
-    reads it, `index` the out-of-range one, and `refs` how many the
-    node carries.
+    reads it, `index` the out-of-range one, and `refs` how many it was
+    handed.
 
-    The kernel's own `Node::measure` decides this — the one
-    construction door, running the check the edit door and the load
-    door's re-check both run — so a measure these constructors accept
-    is one a document accepts. What the constructor adds is TIMING:
-    the index refuses where it is written, not at the `Doc.apply`
-    after it, where the same fault arrives as EditError
-    `measure_malformed`."""
+    The check is the measure builder's, which `Doc.measure` runs too —
+    there the same fault arrives as EditError `measure_malformed`, with
+    the document untouched. What this constructor adds is TIMING: the
+    index refuses where it is written."""
 
     variant: str
     verb: str
@@ -2725,11 +2722,16 @@ class Node:
 
     @staticmethod
     def measure(expr: MeasureExpr, refs: list[tuple[NodeId, str]]) -> Node:
-        """A measurement sink: one dimension-generic node that denotes
-        no body and evaluates to a typed quantity.
+        """One measurement: a `Measure` node holds one closed-form
+        primitive and defines one observed scalar, its output
+        (`Doc.output(node)`), which only an assertion reads.
 
-        `refs` is the reference list the expression's primitives index,
-        IN ORDER, each a `(node, name)` pair — the entity's stable name
+        `expr` is a lone primitive, `MeasureExpr.primitive(...)`; a
+        measurement with arithmetic or value leaves is several nodes
+        and a definition over their outputs, which `Doc.measure`
+        records as one action — this door raises `ValueError` naming
+        it. `refs` is the reference list the primitive indexes, IN
+        ORDER, each a `(node, name)` pair — the entity's stable name
         and the node its carrier is READ AT.
 
         The read site is what makes a measure report PLACED geometry. A
@@ -2745,10 +2747,9 @@ class Node:
         names, so deleting a referenced node is accepted and reported
         as a `strand` on the measure, like any other reader's.
 
-        Every index is checked HERE, through the kernel's one
-        construction door, so a leaf pointing past the end of `refs`
-        raises MeasureNodeFault where it is written. Nothing else is
-        pre-checked: a name that no longer resolves
+        Every index is checked HERE, so a primitive pointing past the
+        end of `refs` raises MeasureNodeFault where it is written.
+        Nothing else is pre-checked: a name that no longer resolves
         (`measure_ref_resolve`), a carrier pair with no v1 closed form
         (`measure_unsupported`), a `min_clearance` handed an edge
         (`measure_selection_kind`) and a non-finite result
@@ -2756,28 +2757,26 @@ class Node:
         `evaluate`."""
 
     @staticmethod
-    def assertion(measure: _Operand, dir: AssertionDir, bound: Formula) -> Node:
+    def assertion(value: _SlotArg, dir: AssertionDir, bound: Formula) -> Node:
         """A recorded tolerance requirement: design intent as document
         data, in the versioned recipe rather than in a script beside
         it.
 
-        `measure` is the `Node.measure` this constrains — an ordinary
-        recipe edge, so a failed or poisoned measure poisons the
-        assertion rather than producing a verdict about nothing.
+        `value` is the scalar this bounds: a measure's output
+        (`Doc.output(measure)`), `Doc.measure`'s `value`, or any formula
+        or variable — read at the bound's dimension. A failed or
+        poisoned measure under it poisons the assertion rather than
+        producing a verdict about nothing.
 
         The bound is a `Formula` and not a typed quantity, because its
-        DIMENSION is the measure's. Every other node door takes a
-        `Length` or an `Angle` because a slot's address fixes what it
-        holds; this one's is fixed by the node it points at, and may be
-        an angle, a count or a plain scalar as readily as a length.
-        `Doc.parse_formula("0.5 mm")` is the one spelling, and it reaches
-        document parameters (`"min_web"`) in the same call — which is
-        what makes an assertion re-decidable by a parameter edit.
+        DIMENSION is the value's: it may be an angle, a count or a plain
+        scalar as readily as a length. `Doc.parse_formula("0.5 mm")` is
+        the one spelling, and it reaches document parameters
+        (`"min_web"`) in the same call — which is what makes an
+        assertion re-decidable by a parameter edit.
 
-        Two things are checked at `Doc.apply` and not here, because
-        both need the document: that `measure` names a measure at all
-        (EditError `assertion_target`) and that the bound's dimension
-        is the measured one (`assertion_dimension`). A document never
+        That the value's dimension is the bound's is checked at
+        `Doc.apply` (EditError `assertion_dimension`): a document never
         carries a comparison of radians with metres.
 
         REPORT-ONLY, structurally: no operation accepts a verdict as an
@@ -2945,6 +2944,18 @@ class VarName:
     def name(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...
     def __hash__(self) -> int: ...
+
+class Measured:
+    """A recorded measurement (`Doc.measure`): the measures it
+    inserted, one per primitive in its pre-order, their outputs in the
+    same order, and its value — a formula over those outputs."""
+
+    @property
+    def measures(self) -> list[NodeId]: ...
+    @property
+    def outputs(self) -> list[Var]: ...
+    @property
+    def value(self) -> Formula: ...
 
 class Var:
     """A document variable's identity: the id the document minted it,
@@ -4005,6 +4016,24 @@ class Doc:
         and its clocking rider on a frame coincidence is decided there
         over the mated parts' extent, both read through `resolver` —
         see `apply` for what a mate refuses here (`mate_refused`)."""
+    def measure(
+        self,
+        expr: MeasureExpr,
+        refs: list[tuple[NodeId, str]],
+        *,
+        resolver: Optional[Workspace] = None,
+    ) -> Measured:
+        """Record a measurement: one `Measure` node per primitive of
+        `expr`, in its pre-order, as one action — all land or none does.
+        Answers a `Measured`: the measures, their outputs, and the
+        measurement's `value`, a formula over those outputs that an
+        assertion reads (`Node.assertion(m.value, ...)`) and that
+        `Evaluation.reading` evaluates.
+
+        `refs` is the reference list the primitives index, as
+        `Node.measure` takes it; an index past its end raises
+        `EditError` with `variant == "measure_malformed"` and the
+        document untouched."""
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
@@ -5435,6 +5464,16 @@ class Evaluation:
     """
 
     def value(self, node: NodeId) -> Value: ...
+    def reading(self, value: Var | Formula) -> Measurement:
+        """A scalar's value in this evaluation, measured values bound:
+        a variable — a measure's output, or a definition over outputs —
+        or a formula, such as `Doc.measure`'s `value`. The one reader of
+        an observed value outside an assertion.
+
+        A measure under it that did not land raises as `value` of that
+        measure does (`EvaluationError`, `MeasureUnavailableAt` for a
+        `min_clearance` at this point scalar); an evaluation over the
+        bound values that refuses raises `ExprError`."""
     def succeeded(self, node: NodeId) -> bool: ...
     def order(self) -> list[NodeId]: ...
     def all_edges(self, node: NodeId) -> list[str]:
