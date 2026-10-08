@@ -441,30 +441,22 @@ numerics from that operation's own reads, never the world's."
 
 ## Round 6: two roots made inexpressible (re-read against `5f7a1c71e3`)
 
-**1. Yes, by four structural rules. Then the two-roots check is an invariant: hitting it is a
-kernel bug.**
+**1. Yes, by four rules; the two-roots check becomes an invariant (hit = kernel bug).**
 - **(a) Kept, sharpened.** A document holds its one frameless construction in a distinct slot
   (`Doc::root`), not as an ordinary node with an optional frame. Every other construction's frame
-  slot is required and reads a frame off existing geometry. A second frameless body is unwritable.
-  Where it is wanted, it is another document, instanced. Ev: "copies *are* just placements".
+  slot is required. A second frameless body is unwritable; it is another document, instanced.
 - **(b) Kept.** An instance is a `Place` of a part document: its copies exist only through a
   bundle, never as a loose root body.
-- **(c) Kept, with one addition.** The world is read only by bundle mates and export, and the
-  world itself sits in the root's space. It is related to the root by one mate, Ev's "one number"
-  (default: coincident with the root's base frame). In a document with no construction (an
-  assembly), the world is the root. Without this, a copy placed against the world and a local
-  body would be two roots in one document.
-- **(d) New: an under-pinned copy is read by nothing** (point 2). This closes the remaining route
-  to a second root: a copy with an empty bundle, which today has its own space (A11 (2)).
-- **Other routes, closed by these rules or by their doors:**
-  - The façade's datum helpers take a base frame, so `datum_plane(origin, normal)` from nothing
-    no longer exists.
-  - Migration rewrites each absolute datum as an `Offset` of the root's base frame.
-  - STEP import is a document, instanced and placed.
-  - Inline rewrites the inlined part's root to read the frame its copy was pinned at; an
-    under-pinned instance cannot be inlined.
-  - Split makes the taken root-most construction the new document's root, and places the
-    instance by the frame it read.
+- **(c) Kept, plus:** the world is related to the root by one mate (Ev's "one number"; default
+  the root's base frame), so world-placed copies and local bodies share a space. With no
+  construction (an assembly) the world is the root.
+- **(d) New: an under-pinned copy is read by nothing** (point 2), closing the empty-bundle copy's
+  own space.
+- **Other routes are closed at their doors:** the façade's datum helpers take a base frame; the
+  migration writes each absolute datum as an `Offset` of the root's base frame; STEP import is an
+  instanced document; inline rewrites the inlined root to read its copy's pinned frame (an
+  under-pinned instance cannot be inlined); split makes the taken root-most construction the new
+  document's root.
 
 **2. An under-pinned copy** is a copy whose bundle pins fewer degrees of freedom than it has; an
 empty bundle is the extreme. It is in its target's space, as a coset rather than a pose. Nothing
@@ -473,17 +465,13 @@ unresolved and typed, the stranded-reader rule, and that propagates down every c
 The viewer draws it where last shown, as display state no logic reads (Ev: "the location and
 orientation within the viewer is always set by the placement display info and never anything
 'real'"). Because nothing reads a position the bundle did not fix, nothing becomes
-placing-by-position. A free-floating sub-assembly is authored in its own document.
+placing-by-position.
 
-**Principles relied on:** parts have no location; a mate "supplies a constraint, and has no
-position it needs to efface"; placement relates "inherently-unplaced parts"; the world "just sets
-the coordinates", as one number; the viewer's location is never real.
-
-**Principles bent:**
-- A11 (2)'s own-space rule (#3441, Ev-ratified) retires. D10 already lists A11 (2) as retiring.
-- Ev's first idea, "view and edit something that will go into a boolean next to the existing
-  part", survives only as display. Editing such a thing as a related group needs its own
-  document.
+**Relied on:** no location; a mate "has no position it needs to efface"; placement relates
+"inherently-unplaced parts"; the world "just sets the coordinates", as one number; the viewer's
+location is never real. **Bent:** A11 (2)'s own-space rule (#3441, Ev-ratified; D10 already lists
+A11 (2) as retiring), and Ev's first idea of a free group beside the part, which survives only as
+display; a related free group needs its own document.
 
 **3. D10 Spaces:** "A part has no location, and raw coordinates are never related except through
 a placement. A document has one root, its one construction that reads no frame; every other
