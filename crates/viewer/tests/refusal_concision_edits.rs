@@ -1164,7 +1164,6 @@ const LABELS: &[(&str, &str)] = &[
         "PlacedUnion \"base plate\"",
     ),
     ("Edit/EmptyPlacementList", "PlacedUnion \"base plate\""),
-    ("Edit/MeasureMalformed", "Measure \"base plate\""),
     ("Edit/ProfileProgramRefused(Geometry", "loop 0 step 2"),
     (
         "Edit/ProfileProgramRefused(Geometry/NoCornerOfPair(",

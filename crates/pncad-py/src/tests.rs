@@ -168,9 +168,8 @@ fn var_kind_tags_are_stable() {
     );
 }
 
-/// What an operand slot admits is a kind's own word, or one of two
-/// words of its own: the placers' `placeable` and the assertion's
-/// `measured`.
+/// What an operand slot admits is a kind's own word, or the one word
+/// of its own: the placers' `placeable`.
 #[test]
 fn slot_kind_tags_are_stable() {
     use pncad::document::{SlotKind, VarKind};
@@ -5091,7 +5090,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "appearance_not_set",
             "appearance_wrong_kind",
             "assertion_dimension",
-            "assertion_target",
+            "construction_reads_observed",
             "continuous_var_cannot_be_count",
             "declare_names_missing_node",
             "declared_name_not_upstream",
@@ -5579,7 +5578,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_under",
             "mate_unleverable",
             "measure_clearance_refused",
-            "measure_malformed",
             "measure_non_finite",
             "measure_not_parallel",
             "measure_ref_resolve",
@@ -5657,7 +5655,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "extrude_error_tag",
             "interrogate_error_tag",
             "loft_error_tag",
-            "measure_node_fault_tag",
             "naming_error_tag",
             "node_error_tag",
             "param_attach_error_tag",
@@ -5716,8 +5713,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "operand_slot_tag",
         values: &[
-            "a", "at", "axis", "b", "frame", "input", "measure", "member", "of", "path", "plane",
-            "profile", "section", "target", "tool",
+            "a", "at", "axis", "b", "frame", "input", "member", "of", "path", "plane", "profile",
+            "section", "target", "tool",
         ],
         delegates: &[],
     },
@@ -6163,7 +6160,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "anonymous_var_unread",
             "assertion_bound",
-            "assertion_target",
             "declared_name_not_upstream",
             "definition_cycle",
             "definition_reads_unminted_var",
@@ -6175,13 +6171,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "input_list",
             "label_on_missing_node",
             "mate_alignment",
-            "measure_refs",
             "metadata_unversioned",
             "mint_log_order",
             "name_on_missing_var",
             "name_step_not_minted",
             "node_not_minted",
             "not_a_gauge",
+            "observed_read",
             "operand_unminted",
             "output_signature",
             "part_half_port",
@@ -6575,7 +6571,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("anonymous_var_unread", 2),
     ("approx_lane_unsupported", 2),
     ("assertion_dimension", 2),
-    ("assertion_target", 2),
     ("band", 16),
     ("cap_plane", 3),
     ("certify", 2),
@@ -6658,7 +6653,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // One rule (A4's frame rule) refused in both directions across the
     // seam: a split's kept mate and an inline's host mate.
     ("mate_frame_crosses", 2),
-    ("measure_malformed", 2),
     // A split's and an inline's refusal of a name on a dropped step: one
     // fact (`editor_core::refactor::Unmapped::Step`), one word.
     ("name_on_dropped_step", 2),
@@ -8359,10 +8353,10 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
     },
     MintingItem {
         owner: "slot_kind_tag",
-        literals: 2,
+        literals: 1,
         held_by: &[Holder::Test {
             name: "slot_kind_tags_are_stable",
-            holds: "the two words of its own, and a kind's word as `var_kind_tag`'s",
+            holds: "its own word, and a kind's word as `var_kind_tag`'s",
         }],
     },
     MintingItem {
