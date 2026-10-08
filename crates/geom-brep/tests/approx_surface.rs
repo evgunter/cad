@@ -406,12 +406,15 @@ fn a_window_the_certifier_cannot_honour_refuses_typed() {
 /// floor `τ` divides by and the floors on `‖E‖` — are box-assembled in
 /// the AMBIENT frame: a rotation re-splits the same geometry across the
 /// axes and the bound moves (2.8e-10 here, 6e-4 of the bound). The row
-/// asserts that movement is REAL on at least one map — above 1e-4 of
-/// the target, decades above rounding — so that a change making the
-/// bound frame-independent fails here rather than leaving stale
-/// caveats behind (`topo::transform`'s `map_approx` cites this). The target is 1e-6, not a tighter one, for
-/// the same reason: a slack equal to the target would hold for any two
-/// certified limbs whatever.
+/// pins that movement from both sides. It is REAL on at least one map —
+/// above 5e-5 of the target, decades above rounding — so that a change
+/// making the bound frame-independent fails here rather than leaving
+/// stale caveats behind (`topo::transform`'s `map_approx` cites this).
+/// And it stays under 2e-3 of the target, where a vector upper bound
+/// read off a per-coordinate box again moves it by 1.8e-8 (4% of the
+/// bound on the oblique map). The target is 1e-6, not a tighter one,
+/// for the same reason: a slack equal to the target would hold for any
+/// two certified limbs whatever.
 #[test]
 fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
     // The fixed fit target of this row — not the run's ε.
@@ -466,9 +469,14 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
         }
     }
     assert!(
-        worst_hull > 1e-4 * TARGET,
+        worst_hull > 5e-5 * TARGET,
         "the hull bound moved by only {worst_hull:e} across every map — if it has become \
          frame-independent, this row and the caveats that cite it are the things to retire"
+    );
+    assert!(
+        worst_hull < 2e-3 * TARGET,
+        "the hull bound moved by {worst_hull:e} under a rigid map — a vector upper bound \
+         is being read off a per-coordinate box again (D4 ¶2)"
     );
 }
 

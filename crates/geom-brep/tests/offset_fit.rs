@@ -653,7 +653,7 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
 #[test]
 fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
     let base = bumpy_patch();
-    let d = 4.9999999999999996e-6;
+    let d = 5e-6;
     let refusal = fit_offset_at(&base, d, 1e-15, band());
     let (achieved, last_round, best) = match &refusal {
         Err(OffsetFitError::BudgetExhausted {
