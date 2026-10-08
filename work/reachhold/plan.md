@@ -12,16 +12,16 @@ No row is dispatchable (`status: blocked`).
 
 Parked, each on its named trigger:
 
-- `a-box-corner-on-a-declared-tangent-ruling-refuses-curved-boolean-unsupported` — on [d10-one-way-to-say-intent-is-unbuilt]
-- `a-settled-declared-coincidence-crosses-a-tight-volume-bound` — on [d10-one-way-to-say-intent-is-unbuilt]
-- `a-sharp-plate-offset-over-a-rounded-one-refuses-unpaired-loose-ends` — on [d10-one-way-to-say-intent-is-unbuilt]
-- `a-union-over-a-declared-continuation-keeps-its-walls-split` — on [d10-one-way-to-say-intent-is-unbuilt]
-- `an-uncovered-edge-tangent-to-a-fillet-at-the-curved-operands-vertex-refuses` — on [d10-one-way-to-say-intent-is-unbuilt]
+- `a-box-corner-on-a-declared-tangent-ruling-refuses-curved-boolean-unsupported` — on [intent-stage4-is-built]
+- `a-settled-declared-coincidence-crosses-a-tight-volume-bound` — on [intent-stage4-is-built]
+- `a-sharp-plate-offset-over-a-rounded-one-refuses-unpaired-loose-ends` — on [intent-stage4-is-built]
+- `a-union-over-a-declared-continuation-keeps-its-walls-split` — on [intent-stage4-is-built]
+- `an-uncovered-edge-tangent-to-a-fillet-at-the-curved-operands-vertex-refuses` — on [intent-stage4-is-built]
 - `boolean-door-runs-the-census-over-its-result` — on [census-cross-solid-curved-pairs-undecidable-on-shell-results, a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms, a-two-pinch-union-ships-a-pinch-its-records-do-not-declare, a-boolean-drops-its-operands-own-contact-records]
-- `covered-endpoint-arms-read-a-non-convex-touch-at-the-ends-only` — on [d10-one-way-to-say-intent-is-unbuilt]
-- `maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip` — on [d10-one-way-to-say-intent-is-unbuilt]
+- `covered-endpoint-arms-read-a-non-convex-touch-at-the-ends-only` — on [intent-stage4-is-built]
+- `maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip` — on [intent-stage4-is-built]
 - `nurbs-edge-crossing-rung-is-the-ring-composite` — on [cylinder-sphere-germ-pair-has-no-join-lane]
-- `rounded-stack-subtract-and-intersect-refuse-fallback-extent` — on [d10-one-way-to-say-intent-is-unbuilt]
+- `rounded-stack-subtract-and-intersect-refuse-fallback-extent` — on [intent-stage4-is-built]
 - `the-plate-document-never-cuts-its-holes` — on [a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound, a-measured-part-is-not-a-product-root]
 
 Deferred: `spiric-operand-edges-reopen-with-their-first-producer` (its body cites the ruling).

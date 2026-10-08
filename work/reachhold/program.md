@@ -15,10 +15,10 @@ priority: P1
 
 **Nothing here is dispatchable, and nobody holds the track.** Every
 row waits on a named trigger (`work/README.md`: a blocked track never
-has an orchestrator). Eight rows are parked on the D10 hold
-(`work/intent/d10-one-way-to-say-intent-is-unbuilt.md`): declared
-coincidences, continuations and tangencies whose answer depends on how
-intent is said. `boolean-door-runs-the-census-over-its-result` waits
+has an orchestrator). Eight rows are parked on the D10 hold,
+through INTENT's stage-4 umbrella (`work/intent/intent-stage4-is-built.md`,
+the coincidence door): declared coincidences, continuations and
+tangencies whose answer depends on how intent is said. `boolean-door-runs-the-census-over-its-result` waits
 on four CONTACT and JOIN rows; `nurbs-edge-crossing-rung-is-the-ring-composite`
 waits on JOIN's cylinder × sphere germ pair; `the-plate-document-never-cuts-its-holes`
 waits on TALLY's subtract-volume tie and RECIPE's product root. The

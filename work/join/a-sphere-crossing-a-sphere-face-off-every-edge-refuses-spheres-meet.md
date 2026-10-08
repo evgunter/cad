@@ -7,6 +7,7 @@ opened: 2026-10-05
 priority: P1
 cost: H
 refs: [a-ring-on-a-sphere-face-has-no-island-winding, 4046]
+branch: join/sphere-pair-whole-circle
 ---
 
 Found by the dual review of PR 4046 (`reach/carved-sphere-classify`,

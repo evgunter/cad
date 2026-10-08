@@ -8,7 +8,7 @@ priority: P2
 cost: M
 design: true
 refs: [3657, a-union-glues-same-sense-cosurface-walls-without-merging-them]
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 Found by the unit that built the continuation ruling
@@ -59,3 +59,7 @@ different keys.
    reads), so the arm refuses only unlicensed adjacencies.
 3. The merge gains its curved rung, so no curved continuation ships
    unmerged and the arm has nothing licensed to tolerate.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the licence is the union's declared continuation (merge_skipped); under stage 4 cosurface legitimacy is structural (canonical forms). (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

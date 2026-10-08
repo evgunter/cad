@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-03
 priority: P2
 cost: E
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -32,3 +32,7 @@ opposite-oriented flush faces.
 Find a witness with a rest contact beside a nested strut. If the
 straight test mispairs it, read the arcs from the vertex the chain of
 null edges hangs from.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: rest::enumerate_segments is the declared-REST zip, which stage 4 deletes (the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms); a witness needs a declared Rest contact. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
