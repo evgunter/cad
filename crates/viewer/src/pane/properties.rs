@@ -520,7 +520,7 @@ impl ViewerBehavior<'_> {
     /// has no per-instance display state to show. What the hide toggle
     /// pushes runs [`crate::display::display_check`], the full
     /// admission test, so an instance whose geometry is fused into a
-    /// drawn root with another's is a live instance with a section and
+    /// placed body with another's is a live instance with a section and
     /// no display operation that can address it: the toggle is gated on
     /// the door's test and carries the door's own sentence.
     pub(crate) fn instance_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
@@ -1518,7 +1518,7 @@ fn hide_toggle(
     );
     if let Err(fault) = addressable {
         // Advisory: past the section's own kind gate the one fault
-        // left is geometry fused into a drawn root with another
+        // left is geometry fused into a placed body with another
         // instance's, which is what the document says and nothing a
         // reader got wrong.
         crate::widgets::message_toned(ui, fault.to_string(), theme, Tone::Advisory);
@@ -1843,7 +1843,7 @@ mod tests {
                 RecipeNodeId::new(0, test_utils::refusal::tagged(0)),
                 Some("InstantiatePart"),
             ),
-            root: spoken(
+            body: spoken(
                 RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
                 Some("Union"),
             ),

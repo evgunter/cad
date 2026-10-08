@@ -235,7 +235,7 @@ pub enum SceneError {
         /// The unit `delta` was written in.
         unit: LengthUnit,
     },
-    /// The document's roots did not gather into a product body, for
+    /// The document's world placements did not gather into a product body, for
     /// any of the gather's reasons (`ProductErrorKind::means_no_body`
     /// says which of them is an absence rather than a fault), beside
     /// the nodes its sentence names as the gathered document held them
@@ -862,6 +862,12 @@ pub fn plate_with_hole(tol: Tol) -> Result<(Doc<ProfileProgram>, RecipeNodeId), 
         },
         tol,
     )?;
+    // The plate is the product because it is placed (A10).
+    let (doc, _) = insert(
+        doc,
+        Node::place_in_world(extrude, pncad::document::Placement::IDENTITY),
+        tol,
+    )?;
     Ok((doc, extrude))
 }
 
@@ -904,7 +910,7 @@ fn no_product(error: ProductError, doc: &Doc<ProfileProgram>) -> SceneError {
 ///
 /// # Errors
 ///
-/// [`SceneError::NoProduct`] for every way the roots fail to gather.
+/// [`SceneError::NoProduct`] for every way the placements fail to gather.
 pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, SceneError> {
     let cancel = CancelToken::new();
     let evaluation = evaluate::<f64>(doc, None, &cancel, &EvalOptions::default(), tol);
@@ -924,7 +930,7 @@ pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, Sc
 ///
 /// # Errors
 ///
-/// [`SceneError::NoProduct`] for every way the roots fail to gather.
+/// [`SceneError::NoProduct`] for every way the placements fail to gather.
 pub fn product_of_evaluation(
     doc: &Doc<ProfileProgram>,
     evaluation: &pncad::document::Evaluation<f64>,
@@ -940,7 +946,7 @@ pub fn product_of_evaluation(
 /// already paid for one ([`crate::session::DocSession::landed_body`]);
 /// a door that took `(doc, evaluation)` here would gather the same
 /// product a second time. Not per frame — the drawn picture is built
-/// by [`crate::pickindex::PickIndex`], per root, and never comes through
+/// by [`crate::pickindex::PickIndex`], per placement, and never comes through
 /// here — but once for every caller that asks, which is the shape the
 /// landing already paid to avoid. [`scene_of`] is this function with a gather of
 /// its own, kept for callers that have no seam — the two share every
@@ -1267,9 +1273,9 @@ pub enum ProbeStop {
 /// # The count is the picture's, not an estimate of it
 ///
 /// The probe tessellates the GATHERED product, while the picture is
-/// built per root by `crate::pickindex::PickIndex`. Those are the same
-/// number: measured across four δ on both multi-root gallery
-/// documents, gathered and per-root triangle counts agree exactly
+/// built per placement by `crate::pickindex::PickIndex`. Those are the same
+/// number: measured across four δ on both multi-body gallery
+/// documents, gathered and per-placement triangle counts agree exactly
 /// (0.000%), because the graft moves solids into one body without
 /// re-cutting their faces.
 ///
@@ -1279,7 +1285,7 @@ pub enum ProbeStop {
 /// fit follows already gathered the product once
 /// ([`crate::session::DocSession::land`]), and a fit that gathered
 /// again would pay a whole second gather on the one path a user reads
-/// as "how long Open takes". Measured on a 165-root, 990-face
+/// as "how long Open takes". Measured on a 165-body, 990-face
 /// document (dev profile, this lane): 87 ms to gather, against 2.4 ms
 /// to clone the body that gather produced. What that measurement
 /// decides, and why it carries no guard, is stated where the decision
@@ -1531,7 +1537,7 @@ fn insert(
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), SceneDocError> {
     // The scene's document has no instance and no mate, so no edit
-    // here can move a group's root: the refusing reach is never
+    // here asks a mate's admission: the refusing reach is never
     // asked.
     let applied = apply(
         &doc,

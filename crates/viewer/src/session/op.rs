@@ -573,8 +573,9 @@ pub enum SessionOp {
         /// for a new one (`DocEdit::SetProgram`'s `ids`).
         ids: Vec<Vec<Option<StepId>>>,
     },
-    /// Insert one extrude of an existing profile node — the extrude
-    /// tool's one committed edit. A `profile` that is not a
+    /// Insert one extrude of an existing profile node, and its identity
+    /// world placement (A10) — the extrude tool's one committed action,
+    /// so what was made is drawn. A `profile` that is not a
     /// `Node::Profile` in this document refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     ///
@@ -588,7 +589,8 @@ pub enum SessionOp {
         distance: Formula,
     },
     /// Insert one revolve of an existing profile node about an
-    /// existing axis datum — the revolve tool's one committed edit.
+    /// existing axis datum, and its identity world placement (A10) —
+    /// the revolve tool's one committed action.
     /// Either seat's wrong-kind pick refuses
     /// [`Refusal::WrongNodeKind`] at the door.
     AddRevolve {
@@ -603,6 +605,14 @@ pub enum SessionOp {
     },
     /// Insert one regularized boolean of two existing bodies — the
     /// boolean tool's one committed action (GAUTH-4).
+    ///
+    /// **The result takes the operands' place in the world** (A10, Ev's
+    /// residue 1): the placements of the first operand the world
+    /// places, in seat order, are re-pointed to the boolean through the
+    /// slot door, and the other operand's placements are deleted, in
+    /// the same action — so `a ∘ b` with both placed leaves the world
+    /// `[result]`, and one undo restores `[a, b]`. Operands nothing
+    /// places place nothing.
     ///
     /// **The operand order is data**: `Subtract` keeps `a` and removes
     /// `b`, so the two seats are not interchangeable and the form says
@@ -637,7 +647,10 @@ pub enum SessionOp {
         declare: Vec<FlushFinding>,
     },
     /// Insert one split of an existing body by an existing datum
-    /// plane — the split tool's one committed edit.
+    /// plane — the split tool's one committed edit. A split defines two
+    /// bodies, and it changes nothing in the world: the target's
+    /// placements keep reading the target, and a half reaches the world
+    /// through its projection (`SessionOp::AddPart`).
     ///
     /// The tool seat is a PLANE and not a body: `Node::Split`'s tool
     /// operand is the plane the cut is taken on. Both seats refuse
@@ -648,9 +661,10 @@ pub enum SessionOp {
         /// The `Datum::Plane` node it is cut by.
         tool: RecipeNodeId,
     },
-    /// Insert one rigid placement of an existing body — the transform
-    /// tool's one committed edit. The property panel is the editor for
-    /// every slot afterwards.
+    /// Insert one rigid transform of an existing body — the transform
+    /// tool's one committed action, re-pointing the body's world
+    /// placements to it (A10, Ev's residue 1). The property panel is
+    /// the editor for every slot afterwards.
     AddTransform {
         /// The body placed.
         input: RecipeNodeId,
@@ -662,7 +676,9 @@ pub enum SessionOp {
         rotation_angle: Formula,
     },
     /// Insert one pattern of an existing body — the pattern tool's one
-    /// committed edit.
+    /// committed edit. A pattern defines several bodies, which no world
+    /// placement reads, so it changes nothing in the world: each copy
+    /// reaches it through its projection (`SessionOp::AddPart`).
     ///
     /// The count is an `i64` and lands as an exact Count literal: it
     /// is the node's STRUCTURAL slot (spec D3), edited afterwards
@@ -701,6 +717,10 @@ pub enum SessionOp {
     /// other, and inventing one here would be a second spelling of a
     /// rule the document already has.
     ///
+    /// **The fused body takes the prototype's place in the world** (A10,
+    /// Ev's residue 1): the prototype's placements are re-pointed to it
+    /// in the same action.
+    ///
     /// **Disjointness is the node's question, not this door's.**
     /// Placements that overlap refuse typed at evaluation on the
     /// node's own badge, the same division of labour a non-positive
@@ -716,8 +736,14 @@ pub enum SessionOp {
         rule: PatternRuleSpec,
     },
     /// Insert one constant-radius fillet on a SET of an existing
-    /// body's edges — the blend tool's one committed edit, as a
-    /// fillet.
+    /// body's edges — the blend tool's one committed action, as a
+    /// fillet, re-pointing the body's world placements to it (A10, Ev's
+    /// residue 1).
+    ///
+    /// **A target that is a world placement is a pick on its copy**,
+    /// read on the body it places: the fillet reads that body, and each
+    /// selected name the placement's wrap is unwrapped to the body's own
+    /// (`StableName::copy_of`).
     ///
     /// **The selection is a frozen commitment** (`Node::Fillet`'s
     /// ratified #217 semantics): what is authored here is what the
@@ -765,7 +791,8 @@ pub enum SessionOp {
     },
     /// Insert one PROJECTION of a multi-body value — the named half
     /// of a split, or one instance of a pattern — as the `Body` value
-    /// every body seat takes (`Node::Part`).
+    /// every body seat takes (`Node::Part`), and its identity world
+    /// placement (A10): a creation, so the projected body is drawn.
     ///
     /// **`select` is an authoring spec, not the node's own enum**, and
     /// the difference is one field: `PartSelect::Instance` carries an
@@ -794,22 +821,16 @@ pub enum SessionOp {
         /// Which body of it.
         select: PartSelectSpec,
     },
-    /// **Duplicate one body**: the picked body placed whole, plus one
-    /// copy stepped clear of it, each an independently drawn and
-    /// independently placeable root.
+    /// **Duplicate one body**: a copy stepped clear of the picked body,
+    /// drawn and editable on its own.
     ///
-    /// **A duplicate is a pattern of two, projected twice** — a
-    /// `Node::Pattern` of count [`crate::combine::DUPLICATE_COUNT`] over
-    /// the body, and one `Node::Part` per instance. Three inserts, one
-    /// action, one undo (the session's several-edit door, the shape
-    /// `AddProfile`'s new-frame arm takes), and the projections are not
-    /// decoration: `roots` maintenance puts a new node in the earliest
-    /// consumed root's slot and drops its inputs, and the viewport
-    /// draws roots. A pattern alone is ONE root drawing two bodies, so
-    /// neither copy can be hidden, moved or blended apart from the
-    /// other, and the first `Part` a user authored by hand would take
-    /// the pattern out of `roots` and leave the other copy undrawn. A
-    /// projection per instance puts every copy back in `roots`.
+    /// **The copy is a `Node::Transform` of the body, placed** — two
+    /// inserts, one action, one undo: the transform and its identity
+    /// world placement (A10). The original's placements are untouched.
+    /// A transform rather than a second placement of the body, because
+    /// a feature gesture re-points every placement of its target: a
+    /// copy that were the same body would take every fillet authored on
+    /// the original, and the original every one authored on it.
     ///
     /// **The step is measured, not fixed**
     /// ([`crate::combine::duplicate_step`]): along
@@ -819,10 +840,9 @@ pub enum SessionOp {
     /// CURRENT document, so this door refuses ([`Refusal::Duplicate`])
     /// before anything has landed, while an edit has not landed yet,
     /// and for an input whose value is several bodies — which the body
-    /// seat's node-kind gate admits for a transform of a pattern, and
-    /// which a pattern of two would index in place, adding nothing.
-    /// Both numbers land in the pattern's ordinary slots and are edited
-    /// in the property panel afterwards.
+    /// seat's node-kind gate admits for a transform of a pattern. The
+    /// step lands in the transform's ordinary translation slots and is
+    /// edited in the property panel afterwards.
     Duplicate {
         /// The body duplicated.
         input: RecipeNodeId,
@@ -845,10 +865,12 @@ pub enum SessionOp {
     /// ([`Refusal::NoDocumentDirectory`]) rather than authoring a
     /// reference into a store it has not got.
     ///
-    /// No placement is authored: A11 puts placement on the group and
-    /// an instance carries no frame of its own, so the inserted node
-    /// is complete with its reference and an empty interface record
-    /// (an authored instance crosses no split seam). Hiding, the
+    /// **A creation, so its bodies are placed** (A10): the instance
+    /// and one identity world placement of each body it defines — one
+    /// per world placement of its part — as one action. No gauge pose
+    /// is authored: A11 puts placement on the group, so the inserted
+    /// node is complete with its reference and an empty interface
+    /// record (an authored instance crosses no split seam). Hiding, the
     /// free-move probe and the mate tool take it from there.
     AddInstance {
         /// Which document in the open document's own directory.

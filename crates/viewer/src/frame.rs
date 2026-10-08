@@ -2261,7 +2261,7 @@ pub fn at_rest_badge(at_rest: Option<&AtRestBadge>) -> Option<Badge> {
 /// that distinction is drawn.
 ///
 /// It REPORTS rather than blocks: the scene below is drawn either way,
-/// because a product whose roots interpenetrate renders a picture that
+/// because a product whose copies interpenetrate renders a picture that
 /// looks almost right and the finding is the only thing that says
 /// otherwise. So it is [`Tone::Actionable`] and it
 /// [`Affordance::Opens`] — the findings' own sentences, each carrying
@@ -2281,21 +2281,22 @@ pub fn checks_badge(report: Option<&ChecksReport>) -> Option<Badge> {
     )
 }
 
-/// **One row of the Checks window**: the root a finding is about, the
+/// **One row of the Checks window**: the body a finding is about, the
 /// label of the button that selects it, and the finding's sentence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckRow {
-    /// The root the finding is about, which the button selects.
-    pub root: RecipeNodeId,
-    /// The root, spoken.
+    /// The operation defining the body whose copy the finding is
+    /// about ([`crate::world::seat_of`]), which the button selects.
+    pub body: RecipeNodeId,
+    /// That operation, spoken.
     pub button: String,
-    /// The finding, its roots spoken.
+    /// The finding, its copies spoken.
     pub sentence: String,
 }
 
-/// **The Checks window's rows**, each root spoken from `landed`.
+/// **The Checks window's rows**, each body spoken from `landed`.
 ///
-/// The report is the landed run's: its roots' ids are spelled in the
+/// The report is the landed run's: its placements' ids are spelled in the
 /// document that run was over, which the committed one passes while a
 /// run is outstanding. `landed` must be that run's document
 /// (`DocSession::landed_pair`). [`ChecksReport::speaker`] refuses
@@ -2307,10 +2308,13 @@ pub fn check_rows(report: &ChecksReport, landed: &Doc<ProfileProgram>) -> Vec<Ch
     report
         .findings
         .iter()
-        .map(|finding| CheckRow {
-            root: finding.root,
-            button: by.node(finding.root).to_string(),
-            sentence: Said(finding, by).to_string(),
+        .map(|finding| {
+            let body = crate::world::seat_of(landed, finding.root);
+            CheckRow {
+                body,
+                button: by.node(body).to_string(),
+                sentence: Said(finding, by).to_string(),
+            }
         })
         .collect()
 }
@@ -2362,7 +2366,7 @@ pub fn delta_badge(fitted: Option<&FittedDelta>, unit: LengthUnit) -> Option<Bad
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum BadgeSite {
     /// This frame badges it: a gather-level fault no per-node badge
-    /// can carry — a naming collision across roots, a graft the kernel
+    /// can carry — a graft the kernel
     /// refused, a validity verdict on the assembled product, an
     /// evaluation of the wrong document.
     Frame,
@@ -2384,15 +2388,18 @@ enum BadgeSite {
 /// `Failed`, `Poisoned`, `Unevaluated` — and
 /// [`ProductErrorKind::RootFailed`], [`ProductErrorKind::RootPoisoned`]
 /// and [`ProductErrorKind::UnknownNode`] — the classes of
-/// [`ProductError::Root`], by the root's standing — are those same three
-/// states seen from the gather. That count is a MEASUREMENT of another module's enum,
+/// [`ProductError::Root`], by the placement's standing — are those same
+/// three states seen from the gather.
+/// [`ProductErrorKind::StrandedPlacement`] is the first of them seen
+/// from the recipe: a placement whose body is gone reads nothing, and
+/// the tree draws its row `Failed` on that unresolved read. That count is a MEASUREMENT of another module's enum,
 /// so it does not stand on this `match` being exhaustive:
 /// `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`
 /// is its guard, and a fourth non-`Ok` state reds there. The tree
 /// badges each AT the node and carries the typed cause with it, so a
 /// frame badge would say strictly less, in a
 /// louder colour, one row above a status line already reporting the
-/// same root's tessellation refusal. The tree's own tone goes further:
+/// same placement's tessellation refusal. The tree's own tone goes further:
 /// [`crate::tree::RowStatus::tone`] makes a poisoned row
 /// [`Tone::Advisory`], reserving [`Tone::Actionable`] for the row a
 /// reader can act on, and the Features pane draws that value; a badge
@@ -2413,7 +2420,7 @@ enum BadgeSite {
 /// is the tree's, whichever way the cited rule answers it.
 ///
 /// **The match does not hold the citation live.** Moving
-/// [`ProductErrorKind::NoBodyRoots`] into the first arm would leave a
+/// [`ProductErrorKind::EmptyProduct`] into the first arm would leave a
 /// call that can never answer `true` — a dead citation, which nothing
 /// reds on and only
 /// `the_gather_verdict_badges_only_the_faults_nothing_else_carries`
@@ -2422,11 +2429,10 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
     match kind {
         ProductErrorKind::RootFailed
         | ProductErrorKind::RootPoisoned
+        | ProductErrorKind::StrandedPlacement
         | ProductErrorKind::UnknownNode => BadgeSite::FeatureTree,
         ProductErrorKind::EvaluationOfAnotherDocument
-        | ProductErrorKind::PlacedUnderTwoRoots
-        | ProductErrorKind::Naming
-        | ProductErrorKind::NoBodyRoots
+        | ProductErrorKind::EmptyProduct
         | ProductErrorKind::Unplaced
         | ProductErrorKind::Graft
         | ProductErrorKind::RootInvalid
@@ -2523,9 +2529,9 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 ///
 /// # A refusal that is a consequence, drawn under its cause
 ///
-/// The index is built over every root, and a root whose row the
-/// feature tree badges `Failed` or `Poisoned` has no value to index,
-/// so the build refuses on it ([`downstream_root`]). That refusal is
+/// The index is built over every world placement, and a placement
+/// whose row the feature tree badges `Failed` or `Poisoned` has no
+/// value to index, so the build refuses on it ([`downstream_node`]). That refusal is
 /// DERIVED: the failure it follows from is already on screen, as the
 /// one [`Tone::Actionable`] row the tree draws for it. So it takes the
 /// tree's own reading of a downstream row — [`Tone::Advisory`], naming
@@ -2535,7 +2541,7 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 ///
 /// **It is placed under the cause, not dropped**, because it carries
 /// two facts the cause does not. The refusal stops EVERY pick, on the
-/// healthy roots' bodies too, and it stops the picture: the scene is
+/// healthy copies too, and it stops the picture: the scene is
 /// drawn from the index, so the viewport keeps its last picture until
 /// the index builds. Both are in the label, and nowhere else: a pick
 /// aimed at the missing index is refused on the line
@@ -2545,22 +2551,23 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// why.
 ///
 /// **The label names where the index stopped, not everything in its
-/// way.** The build returns at the FIRST root that refuses, in
-/// `doc.roots()` order, so a later root with a refusal of its own is
-/// not reached; the label says the index waits on this row and does
+/// way.** The build returns at the FIRST placement that refuses, in
+/// `doc.placements()` order, so a later placement with a refusal of its
+/// own is not reached; the label says the index waits on this row and does
 /// not promise it builds once the row is fixed.
 ///
 /// **The tooltip is the index's own words with the tree's row in
-/// them.** It names the root the build refused on, and the standing it
-/// carries is read as the tree reads it ([`index_refusal_as_drawn`]),
-/// so for a root a mate refusal reached it names the mate the label
-/// names rather than the root or the root's DAG ancestor. Its nodes
+/// them.** It names the placement the build refused on, and the
+/// standing it carries is read as the tree reads it
+/// ([`index_refusal_as_drawn`]), so for a placement a mate refusal
+/// reached it names the mate the label names rather than the placement
+/// or its DAG ancestor. Its nodes
 /// are said from the landed document, the one the index was built
 /// against; the label's row, from `doc`, as the tree draws it.
 ///
 /// Every other refusal is the index's own and stays
 /// [`Tone::Actionable`] in its own words — and so does a standing
-/// refusal the tree names no failed row for (a root that never ran,
+/// refusal the tree names no failed row for (a placement that never ran,
 /// or no evaluation to read), because quieting news is only right
 /// where the louder news it defers to is actually drawn.
 pub fn index_badge(
@@ -2569,9 +2576,9 @@ pub fn index_badge(
     landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
 ) -> Option<Badge> {
     let error = error?;
-    let cause = downstream_root(error)
+    let cause = downstream_node(error)
         .zip(landed)
-        .and_then(|(root, (_, evaluation))| crate::tree::cause_row(root, evaluation));
+        .and_then(|(node, (_, evaluation))| crate::tree::cause_row(node, evaluation));
     let said = match landed {
         Some((landed, evaluation)) => format!(
             "pick index: {}",
@@ -2612,7 +2619,7 @@ fn index_refusal_as_drawn(error: &PickIndexError, evaluation: &Evaluation<f64>) 
 /// index's own. Whether the node failed, was poisoned, or never ran
 /// is the tree's to read, and [`index_badge`] asks it rather than
 /// reading the standing here.
-fn downstream_root(error: &PickIndexError) -> Option<RecipeNodeId> {
+fn downstream_node(error: &PickIndexError) -> Option<RecipeNodeId> {
     error.standing().map(NodeStanding::node)
 }
 
@@ -3068,7 +3075,6 @@ mod tests {
     fn empty_doc() -> Doc<ProfileProgram> {
         Doc::empty_derived("frame-tests", pncad::geom_core::Tol::witness())
     }
-    use pncad::prelude::{EntityKind, StableName};
 
     use crate::camera::{Camera, CameraOp, CameraOpError};
     use crate::display::AdmissionFault;
@@ -3331,22 +3337,14 @@ mod tests {
     fn the_gather_verdict_badges_only_the_faults_nothing_else_carries() {
         let node = RecipeNodeId::new(0, test_utils::refusal::tagged(2));
 
-        // The item's own reproduction: two roots colliding in the name
-        // table. Not a node failure, so no per-node badge carries it —
-        // which is why this channel exists at all.
-        let collision = ProductError::Naming {
-            node,
-            name: Box::new(StableName {
-                kind: EntityKind::Face,
-                node,
-                path: Vec::new(),
-            }),
-        };
-        let badge =
-            product_badge(Some(&collision), &empty_doc()).expect("a naming collision badges");
+        // A declared contact the graft has no image for. Not a node
+        // failure, so no per-node badge carries it — which is why this
+        // channel exists at all.
+        let lineage = ProductError::ContactLineage { node, what: "face" };
+        let badge = product_badge(Some(&lineage), &empty_doc()).expect("a lineage fault badges");
         assert_eq!(
             badge.label(),
-            collision.spoken(&empty_doc()),
+            lineage.spoken(&empty_doc()),
             "the fault renders itself"
         );
         assert_eq!(
@@ -3367,7 +3365,16 @@ mod tests {
         // backticks: a bracketed link in a `//` comment is checked by
         // nothing, so it must not wear the spelling rustdoc gates.)
         for (quiet, site) in [
-            (ProductError::NoBodyRoots, BadgeSite::NotAFault),
+            (
+                ProductError::EmptyProduct {
+                    unplaced: Vec::new(),
+                },
+                BadgeSite::NotAFault,
+            ),
+            (
+                ProductError::StrandedPlacement { placement: node },
+                BadgeSite::FeatureTree,
+            ),
             (
                 ProductError::Root(NodeStanding::Failed { node }),
                 BadgeSite::FeatureTree,
@@ -3402,8 +3409,7 @@ mod tests {
         // went silent would not fail.
         for kind in [
             ProductErrorKind::EvaluationOfAnotherDocument,
-            ProductErrorKind::PlacedUnderTwoRoots,
-            ProductErrorKind::Naming,
+            ProductErrorKind::Unplaced,
             ProductErrorKind::Graft,
             ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,
@@ -3456,11 +3462,10 @@ mod tests {
         let left_to_the_tree = [
             ProductErrorKind::EvaluationOfAnotherDocument,
             ProductErrorKind::UnknownNode,
-            ProductErrorKind::PlacedUnderTwoRoots,
-            ProductErrorKind::Naming,
             ProductErrorKind::RootFailed,
             ProductErrorKind::RootPoisoned,
-            ProductErrorKind::NoBodyRoots,
+            ProductErrorKind::EmptyProduct,
+            ProductErrorKind::StrandedPlacement,
             ProductErrorKind::Unplaced,
             ProductErrorKind::Graft,
             ProductErrorKind::RootInvalid,
@@ -3469,7 +3474,16 @@ mod tests {
         ]
         .into_iter()
         .filter(|kind| badge_site(*kind) == BadgeSite::FeatureTree)
-        .count();
+        // The row state each class reaches the pane as: a stranded
+        // placement is a failed row, on its unresolved read.
+        .map(|kind| match kind {
+            ProductErrorKind::RootFailed | ProductErrorKind::StrandedPlacement => 0,
+            ProductErrorKind::RootPoisoned => 1,
+            ProductErrorKind::UnknownNode => 2,
+            other => unreachable!("{other:?} is not a class the tree draws"),
+        })
+        .collect::<std::collections::BTreeSet<_>>()
+        .len();
         assert_eq!(
             left_to_the_tree, states,
             "every class this policy leaves to the Features pane is left to a row the pane draws"
@@ -3630,7 +3644,7 @@ mod tests {
                     RecipeNodeId::new(0, test_utils::refusal::tagged(3)),
                     Some("InstantiatePart"),
                 ),
-                root: crate::test_support::spoken(
+                body: crate::test_support::spoken(
                     RecipeNodeId::new(0, test_utils::refusal::tagged(8)),
                     Some("Union"),
                 ),
@@ -3689,7 +3703,7 @@ mod tests {
                     RecipeNodeId::new(0, test_utils::refusal::tagged(instance)),
                     Some("InstantiatePart"),
                 ),
-                root: crate::test_support::spoken(
+                body: crate::test_support::spoken(
                     RecipeNodeId::new(0, test_utils::refusal::tagged(8)),
                     Some("Union"),
                 ),
@@ -3929,7 +3943,10 @@ mod tests {
             },
             PartFault::PartProduct {
                 held: Default::default(),
-                refusal: ProductError::NoBodyRoots.into(),
+                refusal: ProductError::EmptyProduct {
+                    unplaced: Vec::new(),
+                }
+                .into(),
             },
             PartFault::ReferenceCycle {
                 cycle: vec![*doc_ref],

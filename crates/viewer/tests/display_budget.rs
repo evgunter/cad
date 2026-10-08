@@ -180,7 +180,7 @@ fn the_gallery_ring_at_the_starting_delta_is_inside_the_budget() {
 #[test]
 fn a_document_inside_the_budget_is_drawn_as_asked() {
     let tol = Tol::witness();
-    let (doc, _root) = viewer::scene::plate_with_hole(tol).expect("the startup document");
+    let (doc, _) = viewer::scene::plate_with_hole(tol).expect("the startup document");
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let body = session.landed_body().expect("the plate gathers");
@@ -1255,7 +1255,7 @@ fn no_probe_out_tessellates_the_picture_it_sizes() {
     );
 }
 
-/// The tour's two gallery documents — the multi-root ones the display
+/// The tour's two gallery documents — the multi-copy ones the display
 /// budget was written for.
 fn gallery_documents(tol: Tol) -> Vec<(&'static str, ProfileDoc)> {
     let tour = corpus::documents()

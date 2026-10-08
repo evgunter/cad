@@ -599,10 +599,9 @@ impl PartTool {
 /// copy away, so a form asking where the copy should go first would be
 /// the pattern form again under another name. Where the copy lands is
 /// [`duplicate_step`]'s rule — along [`STEP_DIRECTION`], clear of the
-/// original by at least [`DUPLICATE_GAP`] of its own width — and both
-/// numbers
-/// land in ordinary slots of the pattern node the gesture authors,
-/// editable in the property panel the moment the edit lands.
+/// original by at least [`DUPLICATE_GAP`] of its own width — and the
+/// step lands in the translation slots of the transform the gesture
+/// authors, editable in the property panel the moment the edit lands.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DuplicateTool {
     seats: Seats,
@@ -734,10 +733,9 @@ pub enum DuplicateFault {
         /// ([`held_by`]).
         held: HeldNodes,
     },
-    /// The input's VALUE is several bodies. A pattern of two over it
-    /// would index the flat list of those bodies, so its two
-    /// projections would select two of the ORIGINAL bodies in place and
-    /// the gesture would add nothing to the picture.
+    /// The input's VALUE is several bodies, and a duplicate copies one:
+    /// a transform of them would be several bodies again, which no
+    /// world placement reads.
     ///
     /// The body seat refuses a read of several bodies by its kind, so
     /// this is the value's own answer behind it: the door asks the
@@ -914,8 +912,8 @@ fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) ->
     Some(hi - lo)
 }
 
-/// The pattern rule a duplicate commits: [`STEP_DIRECTION`] stepped by
-/// `step` metres ([`duplicate_step`]'s answer).
+/// The translation a duplicate's copy is moved by: [`STEP_DIRECTION`]
+/// stepped by `step` metres ([`duplicate_step`]'s answer).
 ///
 /// # Errors
 ///
@@ -923,23 +921,40 @@ fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) ->
 /// [`duplicate_step`] never answers — and it is a `Result` for
 /// [`crate::session::ProfilePlane::world_xy`]'s reason: whether a
 /// number is authorable keeps ONE home, the expression door.
-pub fn duplicate_rule(step: f64) -> Result<PatternRuleSpec, pncad::document::DimensionError> {
+pub fn duplicate_translation(step: f64) -> Result<[Formula; 3], pncad::document::DimensionError> {
     use pncad::document::Dimension;
-    let scalar = |v: f64| Formula::literal(v, Dimension::Scalar);
     let [x, y, z] = STEP_DIRECTION;
-    Ok(PatternRuleSpec::Linear {
-        direction: [scalar(x)?, scalar(y)?, scalar(z)?],
-        spacing: Formula::literal(step, Dimension::Length)?,
-    })
+    Ok([
+        Formula::literal(x * step, Dimension::Length)?,
+        Formula::literal(y * step, Dimension::Length)?,
+        Formula::literal(z * step, Dimension::Length)?,
+    ])
 }
 
-/// **How many bodies a duplicate leaves**: the original and one copy.
+/// **A duplicate's copy**: the transform of `input` by `translation`
+/// ([`duplicate_translation`]), unrotated — a body of its own, so a
+/// feature authored on the copy re-points the copy's placement and
+/// leaves the original's alone.
 ///
-/// The pattern's count, and the range the same action's projections
-/// are generated over (`0..DUPLICATE_COUNT` at the session door) — one
-/// number, so a pattern and its projections cannot disagree about how
-/// many bodies there are.
-pub const DUPLICATE_COUNT: i64 = 2;
+/// # Errors
+///
+/// [`pncad::document::DimensionError`] for [`duplicate_translation`]'s
+/// reason.
+pub fn duplicate_node(
+    input: RecipeNodeId,
+    translation: [Formula; 3],
+) -> Result<AuthoredNode, pncad::document::DimensionError> {
+    use pncad::document::Dimension;
+    let scalar = |v: f64| Formula::literal(v, Dimension::Scalar);
+    Ok(Node::transform(
+        input,
+        pncad::document::Step::Rigid {
+            translation,
+            axis: [scalar(0.0)?, scalar(0.0)?, scalar(1.0)?],
+            angle: Formula::literal(0.0, Dimension::Angle)?,
+        },
+    ))
+}
 
 /// Lower one part spec to its node, minting the STRUCTURAL index.
 ///

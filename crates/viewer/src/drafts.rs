@@ -828,13 +828,14 @@ impl Drafts {
 
     /// **A creation landed**: the label its form held is spent, so the
     /// next creation of that kind proposes afresh. The form is found by
-    /// the kind noun of the last node the action minted — the noun a
+    /// the kind noun of the node the action made
+    /// ([`crate::world::made`]) — the noun a
     /// form's label field is keyed by, which is that node's kind
     /// (`each_datum_choices_noun_is_the_kind_of_the_node_it_commits`,
     /// `creation_nouns`). Called only for an op that committed, so a
     /// refused creation keeps what was typed.
     pub(crate) fn creation_landed(&mut self, doc: &Doc<ProfileProgram>, minted: &[RecipeNodeId]) {
-        if let Some(node) = minted.last().and_then(|id| doc.node(*id)) {
+        if let Some(node) = crate::world::made(doc, minted).and_then(|id| doc.node(id)) {
             self.creation_labels
                 .remove(pncad::document::node_kind_noun(node));
         }

@@ -3,7 +3,7 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
   "snapshot": {
     "id": "1c20a55875fd2760f4d43eb67ee0d135",
     "mint": {
-      "chain": "b5a76fbbfe912195f830bba2480951e539d92d7e948c2eb0da131642545d2324",
+      "chain": "772ed092c5164daacdd59311e4cd4d13dc97caf02ed50e5cdaa7c94e0912f441",
       "log": [
         {
           "var": "1:b639d844bab8e826"
@@ -97,6 +97,12 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
         },
         {
           "var": "31:b5a76fbbfe912195"
+        },
+        {
+          "node": "32:caa6153330221ccc"
+        },
+        {
+          "var": "33:772ed092c5164daa"
         }
       ]
     },
@@ -176,11 +182,16 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
           "axis": "27:009a0a5f64629804",
           "angle": "28:18a710ddf8b904b4"
         }
+      },
+      "32:caa6153330221ccc": {
+        "PlaceInWorld": {
+          "body": "30:738cc11dfca80dd2",
+          "pose": {
+            "steps": []
+          }
+        }
       }
     },
-    "roots": [
-      "29:86c483da44e5f0d7"
-    ],
     "vars": {
       "1:b639d844bab8e826": {
         "kind": "Length",
@@ -464,6 +475,15 @@ id: 1c20a55875fd2760f4d43eb67ee0d135
           "Output": {
             "node": "29:86c483da44e5f0d7",
             "port": 1
+          }
+        }
+      },
+      "33:772ed092c5164daa": {
+        "kind": "Body",
+        "def": {
+          "Output": {
+            "node": "32:caa6153330221ccc",
+            "port": 0
           }
         }
       }

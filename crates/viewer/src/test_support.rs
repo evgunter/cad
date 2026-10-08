@@ -24,8 +24,8 @@ use editor_core::ExtrudeSide;
 use pncad::document::{
     AuthoredNode, BooleanValue, CancelToken, ContentPin, Datum, Dimension, Doc, DocEdit, DocRef,
     DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram, Node,
-    NodeErrorKind, PartFault, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload, VarName,
-    apply, evaluate,
+    NodeErrorKind, PartFault, Placement, ProfileProgram, RecipeNodeId, RefusingReach, ValuePayload,
+    VarName, apply, evaluate,
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
@@ -216,6 +216,16 @@ pub fn declared(label: &str, name: &VarName, value: FreeVar, tol: Tol) -> Doc<Pr
     .0
 }
 
+/// **`doc` with `body` placed in the world** at the identity (A10),
+/// answering the document and the placement.
+pub fn placed(
+    doc: &Doc<ProfileProgram>,
+    body: RecipeNodeId,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    inserted(doc, Node::place_in_world(body, Placement::IDENTITY), tol)
+}
+
 /// The `&mut` spelling of `inserted`: insert a node in place and
 /// answer the minted id, for a fixture that threads one document
 /// through a sequence of edits rather than rebinding at each one.
@@ -262,7 +272,7 @@ pub const BOSS_HEIGHT: f64 = 0.004;
 /// (`Datum::FaceFrame`, zero spin), the node the add-datum form mints
 /// from a face pick. `tests/creation_ops.rs`'s boss row authors the same
 /// scene through the op vocabulary, because the gesture is what that
-/// row is about; this is the scene alone. Its union's volume is
+/// row is about; this is the scene alone, each body placed. Its union's volume is
 /// [`boss_on_block_union_volume`].
 pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let [width, height, depth] = BOSS_BLOCK;
@@ -312,6 +322,9 @@ pub fn boss_on_block(label: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeI
         },
         tol,
     );
+    // Both bodies are the world (A10), block first.
+    let (doc, _) = placed(&doc, block, tol);
+    let (doc, _) = placed(&doc, boss, tol);
     (doc, block, boss)
 }
 
@@ -402,15 +415,15 @@ pub fn plate_delta() -> DisplayTolerance {
 }
 
 /// **The spike plate, evaluated and indexed at [`plate_delta`]**, with
-/// the extrude whose body it draws — the picture a unit row marks, loads
-/// or names edges in.
+/// the world placement whose copy it draws — the picture a unit row
+/// marks, loads or names edges in, keyed by that placement.
 ///
 /// Evaluated through the kernel door rather than through a session: the
 /// rows that read it are vocabularies and a session is a driver
 /// (`crates/viewer/README.md`, Module boundaries), and the index only
 /// ever wanted the evaluation.
 pub fn plate_indexed(tol: Tol) -> (Evaluation<f64>, PickIndex, RecipeNodeId) {
-    let (doc, extrude) = crate::scene::plate_with_hole(tol).expect("the plate authors");
+    let (doc, _) = crate::scene::plate_with_hole(tol).expect("the plate authors");
     let eval = evaluate(
         &doc,
         None,
@@ -425,7 +438,10 @@ pub fn plate_indexed(tol: Tol) -> (Evaluation<f64>, PickIndex, RecipeNodeId) {
         tol,
     )
     .expect("the plate indexes");
-    (eval, index, extrude)
+    let [placement] = doc.placements()[..] else {
+        panic!("the plate is placed once")
+    };
+    (eval, index, placement)
 }
 
 /// **The naming layer's refusal for a drawn edge of `node`'s output

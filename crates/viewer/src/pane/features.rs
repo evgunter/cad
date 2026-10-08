@@ -5,7 +5,7 @@
 use eframe::egui;
 use pncad::document::{AssertionVerdict, RecipeNodeId, SpokenNode, UnevaluatedReason};
 
-use crate::app::{GLYPH_ROOT, ViewerBehavior, toned};
+use crate::app::{GLYPH_WORLD, ViewerBehavior, toned};
 use crate::frame;
 use crate::props::Notation;
 use crate::session::{Refusal, Selection, SessionOp, VersionOffer};
@@ -52,7 +52,7 @@ pub(crate) fn message_indent(ui: &egui::Ui, depth: usize) -> f32 {
 /// **What one feature-tree row reads as, drawn**: its headline
 /// ([`tree::headline`]) — a labelled node's label with its kind and tag
 /// muted beside it, an unlabelled node's kind, tag and pose — and the
-/// root glyph.
+/// world badge.
 ///
 /// **The kind alone is not a name.** A tree of rows reading `Datum
 /// frame` twice asks a person to tell two frames apart by clicking;
@@ -75,9 +75,9 @@ pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egu
         job.append(" ", 0.0, voice(egui::Color32::PLACEHOLDER));
         job.append(&muted, 0.0, voice(ui.visuals().weak_text_color()));
     }
-    if row.root {
+    if row.placed {
         job.append(
-            &format!(" {GLYPH_ROOT}"),
+            &format!(" {GLYPH_WORLD}"),
             0.0,
             voice(egui::Color32::PLACEHOLDER),
         );
@@ -362,7 +362,7 @@ mod tests {
         INDENT_MAX_DEPTH, INDENT_STEP, failure_lines, feature_row_ui, indent, message_indent,
         row_label,
     };
-    use crate::app::GLYPH_ROOT;
+    use crate::app::GLYPH_WORLD;
     use crate::pane::headless::SLACK;
     use crate::pane::headless::{
         assert_under, find, landed, landed_voiced, painted, painted_after_clicking, painted_text,
@@ -458,7 +458,7 @@ mod tests {
             ),
             pose: Some(pose.to_owned()),
             depth: 0,
-            root: false,
+            placed: false,
             status: RowStatus::Ok,
             note: None,
             repair_at: None,
@@ -498,8 +498,8 @@ mod tests {
     }
 
     /// A node with no pose reads as its kind, with no dangling
-    /// separator where the sentence would have been — and a root
-    /// still carries its glyph.
+    /// separator where the sentence would have been — and a placed
+    /// body still carries its world badge.
     #[test]
     fn a_row_with_nothing_more_to_say_reads_as_its_kind() {
         let row = TreeRow {
@@ -510,7 +510,7 @@ mod tests {
             ),
             pose: None,
             depth: 0,
-            root: true,
+            placed: true,
             status: RowStatus::Ok,
             note: None,
             repair_at: None,
@@ -526,23 +526,23 @@ mod tests {
             "no separator with nothing after it: {drawn}"
         );
         assert!(
-            drawn.contains(GLYPH_ROOT),
-            "a root keeps its glyph: {drawn}"
+            drawn.contains(GLYPH_WORLD),
+            "a placed body keeps its world badge: {drawn}"
         );
     }
 
-    /// A root frame carries both: the pose AND the glyph, in that
+    /// A placed row with a pose carries both: the pose AND the badge, in that
     /// order — the composition the glyph arm is written around.
     #[test]
-    fn a_root_frame_row_carries_the_pose_and_the_glyph() {
+    fn a_placed_row_carries_the_pose_and_the_world_badge() {
         let mut row = frame_row(2, "yz at (0, 0, 0) m");
-        row.root = true;
+        row.placed = true;
         let drawn = painted_text(|ui| {
             row_label(ui, &row, false);
         });
         assert!(
             drawn.contains(&format!(
-                "Datum frame 000000000002 — yz at (0, 0, 0) m {GLYPH_ROOT}"
+                "Datum frame 000000000002 — yz at (0, 0, 0) m {GLYPH_WORLD}"
             )),
             "{drawn}"
         );
@@ -559,7 +559,7 @@ mod tests {
             ),
             pose: None,
             depth: 0,
-            root: false,
+            placed: false,
             status: RowStatus::Failed {
                 message: FAILURE.to_owned(),
                 carried: Vec::new(),
@@ -700,7 +700,8 @@ mod tests {
     /// (holds), at least 0.02 m (violated), and at least itself and 2ε,
     /// in the band between ε and K·ε (indeterminate); the clearance and
     /// the failed measure at least 0.01 m; and the angle at most 1 rad.
-    /// The first `distance` is consumed by none, so its row is a root.
+    /// A measure or an assertion defines no body, so its row never
+    /// carries the world badge.
     struct MeasureFixture {
         doc: pncad::document::Doc<pncad::document::ProfileProgram>,
         evaluation: pncad::document::Evaluation<f64>,
@@ -868,7 +869,7 @@ mod tests {
         let kind = find(
             &painted,
             &format!(
-                "Measure {} {GLYPH_ROOT}",
+                "Measure {}",
                 test_utils::refusal::tag(fixture.distance.0.digest())
             ),
         );
@@ -922,7 +923,7 @@ mod tests {
             ),
             pose: None,
             depth: 0,
-            root: false,
+            placed: false,
             status: RowStatus::Ok,
             note: None,
             repair_at: None,
@@ -1120,7 +1121,7 @@ mod tests {
         let kind = find(
             &painted,
             &format!(
-                "Assertion {} {GLYPH_ROOT}",
+                "Assertion {}",
                 test_utils::refusal::tag(fixture.holds.0.digest())
             ),
         );
@@ -1175,7 +1176,7 @@ mod tests {
             texts(&painted),
             vec![
                 format!(
-                    "Assertion {} {GLYPH_ROOT}",
+                    "Assertion {}",
                     test_utils::refusal::tag(fixture.violated.0.digest())
                 )
                 .as_str(),
@@ -1291,7 +1292,7 @@ mod tests {
             texts(&painted),
             vec![
                 format!(
-                    "Assertion {} {GLYPH_ROOT}",
+                    "Assertion {}",
                     test_utils::refusal::tag(fixture.indeterminate.0.digest())
                 )
                 .as_str(),
@@ -1332,7 +1333,7 @@ mod tests {
             drawn,
             vec![
                 format!(
-                    "Assertion {} {GLYPH_ROOT}",
+                    "Assertion {}",
                     test_utils::refusal::tag(fixture.unavailable.0.digest())
                 ),
                 state_of(&fixture, fixture.unavailable).to_owned(),
@@ -1365,7 +1366,7 @@ mod tests {
             drawn,
             vec![
                 format!(
-                    "Assertion {} {GLYPH_ROOT}",
+                    "Assertion {}",
                     test_utils::refusal::tag(fixture.poisoned.0.digest())
                 ),
                 "POISONED".to_owned(),
@@ -1404,7 +1405,7 @@ mod tests {
             ),
             pose: Some(crate::test_support::PART_FILE.to_owned()),
             depth: 0,
-            root: false,
+            placed: false,
             status: RowStatus::Ok,
             note: None,
             repair_at: None,

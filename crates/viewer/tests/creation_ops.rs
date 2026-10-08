@@ -13,7 +13,7 @@
 //! exporter saved it, ε re-stamped per `common::gallery_ring_at`).
 //! The comparator is **`Doc::bit_eq`** — spec D7's replay-identity
 //! comparator, the strongest equality the document layer supports:
-//! every float compares by bits, identity/order/roots structurally.
+//! every float compares by bits, identity/order/placements structurally.
 //! `PartialEq` would conflate `±0.0`; nothing weaker would be a claim
 //! about the same document. The row goes red when the fixture is
 //! regenerated from a deliberately changed demo recipe — and then the
@@ -138,9 +138,9 @@ fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
          document under D7's replay-identity comparator"
     );
     assert_eq!(
-        session.committed_doc().roots(),
-        &[revolve],
-        "the revolve is the one product root"
+        common::world(session.committed_doc()),
+        [revolve],
+        "the revolve gesture placed what it made: the world is the revolve"
     );
 
     // End to end: the authored document evaluates, and the revolve's
@@ -157,6 +157,55 @@ fn the_ring_stream_reproduces_the_gallery_document_bit_for_bit() {
         }
         other => panic!("expected a body, got {other:?}"),
     }
+}
+
+/// **A creation gesture places what it made, in the same action**
+/// (A10): the extrude and its identity world placement are one
+/// recorded action — the world is `[extrude]`, the tree badges the
+/// extrude, and ONE undo takes both. Breaks if the gesture leaves the
+/// body unplaced (nothing is drawn), records the placement as a second
+/// action, or places something else.
+#[test]
+fn a_creation_gesture_places_what_it_made_in_one_action() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
+    let profile = common::rectangle_in(&mut session, plane, 0.02, 0.01);
+    let before = session.committed_doc().clone();
+    assert!(before.placements().is_empty(), "nothing is placed yet");
+    let outcome = session.perform(SessionOp::AddExtrude {
+        profile,
+        distance: len(0.005),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let [extrude, placement] = outcome.minted[..] else {
+        panic!("two inserts: {:?}", outcome.minted);
+    };
+    let doc = session.committed_doc();
+    assert!(matches!(doc.node(extrude), Some(Node::Extrude { .. })));
+    assert!(
+        matches!(
+            doc.node(placement),
+            Some(Node::PlaceInWorld { body, pose })
+                if Some(*body) == doc.output(extrude, 0) && pose.steps.is_empty()
+        ),
+        "the extrude's identity placement"
+    );
+    assert_eq!(common::world(doc), [extrude], "what was made is the world");
+    let rows = session.tree_rows();
+    assert!(
+        common::row_of(&rows, extrude).placed,
+        "the extrude wears the world badge"
+    );
+    assert!(
+        !common::row_of(&rows, placement).placed,
+        "the placement's own row is an ordinary one"
+    );
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    assert!(
+        session.committed_doc().bit_eq(&before),
+        "one undo takes the body and its placement together"
+    );
 }
 
 #[test]
@@ -195,7 +244,7 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     assert_eq!(session.committed_doc().id(), DocumentId::derive("bracket"));
 
-    // A datum plane (unused downstream — a root of its own).
+    // A datum plane (unused downstream).
     let _plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
@@ -227,8 +276,16 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
     let v2 = body_volume(&mut session, extrude, tol);
     assert_eq!(v.to_bits(), v2.to_bits(), "same volume after reload");
 
-    // Undo walks back across the creations one at a time; redo
-    // restores the whole document.
+    // Undo walks back across the reopened log one edit at a time (the
+    // file records edits, not actions: `history`'s module docs) — the
+    // extrude's world placement, then the extrude; redo restores the
+    // whole document.
+    assert!(session.perform(SessionOp::Undo).refusal.is_none());
+    assert!(
+        session.committed_doc().placements().is_empty(),
+        "the placement goes first"
+    );
+    assert!(session.committed_doc().node(extrude).is_some());
     assert!(session.perform(SessionOp::Undo).refusal.is_none());
     assert!(session.committed_doc().node(extrude).is_none());
     assert!(session.committed_doc().node(profile).is_some());
@@ -245,7 +302,9 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
             direction: Step::Undo
         })
     ));
-    for _ in 0..4 {
+    // Five edits: the plane, the sketch frame, the profile, the extrude
+    // and its placement.
+    for _ in 0..5 {
         assert!(session.perform(SessionOp::Redo).refusal.is_none());
     }
     assert!(session.committed_doc().bit_eq(&authored), "redo restores");

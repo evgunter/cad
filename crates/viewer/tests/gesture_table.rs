@@ -130,6 +130,7 @@ fn fixture(tol: Tol) -> (DocSession, RecipeNodeId) {
         },
         tol,
     );
+    let (doc, _) = common::placed(&doc, extrude, tol);
     (DocSession::inline(doc, tol), extrude)
 }
 
@@ -666,9 +667,8 @@ fn nothing_is_fenced_when_no_gesture_is_in_flight() {
 /// write only `doc.params`, which no display predicate reads, and every
 /// assertion below would hold for any implementation of them.
 ///
-/// The pattern also puts the instance UNDER a root rather than at one,
-/// so `drawn_targets` has a propagation to resolve rather than a
-/// singleton to return.
+/// The pattern places nothing (A10), so `drawn_targets` resolves the
+/// instance to its own copy.
 ///
 /// Where it goes red: give a value gesture an edit that changes the
 /// node graph and the identity block fails outright (`free_move_check`
@@ -697,8 +697,8 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     }
 
     // A pattern over the probed instance: the slots a value gesture can
-    // open on in an assembly of bare instances, and the reason the
-    // instance's display state has a root to propagate to.
+    // open on in an assembly of bare instances. It places nothing
+    // (A10), so the instance's display state stays on its own copy.
     let pattern = common::session_insert(
         &mut session,
         SessionOp::AddPattern {
@@ -712,8 +712,8 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     );
     assert_eq!(
         viewer::display::drawn_targets(session.doc(), post),
-        Ok(std::iter::once(pattern).collect()),
-        "the probe on the instance is drawn under the pattern root"
+        Ok(std::iter::once(bench.post_a_copy).collect()),
+        "the probe on the instance is drawn on the instance's own copy"
     );
 
     // Both node-writing gesture doors, one after the other.
@@ -764,12 +764,12 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
         assert_eq!(
             viewer::display::drawn_targets(session.doc(), post),
             viewer::display::drawn_targets(session.committed_doc(), post),
-            "{slot:?}: the two documents draw the probe on the same roots"
+            "{slot:?}: the two documents draw the probe on the same copies"
         );
 
         // A whole free-move gesture, mid-value-gesture, through
         // `perform` — and the view, resolved against the SCRATCH
-        // document, puts the previewed frame on the pattern root.
+        // document, puts the previewed frame on the instance's copy.
         perform(&mut session, SessionOp::BeginFreeMove { instance: post });
         perform(
             &mut session,
@@ -779,9 +779,12 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             },
         );
         assert_eq!(
-            session.display_view().moved_roots.get(&pattern),
+            session
+                .display_view()
+                .moved_placements
+                .get(&bench.post_a_copy),
             Some(&probe),
-            "{slot:?}: the previewed probe reaches its drawn root under a scratch document"
+            "{slot:?}: the previewed probe reaches its drawn copy under a scratch document"
         );
         perform(&mut session, SessionOp::CommitFreeMove { instance: post });
         assert_eq!(session.display().free_move_of(post), Some(&probe));
