@@ -117,23 +117,28 @@ is stored. `select_where` filters on `SurfaceKind` exactly
 
 *Built: DOCM-1 (PR 1829).*
 
-## DM3 — One body of a `Bodies` is picked by index; a split's halves are ports
+## DM3 — One member of a family is read by index; a split's halves are ports
 
 A `Split` defines two `Body` outputs, `above` and `below` (the port index is
 `SplitHalf::output_body`'s), read like any other output; DM3's split-half
-projection retires. One body of a `Bodies` value (a pattern's copies) is
-picked by an operation that reads the `Bodies` and a `Count` index and
-defines one `Body`; an index at or beyond the count refuses typed at
-evaluation. Names pass through unchanged, as `Transform`'s do (`role.rs`):
-the picked body keeps the pattern's `Instance { i, of }` names, and a split
-half keeps its `SplitBody(half)` names, so every downstream selector spells
-what it already spells. A body seat reading a `Bodies`, a profile or a
-split as a whole refuses by kind at the door (`SlotVarKind`).
+projection retires. One member of a family (D10, Repetition) is read as
+`xs[i]`, or `xs[i, j]` for a family keyed by two indices: a definition
+reading the family and one `Count` expression per index; an index outside
+the range leaves the reader unresolved and typed at evaluation, never
+re-pointed. Names pass through unchanged, as `Transform`'s do (`role.rs`):
+the member keeps its `Member { (i, …), of }` names, keyed by the index
+variables' ids and the integers, and a split half keeps its
+`SplitBody(half)` names, so every downstream selector spells what it
+already spells. A body seat reading a whole family, a profile or a split
+as a whole refuses by kind at the door (`SlotVarKind`).
 
 ## DM4 — Flat operators before splice: an n-ary union
 
-`Node::Union { members: Vec<RecipeNodeId>, declare }` fuses two or more
-members into one body, and names each entity by the member it came from.
+`Node::Union { members: Vec<RecipeNodeId>, declare }` fuses its members
+into one body, and names each entity by the member it came from. A member
+is a body or a family (D10, Repetition), whose members join in index order
+at that member's place in the list; a family's length is a `Count`, so the
+floor of two bodies in all is evaluation's, refused typed there.
 
 **Why.** A multi-shell tool assembled as a chain of pairwise
 `Boolean(Union)`s is an artifact of the vocabulary rather than of the model.
@@ -148,7 +153,7 @@ twenty for the last), repairable only by a `Rebind` per name through N5's
 offers. A splice edit that assumed intent about which input survives would
 carry that cost on top of its own. So the chain goes, not the link:
 
-- **The node.** An n-ary union, two or more members, one body out. It
+- **The node.** An n-ary union, two or more bodies, one body out. It
   evaluates as a fold of the kernel's pair verb in member order: the order
   is the list's, the author's statement, as a pair boolean's operand order
   is. What the union decides is defined over its members, not over the
@@ -159,8 +164,9 @@ carry that cost on top of its own. So the chain goes, not the link:
   glue keeps the earlier member's description, as a pair boolean keeps
   operand A's, and a refusal raised at a fold step names the member whose
   step refused. It sits beside `Boolean(Union)`, which
-  stays for a pair, and beside `PlacedUnion`, which fuses instances of one
-  prototype and is a different sentence (`node.rs`).
+  stays for a pair. When its bodies are rigid images of one body, visible
+  in the reads, the union has a fast path: bodies it certifies disjoint are
+  grafted without a boolean (the group boolean, `README.md`).
 - **Naming keys by member, not by depth.** The emitter wraps a member's names
   in `FromMember { member: RecipeNodeId, of: Box<StableName> }`: `member` is
   the member's own node id (the edge in the list), `of` the entity's name in
@@ -171,13 +177,15 @@ carry that cost on top of its own. So the chain goes, not the link:
   name alone cannot tell them apart. The member id can; it is data the node
   already carries, and DM5 makes it unique within one union. No position is
   recorded, so removing a member leaves every other member's names as they
-  were. The `Instance { i, of }` segment is the precedent shape, with an
-  identity where it has an index.
+  were. A family's members keep their `Member { (i, …), of }` segments
+  (DM3), keyed by the index variables' ids, so they too are told apart by
+  identity, never by position in the list.
 - **`DocEdit::SetMembers { node, members: Vec<RecipeNodeId> }`** is the one
   edit that changes a list input, by naming the whole new list; nothing is
   inferred. It refuses typed an unknown or non-live member, a cycle
-  (`WouldCycle` through the existing check), a duplicate (DM5), or fewer than
-  two members. Deleting a pip is `SetMembers` without it, and the other
+  (`WouldCycle` through the existing check), a duplicate (DM5), or an empty
+  list; fewer than two bodies in all refuses at evaluation (above).
+  Deleting a pip is `SetMembers` without it, and the other
   twenty rims survive. The transform stays a value, out of the product
   because nothing places it; deleting it too is tidiness, not a
   requirement. `Loft`'s `profiles`
