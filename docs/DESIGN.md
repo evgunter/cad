@@ -1212,27 +1212,46 @@ intent.
 **Variables.** Every slot that admits more than one value holds a
 variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
-sense), the geometric values (`Point`, `Direction`, `Axis`, `Plane`,
-`Frame`) and the references (`Face`, `Edge`, `Body`). A variable is
+sense) and the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`),
+which may be free or defined; the shapes (`Body`, `Bodies`,
+an ordered list of bodies whose length is a `Count`, and `Profile`),
+which only an operation defines; and the selections of a shape
+(`Face`, `Edge`, and their sets `Faces`, `Edges`). A variable is
 **free** — a value, its written unit (D6) and optionally a distribution
-— or **defined**, by an `Expr` over other variables or as an output of
-an operation. A dimensioned literal stands nowhere, neither in a slot
+— or **defined**, by an `Expr` over other variables, by a selection of a
+`Body` variable, or as an output of an operation. A dimensioned literal stands nowhere, neither in a slot
 nor inside a formula: the only constants are dimensionless rationals and
 rational fractions of a turn, which are the shape of a formula rather
 than a dimension. Typing a value in the GUI mints a free variable and
 offers an existing variable of equal value; declining the offer is what
 makes the two distinct.
 
+A pose is a frame known up to its kind's symmetry, a subgroup of the
+rigid motions and the same `Subgroup` the mates fold (A11 (1)): a plane
+forgets in-plane motion, an axis slide and spin along itself; and the kinds are ordered by which determines which. A
+slot holds its own kind; a finer value is read through its projection,
+and an incidence between poses (an axis in a plane, a point on an axis)
+is a construction over one variable, never a check between two. A 2-D
+value (a profile's step, a revolve's axis line) lives in the node that
+holds its frame, as scalar slots, and is never a variable of a 2-D kind;
+its lift to a 3-D pose is how it leaves.
+
 **Operations.** A node is an operation: it reads variables and defines
-one or more. Reading is the only dependency; nothing consumes anything,
+the variables its signature states, a fixed list of named, typed ports
+set by its variant (a split defines two bodies; a revolve its body and its axis; an instance of a part
+defines one `Body` variable per world placement of the part), possibly none:
+an assertion or a mate defines none. Reading is the only dependency; nothing consumes anything,
 so an operand stays a first-class value after a boolean reads it. The
 product is the world: every copy a world placement defines. A world
 placement is an operation reading one `Body` and defining its copy;
 building or combining bodies places nothing, and an operand appears
 only if a placement names it. A document whose world holds nothing has
 an empty product. A `Face` or `Edge`
-variable is a selection of a `Body` variable by `StableName`, and the
-N5 resolution ladder lives there; deleting a variable leaves its
+variable, or a set of them, is a selection of a `Body` variable by
+`StableName`: a definition, not a node, stating its body once, and the
+N5 resolution ladder lives there. A selection authored at two sites is
+two variables (the GUI offers the existing one), and a repair is
+addressed by body and name; deleting a variable leaves its
 readers unresolved, typed, never silently re-pointed. A `Measure`
 defines an *observed* variable, a function of the built geometry
 rather than of what was written; an observed variable, and any
@@ -1263,13 +1282,15 @@ is `plane(frame, direction, depth)`, independent of the profile; a side
 wall is independent of where along the direction it sits), and carriers
 compare in a canonical form per kind: the frame modulo the kind's own
 symmetry (a plane forgets in-plane motion and folds a shift along its
-normal into its offset; an axis forgets slide and spin along itself),
+normal into its offset; an axis forgets slide and spin along itself;
+a projection of a construction reduces to what it was built from),
 with offsets summed as linear forms over the variables with exact
 rational coefficients and derived variables read as their formulas.
 Equality of canonical forms is an equivalence relation, so a chain of
 blocks each built on its neighbour's floor closes into a loop, and a
 brick laid across two of them sits on both, with nothing more said.
-Coaxiality is one `Axis` variable read twice; tangency is constructed (a
+Coaxiality is one `Axis` read twice, directly or as projections of
+one construction; tangency is constructed (a
 sketch may read another surface's trace in its plane and continue
 tangent to it).
 
