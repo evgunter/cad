@@ -1833,6 +1833,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "not-transverse",
             CertifyError::NotTransverse {
+                lever: None,
                 sample: 4,
                 verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
                     margin: MarginDiag::value(5.0e-10),
@@ -1845,6 +1846,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "not-transverse, tangent",
             CertifyError::NotTransverse {
+                lever: None,
                 sample: 4,
                 verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
                     margin: MarginDiag::value(0.0),
