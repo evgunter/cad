@@ -108,10 +108,10 @@ impl Face {
     }
 }
 
-/// Four ulps of the coordinates at `p`: the rounding two spellings of
-/// one point can differ by.
-fn ulps(p: Point3<f64>) -> f64 {
-    4.0 * f64::EPSILON * (p - Point3::origin()).norm().max(1.0)
+/// Four ulps of the coordinates at `p` and of a distance `d` read from
+/// it: the rounding two spellings of one reach can differ by.
+fn ulps(p: Point3<f64>, d: f64) -> f64 {
+    4.0 * f64::EPSILON * ((p - Point3::origin()).norm() + d).max(1.0)
 }
 
 fn line(p: Point3<f64>, q: Point3<f64>) -> Reach<f64> {
@@ -387,7 +387,14 @@ fn span_reach_differential() {
                 ));
             }
             let across_head = face.across(at, false);
-            if across_head < face.sampled_reach(at) - ulps(at) {
+            if across_head < face.sampled_reach(at) - ulps(at, face.sampled_reach(at)) {
+                println!(
+                    "SHORT {caller} {i} r={s:e} du={du:e} h={h:e} head={across_head:e} sampled={:e} short_by={:e} ulps={:e} |at|={:e}",
+                    face.sampled_reach(at),
+                    face.sampled_reach(at) - across_head,
+                    ulps(at, face.sampled_reach(at)),
+                    (at - Point3::origin()).norm()
+                );
                 t.short_lever += 1;
             }
             if across_head > face.across(at, true) {
@@ -521,7 +528,7 @@ fn span_reach_differential() {
                 ));
             }
             let across_head = across(false);
-            if across_head < face.sampled_reach(base) - ulps(base) {
+            if across_head < face.sampled_reach(base) - ulps(base, face.sampled_reach(base)) {
                 t.short_lever += 1;
             }
             if across_head > across(true) {
@@ -593,7 +600,7 @@ fn span_reach_differential() {
                 ));
             }
             let across_head = face.across(base, false);
-            if across_head < face.sampled_reach(base) - ulps(base) {
+            if across_head < face.sampled_reach(base) - ulps(base, face.sampled_reach(base)) {
                 t.short_lever += 1;
             }
             if across_head > face.across(base, true) {

@@ -1,7 +1,7 @@
 ---
 id: germ-takes-the-span-bounded-face-reach-alone
 kind: issue
-title: the germ frame reads a wall face's reach both whole-turn and span-bounded and escalates where they disagree
+title: the germ frame and chord_join read a cylinder wall face's reach both whole-turn and span-bounded and escalate where they disagree
 status: parked
 opened: 2026-10-08
 priority: P3
@@ -11,19 +11,22 @@ blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 
 ## What
 
-`boolean::join::frame_extent` hands the germ frame two measures of a
-plane×cylinder wall face's reach across:
+A plane×cylinder section is read on a wall face's reach across, measured two ways:
 - `splitting::rules::face_reach_from`, each edge read over the span it holds;
 - `face_reach_round_from`, each edge levered round its whole carrier, main's measure before the span-bounded conic reach.
 
-`agreed_section` serves only where both serve the same class. It escalates on a split (`pc_axis_plane_parallel_disagreement`, `pc_parallel_gap_disagreement`).
+`chord_join::agreed_section` serves only where both serve the same class. It escalates on a split (`pc_axis_plane_parallel_disagreement`, `pc_parallel_gap_disagreement`). Two readers take it:
+- the germ frame (`boolean::join::frame_extent`, `pair_section_frame_at`);
+- chord_join's cylinder lane (`chord_join::section_reach`, `section_case`) for every caller of `wall_section`. That includes the Boolean's germ join, which mints its wall-side chord through the split lane (`boolean::join` `GermLane::PlaneWall`/`WallPlane` → `split_curve` → `JoinLane::Split`).
 
-The germ is a declared-tangency path, which D10 (ratified on #3990) does not let a shorter lever widen. Until a declaration channel lands, the germ cannot tell a value-inferred pose from a declared one, so it keeps main's served set: escalating where main escalated, and on main's wrong conics.
+Both sit on the declared-tangency path, which D10 (ratified on #3990) does not let a shorter lever widen. Until a declaration channel lands, a pose read there cannot be told value-inferred from declared, so the section keeps main's served set: escalating where main escalated, and on main's wrong conics. `wall_section` stays lane-neutral, so the split's own chords take the agreed reading too.
 
-**Evidence.** `crates/geom-brep/tests/span_reach_differential.rs`, germ column:
-- 74 poses where main serves a conic against a Zero truth now escalate on the split;
-- 151 escalate where the span-bounded reach alone would serve the rulings, every one against a Zero truth (offsets 0.06–0.96 zero).
+`face_reach_round_from` and `agreed_section` duplicate the whole-turn measure on purpose; they go together when this item lands.
+
+**Evidence.** `crates/geom-brep/tests/span_reach_differential.rs`:
+- germ column: 92 poses where main serves a conic against a Zero truth now escalate on the split; 131 stay escalated where the span-bounded reach alone would serve the rulings, every one against a Zero truth;
+- chord_join column: 76 conics against a Zero truth now escalate on the split; 140 stay escalated where the span alone would serve the rulings (offsets 0.06–0.96 zero).
 
 ## The shape of a fix
 
-Once the declared path is built, the germ reads `face_reach_from` alone where no declaration is carried, and `face_reach_round_from` and `agreed_section` go.
+Once the declared path is built, a section read where no declaration is carried takes `face_reach_from` alone, and `face_reach_round_from` and `agreed_section` go.

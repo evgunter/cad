@@ -4,9 +4,9 @@
 //! from 1e-6 rad to two turns either way, and pivots on the arc, at its
 //! centre, along and against its crests, far off its plane and just off
 //! it. The farthest point is sampled and each local maximum refined by
-//! golden section. The reach is never short of it to rounding, never
-//! past it by more than a quarter's bulge, and never past the whole
-//! turn ([`Reach::lever_from`]).
+//! golden section. The reach is never short of it to rounding, a
+//! circle's never past it either and an ellipse's never by more than a
+//! quarter's bulge, and never past the whole turn ([`Reach::lever_from`]).
 
 #![allow(clippy::panic, clippy::cast_precision_loss)]
 
@@ -34,16 +34,17 @@ fn unit(g: &mut fuzz::Rng) -> Vec3<f64> {
 /// The farthest point of the arc from `p`: 1,000 samples, then each local
 /// maximum refined by golden section.
 fn farthest(c: &Curve3<f64>, t0: f64, t1: f64, p: Point3<f64>) -> f64 {
-    let n = 1000;
+    let n: usize = 1000;
     let d = |t: f64| (c.eval(t) - p).norm();
     let ts: Vec<f64> = (0..=n)
         .map(|k| t0 + (t1 - t0) * k as f64 / n as f64)
         .collect();
     let ds: Vec<f64> = ts.iter().map(|t| d(*t)).collect();
     let mut best = ds.iter().copied().fold(0.0, f64::max);
-    for k in 1..n {
-        if ds[k] >= ds[k - 1] && ds[k] >= ds[k + 1] {
-            let (mut a, mut b) = (ts[k - 1], ts[k + 1]);
+    for k in 0..=n {
+        let (lo, hi) = (k.saturating_sub(1), (k + 1).min(n));
+        if ds[k] >= ds[lo] && ds[k] >= ds[hi] {
+            let (mut a, mut b) = (ts[lo], ts[hi]);
             for _ in 0..80 {
                 let m1 = a + (b - a) * 0.381_966;
                 let m2 = a + (b - a) * 0.618_034;
@@ -124,7 +125,10 @@ fn a_conic_arcs_span_reach_is_never_short_of_its_farthest_point() {
             let far = farthest(&carrier, t0, t1, p);
             let scale = (center - Point3::origin()).norm() + (p - Point3::origin()).norm() + big;
             let tol = 16.0 * f64::EPSILON * scale;
-            let slack = (1.0 - ((t1 - t0).abs().min(core::f64::consts::TAU) / 8.0).cos()) * big;
+            let slack = match carrier {
+                Curve3::Circle { .. } => 0.0,
+                _ => (1.0 - ((t1 - t0).abs().min(core::f64::consts::TAU) / 8.0).cos()) * big,
+            };
             let label = format!("{carrier:?} over [{t0}, {t1}] from {p:?}");
             assert!(
                 got >= far - tol,

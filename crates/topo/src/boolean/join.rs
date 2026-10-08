@@ -3660,7 +3660,7 @@ mod frame_dispatch_tests {
         let eps = Tol::witness().eps();
         let b = band();
         let mut g = fuzz::start("rim_patch_served_subset");
-        let mut unit = |g: &mut fuzz::Rng| loop {
+        let unit = |g: &mut fuzz::Rng| loop {
             let v = Vec3::new(g.range(-1., 1.), g.range(-1., 1.), g.range(-1., 1.));
             if (0.2..1.0).contains(&v.norm()) {
                 return v.normalize();

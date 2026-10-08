@@ -554,8 +554,9 @@ pub(crate) fn face_extent<T: Decide>(
 /// On a plane or a cylinder that is the face's own reach: the line or
 /// ruling through an interior point meets the boundary both ways, and a
 /// distance is convex along it. So an edge there is read over the span
-/// it holds ([`geom_brep::Reach::span_reach_from`]: a conic arc's
-/// quarters' chords and bulges, a segment's ends). Elsewhere the face
+/// it holds ([`geom_brep::Reach::span_reach_from`]: a circle arc
+/// exactly, an ellipse arc by its quarters' chords and bulges, a
+/// segment's ends). Elsewhere the face
 /// can stand farthest inside its boundary (a sphere's or a torus's far
 /// side, a cone's apex), and an edge is levered round its whole carrier
 /// ([`geom_brep::Reach::lever_from`]).

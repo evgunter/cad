@@ -279,10 +279,10 @@ should know why. They live only in an `Indeterminate.predicate`:
   - `point_in_arc_loop_boundary_disagreement`, the carrier walk meeting
     on an edge a point its caller's pass placed off it;
   - `pc_axis_plane_parallel_disagreement` and
-    `pc_parallel_gap_disagreement`, the germ frame's plane×cylinder
-    section served one class over a wall face's reach read over each
-    edge's span and another over it read round each edge's whole turn
-    (`boolean::join::agreed_section`);
+    `pc_parallel_gap_disagreement`, a plane×cylinder section on the
+    declared-tangency path served one class over a wall face's reach
+    read over each edge's span and another over it read round each
+    edge's whole turn (`chord_join::agreed_section`);
 - one, `plane_nurbs_transversality_reported`, as the name argument of a
   `k_stats::gate_measured` call. That records the escalation on the
   open frame but classifies nothing, so it is outside this table for
@@ -342,7 +342,7 @@ which is what actually moves the number.
 | certify.rs:1057/1068/1076 | carrier_on_seam_* | residual / radial·unit | m | OK |
 | certify.rs:1103/1112 | tangent_hull_sup / tube_margin | m residual sums; κ·arm² | m | OK |
 | certify.rs:1143/1151/1162 | witness_* | residuals / point distance | m | OK |
-| intersect.rs:949/953/892 (`plane_cylinder_ruled`, `plane_cylinder_section`) | pc_axis_plane_parallel / parallel_gap / parallel_gap_floor / rim_alignment | sin×lever, the lever over the reach from the rulings' hinge: the consumed region's axial distance from the hinge's station (`Reach::hinge_lever`) plus its distance across the wall from the hinge at second order, `abs(sin)/(1 + cos)` × a length (`Reach::turn_lever`: the face's reach from `at`, a conic edge read over the span it holds, `Reach::span_reach_from`, and `at`'s offset across the wall from the normal's own off-axis part; the germ frame serves only where that reach and the whole-turn one agree); \|r−gap\| + \|sin×lever\| and r−gap shrunk toward zero by \|sin×lever\| (`decide_across`: the gap and the tilt as one sum, the floor deciding the definite side); sin×r | m | OK |
+| intersect.rs:949/953/892 (`plane_cylinder_ruled`, `plane_cylinder_section`) | pc_axis_plane_parallel / parallel_gap / parallel_gap_floor / rim_alignment | sin×lever, the lever over the reach from the rulings' hinge: the consumed region's axial distance from the hinge's station (`Reach::hinge_lever`) plus its distance across the wall from the hinge at second order, `abs(sin)/(1 + cos)` × a length (`Reach::turn_lever`: the face's reach from `at`, a conic edge read over the span it holds, `Reach::span_reach_from` (a circle arc exactly, an ellipse arc by its quarters), and `at`'s offset across the wall from the normal's own off-axis part; the germ frame and chord_join's cylinder lane serve only where that reach and the whole-turn one agree, `chord_join::agreed_section`); \|r−gap\| + \|sin×lever\| and r−gap shrunk toward zero by \|sin×lever\| (`decide_across`: the gap and the tilt as one sum, the floor deciding the definite side); sin×r | m | OK |
 | intersect.rs:694 | ps_frame_seam | (sin−0.5)·r — deterministic frame tie-break, not a coincidence question | m | OK (note N5) |
 | intersect.rs:705 | ps_center_gap | r − center-plane distance | m | OK |
 | intersect.rs:834–882 | cc_* (radius eq, axes parallel, coaxial and its floor, gap and its floor, coplanar) | lengths / sin×extent / common-perpendicular; the coaxial distance and the gap each summed with the axes' sin×lever (`decide_across`) | m | OK |
