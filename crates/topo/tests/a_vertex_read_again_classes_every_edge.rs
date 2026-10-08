@@ -714,11 +714,15 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         // The fin, bare and as a void buried in the block, each against
         // pyramids standing and hanging at three bearings. A pyramid
         // hanging at 10° refuses `CrossingInsertion` in every op, as on
-        // main, so it is left out. The fin's fold is 1e-4° wide, in band
-        // at ε = 1e-6, where no crown builds; it is read where it builds.
+        // main, so it is left out. The fin's fold is 1e-4° wide, and the
+        // dented crown below is dented 3e-7, both in band at ε = 1e-6,
+        // where neither crown builds; each is read where it builds.
         let fin_builds = Band::linear(t()).unwrap().zero() < 1e-8;
         if !fin_builds && pose.label == poses()[0].label {
-            println!("SKIPPED at this ε: the fin's fold is in band and its crown does not build");
+            println!(
+                "SKIPPED at this ε: the fin's fold and the crown's dents are in band and \
+                 their crowns do not build"
+            );
         }
         let fin_scene = fin_builds.then(|| {
             let fin_b = posed_crown(&fin(), [0.0, 0.2, -0.6], &pose, t());
@@ -782,9 +786,12 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             ];
             -(a.cos() * n[0] + a.sin() * n[1]) / n[2]
         };
-        let dented_b = posed_crown(&dented, [0.0, 0.0, -0.6], &pose, t());
+        let dented_scene = fin_builds.then(|| {
+            let dented_b = posed_crown(&dented, [0.0, 0.0, -0.6], &pose, t());
+            let dented_void_b = built("a dented crown void", subtract(&block_b, &dented_b, t()));
+            (dented_b, dented_void_b)
+        });
         let dented_g = G::Crown(dented.clone());
-        let dented_void_b = built("a dented crown void", subtract(&block_b, &dented_b, t()));
         let dented_void_g = dd(G::All, dented_g.clone());
         // The probes 0.8 rad round from the dent, under the face beyond
         // it, and 1.0 rad round, over it. Others at 0.6 to 1.2 rad
@@ -798,19 +805,21 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             ])
         };
         let (under, over) = (dented_probe(0.8, 1.0), dented_probe(1.0, -1.0));
-        scenes.extend([
-            (
-                "a dented crown void, under",
-                pick(&under),
-                (&dented_void_b, &dented_void_g),
-            ),
-            ("a dented crown, over", pick(&over), (&dented_b, &dented_g)),
-            (
-                "a dented crown void, over",
-                pick(&over),
-                (&dented_void_b, &dented_void_g),
-            ),
-        ]);
+        if let Some((dented_b, dented_void_b)) = &dented_scene {
+            scenes.extend([
+                (
+                    "a dented crown void, under",
+                    pick(&under),
+                    (dented_void_b, &dented_void_g),
+                ),
+                ("a dented crown, over", pick(&over), (dented_b, &dented_g)),
+                (
+                    "a dented crown void, over",
+                    pick(&over),
+                    (dented_void_b, &dented_void_g),
+                ),
+            ]);
+        }
         let dents = ["-1e-3", "+1e-3", "-ten zero bands", "+ten zero bands"];
         let labels: Vec<_> = dents
             .iter()
