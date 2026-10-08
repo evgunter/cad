@@ -3328,23 +3328,38 @@ pub fn split(
     // A cut name re-anchors as the part's product spells it: under the
     // one cut placement whose copy holds its entity
     // ([`RoleSeg::Placed`]), since a part delivers only its world. The
-    // copy holds the names its body minted and those a transform below
-    // it carried whole (N1's `Whole` edge); a part's projection is not
-    // followed, because which of its input's bodies a name is of is
-    // the evaluation's answer, not the recipe's. A name of material no
-    // cut placement places, or two do, names nothing the instance
-    // carries.
+    // copy holds the names its body minted, those a transform below it
+    // carried whole (N1's `Whole` edge), and a pattern copy's names
+    // where a part picks that copy: the name's own `Instance` index
+    // against the pick's, at the document's values, as the member walk
+    // judges a pick (`mate::member`). A split half's pick is not
+    // followed, since which half holds a split's name is the
+    // geometry's answer. A name of material no cut placement places,
+    // or two do, names nothing the instance carries.
+    let env = doc.var_env::<f64>();
     let in_world = |name: &StableName| -> Result<StableName, SplitError> {
         let of = remap_name(name, &node_map, &step_map)
             .map_err(|missing| SplitError::straddles(doc, name, missing))?;
+        let copy_of_name = match name.path.first() {
+            Some(RoleSeg::Instance { i, .. }) => Some(i64::from(*i)),
+            _ => None,
+        };
         let holds = |placed: Option<RecipeNodeId>| -> bool {
             let mut at = placed;
+            let mut picked: Option<i64> = None;
             while let Some(node) = at {
                 if node == name.node {
-                    return true;
+                    return picked.is_none_or(|k| copy_of_name == Some(k));
                 }
                 at = match doc.node(node).and_then(crate::names::verbatim_edge) {
                     Some(crate::names::VerbatimEdge::Whole { input }) => doc.operation_of(input),
+                    Some(crate::names::VerbatimEdge::Selected {
+                        of,
+                        select: crate::node::PartSelect::Instance(index),
+                    }) if picked.is_none() => {
+                        picked = crate::expr::eval_var_count(*index, &env).ok();
+                        picked.and_then(|_| doc.operation_of(of))
+                    }
                     Some(
                         crate::names::VerbatimEdge::Selected { .. }
                         | crate::names::VerbatimEdge::Intact,
