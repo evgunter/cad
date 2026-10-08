@@ -724,7 +724,7 @@ fn a_structural_edit_that_consumes_the_selected_face_leaves_it_unresolved() {
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
     assert!(session.standing().live());
 
-    // The parameter edit that consumes it: two instances, no third.
+    // The variable edit that consumes it: two instances, no third.
     let outcome = session.perform(SessionOp::SetSlot {
         node: pattern,
         slot: SlotId::Count,
@@ -1051,6 +1051,6 @@ fn two_coincident_faces_across_groups_refuse_with_both() {
     );
     assert_eq!(
         hits[0].t, hits[1].t,
-        "the two faces are coincident, so they answer one parameter: {hits:?}"
+        "the two faces are coincident, so they answer one variable: {hits:?}"
     );
 }

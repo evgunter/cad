@@ -217,15 +217,15 @@ fn main() {
     println!("   Reevaluate landed a full run in {:?}", start.elapsed());
 
     // The seam recovers: an edit resubmits and the run completes.
-    let params = viewer::props::param_rows(session.doc());
-    if let Some(param) = params.first() {
-        println!("   nudging parameter {} to resubmit", param.label);
-        session.perform(SessionOp::SetParam {
+    let variables = viewer::props::variable_rows(session.doc());
+    if let Some(param) = variables.first() {
+        println!("   nudging variable {} to resubmit", param.label);
+        session.perform(SessionOp::SetVariable {
             var: param.var,
             value: param.value,
         });
     } else {
-        // No document parameter: re-request through undo-at-root's
+        // No document variable: re-request through undo-at-root's
         // refusal path would not resubmit, so re-open instead.
         session.perform(SessionOp::Open(dir.join("diefillet.pncad")));
     }

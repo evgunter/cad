@@ -214,7 +214,7 @@ fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
     let landed = reading(0.01);
     assert_eq!(measured(&session), landed);
 
-    session.perform(SessionOp::SetParam {
+    session.perform(SessionOp::SetVariable {
         var: common::var_of(session.committed_doc(), gap.as_str()),
         value: SlotValue::Continuous(0.012),
     });

@@ -2,8 +2,9 @@
 id: viewer-value-doors-read-a-defined-variable-as-absent
 kind: issue
 title: The viewer's range probe and exists-notice read a defined variable as one the document does not hold
-status: open
+status: closed
 opened: 2026-10-05
+closed: 2026-10-07
 ---
 
 INTENT-LITERALS PR A gave a variable a second definition, `Defined`,
@@ -33,3 +34,16 @@ the variable is defined, decided with
 `viewer-param-vocabulary-names-a-variable` and
 `typing-a-value-mints-or-offers-a-variable`, where the GUI's variable
 affordances are designed.
+
+## Closed
+
+Closed by the stage-1 GUI unit (`typing-a-value-mints-or-offers-a-variable`).
+The probe's seed reads the variable (`Doc::var`) and refuses a defined
+one with a new flat arm, `Refusal::VariableIsDefined` ("d is defined by
+a formula and holds no value of its own to move — probe a variable it
+reads"); `NoSuchVariable` is kept for an id the document does not hold.
+The sample edit reads the dimension off the variable's kind, so it no
+longer answers `None` for a defined one. The add-variable form's notice
+reads `props::named_variable`, which answers a defined variable at its
+kind's dimension. Rows: `gui_variables::the_range_probe_says_a_defined_variable_is_defined`,
+`gui_variables::the_exists_notice_reads_a_defined_variable_as_holding_its_name`.
