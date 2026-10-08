@@ -44,7 +44,7 @@ use pncad::document::{
 use pncad::prelude::StableName;
 use pncad::select::EntityKind;
 
-use crate::errors::dimension_tag;
+use crate::errors::{dimension_tag, var_kind_tag};
 use crate::tags::{attr_kind_tag, slot_id_tag};
 
 /// What one [`EditError`] arm carries, every field present.
@@ -430,7 +430,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         } => EditPayload {
             node: Some(node.id()),
             param: var.name(),
-            expected: Some(dim(*declared)),
+            expected: Some(var_kind_tag(*declared)),
             found: Some(dim(*referenced)),
             ..none
         },
@@ -450,7 +450,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             node: Some(node.id()),
             param: var.name(),
             slot: Some(slot_id_tag(slot)),
-            expected: Some(dim(*declared)),
+            expected: Some(var_kind_tag(*declared)),
             found: Some(dim(*referenced)),
             ..none
         },
@@ -476,6 +476,11 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         },
         // A definition's faults name the variable defined; the
         // variable it reads, or the cycle, rides in the sentence.
+        EditError::VarIsAnOutput { var, node, door: _ } => EditPayload {
+            node: Some(node.id()),
+            param: var.name(),
+            ..none
+        },
         EditError::NotAFreeVar { var, door: _ }
         | EditError::DefinitionCycle { var, through: _ }
         | EditError::DefinitionUnknownVarName { var, name: _ }
@@ -495,7 +500,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             referenced,
         } => EditPayload {
             param: var.name(),
-            expected: Some(dim(*declared)),
+            expected: Some(var_kind_tag(*declared)),
             found: Some(dim(*referenced)),
             ..none
         },
@@ -529,8 +534,8 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             offered,
         } => EditPayload {
             param: var.name(),
-            expected: Some(dim(kind.dimension())),
-            found: Some(dim(offered.dimension())),
+            expected: Some(var_kind_tag(*kind)),
+            found: Some(var_kind_tag(*offered)),
             ..none
         },
         EditError::VarValueKindMismatch {

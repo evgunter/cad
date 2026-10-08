@@ -596,6 +596,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::DeleteAnonymousVar { .. } => "delete_anonymous_var",
         EditError::VarKindFixed { .. } => "var_kind_fixed",
         EditError::NotAFreeVar { .. } => "not_a_free_var",
+        EditError::VarIsAnOutput { .. } => "var_is_an_output",
         EditError::DefinitionCycle { .. } => "definition_cycle",
         EditError::DefinitionTooLarge { .. } => "definition_too_large",
         EditError::DefinitionUnknownVarName { .. } => "definition_unknown_var_name",
@@ -1302,6 +1303,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::DeleteAnonymousVar { .. } => None,
         EditError::VarKindFixed { .. } => None,
         EditError::NotAFreeVar { .. } => None,
+        EditError::VarIsAnOutput { .. } => None,
         EditError::DefinitionCycle { .. } => None,
         EditError::DefinitionTooLarge { .. } => None,
         EditError::DefinitionUnknownVarName { .. } => None,
@@ -1843,7 +1845,7 @@ pub fn seed_error_tag(err: &SeedError) -> &'static str {
     match err {
         SeedError::UnknownVar { .. } => "unknown_param",
         SeedError::CountVar { .. } => "count_param",
-        SeedError::SeedOnDefinedVar { .. } => "seed_on_defined_var",
+        SeedError::SeedOnNonFreeVar { .. } => "seed_on_non_free_var",
         SeedError::TangentUnrepresentable { .. } => "tangent_unrepresentable",
     }
 }
@@ -2008,6 +2010,7 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
         SnapshotError::WitnessOnMissingNode { .. } => "witness_on_missing_node",
         SnapshotError::LabelOnMissingNode { .. } => "label_on_missing_node",
         SnapshotError::VarKind { .. } => "var_kind",
+        SnapshotError::OutputSignature { .. } => "output_signature",
         SnapshotError::VarNotMinted { .. } => "var_not_minted",
         SnapshotError::NameOnMissingVar { .. } => "name_on_missing_var",
         SnapshotError::VarNameTwice { .. } => "var_name_twice",
@@ -2372,6 +2375,7 @@ pub fn lower_fault_tag(fault: &pncad::document::LowerFault) -> &'static str {
 pub fn eval_error_tag(err: &EvalError) -> &'static str {
     match err {
         EvalError::UnresolvedVar { .. } => "unresolved_var",
+        EvalError::OutputRead { .. } => "output_read",
         EvalError::VarKindMismatch { .. } => "var_kind_mismatch",
         EvalError::DefinitionRefused { .. } => "definition_refused",
         EvalError::CountExprInContinuousEval => "count_expr_in_continuous_eval",
@@ -2602,6 +2606,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::EpsilonSeam { .. } => "epsilon_seam",
         InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
         InlineError::VarNameConflict { .. } => "var_name_conflict",
+        InlineError::InstanceOutputUncarried { .. } => "instance_output_uncarried",
         InlineError::UnresolvedVarCrossesCut { .. } => "unresolved_var_crosses_cut",
         InlineError::UnplaceableFrame { .. } => "unplaceable_frame",
         InlineError::MatePlaced { .. } => "mate_placed",

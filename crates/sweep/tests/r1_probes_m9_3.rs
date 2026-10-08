@@ -195,7 +195,6 @@ fn probe_peg_offset_one_ulp_characterized() {
                     BooleanError::Escalated { .. }
                         | BooleanError::ContactContradicted { .. }
                         | BooleanError::RestZipUnsupported { .. }
-                        | BooleanError::JoinDesync { .. }
                         | BooleanError::CurvedPierceUnsupported { .. }
                 ),
                 "typed only: {err:?}"
@@ -314,20 +313,10 @@ fn probe_partial_engagement_never_silent() {
         }
         Err(err) => {
             eprintln!("partial engagement refused: {err:?}");
-            // `JoinDesync { "minted-edge description failed
-            // certification" }` is the F7 output stage's edge
-            // re-description refusing a `Line` chord the declared-REST
-            // zip minted on a bore wall where a cap rim cuts it
-            // (`work/curved/rest-zip-seam-chord-on-cylinder-wall`);
-            // the merge door's own arm for a cylindrical declared pair
-            // records, and that is what exposed it. Typed and loud,
-            // which is all this probe asserts — where the frontier
-            // SITS is not a baseline this row defends.
             assert!(
                 matches!(
                     err,
                     BooleanError::RestZipUnsupported { .. }
-                        | BooleanError::JoinDesync { .. }
                         | BooleanError::Join(_)
                         | BooleanError::CurvedPierceUnsupported { .. }
                         | BooleanError::CurvedBooleanUnsupported { .. }
@@ -437,7 +426,6 @@ fn probe_ring_count_mismatch_never_silent() {
                     err,
                     BooleanError::RestZipUnsupported { .. }
                         | BooleanError::Join(_)
-                        | BooleanError::JoinDesync { .. }
                         | BooleanError::ZipCorrespondence { .. }
                 ),
                 "typed only: {err:?}"

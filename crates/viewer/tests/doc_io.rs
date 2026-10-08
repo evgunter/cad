@@ -39,7 +39,7 @@ fn a_document_round_trips_through_save_and_open() {
     let tol = Tol::witness();
     let (doc, _profile, extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    session.perform(SessionOp::SetParam {
+    session.perform(SessionOp::SetVariable {
         var: common::thickness_var(session.committed_doc()),
         value: SlotValue::Continuous(0.020),
     });
@@ -122,7 +122,7 @@ fn opening_a_document_drops_what_the_previous_one_answered() {
         body: 0,
     }))));
     let probed = session.perform(SessionOp::ProbeBounds {
-        target: BoundsTarget::Param {
+        target: BoundsTarget::Variable {
             var: common::thickness_var(session.committed_doc()),
         },
     });
@@ -286,7 +286,7 @@ fn a_saved_file_is_byte_identical_when_nothing_changed_between_saves() {
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    session.perform(SessionOp::SetParam {
+    session.perform(SessionOp::SetVariable {
         var: common::thickness_var(session.committed_doc()),
         value: SlotValue::Continuous(0.020),
     });
@@ -374,7 +374,7 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
 /// **A declaration authored in millimetres comes back in
 /// millimetres.** The notation rides on the declaration, so it is
 /// persisted state and not a view setting — the create door mints it
-/// (`props::doc_param`) and the file carries it.
+/// (`props::doc_variable`) and the file carries it.
 #[test]
 fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
     let tol = Tol::witness();
@@ -388,7 +388,7 @@ fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
     );
     let outcome = session.perform(SessionOp::DeclareVar {
         name: name.clone(),
-        value: viewer::props::doc_param(
+        value: viewer::props::doc_variable(
             pncad::document::Dimension::Length,
             SlotValue::Continuous(0.05),
             Some(pncad::prelude::MM.def()),
@@ -405,10 +405,10 @@ fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
             .is_none()
     );
     let reopened = docio::open(&file, tol).expect("the saved document opens");
-    let row = viewer::props::param_rows(reopened.doc())
+    let row = viewer::props::variable_rows(reopened.doc())
         .into_iter()
         .find(|row| row.label.name() == Some(&name))
-        .expect("the parameter survived the round trip");
+        .expect("the variable survived the round trip");
     assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
     assert_eq!(row.value, SlotValue::Continuous(0.05));
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");

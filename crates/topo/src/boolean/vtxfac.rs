@@ -84,7 +84,7 @@ use crate::contact::BooleanCoincidence;
 use crate::entity::{EntityId, HalfEdgeKey, VertexKey};
 use crate::euler::{MevSite, RunSite};
 use crate::live::{Proven, linked, proven};
-use crate::null::{NewVertexSide, NullEdge};
+use crate::null::NewVertexSide;
 use crate::validate::decide;
 use geom_core::Tol;
 
@@ -957,15 +957,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 )
             }
         };
-        // Sense theorem (join module docs): the half facing the run's
-        // START germ (forward code Out) is the UP half, starting at
-        // `below_end`. A fan puts he_plus (old → copy) at the start
-        // germ's cut, so the copy is the above end. A strut faces its
-        // germs by the one facing rule ([`super::insert::strut_faces_first`]),
-        // and the side follows the facing: the copy is the below end
-        // exactly when he_minus (copy → old) faces the start germ. The
-        // mint side follows, keeping the body's scaffold attribute and
-        // the record one datum.
+        // Whether he_plus (old → copy) faces the run's start germ: a fan
+        // puts it at the start germ's cut, and a strut faces its germs
+        // by the one facing rule ([`super::insert::strut_faces_first`]).
         let start_on_plus = match strut_corner {
             None => true,
             Some(corner) => {
@@ -1000,27 +994,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 })?
             }
         };
-        let side = if start_on_plus {
-            NewVertexSide::Above
-        } else {
-            NewVertexSide::Below
-        };
-        let created = piercing_body.mev_null(site, side)?;
-        let (start_he, end_he) = if start_on_plus {
-            (created.he_plus, created.he_minus)
-        } else {
-            (created.he_minus, created.he_plus)
-        };
-        let attr = match side {
-            NewVertexSide::Below => NullEdge {
-                below_end: created.vertex,
-                above_end: vertex,
-            },
-            NewVertexSide::Above => NullEdge {
-                below_end: vertex,
-                above_end: created.vertex,
-            },
-        };
+        // The piercing run is Out.
+        let mint = piercing_body.mev_null_run(site, vertex, NewVertexSide::Above, start_on_plus)?;
+        let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
         let rec = BoolNullEdgeRecord {
             operand: piercing,
             at_vertex: vertex,
@@ -1085,10 +1061,6 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // ([`super::insert::strut_order`]); the op does not enter. Where the
     // struts leave both operands one vertex at a pinch, `zip::split_cones`
     // splits it per cone before the zips.
-    // Side labels are DERIVED sense data (PR 5.5, join module docs):
-    // the half facing the run's start germ is the pierced DOWN half,
-    // the one starting at `above_end`, so the copy is the below end
-    // exactly when the half leaving the ring vertex faces it.
     // Each germ with the arm of its transition sector; every reading of
     // two or three of them is levered at the shortest of their arms.
     let germ = |t: usize, g: &Germ<T>| (g.1, sectors[t].arm);
@@ -1102,7 +1074,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             )
         })
         .collect();
-    let sides = (0..runs.len())
+    let leaving_faces = (0..runs.len())
         .map(|i| {
             let ((start, start_arm), (end, end_arm)) = ends[i];
             let leaving_faces_start = match runs.len() {
@@ -1118,47 +1090,29 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                     )?
                 }
             };
-            Ok(if leaving_faces_start {
-                NewVertexSide::Below
-            } else {
-                NewVertexSide::Above
-            })
+            Ok(leaving_faces_start)
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
     let mut ring_anchor: Option<HalfEdgeKey> = None;
     for i in 0..runs.len() {
-        let (run_edge, &(start_germ, end_germ), &side) = (&run_edges[i], &run_germs[i], &sides[i]);
+        let (run_edge, &(start_germ, end_germ), &leaving_faces_start) =
+            (&run_edges[i], &run_germs[i], &leaving_faces[i]);
         let site = match ring_anchor {
             None => MevSite::Lone { r#loop: kemr.ring },
             Some(he) => MevSite::Fan { he1: he, he2: he },
         };
-        let created = pierced_body.mev_null(site, side)?;
+        // The pierced run is In; the half leaving the ring vertex is
+        // he_plus.
+        let mint = pierced_body.mev_null_run(site, w, NewVertexSide::Below, leaving_faces_start)?;
+        let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
         ring_anchor.get_or_insert(created.he_plus);
-        let (attr, down, up) = match side {
-            NewVertexSide::Above => (
-                NullEdge {
-                    below_end: w,
-                    above_end: created.vertex,
-                },
-                created.he_minus,
-                created.he_plus,
-            ),
-            NewVertexSide::Below => (
-                NullEdge {
-                    below_end: created.vertex,
-                    above_end: w,
-                },
-                created.he_plus,
-                created.he_minus,
-            ),
-        };
         let rec = BoolNullEdgeRecord {
             operand: pierced,
             at_vertex: w,
             edge: created.edge,
             attr,
             dangling: true,
-            germs: [half_germ(down, start_germ), half_germ(up, end_germ)],
+            germs: [half_germ(start_he, start_germ), half_germ(end_he, end_germ)],
         };
         out.edges.push(rec);
         let (a_edge, b_edge, site) = match piercing {

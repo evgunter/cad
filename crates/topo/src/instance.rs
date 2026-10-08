@@ -496,7 +496,15 @@ mod tests {
         let mut dst = cube();
         let before = deep_snapshot(&dst);
         let err = graft_disjoint(&mut dst, &Body::<f64>::new()).expect_err("no solid to graft");
-        assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
+        assert!(
+            matches!(
+                err,
+                crate::BooleanError::JoinDesync {
+                    what: "graft source does not hold exactly one solid"
+                }
+            ),
+            "{err:?}"
+        );
         assert_eq!(
             deep_snapshot(&dst),
             before,
@@ -510,7 +518,15 @@ mod tests {
         let mut dst = cube();
         let before = deep_snapshot(&dst);
         let err = graft_disjoint(&mut dst, &two).expect_err("two solids in the source");
-        assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
+        assert!(
+            matches!(
+                err,
+                crate::BooleanError::JoinDesync {
+                    what: "graft source does not hold exactly one solid"
+                }
+            ),
+            "{err:?}"
+        );
         assert_eq!(
             deep_snapshot(&dst),
             before,

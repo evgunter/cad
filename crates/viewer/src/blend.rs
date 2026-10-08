@@ -136,7 +136,7 @@ impl BlendTarget {
         match selection {
             Selection::Edge(edge) => Some(Self::of(edge)),
             Selection::Face(face) => Some(Self::of_face(face)),
-            Selection::None | Selection::Node(_) | Selection::Param(_) => None,
+            Selection::None | Selection::Node(_) | Selection::Variable(_) => None,
         }
     }
 }

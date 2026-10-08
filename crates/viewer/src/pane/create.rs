@@ -524,7 +524,7 @@ fn selection_says_unresolved(standing: &Standing, latched: Option<&FaceSelection
         Standing::Face { face, .. } => Some(face) == latched && standing.unresolved().is_some(),
         Standing::Empty
         | Standing::Node { .. }
-        | Standing::Param { .. }
+        | Standing::Variable { .. }
         | Standing::Edge { .. } => false,
     }
 }

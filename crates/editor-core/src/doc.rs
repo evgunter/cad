@@ -366,12 +366,13 @@ pub(crate) enum VarReadFault {
         /// The id.
         var: VarId,
     },
-    /// A reader of a live variable at another dimension than its kind.
+    /// A reader of a live variable at a dimension its kind does not
+    /// read at.
     Kind {
         /// The variable.
         var: VarId,
-        /// The dimension its kind reads at.
-        declared: Dimension,
+        /// Its kind.
+        declared: crate::VarKind,
         /// The dimension the leaf reads it at.
         referenced: Dimension,
     },
@@ -1094,21 +1095,23 @@ impl<P> Doc<P> {
             .filter_map(|(var, referenced)| match self.vars.get(&var) {
                 None if self.mint.has_var(var) => Some(VarReadFault::Dead { var }),
                 None => Some(VarReadFault::Unminted { var }),
-                Some(held) if held.kind().dimension() != referenced => Some(VarReadFault::Kind {
-                    var,
-                    declared: held.kind().dimension(),
-                    referenced,
-                }),
+                Some(held) if held.kind().dimension() != Some(referenced) => {
+                    Some(VarReadFault::Kind {
+                        var,
+                        declared: held.kind(),
+                        referenced,
+                    })
+                }
                 Some(_) => None,
             })
             .collect()
     }
 
     /// **The scope the edit door lowers a name in**: the variable the
-    /// document names `name`, with the dimension its kind reads at.
-    pub(crate) fn lowering_scope(&self, name: &VarName) -> Option<(VarId, Dimension)> {
+    /// document names `name`, and its kind.
+    pub(crate) fn lowering_scope(&self, name: &VarName) -> Option<(VarId, crate::VarKind)> {
         let id = self.var_named(name.as_str())?;
-        Some((id, self.vars.get(&id)?.kind().dimension()))
+        Some((id, self.vars.get(&id)?.kind()))
     }
 
     /// **The nodes that read `var`**, in document order: one walk over
@@ -1259,7 +1262,8 @@ impl<P> Doc<P> {
     /// **The anonymous variables nothing live reads** (VR7), in the
     /// order a cascading removal reports them: a variable is live when
     /// it is named, when a node reads it, or when the definition of a
-    /// live variable reads it. Each round takes, in declaration order,
+    /// live variable reads it. An output is not among them: it lives
+    /// exactly as long as its node. Each round takes, in declaration order,
     /// the anonymous variables read by no node and by no definition of
     /// a variable still standing — so a defined variable comes before
     /// the variables only its definition read.
@@ -1274,7 +1278,12 @@ impl<P> Doc<P> {
         let edges = self.definition_edges();
         let unheld = |at: usize| {
             let id = edges.ids[at];
-            !self.var_names.contains_key(&id) && !node_read.contains(&id)
+            !self.var_names.contains_key(&id)
+                && !node_read.contains(&id)
+                && self
+                    .vars
+                    .get(&id)
+                    .is_some_and(|var| var.def().output().is_none())
         };
         // How many standing definitions read each variable: a round
         // removes its variables' reads, and a variable whose count
@@ -1478,6 +1487,75 @@ impl<P> Doc<P> {
         self.vars.get(&id)
     }
 
+    /// **The variable port `port` of `node` defines**
+    /// ([`crate::VarDef::Output`]), if `node` is live and has that port.
+    pub fn output(&self, node: RecipeNodeId, port: u8) -> Option<VarId> {
+        self.vars
+            .iter()
+            .find(|(_, var)| var.def().output() == Some((node, port)))
+            .map(|(&id, _)| id)
+    }
+
+    /// **The variables `node` defines**, in port order: one per port of
+    /// its signature ([`Node::outputs`]) while it is live, none once it
+    /// is gone.
+    ///
+    /// One pass over the variable table, as [`Self::output`] is: an
+    /// edit already copies the document, so a door asking it per node
+    /// it removes stays linear in the table.
+    pub fn outputs(&self, node: RecipeNodeId) -> Vec<VarId> {
+        let mut ports: Vec<(u8, VarId)> = self
+            .vars
+            .iter()
+            .filter_map(|(&id, var)| match var.def().output() {
+                Some((of, port)) if of == node => Some((port, id)),
+                _ => None,
+            })
+            .collect();
+        ports.sort_unstable();
+        ports.into_iter().map(|(_, id)| id).collect()
+    }
+
+    /// **`node`'s signature resolved**: each port's name and kind, a
+    /// placer's read through its operand ([`crate::PortKind::PlacedFrom`]).
+    /// `None` when `node`, or an operand a placer's kind is read
+    /// through, is not live.
+    pub fn signature(&self, node: RecipeNodeId) -> Option<Vec<(&'static str, crate::VarKind)>> {
+        self.signature_of(self.nodes.get(&node)?)
+    }
+
+    /// [`Self::signature`] of `node`, read in this document.
+    pub(crate) fn signature_of(
+        &self,
+        node: &Node<P>,
+    ) -> Option<Vec<(&'static str, crate::VarKind)>> {
+        node.outputs()
+            .into_iter()
+            .map(|port| Some((port.name, self.port_kind(port.kind)?)))
+            .collect()
+    }
+
+    /// The kind `kind` decides, `None` where a placer's operand chain
+    /// reaches a node that is not live.
+    fn port_kind(&self, kind: crate::PortKind) -> Option<crate::VarKind> {
+        let mut at = match kind {
+            crate::PortKind::Of(kind) => return Some(kind),
+            crate::PortKind::PlacedFrom(input) => input,
+        };
+        // A chain of placers ends at a node whose first port's kind is
+        // fixed: the insert door refuses a node reading itself or
+        // anything after it, so the walk is finite.
+        loop {
+            match self.nodes.get(&at)?.outputs().first().map(|port| port.kind) {
+                Some(crate::PortKind::Of(crate::VarKind::Bodies)) => {
+                    return Some(crate::VarKind::Bodies);
+                }
+                Some(crate::PortKind::PlacedFrom(input)) => at = input,
+                Some(crate::PortKind::Of(_)) | None => return Some(crate::VarKind::Body),
+            }
+        }
+    }
+
     /// The free variable `id`, if live and free.
     pub fn free(&self, id: VarId) -> Option<&FreeVar> {
         self.vars.get(&id).and_then(Var::free)
@@ -1527,12 +1605,13 @@ impl<P> Doc<P> {
         self.var_named(name).and_then(|id| self.free(id))
     }
 
-    /// **The parser's scope**: every named variable, by name, at the
-    /// dimension a reader reads it at.
+    /// **The parser's scope**: every named scalar variable, by name, at
+    /// the dimension a reader reads it at. A named output of a
+    /// reference kind is no parameter of a formula.
     pub fn var_scope(&self) -> BTreeMap<VarName, Dimension> {
         self.var_names
             .iter()
-            .filter_map(|(id, name)| Some((name.clone(), self.vars.get(id)?.kind().dimension())))
+            .filter_map(|(id, name)| Some((name.clone(), self.vars.get(id)?.kind().dimension()?)))
             .collect()
     }
 
@@ -1739,7 +1818,8 @@ impl<P> Doc<P> {
         let dim = self
             .vars
             .get(&var)
-            .map_or(slot.dimension(), |v| v.kind().dimension());
+            .and_then(|v| v.kind().dimension())
+            .unwrap_or(slot.dimension());
         Some(self.written(&Expr::var(var, dim)))
     }
 
@@ -1818,6 +1898,7 @@ impl<P> Doc<P> {
                 crate::VarDef::Defined(defined) => self
                     .anonymous_expansion(&crate::Formula::from(defined))
                     .ok(),
+                crate::VarDef::Output { .. } => None,
             }
         })
     }
@@ -1873,6 +1954,16 @@ impl<P> Doc<P> {
     /// refuses binds nothing and records its refusal, which each
     /// reader then refuses with ([`crate::EvalError::DefinitionRefused`]).
     pub fn bind_definitions<T: Decide>(&self, env: &mut VarEnv<T>) {
+        // An output has no value outside its operation's evaluation: its
+        // reader refuses saying so, in its own words.
+        for (&id, var) in &self.vars {
+            if var.def().output().is_some() {
+                env.bindings.remove(&id);
+                env.refused
+                    .insert(id, crate::EvalError::OutputRead { var: id });
+                env.written.insert(id);
+            }
+        }
         for id in self.definition_order() {
             let Some(expr) = self.vars.get(&id).and_then(|v| v.def().defined()) else {
                 continue;
@@ -2313,18 +2404,19 @@ mod tests {
     /// answer for.
     fn cyclic() -> (ProfileDoc, crate::var::VarId, crate::var::VarId) {
         use crate::expr::{Dimension, Expr};
-        use crate::var::{Var, VarDef, VarId};
+        use crate::var::{Var, VarId};
         let mut doc = ProfileDoc::empty_derived("doc-cyclic", Tol::witness());
         let (a, b) = (VarId::new(0, 1), VarId::new(0, 2));
         let read = |var| Expr::var(var, Dimension::Length);
         let one = read(VarId::new(0, 3));
         doc.vars.insert(
             a,
-            Var::new(VarDef::Defined(
+            Var::written(crate::WrittenDef::Defined(
                 Expr::add(read(b), one).expect("lengths add"),
             )),
         );
-        doc.vars.insert(b, Var::new(VarDef::Defined(read(a))));
+        doc.vars
+            .insert(b, Var::written(crate::WrittenDef::Defined(read(a))));
         doc.var_names.insert(a, super::VarName::from_static("a"));
         doc.var_names.insert(b, super::VarName::from_static("b"));
         (doc, a, b)
@@ -2359,12 +2451,12 @@ mod tests {
     #[test]
     fn an_expansion_count_saturates_past_the_bound() {
         use crate::expr::{Dimension, Expr};
-        use crate::var::{Var, VarDef, VarId};
+        use crate::var::{Var, VarId};
         let mut doc = ProfileDoc::empty_derived("doc-saturate", Tol::witness());
         let w = VarId::new(0, 1);
         doc.vars.insert(
             w,
-            Var::new(VarDef::Free(super::FreeVar::continuous(
+            Var::written(crate::WrittenDef::Free(super::FreeVar::continuous(
                 Dimension::Length,
                 1.0,
             ))),
@@ -2375,7 +2467,7 @@ mod tests {
             let read = Expr::var(prev, Dimension::Length);
             doc.vars.insert(
                 id,
-                Var::new(VarDef::Defined(
+                Var::written(crate::WrittenDef::Defined(
                     Expr::add(read.clone(), read).expect("adds"),
                 )),
             );

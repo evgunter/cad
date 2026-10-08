@@ -7,7 +7,7 @@
 //! * the three components of a 3-vector are ONE panel row
 //!   (`props::group_rows`),
 //! * a value is shown in the unit its literal — or, for a document
-//!   parameter, its DECLARATION — remembers, and authored back through
+//!   variable, its DECLARATION — remembers, and authored back through
 //!   the same factor (`rendering_unit` / `in_written` / `from_written`),
 //!   at a drag tick in that same unit (`app::FieldWriting`),
 //! * a range probe's reading is written in the unit the SEARCH ran in
@@ -673,12 +673,12 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
     assert_eq!(props::field_text(&row, Notation::DEFAULT), "2");
 }
 
-/// **A parameter declared in millimetres reads in millimetres**, and a
+/// **A variable declared in millimetres reads in millimetres**, and a
 /// number authored against that row lands as the millimetres it says.
 ///
-/// The row is the panel's whole account of a document parameter, so
+/// The row is the panel's whole account of a document variable, so
 /// this is the claim a canonical-unit row breaks: `50 mm` shown as
-/// `0.05` is the panel saying metres about a parameter nobody wrote in
+/// `0.05` is the panel saying metres about a variable nobody wrote in
 /// metres. The value that CROSSES `props` stays canonical either way —
 /// the conversion is the field's, the same one a slot's does.
 ///
@@ -704,15 +704,15 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     );
     let mut session = DocSession::inline(doc, tol);
     let row = |session: &DocSession| {
-        props::param_rows(session.doc())
+        props::variable_rows(session.doc())
             .into_iter()
             .find(|row| row.label.name() == Some(&name))
-            .expect("the parameter row")
+            .expect("the variable row")
     };
 
     let before = row(&session);
     let unit = rendering_unit(before.dimension, before.unit, Notation::DEFAULT)
-        .expect("a length parameter");
+        .expect("a length variable");
     assert_eq!(
         unit.symbol(),
         "mm",
@@ -726,7 +726,7 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
 
     // A value edit through the panel's own door: the number moves, the
     // notation beside it does not.
-    let outcome = session.perform(SessionOp::SetParam {
+    let outcome = session.perform(SessionOp::SetVariable {
         var: common::var_of(session.committed_doc(), name.as_str()),
         value: SlotValue::of(before.dimension, from_written(60.0, unit))
             .expect("a finite angle is a value"),
@@ -741,7 +741,7 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     assert_eq!(after.value, SlotValue::Continuous(0.06));
 }
 
-/// A `Count` parameter names no unit — an instance count is a number,
+/// A `Count` variable names no unit — an instance count is a number,
 /// not a quantity — and the panel's rendering rule agrees.
 #[test]
 fn a_count_parameter_has_no_written_unit() {
@@ -756,10 +756,10 @@ fn a_count_parameter_has_no_written_unit() {
         },
         tol,
     );
-    let row = props::param_rows(&doc)
+    let row = props::variable_rows(&doc)
         .into_iter()
         .find(|row| row.label.name() == Some(&name))
-        .expect("the parameter row");
+        .expect("the variable row");
     assert_eq!(row.unit, None);
     assert_eq!(
         rendering_unit(row.dimension, row.unit, Notation::DEFAULT),
@@ -768,7 +768,7 @@ fn a_count_parameter_has_no_written_unit() {
     assert_eq!(row.value, SlotValue::Count(6));
 }
 
-/// **A parameter's range reading is written in the unit the search
+/// **A variable's range reading is written in the unit the search
 /// used**, and this row establishes that by RUNNING the search: it
 /// probes, then reads the sentence the panel would draw.
 ///
@@ -778,7 +778,7 @@ fn a_count_parameter_has_no_written_unit() {
 /// probe stores the unit it stepped by (`BoundsReading::unit`) and the
 /// reading is written in that stored unit, so a hand-built `Bounds`
 /// beside a hand-picked unit would assert nothing about the pairing.
-/// Both parameters below drive the same feature and differ only in the
+/// Both variables below drive the same feature and differ only in the
 /// notation they were DECLARED in.
 #[test]
 fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
@@ -807,7 +807,7 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
         let mut session = DocSession::inline(doc, tol);
         session.pump();
         let outcome = session.perform(SessionOp::ProbeBounds {
-            target: BoundsTarget::Param {
+            target: BoundsTarget::Variable {
                 var: common::var_of(session.committed_doc(), name.as_str()),
             },
         });
@@ -823,7 +823,7 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
     assert!(mm.contains(" mm"), "{mm}");
     assert!(!mm.contains(" m,") && !mm.contains(" m "), "{mm}");
 
-    // The same parameter declared canonically: same document, same
+    // The same variable declared canonically: same document, same
     // search, a different sentence — so the reading follows the
     // DECLARATION and not the dimension.
     let (unit, m) = reading(FreeVar::continuous(Dimension::Length, 0.008));
@@ -835,10 +835,10 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
 test_utils::loud_skip_marker!(
     feature = "app",
     row = app_lane_skipped_no_panel_display_coverage_here,
-    absent = "coverage of the parameter panel's writing",
+    absent = "coverage of the variable panel's writing",
 );
 
-/// **A parameter field is shown, scrubbed and authored in the unit its
+/// **A variable field is shown, scrubbed and authored in the unit its
 /// DECLARATION names** — `app::FieldWriting`, the value the panel
 /// builds one field from.
 ///
@@ -882,12 +882,12 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
         },
         tol,
     );
-    let rows = props::param_rows(&doc);
+    let rows = props::variable_rows(&doc);
     let writing = |name: &'static str| {
         let row = rows
             .iter()
             .find(|row| row.label.name() == Some(&VarName::from_static(name)))
-            .expect("the parameter row");
+            .expect("the variable row");
         FieldWriting::of(row.dimension, row.unit, Notation::DEFAULT)
     };
 
@@ -1065,12 +1065,12 @@ fn a_field_showing_source_echoes_its_source_and_nothing_else() {
 }
 
 /// **The create form mints the notation it was authoring in**, through
-/// the total doors — `props::doc_param` over a picked unit is a
+/// the total doors — `props::doc_variable` over a picked unit is a
 /// declaration whose `display_unit` is that unit and whose value is
 /// the canonical one it was handed, unscaled.
 #[test]
 fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
-    let minted = props::doc_param(
+    let minted = props::doc_variable(
         Dimension::Length,
         SlotValue::Continuous(0.05),
         Some(MM.def()),
@@ -1079,27 +1079,27 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
         minted,
         FreeVar::written_length(WrittenLength::canonical_in(0.05, pncad::prelude::MM))
     );
-    let row = props::param_rows(&common::declared(
+    let row = props::variable_rows(&common::declared(
         "mint-mm",
         &VarName::from_static("base_r"),
         minted,
         Tol::witness(),
     ))
     .pop()
-    .expect("the declared parameter");
+    .expect("the declared variable");
     assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
     assert_eq!(row.value, SlotValue::Continuous(0.05), "and not rescaled");
     assert_eq!(in_written(row.value.as_f64(), MM.def()), 50.0);
 
     // The angle door is its mirror, and a dimension with no notation
     // takes the canonical declaration — there is nothing to pick.
-    let angle = props::doc_param(
+    let angle = props::doc_variable(
         Dimension::Angle,
         SlotValue::Continuous(1.0),
         Some(DEG.def()),
     );
     assert_eq!(
-        props::param_rows(&common::declared(
+        props::variable_rows(&common::declared(
             "mint-deg",
             &VarName::from_static("sweep"),
             angle,
@@ -1111,11 +1111,11 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
         Some("deg")
     );
     assert_eq!(
-        props::doc_param(Dimension::Scalar, SlotValue::Continuous(2.0), None),
+        props::doc_variable(Dimension::Scalar, SlotValue::Continuous(2.0), None),
         FreeVar::continuous(Dimension::Scalar, 2.0)
     );
     assert_eq!(
-        props::doc_param(Dimension::Count, SlotValue::Count(6), None),
+        props::doc_variable(Dimension::Count, SlotValue::Count(6), None),
         FreeVar::Count { value: 6 }
     );
 }

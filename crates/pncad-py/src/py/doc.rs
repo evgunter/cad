@@ -879,10 +879,23 @@ impl Doc {
     fn evaluand(&self, py: Python<'_>, evaluand: Evaluand) -> PyResult<d::Formula> {
         match evaluand {
             Evaluand::Formula(formula) => Ok(formula.0),
-            Evaluand::Var(Var(var)) => {
-                let dim = self.inner.var(var).map(|held| match held.def() {
-                    d::VarDef::Free(free) => free.dim(),
-                    d::VarDef::Defined(expr) => expr.dim(),
+            Evaluand::Var(Var(var, _)) => {
+                // An operation's output of a reference kind is no value an
+                // expression reads; a scalar one has no binding outside an
+                // evaluation, so its reader refuses `unresolved_var`.
+                if let Some(held) = self.inner.var(var)
+                    && held.kind().dimension().is_none()
+                {
+                    return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                        "{} is an operation's output of kind {}, which no expression reads",
+                        self.inner.spoken_var(var),
+                        held.kind()
+                    )));
+                }
+                let dim = self.inner.var(var).and_then(|held| match held.def() {
+                    d::VarDef::Free(free) => Some(free.dim()),
+                    d::VarDef::Defined(expr) => Some(expr.dim()),
+                    d::VarDef::Output { .. } => held.kind().dimension(),
                 });
                 let Some(dim) = dim else {
                     let unheld = d::EvalError::UnresolvedVar { var };
@@ -1564,7 +1577,7 @@ impl Doc {
     fn vars<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let out = PyDict::new(py);
         for (id, param) in self.inner.free_vars() {
-            out.set_item(Var(id), FreeVar(param.clone()))?;
+            out.set_item(Var::of(&self.inner, id), FreeVar(param.clone()))?;
         }
         Ok(out)
     }
@@ -1581,7 +1594,28 @@ impl Doc {
 
     /// The variable this document names `name`, or `None`.
     fn var(&self, name: &VarName) -> Option<Var> {
-        self.inner.var_named(name.0.as_str()).map(Var)
+        self.inner
+            .var_named(name.0.as_str())
+            .map(|id| Var::of(&self.inner, id))
+    }
+
+    /// **The variable port `port` of `node` defines** (`Doc::output`):
+    /// an operation's output, which lives exactly as long as its node.
+    /// `None` for a node the document does not hold; a port the live
+    /// node's signature does not have raises `ValueError`.
+    #[pyo3(signature = (node, port = 0))]
+    fn output(&self, node: &NodeId, port: u8) -> PyResult<Option<Var>> {
+        let Some(signature) = self.inner.signature(node.0) else {
+            return Ok(None);
+        };
+        match self.inner.output(node.0, port) {
+            Some(var) => Ok(Some(Var::of(&self.inner, var))),
+            None => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "{} defines {} port(s), so it has no port {port}",
+                self.inner.spoken(node.0),
+                signature.len()
+            ))),
+        }
     }
 
     /// **The variable a node's slot reads** (`Doc::slot`), or `None`
@@ -1589,7 +1623,10 @@ impl Doc {
     /// reads one: a value written there is its own anonymous variable,
     /// and passing the handle to another slot is how two slots share it.
     fn slot(&self, node: &NodeId, slot: &str) -> PyResult<Option<Var>> {
-        Ok(self.inner.slot(node.0, slot_from_text(slot)?).map(Var))
+        Ok(self
+            .inner
+            .slot(node.0, slot_from_text(slot)?)
+            .map(|id| Var::of(&self.inner, id)))
     }
 
     /// The name this document holds for `var`, or `None` — for an
@@ -3416,13 +3453,33 @@ impl VarName {
 /// naming nothing the document holds, and the id is never minted again.
 ///
 /// An id is document-scoped: the same bits in another document name
-/// another variable, or none.
+/// another variable, or none. The handle carries the kind the document
+/// held it at when it was read, `None` for one it no longer held: a
+/// kind is fixed at minting, so it never goes stale.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
-pub(crate) struct Var(pub(crate) d::VarId);
+pub(crate) struct Var(pub(crate) d::VarId, pub(crate) Option<d::VarKind>);
+
+impl Var {
+    /// The handle of `id`, read in `doc`.
+    pub(crate) fn of(doc: &d::ProfileDoc, id: d::VarId) -> Self {
+        Self(id, doc.var(id).map(d::Var::kind))
+    }
+}
 
 #[pymethods]
 impl Var {
+    /// **What the variable holds** (VR3, D10), fixed at minting: a
+    /// scalar's dimension word (`"length"`, `"angle"`, `"scalar"`,
+    /// `"count"`), a pose's (`"point"`, `"direction"`, `"axis"`,
+    /// `"plane"`, `"frame"`) or a shape's (`"body"`, `"bodies"`,
+    /// `"profile"`). `None` for a handle read where the document held
+    /// no such variable.
+    #[getter]
+    fn kind(&self) -> Option<&'static str> {
+        self.1.map(crate::errors::var_kind_tag)
+    }
+
     /// The whole id: its mint ordinal, a colon, and its digest as sixteen
     /// lowercase hex digits — the key a saved file's variable table
     /// holds it under. (Named for when an id was its hex digest alone.)

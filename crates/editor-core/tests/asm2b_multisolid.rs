@@ -385,7 +385,7 @@ fn digest(ev: &Evaluation<f64>) -> u64 {
 /// row that is about geometry.
 /// INTENT-LITERALS PR C moved it — a node's id is minted from slots
 /// holding variable ids — and only it.
-const SINGLE_SOLID_NAMES_DIGEST: u64 = 4_372_370_098_487_289_317;
+const SINGLE_SOLID_NAMES_DIGEST: u64 = 2_213_939_999_209_492_797;
 const SINGLE_SOLID_VOLUME_BITS: u64 = 4_611_686_018_427_387_904; // 2.0
 
 #[test]
