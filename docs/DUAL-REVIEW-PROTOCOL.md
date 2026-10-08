@@ -113,20 +113,22 @@ under.
    main's merge order** (DR-1, DR-2, …); a collision on a concurrent
    merge is resolved by renumbering the later merge, never by
    renumbering a row already on main.
-9. **Readout point: a readout is owed when TWENTY M-tier units have
-   been recorded under rule 1's arms (holdout and sequential
-   together), or at the first M-TIER MISS, whichever comes first**
-   (Ev, 2026-10-01, PR 3704). An M-tier miss is either
+9. **Readout point.** Two kinds of readout are owed (Ev, 2026-10-08,
+   PR 4283):
+   - a **full readout** when TWENTY M-tier units have been recorded
+     under rule 1's arms (holdout and sequential together), or at the
+     second M-TIER MISS after the last full readout's trigger,
+     whichever comes first;
+   - a **short readout** at any other M-tier miss: an FYI to Ev naming
+     the miss, with no options.
+
+   An M-tier miss is either
    - a tallied finding in a holdout pair whose other review raised no
      MAJOR at all (taken first, the sequential arm would have shipped
      it), or
    - a later escape (rule 11) traced to a sequential unit that meets
      rule 6(b) and (d) and that no review of the unit raised as MAJOR.
-   After the third readout (Ev, 2026-10-08, PR 4283), the arms
-   continue unchanged. The **next M-tier miss owes a short readout**:
-   an FYI to Ev naming the miss, with no options. The **next full
-   readout is owed at twenty M-tier units or at two more M-tier
-   misses** after DR-104, whichever comes first.
+
    This is a readout, not a stop — the arms continue until Ev rules
    on the result. The orchestrator recording the triggering row asks
    Ev per `CLAUDE.md` "Asking Ev". The running tally, the count of
