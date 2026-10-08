@@ -92,7 +92,7 @@ fn config(max_leaves: usize) -> DriveConfig {
 
 fn opts(doc: &ProfileDoc, seed: Option<&str>, lift: ProfileLift) -> EvalOptions {
     EvalOptions {
-        seed: seed.map(|n| doc.var_named(n).unwrap_or(editor_core::VarId(0))),
+        seed: seed.map(|n| doc.var_named(n).unwrap_or(editor_core::VarId::new(0, 0))),
         profile_lift: lift,
         ..EvalOptions::default()
     }
@@ -940,7 +940,7 @@ fn a_sqrt_zero_tangent_forfeits_every_parameter_and_a_max_kink_forfeits_none() {
     };
     // In declaration order, the order every lane lists variables in.
     let mut want = vec![var(&doc, "h"), var(&doc, "u")];
-    want.sort_by_key(|id| doc.var_order().iter().position(|v| v == id));
+    want.sort_by_key(|id| doc.var_ids().iter().position(|v| v == id));
     assert_eq!(blockers, want);
     for p in &report.per_param {
         assert!(p.contribution.is_err(), "{:?}", p.param);
@@ -1258,7 +1258,7 @@ fn the_rss_sigma_of_every_distribution_form_derived_independently() {
                     var: doc.spoken_var(var(&doc, "u")),
                 },
             ];
-            want.sort_by_key(|b| doc.var_order().iter().position(|v| *v == b.var().id()));
+            want.sort_by_key(|b| doc.var_ids().iter().position(|v| *v == b.var().id()));
             assert_eq!(blockers, &want);
         }
         other => panic!("{other:?}"),

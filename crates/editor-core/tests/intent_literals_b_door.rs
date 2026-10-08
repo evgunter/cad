@@ -202,7 +202,10 @@ impl Unheld {
     fn formula(self, dim: Dimension) -> Formula {
         match self {
             Self::Name => Formula::named(name("nope"), dim),
-            Self::Id => Formula::var(editor_core::VarId(test_utils::refusal::tagged(9)), dim),
+            Self::Id => Formula::var(
+                editor_core::VarId::new(0, test_utils::refusal::tagged(9)),
+                dim,
+            ),
             Self::Fresh => Formula::fresh(0, dim),
         }
     }
@@ -334,7 +337,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
         .map(|node| ("edge".to_owned(), edge_doc.clone(), node))
         .collect();
     for d in corpus::documents() {
-        for &id in d.doc.order() {
+        for id in d.doc.ids() {
             let node = d
                 .doc
                 .node(id)
@@ -374,7 +377,7 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             continue;
         };
         let Some(target) = doc
-            .order()
+            .ids()
             .iter()
             .copied()
             .find(|&id| doc.node(id).is_some_and(|held| held.authored(doc) == *node))

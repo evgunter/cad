@@ -38,8 +38,7 @@ use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, failure, run};
 use crate::fixture::{ends, face_vertices, insert, len, on_frame, point};
 use editor_core::{
-    BooleanOp, BooleanValue, Evaluation, ExtrudeSide, NamingError, Node, NodeErrorKind, ProfileDoc,
-    RecipeNodeId, ValuePayload,
+    BooleanOp, BooleanValue, Evaluation, ExtrudeSide, Node, ProfileDoc, RecipeNodeId, ValuePayload,
 };
 use geom_core::Tol;
 use topo::{Body, ContactRecords};
@@ -411,46 +410,7 @@ fn every_order(
     pinches: &[Point],
     touches: &[([usize; 2], &[Contact])],
 ) {
-    every_order_but(label, fixture, counts, volume, pinches, touches, (&[], 0));
-}
-
-/// The naming refusal EMIT's #4203 (704378c3) brought to the leaning
-/// wedges' unions on main
-/// (`work/emit/a-pinch-split-per-cone-has-a-crossing-edge-with-no-classified-piece.md`).
-const UNCLASSIFIED_CROSSING: &str =
-    "a crossing's edge has no piece the boolean classified at the crossing";
-
-/// Whether `id` refuses [`UNCLASSIFIED_CROSSING`], and nothing else.
-fn refuses_unclassified_crossing(ev: &Evaluation<f64>, id: RecipeNodeId) -> bool {
-    matches!(
-        failure(ev, id),
-        Some(NodeErrorKind::Naming(NamingError::Emission { what })) if *what == UNCLASSIFIED_CROSSING
-    )
-}
-
-/// Whether `order`'s first fold step unions two of the `adjacent`
-/// members, in either order.
-fn first_step_joins(order: &[usize], adjacent: &[[usize; 2]]) -> bool {
-    adjacent
-        .iter()
-        .any(|&[a, b]| (order[0], order[1]) == (a, b) || (order[0], order[1]) == (b, a))
-}
-
-/// [`every_order`], but the member orders whose first step unions two
-/// angularly adjacent wedges (`refused.0`) assert
-/// [`UNCLASSIFIED_CROSSING`] instead, `refused.1` of them. They must
-/// build once that is fixed; the row asserts the refusal until then.
-fn every_order_but(
-    label: &str,
-    fixture: fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>),
-    counts: [usize; 3],
-    volume: f64,
-    pinches: &[Point],
-    touches: &[([usize; 2], &[Contact])],
-    refused: (&[[usize; 2]], usize),
-) {
     let mut first: Option<Outcome> = None;
-    let mut refusals = 0;
     let mut by_last: BTreeMap<usize, Outcome> = BTreeMap::new();
     let n = fixture(ProfileDoc::empty_derived("union_pinch", Tol::witness()))
         .1
@@ -461,15 +421,6 @@ fn every_order_but(
         let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
         let what = format!("{label}, member order {order:?} (0 = plate)");
         let ev = run(&doc);
-        if first_step_joins(&order, refused.0) {
-            assert!(
-                refuses_unclassified_crossing(&ev, u),
-                "{what}: refuses Naming(Emission) {UNCLASSIFIED_CROSSING:?}, got {:?}",
-                failure(&ev, u)
-            );
-            refusals += 1;
-            continue;
-        }
         let o = checked(&ev, u, &what, volume);
         assert_eq!(o.shape.counts(), counts, "{what}: faces, edges, vertices");
         for &p in pinches {
@@ -510,10 +461,6 @@ fn every_order_but(
             first = Some(o);
         }
     }
-    assert_eq!(
-        refusals, refused.1,
-        "{label}: the orders refusing {UNCLASSIFIED_CROSSING:?}"
-    );
     assert_eq!(
         first.map(|f| f.manifold),
         Some(Ok(())),
@@ -891,7 +838,6 @@ type TiltedRow = (
     fn() -> Vec<Hole>,
     fn(ProfileDoc) -> (ProfileDoc, Vec<RecipeNodeId>),
     [usize; 3],
-    (&'static [[usize; 2]], usize),
 );
 
 /// The plate's volume plus each prism's part above its top.
@@ -912,32 +858,28 @@ fn wedges_meeting_at_a_vertex_build_one_body_in_every_member_order() {
             two_wedges,
             |d| tilted_holes(d, &two_wedges()),
             [14, 30, 19],
-            (&[[1, 2]], 2),
         ),
         (
             "three wedges",
             three_wedges,
             |d| tilted_holes(d, &three_wedges()),
             [18, 39, 24],
-            (&[[1, 2], [2, 3], [1, 3]], 12),
         ),
         (
             "four wedges",
             four_wedges,
             |d| tilted_holes(d, &four_wedges()),
             [22, 48, 29],
-            (&[[1, 2], [2, 3], [3, 4], [1, 4]], 48),
         ),
     ];
-    for (label, holes, fixture, counts, refused) in rows {
-        every_order_but(
+    for (label, holes, fixture, counts) in rows {
+        every_order(
             label,
             fixture,
             counts,
             tilted_volume(&holes()),
             &[top()],
             &[],
-            refused,
         );
     }
 }
@@ -954,25 +896,22 @@ fn holes_with_a_reflex_sector_at_their_vertex_build_one_body_in_every_member_ord
             wedges_on_one_side,
             |d| tilted_holes(d, &wedges_on_one_side()),
             [18, 39, 24],
-            (&[[1, 2], [2, 3], [1, 3]], 12),
         ),
         (
             "an L and two wedges",
             ell_and_wedges,
             |d| tilted_holes(d, &ell_and_wedges()),
             [21, 48, 30],
-            (&[[2, 3]], 4),
         ),
     ];
-    for (label, holes, fixture, counts, refused) in rows {
-        every_order_but(
+    for (label, holes, fixture, counts) in rows {
+        every_order(
             label,
             fixture,
             counts,
             tilted_volume(&holes()),
             &[top()],
             &[],
-            refused,
         );
     }
 }
@@ -1002,10 +941,6 @@ fn names_at(ev: &Evaluation<f64>, id: RecipeNodeId, p: Point) -> Vec<String> {
 /// Orders that fold the plate earlier mint the vertex at another step,
 /// under another name
 /// (`work/wire/a-pinch-vertex-is-named-by-the-fold-step-that-mints-it.md`).
-///
-/// Since EMIT's #4203 every order here refuses
-/// [`UNCLASSIFIED_CROSSING`] and the row asserts that; the names are
-/// read again once it is fixed.
 #[test]
 fn the_junction_where_the_wedges_meet_has_one_name_in_every_member_order() {
     let mut first: Option<Vec<String>> = None;
@@ -1017,17 +952,6 @@ fn the_junction_where_the_wedges_meet_has_one_name_in_every_member_order() {
         let members: Vec<RecipeNodeId> = order.iter().map(|&i| m[i]).collect();
         let (doc, u) = crate::fixture::union_over(doc, &members, Vec::new());
         let ev = run(&doc);
-        // Every order here folds two wedges first, which refuses
-        // `UNCLASSIFIED_CROSSING` since EMIT's #4203 (see `every_order_but`);
-        // each must name the junction once that is fixed.
-        if first_step_joins(&order, &[[1, 2], [2, 3], [1, 3]]) {
-            assert!(
-                refuses_unclassified_crossing(&ev, u),
-                "member order {order:?}: refuses Naming(Emission) {UNCLASSIFIED_CROSSING:?}, got {:?}",
-                failure(&ev, u)
-            );
-            continue;
-        }
         if let Some(e) = failure(&ev, u) {
             panic!("member order {order:?}: refused: {e:?}");
         }
@@ -1041,6 +965,51 @@ fn the_junction_where_the_wedges_meet_has_one_name_in_every_member_order() {
             names[0].matches("Seam {").count(),
             6,
             "member order {order:?}: the junction is named by its six seam lines"
+        );
+        match &first {
+            None => first = Some(names),
+            Some(f) => assert_eq!(
+                &names, f,
+                "member order {order:?}: the meeting point's name"
+            ),
+        }
+    }
+}
+
+/// **Where two leaning wedges' legs meet at the plate's top, their union
+/// names the vertex a seam of the two legs, in either member order**:
+/// each leg lies outside the other wedge on both sides of the vertex,
+/// so neither enters or leaves the other and the vertex is no crossing.
+/// The fold reaches one wedge's copy of the vertex only through two
+/// fusions (`names::emit_topo::fused_partners`).
+#[test]
+fn two_wedges_name_their_meeting_point_a_seam_of_their_legs_in_either_order() {
+    let mut first: Option<Vec<String>> = None;
+    for order in [[1, 2], [2, 1]] {
+        let (doc, m) = tilted_holes(
+            ProfileDoc::empty_derived("union_pinch", Tol::witness()),
+            &two_wedges(),
+        );
+        let (doc, u) = crate::fixture::union_over(doc, &[m[order[0]], m[order[1]]], Vec::new());
+        let ev = run(&doc);
+        if let Some(e) = failure(&ev, u) {
+            panic!("member order {order:?}: refused: {e:?}");
+        }
+        let names = names_at(&ev, u, top());
+        assert_eq!(
+            names.len(),
+            1,
+            "member order {order:?}: the meeting point's names"
+        );
+        let n = &names[0];
+        assert!(
+            n.contains("path: [Seam {") && !n.contains("Crossing"),
+            "member order {order:?}: the meeting point is a seam, no crossing: {n}"
+        );
+        assert_eq!(
+            n.matches("role: Leg").count(),
+            2,
+            "member order {order:?}: the seam is of the two legs: {n}"
         );
         match &first {
             None => first = Some(names),

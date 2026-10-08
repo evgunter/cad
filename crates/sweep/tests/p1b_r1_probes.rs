@@ -389,9 +389,14 @@ fn fillet_products_carry_no_scaffold_at_rest() {
     // row measures what the finished body actually carries.
     let body = sweep::test_support::cube(1.0, Tol::witness());
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let filleted = fillet_edges(&body, &edges, 0.125, Tol::witness())
-        .expect("the die blank fillets")
-        .body;
+    let filleted = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges,
+        0.125,
+        Tol::witness(),
+    )
+    .expect("the die blank fillets")
+    .body;
     fence_crosscheck(&filleted, "fillet (die blank)");
 }
 
@@ -566,7 +571,7 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
     let EdgeDescriptionSpec::Chart {
         surface,
         image,
-        seam: seam_flag,
+        wrap: seam_flag,
         ..
     } = spec.description
     else {
@@ -575,7 +580,7 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
     spec.description = EdgeDescriptionSpec::Chart {
         surface,
         image,
-        seam: seam_flag,
+        wrap: seam_flag,
         declared: Some(MappedCurve::RevolvedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(Vec3::new(0.4, 0.0, 0.0)),
@@ -665,7 +670,7 @@ fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
                 body.get_curve_geom(e.curve)
                     .and_then(CurveGeom::certified)
                     .map(topo::EdgeCurve::description),
-                Some(EdgeDescription::Chart(c)) if c.seam
+                Some(EdgeDescription::Chart(c)) if c.wrap
             )
         })
         .map(|(k, _)| k)
@@ -681,12 +686,12 @@ fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
         EdgeDescriptionSpec::Chart {
             surface,
             image,
-            seam,
+            wrap,
             ..
         } => EdgeDescriptionSpec::Chart {
             surface,
             image,
-            seam,
+            wrap,
             declared: Some(dummy_declaration()),
         },
         other => panic!("expected a chart image, got {other:?}"),

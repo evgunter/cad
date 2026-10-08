@@ -77,6 +77,8 @@ mod cert5_r1_patch_probes;
 #[path = "chart_box_span.rs"]
 mod chart_box_span;
 
+#[path = "axis_rows_read_as_one_sum.rs"]
+mod axis_rows_read_as_one_sum;
 #[path = "curved_torus_arc_residual.rs"]
 mod curved_torus_arc_residual;
 #[path = "cylinder_green_conditioning.rs"]
@@ -174,6 +176,8 @@ mod pcurve_p1a_meter;
 mod pcurve_p1b_r2_probes;
 #[path = "pcurve_parameter_finding.rs"]
 mod pcurve_parameter_finding;
+#[path = "pcurve_villarceau.rs"]
+mod pcurve_villarceau;
 #[path = "r1_pxn_probes.rs"]
 mod r1_pxn_probes;
 #[path = "r2_cert3_e2e.rs"]
@@ -265,6 +269,8 @@ mod mesh12_saturated_span;
 #[path = "pcurve_mirror_v.rs"]
 mod pcurve_mirror_v;
 
+#[path = "one_sum_differential.rs"]
+mod one_sum_differential;
 #[path = "pcurve_spiric.rs"]
 mod pcurve_spiric;
 #[path = "r2_mesh7_door_probes.rs"]
@@ -273,5 +279,7 @@ mod r2_mesh7_door_probes;
 mod sphere_circle_certificate;
 #[path = "tcost_k1_budget_exit.rs"]
 mod tcost_k1_budget_exit;
+#[path = "torus_chart_guards.rs"]
+mod torus_chart_guards;
 #[path = "torus_meridian_radial.rs"]
 mod torus_meridian_radial;

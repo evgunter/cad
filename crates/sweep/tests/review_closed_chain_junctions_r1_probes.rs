@@ -220,8 +220,8 @@ fn r1_fixture_volumes_and_convexities_are_the_bodys() {
 /// closed form.
 fn carve(body: &Body<f64>, arcs: &[EdgeKey], signed: f64, what: &str) {
     let v0 = mass_properties(body, tol()).unwrap().volume;
-    let out =
-        fillet_edges(body, arcs, RHO, tol()).unwrap_or_else(|e| panic!("{what}: carves, got {e}"));
+    let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), arcs, RHO, tol())
+        .unwrap_or_else(|e| panic!("{what}: carves, got {e}"));
     assert_eq!(out.band_faces.len(), 1, "{what}: one band");
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
     let p1 = mass_properties(&out.body, tol()).unwrap();
@@ -289,8 +289,13 @@ fn r1_both_rims_of_a_three_arc_cylinder_walk_into_two_closed_chains_and_carve() 
     }
     assert_pairing_is_the_bodys(&body, &inter, &chains, "both rims");
     let v0 = mass_properties(&body, tol()).unwrap().volume;
-    let out = fillet_edges(&body, &inter, RHO, tol())
-        .unwrap_or_else(|e| panic!("both rims carve, got {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &inter,
+        RHO,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("both rims carve, got {e}"));
     assert_eq!(out.band_faces.len(), 2);
     validate_geometric(&out.body, tol()).unwrap();
     let v1 = mass_properties(&out.body, tol()).unwrap().volume;
@@ -387,7 +392,12 @@ fn r1_mixed_line_and_arc_closed_rims_pair_by_the_bodys_incidence() {
         // (measured: `UnsupportedChain`, "a closed chain's blend is not
         // a torus") — and NOT as `ChainNotG1`: the pairing judged every
         // line-into-arc junction between the two links that meet there.
-        match fillet_edges(&body, &rim, RHO, tol()) {
+        match fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &rim,
+            RHO,
+            tol(),
+        ) {
             Err(BlendRefusal {
                 error: BlendError::UnsupportedChain { .. },
                 ..
@@ -515,7 +525,12 @@ fn r1_an_open_chain_with_tangent_junctions_pairs_by_incidence_and_refuses_at_a_r
             ChainClosure::Open { head, tail } => [head, tail],
             ChainClosure::Closed => unreachable!(),
         };
-        match fillet_edges(&body, &open, RHO, tol()) {
+        match fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &open,
+            RHO,
+            tol(),
+        ) {
             Err(BlendRefusal {
                 error: BlendError::UnsupportedCorner { vertex, .. },
                 ..

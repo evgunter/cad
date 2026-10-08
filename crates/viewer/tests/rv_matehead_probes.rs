@@ -63,7 +63,7 @@ fn an_edge_named_pick_is_refused_by_the_mate_tool() {
 fn the_kind_refusal_forwards_the_head_constructors_sentence() {
     let refusal = pncad::document::FaceName::new(pncad::prelude::StableName {
         kind: EntityKind::Edge,
-        node: pncad::document::RecipeNodeId(0),
+        node: pncad::document::RecipeNodeId::new(0, 0),
         path: Vec::new(),
     })
     .expect_err("an edge is not a face name");
@@ -79,7 +79,7 @@ fn the_kind_refusal_forwards_the_head_constructors_sentence() {
 
     let operand = MateToolError::NotAnInstancePick {
         side: MateSide::A,
-        node: pncad::document::SpokenNode::absent(pncad::document::RecipeNodeId(0)),
+        node: pncad::document::SpokenNode::absent(pncad::document::RecipeNodeId::new(0, 0)),
     }
     .to_string();
     assert!(

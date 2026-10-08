@@ -433,7 +433,7 @@ fn the_range_probe_says_a_defined_variable_is_defined() {
     let said = refused.to_string();
     assert!(said.starts_with("d is defined by a formula"), "{said}");
 
-    let absent = pncad::document::VarId(0x0123_4567_89ab_cdef);
+    let absent = pncad::document::VarId::new(0, 0x0123_4567_89ab_cdef);
     let refused = session
         .perform(SessionOp::ProbeBounds {
             target: BoundsTarget::Variable { var: absent },

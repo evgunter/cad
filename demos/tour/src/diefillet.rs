@@ -506,7 +506,7 @@ pub fn corpus_text(tol: Tol) -> String {
     let empty: Doc<ProfileProgram> = Doc::empty_derived(DOC_LABEL, tol);
     let mut edits: Vec<DocEdit<ProfileProgram>> = die
         .doc
-        .order()
+        .ids()
         .iter()
         .map(|id| {
             let mut node = die
@@ -534,21 +534,20 @@ pub fn corpus_text(tol: Tol) -> String {
     }
     let built: Vec<_> = die
         .doc
-        .order()
-        .iter()
-        .copied()
+        .ids()
+        .into_iter()
         .filter(|&id| id != die.blank)
         .collect();
     assert_eq!(
-        replay.order(),
-        &built[..],
+        replay.ids(),
+        built,
         "the replay re-mints every node id `build` minted, the blank deleted"
     );
     // The ids were cleared on the strength of the insert door minting
     // them again in the same order; that precondition is checked
     // profile by profile, so a `build` that mints a step any other way
     // fails here by name.
-    for id in die.doc.order() {
+    for id in &die.doc.ids() {
         if let (Some(Node::Profile(built)), Some(Node::Profile(replayed))) =
             (die.doc.node(*id), replay.node(*id))
         {

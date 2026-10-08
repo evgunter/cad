@@ -368,7 +368,7 @@ fn a_bad_literal_step_is_refused_at_both_doors() {
 /// at the same bits, and step 0 (the literal) has no slot to write.
 #[test]
 fn a_parameter_drives_a_rigid_steps_angle() {
-    let turn = VarName::from_static("turn");
+    let turn = VarName::from_static("spin");
     let (doc, body) = cube("placement-param");
     let (doc, _) = step(
         doc,
@@ -457,7 +457,7 @@ fn a_parameter_drives_a_rigid_steps_angle() {
 /// unknown slot.
 #[test]
 fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
-    let turn = VarName::from_static("turn");
+    let turn = VarName::from_static("spin");
     let (doc, body) = cube("placement-later-steps");
     let (doc, _) = step(
         doc,
@@ -576,7 +576,7 @@ fn a_later_steps_slots_are_addressed_and_checked_at_both_doors() {
     let bad_ref = doctored(&full, |w| {
         let angle = &mut w["snapshot"]["nodes"][key.as_str()]["Transform"]["placement"]["steps"][2]
             ["Rigid"]["angle"];
-        let turn = doc.var_named("turn").expect("the fixture declares turn");
+        let turn = doc.var_named("spin").expect("the fixture declares spin");
         assert_eq!(*angle, serde_json::json!(turn.0), "aimed at the variable");
         *angle = serde_json::json!(1);
     });
@@ -741,7 +741,7 @@ fn an_old_file_is_refused_typed() {
 fn a_literal_frame_compares_by_bits() {
     let signed = Frame::translation([-0.0, 0.0, 0.25]);
     let plain = Frame::translation([0.0, 0.0, 0.25]);
-    let body = RecipeNodeId(3);
+    let body = RecipeNodeId::new(0, 3);
     let transform = |f: &Frame| -> AuthoredNode { Node::transform(body, Placement::literal(f)) };
     assert!(transform(&signed).bit_eq(&transform(&signed)));
     assert!(

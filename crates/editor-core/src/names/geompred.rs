@@ -67,7 +67,7 @@ use geom_core::{Band, BandError, Decide, Sign};
 use topo::{Body, query};
 
 use crate::eval::{DatumValue, Evaluation, NodeStanding, ValuePayload};
-use crate::expr::{Dimension, Expr, VarEnv};
+use crate::expr::{Dimension, VarEnv};
 use crate::names::InterrogateError;
 use crate::names::role::StableName;
 use crate::names::table::EntityKey;
@@ -159,9 +159,11 @@ pub enum GeomPred {
         datum: RecipeNodeId,
         /// Which side of the value a candidate must land on.
         cmp: Cmp,
-        /// The stated length. `Dimension::Length` — any other
-        /// dimension refuses.
-        value: Expr,
+        /// The stated length, as written: a quantity, or a formula
+        /// over the document's variables by id. `Dimension::Length` —
+        /// any other dimension refuses, and so does a name, which only
+        /// a document's edit door resolves.
+        value: crate::Formula,
     },
     // RESERVED, unbuilt (GS-Q2): `Convex` / `Reflex`. See the module
     // docs — the slot is named there so the door is visibly open.
@@ -651,7 +653,7 @@ mod census {
     fn name() -> Box<StableName> {
         Box::new(StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(7),
+            node: RecipeNodeId::new(0, 7),
             path: vec![RoleSeg::Cap(CapEnd::End)],
         })
     }
@@ -683,27 +685,27 @@ mod census {
                 error: InterrogateError::WholeBody,
             },
             SelectRefusal::NotADatum {
-                datum: RecipeNodeId(9),
+                datum: RecipeNodeId::new(0, 9),
                 found: "a body",
             },
             SelectRefusal::DatumHasNoValue(NodeStanding::Poisoned {
-                node: RecipeNodeId(9),
-                through: RecipeNodeId(4),
+                node: RecipeNodeId::new(0, 9),
+                through: RecipeNodeId::new(0, 4),
             }),
             SelectRefusal::NodeHasNoValue(NodeStanding::Failed {
-                node: RecipeNodeId(9),
+                node: RecipeNodeId::new(0, 9),
             }),
             SelectRefusal::NotALength {
                 dim: Dimension::Angle,
             },
             SelectRefusal::PairInBand {
                 pair: Box::new((*name(), *name())),
-                at: (RecipeNodeId(7), RecipeNodeId(8)),
+                at: (RecipeNodeId::new(0, 7), RecipeNodeId::new(0, 8)),
                 predicate: "bool_plane_side_of",
                 source: in_band(),
             },
             SelectRefusal::AcrossSpaces {
-                group: RecipeNodeId(3),
+                group: RecipeNodeId::new(0, 3),
                 cause: crate::mate::Unplaced::NoOffset,
             },
             SelectRefusal::BadValue(crate::expr::EvalError::ContinuousExprInCountEval {

@@ -631,6 +631,87 @@ pub fn posed_pyramid(base: &[[f64; 3]], apex: [f64; 3], pose: &Pose, tol: Tol) -
     finished("a pyramid", body, tol)
 }
 
+/// Three base corners relative to [`MEET`]: two at radius `r` 15° either
+/// side of `bearing` (degrees) and one at `0.6 r` on it, `rise` above
+/// it (below, where `rise` is negative).
+#[must_use]
+pub fn corners(bearing: f64, rise: f64, r: f64) -> [[f64; 3]; 3] {
+    let corner = |d: f64, r: f64| {
+        let (s, c) = (bearing + d).to_radians().sin_cos();
+        [r * c, r * s, rise]
+    };
+    [corner(15.0, r), corner(-15.0, r), corner(0.0, 0.6 * r)]
+}
+
+/// Corners mixing `base`'s by the weights `w`, one row per corner,
+/// scaled by `s`: inside `base`'s cone where every weight is positive.
+#[must_use]
+pub fn mix(base: [[f64; 3]; 3], w: [[f64; 3]; 3], s: f64) -> [[f64; 3]; 3] {
+    w.map(|w| [0, 1, 2].map(|k| s * (0..3).map(|i| w[i] * base[i][k]).sum::<f64>()))
+}
+
+/// Corners whose cone lies inside `base`'s: each mixes `base`'s three
+/// 3 : 1 : 1 ([`mix`]), scaled by `s`, so the pyramid on them reaches
+/// past `base`'s where `s` exceeds 1.
+#[must_use]
+pub fn nest(base: [[f64; 3]; 3], s: f64) -> [[f64; 3]; 3] {
+    let (a, b) = (0.6, 0.2);
+    mix(base, [[a, b, b], [b, a, b], [b, b, a]], s)
+}
+
+/// A corner relative to [`MEET`]: radius `r` at `bearing` (degrees), `z`
+/// above it.
+#[must_use]
+pub fn bearing(deg: f64, r: f64, z: f64) -> [f64; 3] {
+    let (s, c) = deg.to_radians().sin_cos();
+    [r * c, r * s, z]
+}
+
+/// [`nest`] for any number of corners: each weighs its own 0.6 and the
+/// rest 0.4 between them, scaled by `s`.
+#[must_use]
+pub fn nest_polygon(base: &[[f64; 3]], s: f64) -> Vec<[f64; 3]> {
+    let n = base.len();
+    (0..n)
+        .map(|i| {
+            [0, 1, 2].map(|k| {
+                s * (0..n)
+                    .map(|j| {
+                        let w = if i == j { 0.6 } else { 0.4 / (n as f64 - 1.0) };
+                        w * base[j][k]
+                    })
+                    .sum::<f64>()
+            })
+        })
+        .collect()
+}
+
+/// The pyramid with its apex at [`MEET`] over the planar polygon `base`
+/// (relative to it, convex or not), wound outward whichever way `base`
+/// runs, placed by `pose` ([`posed_pyramid`]).
+#[must_use]
+pub fn apex_pyramid(base: &[[f64; 3]], pose: &Pose, tol: Tol) -> AtRestBody<f64> {
+    let n = base.len();
+    let (mut normal, mut centre) = ([0.0; 3], [0.0; 3]);
+    for i in 0..n {
+        let (a, b) = (base[i], base[(i + 1) % n]);
+        normal[0] += (a[1] - b[1]) * (a[2] + b[2]);
+        normal[1] += (a[2] - b[2]) * (a[0] + b[0]);
+        normal[2] += (a[0] - b[0]) * (a[1] + b[1]);
+        for k in 0..3 {
+            centre[k] += a[k] / n as f64;
+        }
+    }
+    let mut at: Vec<[f64; 3]> = base
+        .iter()
+        .map(|q| [0, 1, 2].map(|k| MEET[k] + q[k]))
+        .collect();
+    if (0..3).map(|k| normal[k] * centre[k]).sum::<f64>() > 0.0 {
+        at.reverse();
+    }
+    posed_pyramid(&at, MEET, pose, tol)
+}
+
 /// Boxes `[x, y, z]` placed by `pose`, as the solids of one body, built
 /// under the caller's `tol`: where two touch, the body holds its own
 /// contact there.

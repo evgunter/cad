@@ -297,8 +297,13 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
         let fused = kernel_union(side, body_of(&ev, other));
         assert_eq!(bits(body_of(&ev, joined)), bits(&fused), "{h:?}: boolean");
         let keys = edge_keys(&ev, p, &selection);
-        let filleted = sweep::blend::build::fillet_edges(side, &keys, RADIUS, Tol::witness())
-            .expect("the kernel fillet succeeds");
+        let filleted = sweep::blend::build::fillet_edges(
+            &sweep::test_support::at_rest(side, Tol::witness()),
+            &keys,
+            RADIUS,
+            Tol::witness(),
+        )
+        .expect("the kernel fillet succeeds");
         assert_eq!(
             bits(body_arc(&ev, rounded)),
             bits(&filleted.body),
@@ -679,7 +684,7 @@ fn the_two_section_planes_of_one_split_carry_distinct_sources() {
     );
     let split = *cd
         .doc
-        .order()
+        .ids()
         .iter()
         .find(|id| matches!(cd.doc.node(**id), Some(Node::Split { .. })))
         .expect("the split");
@@ -689,7 +694,7 @@ fn the_two_section_planes_of_one_split_carry_distinct_sources() {
             .surfaces()
             .filter_map(|(k, s)| {
                 b.surface_source(k)
-                    .filter(|src| src.node == split.0)
+                    .filter(|src| src.node == split.0.digest())
                     .map(|src| (src.clone(), s.clone()))
             })
             .collect();
@@ -921,7 +926,7 @@ fn project_narrows_a_tie_by_the_flush_rule() {
     let ent = |body: u32, key: EntityKey| EntityRef { body, key };
     let name = |h: SplitHalf| StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(7),
+        node: RecipeNodeId::new(0, 7),
         path: vec![RoleSeg::SplitBody(h)],
     };
     let (inside, outside) = (name(SplitHalf::Above), name(SplitHalf::Below));

@@ -451,9 +451,9 @@ mod tests {
     /// A row as `tree::rows` builds one for a `Datum::Frame` node.
     fn frame_row(id: u64, pose: &str) -> TreeRow {
         TreeRow {
-            id: RecipeNodeId(test_utils::refusal::tagged(id)),
+            id: RecipeNodeId::new(0, test_utils::refusal::tagged(id)),
             spoken: spoken(
-                RecipeNodeId(test_utils::refusal::tagged(id)),
+                RecipeNodeId::new(0, test_utils::refusal::tagged(id)),
                 Some("Datum frame"),
             ),
             pose: Some(pose.to_owned()),
@@ -503,9 +503,9 @@ mod tests {
     #[test]
     fn a_row_with_nothing_more_to_say_reads_as_its_kind() {
         let row = TreeRow {
-            id: RecipeNodeId(test_utils::refusal::tagged(1)),
+            id: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
             spoken: spoken(
-                RecipeNodeId(test_utils::refusal::tagged(1)),
+                RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
                 Some("Extrude"),
             ),
             pose: None,
@@ -552,8 +552,11 @@ mod tests {
     /// derive, as `tree::rows` builds one: `Failed`, with the link.
     fn placer_refused_row(repair_at: Option<SpokenNode>) -> TreeRow {
         TreeRow {
-            id: RecipeNodeId(test_utils::refusal::tagged(7)),
-            spoken: spoken(RecipeNodeId(test_utils::refusal::tagged(7)), Some("Mate")),
+            id: RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
+            spoken: spoken(
+                RecipeNodeId::new(0, test_utils::refusal::tagged(7)),
+                Some("Mate"),
+            ),
             pose: None,
             depth: 0,
             root: false,
@@ -637,7 +640,7 @@ mod tests {
     /// stay this row's own and go nowhere.
     #[test]
     fn a_failed_rows_link_to_the_node_to_repair_selects_it() {
-        let placer = RecipeNodeId(test_utils::refusal::tagged(3));
+        let placer = RecipeNodeId::new(0, test_utils::refusal::tagged(3));
         let row = placer_refused_row(Some(spoken(placer, Some("Datum frame"))));
         let link = tree::link_wording(&spoken(placer, Some("Datum frame")));
         assert_eq!(
@@ -677,7 +680,7 @@ mod tests {
     /// A poisoned row's pointer is still the click to `through`.
     #[test]
     fn a_poisoned_rows_pointer_selects_the_row_it_names() {
-        let through = RecipeNodeId(test_utils::refusal::tagged(7));
+        let through = RecipeNodeId::new(0, test_utils::refusal::tagged(7));
         let pointer = tree::downstream_wording(&spoken(through, Some("Fillet")));
         let row = TreeRow {
             status: RowStatus::Poisoned {
@@ -866,7 +869,7 @@ mod tests {
             &painted,
             &format!(
                 "Measure {} {GLYPH_ROOT}",
-                test_utils::refusal::tag(fixture.distance.0)
+                test_utils::refusal::tag(fixture.distance.0.digest())
             ),
         );
         assert!(
@@ -912,8 +915,11 @@ mod tests {
         use pncad::select::SplitHalf;
 
         let row = |readout| TreeRow {
-            id: RecipeNodeId(test_utils::refusal::tagged(4)),
-            spoken: spoken(RecipeNodeId(test_utils::refusal::tagged(4)), Some("Split")),
+            id: RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
+            spoken: spoken(
+                RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
+                Some("Split"),
+            ),
             pose: None,
             depth: 0,
             root: false,
@@ -975,7 +981,10 @@ mod tests {
         assert_under(
             find(
                 &painted,
-                &format!("Measure {}", test_utils::refusal::tag(fixture.clearance.0)),
+                &format!(
+                    "Measure {}",
+                    test_utils::refusal::tag(fixture.clearance.0.digest())
+                ),
             ),
             line,
         );
@@ -1001,7 +1010,10 @@ mod tests {
         assert_eq!(
             drawn,
             vec![
-                format!("Measure {}", test_utils::refusal::tag(fixture.failed.0)),
+                format!(
+                    "Measure {}",
+                    test_utils::refusal::tag(fixture.failed.0.digest())
+                ),
                 "FAILED".to_owned(),
                 message.clone()
             ],
@@ -1109,7 +1121,7 @@ mod tests {
             &painted,
             &format!(
                 "Assertion {} {GLYPH_ROOT}",
-                test_utils::refusal::tag(fixture.holds.0)
+                test_utils::refusal::tag(fixture.holds.0.digest())
             ),
         );
         let state = find(&painted, state_of(&fixture, fixture.holds));
@@ -1164,7 +1176,7 @@ mod tests {
             vec![
                 format!(
                     "Assertion {} {GLYPH_ROOT}",
-                    test_utils::refusal::tag(fixture.violated.0)
+                    test_utils::refusal::tag(fixture.violated.0.digest())
                 )
                 .as_str(),
                 state,
@@ -1280,7 +1292,7 @@ mod tests {
             vec![
                 format!(
                     "Assertion {} {GLYPH_ROOT}",
-                    test_utils::refusal::tag(fixture.indeterminate.0)
+                    test_utils::refusal::tag(fixture.indeterminate.0.digest())
                 )
                 .as_str(),
                 state,
@@ -1313,7 +1325,7 @@ mod tests {
         let row = fixture.row(fixture.unavailable);
         let pointer = format!(
             "see Measure {}",
-            test_utils::refusal::tag(fixture.clearance.0)
+            test_utils::refusal::tag(fixture.clearance.0.digest())
         );
         let drawn = painted(|ui| feature_row_drawn(ui, &row, &Theme::DEFAULT));
         assert_eq!(
@@ -1321,7 +1333,7 @@ mod tests {
             vec![
                 format!(
                     "Assertion {} {GLYPH_ROOT}",
-                    test_utils::refusal::tag(fixture.unavailable.0)
+                    test_utils::refusal::tag(fixture.unavailable.0.digest())
                 ),
                 state_of(&fixture, fixture.unavailable).to_owned(),
                 pointer.clone()
@@ -1354,12 +1366,12 @@ mod tests {
             vec![
                 format!(
                     "Assertion {} {GLYPH_ROOT}",
-                    test_utils::refusal::tag(fixture.poisoned.0)
+                    test_utils::refusal::tag(fixture.poisoned.0.digest())
                 ),
                 "POISONED".to_owned(),
                 format!(
                     "upstream failure at Measure {} — that row carries the cause",
-                    test_utils::refusal::tag(fixture.failed.0)
+                    test_utils::refusal::tag(fixture.failed.0.digest())
                 )
             ],
         );
@@ -1385,9 +1397,9 @@ mod tests {
     /// An instance row, as `tree::rows` builds one.
     fn instance_row() -> TreeRow {
         TreeRow {
-            id: RecipeNodeId(test_utils::refusal::tagged(4)),
+            id: RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
             spoken: spoken(
-                RecipeNodeId(test_utils::refusal::tagged(4)),
+                RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
                 Some("InstantiatePart"),
             ),
             pose: Some(crate::test_support::PART_FILE.to_owned()),
@@ -1438,7 +1450,7 @@ mod tests {
     fn a_row_that_is_no_instance_draws_no_toggle() {
         let row = TreeRow {
             spoken: spoken(
-                RecipeNodeId(test_utils::refusal::tagged(4)),
+                RecipeNodeId::new(0, test_utils::refusal::tagged(4)),
                 Some("Extrude"),
             ),
             pose: None,

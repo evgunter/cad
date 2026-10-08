@@ -1929,7 +1929,7 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         (got - 0.5).abs() < 1e-9,
         "and that wall is a cylinder at the authored radius, not {got}"
     );
-    let attached: Vec<editor_core::Expr> = pv.edge_radii[0]
+    let attached: Vec<editor_core::Formula> = pv.edge_radii[0]
         .iter()
         .flatten()
         .map(|v| written(&doc, *v))
@@ -2674,7 +2674,7 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
         )
         .expect("a fused step over a bulge spec is authorable and replays");
     let doc = applied.doc;
-    let profile = *doc.order().last().expect("the inserted profile node");
+    let profile = *doc.ids().last().expect("the inserted profile node");
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
@@ -3328,6 +3328,6 @@ fn every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither() {
 }
 
 /// What a program argument reading `var` was written as.
-fn written(doc: &editor_core::ProfileDoc, var: editor_core::VarId) -> editor_core::Expr {
+fn written(doc: &editor_core::ProfileDoc, var: editor_core::VarId) -> editor_core::Formula {
     doc.written(&editor_core::Expr::var(var, editor_core::Dimension::Length))
 }

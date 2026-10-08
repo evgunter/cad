@@ -1167,6 +1167,9 @@ BOUND_AS = {
     "CensusContact": "ValidationFinding.contact_kind",
     "CensusSubject": "ValidationFinding.subject_kind",
     "RingContact": "ValidationFinding.ring_contact_kind",
+    # `ring_meets_ring`'s, the same words for the same shapes between
+    # two rings of one face.
+    "RingPairContact": "ValidationFinding.ring_contact_kind",
     "StaleDeclaration": "ValidationFinding.stale_kind",
     # NAME RESOLUTION across re-evaluation, the verdict a stored name
     # gets on the next run. `Resolution` is spelled identically and is
@@ -2296,6 +2299,12 @@ NOT_BOUND = {
     "AuthoredLeaf": SHAPE,
     "ExprTree": SHAPE,
     "LeafSet": SHAPE,
+    # What a formula's leaves hold, which Rust names so a reader can
+    # say it: a Python caller reads a lone one's value and unit off
+    # `Formula.literal_value` and `Formula.text`, and builds a constant
+    # with `Formula.ratio`.
+    "Quantity": SHAPE,
+    "Ratio": SHAPE,
     "StoredLeaf": SHAPE,
     # How a sentence names a node. Python reads a node's sentence inside
     # the error a door raises, already spoken; its machine spelling is
@@ -2308,6 +2317,9 @@ NOT_BOUND = {
     # each door's message is spoken from the evaluated document, and a
     # `MateFault` an edit door refused carries the nodes it kept.
     "FullId": SHAPE,
+    # The pair an id is: Python reads it whole through the same repr,
+    # and orders nothing by it.
+    "MintId": SHAPE,
     "HeldNodes": SHAPE,
     "held_by": SHAPE,
     # The name tables a speaker says names within: the binding speaks
@@ -3597,7 +3609,6 @@ MEMBERS_BOUND_AS = {
     "EditError::SetProgramOnNonProfile": "EditError.variant",
     "EditError::SetExtrudeSideOnNonExtrude": "EditError.variant",
     "EditError::StepIdsRefused": "EditError.variant",
-    "EditError::NodeIdCollides": "EditError.variant",
     "EditError::NameStepNeverMinted": "EditError.variant",
     "EditError::TooFewMembers": "EditError.variant",
     "EditError::DeleteWouldDangle": "EditError.variant",
@@ -3620,7 +3631,6 @@ MEMBERS_BOUND_AS = {
     "EditError::DeleteAnonymousVar": "EditError.variant",
     "EditError::SlotUnresolvedVar": "EditError.variant",
     "EditError::PayloadUnresolvedVar": "EditError.variant",
-    "EditError::VarIdCollides": "EditError.variant",
     "EditError::FreshUnheld": "EditError.variant",
     "EditError::FreshKind": "EditError.variant",
     "EditError::FreshUnread": "EditError.variant",
@@ -3695,6 +3705,9 @@ MEMBERS_BOUND_AS = {
     "EvalError::CountOverflow": "EvalError.variant",
     "EvalError::CountToScalarOutOfRange": "EvalError.variant",
     "EvalError::NonFiniteResult": "EvalError.variant",
+    # A name or fresh read evaluated outside a document: the lowering's
+    # own words ride `EvalError.variant` (`unlowered_name`, ...).
+    "EvalError::Unlowered": "EvalError.variant",
     "FmtQuantityError::NonFinite": "FmtQuantityError.variant",
     "HitTestError::Standing": "HitTestError.variant",
     "HitTestError::EvaluationOfAnotherDocument": "HitTestError.variant",
@@ -3751,6 +3764,7 @@ MEMBERS_BOUND_AS = {
     "ParseError::TrailingInput": "ParseError.variant",
     "ParseError::MalformedNumber": "ParseError.variant",
     "ParseError::IntegerOverflow": "ParseError.variant",
+    "ParseError::RatioPartNotInteger": "ParseError.variant",
     "ParseError::UnknownUnit": "ParseError.variant",
     "ParseError::UnknownFunction": "ParseError.variant",
     "ParseError::WrongArity": "ParseError.variant",
@@ -3856,6 +3870,7 @@ MEMBERS_BOUND_AS = {
     "SplitError::PlacingMateLeft": "SplitError.variant",
     "SplitError::MateFrameCrosses": "SplitError.variant",
     "SplitError::UncutVarReference": "SplitError.variant",
+    "SplitError::DefinitionStraddlesCut": "SplitError.variant",
     "SplitError::UnresolvedVarCrossesCut": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
@@ -3956,6 +3971,10 @@ MEMBERS_BOUND_AS = {
     "ValidationError::RingContactEscalated": "ValidationFinding.variant",
     "ValidationError::RingOutsideOuter": "ValidationFinding.variant",
     "ValidationError::RingNestingUndecided": "ValidationFinding.variant",
+    "ValidationError::RingMeetsRing": "ValidationFinding.variant",
+    "ValidationError::RingPairContactEscalated": "ValidationFinding.variant",
+    "ValidationError::PinchCornerCrossed": "ValidationFinding.variant",
+    "ValidationError::PinchCornerEscalated": "ValidationFinding.variant",
     "ValidationError::ShellWinding": "ValidationFinding.variant",
     "ValidationError::SolidOuterShells": "ValidationFinding.variant",
     "ValidationError::ShellRoleUndecided": "ValidationFinding.variant",

@@ -493,7 +493,7 @@ fn plate() -> corpus::CorpusDoc {
 
 fn profile_node_of(doc: &corpus::CorpusDoc) -> editor_core::RecipeNodeId {
     *doc.doc
-        .order()
+        .ids()
         .iter()
         .find(|id| matches!(doc.doc.node(**id), Some(Node::Profile(_))))
         .expect("the plate has a profile node")

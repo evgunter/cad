@@ -22,7 +22,7 @@
 //!   the one value the viewport draws them from;
 //! - [`focus`] — **not a cursor question at all**: which drawn
 //!   patches the side panel's selection is RESPONSIBLE for, which for
-//!   a variable means walking `doc.order()` for the nodes it drives.
+//!   a variable means walking `doc.ids()` for the nodes it drives.
 //!   It reaches for an index because that is where the ids live, not
 //!   because it is about a pick.
 //!
@@ -726,7 +726,7 @@ pub fn focus(index: &PickIndex, doc: &Doc<ProfileProgram>, selection: &Selection
         // selection with no geometry of its own, and the useful
         // question about it is exactly "what does this number move".
         Selection::Variable(var) => doc
-            .order()
+            .ids()
             .iter()
             .copied()
             .filter(|&id| drives(doc, id, *var))

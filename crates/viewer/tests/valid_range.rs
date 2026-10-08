@@ -245,8 +245,8 @@ fn the_search_terminates_within_its_advertised_cost() {
 /// existing failure is not a boundary.
 #[test]
 fn a_value_that_fixes_a_failure_is_not_a_boundary() {
-    let a = pncad::document::RecipeNodeId(1);
-    let b = pncad::document::RecipeNodeId(2);
+    let a = pncad::document::RecipeNodeId::new(0, 1);
+    let b = pncad::document::RecipeNodeId::new(0, 2);
     let baseline = Verdict::from_nodes([a]);
     assert!(Verdict::from_nodes([a]).no_worse_than(&baseline));
     assert!(
@@ -398,7 +398,7 @@ fn probing_a_field_that_is_not_there_refuses_typed() {
 
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Variable {
-            var: pncad::document::VarId(0x6e6f_7065),
+            var: pncad::document::VarId::new(0, 0x6e6f_7065),
         },
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchVariable(_))));

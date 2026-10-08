@@ -508,7 +508,7 @@ impl SlotDriver {
     /// arithmetic, however constant — is driven, which is the
     /// conservative direction: refusing to overwrite a computed slot
     /// is recoverable, silently flattening one to a number is not.
-    pub fn of(doc: &Doc<ProfileProgram>, expr: &Expr) -> Self {
+    pub fn of(doc: &Doc<ProfileProgram>, expr: &Formula) -> Self {
         let mut refs = Vec::new();
         expr.var_reads(&mut refs);
         if refs.is_empty() && expr.child(0).is_none() {
@@ -981,7 +981,7 @@ pub struct DefinedRow {
 /// shows at the slot that reads it.
 pub fn defined_rows(doc: &Doc<ProfileProgram>) -> Vec<DefinedRow> {
     let env = doc.var_env::<f64>();
-    doc.var_order()
+    doc.var_ids()
         .iter()
         .filter_map(|&var| {
             doc.var_name(var)?;
@@ -1138,7 +1138,7 @@ pub fn equal_variables(
     let Some(value) = value_of(own) else {
         return Vec::new();
     };
-    doc.var_order()
+    doc.var_ids()
         .iter()
         .copied()
         .filter(|&var| var != own)
@@ -1186,7 +1186,7 @@ pub fn variable_label(doc: &Doc<ProfileProgram>, var: VarId) -> String {
     if let Some(name) = doc.var_name(var) {
         return name.to_string();
     }
-    doc.order()
+    doc.ids()
         .iter()
         .find_map(|&node| {
             let slot = doc

@@ -53,3 +53,32 @@ reads a cone sector (`splitting::neighborhood`, which takes the
 cylinder's arm for it).
 Behind this site: the join's cone germ pairs
 (`cone-pairs-in-general-pose-have-no-section-arm`, `VERBS-CONE`).
+
+## Evidence (2026-10-07, TANG `tang/cone-ring-island-winding`)
+
+Found while reaching for a cone face's ring lane, using the pose in
+`crates/sweep/tests/a_ring_on_a_cone_face.rs`. That pose is a box turned
+−50° about `z`, whose edge pierces the wall of a π/6 cone twice. Both
+faces at the edge cut the cone in ellipses.
+
+The experiment was never committed. With `Cone` on both rosters
+(`reduce::boolean_arm_exists`, `revert_arm_exists`) and `sector_face`'s
+cone arm let through, every op refuses
+`CurvedBooleanUnsupported { kind: Cone }` one site further on, at
+`vtxfac` where the box's vertex lands on the cone face.
+`face_outward_normal_at` has no cone arm, and its `Ok(None)` is that
+site's refusal.
+
+With a plane×cone germ lane added beside the cylinder's, the next site
+behind that one is the join's germ-pair dispatch: `bool_connect`'s
+`no_arm`, `CurvedBooleanUnsupported`. Past it,
+`chord_join::bool_planar_chord_spec` would refuse the planar side's
+chord as `SectionInvariant` ("boolean planar-side germ partner is
+neither a cylinder nor a sphere (arm not wired)").
+
+The ring lane behind all of these is wired: a cone face winds its
+island and re-homes its rings by `chord_join::path_island_winding` and
+`path_ring_side`. The sweep row there holds the crossings to the closed
+form and pins every op at the pair gate. It goes red when this item, with
+`VERBS-CONE`, opens the gate, and then becomes the lane's first public
+row: the six ops at tiers 3 and 3′, against a slice-integral volume.

@@ -285,9 +285,9 @@ fn unusable_nodes_refuse_typed_and_unnamed_is_loud() {
         }))
     );
     assert_eq!(
-        body_name(&ev, RecipeNodeId(tagged(9999)), 0),
+        body_name(&ev, RecipeNodeId::new(0, tagged(9999)), 0),
         Err(HitTestError::Standing(NodeStanding::NotInDocument {
-            node: RecipeNodeId(tagged(9999))
+            node: RecipeNodeId::new(0, tagged(9999))
         }))
     );
     // The Unnamed bug door: a node whose (legitimately empty) table
@@ -351,8 +351,8 @@ test_utils::f6_variants! {
 /// cites, and its roster had drifted from the other one.
 #[test]
 fn hit_test_error_display_names_its_content_not_its_struct() {
-    let node = RecipeNodeId(tagged(7));
-    let through = RecipeNodeId(tagged(3));
+    let node = RecipeNodeId::new(0, tagged(7));
+    let through = RecipeNodeId::new(0, tagged(3));
     // Two faces of ONE node, differing only in their role path — the
     // shared-edge tie's own shape, and the case that says the
     // rendering carries the path.

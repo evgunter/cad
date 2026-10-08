@@ -67,7 +67,7 @@ fn plane() -> RecipeNodeId {
 
 /// The profile of a document [`doc_of`] built: its second node.
 fn profile(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.order()[1]
+    doc.ids()[1]
 }
 
 fn empty() -> ProfileDoc {
@@ -178,11 +178,16 @@ fn read_back(doc: &editor_core::ProfileDoc, step: u32, arg: StepArg) -> (f64, &'
     let Some(e) = doc.expr_at(&slot(doc, step, arg)) else {
         panic!("the document addresses ({step}, {arg:?})")
     };
+    // A dimensionless argument reads back as the bare number it is,
+    // whose notation is the dimensionless row's.
+    if let Some(r) = e.as_ratio() {
+        return (r.eval::<f64>(), "");
+    }
     let Some(v) = e.literal_value() else {
-        panic!("a recorded argument is a literal")
+        panic!("a recorded argument is a written value")
     };
     let Some(u) = e.display_unit() else {
-        panic!("a literal always names its notation")
+        panic!("a written value always names its notation")
     };
     (v, u.symbol())
 }

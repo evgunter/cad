@@ -437,14 +437,12 @@ enum HostFoot {
 /// # One shape this door does not serve, measured
 ///
 /// **A CURVED single face carrying every arc CAN arise, and refuses.**
-/// It is reachable through `topo`'s public `kef` — kill one of a sphere
-/// wall's two seam meridians and the remaining face carries both rim
-/// arcs — and through no sweep or boolean door. It refuses at the
-/// half-band gate (on the `Struts` route, a full revolve's plane side
-/// being one face), and never carves:
-/// `work/blend/curved-single-host-rim-refuses-at-the-half-band-gate.md`,
-/// rowed by
-/// `fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`.
+/// It is reachable through `topo`'s public `kef_describing` — kill one
+/// of a cylinder wall's two seam meridians and restate the other as the
+/// wall's wrap edge, and the remaining face carries both rim arcs and
+/// finishes — and through no sweep or boolean door. It refuses at the
+/// half-band gate on either route, and never carves
+/// (`fillet_h5_r2_probes::a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`).
 ///
 /// A RINGED host is served under [`Self::Struts`]: the band's host trim
 /// becomes that face's new outer boundary, and each ring is admissible
@@ -1565,8 +1563,8 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         // feet IN this cycle, so an edge of it the request did not name
         // would end up inside a strip the carve excises. The recourse is
         // true at the site because its clause asks for the rim to be the
-        // host's WHOLE outer cycle. Rowed by
-        // `fillet_h5_r2_probes::a_hostless_host_with_an_unrequested_outer_cycle_edge_refuses_at_the_host_gate`.
+        // host's WHOLE outer cycle. A finished host reaches it through a
+        // pinch: `fillet_h5_r2_probes::a_finished_pinched_host_refuses_at_the_hostless_gate`.
         if cycle != want {
             return Err(unbuilt_chain(
                 link0.edge,
@@ -5150,7 +5148,7 @@ fn attach_contact<T: Decide + Bounds + topo::AtRestPolicy>(
                  close as an annulus",
             ));
         }
-        EdgeDescriptionSpec::seam(s1)
+        EdgeDescriptionSpec::wrap(s1)
     } else if transverse {
         // The chamfer's edges and the ruled band's cut-off arcs: two
         // surfaces crossing at a definite angle, so the intrinsic

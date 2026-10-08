@@ -238,7 +238,7 @@ fn the_parametric_living_walk() {
         ref other => panic!("expected the declare door's refusal, got {other:?}"),
     }
     assert!(outcome.committed.is_empty(), "a refusal commits nothing");
-    let absent = pncad::document::VarId(0x7461_7070_6572);
+    let absent = pncad::document::VarId::new(0, 0x7461_7070_6572);
     let outcome = session.perform(SessionOp::SetVariable {
         var: absent,
         value: SlotValue::Continuous(0.5),
@@ -477,7 +477,7 @@ fn the_parametric_living_walk() {
     );
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Variable {
-            var: pncad::document::VarId(0x7461_7070_6572),
+            var: pncad::document::VarId::new(0, 0x7461_7070_6572),
         },
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchVariable(_))));

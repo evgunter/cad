@@ -88,7 +88,7 @@ fn one_call_hollow_ring() {
     let hole_seams = meridians[1]
         .iter()
         .flatten()
-        .filter(|m| chart_image(&t.body, **m).seam && !authority(&t.body, **m).is_declared())
+        .filter(|m| chart_image(&t.body, **m).wrap && !authority(&t.body, **m).is_declared())
         .count();
     assert_eq!(hole_seams, 2);
 

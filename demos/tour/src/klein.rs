@@ -725,7 +725,7 @@ fn corner_edges<S: Scalar>(body: &Body<S>, a: SurfaceKind, b: SurfaceKind) -> Ve
 /// wall's corner, `RF − WALL/2` on the outer's (findings entry 1's
 /// bookkeeping — the centre of curvature lies away from the axis).
 fn roll_the_meridian_blends<S: Scalar>(
-    sharp: &Body<S>,
+    sharp: &AtRestBody<S>,
     corners: &[EdgeKey],
     m: &Meridian,
     tol: Tol,
@@ -737,9 +737,14 @@ fn roll_the_meridian_blends<S: Scalar>(
         .body;
     // The outer corner's key survives the first roll: that blend's
     // surgery touches the inner wall's faces only.
-    fillet_edges(&once, &[outer], S::from_f64(m.rf - half), tol)
-        .unwrap_or_else(|e| panic!("the outer corner rolls at RF − WALL/2: {e:?}"))
-        .body
+    fillet_edges(
+        &finished("once", once, tol),
+        &[outer],
+        S::from_f64(m.rf - half),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the outer corner rolls at RF − WALL/2: {e:?}"))
+    .body
 }
 
 /// A sharp band's two neck→flare corners as `(inner wall's, outer
@@ -1043,10 +1048,18 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // ONE question asked of two bodies, and the pair is the finding:
     // the same corner, on a full and a partial revolve of the SAME
     // band (the full revolve rolls; the partial is wall 2).
-    let sharp_full = bulb::<S>(sharp_band::<S>(&m, tol), Revolution::Full, tol);
-    let sharp_part = bulb::<S>(
-        sharp_band::<S>(&m, tol),
-        Revolution::Partial(S::from_f64(5.0)),
+    let sharp_full = finished(
+        "sharp_full",
+        bulb::<S>(sharp_band::<S>(&m, tol), Revolution::Full, tol),
+        tol,
+    );
+    let sharp_part = finished(
+        "sharp_part",
+        bulb::<S>(
+            sharp_band::<S>(&m, tol),
+            Revolution::Partial(S::from_f64(5.0)),
+            tol,
+        ),
         tol,
     );
     let full_edges = corner_edges(&sharp_full, SurfaceKind::Cone, SurfaceKind::Cylinder);

@@ -1374,7 +1374,17 @@ impl<T: Real> ArcCarrier<T> {
         let along = (dist_squared + rho1.powi(2) - rho2.powi(2)) / (dist + dist);
         let base = self.center + link * (along / dist);
         if external == Sign::Zero || internal == Sign::Zero {
-            return Ok(OffsetCentres::tangent(base));
+            // Decided tangent: the radical foot lies on the link, so its
+            // radial projections onto the two offset circles are their
+            // nearest points, and the centre is midway between them.
+            let near = |centre: Point2<T>, offset: T| {
+                let spoke = base - centre;
+                centre + spoke * (offset / spoke.norm())
+            };
+            let (on_self, on_other) = (near(self.center, r1), near(other.center, r2));
+            return Ok(OffsetCentres::tangent(
+                on_self + (on_other - on_self) * T::from_f64(0.5),
+            ));
         }
         let half = (rho1.powi(2) - along.powi(2)).sqrt();
         let offset = left_normal(link) * (half / dist);
@@ -1392,10 +1402,20 @@ impl<T: Real> ArcCarrier<T> {
 /// both offset carriers over the reals wherever the decided-positive
 /// radicand is, and each tangent point — the centre's foot on its leg's
 /// carrier — is the fillet radius from it. **A decided tangency proves
-/// nothing**: the one candidate is the foot (or the link point) the
-/// offset carriers would touch at, which is on them only to the
+/// nothing**: the one candidate is the point the offset carriers would
+/// touch at — the foot on the offset line, or the point on the link
+/// midway between the two offset circles — which is on them only to the
 /// `fillet_offset_*` classification that called them tangent
-/// ([`crate::Facts::Decided`]).
+/// ([`crate::Facts::Decided`]). Its distances from the two offset
+/// carriers sum to their gap `g`, so the fillet's two rims carry `g`
+/// between them: the midpoint puts `g/2` on each rim, the foot puts `g`
+/// on the circle's and nothing on the line's. Where the carriers are
+/// separated by `g`, no centre lies nearer both, and that sum is the
+/// floor. Where they overlap by `g`, they really cross at two points
+/// that carry no rim error, but those sit about `√(g·ρ)` off the
+/// link, where their place is ill-conditioned in `g`. The decision
+/// says tangent, so one candidate is returned, and on that side `g` is
+/// a bound on its rims rather than the least they could be.
 struct OffsetCentres<T: Real> {
     centres: Vec<Point2<T>>,
     facts: crate::Facts,

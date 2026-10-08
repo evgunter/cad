@@ -43,16 +43,26 @@ const R: f64 = 0.25;
 fn convex_carve() -> (Body<f64>, Vec<FaceKey>) {
     let body = cube(2.0, Tol::witness());
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let out = fillet_edges(&body, &edges, R, Tol::witness())
-        .expect("a cube's twelve convex edges fillet");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges,
+        R,
+        Tol::witness(),
+    )
+    .expect("a cube's twelve convex edges fillet");
     (out.body, out.corner_faces)
 }
 
 /// The all-concave carve: the vented cavity's twelve edges.
 fn concave_carve() -> (Body<f64>, Vec<FaceKey>) {
     let body = vented_cavity();
-    let out = fillet_edges(&body, &cavity_edges(&body), R, Tol::witness())
-        .expect("the cavity's twelve concave edges fillet");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &cavity_edges(&body),
+        R,
+        Tol::witness(),
+    )
+    .expect("the cavity's twelve concave edges fillet");
     (out.body, out.corner_faces)
 }
 
@@ -341,8 +351,13 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(reflex.len(), 1, "the bracket's one reflex vertical edge");
-    let refused =
-        fillet_edges(&bracket, &reflex, 0.1, Tol::witness()).expect_err("a mixed corner refuses");
+    let refused = fillet_edges(
+        &sweep::test_support::at_rest(&bracket, Tol::witness()),
+        &reflex,
+        0.1,
+        Tol::witness(),
+    )
+    .expect_err("a mixed corner refuses");
     match refused.error {
         BlendError::UnsupportedCorner {
             corner: CornerConfig::MixedConvexity { convex },
@@ -411,7 +426,12 @@ fn r2_no_sliver_wedge_pose_is_silently_wrong_on_the_corner_path() {
             .body;
             let edges: Vec<EdgeKey> = prism.edges().map(|(k, _)| k).collect();
             let pose = format!("thickness {thickness}, radius {radius}");
-            match fillet_edges(&prism, &edges, radius, Tol::witness()) {
+            match fillet_edges(
+                &sweep::test_support::at_rest(&prism, Tol::witness()),
+                &edges,
+                radius,
+                Tol::witness(),
+            ) {
                 Ok(out) => {
                     carved += 1;
                     assert_eq!(topo::validate(&out.body), Ok(()), "{pose}: tier 1");

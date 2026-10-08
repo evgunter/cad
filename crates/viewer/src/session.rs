@@ -58,11 +58,10 @@ use std::sync::Arc;
 
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr, Formula, FreeValue,
-    FreeVar, HeldNodes, Label, LoopProgram, Maintenance, Node, PartReach, PartResolver,
-    ProductError, ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject,
-    VarId, VarName, apply, assemble_gathered, cascade_delete_order, parse_formula,
-    product_recorded, run_checks_on,
+    DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Formula, FreeValue, FreeVar,
+    HeldNodes, Label, LoopProgram, Maintenance, Node, PartReach, PartResolver, ProductError,
+    ProfileProgram, RecipeNodeId, Recorded, Recording, SlotId, StepId, Subject, VarId, VarName,
+    apply, assemble_gathered, cascade_delete_order, parse_formula, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -2138,24 +2137,21 @@ impl DocSession {
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
         // Text that reads a variable defines this one by it.
-        let constant = (!reads_a_variable(&expr))
-            .then(|| Expr::try_from(&expr).ok())
-            .flatten();
-        let Some(stored) = constant else {
+        if reads_a_variable(&expr) {
             return self.commit(DocEdit::DefineVar {
                 var: var.into(),
                 def: pncad::document::VarDecl::defined(expr),
                 fresh: Vec::new(),
             });
-        };
+        }
         // Constant text is a value, folded as a written quantity is, so
         // `50 mm + 1 mm` writes 51 mm and keeps the variable's identity
         // and distribution. Only a literal carries a notation to write.
         let env = pncad::document::VarEnv::<f64>::default();
         let folded = if expr.dim() == Dimension::Count {
-            pncad::document::eval_count(&stored, &env).map(SlotValue::Count)
+            pncad::document::eval_count(&expr, &env).map(SlotValue::Count)
         } else {
-            pncad::document::eval(&stored, &env).map(SlotValue::Continuous)
+            pncad::document::eval(&expr, &env).map(SlotValue::Continuous)
         };
         let value = match folded {
             Ok(value) => value,
@@ -3081,16 +3077,15 @@ impl DocSession {
             // A slot's expression, against the one the node stands at
             // — the same comparison for a structural slot, which
             // differs only in which edit carries it. The offered one is
-            // compared as the door would store it: its name leaves
-            // lowered to the variables they name, since a stored
-            // expression reads ids.
+            // compared as written, its name leaves read as the variables
+            // they name, since the slot's written form reads ids.
             DocEdit::SetParam {
                 node, slot, expr, ..
             }
             | DocEdit::SetStructuralParam {
                 node, slot, expr, ..
             } => doc
-                .lowered(expr)
+                .resolve(expr)
                 .is_ok_and(|offered| doc.slot_expansion(*node, *slot) == Some(offered)),
             // A declaration's two independent fields, each against
             // its own half. A kind that does not match is no match:
@@ -3350,7 +3345,7 @@ impl DocSession {
 /// instantiates no part declares no cross-instance rest and has
 /// nothing for the gate to answer about.
 fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
-    doc.order()
+    doc.ids()
         .iter()
         .filter_map(|&id| doc.node(id))
         .any(puts_an_instance)
@@ -3518,7 +3513,7 @@ mod tests {
         assert!(outcome.committed.is_empty(), "nothing is committed");
         assert_eq!(session.history().len(), before, "nothing is recorded");
         assert!(
-            session.committed_doc().order().is_empty(),
+            session.committed_doc().ids().is_empty(),
             "neither frame landed"
         );
     }

@@ -238,7 +238,8 @@ impl<T: Real> core::error::Error for VerbError<T> {}
 impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// **Run this one-operand verb against its operand.**
     ///
-    /// The operand comes in borrowed, never in the payload. Every
+    /// The operand comes in borrowed, never in the payload, and finished
+    /// ([`AtRestBody`]), as at [`Verb::run_pair`]. Every
     /// check, every refusal and every minted entity is the op door's —
     /// this dispatches and re-wraps, and adds no decision of its own.
     ///
@@ -250,7 +251,7 @@ impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// `sweep::blend::build::chamfer_edges`) enumerate the cases.
     /// [`VerbError::Arity`] if this verb answers another door — its
     /// operand is two bodies or a profile, or it hands back two sides.
-    pub fn run(&self, operand: &Body<T>, tol: Tol) -> Result<VerbOut<T>, VerbError<T>> {
+    pub fn run(&self, operand: &AtRestBody<T>, tol: Tol) -> Result<VerbOut<T>, VerbError<T>> {
         let blended = match self {
             Self::Fillet { edges, radius } => {
                 sweep::blend::build::fillet_edges(operand, edges, *radius, tol)
