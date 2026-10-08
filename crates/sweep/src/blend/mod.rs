@@ -156,8 +156,7 @@ use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
 
 pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use battery::{
-    BatteryVerdict, BlendRequest, ChainClosure, Convexity, DecidedCoincidence, Link, Turn,
-    run_battery, run_battery_for,
+    BatteryVerdict, BlendRequest, ChainClosure, Convexity, Link, Turn, run_battery, run_battery_for,
 };
 pub use build::{Blended, Chamfered, Filleted, chamfer_edges, fillet_edges};
 pub use naming::{BlendNaming, RimSide};
@@ -488,6 +487,23 @@ pub(crate) fn classify<T: Decide>(
         site,
         decision,
         source,
+    })
+}
+
+/// [`classify`], with the margin the sign was decided on.
+pub(crate) fn classify_reported<T: Decide>(
+    site: BlendSite,
+    decision: BlendDecision,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<geom_core::Decided, BlendError> {
+    let name = decision.predicate();
+    geom_core::k_stats::decide_reported(name, margin, band).map_err(|source| {
+        BlendError::Escalated {
+            site,
+            decision,
+            source,
+        }
     })
 }
 

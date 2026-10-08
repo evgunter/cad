@@ -117,6 +117,10 @@ pub struct Blended<T: Real> {
     /// back to unnamed geometry; an empty struct would be refused by
     /// nothing.
     pub naming: Option<super::naming::BlendNaming>,
+    /// The coincidences the battery decided from values (each isosceles
+    /// turn), in vertex order and the source body's keys
+    /// ([`topo::coincidence`]).
+    pub coincidences: Vec<topo::Coincidence>,
 }
 
 /// **Fillet a set of a body's edges** at constant radius `radius`.

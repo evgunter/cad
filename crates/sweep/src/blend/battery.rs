@@ -48,7 +48,7 @@ use super::build::fan_at;
 use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_geometry};
 use super::{
     BlendDecision, BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, classify,
-    classify_positive,
+    classify_positive, classify_reported,
 };
 
 /// **Does this scalar hold nondegenerate brackets?** — which is the
@@ -464,8 +464,8 @@ pub struct BatteryVerdict<T: Real> {
 
 impl<T: Real> BatteryVerdict<T> {
     /// The coincidences the battery decided from values, in vertex
-    /// order (D10's record; no reader yet, [`DecidedCoincidence`]).
-    pub fn coincidences(&self) -> impl Iterator<Item = &DecidedCoincidence<T>> {
+    /// order ([`topo::coincidence`]).
+    pub fn coincidences(&self) -> impl Iterator<Item = &topo::Coincidence> {
         self.turns.iter().map(|t| &t.coincidence)
     }
 }
@@ -2020,26 +2020,11 @@ pub struct Turn<T: Real> {
     /// Where `edge` ends: the midpoint of the two bands' feet on it,
     /// which the verdict put within its zero band of each other.
     pub foot: Point3<T>,
-    /// The coincidence the verdict decided (D10's record).
-    pub coincidence: DecidedCoincidence<T>,
-}
-
-/// **A coincidence the battery decided from values** (D10), recorded at
-/// the door that decided it for the `unproven-coincidence` lint. No
-/// reader exists yet: the lint and the one door where every such
-/// record lands are INTENT's stage 4
-/// (`work/intent/value-decided-coincidences-have-no-recording-door.md`).
-#[derive(Clone, Debug)]
-pub enum DecidedCoincidence<T: Real> {
-    /// A turn's trihedron is isosceles about its unrequested edge, so
-    /// the mitre lands on it and four edges meet there. `reading` is
-    /// the margin `fillet3_turn_isosceles` decided Zero ([`turn_at`]).
-    IsoscelesTurn {
-        /// The turn's vertex.
-        vertex: VertexKey,
-        /// The decided reading.
-        reading: T,
-    },
+    /// The coincidence the verdict decided: the two requested edges
+    /// make equal angles with `edge`, so the mitre lands on it and four
+    /// edges meet there ([`topo::Relation::EqualAngles`], the margin
+    /// `fillet3_turn_isosceles` decided Zero).
+    pub coincidence: topo::Coincidence,
 }
 
 /// **`fillet3_turn_isosceles`** — at a turn, is the trihedron isosceles
@@ -2134,13 +2119,13 @@ fn turn_at<T: Decide>(
     )
     .value();
     let margin = Margin::of(angles.abs().max((y2 - y1).norm()));
-    let reading = margin.value();
-    match classify(
+    let decided = classify_reported(
         BlendSite::Joint { vertex },
         BlendDecision::TurnIsosceles,
         margin,
         band,
-    )? {
+    )?;
+    match decided.sign {
         Sign::Zero => {}
         Sign::Positive | Sign::Negative => {
             return Err(super::surgery::unbuilt_run_out(
@@ -2149,16 +2134,26 @@ fn turn_at<T: Decide>(
             ));
         }
     }
+    let requested = [l1.edge, l2.edge];
+    let edge_cell = |e| topo::RowCell::Input {
+        input: topo::Operand::A,
+        cell: topo::Cell::Edge(e),
+    };
     Ok(Turn {
         vertex,
-        requested: [l1.edge, l2.edge],
+        requested,
         edge: third,
         shared,
         others,
         out: dirs,
         crossing,
         foot: y1 + (y2 - y1) * T::from_f64(0.5),
-        coincidence: DecidedCoincidence::IsoscelesTurn { vertex, reading },
+        coincidence: topo::Coincidence {
+            cells: requested.map(edge_cell),
+            relation: topo::Relation::EqualAngles,
+            site: topo::DecisionSite::BatteryTurn,
+            margin: decided.margin,
+        },
     })
 }
 

@@ -206,6 +206,9 @@ pub struct BooleanBody<T: Real> {
     /// wiring facts the naming layer consumes — recorded as the
     /// pipeline runs, never reconstructed by post-hoc inspection.
     pub naming: BooleanNaming,
+    /// The coincidences the op decided from values, in decision order
+    /// and operand keys ([`crate::coincidence`]).
+    pub coincidences: Vec<crate::Coincidence>,
 }
 
 /// How one operand's keys relate to the result body's keys.
@@ -659,6 +662,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         };
     let contacts = red.contacts.clone();
     let reduction_contacts = red.contacts.clone();
+    let coincidences = red.coincidences.clone();
     let covered = red.covered.clone();
     let edge_classes = red.edge_classes.clone();
     let null_copies = super::null_copy_rows(&red.null_edges);
@@ -766,6 +770,7 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
         kind: BooleanResultKind::Seamed,
         contacts,
         naming,
+        coincidences,
     }))
 }
 
@@ -4931,6 +4936,7 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 kind,
                 contacts,
                 naming,
+                coincidences: red.coincidences.clone(),
             }))
         }
     }
@@ -5010,6 +5016,7 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
         kind,
         contacts,
         naming,
+        coincidences: red.coincidences.clone(),
     }))
 }
 

@@ -1024,6 +1024,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
         corner_faces,
         band_faces,
         naming: Some(rec),
+        coincidences: verdict.coincidences().copied().collect(),
     })
 }
 
