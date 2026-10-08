@@ -43,9 +43,10 @@
 //! comes out. A rule change in `expr.rs` therefore reaches this
 //! language automatically; a second copy of the F1 table would drift.
 
-use geom_core::Decide;
+use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, StoredDefinite};
+use geom_core::{Decide, SizedPass};
 
-use crate::expr::{Dimension, DimensionError, Expr};
+use crate::expr::{Dimension, DimensionError, Expr, MAX_NESTING, Slot};
 
 /// Which closed-form measurement a leaf computes, and over which of
 /// the node's references.
@@ -160,35 +161,88 @@ impl MeasurePrimitive {
 /// Private fields and fallible constructors, exactly as [`Expr`]: an
 /// ill-dimensioned tree is unrepresentable, so the cached
 /// [`Self::dim`] is trustworthy by construction.
+///
+/// **A measurement nests at most 128 levels**, the bound it shares with
+/// [`Expr`], a value leaf counting as the expression it holds: a
+/// constructor that would pass it refuses with
+/// [`DimensionError::NestedTooDeep`], so a flat chain of more than 128
+/// terms refuses.
 #[derive(Debug, Clone, PartialEq)]
-pub struct MeasureExpr {
+pub struct MeasureExpr<S: Slot = crate::VarId> {
     dim: Dimension,
-    kind: MeasureKind,
+    /// How many levels the tree nests, a value leaf counting as the
+    /// expression it holds; never above [`MAX_NESTING`], the bound it
+    /// shares with [`Expr`].
+    nesting: u8,
+    kind: MeasureKind<S>,
+}
+
+impl<S: Slot> Drop for MeasureExpr<S> {
+    /// Frees the tree from a heap stack, as [`Expr`]'s drop does.
+    fn drop(&mut self) {
+        if !matches!(self.kind, MeasureKind::Primitive(_) | MeasureKind::Value(_)) {
+            crate::tree::free(self, |e, out| e.kind.detach_children(out));
+        }
+    }
 }
 
 /// The measurement AST. Crate-private so trees are only built through
 /// the dimension-checking constructors.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum MeasureKind {
+pub(crate) enum MeasureKind<S: Slot> {
     /// A closed-form measurement of the node's referenced entities.
     Primitive(MeasurePrimitive),
     /// An ordinary document expression — literals, parameters, and the
     /// whole `Expr` arithmetic beneath them.
-    Value(Expr),
+    Value(S),
     /// Same-dimension addition.
-    Add(Box<MeasureExpr>, Box<MeasureExpr>),
+    Add(Box<MeasureExpr<S>>, Box<MeasureExpr<S>>),
     /// Same-dimension subtraction.
-    Sub(Box<MeasureExpr>, Box<MeasureExpr>),
+    Sub(Box<MeasureExpr<S>>, Box<MeasureExpr<S>>),
     /// Negation (any dimension).
-    Neg(Box<MeasureExpr>),
+    Neg(Box<MeasureExpr<S>>),
     /// Product; the F1 rule (≥1 `Scalar` operand).
-    Mul(Box<MeasureExpr>, Box<MeasureExpr>),
+    Mul(Box<MeasureExpr<S>>, Box<MeasureExpr<S>>),
     /// Quotient; the divisor must be `Scalar`.
-    Div(Box<MeasureExpr>, Box<MeasureExpr>),
+    Div(Box<MeasureExpr<S>>, Box<MeasureExpr<S>>),
     /// Same-dimension lattice minimum.
-    Min(Box<MeasureExpr>, Box<MeasureExpr>),
+    Min(Box<MeasureExpr<S>>, Box<MeasureExpr<S>>),
     /// Same-dimension lattice maximum.
-    Max(Box<MeasureExpr>, Box<MeasureExpr>),
+    Max(Box<MeasureExpr<S>>, Box<MeasureExpr<S>>),
+}
+
+impl<S: Slot> MeasureKind<S> {
+    /// Moves this node's children onto `out`, leaving a leaf behind.
+    fn detach_children(&mut self, out: &mut Vec<MeasureExpr<S>>) {
+        let leaf = MeasureKind::Primitive(MeasurePrimitive::Distance { a: 0, b: 0 });
+        match core::mem::replace(self, leaf) {
+            MeasureKind::Add(a, b)
+            | MeasureKind::Sub(a, b)
+            | MeasureKind::Mul(a, b)
+            | MeasureKind::Div(a, b)
+            | MeasureKind::Min(a, b)
+            | MeasureKind::Max(a, b) => {
+                out.push(*a);
+                out.push(*b);
+            }
+            MeasureKind::Neg(a) => out.push(*a),
+            MeasureKind::Primitive(_) | MeasureKind::Value(_) => {}
+        }
+    }
+
+    /// How many levels the node's children nest, the deeper one's.
+    fn below(&self) -> u8 {
+        match self {
+            MeasureKind::Add(a, b)
+            | MeasureKind::Sub(a, b)
+            | MeasureKind::Mul(a, b)
+            | MeasureKind::Div(a, b)
+            | MeasureKind::Min(a, b)
+            | MeasureKind::Max(a, b) => a.nesting.max(b.nesting),
+            MeasureKind::Neg(a) => a.nesting,
+            MeasureKind::Primitive(_) | MeasureKind::Value(_) => 0,
+        }
+    }
 }
 
 /// The binary operations this language shares with [`Expr`]. Naming
@@ -210,24 +264,10 @@ enum Binop {
 /// `Expr` constructor over them: whatever dimension comes out is this
 /// language's, and whatever [`DimensionError`] comes out is this
 /// language's refusal, in the same words a document expression would
-/// have earned. Probe construction is total for every `Dimension` —
-/// `Expr::literal` refuses only `Count` (which takes `Expr::count`)
-/// and non-finite values (1.0 is finite) — so the impossible branch is
-/// announced as the kernel bug it would be rather than carried as a
-/// refusal a caller could believe in.
+/// have earned. A probe is a reader of a variable at the dimension, which
+/// every dimension has.
 fn lattice(op: Binop, left: Dimension, right: Dimension) -> Result<Dimension, DimensionError> {
-    fn probe(dim: Dimension) -> Expr {
-        if dim == Dimension::Count {
-            return Expr::count(1);
-        }
-        match Expr::literal(1.0, dim) {
-            Ok(e) => e,
-            Err(refusal) => unreachable!(
-                "a unit literal at {dim:?} is constructible — `Expr::literal` refuses only \
-                 Count (taken above) and non-finite values — yet it refused: {refusal}"
-            ),
-        }
-    }
+    let probe = |dim| Expr::var(crate::var::VarId::new(0, 0), dim);
     let (a, b) = (probe(left), probe(right));
     match op {
         Binop::Add => Expr::add(a, b),
@@ -246,14 +286,26 @@ fn lattice(op: Binop, left: Dimension, right: Dimension) -> Result<Dimension, Di
 // (the F1 checker runs at construction) and associated functions, not
 // methods.
 #[allow(clippy::should_implement_trait)]
-impl MeasureExpr {
+impl<S: Slot> MeasureExpr<S> {
     /// This expression's dimension (cached; correct by construction).
     pub fn dim(&self) -> Dimension {
         self.dim
     }
 
+    /// Bit-semantic equality (D7): structural equality, with each value
+    /// leaf compared by [`Slot::bit_eq`].
+    pub fn bit_eq(&self, other: &Self) -> bool {
+        if self != other {
+            return false;
+        }
+        let (mut a, mut b) = (Vec::new(), Vec::new());
+        self.value_leaves(&mut a);
+        other.value_leaves(&mut b);
+        a.iter().zip(&b).all(|(x, y)| x.bit_eq(y))
+    }
+
     /// The AST node (the persistence and key layers read it).
-    pub(crate) fn kind(&self) -> &MeasureKind {
+    pub(crate) fn kind(&self) -> &MeasureKind<S> {
         &self.kind
     }
 
@@ -261,67 +313,84 @@ impl MeasureExpr {
     pub fn primitive(p: MeasurePrimitive) -> Self {
         Self {
             dim: p.dim(),
+            nesting: 1,
             kind: MeasureKind::Primitive(p),
         }
     }
 
-    /// An ordinary document expression as a leaf — a literal bound, a
-    /// parameter, a whole arithmetic subtree of them.
-    pub fn value(e: Expr) -> Self {
+    /// A value leaf read at `dim`: the stored form's leaf, a bare
+    /// variable, carries no dimension of its own.
+    pub(crate) fn value_at(e: S, dim: Dimension) -> Self {
+        let Ok(nesting) = u8::try_from(e.nesting()) else {
+            unreachable!(
+                "a value nests {} levels, past the bound of {MAX_NESTING} its every \
+                 constructor holds it to",
+                e.nesting()
+            )
+        };
         Self {
-            dim: e.dim(),
+            dim,
+            nesting,
             kind: MeasureKind::Value(e),
         }
     }
 
-    fn binary(
-        op: Binop,
-        a: MeasureExpr,
-        b: MeasureExpr,
-        make: fn(Box<MeasureExpr>, Box<MeasureExpr>) -> MeasureKind,
-    ) -> Result<Self, DimensionError> {
-        let dim = lattice(op, a.dim, b.dim)?;
+    /// An operator node over the children `kind` holds, refused when it
+    /// would nest past [`MAX_NESTING`].
+    fn over(dim: Dimension, kind: MeasureKind<S>) -> Result<Self, DimensionError> {
         Ok(Self {
             dim,
-            kind: make(Box::new(a), Box::new(b)),
+            nesting: crate::expr::nesting_over(kind.below())?,
+            kind,
         })
     }
 
+    fn binary(
+        op: Binop,
+        a: Self,
+        b: Self,
+        make: fn(Box<Self>, Box<Self>) -> MeasureKind<S>,
+    ) -> Result<Self, DimensionError> {
+        let dim = lattice(op, a.dim, b.dim)?;
+        Self::over(dim, make(Box::new(a), Box::new(b)))
+    }
+
     /// Same-dimension addition.
-    pub fn add(a: MeasureExpr, b: MeasureExpr) -> Result<Self, DimensionError> {
+    pub fn add(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::binary(Binop::Add, a, b, MeasureKind::Add)
     }
 
     /// Same-dimension subtraction.
-    pub fn sub(a: MeasureExpr, b: MeasureExpr) -> Result<Self, DimensionError> {
+    pub fn sub(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::binary(Binop::Sub, a, b, MeasureKind::Sub)
     }
 
     /// Negation — any dimension.
-    pub fn neg(a: MeasureExpr) -> Self {
-        Self {
-            dim: a.dim,
-            kind: MeasureKind::Neg(Box::new(a)),
-        }
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::NestedTooDeep`] alone, as [`Expr::neg`].
+    pub fn neg(a: Self) -> Result<Self, DimensionError> {
+        Self::over(a.dim, MeasureKind::Neg(Box::new(a)))
     }
 
     /// Product; at least one operand `Scalar` (F1).
-    pub fn mul(a: MeasureExpr, b: MeasureExpr) -> Result<Self, DimensionError> {
+    pub fn mul(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::binary(Binop::Mul, a, b, MeasureKind::Mul)
     }
 
     /// Quotient; the divisor must be `Scalar` (F1).
-    pub fn div(a: MeasureExpr, b: MeasureExpr) -> Result<Self, DimensionError> {
+    pub fn div(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::binary(Binop::Div, a, b, MeasureKind::Div)
     }
 
     /// Same-dimension lattice minimum.
-    pub fn min(a: MeasureExpr, b: MeasureExpr) -> Result<Self, DimensionError> {
+    pub fn min(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::binary(Binop::Min, a, b, MeasureKind::Min)
     }
 
     /// Same-dimension lattice maximum.
-    pub fn max(a: MeasureExpr, b: MeasureExpr) -> Result<Self, DimensionError> {
+    pub fn max(a: Self, b: Self) -> Result<Self, DimensionError> {
         Self::binary(Binop::Max, a, b, MeasureKind::Max)
     }
 
@@ -380,7 +449,7 @@ impl MeasureExpr {
     /// evaluated once, their bits feed the key, and the same vector
     /// feeds the arithmetic. Two walks would be two chances to
     /// disagree about which leaf is which.
-    pub fn value_leaves<'e>(&'e self, out: &mut Vec<&'e Expr>) {
+    pub fn value_leaves<'e>(&'e self, out: &mut Vec<&'e S>) {
         match &self.kind {
             MeasureKind::Primitive(_) => {}
             MeasureKind::Value(e) => out.push(e),
@@ -397,59 +466,135 @@ impl MeasureExpr {
         }
     }
 
-    /// The document parameters this expression references, with their
-    /// recorded dimensions — the `Expr::param_refs` contract lifted to
-    /// this language, so `apply`'s re-check reaches measure nodes too.
-    pub fn param_refs(&self, out: &mut Vec<(crate::doc::ParamName, Dimension)>) {
-        match &self.kind {
+    /// [`Self::value_leaves`], exclusive: the same leaves in the same
+    /// order.
+    pub(crate) fn value_leaves_mut<'e>(&'e mut self, out: &mut Vec<&'e mut S>) {
+        match &mut self.kind {
             MeasureKind::Primitive(_) => {}
-            MeasureKind::Value(e) => e.param_refs(out),
-            MeasureKind::Neg(a) => a.param_refs(out),
+            MeasureKind::Value(e) => out.push(e),
+            MeasureKind::Neg(a) => a.value_leaves_mut(out),
             MeasureKind::Add(a, b)
             | MeasureKind::Sub(a, b)
             | MeasureKind::Mul(a, b)
             | MeasureKind::Div(a, b)
             | MeasureKind::Min(a, b)
             | MeasureKind::Max(a, b) => {
-                a.param_refs(out);
-                b.param_refs(out);
+                a.value_leaves_mut(out);
+                b.value_leaves_mut(out);
             }
         }
     }
 
-    /// Every embedded value leaf's float literal BITS, pre-order — the
-    /// bit-semantic comparison substrate (D7), delegating each leaf to
-    /// [`Expr::literal_bits`] rather than re-walking `Expr`.
-    pub fn literal_bits(&self, out: &mut Vec<u64>) {
-        match &self.kind {
-            MeasureKind::Primitive(_) => {}
-            MeasureKind::Value(e) => e.literal_bits(out),
-            MeasureKind::Neg(a) => a.literal_bits(out),
-            MeasureKind::Add(a, b)
-            | MeasureKind::Sub(a, b)
-            | MeasureKind::Mul(a, b)
-            | MeasureKind::Div(a, b)
-            | MeasureKind::Min(a, b)
-            | MeasureKind::Max(a, b) => {
-                a.literal_bits(out);
-                b.literal_bits(out);
-            }
-        }
+    /// **This measure in another slot form**: every value leaf rewritten
+    /// by `f`, in [`Self::value_leaves`] order, every primitive and
+    /// operator kept with its dimension, the nesting recounted over the
+    /// new leaves. The first refusal is the answer.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first.
+    pub fn try_map_values<S2: Slot, E>(
+        &self,
+        f: &mut impl FnMut(&S) -> Result<S2, E>,
+    ) -> Result<MeasureExpr<S2>, E> {
+        self.try_map_values_at(&mut |leaf, _| f(leaf))
     }
 
-    /// Bit-semantic equality (D7): structural equality with float
-    /// literals compared by BITS, exactly as [`Expr::bit_eq`].
-    pub fn bit_eq(&self, other: &MeasureExpr) -> bool {
-        if self != other {
-            return false;
-        }
-        let (mut a, mut b) = (Vec::new(), Vec::new());
-        self.literal_bits(&mut a);
-        other.literal_bits(&mut b);
-        a == b
+    /// [`Self::try_map_values`], `f` handed each value leaf's dimension
+    /// too: the dimension a stored leaf, a bare variable id, is read at.
+    ///
+    /// # Errors
+    ///
+    /// `f`'s first.
+    pub fn try_map_values_at<S2: Slot, E>(
+        &self,
+        f: &mut impl FnMut(&S, Dimension) -> Result<S2, E>,
+    ) -> Result<MeasureExpr<S2>, E> {
+        let mut map = |e: &Self| e.try_map_values_at(f).map(Box::new);
+        let kind = match &self.kind {
+            MeasureKind::Primitive(p) => MeasureKind::Primitive(*p),
+            MeasureKind::Value(v) => MeasureKind::Value(f(v, self.dim)?),
+            MeasureKind::Add(a, b) => MeasureKind::Add(map(a)?, map(b)?),
+            MeasureKind::Sub(a, b) => MeasureKind::Sub(map(a)?, map(b)?),
+            MeasureKind::Mul(a, b) => MeasureKind::Mul(map(a)?, map(b)?),
+            MeasureKind::Div(a, b) => MeasureKind::Div(map(a)?, map(b)?),
+            MeasureKind::Min(a, b) => MeasureKind::Min(map(a)?, map(b)?),
+            MeasureKind::Max(a, b) => MeasureKind::Max(map(a)?, map(b)?),
+            MeasureKind::Neg(a) => MeasureKind::Neg(map(a)?),
+        };
+        let nesting = match &kind {
+            MeasureKind::Value(v) => u8::try_from(v.nesting()).unwrap_or(u8::MAX),
+            MeasureKind::Primitive(_) => 1,
+            operator => crate::expr::nesting_over(operator.below()).unwrap_or(u8::MAX),
+        };
+        assert!(
+            usize::from(nesting) <= MAX_NESTING,
+            "a form change never deepens a measure past {MAX_NESTING}: each leaf it writes \
+             nests no deeper than the leaf it replaced, or is one variable"
+        );
+        Ok(MeasureExpr {
+            dim: self.dim,
+            nesting,
+            kind,
+        })
     }
 }
 
+impl<L: crate::expr::LeafSet> MeasureExpr<crate::expr::ExprTree<L>>
+where
+    crate::expr::ExprTree<L>: Slot,
+{
+    /// An ordinary document expression as a leaf — a literal bound, a
+    /// parameter, a whole arithmetic subtree of them.
+    pub fn value(e: crate::expr::ExprTree<L>) -> Self {
+        let dim = e.dim();
+        Self::value_at(e, dim)
+    }
+
+    /// The variables this expression's value leaves read, with the
+    /// dimension each reader reads at ([`Expr::var_reads`] lifted to
+    /// this language).
+    pub fn var_reads(&self, out: &mut Vec<(crate::var::VarId, Dimension)>) {
+        let mut leaves = Vec::new();
+        self.value_leaves(&mut leaves);
+        for leaf in leaves {
+            leaf.var_reads(out);
+        }
+    }
+}
+
+impl MeasureExpr {
+    /// The variables this expression's value leaves read, with the
+    /// dimension each leaf reads at.
+    pub fn var_reads(&self, out: &mut Vec<(crate::var::VarId, Dimension)>) {
+        let _ = self.try_map_values_at(&mut |&var, dim| {
+            out.push((var, dim));
+            Ok::<_, core::convert::Infallible>(var)
+        });
+    }
+
+    /// **This measure re-authored**: every value leaf a formula reading
+    /// its variable, at the dimension the leaf is read at.
+    #[must_use]
+    pub fn authored(&self) -> MeasureExpr<crate::Formula> {
+        let Ok(authored) = self.try_map_values_at(&mut |&var, dim| {
+            Ok::<_, core::convert::Infallible>(crate::Formula::var(var, dim))
+        });
+        authored
+    }
+}
+
+impl MeasureExpr<crate::Formula> {
+    /// The names this expression's value leaves read
+    /// ([`crate::Formula::named_reads`] lifted to this language).
+    pub fn named_reads(&self, out: &mut Vec<(crate::doc::VarName, Dimension)>) {
+        let mut leaves = Vec::new();
+        self.value_leaves(&mut leaves);
+        for leaf in leaves {
+            leaf.named_reads(out);
+        }
+    }
+}
 /// **Why a measure has no value at the scalar the build ran at**
 /// ([`crate::eval::ValuePayload::MeasureUnavailable`]).
 ///
@@ -469,7 +614,7 @@ pub enum MeasureUnavailableAt {
         /// Which primitive.
         verb: &'static str,
         /// The scalar this build ran at, in its own name
-        /// ([`crate::lane::Lane::NAME`]).
+        /// ([`geom_core::Real::NAME`]).
         scalar: &'static str,
         /// The door that answers it, named so the recourse is in the
         /// refusal rather than in a reader's memory.
@@ -492,11 +637,11 @@ impl core::fmt::Display for MeasureUnavailableAt {
         match self {
             Self::NeedsEnclosure { verb, scalar, door } => write!(
                 f,
-                "`{verb}` answers with a certified enclosure, and a {scalar} build has no \
-                 channel for one — a point-scalar search finds a pair, and a pair that was \
-                 found is an upper bound on the minimum rather than the minimum. Evaluate \
-                 the document at the interval scalar over a parameter box, where `{door}` \
-                 computes the bracket"
+                "`{verb}` answers with a certified enclosure, which only the {interval} \
+                 scalar computes; a {scalar} point search finds an upper bound on the minimum, \
+                 not the minimum. Recourse: evaluate the document at the {interval} scalar \
+                 over a parameter box, where `{door}` computes the bracket",
+                interval = <geom_core::Interval as geom_core::Real>::NAME,
             ),
         }
     }
@@ -514,7 +659,7 @@ impl core::fmt::Display for MeasureUnavailableAt {
 ///
 /// The engine that computes it is the interval lane's
 /// (`clearance::min_separation`) and so is the only `Some`.
-pub trait MinClearanceLane: crate::lane::Lane {
+pub trait MinClearanceLane: geom_core::Real {
     /// The minimum separation between two resolved selections, or
     /// `None` when this scalar cannot carry an enclosure.
     ///
@@ -576,9 +721,9 @@ impl MinClearanceLane for geom_core::Probe {
 /// and D1 keep out of the certifying lanes — so the whole family
 /// answers `None`, and a document measured for sensitivities reports
 /// the same typed absence a plain f64 build does.
-impl<T: geom_core::Real> MinClearanceLane for geom_core::Dual<T>
+impl<T> MinClearanceLane for geom_core::Dual<T>
 where
-    geom_core::Dual<T>: crate::lane::Lane,
+    geom_core::Dual<T>: geom_core::Real,
 {
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,
@@ -636,7 +781,7 @@ impl MinClearanceLane for geom_core::Interval {
 /// silently degrades.
 impl<T: MinClearanceLane> MinClearanceLane for geom_core::Sym<T>
 where
-    geom_core::Sym<T>: crate::lane::Lane,
+    geom_core::Sym<T>: geom_core::Real,
 {
     fn min_separation(
         _a: &MinClearanceOperand<'_, Self>,
@@ -735,12 +880,24 @@ impl<T> AssertionVerdict<T> {
 /// ([`crate::eval::ValuePayload::MeasureUnavailable`]), which is a
 /// value and not a failure, and therefore reaches here rather than
 /// poisoning.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// `Eq` is not derived: the undecided arm keeps the escalation, whose
+// reporting margin is floating point.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum UnevaluatedReason {
     /// The margin between measured and bound landed in the sliver
     /// band: the run's tolerance cannot separate them, and guessing a
     /// side would manufacture the certainty the band exists to deny.
-    Indeterminate,
+    ///
+    /// **It keeps the escalation**, so the refusal ends through
+    /// [`ASSERT_BOUND_DECISION`] with the value its own margin gives
+    /// (D4 ¶1 (i)) rather than offering an unvalued tighten that a
+    /// poisoned margin and an enclosure straddling zero would both
+    /// receive.
+    Indeterminate {
+        /// The escalation of the measured-versus-bound decision, with
+        /// the reporting margin it was classified on.
+        cause: geom_core::Indeterminate,
+    },
     /// The measure has no value at this build's scalar, and says why.
     /// E10's third state used for exactly what it is for: the
     /// requirement is recorded, the run cannot answer it, and neither
@@ -851,9 +1008,11 @@ impl Certified {
 impl core::fmt::Display for UnevaluatedReason {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Indeterminate => f.write_str(
-                "the measured value and the bound are not separated at this run's tolerance, \
-                 so the assertion has no verdict — tighten the tolerance or move the bound",
+            Self::Indeterminate { cause } => write!(
+                f,
+                "the measured value and the bound are not separated at this tolerance, so the \
+                 assertion has no verdict. {}",
+                ASSERT_BOUND_DECISION.recourse(RefusedArm::Undecided(cause), Reading::AtRest)
             ),
             Self::MeasureUnavailable(why) => write!(f, "there is no measured value: {why}"),
             Self::WindowSuperset {
@@ -862,11 +1021,9 @@ impl core::fmt::Display for UnevaluatedReason {
                 recourse,
             } => write!(
                 f,
-                "this verdict would be read off the enclosure's {endpoint} endpoint, which \
-                 `{verb}` certifies only over the carrier WINDOWS — a superset of the trimmed \
-                 faces the measure names — so a window pair neither face occupies could decide \
-                 it. The opposite verdict on this same bound is still available and still \
-                 gates. Recourse: {recourse}"
+                "this verdict would be read off the {endpoint} end of an enclosure `{verb}` \
+                 certifies only over carrier windows, a superset of the faces the measure \
+                 names. The opposite verdict on this bound still gates. Recourse: {recourse}"
             ),
         }
     }
@@ -963,8 +1120,8 @@ pub(crate) fn decide_assertion<T: Decide>(
                 refuse(upper)
             }
         }
-        Err(_) => AssertionVerdict::Unevaluated {
-            reason: UnevaluatedReason::Indeterminate,
+        Err(cause) => AssertionVerdict::Unevaluated {
+            reason: UnevaluatedReason::Indeterminate { cause },
         },
     }
 }
@@ -972,3 +1129,31 @@ pub(crate) fn decide_assertion<T: Decide>(
 /// The funnel site name of the assertion comparison. A roster carrier
 /// (`docs/K-REPORT.md`) rather than a literal at the decide site.
 pub const ASSERT_BOUND: &str = "assert_bound";
+
+/// **The assertion's own decision**, as the one ending table reads it
+/// (D4 ¶1 (i)): the comparand is `measured − bound` and BOTH definite
+/// signs are verdicts — at the bound exactly a non-strict relation holds
+/// — so the only refused arm is the undecided one, and the lever is the
+/// bound the document names. A smaller tolerance decides an in-band
+/// margin, so the offer is valued from that margin; a straddling
+/// enclosure and an unreadable margin get the lever alone, which is the
+/// defect this spelling closes.
+pub const ASSERT_BOUND_DECISION: SizedDecision = SizedDecision {
+    lever: "move the bound",
+    size: "difference",
+    passes: SizedPass::AnySign,
+    // The stored description the lever edits IS the asserted bound.
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// A negation over `e`, built past the constructors, which refuse it
+/// past the bound.
+#[cfg(test)]
+pub(crate) fn raw_neg(e: MeasureExpr) -> MeasureExpr {
+    MeasureExpr {
+        dim: e.dim,
+        nesting: u8::MAX,
+        kind: MeasureKind::Neg(Box::new(e)),
+    }
+}

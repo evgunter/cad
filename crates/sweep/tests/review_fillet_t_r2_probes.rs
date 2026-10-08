@@ -35,7 +35,13 @@ fn tol() -> Tol {
 #[test]
 fn corner_arcs_are_minted_in_seeded_edge_order() {
     let body = cube(1.0, tol());
-    let out = fillet_edges(&body, &query::all_edges(&body), 0.15, tol()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &query::all_edges(&body),
+        0.15,
+        tol(),
+    )
+    .unwrap();
     let rec = out.naming.as_ref().expect("the surgery records its births");
     let mut per_corner: BTreeMap<VertexKey, Vec<EdgeKey>> = BTreeMap::new();
     for (_, vertex, source_edge) in &rec.arcs {

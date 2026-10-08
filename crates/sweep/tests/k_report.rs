@@ -59,6 +59,7 @@
 
 use profile::RawLoop;
 use std::io::Write as _;
+use sweep::ExtrudeSide;
 
 use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, Probe, SampleOutcome};
@@ -116,7 +117,10 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 ]);
                 extrude(
                     &validated(vec![lp]),
-                    Extrusion::Distance(Probe(1.0)),
+                    Extrusion::Distance {
+                        depth: Probe(1.0),
+                        side: ExtrudeSide::Along,
+                    },
                     Tol::witness(),
                 )
                 .unwrap()
@@ -135,7 +139,10 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 let hole = bulge_loop(vec![v(1.0, 0.0, 1.0), v(-1.0, 0.0, 1.0)]);
                 extrude(
                     &validated(vec![outer, hole]),
-                    Extrusion::Distance(Probe(1.0)),
+                    Extrusion::Distance {
+                        depth: Probe(1.0),
+                        side: ExtrudeSide::Along,
+                    },
                     Tol::witness(),
                 )
                 .unwrap()
@@ -164,7 +171,10 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                 .with_tangent_joints((0..8).collect());
                 extrude(
                     &validated(vec![lp]),
-                    Extrusion::Distance(Probe(1.0)),
+                    Extrusion::Distance {
+                        depth: Probe(1.0),
+                        side: ExtrudeSide::Along,
+                    },
                     Tol::witness(),
                 )
                 .unwrap()

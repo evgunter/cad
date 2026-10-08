@@ -13,6 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::corpus;
@@ -20,7 +21,7 @@ use crate::fixture::{Recorder, ang, len, scl};
 
 use editor_core::{
     BooleanOp, CancelToken, Datum, Denotation, DocEdit, EditError, EntityKey, EntityKind, Entry,
-    EvalOptions, Evaluation, Expr, Node, NodeError, NodeErrorKind, NodeResult, PartSelect,
+    EvalOptions, Evaluation, Formula, Node, NodeError, NodeErrorKind, NodeResult, PartSelect,
     PatternKind, ProfileDoc, RecipeNodeId, ResolveError, RoleSeg, SlotId, SplitHalf, SplitSide,
     StableName, ValuePayload, all_edges, apply, denotation, evaluate, product,
 };
@@ -52,6 +53,7 @@ fn unit_box(r: &mut Recorder, x0: f64) -> RecipeNodeId {
     r.insert(Node::Extrude {
         profile: p,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     })
 }
 
@@ -63,23 +65,23 @@ fn plane_z(r: &mut Recorder, z: f64) -> RecipeNodeId {
     }))
 }
 
-fn part(r: &mut Recorder, of: RecipeNodeId, select: PartSelect) -> RecipeNodeId {
+fn part(r: &mut Recorder, of: RecipeNodeId, select: PartSelect<Formula>) -> RecipeNodeId {
     r.insert(Node::Part { of, select })
 }
 
-fn half(h: SplitHalf) -> PartSelect {
+fn half(h: SplitHalf) -> PartSelect<Formula> {
     PartSelect::SplitHalf(h)
 }
 
-fn instance(i: i64) -> PartSelect {
-    PartSelect::Instance(Expr::count(i))
+fn instance(i: i64) -> PartSelect<Formula> {
+    PartSelect::Instance(Formula::count(i))
 }
 
 /// A three-instance linear pattern of `input`, three metres apart.
 fn pattern3(r: &mut Recorder, input: RecipeNodeId) -> RecipeNodeId {
     r.insert(Node::Pattern {
         input,
-        count: Expr::count(3),
+        count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(3.0),
@@ -88,12 +90,14 @@ fn pattern3(r: &mut Recorder, input: RecipeNodeId) -> RecipeNodeId {
 }
 
 fn lift(r: &mut Recorder, input: RecipeNodeId, dz: f64) -> RecipeNodeId {
-    r.insert(Node::Transform {
+    r.insert(Node::transform(
         input,
-        translation: [len(0.0), len(0.0), len(dz)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    })
+        editor_core::Step::Rigid {
+            translation: [len(0.0), len(0.0), len(dz)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ))
 }
 
 /// The `Body` value of a node — a Part's, a transform's — as the Arc it
@@ -192,8 +196,10 @@ fn bits<T: geom_core::Decide + core::fmt::Debug>(b: &Body<T>) -> Vec<String> {
 /// The kernel's pair union of two bodies, no declaration — the same
 /// door and strategy the document's `Boolean(Union)` runs.
 fn kernel_union(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    match topo::union(a, b, Tol::witness()).expect("the kernel union succeeds") {
-        BooleanResult::Body(bb) => bb.body,
+    let a = topo::test_support::finished("operand A", a.clone(), Tol::witness());
+    let b = topo::test_support::finished("operand B", b.clone(), Tol::witness());
+    match topo::union(&a, &b, Tol::witness()).expect("the kernel union succeeds") {
+        BooleanResult::Body(bb) => bb.body.into_body(),
         BooleanResult::Empty => panic!("a union of material is not empty"),
     }
 }
@@ -250,7 +256,7 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
             op: BooleanOp::Union,
             a: p,
             b: other,
-            declare: None,
+            declare: Vec::new(),
         });
         let rounded = r.insert(Node::fillet(p, len(RADIUS), selection.clone()));
         let ev = eval_after(&r.doc, Some(&first));
@@ -291,8 +297,13 @@ fn a1_the_half_is_the_half_through_a_transform_a_boolean_and_a_fillet() {
         let fused = kernel_union(side, body_of(&ev, other));
         assert_eq!(bits(body_of(&ev, joined)), bits(&fused), "{h:?}: boolean");
         let keys = edge_keys(&ev, p, &selection);
-        let filleted = sweep::blend::build::fillet_edges(side, &keys, RADIUS, Tol::witness())
-            .expect("the kernel fillet succeeds");
+        let filleted = sweep::blend::build::fillet_edges(
+            &sweep::test_support::at_rest(side, Tol::witness()),
+            &keys,
+            RADIUS,
+            Tol::witness(),
+        )
+        .expect("the kernel fillet succeeds");
         assert_eq!(
             bits(body_arc(&ev, rounded)),
             bits(&filleted.body),
@@ -317,7 +328,7 @@ fn a2_the_instance_is_the_instance() {
         op: BooleanOp::Union,
         a: p1,
         b: p2,
-        declare: None,
+        declare: Vec::new(),
     });
     let ev = eval(&r.doc);
     assert!(
@@ -511,7 +522,8 @@ fn a4_every_refusal_is_typed() {
         &DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -572,7 +584,8 @@ fn a4_every_refusal_is_typed() {
         &DocEdit::SetParam {
             node: index_of_split,
             slot: SlotId::Instance,
-            expr: Expr::count(1),
+            expr: Formula::count(1),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -618,7 +631,8 @@ fn a5_the_content_key_separates_the_halves_and_the_instances() {
         &DocEdit::SetStructuralParam {
             node: p1,
             slot: SlotId::Instance,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -670,7 +684,7 @@ fn the_two_section_planes_of_one_split_carry_distinct_sources() {
     );
     let split = *cd
         .doc
-        .order()
+        .ids()
         .iter()
         .find(|id| matches!(cd.doc.node(**id), Some(Node::Split { .. })))
         .expect("the split");
@@ -680,7 +694,7 @@ fn the_two_section_planes_of_one_split_carry_distinct_sources() {
             .surfaces()
             .filter_map(|(k, s)| {
                 b.surface_source(k)
-                    .filter(|src| src.node == split.0)
+                    .filter(|src| src.node == split.0.digest())
                     .map(|src| (src.clone(), s.clone()))
             })
             .collect();
@@ -727,6 +741,7 @@ fn prism(r: &mut Recorder, pts: Vec<(f64, f64)>, z0: f64, dz: f64) -> RecipeNode
     r.insert(Node::Extrude {
         profile: p,
         distance: len(dz),
+        side: ExtrudeSide::Along,
     })
 }
 
@@ -760,7 +775,7 @@ fn u_cutter_tie(r: &mut Recorder) -> RecipeNodeId {
         op: BooleanOp::Subtract,
         a,
         b,
-        declare: None,
+        declare: Vec::new(),
     })
 }
 
@@ -857,7 +872,7 @@ fn a_part_of_an_instance_of_a_tied_master_keeps_the_tie() {
     let sub = u_cutter_tie(&mut r);
     let pat = r.insert(Node::Pattern {
         input: sub,
-        count: Expr::count(3),
+        count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(20.0),
@@ -911,7 +926,7 @@ fn project_narrows_a_tie_by_the_flush_rule() {
     let ent = |body: u32, key: EntityKey| EntityRef { body, key };
     let name = |h: SplitHalf| StableName {
         kind: EntityKind::Face,
-        node: RecipeNodeId(7),
+        node: RecipeNodeId::new(0, 7),
         path: vec![RoleSeg::SplitBody(h)],
     };
     let (inside, outside) = (name(SplitHalf::Above), name(SplitHalf::Below));

@@ -3,17 +3,31 @@
 //!
 //! # The checks, in order
 //!
-//! 1. **Arity** — every loop has ≥ 2 vertices (structural; a 2-vertex
-//!    loop with two arc segments is the legal minimal circle).
-//! 2. **Degeneracy** — no zero-length segments (chord-level vertex
-//!    coincidence), via the `vertex_separation` distance predicate;
-//!    in-band ⇒ escalation (the Q1 sliver semantics).
+//! 1. **Arity** — every loop has a vertex (structural; D1's full turn
+//!    is one arc segment at one vertex, so a closed carrier is one
+//!    segment).
+//! 2. **Degeneracy and consistency** — no zero-length segments, via
+//!    the `vertex_separation` distance predicate (chord-level vertex
+//!    coincidence) or `full_turn_reach` (a full turn's reach), in-band
+//!    ⇒ escalation (the Q1 sliver semantics); and, for a table's arcs,
+//!    the three consistency checks of each stored carrier against its
+//!    vertices, past the scene's resolution refused as unreadable
+//!    rather than inconsistent (`seg::build_loop_seg`). A
+//!    [`ConstructedProfile`]'s arcs were verified at their
+//!    construction and skip them.
 //! 3. **Simplicity** — pairwise closed-form segment/segment contact
 //!    classification (line/line, line/arc, arc/arc; O(n²), fine at M2).
 //!    Adjacent segments may share exactly their common vertex; any other
 //!    contact is a typed error. Tangential contact (touching without
 //!    crossing) is semantically indeterminate and escalates as
 //!    [`ProfileError::TangentialContact`] (D4 ¶3: typed, actionable).
+//!    An in-band line/circle clearance escalates unless the arc's span
+//!    and endpoints certify it clear of the whole line. Where a span
+//!    definitely misses a candidate contact, a tangency point or a
+//!    crossing, the pair touches wherever a segment end stands within
+//!    ε of the other segment (`circle_side` or `chord_side`, then its
+//!    span): the carriers stay within ε for ≈ √(2rε) about a tangency,
+//!    and for ≈ ε/sin φ about a crossing at angle φ.
 //! 4. **Declared tangency** (the #101 discipline) — every *joint*
 //!    (adjacent-segment junction at its shared vertex) is classified by
 //!    the same carrier predicates the simplicity pass uses — the
@@ -64,8 +78,10 @@
 //! is asked.
 //!
 //! What that costs, stated: nothing here can tell a hand-written table
-//! from an emitted one, so nothing here enforces the lattice's rules.
-//! It is not meant to. The enforcement is upstream, at the doors, and
+//! from an emitted one that gave up its provenance, so nothing here
+//! enforces the lattice's rules — the one thing a [`ConstructedProfile`]
+//! carries is that its arcs were verified at their construction. It is
+//! not meant to. The enforcement is upstream, at the doors, and
 //! [`crate::ProfileLoop`]'s own docs are the one home for what those
 //! are — this gate re-checks whatever comes through them anyway.
 //!
@@ -78,9 +94,15 @@
 //! | predicate | margin | lever arm |
 //! |---|---|---|
 //! | `vertex_separation` | chord length | direct displacement |
-//! | `segment_straightness` | sagitta L·b/2 | half-chord (bulge → meters) |
+//! | `segment_straightness` | sagitta (L/2)·tan(Δθ/4) | half-chord (tan(Δθ/4) → meters) |
+//! | `full_turn_reach` | a full turn's reach 2r·\|Δθ\|/2π | diameter |
+//! | `full_turn_sense` | a full turn's signed reach 2r·Δθ/2π | diameter |
+//! | `arc_start_on_carrier` | ‖a − c‖ − r | direct |
+//! | `arc_landing` | ‖a turned by Δθ about c − b‖ | direct |
+//! | `arc_sweep_range` | r·\|Δθ\|·(2π − \|Δθ\|)/2π; a full turn's r·(2π − \|Δθ\|) | radius |
 //! | `arc_diameter_clearance` | 2r − half-span chord | ≈ L²/16r near full arcs |
 //! | `chord_side` | ⟂ distance to chord line | direct |
+//! | `circle_side` | ‖q − c‖ − r | direct |
 //! | `line_span` | min(t, L−t) along carrier | direct |
 //! | `arc_span` | chordal defect from apex | ×1/cos(θ/4) near full arcs |
 //! | `carrier_line_circle` | r − |h| clearance | tangency: r·φ²/2 |
@@ -132,20 +154,40 @@
 //! coordinates at once. At the interval scalar an enclosure straddling
 //! the hairline escalates honestly.
 
+use core::borrow::Borrow;
 use core::fmt;
 
 use geom_core::k_stats::decide;
 use geom_core::{
-    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol,
-    Vec2,
+    Arc2, Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, MarginDiag, Point2,
+    Real, Sign, Tol, Vec2,
 };
 
+/// The recourse of [`ProfileError::ArcBelowSceneResolution`]: the arc's
+/// carrier is stored at a magnitude whose `f64` rounding the tolerance
+/// cannot see past, so bring the magnitude down or the tolerance up.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const ARC_SCENE_RESOLUTION_RECOURSE: &str = "move the profile nearer the origin, or author the \
+     arc with a smaller radius (a flatter arc stores its centre farther out); a coarser tolerance \
+     also reads it, and an arc the path lattice constructs is verified at its construction, so \
+     validating its loop with that provenance (a `ConstructedProfile`, `pncad::validated`) does \
+     not re-read it";
+
 use crate::path::num;
-use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
+use crate::seg::{
+    self, CKind, Consistency, PairOutcome, Seg, SegIssue, SegKind, ShapeIssue, build_loop_seg,
+};
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
 };
-use crate::{Profile, ProfileLoop};
+use crate::{ConstructedLoop, Profile, ProfileLoop, SketchPlane};
 
 /// Identifies a segment of the *input* profile: `segment_index` k is the
 /// segment from vertex k to vertex k+1 (mod n) of loop `loop_index`, in
@@ -185,6 +227,46 @@ impl fmt::Display for ContactKind {
             Self::Crossing => "crossing",
             Self::Touch => "endpoint contact",
             Self::Overlap => "overlap",
+        })
+    }
+}
+
+/// Which of validation's three consistency checks of a stored arc
+/// against its vertices refused it ([`ProfileError::InconsistentArc`]).
+/// The stored form is redundant (D1): an arc's carrier and sweep are
+/// held beside its two vertices, and these are the conditions under
+/// which the two describe one arc.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ArcCheck {
+    /// The start vertex does not lie on the stored carrier
+    /// (`arc_start_on_carrier`: ‖a − c‖ − r).
+    OnCarrier,
+    /// The start, turned by the stored sweep about the stored centre,
+    /// does not land on the end vertex (`arc_landing`).
+    Landing,
+    /// The stored sweep is not in 0 < |Δθ| < 2π, signed as its sagitta
+    /// turns (`arc_sweep_range`).
+    SweepRange,
+}
+
+impl ArcCheck {
+    /// The predicate name the check decides under.
+    #[must_use]
+    pub fn predicate(self) -> &'static str {
+        match self {
+            Self::OnCarrier => "arc_start_on_carrier",
+            Self::Landing => "arc_landing",
+            Self::SweepRange => "arc_sweep_range",
+        }
+    }
+}
+
+impl fmt::Display for ArcCheck {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::OnCarrier => "its start vertex is off its carrier circle",
+            Self::Landing => "its sweep does not carry its start vertex onto its end vertex",
+            Self::SweepRange => "its sweep is not between zero and a full turn",
         })
     }
 }
@@ -477,9 +559,9 @@ pub const FILLET_FIT_RECOURSE: &str =
 
 /// **The recourse for a fillet arc too shallow to be STORED as an arc.**
 ///
-/// A profile stores an arc as its vertices plus a carrier and sweep
-/// lowered from the chord and the bulge, and validation classifies the
-/// segment through `segment_straightness`, whose margin is the sagitta
+/// A profile stores an arc as its vertices plus a carrier and sweep,
+/// and validation classifies the segment through
+/// `segment_straightness`, whose margin is the sagitta
 /// `r(1 − cos(θ/2)) ≈ r·θ²/8`. Below the run's ε the stored arc is
 /// read as a line and the carrier the door computed is simply not in
 /// the validated loop, so the tangency the fillet declares has nothing
@@ -653,8 +735,25 @@ pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
         "two arc apexes told apart by their separation",
     ),
     (
+        "arc_carrier_resolution",
+        "the magnitude an arc's consistency difference was read at, against the one where its \
+         f64 rounding reaches the band",
+    ),
+    (
+        "arc_landing",
+        "how far a table arc's start, turned by its sweep, lands from its end",
+    ),
+    (
         "arc_span",
         "an arc's span, as the clearance between its chord's reach and its apex",
+    ),
+    (
+        "arc_start_on_carrier",
+        "how far a table arc's start lies off its carrier circle",
+    ),
+    (
+        "arc_sweep_range",
+        "a table arc's sweep against a full turn, levered by its radius",
     ),
     (
         "canonical_order_x",
@@ -665,12 +764,25 @@ pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
         "two points ordered by their y difference, at the exact-order band",
     ),
     (
+        "circle_side",
+        "which side of an arc's carrier circle a point lies on, as its distance from the \
+         centre less the radius",
+    ),
+    (
         "collinear_overlap",
         "the overlap of two collinear segments along their shared carrier",
     ),
     (
         "contact_at_shared_vertex",
         "a contact point told apart from a loop vertex by their separation",
+    ),
+    (
+        "full_turn_reach",
+        "how far a full turn reaches from its vertex, levered by its diameter",
+    ),
+    (
+        "full_turn_sense",
+        "a full turn's signed reach from its vertex, whose sign is its turn",
     ),
     (
         "line_span",
@@ -693,6 +805,10 @@ pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
     (
         "path_arc_sweep",
         "an authored sweep angle metered against zero",
+    ),
+    (
+        "path_arc_sweep_full",
+        "an authored sweep's arc length short of a full turn",
     ),
     (
         "path_arc_via_offset",
@@ -743,6 +859,12 @@ pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
         "an authored fillet radius metered against zero",
     ),
     (
+        "path_run_out_carrier",
+        "an emitted segment told apart from a fillet's arrival carrier: its end's lateral \
+         miss from the arrival ray and its advance along it, or its end's and arc midpoint's \
+         radial misses from the arrival circle",
+    ),
+    (
         "path_seam_arrival_lever",
         "the lever arm the seam arrival's own turn and side gates are metered through",
     ),
@@ -773,6 +895,98 @@ pub fn shared_clause_only(predicate: &str) -> Option<&'static str> {
         .map(|(_, reason)| *reason)
 }
 
+/// The subject a door states for an escalation whose name has no words
+/// in [`decision_subject`]: `geom_core::UNNAMED_DECISION`.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const UNNAMED_DECISION: &str = geom_core::UNNAMED_DECISION;
+
+/// What an escalated decision of this crate was deciding, in the words
+/// a refusal states before the margin it could not call: each a clause
+/// that stands alone, with no colon or dash of its own, so the door can
+/// follow it with "is too close to call". The one home of these words,
+/// read by [`ProfileError::Escalated`] and [`crate::PathError::Escalated`]'s
+/// fall-through; [`SHARED_CLAUSE_ONLY`]'s reasons are for the roster's
+/// readers, not for the screen. `None` only for the fillet
+/// constructor's gates, which the path door routes to a sentence of
+/// their own and which validation never decides;
+/// `recourse_roster::every_decided_name_has_a_subject_or_a_sentence`
+/// holds that against the names `src` decides. A flip report states
+/// these words too, through `editor-core`'s one lookup over every
+/// owner's words.
+#[must_use]
+pub fn decision_subject(predicate: &str) -> Option<&'static str> {
+    Some(match predicate {
+        "arc_apex_identity" => "whether two arc apexes are one point",
+        "arc_carrier_resolution" => {
+            "whether the scene can read an arc's difference from its vertices at its magnitude"
+        }
+        "arc_span" => "whether a point falls inside an arc's span",
+        "arc_diameter_clearance" => "whether an arc stops short of a full circle",
+        "arc_landing" => "whether an arc's sweep carries its start onto its end",
+        "arc_start_on_carrier" => "whether an arc's start lies on its carrier circle",
+        "arc_sweep_range" => "whether an arc's sweep lies between zero and a full turn",
+        "canonical_order_x" => "which of two points comes first along x",
+        "full_turn_reach" => "whether a full turn reaches round its carrier",
+        "full_turn_sense" => "which way a full turn runs",
+        "canonical_order_y" => "which of two points comes first along y",
+        "carrier_circles_external" => "whether two circles touch from outside",
+        "carrier_circles_identity" => "whether two circles are one circle",
+        "carrier_circles_internal" => "whether two circles touch from inside",
+        "carrier_line_circle" => "whether a line and a circle cross, touch or miss",
+        "chord_side" => "which side of a chord a point lies on",
+        "circle_side" => "which side of an arc's circle a point lies on",
+        "collinear_overlap" => "whether two segments on one line overlap",
+        "contact_at_shared_vertex" => "whether a contact point is a loop vertex",
+        "line_span" => "whether a point falls inside a segment",
+        "loop_orientation" => "which way round a loop runs",
+        "path_arc_bulge" => "whether an authored bulge is zero",
+        "path_arc_center_equidistant" => {
+            "whether an authored centre is as far from one end of its arc as from the other"
+        }
+        "path_arc_center_radius" => "whether an authored radius is zero",
+        "path_arc_chord" => "whether an authored chord has any length",
+        "path_arc_sweep" => "whether an authored sweep angle is zero",
+        "path_arc_sweep_full" => "whether an authored sweep is short of a full turn",
+        "path_arc_via_offset" => "whether a via point lies off the chord it bulges",
+        "path_carrier_identity" => "whether two arc carriers are one circle",
+        "path_carrier_meet" => "whether a ray meets a circle",
+        "path_circle_radius" => "whether a circle's radius is zero",
+        "path_collinear_target" => "whether a declared target lies on the tip's line",
+        "path_continuation_target_offset" => {
+            "whether a declared straight continuation's target lies on the departing ray"
+        }
+        "path_corner_advance" => "whether the corner lies ahead of its anchor on a straight side",
+        "path_corner_advance_arc" => "whether the corner lies ahead of its anchor on an arc side",
+        "path_corner_reach_arc" => "whether the corner lies short of an arc arrival's anchor",
+        "path_corner_turn" => "whether the two carriers turn at the corner",
+        "path_director_norm" => geom_core::DIRECTION_LENGTH_SUBJECT,
+        "path_fillet_radius" => "whether an authored fillet radius is zero",
+        "path_junction_side" => {
+            "whether the path carries straight on at this junction or doubles back into a cusp"
+        }
+        "path_junction_turn" => "whether the path turns at this junction",
+        "path_leg_length" => "whether an authored leg has any length",
+        "path_run_out_carrier" => "whether an emitted segment lands on a fillet's arrival carrier",
+        "path_seam_arrival_lever" => "whether the seam arrival has a leg long enough to measure",
+        "path_seam_arrival_side" => {
+            "whether the seam arrival carries straight on or doubles back into a cusp"
+        }
+        "path_seam_arrival_turn" => "whether the seam arrival turns",
+        "ray_advance" => "whether a crossing lies ahead on a containment ray",
+        "ray_side" => "which side of a containment ray a point lies on",
+        "segment_straightness" => "whether a segment is straight or an arc",
+        "vertex_separation" => "whether a segment has any length",
+        _ => return None,
+    })
+}
+
 /// Typed validation failure — the closed error enum of
 /// [`Profile::validate`] (D4 ¶3: every failure is typed and actionable;
 /// D9: never a panic). All indices reference the *input* profile.
@@ -785,13 +999,11 @@ pub enum ProfileError {
     Band(BandError),
     /// The profile has no loops — there is no region to sweep.
     EmptyProfile,
-    /// A loop has fewer than two vertices (a closed carrier needs ≥ 2 —
-    /// the crate docs' minimal-circle rule).
-    TooFewVertices {
+    /// A loop has no vertex. One is enough: D1's full turn is one
+    /// segment at one vertex.
+    EmptyLoop {
         /// Index of the offending loop.
         loop_index: usize,
-        /// Its vertex count.
-        count: usize,
     },
     /// Consecutive vertices coincide at tolerance: a zero-length
     /// segment.
@@ -800,9 +1012,38 @@ pub enum ProfileError {
     /// half-span chord reaches the carrier diameter at tolerance): the
     /// complement gap is a sliver and span classification would not be
     /// honest there (the `arc_diameter_clearance` predicate — M2 PR 2
-    /// review fix). Split the arc at another vertex; a full circle is
-    /// two arcs by construction.
+    /// review fix). Split the arc at another vertex, or close it as a
+    /// full circle: one arc at one vertex (D1's full turn).
     NearFullArc(SegmentRef),
+    /// A stored arc disagrees with its own vertices: one of the three
+    /// consistency checks ([`ArcCheck`]) decided it definitely off. The
+    /// stored form is redundant and validation verifies it rather than
+    /// trusting it (D1).
+    InconsistentArc {
+        /// The offending segment.
+        at: SegmentRef,
+        /// The check that refused it.
+        check: ArcCheck,
+    },
+    /// A consistency check read a stored arc off its vertices, but at a
+    /// magnitude where `f64` rounding alone is past the band
+    /// (`arc_carrier_resolution`): the reading is the scene's
+    /// resolution, not a statement about the input, so the arc is
+    /// refused as unreadable here rather than as inconsistent.
+    ArcBelowSceneResolution {
+        /// The segment.
+        at: SegmentRef,
+        /// The check whose difference could not be read.
+        check: ArcCheck,
+        /// What that check classified.
+        margin: MarginDiag,
+        /// What `arc_carrier_resolution` classified: K·ε/(n·2⁻⁵²) less
+        /// the check's magnitude, meters, for the check's stated
+        /// rounding bound of n ulps — how far the magnitude sits below
+        /// the one where that rounding reaches the escalation band (not
+        /// positive here).
+        headroom: MarginDiag,
+    },
     /// Two segments meet where they may not (any contact other than
     /// adjacent segments' shared vertex).
     NonSimple {
@@ -832,6 +1073,13 @@ pub enum ProfileError {
         joint: usize,
         /// The loop's vertex count.
         count: usize,
+    },
+    /// A one-segment loop (D1's full turn) declares its vertex a
+    /// tangent joint. Its vertex joins the carrier to itself, not two
+    /// segments, so there is no joint to declare.
+    TangentJointOnFullTurn {
+        /// Index of the offending loop.
+        loop_index: usize,
     },
     /// Adjacent segments meet tangentially at their shared vertex —
     /// the joint's distinct carriers are in definite first-order
@@ -912,10 +1160,10 @@ impl fmt::Display for ProfileError {
         match self {
             Self::Band(e) => write!(f, "profile validation could not form a band: {e}"),
             Self::EmptyProfile => f.write_str("profile has no loops — nothing to sweep"),
-            Self::TooFewVertices { loop_index, count } => write!(
+            Self::EmptyLoop { loop_index } => write!(
                 f,
-                "loop {loop_index} has {count} vertex(es); a closed loop needs at least 2 \
-                 (two arc segments make the minimal circle)"
+                "loop {loop_index} has no vertex; a closed loop needs at least one \
+                 (a full circle is one arc at one vertex)"
             ),
             Self::DegenerateSegment(s) => write!(
                 f,
@@ -924,7 +1172,24 @@ impl fmt::Display for ProfileError {
             Self::NearFullArc(s) => write!(
                 f,
                 "{s} is within tolerance of a full circle — split the arc at another \
-                 vertex (a full circle is two arcs by construction)"
+                 vertex, or write the full circle as one arc at one vertex"
+            ),
+            Self::ArcBelowSceneResolution {
+                at,
+                check,
+                margin,
+                headroom,
+            } => write!(
+                f,
+                "{at} stores an arc whose {check} reads {margin} off its vertices, a difference \
+                 this scene's magnitude cannot resolve (the largest magnitude at which the \
+                 check's f64 rounding stays inside the tolerance band, less the one it was read at: \
+                 {headroom}). Recourse: {ARC_SCENE_RESOLUTION_RECOURSE}"
+            ),
+            Self::InconsistentArc { at, check } => write!(
+                f,
+                "{at} stores an arc that disagrees with its vertices: {check} — author the \
+                 arc through the path lattice, which stores a carrier consistent with its ends"
             ),
             Self::NonSimple {
                 first,
@@ -947,6 +1212,12 @@ impl fmt::Display for ProfileError {
                 f,
                 "loop {loop_index} declares a tangent joint at vertex {joint}, but the \
                  loop has only {count} vertices"
+            ),
+            Self::TangentJointOnFullTurn { loop_index } => write!(
+                f,
+                "loop {loop_index} is one full-turn arc and declares a tangent joint at its \
+                 vertex, which joins the arc to itself rather than two segments. Recourse: \
+                 drop the declaration"
             ),
             Self::UndeclaredTangency {
                 first,
@@ -994,7 +1265,14 @@ impl fmt::Display for ProfileError {
                  candidate ray grazed — escalating rather than guessing"
             ),
             Self::Escalated { site, source } => {
-                write!(f, "validation escalated {site}: {source}")?;
+                let what = source
+                    .predicate
+                    .and_then(decision_subject)
+                    .unwrap_or(UNNAMED_DECISION);
+                write!(
+                    f,
+                    "validation escalated {site}: {what} is too close to call: {source}"
+                )?;
                 // The near-tangency site note (#101 point 2, reworked by
                 // the S6 two-tolerance sweep): the recourse levers ride
                 // `{source}` (the shared carrier); this addendum adds
@@ -1076,16 +1354,11 @@ pub enum SegmentKind<T: Real> {
     Line,
     /// A circular arc.
     Arc {
-        /// The carrier circle's center (sketch coordinates).
-        center: Point2<T>,
-        /// The carrier circle's radius (positive).
-        radius: T,
-        /// The signed sweep Δθ from the segment's start to its end about
-        /// `center`, positive counterclockwise — the arc's parameter
-        /// span is `|sweep|`.
-        sweep: T,
-        /// The turn sense: `Positive` = counterclockwise sweep
-        /// (positive bulge), `Negative` = clockwise. Never `Zero` (that
+        /// The carrier (sketch coordinates) and the signed sweep Δθ from
+        /// the segment's start to its end, positive counterclockwise.
+        arc: Arc2<T>,
+        /// The turn sense: `Positive` = counterclockwise sweep,
+        /// `Negative` = clockwise. Never `Zero` (that
         /// classification is a `Line`).
         turn: Sign,
     },
@@ -1098,61 +1371,43 @@ pub struct ValidatedSegment<T: Real> {
     pub start: Point2<T>,
     /// End point.
     pub end: Point2<T>,
-    /// The bulge the segment was lowered from, in canonical traversal
-    /// (reversal negated it if the input wound the other way) — see
-    /// [`crate::ProfileLoop::bulges`] for why it is kept beside the
-    /// canonical form. **Consumers select carriers by
-    /// [`ValidatedSegment::kind`], never by the bulge** — a
-    /// sub-tolerance bulge classifies as `Line` while retaining its
-    /// value. The one boundary that still reads the bulge itself is the
-    /// `geom-brep` sketch segment, whose form is the bulge: the sweep's
-    /// arc span (`4·atan|b|`) and apex are spelled on it there, beside
-    /// the segment they build.
-    pub bulge: T,
     /// The classified carrier — the decision sweeps consume (PR 4
     /// lowers `Arc` to a circle carrier, `Line` to a line carrier).
     pub kind: SegmentKind<T>,
 }
 
 impl ValidatedSegment<f64> {
-    /// The `f64` segment embedded at `U`: the endpoints and the bulge
-    /// through `from_f64`, the classification and turn carried, and an
-    /// arc's carrier and sweep REBUILT at `U` from the embedded
-    /// endpoints and bulge through the arc lowering
-    /// ([`crate::lower_arc`]: [`seg::arc_carrier`] on the segment's
-    /// [`seg::ChordFrame`], and Δθ = 4·atan(b)) — the carrier
-    /// and sweep are derived data, not stored values, and at a
-    /// certified scalar the derivation is what mints their enclosure.
-    /// See [`ValidatedProfile::lift_onto`].
+    /// The `f64` segment embedded at `U`: every stored field through
+    /// `from_f64` — the endpoints, and an arc's carrier and sweep
+    /// ([`Arc2::map`]) — and the classification and turn carried.
+    /// Nothing is re-derived. See [`ValidatedProfile::lift_onto`].
     fn lift<U: Real>(self) -> ValidatedSegment<U> {
-        let (start, end, bulge) = (
-            self.start.map(U::from_f64),
-            self.end.map(U::from_f64),
-            U::from_f64(self.bulge),
-        );
         let kind = match self.kind {
             SegmentKind::Line => SegmentKind::Line,
-            SegmentKind::Arc { turn, .. } => {
-                let crate::LoweredArc {
-                    centre,
-                    radius,
-                    sweep,
-                } = crate::lower_arc(start, end, bulge);
-                SegmentKind::Arc {
-                    center: centre,
-                    radius,
-                    sweep,
-                    turn,
-                }
-            }
+            SegmentKind::Arc { arc, turn } => SegmentKind::Arc {
+                arc: arc.map(U::from_f64),
+                turn,
+            },
         };
         ValidatedSegment {
-            start,
-            end,
-            bulge,
+            start: self.start.map(U::from_f64),
+            end: self.end.map(U::from_f64),
             kind,
         }
     }
+}
+
+/// **Whether a loop is D1's full turn**: one segment at one vertex, a
+/// closed carrier as one edge. The one home of the question, asked of
+/// a loop's segments in any form — the stored table's
+/// ([`crate::ProfileLoop::segments`], where validation then asks that
+/// the one segment be an arc), a validated loop's, or anything a
+/// builder holds one per segment. A loop of n ≥ 2 segments joins them
+/// at n joints; a full turn has no joint, as its vertex joins its
+/// carrier to itself.
+#[must_use]
+pub fn is_full_turn<S>(segments: &[S]) -> bool {
+    segments.len() == 1
 }
 
 /// A canonicalized loop: role, chain, and classified segments —
@@ -1182,6 +1437,12 @@ impl<T: Real> ValidatedLoop<T> {
     /// vertex k+1 (mod n).
     pub fn segments(&self) -> &[ValidatedSegment<T>] {
         &self.segments
+    }
+
+    /// Whether this loop is D1's full turn ([`is_full_turn`]).
+    #[must_use]
+    pub fn is_full_turn(&self) -> bool {
+        is_full_turn(&self.segments)
     }
 
     /// The declared (and verified — validation refuses otherwise)
@@ -1277,9 +1538,9 @@ impl<T: Real> ValidatedLoop<T> {
     /// let blends = slot.loops()[0].blend_arcs();
     /// assert_eq!(blends.len(), 1);
     /// match blends[0].kind {
-    ///     SegmentKind::Arc { center, radius, .. } => {
-    ///         assert!((radius - 0.25).abs() < 1e-12);
-    ///         assert!(center.x.abs() < 1e-12);
+    ///     SegmentKind::Arc { arc, .. } => {
+    ///         assert!((arc.radius - 0.25).abs() < 1e-12);
+    ///         assert!(arc.centre.x.abs() < 1e-12);
     ///     }
     ///     SegmentKind::Line => panic!("a fillet is an arc"),
     /// }
@@ -1339,7 +1600,7 @@ pub struct BlendArc<T: Real> {
 /// - **Loop order**: the outer boundary first, then holes in input
 ///   (discovery) order.
 /// - **Traversal**: the outer loop runs counterclockwise, holes run
-///   clockwise, *in sketch coordinates* (reversal negates bulges — the
+///   clockwise, *in sketch coordinates* (reversal negates sweeps — the
 ///   involution of the crate docs).
 /// - **Starting vertex**: each loop starts at its AUTHORED vertex 0.
 ///   Reversal keeps vertex 0 in place ([`ProfileLoop::reversed`]), so
@@ -1386,16 +1647,14 @@ impl<T: Real> ValidatedProfile<T> {
 
 impl ValidatedProfile<f64> {
     /// The `f64` canonical form embedded at `U`, on `plane`: every
-    /// stored scalar — each vertex's position, each segment's endpoints
-    /// and the bulge it was lowered from — through [`Real::from_f64`];
-    /// each arc's carrier and sweep, which are DERIVED data, rebuilt at
-    /// `U` from the embedded endpoints and bulge through the lowering's
-    /// own arithmetic; the
+    /// stored scalar — each vertex's position, each segment's endpoints,
+    /// each arc's carrier and sweep — through [`Real::from_f64`]; the
     /// plane taken as given (validation is 2-D and reads nothing of it
     /// — [`ValidatedProfile::plane`]); everything else carried. No
     /// predicate runs and no verdict is logged. A `ValidatedProfile` is
-    /// minted by [`Profile::validate`], [`Profile::validate_recording`]
-    /// and [`Profile::validate_guided`] from a raw profile, and by this
+    /// minted by [`Profile::validate`] and [`Profile::validate_recording`]
+    /// from a raw profile, by [`ConstructedProfile`]'s three validations
+    /// from a replayed one, and by this
     /// from an `f64` one; nothing else mints one.
     ///
     /// # What is carried, and on whose authority
@@ -1466,8 +1725,18 @@ impl<T: Decide> Profile<T> {
     /// escalation (in-band margin, poisoned coordinate) surfaces as
     /// [`ProfileError::Escalated`] with the named predicate's
     /// diagnostic, never a guess.
+    ///
+    /// A `Profile` is read as a table: whatever built its loops, their
+    /// arcs' three consistency checks are decided here (D1). A profile
+    /// of loops the path lattice constructed, kept as
+    /// [`ConstructedLoop`]s, validates through
+    /// [`ConstructedProfile::validate`] instead.
     pub fn validate(&self, tol: Tol) -> Result<ValidatedProfile<T>, ProfileError> {
-        self.validate_with(tol, &mut CanonGuide::Recording(Vec::new()))
+        self.validate_with(
+            tol,
+            &mut CanonGuide::Recording(Vec::new()),
+            Consistency::Decide,
+        )
     }
 
     /// [`validate`](Self::validate) keeping the structure record it
@@ -1485,74 +1754,60 @@ impl<T: Decide> Profile<T> {
         &self,
         tol: Tol,
     ) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError> {
-        let mut guide = CanonGuide::Recording(Vec::new());
-        let vp = self.validate_with(tol, &mut guide)?;
-        let CanonGuide::Recording(loops) = guide else {
-            unreachable!("the guide was constructed Recording two lines above")
-        };
-        Ok((vp, CanonicalStructure { loops }))
-    }
-
-    /// **Guided validation**: canonicalize at this scalar while
-    /// CONSUMING `structure`'s decisions instead of remaking them.
-    ///
-    /// The pinned predicates are STRUCTURALLY ABSENT here, not merely
-    /// expected to agree. `lex_min`'s ordering (the containment
-    /// representative) runs against a band an ulp wide — total at `f64`
-    /// by that band's design, and indeterminate at an interval scalar
-    /// on essentially every input, because two enclosures of
-    /// nearly-equal coordinates overlap. `loop_orientation` is the same
-    /// story at a sliver. Re-running either at a lane scalar would
-    /// therefore refuse almost everything it was asked, so the
-    /// representative, the start and the reversal are taken from the
-    /// record, and what this pass verifies
-    /// instead is the VALUE channel that hangs off them: the segments
-    /// the recorded permutation produces, classified here, must have
-    /// the recorded shapes, and the declared joints must land where
-    /// the record says.
-    ///
-    /// The containment forest is a different case and IS re-run: ray
-    /// parity is an ordinary decided predicate, so a lane can honestly
-    /// answer it, and the answers are compared against the record.
-    ///
-    /// # Errors
-    ///
-    /// [`ProfileError`] — validation's own refusals as ever, plus
-    /// [`ProfileError::Structure`] for a decision this scalar cannot
-    /// reproduce.
-    pub fn validate_guided(
-        &self,
-        tol: Tol,
-        structure: &CanonicalStructure,
-    ) -> Result<ValidatedProfile<T>, ProfileError> {
-        if structure.loops.len() != self.loops.len() {
-            return Err(ProfileError::Structure(StructureRefusal::shape(
-                structure.loops.len(),
-                self.loops.len(),
-            )));
-        }
-        self.validate_with(tol, &mut CanonGuide::Guided(structure.clone()))
+        recording_loops(self.plane, &self.loops, tol, Consistency::Decide)
     }
 
     fn validate_with(
         &self,
         tol: Tol,
         guide: &mut CanonGuide,
+        consistency: Consistency,
     ) -> Result<ValidatedProfile<T>, ProfileError> {
+        validate_loops(self.plane, &self.loops, tol, guide, consistency)
+    }
+}
+
+/// [`validate_loops`] keeping the structure record it built
+/// ([`Profile::validate_recording`]).
+fn recording_loops<T: Decide, L: Borrow<ProfileLoop<T>>>(
+    plane: SketchPlane<T>,
+    loops_in: &[L],
+    tol: Tol,
+    consistency: Consistency,
+) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError> {
+    let mut guide = CanonGuide::Recording(Vec::new());
+    let vp = validate_loops(plane, loops_in, tol, &mut guide, consistency)?;
+    let CanonGuide::Recording(loops) = guide else {
+        unreachable!("the guide was constructed Recording two lines above")
+    };
+    Ok((vp, CanonicalStructure { loops }))
+}
+
+/// The validation of `loops` on `plane` ([`Profile::validate`]'s body),
+/// over any loop that reads as a [`ProfileLoop`]: a table, or a
+/// [`ConstructedLoop`] whose provenance its caller carries.
+fn validate_loops<T: Decide, L: Borrow<ProfileLoop<T>>>(
+    plane: SketchPlane<T>,
+    loops_in: &[L],
+    tol: Tol,
+    guide: &mut CanonGuide,
+    consistency: Consistency,
+) -> Result<ValidatedProfile<T>, ProfileError> {
+    {
         let band = Band::linear(tol).map_err(ProfileError::Band)?;
         // The exact-order band for the containment representative
         // (module docs): no representable f64 lies strictly inside it.
         let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
 
-        if self.loops.is_empty() {
+        if loops_in.is_empty() {
             return Err(ProfileError::EmptyProfile);
         }
 
         // 1 + 2: arity, then per-segment degeneracy + kind
         // classification.
-        let mut loop_segs: Vec<Vec<Seg<T>>> = Vec::with_capacity(self.loops.len());
-        for (li, lp) in self.loops.iter().enumerate() {
-            loop_segs.push(build_loop_segs(lp, li, band)?);
+        let mut loop_segs: Vec<Vec<Seg<T>>> = Vec::with_capacity(loops_in.len());
+        for (li, lp) in loops_in.iter().map(Borrow::borrow).enumerate() {
+            loop_segs.push(build_loop_segs(lp, li, consistency, band)?);
             // Declared-tangent joints must name vertices of their loop
             // (set semantics — duplicates are harmless, order is not
             // significant; see `ProfileLoop::tangent_joints`). Checked
@@ -1565,20 +1820,23 @@ impl<T: Decide> Profile<T> {
                     count: lp.vertices.len(),
                 });
             }
+            if is_full_turn(&lp.segments) && !lp.tangent_joints.is_empty() {
+                return Err(ProfileError::TangentJointOnFullTurn { loop_index: li });
+            }
         }
 
         // 3: simplicity — every unordered segment pair, adjacency
         // discounted only at the shared vertex.
-        for li in 0..self.loops.len() {
+        for li in 0..loops_in.len() {
             for si in 0..loop_segs[li].len() {
                 // Same-loop partners after si, then every segment of
                 // later loops (deterministic order, first error wins).
                 for sj in (si + 1)..loop_segs[li].len() {
-                    judge_pair(self, &loop_segs, (li, si), (li, sj), band)?;
+                    judge_pair(loops_in, &loop_segs, (li, si), (li, sj), band)?;
                 }
-                for lj in (li + 1)..self.loops.len() {
+                for lj in (li + 1)..loops_in.len() {
                     for sj in 0..loop_segs[lj].len() {
-                        judge_pair(self, &loop_segs, (li, si), (lj, sj), band)?;
+                        judge_pair(loops_in, &loop_segs, (li, si), (lj, sj), band)?;
                     }
                 }
             }
@@ -1593,8 +1851,8 @@ impl<T: Decide> Profile<T> {
         // definite-Zero tangency (verified, never trusted). Each
         // declared joint's heading is decided here too: which of them
         // are cusps (INPUT indices; canonicalization remaps them).
-        let mut input_cusps: Vec<Vec<usize>> = Vec::with_capacity(self.loops.len());
-        for (li, lp) in self.loops.iter().enumerate() {
+        let mut input_cusps: Vec<Vec<usize>> = Vec::with_capacity(loops_in.len());
+        for (li, lp) in loops_in.iter().map(Borrow::borrow).enumerate() {
             input_cusps.push(judge_joints(lp, &loop_segs[li], li, band)?);
         }
 
@@ -1603,9 +1861,9 @@ impl<T: Decide> Profile<T> {
         // is decided from. PINNED under guidance
         // — see `validate_guided` for why `lex_min` is not a predicate
         // a lane scalar can be asked.
-        let mut rep: Vec<Point2<T>> = Vec::with_capacity(self.loops.len());
-        let mut rep_index: Vec<usize> = Vec::with_capacity(self.loops.len());
-        for (li, lp) in self.loops.iter().enumerate() {
+        let mut rep: Vec<Point2<T>> = Vec::with_capacity(loops_in.len());
+        let mut rep_index: Vec<usize> = Vec::with_capacity(loops_in.len());
+        for (li, lp) in loops_in.iter().map(Borrow::borrow).enumerate() {
             let idx = match guide.loop_at(li) {
                 Some(rec) => rec.representative,
                 None => lex_min_index(&lp.vertices, exact, li)?,
@@ -1623,7 +1881,7 @@ impl<T: Decide> Profile<T> {
 
         // 4: containment forest by ray parity — RE-RUN under guidance,
         // parity being an ordinary decided predicate, and compared.
-        let n = self.loops.len();
+        let n = loops_in.len();
         let mut depth = vec![0usize; n];
         let mut within: Vec<Vec<usize>> = vec![Vec::new(); n];
         for i in 0..n {
@@ -1700,7 +1958,7 @@ impl<T: Decide> Profile<T> {
 
         // 5: canonicalize each loop; assemble outer-first.
         let mut canonical: Vec<Option<ValidatedLoop<T>>> = (0..n).map(|_| None).collect();
-        for (li, lp) in self.loops.iter().enumerate() {
+        for (li, lp) in loops_in.iter().map(Borrow::borrow).enumerate() {
             let role = if li == outer_index {
                 LoopRole::Outer
             } else {
@@ -1721,6 +1979,7 @@ impl<T: Decide> Profile<T> {
                 &input_cusps[li],
                 role,
                 li,
+                consistency,
                 band,
                 guide.loop_at(li),
             )?;
@@ -1742,10 +2001,144 @@ impl<T: Decide> Profile<T> {
         for c in canonical.into_iter().flatten() {
             loops.push(c);
         }
-        Ok(ValidatedProfile {
-            plane: self.plane,
-            loops,
-        })
+        Ok(ValidatedProfile { plane, loops })
+    }
+}
+
+/// A profile whose loops the path lattice constructed
+/// ([`ConstructedLoop`]: the builder's closing, or a replay's).
+///
+/// The type is the provenance. Its validations do not decide an arc's
+/// three consistency checks, because D1 verifies a constructed arc at
+/// its construction, at that scalar; a table's arcs have had no
+/// construction, so a [`Profile`] of them cannot reach these doors and
+/// goes through [`Profile::validate`], which decides the checks.
+#[derive(Clone, Debug)]
+pub struct ConstructedProfile<T: Real> {
+    plane: SketchPlane<T>,
+    loops: Vec<ConstructedLoop<T>>,
+}
+
+impl<T: Real> ConstructedProfile<T> {
+    /// Builds the profile from a plane and loops the lattice
+    /// constructed (under guidance, in the record's loop order).
+    pub fn new(plane: SketchPlane<T>, loops: Vec<ConstructedLoop<T>>) -> Self {
+        Self { plane, loops }
+    }
+
+    /// The plane.
+    pub fn plane(&self) -> &SketchPlane<T> {
+        &self.plane
+    }
+
+    /// The loops, keeping their provenance.
+    pub fn loops(&self) -> &[ConstructedLoop<T>] {
+        &self.loops
+    }
+
+    /// The plane and the loops, keeping their provenance.
+    pub fn into_parts(self) -> (SketchPlane<T>, Vec<ConstructedLoop<T>>) {
+        (self.plane, self.loops)
+    }
+
+    /// The profile, giving up the provenance: a `Profile` validates as
+    /// a table.
+    pub fn into_profile(self) -> Profile<T> {
+        Profile::new(
+            self.plane,
+            self.loops
+                .into_iter()
+                .map(ConstructedLoop::into_loop)
+                .collect(),
+        )
+    }
+}
+
+impl<T: Decide> ConstructedProfile<T> {
+    /// [`Profile::validate`] of loops the lattice constructed: the same
+    /// checks, except an arc's three consistency checks, which its
+    /// construction verified (D1) and which are not decided again
+    /// ([`Consistency::ByConstruction`]).
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileError`], as [`Profile::validate`].
+    pub fn validate(&self, tol: Tol) -> Result<ValidatedProfile<T>, ProfileError> {
+        validate_loops(
+            self.plane,
+            &self.loops,
+            tol,
+            &mut CanonGuide::Recording(Vec::new()),
+            Consistency::ByConstruction,
+        )
+    }
+
+    /// [`Profile::validate_recording`] of loops the lattice constructed,
+    /// deciding no consistency check ([`validate`](Self::validate)):
+    /// the evaluator's f64 pass 1.
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileError`], as [`Profile::validate`].
+    pub fn validate_recording(
+        &self,
+        tol: Tol,
+    ) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError> {
+        recording_loops(self.plane, &self.loops, tol, Consistency::ByConstruction)
+    }
+
+    /// **Guided validation**: canonicalize at this scalar while
+    /// CONSUMING `structure`'s decisions instead of remaking them.
+    ///
+    /// The pinned predicates are STRUCTURALLY ABSENT here, not merely
+    /// expected to agree. `lex_min`'s ordering (the containment
+    /// representative) runs against a band an ulp wide — total at `f64`
+    /// by that band's design, and indeterminate at an interval scalar
+    /// on essentially every input, because two enclosures of
+    /// nearly-equal coordinates overlap. `loop_orientation` is the same
+    /// story at a sliver. Re-running either at a lane scalar would
+    /// therefore refuse almost everything it was asked, so the
+    /// representative, the start and the reversal are taken from the
+    /// record, and what this pass verifies
+    /// instead is the VALUE channel that hangs off them: the segments
+    /// the recorded permutation produces, classified here, must have
+    /// the recorded shapes, and the declared joints must land where
+    /// the record says.
+    ///
+    /// The containment forest is a different case and IS re-run: ray
+    /// parity is an ordinary decided predicate, so a lane can honestly
+    /// answer it, and the answers are compared against the record.
+    ///
+    /// An arc's three consistency checks are not decided at all
+    /// ([`Consistency::ByConstruction`]): each arc was verified at its
+    /// construction in the guided replay, at this scalar (D1) — a
+    /// `Center` arc by `path_arc_center_equidistant`, which the path
+    /// door decides inline, and a lowered arc by the exact witness of
+    /// the endpoint identities its lowering registers.
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileError`] — validation's own refusals as ever, plus
+    /// [`ProfileError::Structure`] for a decision this scalar cannot
+    /// reproduce.
+    pub fn validate_guided(
+        &self,
+        tol: Tol,
+        structure: &CanonicalStructure,
+    ) -> Result<ValidatedProfile<T>, ProfileError> {
+        if structure.loops.len() != self.loops.len() {
+            return Err(ProfileError::Structure(StructureRefusal::shape(
+                structure.loops.len(),
+                self.loops.len(),
+            )));
+        }
+        validate_loops(
+            self.plane,
+            &self.loops,
+            tol,
+            &mut CanonGuide::Guided(structure.clone()),
+            Consistency::ByConstruction,
+        )
     }
 }
 
@@ -1778,47 +2171,70 @@ impl CanonGuide {
     }
 }
 
-/// Arity check + segment construction for one input loop.
+/// Arity check + segment construction for one input loop. One vertex
+/// is enough: D1's full turn is one segment at one vertex
+/// ([`seg::build_loop_seg`]).
 fn build_loop_segs<T: Decide>(
     lp: &ProfileLoop<T>,
     loop_index: usize,
+    consistency: Consistency,
     band: Band,
 ) -> Result<Vec<Seg<T>>, ProfileError> {
     let n = lp.vertices.len();
-    if n < 2 {
-        return Err(ProfileError::TooFewVertices {
-            loop_index,
-            count: n,
-        });
+    if n == 0 {
+        return Err(ProfileError::EmptyLoop { loop_index });
     }
     let mut segs = Vec::with_capacity(n);
     for k in 0..n {
-        let (a, b) = (lp.vertices[k], lp.vertices[(k + 1) % n]);
         segs.push(
-            build_seg(a, b, lp.segments[k], lp.bulges[k], band).map_err(|issue| {
+            build_loop_seg(&lp.vertices, &lp.segments, k, consistency, band).map_err(|issue| {
                 let at = SegmentRef {
                     loop_index,
                     segment_index: k,
                 };
-                match issue {
-                    SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
-                    SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
-                    SegIssue::Escalated(source) => ProfileError::Escalated {
-                        site: EscalationSite::Segment(at),
-                        source,
-                    },
-                }
+                seg_refusal(issue, at, |source| ProfileError::Escalated {
+                    site: EscalationSite::Segment(at),
+                    source,
+                })
             })?,
         );
     }
     Ok(segs)
 }
 
+/// The refusal of the segment at `at` for `issue`, with `escalated`
+/// naming where an escalation is reported — the one map from a
+/// segment's refusal to the profile's.
+fn seg_refusal<T: Real>(
+    issue: SegIssue<T>,
+    at: SegmentRef,
+    escalated: impl FnOnce(Indeterminate) -> ProfileError,
+) -> ProfileError {
+    match issue {
+        SegIssue::Shape(ShapeIssue::Degenerate { .. } | ShapeIssue::DegenerateTurn { .. }) => {
+            ProfileError::DegenerateSegment(at)
+        }
+        SegIssue::Shape(ShapeIssue::NearFull { .. }) => ProfileError::NearFullArc(at),
+        SegIssue::Shape(ShapeIssue::Escalated(source)) => escalated(source),
+        SegIssue::Inconsistent { check } => ProfileError::InconsistentArc { at, check },
+        SegIssue::BelowSceneResolution {
+            check,
+            margin,
+            headroom,
+        } => ProfileError::ArcBelowSceneResolution {
+            at,
+            check,
+            margin,
+            headroom,
+        },
+    }
+}
+
 /// Judges one segment pair: classifies contacts and applies the
 /// adjacency discount (adjacent segments may touch exactly at their
 /// shared vertex/vertices; everything else is an error).
-fn judge_pair<T: Decide>(
-    profile: &Profile<T>,
+fn judge_pair<T: Decide, L: Borrow<ProfileLoop<T>>>(
+    loops: &[L],
     loop_segs: &[Vec<Seg<T>>],
     (li, si): (usize, usize),
     (lj, sj): (usize, usize),
@@ -1841,10 +2257,10 @@ fn judge_pair<T: Decide>(
     if li == lj {
         let n = loop_segs[li].len();
         if sj == si + 1 {
-            shared.push(profile.loops[li].vertices[(si + 1) % n]);
+            shared.push(loops[li].borrow().vertices[(si + 1) % n]);
         }
         if si == 0 && sj == n - 1 {
-            shared.push(profile.loops[li].vertices[0]);
+            shared.push(loops[li].borrow().vertices[0]);
         }
     }
 
@@ -1926,6 +2342,12 @@ fn judge_joints<T: Decide>(
 ) -> Result<Vec<usize>, ProfileError> {
     let n = segs.len();
     let mut cusps = Vec::new();
+    if is_full_turn(segs) {
+        // A full turn has no joint: its vertex is its carrier
+        // continuing into itself, and a declaration there was refused
+        // with the loop's segments.
+        return Ok(cusps);
+    }
     for joint in 0..n {
         let prev = (joint + n - 1) % n;
         let first = SegmentRef {
@@ -2065,7 +2487,7 @@ fn lex_min_index<T: Decide>(
 /// vertex moves.
 ///
 /// Orientation is the **`loop_orientation`** predicate — margin:
-/// 2·A/P, the loop's mean width (meters): A is the bulge-polygon signed
+/// 2·A/P, the loop's mean width (meters): A is the arc-polygon signed
 /// area (shoelace about the loop's first vertex — the ch. 13
 /// translate-to-origin accuracy fix — plus per-arc circular-segment
 /// corrections (r²/2)·(θ − sin θ), θ the arc's sweep); P is the true
@@ -2081,6 +2503,7 @@ fn canonicalize_loop<T: Decide>(
     input_cusps: &[usize],
     role: LoopRole,
     loop_index: usize,
+    consistency: Consistency,
     band: Band,
     recorded: Option<&LoopCanonical>,
 ) -> Result<(ValidatedLoop<T>, LoopPermutation), ProfileError> {
@@ -2109,7 +2532,7 @@ fn canonicalize_loop<T: Decide>(
     // canonical one.
     let chain = if reversed { lp.reversed() } else { lp.clone() };
     let n = chain.vertices.len();
-    let (vertices, lowered, bulges) = (chain.vertices, chain.segments, chain.bulges);
+    let (vertices, stored) = (chain.vertices, chain.segments);
     // Declared joints: reversal already remapped them in `reversed()`,
     // and indices are in range — validated at entry. Sorted +
     // deduplicated: canonical.
@@ -2134,39 +2557,32 @@ fn canonicalize_loop<T: Decide>(
     let mut segments = Vec::with_capacity(n);
     let mut shapes = Vec::with_capacity(n);
     for k in 0..n {
-        let (a, b) = (vertices[k], vertices[(k + 1) % n]);
-        let s = build_seg(a, b, lowered[k], bulges[k], band).map_err(|issue| {
+        let s = build_loop_seg(&vertices, &stored, k, consistency, band).map_err(|issue| {
             let at = SegmentRef {
                 loop_index,
                 segment_index: k,
             };
-            match issue {
-                SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
-                SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
-                // The recorded shape is a consumed decision, so a
-                // guided pass names the segment whose classification
-                // went unconfirmed instead of the bare segment site.
-                SegIssue::Escalated(source) => match recorded {
-                    Some(_) => ProfileError::Structure(StructureRefusal::indeterminate(
-                        Decision::SegmentShape {
-                            loop_: loop_index,
-                            segment: k,
-                        },
-                        source,
-                    )),
-                    None => ProfileError::Escalated {
-                        site: EscalationSite::Segment(at),
-                        source,
+            // The recorded shape is a consumed decision, so a guided
+            // pass names the segment whose classification went
+            // unconfirmed instead of the bare segment site.
+            seg_refusal(issue, at, |source| match recorded {
+                Some(_) => ProfileError::Structure(StructureRefusal::indeterminate(
+                    Decision::SegmentShape {
+                        loop_: loop_index,
+                        segment: k,
                     },
+                    source,
+                )),
+                None => ProfileError::Escalated {
+                    site: EscalationSite::Segment(at),
+                    source,
                 },
-            }
+            })
         })?;
         let kind = match &s.kind {
             SegKind::Line => SegmentKind::Line,
             SegKind::Arc(g) => SegmentKind::Arc {
-                center: g.center,
-                radius: g.radius,
-                sweep: g.sweep,
+                arc: g.arc,
                 turn: g.turn,
             },
         };
@@ -2199,7 +2615,6 @@ fn canonicalize_loop<T: Decide>(
         segments.push(ValidatedSegment {
             start: s.a,
             end: s.b,
-            bulge: s.bulge,
             kind,
         });
     }
@@ -2260,7 +2675,7 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Inde
                 perimeter = perimeter + s.len;
             }
             SegKind::Arc(g) => {
-                let theta = g.sweep;
+                let theta = g.arc.sweep;
                 // Circular-segment correction: (r²/2)(θ − sin θ),
                 // doubled here since we accumulate 2A. `r²` is the tight
                 // square, and here it is the tight square of something
@@ -2271,8 +2686,8 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Inde
                 // bound at any instantiation — it is here so the file
                 // spells a square the one way the rule names, not
                 // because this site was wide.
-                twice_area = twice_area + g.radius.powi(2) * (theta - theta.sin());
-                perimeter = perimeter + g.radius * theta.abs();
+                twice_area = twice_area + g.arc.radius.powi(2) * (theta - theta.sin());
+                perimeter = perimeter + g.arc.radius * theta.abs();
             }
         }
     }

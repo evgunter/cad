@@ -112,7 +112,7 @@ impl Narrow for Point3<f64> {
     type Narrowed = [f32; 3];
 
     fn narrow(self) -> Option<[f32; 3]> {
-        [self.x, self.y, self.z].narrow()
+        self.to_array().narrow()
     }
 }
 

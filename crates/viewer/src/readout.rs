@@ -44,8 +44,8 @@
 //! a display unit in the others, so the rule cannot be a method on that
 //! type without being written twice — once as the method and once, by
 //! hand, wherever the type is absent. It is one function over the
-//! value, [`crate::scene::DisplayTolerance::render_mm`] is the δ-facing
-//! door onto it (the millimetre conversion, and nothing else), and
+//! value, [`crate::scene::DisplayTolerance::render_in`] is the δ-facing
+//! door onto it (the conversion into a length unit, and nothing else), and
 //! `crate::widgets::number_text` is the fields' door.
 //!
 //! # What it is not
@@ -297,8 +297,9 @@ pub fn widest_render(mut advance: impl FnMut(char) -> f32) -> f32 {
 /// is answered at each of them rather than here.** The sweep is every
 /// call to this function under `crates/viewer/src`, read for what its
 /// argument's producer guarantees, and there are three:
-/// [`crate::scene::DisplayTolerance::render_mm`], whose door refuses a
-/// δ whose millimetre value is not an `f64`;
+/// [`crate::scene::DisplayTolerance::render_in`], which asks
+/// [`crate::props::written`] and whose door refuses a δ whose
+/// millimetre value — the finest length unit's — is not an `f64`;
 /// [`crate::props::written_text`], which asks
 /// [`crate::props::written`] whether the notation can name the value
 /// and says so when it cannot; and `crate::widgets::number_text`'s
@@ -600,7 +601,7 @@ mod tests {
     }
 
     /// **Zero is the value the δ door's own predicate could not have
-    /// carried**, and it is why this rule is not `render_mm` with the δ
+    /// carried**, and it is why this rule is not `render_in` with the δ
     /// taken out: a probed bound may BE zero, and zero reads back as
     /// itself.
     #[test]

@@ -24,6 +24,7 @@ use common::*;
 use geom::Curve3;
 use geom_core::{Point2, Tol};
 use profile::RawLoop;
+use sweep::ExtrudeSide;
 use topo::Body;
 
 /// The tour donut with its seam meridian (edge 0) split at `fracs`.
@@ -149,7 +150,7 @@ fn m10r2_split_lineage_after_graft() {
     );
     // (a) into an empty body.
     let mut empty = Body::<f64>::new();
-    topo::graft_disjoint(&mut empty, &src, tol).expect("graft into an empty body");
+    topo::graft_disjoint(&mut empty, &src).expect("graft into an empty body");
     let v_empty = volume(&empty);
     let mesh_empty = mesh::tessellate(&empty, 0.1, tol).map(|m| m.positions.len());
     println!("M10R2 graft into EMPTY: V = {v_empty:?}, mesh = {mesh_empty:?}");
@@ -157,7 +158,7 @@ fn m10r2_split_lineage_after_graft() {
     // in the donut's hole).
     let mut held = ball();
     let v_ball = volume(&held).unwrap();
-    topo::graft_disjoint(&mut held, &src, tol).expect("graft into the ball's body");
+    topo::graft_disjoint(&mut held, &src).expect("graft into the ball's body");
     let v_held = volume(&held);
     let mesh_held = mesh::tessellate(&held, 0.1, tol).map(|m| m.positions.len());
     println!(
@@ -180,23 +181,29 @@ fn m10r2_split_lineage_after_graft() {
     // (c) the boolean's disjoint union, both operand orders: with the
     // ball (a curved pair, refused before any graft) and with a far
     // box (disjoint operands, grafted).
-    let u1 = topo::union(&ball(), &src, tol).map(|r| r.body().map(|b| volume(&b.body)));
-    let u2 = topo::union(&src, &ball(), tol).map(|r| r.body().map(|b| volume(&b.body)));
+    let src = topo::test_support::finished("the split-seam donut", src, tol);
+    let ball = topo::test_support::finished("the ball", ball(), tol);
+    let u1 = topo::union(&ball, &src, tol).map(|r| r.body().map(|b| volume(&b.body)));
+    let u2 = topo::union(&src, &ball, tol).map(|r| r.body().map(|b| volume(&b.body)));
     println!("M10R2 union(ball, split donut): {u1:?}");
     println!("M10R2 union(split donut, ball): {u2:?}");
     let far_box = || {
-        sweep::extrude(
+        let body = sweep::extrude(
             &validated(vec![profile::ProfileLoop::<f64>::polygon([
                 Point2::new(10.0, 10.0),
                 Point2::new(11.0, 10.0),
                 Point2::new(11.0, 11.0),
                 Point2::new(10.0, 11.0),
             ])]),
-            sweep::Extrusion::Distance(1.0),
+            sweep::Extrusion::Distance {
+                depth: 1.0,
+                side: ExtrudeSide::Along,
+            },
             tol,
         )
         .unwrap()
-        .body
+        .body;
+        topo::test_support::finished("the far box", body, tol)
     };
     let u3 = topo::union(&far_box(), &src, tol).map(|r| r.body().map(|b| volume(&b.body)));
     let u4 = topo::union(&src, &far_box(), tol).map(|r| r.body().map(|b| volume(&b.body)));
@@ -241,10 +248,13 @@ fn m10r2_split_lineage_after_graft() {
 /// visibly wrong span, for φ = 1e-12 a sub-band shift every consumer
 /// ANSWERED, the volume hundreds of ulps from the donut's. Inverted:
 /// the pieces must meet exactly, so BOTH shifts refuse
-/// `props_meridian_pieces_meet` — the sub-ε one too, because the
-/// split's own `t` is a structural fact, not a value within ε — while
-/// the unsplit edge shifted the same way still answers bitwise (one
-/// edge's span is shift-invariant).
+/// `props_meridian_pieces_meet` at the shape door (`tessellate`) — the
+/// sub-ε one too, because the split's own `t` is a structural fact, not
+/// a value within ε — while the unsplit edge shifted the same way still
+/// answers bitwise (one edge's span is shift-invariant). The volume
+/// folds nothing: the torus's chart Green form reads each piece's own
+/// span on its own carrier, so the re-certified child is the same arc
+/// and the volume is the donut's.
 #[test]
 fn m10r2_set_edge_curve_on_a_split_child() {
     let tol = Tol::witness();
@@ -315,13 +325,14 @@ fn m10r2_set_edge_curve_on_a_split_child() {
             let meet = geom_brep::props::PropsError::NotIsoRectangle {
                 what: "props_meridian_pieces_meet",
             };
+            let v = v.unwrap_or_else(|e| panic!("split={split} phi={phi:e}: measures: {e:?}"));
             assert!(
-                matches!(&v, Err(topo::MassPropsError::Face { source, .. }) if *source == meet),
-                "split={split} phi={phi:e}: the shifted piece no longer meets its sibling: {v:?}"
+                (v - v_donut).abs() <= 1e-12 * v_donut,
+                "split={split} phi={phi:e}: the re-certified child is the same arc: {v} vs {v_donut}"
             );
             assert!(
                 matches!(&m, Err(mesh::TessellateError::UnsupportedCurvedShape { source, .. }) if *source == meet),
-                "split={split} phi={phi:e}: tessellate refuses by the same name: {m:?}"
+                "split={split} phi={phi:e}: tessellate refuses at the shape door: {m:?}"
             );
         } else {
             let v = v.expect("one edge's span is shift-invariant");

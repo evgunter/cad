@@ -11,7 +11,7 @@ pr: 2896
 ## Where this came from
 
 The class sweep of `unit-vector-witness-in-geom-core` (SCALAR; the
-ruling is `work/scalar/unit-vector-invariants-carried-as-prose.md`
+ruling is SCALAR's `unit-vector-invariants-carried-as-prose` (ruled on PR 2457; `docs/doc-ledger/scalar-leaves-the-tracker.md`)
 §RATIFIED). The class: a function whose doc or parameter name asserts
 a unit-vector precondition it does not check. `geom_core::UnitVec3<T>`
 now exists to carry that fact across a function boundary — minted by
@@ -65,5 +65,5 @@ fixtures (`the_three_residual_clashes_survive_the_inverted_authored_order`,
 `a_determined_pair_and_a_v_block_keep_their_verdicts_under_the_witness`).
 No verdict moved. The `OrthoFrame` road at the frame read needs a
 `geom-core` door that does not exist — filed as
-`work/scalar/point-at-drops-the-frame-witness.md`. The carrier fields
+SCALAR's `point-at-drops-the-frame-witness` (closed by PR 2896; `docs/doc-ledger/scalar-leaves-the-tracker.md`). The carrier fields
 stay bare under `geom`'s at-rest rule, as the row says.

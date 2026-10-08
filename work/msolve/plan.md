@@ -123,11 +123,12 @@ and a transform moves one. The alternatives weighed and rejected are in
     and reaches every consumer of `MateFrame`. Spec last, on top of
     MSOLVE-6's reach road (the same `PartCache` answers both the
     extent and the face pose). LIB's façade and Python half follow it.
-    Ratified by Ev on `[ev]` PR 2895 (2026-09-20); dispatches from
-    main after MSOLVE-10.
-    Spec `docs/MSOLVE-9-SPEC.md` and the A11 sentence drafted
-    2026-09-19 on an `[ev]` PR; dispatches after Ev's sign-off and
-    after MSOLVE-8.
+    Ratified by Ev on `[ev]` PR 2895 (2026-09-20). Merged on PR 2934
+    (2026-09-24) after a dual review: a face frame is `FromFace
+    { face }` alone (the roll is the carrier's own `u_ref`; the
+    authored reference had no admitted value and was dropped), the
+    wire externally tagged, the frame resolved at the nominal value
+    only.
 
 **Routed onto this slate 2026-09-13 … 09-17 by DOCM's exit sweep,
 CHROME, CENSUS-INERT-DENY, EDIT and SCALAR's class sweep; triaged
@@ -175,11 +176,13 @@ CHROME, CENSUS-INERT-DENY, EDIT and SCALAR's class sweep; triaged
     to fail — is this program's, small, lands as **`MSOLVE-10`** after
     MSOLVE-8 (the door's refusal names the table's own predicate).
     Half (2) — how a mate's roll is turned: documented roll-reference
-    conventions or a rotate-mate affordance — is MSOLVE-9's question
-    in its kernel half: `FromFace { face, reference }` names a roll
-    reference, and its spec states the convention the row says is
-    undocumented; the affordance itself is CHROME's viewer seam and
-    is handed there when MSOLVE-9's convention is ratified. Closed
+    conventions or a rotate-mate affordance — was assigned to
+    MSOLVE-9's `reference` rule, and that premise did not survive:
+    MSOLVE-9 measured that every analytic carrier fixes its own
+    in-frame reference, so a face frame's roll is the carrier's and
+    the authored reference was dropped. Turning a face-mated part's
+    roll therefore has no spelling yet; that is
+    `a-face-frame-cannot-turn-its-roll`'s row. Closed
     on PR 2913 with both halves recorded: MSOLVE-10 merged
     2026-09-20 (spec into the ledger at the unit head), the reviews
     settling the principle that the doors decide edits and the solve
@@ -201,13 +204,157 @@ PORT; triaged 2026-09-24:**
     `placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate`
     (CHROME, P3: `check_reference` sites a `Part`'s own index at the
     pattern below it — one condition, two seats, the class MSOLVE-7
-    closed for the axis). Spec `docs/MSOLVE-11-SPEC.md` (2026-09-24):
+    closed for the axis). Spec `docs/MSOLVE-11-SPEC.md` (2026-09-24; deleted at merge):
     each decision on the one mate whose answer it decided, the lever
     finite by construction so `parallel`'s minted escalation has no
     input, the `Part`'s index refused at the `Part`. Dispatches after
     MSOLVE-9 merges; both rewrite `mate/solve.rs`.
+    Merged on PR 3680 (2026-10-01), with item 20's riders and
+    `lever-refusal-respells-reach-refusal`; spec into the ledger.
 
-The exit walk waits on 10–12, 14–16 and 17–18: the program closes when the
+**Routed onto this slate 2026-09-24 … 09-30 by EDIT, GATHER, AUTH
+and CHROME; triaged 2026-10-01:**
+
+19. **The analysis lanes solve at the nominal** — one design row
+    gathering `from-face-frame-under-an-analysis-lane-refuses-unpinned`
+    (P1, MSOLVE-9's residue) and EDIT's
+    `a-mate-through-a-parametric-placer-is-solved-at-the-nominal-in-box-and-seed-runs`
+    (P2, both of EDIT's designers found it): `evaluate` solves once at
+    the document's nominal, so a box or seed run reads every pose as a
+    fixed `f64` frame while the placers and the parts it solves over
+    widen or carry derivatives. The face frame refuses that honestly;
+    a parametric placer is silently held at nominal. One question
+    underneath both — does the solve decide over the lane's own scalar
+    — and it is a design fork: two designers weigh it before any lane
+    builds it (`memories/orchestration-model.md`).
+    Weighed 2026-10-01: both designers chose one solve, generic over the
+    run's scalar, with the structure read at the nominal. Asked on
+    `[ev]` PR 3679 (fork-log row 58). Ruled by Ev on 2026-10-01:
+    approved, with A11 (5) stated in place. The build is `MSOLVE-14`
+    (dual review), dispatched 2026-10-03 after MSOLVE-13 merged.
+20. **`MSOLVE-11` gains three riders**, all refusal and reporting
+    words the solve owns: AUTH's `materole-has-no-display` (P1, E — a
+    kernel word for whether a mate placed its child; AUTH's viewer row
+    is blocked on it), CHROME's `msolve-refusals-short-of-the-shape-guard`
+    (P2, M) and `mate-refusals-name-documents-by-hex-id` (P3, E). They
+    touch the same `MateFault` arms MSOLVE-11 re-sites, so they ride it
+    rather than open a fourth pass over one enum. All four closed with
+    MSOLVE-11 on PR 3680.
+21. **`the-solve-accepts-a-body-placed-under-two-roots`** (GATHER, P1):
+    the solve returns poses for a document the product gather refuses
+    as `PlacedUnderTwoRoots`, so the two layers disagree about one
+    instance. Re-priced M with a design question (which layer owns the
+    refusal, and whether the solve should ask the gather's predicate),
+    specced after MSOLVE-11.
+    Weighed 2026-10-01: both designers say the solve should not refuse.
+    Two verdicts on two questions: the gather owns whether a product
+    exists, and the unmated twin fails it identically. Asked on `[ev]`
+    PR 3695 (fork-log row 36) as one sentence in A11 (4). The gather
+    refusal's recourse gets reworded in the unit that lands it. Ruled
+    by Ev on 2026-10-01: no solve refusal, and the row is closed. Ev
+    also ruled the second refusal the union recourse leads into a
+    defect ("it should be possible to do that"): item 26.
+
+**Filed by MSOLVE-9's fix pass, triaged 2026-10-01:**
+
+22. **`a-face-frame-cannot-turn-its-roll`** (P1): a face frame's roll
+    is its carrier's `u_ref`, and the coset table refuses a clocking
+    rider on a frame coincidence, so a mate the tool authors cannot be
+    turned about its axis at all; item 16's half (2) lives here now.
+    Re-priced M with a design question (an in-face angle beside the
+    name, or a rider the table decides on the coincidence row), so two
+    designers weigh it before any lane builds it; CHROME's affordance
+    sits on whichever word lands.
+    Weighed 2026-10-01; the designers converged in two rounds: the turn
+    is the mate's, as `FrameCoincidence { turn }` and
+    `Coaxial { turn: Option }`, with the rider deleted. Asked on `[ev]`
+    PR 3681 (fork-log row 35 at the time). Ev approved on 2026-10-01
+    and noted that ±0 must never matter; #2468, merged the same day,
+    already meets that. On 2026-10-03 PLACE's row 53 gave every mate
+    frame a general offset (`MateFrame { base, offset: Placement }`),
+    which can already turn a side about its axis. So the turn and two
+    offsets now spell one roll three ways. Round 3 converged, and Ev
+    approved the revision on 2026-10-03: the offsets carry the roll,
+    there is no turn field, the primitive is `Coaxial { roll: Free |
+    Pinned }`, and the standoff retires. The build is an MSOLVE unit
+    that also builds row 53's `MateFrame { base, offset }` (a note on
+    PLACE's row says so), after MSOLVE-13 and item 19's build. If approved, the unit also owes an edit
+    that rewrites a committed mate's turn (only `InsertNode` writes a
+    mate's datum today), and the mate panel's turn control (it
+    hard-codes `clocking: None`). The planar zero went to a note under
+    LINALG's `interval-orthonormal-basis-sign-hull`.
+
+**Routed 2026-09-20 by the P0 scoring pass and left untriaged until
+2026-10-01 (a miss, logged):**
+
+23. **`MSOLVE-12`**. One P1 row and two P0 rows:
+    - `near-parallel-planes-refuse-under-a-false-predicate` (P0, H): a
+      decidably non-parallel pair refuses under a predicate that
+      measured nothing;
+    - `mate-band-fault-unreachable-on-a-mate` (P0, E): the row reaches
+      the arm by a loaded snapshot;
+    - `mate-solve-carries-the-cluster-maintenance-half` (P1, M):
+      `mate/maintain.rs`.
+
+    Spec `docs/MSOLVE-12-SPEC.md` (deleted at merge). Review tier:
+    single, full. Merged on PR 3698 (2026-10-03); the third row was
+    overtaken by #3676.
+24. **`mate-primitive-unit-variants-load-from-a-null-payload`** (P0,
+    E): blocked on item 22. Under `[ev]` PR 3681's answer no unit
+    variant remains; under its fallback the row is owed.
+
+**Routed or filed 2026-10-01 … 10-03:**
+
+25. **`a-declaring-mates-alignment-is-never-read`** (PLACE, P3, design):
+    a declaring mate's `Alignment` is stored and persisted, but nothing
+    reads it. The open question is whether the gate should check it,
+    or whether a declaring mate should hold no alignment at all.
+    Weighed after items 22 and 26, since row 53's offset touches the
+    same field.
+26. **`a-mate-read-at-a-transform-under-a-union-refuses-read-below-a-root`**
+    (P1, design): Ev's ruling on #3695. Two designers weigh how a mate
+    reads a face whose operand sits under a root that re-mints names.
+    A red row comes first.
+    Weighed 2026-10-03; converged in one round. The gate resolves at the
+    operand and lifts up to the product, a placer above the operand
+    refuses `MovedAbove`, the walk descends a union, and a member is
+    its instance plus the placing nodes passed. The sentences that move
+    are agent text, so Ev is told rather than asked. This is
+    `MSOLVE-13`, merged on PR 3969 on 2026-10-03.
+
+EDIT's PR #3676 deleted the cluster maintenance, so item 23's third
+row (the `mate/maintain.rs` move) was overtaken. Main closed that row,
+and MSOLVE-12 merges main without it.
+
+**The intent-refactor hold (Ev, `[ev]` PR #3990, 2026-10-03).**
+Ev opened a redesign of dependency, placement and intent, and asked
+every active orchestrator to start no new unit on that ground while
+finishing units already started (Ev's words: `git show
+5f7a1c71e3:docs/ev-transcripts/2026-10-03-one-way-to-say-dependency-and-intent.md`,
+messages 4 and 5). Every live MSOLVE row is mate or solve work, so:
+
+- **MSOLVE-14** (item 19, the solve at the run's scalar) merged on PR
+  3986 (DR-70). It closed its two rows. The box-driver row its §6
+  reaches is parked on D10's build and on flux's
+  `the-box-driver-carries-no-part-resolver`.
+- **MSOLVE-15** (item 22's build: the deletions that ride row 53's
+  offset, which PLACE built in PR 3961) is specced on
+  `msolve/15-frame-offset-carries-the-roll` and **not started**. It
+  stays unstarted. Its spec is now stale in its §1, because PLACE built
+  the frame shape, and D10 moves the ground under it. Re-cut it against
+  D10 once the hold lifts.
+- **Every other live row is parked** with
+  `blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Ev ratified D10
+  on #3990, and the hold now waits on its build rather than the ruling;
+  main re-pointed the rows parked on the PR. Item 25, the new
+  PLACE-filed rows and every other row are parked this way.
+
+With MSOLVE-14 merged, the program has nothing it may start. Its
+status is `blocked` and the orchestrator has stopped, as the hold says.
+When D10's build lands, re-cut the parked rows against it, starting
+with MSOLVE-15.
+
+The exit walk waits on 10–12, 14–16 and 17–26: the program closes when the
 lever, the member residue (with the wire hole), the margins' arm
 (with the witness and the `MateFault` note), the face-resolved frame
 and the static clocking refusal are in.

@@ -23,6 +23,28 @@ fn escalated_margin(r: &Result<LoopContainment, PointInLoopError>) -> geom_core:
     }
 }
 
+/// The ray schedule's members in the `z = const` plane (their `x, y`),
+/// in schedule order: `point_in_loop`'s `SCHEDULE` projected onto a
+/// `+z` face.
+const SCHEDULE_XY: [(f64, f64); 16] = [
+    (1.0, 0.0),
+    (0.0, 1.0),
+    (0.0, 0.0),
+    (0.5, 0.25),
+    (1.0, 0.5),
+    (0.25, 1.0),
+    (-0.5, 1.0),
+    (0.125, -0.5),
+    (1.0, 0.125),
+    (0.75, -1.0),
+    (0.375, 0.75),
+    (-1.0, 0.375),
+    (0.625, 0.9375),
+    (0.3125, -0.625),
+    (0.9375, 0.3125),
+    (-0.75, -0.25),
+];
+
 /// Concave (L-shaped) loop: points in the notch are Out even though
 /// they sit inside the convex hull; points in both arms are In.
 #[test]
@@ -187,7 +209,7 @@ fn boundary_pre_pass_edges() {
 /// walk arithmetic reds it too. **Measured on this branch**, by
 /// mutating the tree and running this row: a `side_axis` that branches
 /// on the normal's sign reds this row and nothing else in the file; an
-/// unsigned crossing lever (`(yⱼ − yᵢ).abs()` in `ray_parity.rs`) reds
+/// unsigned crossing lever (`(yⱼ − yᵢ).abs()` in `ray_walk.rs`) reds
 /// this row *and* the four beside it, through the tilted block's
 /// absolute expectations rather than through the differential
 /// comparison.
@@ -210,10 +232,10 @@ fn the_verdict_is_blind_to_the_normals_sign() {
         match r {
             Ok(v) => format!("{v:?}"),
             Err(PointInLoopError::Escalated { r#loop, diag }) => {
-                let kind = match diag.margin {
-                    geom_core::MarginDiag::Value(_) => "Value",
-                    geom_core::MarginDiag::Enclosure { .. } => "Enclosure",
-                    geom_core::MarginDiag::Invalid => "Invalid",
+                let kind = match diag.margin.diagnostic_f64_for_error_text() {
+                    geom_core::ErrorTextReading::Value(_) => "Value",
+                    geom_core::ErrorTextReading::Enclosure { .. } => "Enclosure",
+                    geom_core::ErrorTextReading::Invalid => "Invalid",
                 };
                 format!(
                     "Escalated{loop:?}/{:?}/{:?}/{kind}",
@@ -268,14 +290,13 @@ fn the_verdict_is_blind_to_the_normals_sign() {
         "every probe above must decide, or the row compares two refusals and pins nothing"
     );
 
-    // **The escalation arm, which is why `shape` exists.** A probe
-    // whose ordinate against the first schedule member lands strictly
-    // inside the ambiguity band — the geometric mean of the band's two
-    // thresholds, so the row survives every eps in the matrix — and
-    // sits ~1 unit from every edge, so the boundary pre-pass does not
-    // absorb it first. Both signs must refuse the SAME way; their
-    // margins are meant to be opposite in sign, and comparing the
-    // whole `Debug` here would red on that alone.
+    // **A ray in band of a far vertex.** A probe whose ordinate against
+    // the first schedule member lands strictly inside the ambiguity
+    // band — the geometric mean of the band's two thresholds, so the
+    // row survives every eps in the matrix — of the vertex (3, 1), 2 m
+    // ahead, and ~1 unit from every edge, so the boundary pre-pass does
+    // not absorb it. The reading is about that ray, so the ray is
+    // abandoned and the next member decides: `In`, on both signs.
     let delta = (band.zero() * band.escalate()).sqrt();
     assert!(delta > band.zero() && delta < band.escalate());
     let fx = prism::<f64>(
@@ -287,10 +308,52 @@ fn the_verdict_is_blind_to_the_normals_sign() {
     let q = Point3::new(1.0, 1.0 + delta, 1.0);
     let up = point_in_loop(&fx.body, top.outer, n_z(), q, band);
     let down = point_in_loop(&fx.body, top.outer, flipped, q, band);
-    let geom_core::MarginDiag::Value(m_up) = escalated_margin(&up) else {
+    assert!(
+        matches!(up, Ok(LoopContainment::In)),
+        "a ray in band of a vertex 2 m ahead is retried, not refused: got {up:?}"
+    );
+    assert_eq!(shape(&up), shape(&down));
+
+    // **The signed refusal, which is why `shape` exists.** A loop with
+    // one vertex on each schedule member's in-plane direction from q, at
+    // 1 m, lifted `delta` off that ray's line: every ray passes a vertex
+    // in band, every ray is abandoned, and the walk refuses on the first
+    // one's ordinate. Both signs refuse the same way, on margins that
+    // are exact negations; comparing whole `Debug` renderings would red
+    // on that alone.
+    let mut dirs: Vec<(f64, f64)> = Vec::new();
+    for r in SCHEDULE_XY {
+        let len = r.0.hypot(r.1);
+        if len == 0.0 {
+            continue; // projects to nothing: the arm skips it
+        }
+        let u = (r.0 / len, r.1 / len);
+        if dirs
+            .iter()
+            .all(|v| (v.0 - u.0).abs() + (v.1 - u.1).abs() > 1e-9)
+        {
+            dirs.push(u);
+        }
+    }
+    dirs.sort_by(|a, b| a.1.atan2(a.0).total_cmp(&b.1.atan2(b.0)));
+    let (cx, cy) = (5.0, 5.0);
+    let star: Vec<(f64, f64)> = dirs
+        .iter()
+        .map(|u| (cx + u.0 - delta * u.1, cy + u.1 + delta * u.0))
+        .collect();
+    let fx = prism::<f64>(&star, 1.0, Tol::witness());
+    let top = fx.body.get_face(fx.top_face).unwrap();
+    let q = Point3::new(cx, cy, 1.0);
+    let up = point_in_loop(&fx.body, top.outer, n_z(), q, band);
+    let down = point_in_loop(&fx.body, top.outer, flipped, q, band);
+    let geom_core::ErrorTextReading::Value(m_up) =
+        escalated_margin(&up).diagnostic_f64_for_error_text()
+    else {
         panic!("expected an f64 escalation, got {up:?}");
     };
-    let geom_core::MarginDiag::Value(m_down) = escalated_margin(&down) else {
+    let geom_core::ErrorTextReading::Value(m_down) =
+        escalated_margin(&down).diagnostic_f64_for_error_text()
+    else {
         panic!("expected an f64 escalation, got {down:?}");
     };
     assert_eq!(m_up, -m_down, "the two margins must be exact negations");
@@ -348,4 +411,40 @@ fn the_verdict_is_blind_to_the_normals_sign() {
         "got {up:?}"
     );
     assert_eq!(shape(&up), shape(&down));
+}
+
+/// **An in-band schedule arm abandons its member, not the query.** A
+/// unit square turned `φ = 5e-9` about `z`: its `+x` wall's normal is
+/// `φ` off the schedule's first member `(1, 0, 0)`, so that member's
+/// in-plane arm at the wall's reach (`φ · |q − far corner|`, a few
+/// nanometres) is in the band. The walk takes the next member and
+/// answers; an escalation here is the walk refusing on a reading about
+/// a ray direction rather than about `q`.
+#[test]
+fn an_in_band_schedule_arm_takes_the_next_member() {
+    let phi: f64 = 5e-9;
+    let (c, s) = (phi.cos(), phi.sin());
+    let turn = |x: f64, y: f64| (c * x - s * y, s * x + c * y);
+    let profile: Vec<(f64, f64)> = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+        .iter()
+        .map(|&(x, y)| turn(x, y))
+        .collect();
+    let fx = prism::<f64>(&profile, 1.0, Tol::witness());
+    let wall = fx.body.get_face(fx.side_faces[1]).unwrap();
+    let n = Vec3::new(c, s, 0.0);
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    for (y, z, expect) in [
+        (0.5, 0.5, LoopContainment::In),
+        (0.25, 0.75, LoopContainment::In),
+        (1.5, 0.5, LoopContainment::Out),
+        (0.5, 1.25, LoopContainment::Out),
+    ] {
+        let (qx, qy) = turn(1.0, y);
+        let q = Point3::new(qx, qy, z);
+        let got = point_in_loop(&fx.body, wall.outer, n, q, band);
+        assert!(
+            matches!(got, Ok(v) if v == expect),
+            "the wall at (y, z) = ({y}, {z}) reads {expect:?}, got {got:?}"
+        );
+    }
 }

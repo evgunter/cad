@@ -24,7 +24,7 @@ fn t2_wrong_component_hides_behind_large_area() {
     let dv = 2.7e-8_f64;
     let areas = 17.6_f64;
     // OLD comparand (raw volume margin): decisively negative -> REFUSED.
-    assert_eq!((-dv).sign_within(band), Ok(Sign::Negative));
+    assert_eq!((-dv).sign_within(band).map(|d| d.sign), Ok(Sign::Negative));
     // NEW comparand (mean displacement): lands IN BAND -> indeterminate,
     // so a MAGNITUDE-ONLY gate would take `Err(_) => Ok(())` and PASS
     // the violation. This is the review's finding, unretouched.
@@ -39,24 +39,33 @@ fn t2_wrong_component_hides_behind_large_area() {
     );
     // Smaller wrong component (1 mm cube, 1e-9 m^3): metered margin
     // 5.7e-11 < band.zero -> certified Zero -> would pass as exact.
-    assert_eq!((-1e-9 / areas).sign_within(band), Ok(Sign::Zero));
+    assert_eq!(
+        (-1e-9 / areas).sign_within(band).map(|d| d.sign),
+        Ok(Sign::Zero)
+    );
 
     // THE RESOLUTION (fix pass): the bound is an INEQUALITY, so the
     // gate also asks the dimension-free question — is the sign certain?
     // — against the exact bit-hairline band, where no epsilon enters.
     // Both defects above are decisively negative there, so both refuse.
     let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).expect("exact band");
-    assert_eq!(metered.sign_within(exact), Ok(Sign::Negative));
-    assert_eq!((-1e-9 / areas).sign_within(exact), Ok(Sign::Negative));
+    assert_eq!(
+        metered.sign_within(exact).map(|d| d.sign),
+        Ok(Sign::Negative)
+    );
+    assert_eq!(
+        (-1e-9 / areas).sign_within(exact).map(|d| d.sign),
+        Ok(Sign::Negative)
+    );
     // And the non-strict pass direction is untouched: an exactly-equal
     // result is Zero at the hairline, not a violation.
-    assert_eq!(0.0_f64.sign_within(exact), Ok(Sign::Zero));
+    assert_eq!(0.0_f64.sign_within(exact).map(|d| d.sign), Ok(Sign::Zero));
     // The sign question is invariant under the positive lever — which
     // is why arm 1 may consume the metered length and keep the recorded
     // margin dimensionally honest.
     assert_eq!(
-        (-dv).sign_within(exact),
-        metered.sign_within(exact),
+        (-dv).sign_within(exact).map(|d| d.sign),
+        metered.sign_within(exact).map(|d| d.sign),
         "dividing by a positive area must not move the sign"
     );
 }
@@ -67,12 +76,18 @@ fn t1_poison_and_sign_preservation() {
     // Deviation 1's semantics: 0/0 -> NaN -> Invalid poison (typed).
     let nan = f64::NAN; // the 0/0 the zero-perimeter run produces
     let e = nan.sign_within(band).unwrap_err();
-    assert!(matches!(e.margin, geom_core::MarginDiag::Invalid));
+    assert!(e.margin.is_invalid());
     // Complement operand: area is unsigned (props.rs), so V/A keeps
     // V's sign -- a negative flux volume still classifies Negative.
-    assert_eq!((-8.0_f64 / 24.0).sign_within(band), Ok(Sign::Negative));
+    assert_eq!(
+        (-8.0_f64 / 24.0).sign_within(band).map(|d| d.sign),
+        Ok(Sign::Negative)
+    );
     // Thin-sliver operand: V/A -> mean thickness below eps -> Zero or
     // in-band -> "not certifiably bounded" -> bound skipped (the skip
     // zone survives, now dimensionally honest: sub-resolution THICKNESS).
-    assert_eq!((4e-10_f64).sign_within(band), Ok(Sign::Zero));
+    assert_eq!(
+        (4e-10_f64).sign_within(band).map(|d| d.sign),
+        Ok(Sign::Zero)
+    );
 }

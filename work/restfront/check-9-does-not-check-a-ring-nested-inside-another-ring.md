@@ -44,3 +44,34 @@ already has — `splitting::containment::point_in_carrier_loop`, which
 reads an arc-bearing loop such as the keyhole ring on its own carriers
 (ATREST-12) — with this fixture as its row, or the gap stated in check
 9's banner beside its nesting residue.
+
+## Second shape: two rings that touch (CLEAVE, 2026-10-01)
+
+Reported by the second reviewer of PR 3658 (`cleave/section-rings`).
+The lane passed it on without re-measuring it. Two rings of one face that
+touch at a corner also pass tier 3. Check 9 compares each ring only
+against the face's outer loop: `ring_outer_contact` and `ring_nesting`
+take `face.outer`. Nothing compares ring against ring, so ring-ring
+contact goes as unchecked as ring-in-ring nesting.
+
+This now has a producer. The split nests every section hole into the
+face that encloses it (the rule is `section_loops::nest` in
+`crates/topo/src/splitting/section_loops.rs`; the split applies it in
+`finish.rs`, `nest_hole_sections`), so two holes whose sections touch
+could land as two touching rings of one face. `nest_hole_sections`
+guards against that itself: a hole joins a face only when it is
+decided disjoint from every ring the face already holds. Tier 3 has no such guard, so it would not catch
+a producer that skipped the check.
+
+The taker's ring-vs-ring arm should decide contact as well as nesting,
+and should run the split's nesting rows
+(`crates/sweep/tests/split_section_rings.rs`) for a regression.
+
+## The touching shape is built (branch `join/tier3-pinch-checks`)
+
+Check 9 now runs its contact arms over every pair of rings of a face
+and refuses `RingMeetsRing` (pinned by
+`validate::tests::check_9_refuses_two_rings_touching_at_a_vertex`).
+The nesting shape, one ring inside another, is still not asked, so this
+row stays open for it. `split_section_rings.rs` is in the suite and
+passes with the new arm.

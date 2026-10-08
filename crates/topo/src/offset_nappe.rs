@@ -48,7 +48,8 @@ use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
-use crate::entity::{Face, FaceKey};
+use crate::entity::{EntityId, Face, FaceKey};
+use crate::live::{BoundaryMember, proven};
 use crate::replace_face::ReplaceFaceError;
 
 pub use geom_brep::Nappe;
@@ -68,21 +69,25 @@ pub use geom_brep::Nappe;
 /// [`ReplaceFaceError::NappeStraddles`] when the face's corners do not
 /// all stand strictly on one side of its apex (module docs).
 /// [`ReplaceFaceError::Escalated`] when either extreme lands in the
-/// ambiguity band, [`ReplaceFaceError::Corrupt`] on a key that does not
+/// ambiguity band, [`ReplaceFaceError::StaleFace`] when `face` does not
 /// resolve.
+///
+/// # Panics
+///
+/// On a torn body — the face's surface, a loop, a walk or a corner's
+/// point that does not resolve — naming the record (D2 row 4).
 pub fn face_nappe<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     band: Band,
 ) -> Result<Nappe, ReplaceFaceError<T>> {
-    let data = body.get_face(face).ok_or(ReplaceFaceError::Corrupt)?;
-    let surface = body
-        .get_surface(data.surface)
-        .ok_or(ReplaceFaceError::Corrupt)?;
-    let Surface::Cone { apex, axis, .. } = surface else {
+    let data = body
+        .get_face(face)
+        .ok_or(ReplaceFaceError::StaleFace { face })?;
+    let Surface::Cone { apex, axis, .. } = body.face_surface_linked(face, data) else {
         return Ok(Nappe::Opening);
     };
-    let (station_min, station_max) = corner_stations(body, data, *apex, *axis)?;
+    let (station_min, station_max) = corner_stations(body, face, data, *apex, *axis);
     let esc = |source| ReplaceFaceError::Escalated { source };
     let lo = decide("offset_nappe", Margin::of(station_min), band).map_err(esc)?;
     let hi = decide("offset_nappe", Margin::of(station_max), band).map_err(esc)?;
@@ -93,8 +98,8 @@ pub fn face_nappe<T: Decide>(
             face,
             station_min,
             station_max,
-            what: "a cone face whose own corners reach its apex, so it stands on \
-                   neither nappe alone",
+            what: "a cone face whose corners reach its apex, so it lies on neither side of the \
+                   apex alone",
         }),
     }
 }
@@ -114,6 +119,10 @@ pub fn face_nappe<T: Decide>(
 /// [`face_nappe`]'s, plus [`ReplaceFaceError::NappeStraddles`] naming
 /// the first member that disagrees with the group's answer.
 /// [`ReplaceFaceError::EmptyGroup`] for an empty group.
+///
+/// # Panics
+///
+/// [`face_nappe`]'s.
 pub fn group_nappe<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -126,20 +135,20 @@ pub fn group_nappe<T: Decide>(
             None => agreed = Some(here),
             Some(first) if first == here => {}
             Some(_) => {
-                let data = body.get_face(face).ok_or(ReplaceFaceError::Corrupt)?;
-                let surface = body
-                    .get_surface(data.surface)
-                    .ok_or(ReplaceFaceError::Corrupt)?;
-                let Surface::Cone { apex, axis, .. } = surface else {
-                    return Err(ReplaceFaceError::Corrupt);
+                // `face_nappe` resolved this face and answered `Mirror`
+                // or `Opening` against another member's other answer,
+                // and only a cone has two.
+                let data = proven(&body.faces, face, EntityId::Face);
+                let Surface::Cone { apex, axis, .. } = body.face_surface_linked(face, data) else {
+                    unreachable!("{face:?} disagreed on a nappe, which only a cone face has")
                 };
-                let (station_min, station_max) = corner_stations(body, data, *apex, *axis)?;
+                let (station_min, station_max) = corner_stations(body, face, data, *apex, *axis);
                 return Err(ReplaceFaceError::NappeStraddles {
                     face,
                     station_min,
                     station_max,
-                    what: "a chart whose faces do not all lie on one nappe, so one \
-                           offset distance cannot be turned for all of them",
+                    what: "faces of one cone that do not all lie on the same side of its apex, \
+                           so one offset cannot move them all the same way",
                 });
             }
         }
@@ -148,36 +157,74 @@ pub fn group_nappe<T: Decide>(
 }
 
 /// `face`'s extreme corner stations `(min, max)` on the cone
-/// `(apex, axis)`.
+/// `(apex, axis)`: every half-edge's start, and an empty loop's lone
+/// vertex, so a face (whose outer loop is a cycle or holds a vertex)
+/// always has one.
 ///
 /// The comparison picks WHICH station is metered and decides nothing:
 /// the extremes bound every corner, so their two verdicts carry the
 /// whole set's.
+///
+/// # Panics
+///
+/// Where a boundary hop past `face` (a loop, a member's edge, a lone vertex's
+/// point) does not resolve, or a loop walk does not close
+/// ([`crate::live::NAMES_ONLY_LIVE`] / [`crate::body::WALKS_CLOSE`];
+/// [`crate::live::OPERATORS_KEEP_LINKS`]).
+#[track_caller]
 fn corner_stations<T: Decide>(
     body: &Body<T>,
+    face: FaceKey,
     data: &Face,
     apex: Point3<T>,
     axis: Vec3<T>,
-) -> Result<(T, T), ReplaceFaceError<T>> {
-    let mut window: Option<(T, T)> = None;
-    for lk in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
-        let crate::entity::LoopBoundary::Cycle { first } =
-            body.get_loop(lk).ok_or(ReplaceFaceError::Corrupt)?.boundary
-        else {
-            continue;
-        };
-        for he in body.loop_cycle(first).ok_or(ReplaceFaceError::Corrupt)? {
-            let p = body
-                .get_half_edge(he)
-                .and_then(|h| body.get_vertex(h.start))
-                .and_then(|x| body.get_point(x.point).copied())
-                .ok_or(ReplaceFaceError::Corrupt)?;
-            let h = (p - apex).dot(axis);
-            window = Some(match window {
-                None => (h, h),
-                Some((a, b)) => (a.min(h), b.max(h)),
-            });
-        }
+) -> (T, T) {
+    let station = |p: Point3<T>| (p - apex).dot(axis);
+    let stations: Vec<T> = body
+        .face_boundary_linked(face, data)
+        .map(|member| {
+            station(match member {
+                BoundaryMember::Isolated { point, .. } => point,
+                BoundaryMember::Edge { he, half, .. } => {
+                    body.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
+                }
+            })
+        })
+        .collect();
+    let Some(&first) = stations.first() else {
+        unreachable!("{face:?}'s outer loop holds a vertex or a cycle, so it has a corner")
+    };
+    stations
+        .iter()
+        .fold((first, first), |(a, b), &h| (a.min(h), b.max(h)))
+}
+
+/// **`corner_stations` panics on a ring link that does not resolve**,
+/// where it stepped over it.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod torn_hop_rows {
+    use super::*;
+    use crate::live::OPERATORS_KEEP_LINKS;
+    use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+    use geom_core::Tol;
+
+    #[test]
+    fn the_corner_stations_panic_on_a_torn_ring_link() {
+        let mut body = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness()).body;
+        let (face, data) = body.faces().next().map(|(k, d)| (k, d.clone())).unwrap();
+        let (apex, axis) = (Point3::new(0.0, 0.0, -1.0), Vec3::unit_z());
+        let (lo, hi) = corner_stations(&body, face, &data, apex, axis);
+        assert!(lo <= hi, "ordered stations");
+        let named = crate::review_d18::tear_ring(&mut body, face);
+        assert_torn_op_panics(
+            "corner_stations",
+            &mut body,
+            &[&named, ROW_FOUR, OPERATORS_KEEP_LINKS],
+            |b| {
+                let data = b.get_face(face).unwrap().clone();
+                corner_stations(b, face, &data, apex, axis)
+            },
+        );
     }
-    window.ok_or(ReplaceFaceError::Corrupt)
 }

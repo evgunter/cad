@@ -1,5 +1,8 @@
-//! Ring/genus Euler operators — [`Body::kemr`], [`Body::mekr`],
-//! [`Body::kfmrh`] — plus the [`Body::ring_move`] helper (M1 PR 3).
+//! Ring/genus Euler operators — [`Body::kemr`] (with its band twin
+//! [`Body::kemr_minting`]), [`Body::mekr`], [`Body::kfmrh`] (with its
+//! band twin [`Body::kfmrh_minting`]) — plus
+//! the [`Body::ring_move`] helper (with [`Body::ring_move_minting`])
+//! (M1 PR 3).
 //!
 //! These are the operators that create and consume **rings** (interior
 //! loops of faces) and, through `kfmrh`, **genus** — the connected sum
@@ -87,21 +90,27 @@
 //!   segment loop): both rules apply — old loop `Empty` at `u`, ring
 //!   `Empty` at `w`. If `u == w` (the segment loop's edge is a
 //!   self-loop) the two empty loops would share one lone vertex, which
-//!   tier 1 forbids: typed error
-//!   [`EulerOpError::EmptyAnchorsCollide`], believed unreachable through
-//!   valid operator sequences (such a body is already tier-1-invalid —
-//!   its vertex orbit is split), checked defensively.
+//!   tier 1 forbids; no tier-1-valid body has that loop (its vertex
+//!   orbit would be split), so `kemr` panics there.
 //!
 //! # Deterministic re-anchoring rules (`kemr`)
 //!
 //! - **`Cycle::first`**, unconditionally: the old loop re-anchors at
 //!   `next(he2)` (the first survivor of its side in `next` order), the
 //!   ring at `next(he1)` — whether or not the previous `first` was
-//!   killed or migrated.
-//! - **`emanating`**, unconditionally: `u` gets `Some(next(he2))`
-//!   (which starts at `u`) or `None` if its side is empty; `w` gets
-//!   `Some(next(he1))` or `None`. When `u == w` (self-loop edge with
-//!   non-empty sides) the `w`-write is last and wins — deterministic.
+//!   killed or migrated. The plan proves both writes before mutating
+//!   (the crate-internal `Body::require_kill_anchors`): the ring side,
+//!   which moves into the ring, is the loop's own; `next(he2)` lies in
+//!   the old loop and `next(he1)` in the ring; and an emptied loop keeps
+//!   no member but the killed halves (and, for the old loop, the ring
+//!   side) and is the only loop `Empty` at its vertex.
+//! - **`emanating`**, unconditionally: `u` gets `Some(next(he2))` or
+//!   `None` if its side is empty; `w` gets `Some(next(he1))` or `None`.
+//!   When `u == w` (self-loop edge with non-empty sides) the `w`-write
+//!   is last and wins — deterministic. The plan proves each write
+//!   before mutating (the crate-internal `Body::require_kill_anchors`):
+//!   a `Some` starts at its vertex, and a `None` leaves its vertex no
+//!   half-edge but the killed two.
 //!
 //! # `mekr` — the inverse (site-typed, like `mev`/`mef`)
 //!
@@ -117,7 +126,12 @@
 //! the reconstructed cycle, `he_minus` plays `he2`'s). Both new halves
 //! land in the target loop. Re-anchoring, unconditionally: the target
 //! loop's `Cycle::first` becomes `he_plus`; `u.emanating = he_plus`,
-//! `w.emanating = he_minus` (`mev`'s rule).
+//! `w.emanating = he_minus` (`mev`'s rule). A cycle ring moves into the
+//! target by its walk, so the plan proves before mutating that the walk
+//! is exactly the ring's members (the crate-internal
+//! `Body::require_run_of`): none of another loop, which the move would
+//! take, and none left out, which the ring's kill would leave naming a
+//! dead loop.
 //!
 //! # `kfmrh` — the connected sum
 //!
@@ -187,7 +201,7 @@
 //! # fn run() -> Result<(), topo::EulerOpError> {
 //! let tol = Tol::witness();
 //! let mut body = Body::<f64>::new();
-//! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0))?;
+//! let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true)?;
 //! let seg = body.mev_line(
 //!     MevSite::Lone { r#loop: seed.r#loop },
 //!     Point3::new(1.0, 0.0, 0.0),
@@ -220,15 +234,23 @@
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Decide, Point3};
 
-use crate::body::Body;
+use crate::attach::KillMove;
+use crate::body::{Body, CYCLES_ARE_CLAIMANTS};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, HalfEdgeKey, Loop, LoopBoundary, LoopKey, ShellKey, VertexKey,
 };
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
-use crate::euler::EulerOpError;
+use crate::euler::FaceSurface;
+use crate::euler::RechartDoor;
+use crate::euler::{
+    BadArgument, Clearing, EulerOpError, KillAnchor, KillInto, KillRun, NewCurve, Records,
+    RunExtent, require_halves, shared_loop,
+};
 use crate::geometry::{CurveKey, SurfaceKey};
-use crate::live::{Live, require_key};
+use crate::joint::JointElement;
+use crate::live::{Arg, Live, link, linked, lookup, require_key};
+use crate::pcurves::{SiteFace, SiteHalf, SiteLoop, SiteRows};
 use crate::provenance::Provenance;
 use geom_core::Tol;
 
@@ -285,8 +307,7 @@ pub enum MekrSite {
     /// Both loops are empty (the inverse of `kemr`'s both-empty case):
     /// two lone vertices of one face joined into a 2-cycle segment loop
     /// (`he_plus → he_minus`) under the target's key. The two lone
-    /// vertices must be distinct ([`EulerOpError::EmptyAnchorsCollide`]
-    /// otherwise — tier-1-invalid input, checked defensively).
+    /// vertices are distinct on a tier-1-valid body.
     BothEmpty {
         /// The empty loop that survives (lone vertex `u`, the new
         /// edge's start).
@@ -365,6 +386,64 @@ pub struct KfmrhResult {
     pub killed_shell: Option<ShellKey>,
 }
 
+/// [`Body::kemr`]'s arena delta, shared by both doors.
+#[cfg(debug_assertions)]
+const KEMR_DELTA: ArenaDelta = ArenaDelta {
+    loops: 1,
+    half_edges: -2,
+    edges: -1,
+    ..ArenaDelta::ZERO
+};
+
+/// What [`Body::kfmrh`]'s precondition phase proved and decided, for
+/// its surgery to write.
+struct KfmrhPlan<T: geom_core::Real> {
+    f1: FaceKey,
+    f2: FaceKey,
+    f1_shell: ShellKey,
+    f1_surface: SurfaceKey,
+    f2_data: crate::entity::Face,
+    s2_data: crate::entity::Shell,
+    /// The form: the fusion across two shells, or the handle within
+    /// one.
+    cross_shell: bool,
+    ring: LoopKey,
+    /// Every half-edge of the ring, proven ([`Body::whole_cycle`]).
+    ring_halves: Vec<HalfEdgeKey>,
+    rows: Vec<SiteRows<T>>,
+    /// The re-descriptions a describing kill certified, on the keys
+    /// the ring's edges' faces wear after it.
+    described: Vec<(EdgeKey, geom_brep::EdgeCurve<T>)>,
+}
+
+/// What [`Body::kfmrh`]'s structural checks prove: `f1`'s shell, the
+/// killed face `f2` and its shell's records, the form, the ring that
+/// `f2`'s outer loop becomes, and its move onto `f1`.
+struct KfmrhMove {
+    f1_shell: ShellKey,
+    f2_data: crate::entity::Face,
+    s2_data: crate::entity::Shell,
+    cross_shell: bool,
+    ring: LoopKey,
+    kill: KillMove,
+}
+
+impl<T: geom_core::Real> KfmrhPlan<T> {
+    /// The arena shift this plan's form declares. It is read from the
+    /// plan, taken before any mutation, and never from the surgery's
+    /// effect (`killed_shell`): a shift read back out of the mutation
+    /// being checked follows the code down whichever branch it took, so
+    /// a fusion that ran when it should not have could not fail it.
+    #[cfg(debug_assertions)]
+    fn delta(&self) -> ArenaDelta {
+        ArenaDelta {
+            shells: if self.cross_shell { -1 } else { 0 },
+            faces: -1,
+            ..ArenaDelta::ZERO
+        }
+    }
+}
+
 impl<T: Decide> Body<T> {
     /// KEMR — *kill edge, make ring*: remove an edge occurring twice in
     /// one loop, splitting the loop's cycle into two components; `he1`'s
@@ -385,64 +464,118 @@ impl<T: Decide> Body<T> {
     ///
     /// # Precondition check order
     ///
-    /// `he1` resolves, `he2` resolves ([`EulerOpError::StaleKey`]); they
-    /// are distinct halves of one edge which claims them both
-    /// ([`EulerOpError::NotSameEdge`]); the edge resolves (`StaleKey`);
-    /// same parent loop ([`EulerOpError::NotSameLoop`]); the loop
-    /// resolves (`StaleKey`) and is a cycle
-    /// ([`EulerOpError::LoopNotCycle`]); the loop's face resolves
-    /// (`StaleKey`); the cycle walk from `he1` reaches `he2`
-    /// ([`EulerOpError::LoopCycleBroken`]); both start vertices resolve
-    /// (`StaleKey`); the two empty components (if both sides are empty)
-    /// anchor at distinct vertices
-    /// ([`EulerOpError::EmptyAnchorsCollide`]).
+    /// `he1` resolves, then `he2` (`BadArgument::Stale`); they are the
+    /// two halves of one edge ([`BadArgument::NotMates`]); same parent
+    /// loop ([`EulerOpError::NotSameLoop`]). Last, where the edge is a
+    /// null edge, the face is not left with a loop the kill releases
+    /// missing a row on a face the site mint selects
+    /// ([`Body::plan_released_rows`]: [`EulerOpError::PcurveMint`] with
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] naming the face —
+    /// this door takes no band to mint it; [`Body::kemr_minting`] does).
     ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
+    ///
+    /// # Panics
+    ///
+    /// Where the body is not tier-1-valid around the edge: a record the
+    /// edge, its halves or their loop name does not resolve, the loop's
+    /// cycle from `he1` does not close through `he2`, a re-anchoring
+    /// write does not hold, both sides are empty at one vertex, or a
+    /// record the kill keeps still names a killed one. Every public door
+    /// keeps the body tier-1-valid, so only a kernel bug reaches these.
     pub fn kemr(&mut self, he1: HalfEdgeKey, he2: HalfEdgeKey) -> Result<KemrResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        let killed = self.kemr_with(he1, he2, None)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, KEMR_DELTA, "kemr");
+        Ok(killed)
+    }
 
+    /// [`Body::kemr`] with a band: where `kemr` refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the killed edge is
+    /// a null edge, and the loop's two sides, as the kill leaves them,
+    /// run through no null edge and miss rows the loop missed while it
+    /// was held open — the face is re-minted at `tol`'s band over those
+    /// sides ([`Body::plan_released_rows`]); everywhere else it is
+    /// `kemr`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::kemr`], except the `KeysOnly` refusal, and the site
+    /// mint's plan in its place ([`Body::plan_released_rows`]').
+    pub fn kemr_minting(
+        &mut self,
+        he1: HalfEdgeKey,
+        he2: HalfEdgeKey,
+        tol: Tol,
+    ) -> Result<KemrResult, EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let killed = self.kemr_with(he1, he2, Some(tol))?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, KEMR_DELTA, "kemr_minting");
+        Ok(killed)
+    }
+
+    /// [`Body::kemr`]'s plan and surgery, with the band its site mint
+    /// runs at, or none for the keys-only door. The door that calls it
+    /// declares the postcondition.
+    fn kemr_with(
+        &mut self,
+        he1: HalfEdgeKey,
+        he2: HalfEdgeKey,
+        tol: Option<Tol>,
+    ) -> Result<KemrResult, EulerOpError> {
         // ---- Preconditions: no mutation until every check passes. ----
-        let he1_data = self.resolve_half_edge(he1)?;
-        let he2_data = self.resolve_half_edge(he2)?;
+        let he1_data = self.resolve_half_edge(he1, Arg("he1"))?;
+        let he2_data = self.resolve_half_edge(he2, Arg("he2"))?;
         let edge = he1_data.edge;
         if he1 == he2 || he2_data.edge != edge {
-            return Err(EulerOpError::NotSameEdge { he1, he2 });
+            return Err(EulerOpError::Argument(BadArgument::NotMates { he1, he2 }));
         }
-        let edge_data = self.get_edge(edge).cloned().ok_or(EulerOpError::StaleKey {
-            key: EntityId::Edge(edge),
-        })?;
-        let claims_both = (edge_data.he_plus == he1 && edge_data.he_minus == he2)
-            || (edge_data.he_plus == he2 && edge_data.he_minus == he1);
-        if !claims_both {
-            // Same `edge` field but the edge does not claim them: a
-            // corrupt bijection — tier-1-invalid input.
-            return Err(EulerOpError::NotSameEdge { he1, he2 });
-        }
-        let loop_key = he1_data.parent_loop;
-        if he2_data.parent_loop != loop_key {
-            return Err(EulerOpError::NotSameLoop { he1, he2 });
-        }
-        let loop_data = self.get_loop(loop_key).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Loop(loop_key),
-        })?;
-        if matches!(loop_data.boundary, LoopBoundary::Empty { .. }) {
-            return Err(EulerOpError::LoopNotCycle { r#loop: loop_key });
-        }
+        let edge_data = linked(
+            &self.edges,
+            edge,
+            EntityId::Edge,
+            EntityId::HalfEdge(he1),
+            "edge",
+        )
+        .clone();
+        require_halves(edge, &edge_data, he1, (he2, he2_data.edge));
+        let loop_key =
+            shared_loop(&he1_data, &he2_data).ok_or(EulerOpError::NotSameLoop { he1, he2 })?;
+        let loop_data = linked(
+            &self.loops,
+            loop_key,
+            EntityId::Loop,
+            EntityId::HalfEdge(he1),
+            "parent_loop",
+        );
+        assert!(
+            !matches!(loop_data.boundary, LoopBoundary::Empty { .. }),
+            "{he1:?} claims loop {loop_key:?}, which is empty: on a tier-1-valid body an empty \
+             loop reaches no half-edge"
+        );
         let face_key = loop_data.face;
-        require_key(&self.faces, face_key, EntityId::Face)?;
+        require_key(
+            &self.faces,
+            face_key,
+            EntityId::Face,
+            link(EntityId::Loop(loop_key), "face"),
+        );
         // The full cycle from he1 (bounded, D9); its split at he2 yields
         // the two survivor sides.
-        let cycle = self
-            .loop_cycle_live(he1)
-            .ok_or(EulerOpError::LoopCycleBroken { r#loop: loop_key })?;
-        let position = cycle
-            .iter()
-            .position(|member| member.key() == he2)
-            .ok_or(EulerOpError::LoopCycleBroken { r#loop: loop_key })?;
+        let cycle = self.loop_cycle_live(he1);
+        let Some(position) = cycle.iter().position(|member| member.key() == he2) else {
+            unreachable!(
+                "{he2:?} claims loop {loop_key:?} and the cycle walk from {he1:?}, which claims \
+                 it too, never reaches it: {CYCLES_ARE_CLAIMANTS}"
+            )
+        };
         // he1's side (strictly between he1 and he2): becomes the ring.
         // The walk resolved every member, so each side's ends arrive at
         // the splice below already proven.
@@ -451,22 +584,108 @@ impl<T: Decide> Body<T> {
         let old_side: Vec<Live> = cycle[position + 1..].to_vec();
         let u = he1_data.start;
         let w = he2_data.start;
-        // The op rewrites both emanating anchors; a dangling start
-        // vertex is tier-1-invalid input caught here.
-        for vertex in [u, w] {
-            require_key(&self.vertices, vertex, EntityId::Vertex)?;
+        for (vertex, holder) in [(u, he1), (w, he2)] {
+            require_key(
+                &self.vertices,
+                vertex,
+                EntityId::Vertex,
+                link(EntityId::HalfEdge(holder), "start"),
+            );
         }
-        if ring_side.is_empty() && old_side.is_empty() && u == w {
-            return Err(EulerOpError::EmptyAnchorsCollide { vertex: u });
-        }
+        // Each side's ends, `None` for an empty side: the one reading the
+        // anchors below and the splice that closes the side both take.
+        let ends = |side: &[Live]| side.first().copied().zip(side.last().copied());
+        let (ring_ends, old_ends) = (ends(&ring_side), ends(&old_side));
+        // The unconditional rule (module docs): `u` takes `next(he2)`,
+        // its orbit step from `he1`, and `w` takes `next(he1)`, its step
+        // from `he2`; each side's loop re-anchors at the side's first
+        // member. An empty side strands its vertex lone, and its loop is
+        // `Empty` there. The plan proves every write, the ring's among
+        // them, and that the ring side is the loop's own.
+        let side_anchor = |ends: Option<(Live, Live)>, vertex: VertexKey| match ends {
+            Some((first, _)) => (
+                KillAnchor::Step(first.key()),
+                LoopBoundary::Cycle { first: first.key() },
+            ),
+            None => (KillAnchor::Lone, LoopBoundary::Empty { vertex }),
+        };
+        let (u_anchor, old_boundary) = side_anchor(old_ends, u);
+        let (w_anchor, ring_boundary) = side_anchor(ring_ends, w);
+        self.require_kill_anchors(
+            &[(u, u_anchor, he1), (w, w_anchor, he2)],
+            &[(loop_key, old_boundary)],
+            &[he1, he2],
+            Some(KillRun {
+                members: &ring_side,
+                from: loop_key,
+                extent: RunExtent::Part,
+                into: KillInto::Minted(ring_boundary),
+            }),
+        );
+        assert!(
+            !(ring_side.is_empty() && old_side.is_empty() && u == w),
+            "kemr of {he1:?} and {he2:?} would leave loop {loop_key:?} and its ring both empty \
+             at {u:?}: on a tier-1-valid body {he2:?}, starting at {u:?}, lies on {he1:?}'s \
+             vertex orbit, which a loop of the two halves alone closes without it"
+        );
+        self.require_edge_unnamed(edge, [he1, he2]);
+        // Each non-empty side closes from its last member onto its
+        // first: the ring side's, then the old loop's. The joint it
+        // makes bridges the killed edge, and its element is the sum of
+        // the two it bridges ([`Body::bridged_joint`]): into the ring
+        // side's first member, `e(he2) · e(next(he1))`; into the old
+        // side's, `e(he1) · e(next(he2))`.
+        let elements: Vec<Option<JointElement>> = [(ring_ends, he2), (old_ends, he1)]
+            .into_iter()
+            .filter_map(|(ends, into)| {
+                ends.map(|(first, _)| self.bridged_joint(&[into, first.key()]))
+            })
+            .collect();
+        let links: Vec<(Live, Live)> = [ring_ends, old_ends]
+            .into_iter()
+            .flatten()
+            .map(|(first, last)| (last, first))
+            .collect();
+        self.require_killed_halves_unnamed(
+            [he1, he2],
+            Clearing {
+                removed: Records {
+                    edges: &[edge],
+                    ..Records::default()
+                },
+                edited: Records {
+                    loops: &[loop_key],
+                    vertices: &[u, w],
+                    ..Records::default()
+                },
+                links: &links,
+            },
+        );
+        // The two sides as the kill leaves them: the old loop from its
+        // new anchor, then the ring.
+        let made: Vec<(HalfEdgeKey, Option<JointElement>)> = links
+            .iter()
+            .zip(&elements)
+            .map(|(&(_, first), &element)| (first.key(), element))
+            .collect();
+        let rows = self.plan_released_rows(
+            edge,
+            &made,
+            &[face_key],
+            |body, face| {
+                let walk = |side: &[Live]| -> Vec<SiteHalf> {
+                    side.iter().map(|h| SiteHalf::Existing(h.key())).collect()
+                };
+                let mut site = body.site_face(face, &[(loop_key, walk(&old_side))], None);
+                site.loops.push(SiteLoop::Rewired(walk(&ring_side)));
+                site
+            },
+            tol,
+        )?;
 
         // ---- Mutation (infallible from here on). ----
         // Minting order (documented above): the ring loop only.
         let provenance = Provenance::Kemr { he1, he2 };
-        let ring_boundary = match ring_side.first() {
-            Some(&first) => LoopBoundary::Cycle { first: first.key() },
-            None => LoopBoundary::Empty { vertex: w },
-        };
         let ring = self.add_loop(
             Loop {
                 boundary: ring_boundary,
@@ -483,25 +702,14 @@ impl<T: Decide> Body<T> {
             };
             he.parent_loop = ring;
         }
-        if let (Some(&first), Some(&last)) = (ring_side.first(), ring_side.last()) {
-            // last = prev(he2), first = next(he1): closing the ring cycle.
-            // When the side has ONE member this is a self-link (a
-            // one-half-edge loop). That configuration needs a self-loop
-            // half flanked by the killed halves on both sides — believed
-            // unreachable through M1 operator sequences and verified by
-            // derivation only (same for the old side below).
-            self.link_half_edges(last, first);
+        // The ring side closes prev(he2) -> next(he1), the old loop
+        // prev(he1) -> next(he2). A side of ONE member self-links (a
+        // one-half-edge loop), which needs a self-loop half flanked by
+        // the killed halves on both sides — believed unreachable through
+        // M1 operator sequences and verified by derivation only.
+        for ((last, first), element) in links.into_iter().zip(elements) {
+            self.link_half_edges(last, first, element);
         }
-        // Close the old loop's cycle and re-anchor it (unconditional
-        // rule: first := next(he2); Empty at u when its side is empty).
-        if let (Some(&first), Some(&last)) = (old_side.first(), old_side.last()) {
-            // last = prev(he1), first = next(he2).
-            self.link_half_edges(last, first);
-        }
-        let old_boundary = match old_side.first() {
-            Some(&first) => LoopBoundary::Cycle { first: first.key() },
-            None => LoopBoundary::Empty { vertex: u },
-        };
         let Some(l) = self.get_loop_mut(loop_key) else {
             unreachable!("kemr: the loop resolved in the plan phase")
         };
@@ -510,6 +718,7 @@ impl<T: Decide> Body<T> {
             unreachable!("kemr: the face resolved in the plan phase")
         };
         face.rings.push(ring);
+        crate::pcurves::apply_site_rows(self, rows, None);
         // Kills, with their provenance entries (kill order documented
         // above).
         self.half_edges.remove(he1);
@@ -521,30 +730,16 @@ impl<T: Decide> Body<T> {
         let killed_curve = self
             .remove_curve_if_orphaned(edge_data.curve)
             .then_some(edge_data.curve);
-        // Emanating (unconditional rule, module docs). When u == w the
-        // second write wins — deterministic.
-        let u_anchor = old_side.first().map(|&member| member.key());
-        let w_anchor = ring_side.first().map(|&member| member.key());
+        // Emanating, as the plan phase proved it. When u == w the second
+        // write wins — deterministic.
         let Some(vertex) = self.get_vertex_mut(u) else {
             unreachable!("kemr: `u` resolved in the plan phase")
         };
-        vertex.emanating = u_anchor;
+        vertex.emanating = u_anchor.key();
         let Some(vertex) = self.get_vertex_mut(w) else {
             unreachable!("kemr: `w` resolved in the plan phase")
         };
-        vertex.emanating = w_anchor;
-
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            ArenaDelta {
-                loops: 1,
-                half_edges: -2,
-                edges: -1,
-                ..ArenaDelta::ZERO
-            },
-            "kemr",
-        );
+        vertex.emanating = w_anchor.key();
         Ok(KemrResult {
             ring,
             killed_edge: edge,
@@ -568,10 +763,16 @@ impl<T: Decide> Body<T> {
     /// Euler vector: `(v 0, e +1, f 0, h 0, r −1, s 0)` — arena deltas
     /// −1 loop, +2 half-edges, +1 edge.
     ///
-    /// **Minting order** (D9, exact): curve (placeholder, anchored at
-    /// the target anchor vertex's coordinates), edge, `he_plus`,
-    /// `he_minus`. **Kill order**: the ring loop (with its provenance
-    /// entry), after the splice.
+    /// **Pcurve rows**: as [`Body::mev`]'s — the face, when its rows
+    /// were complete, has its merged loop re-minted with both halves in
+    /// it before any mutation, on the terms `mev` states.
+    ///
+    /// **Minting order** (D9, exact): curve (placeholder, anchored at the
+    /// target anchor vertex's coordinates), edge, `he_plus`, `he_minus`.
+    /// **Kill order**: the ring loop (with its provenance entry and every
+    /// null-face record naming it, as a null-face record lives only while
+    /// its face holds both loops it names — [`crate::null`]), after the
+    /// splice.
     ///
     /// # Precondition check order
     ///
@@ -581,37 +782,61 @@ impl<T: Decide> Body<T> {
     /// distinctness check. Each site's own order is fixed and
     /// deterministic (the first failure wins).
     ///
-    /// Anchors resolve ([`EulerOpError::StaleKey`]); the two loops are
-    /// distinct ([`EulerOpError::SameLoop`]); each loop resolves
-    /// (`StaleKey`) and has the site's required boundary shape
-    /// ([`EulerOpError::LoopNotCycle`] /
-    /// [`EulerOpError::LoopNotEmpty`]); both loops belong to one face
-    /// ([`EulerOpError::NotSameFace`]) which resolves (`StaleKey`); the
-    /// ring is not that face's outer loop
-    /// ([`EulerOpError::RingIsOuter`]); cycle walks close
-    /// ([`EulerOpError::LoopCycleBroken`]); splice/anchor keys resolve
-    /// (`StaleKey` / [`EulerOpError::StaleGeometry`]); `BothEmpty`'s
-    /// lone vertices are distinct
-    /// ([`EulerOpError::EmptyAnchorsCollide`]). Then the geometry
-    /// gate: `curve` certifies against the anchors' points, u → w in
-    /// the `he_plus` forward order
-    /// ([`EulerOpError::Certification`]; `crate::euler` module docs,
-    /// M2 geometry policy). Chord sugar: [`Body::mekr_chord`].
+    /// Anchors resolve ([`BadArgument::Stale`]); the two loops are
+    /// distinct ([`EulerOpError::SameLoop`]); an argument loop has the
+    /// site's required boundary shape ([`EulerOpError::LoopNotEmpty`]);
+    /// both loops belong to one face ([`EulerOpError::NotSameFace`]);
+    /// the ring is not that face's outer loop
+    /// ([`EulerOpError::RingIsOuter`]). Then the geometry gate: `curve`
+    /// certifies against the anchors' points, u → w in the `he_plus`
+    /// forward order ([`EulerOpError::Certification`]; `crate::euler`
+    /// module docs, M2 geometry policy). Last, the pcurve rows, as
+    /// [`Body::mev`] states them: the face's row plan is minted
+    /// ([`EulerOpError::PcurveMint`]). Chord sugar: [`Body::mekr_chord`].
     ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
+    ///
+    /// # Panics
+    ///
+    /// Where the body is not tier-1-valid around the two loops: a
+    /// half-edge claims an empty or dead loop, a record they name does
+    /// not resolve, a cycle walk does not close or is not exactly the
+    /// half-edges that claim its loop, a face but the ring's lists the
+    /// ring, or two empty loops share one lone vertex. Every public door
+    /// keeps the body tier-1-valid, so only a kernel bug reaches these.
     pub fn mekr(
         &mut self,
         site: MekrSite,
         curve: EdgeCurveSpec<T>,
         tol: Tol,
-    ) -> Result<MekrResult, EulerOpError> {
+    ) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        let created = self.mekr_with(site, NewCurve::Given(curve), tol)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::MEKR, "mekr");
+        Ok(created)
+    }
 
-        let created = match site {
+    /// [`Body::mekr`]'s plan and surgery, with its curve as a
+    /// [`NewCurve`], which the chord sugar derives inside the plan. The
+    /// door that calls it declares the postcondition.
+    fn mekr_with(
+        &mut self,
+        site: MekrSite,
+        curve: NewCurve<T>,
+        tol: Tol,
+    ) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        match site {
             MekrSite::Cycles { target, ring } => self.mekr_cycles(site, target, ring, curve, tol),
             MekrSite::EmptyRing { target, ring } => {
                 self.mekr_empty_ring(site, target, ring, curve, tol)
@@ -622,20 +847,7 @@ impl<T: Decide> Body<T> {
             MekrSite::BothEmpty { target, ring } => {
                 self.mekr_both_empty(site, target, ring, curve, tol)
             }
-        }?;
-
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(
-            before,
-            ArenaDelta {
-                loops: -1,
-                half_edges: 2,
-                edges: 1,
-                ..ArenaDelta::ZERO
-            },
-            "mekr",
-        );
-        Ok(created)
+        }
     }
 
     /// [`Body::mekr`] with derived scaffolding geometry — the
@@ -648,41 +860,16 @@ impl<T: Decide> Body<T> {
     /// # Errors
     ///
     /// As [`Body::mekr`].
-    pub fn mekr_chord(&mut self, site: MekrSite, tol: Tol) -> Result<MekrResult, EulerOpError> {
-        let anchor_of = |body: &Self, r#loop: LoopKey| -> Result<VertexKey, EulerOpError> {
-            let loop_data = body.get_loop(r#loop).ok_or(EulerOpError::StaleKey {
-                key: EntityId::Loop(r#loop),
-            })?;
-            match loop_data.boundary {
-                LoopBoundary::Empty { vertex } => Ok(vertex),
-                LoopBoundary::Cycle { .. } => Err(EulerOpError::LoopNotEmpty { r#loop }),
-            }
-        };
-        let (u, w) = match site {
-            MekrSite::Cycles { target, ring } => (
-                self.resolve_half_edge(target)?.start,
-                self.resolve_half_edge(ring)?.start,
-            ),
-            MekrSite::EmptyRing { target, ring } => (
-                self.resolve_half_edge(target)?.start,
-                anchor_of(self, ring)?,
-            ),
-            MekrSite::EmptyTarget { target, ring } => (
-                anchor_of(self, target)?,
-                self.resolve_half_edge(ring)?.start,
-            ),
-            MekrSite::BothEmpty { target, ring } => {
-                (anchor_of(self, target)?, anchor_of(self, ring)?)
-            }
-        };
-        let p_u = self.resolve_vertex_point(u)?;
-        let spec = if u == w {
-            EdgeCurveSpec::self_loop_circle_at(p_u)
-        } else {
-            let p_w = self.resolve_vertex_point(w)?;
-            EdgeCurveSpec::line_between(p_u, p_w)
-        };
-        self.mekr(site, spec, tol)
+    pub fn mekr_chord(&mut self, site: MekrSite, tol: Tol) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let created = self.mekr_with(site, NewCurve::Chord, tol)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::MEKR, "mekr");
+        Ok(created)
     }
 
     /// KFMRH — *kill face, make ring–hole*: the connected sum. `f2`'s
@@ -726,71 +913,206 @@ impl<T: Decide> Body<T> {
     /// **Pcurve rows** ([`crate::pcurves`]): the demoted loop's stored
     /// rows are a curve stated in `f2`'s chart, so they survive this op
     /// only when `f1` is on the same CHART ([`Body::same_chart`]: one
-    /// key, or two keys sharing one payload). When it
-    /// is not, they are DROPPED — [`Body::drop_rows_on_chart_change`]
-    /// carries why this door cannot re-state them and what the drop
-    /// leaves behind (a target face that carries rows of its own is
-    /// left incomplete and tier 3 says so; a rowless CURVED target
-    /// reads as unminted, which is the loud-to-silent trade that
-    /// helper's docs scope). `f1`'s own rows are never touched. A
-    /// caller that wants the merged face minted runs
-    /// [`crate::pcurves::mint_pcurves`].
+    /// key, or two keys sharing one payload). When it is not, they are
+    /// DROPPED ([`Body::drop_rows`]). Where they do not stand on `f1`
+    /// — dropped, or missing — and `f1`'s rows were complete on an
+    /// analytic chart, `f1` is owed a re-mint this keys-only kill takes
+    /// no band for, so it refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] before anything
+    /// moves rather than leave `f1` half-minted — the shape of
+    /// [`Body::kev`]'s refusal where a carrier would go stale.
+    /// [`Body::kfmrh_minting`] is the same kill with a band, and makes
+    /// that move whole. On a spline chart, or an `f1` that was unminted
+    /// or half-minted, the drop is the whole answer at either door.
     ///
-    /// **Minting order**: nothing is minted (the loop survives with its
-    /// D5 birth record — no provenance changes for survivors; re-homed
-    /// faces keep their birth records — re-homing is not a re-birth).
-    /// **Kill order** (D9, exact): cross-shell form first re-homes
-    /// `f2`'s shell's surviving faces (appended to `f1`'s shell's list
-    /// in their surviving order) and kills the shell (with its
-    /// provenance); then, both forms, the face `f2` (with its
-    /// provenance and any F9 null-face record), then `f2`'s surface
-    /// iff orphaned ([`Body::remove_surface_if_orphaned`]).
+    /// **Keys-only.** Where `f1` wears another key than `f2`, the
+    /// demoted loop moves onto a chart its edges' descriptions may not
+    /// name. This door asks [`Body::ring_move`]'s questions of that move
+    /// ([`Body::vouch_move`], as [`RechartDoor::Kfmrh`]), on
+    /// [`Body::kef`]'s terms; [`Body::kfmrh_describing`] takes the move
+    /// with its re-descriptions under a band.
+    ///
+    /// **Minting order**: nothing is minted (the loop survives with its D5
+    /// birth record — no provenance changes for survivors; re-homed faces
+    /// keep their birth records — re-homing is not a re-birth). **Kill
+    /// order** (D9, exact): cross-shell form first re-homes `f2`'s shell's
+    /// surviving faces (appended to `f1`'s shell's list in their surviving
+    /// order) and kills the shell (with its provenance); then, both forms,
+    /// the face `f2` (with its provenance and its null-face record) and
+    /// every null-face record naming `f2`'s demoted outer loop, as a
+    /// null-face record lives only while its face holds both loops it names
+    /// ([`crate::null`]), then `f2`'s surface iff orphaned
+    /// ([`Body::remove_surface_if_orphaned`]).
     ///
     /// # Precondition check order
     ///
-    /// `f1` resolves, `f2` resolves ([`EulerOpError::StaleKey`]); they
-    /// are distinct ([`EulerOpError::SameFace`]); both shells resolve
-    /// (`StaleKey`); cross-shell only: one solid
-    /// ([`EulerOpError::CrossSolid`]); `f2` has no rings
-    /// ([`EulerOpError::FaceHasRings`]); `f2`'s outer loop resolves
-    /// (`StaleKey`); cross-shell only: every surviving face of `f2`'s
-    /// shell and the shared solid resolve (`StaleKey`) — the fusion
-    /// writes through both.
+    /// `f1` resolves, then `f2` ([`BadArgument::Stale`]); they are
+    /// distinct ([`EulerOpError::SameFace`]); cross-shell only: one
+    /// solid ([`EulerOpError::CrossSolid`]); `f2` has no rings
+    /// ([`EulerOpError::FaceHasRings`]); then the move's keys
+    /// ([`EulerOpError::RechartStrandsDescriptions`], then
+    /// [`EulerOpError::RechartUnvouched`], each naming every edge, in
+    /// the demoted loop's cycle order); then the site mint's plan
+    /// ([`Body::plan_moved_rows`]'s errors): where `f1` would be
+    /// re-minted, [`EulerOpError::PcurveMint`] naming `f1` (`KeysOnly`
+    /// at this door).
     ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
+    ///
+    /// # Panics
+    ///
+    /// Where the body is not tier-1-valid around the faces: a record
+    /// they name does not resolve, the demoted loop's walk is not
+    /// exactly the half-edges that claim it, or a record the kill keeps
+    /// still names `f2` or, in the fusion form, its shell. Every public
+    /// door keeps the body tier-1-valid, so only a kernel bug reaches
+    /// these.
     pub fn kfmrh(&mut self, f1: FaceKey, f2: FaceKey) -> Result<KfmrhResult, EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
-
-        // ---- Preconditions. ----
-        let f1_data = self.get_face(f1).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Face(f1),
+        let plan = self.kfmrh_plan(f1, f2, None, |body, m| {
+            body.vouch_kill(RechartDoor::Kfmrh, m)
         })?;
+        #[cfg(debug_assertions)]
+        let declared = plan.delta();
+        let fused = self.kfmrh_execute(plan);
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, declared, "kfmrh");
+        Ok(fused)
+    }
+
+    /// [`Body::kfmrh`] with a band: where `kfmrh` refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the demoted
+    /// loop's rows do not stand on a complete `f1` — this door re-mints
+    /// `f1` at `tol`'s band, the demoted loop walked in its chart
+    /// ([`Body::plan_moved_rows`]); everywhere else it is `kfmrh`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::kfmrh`], except the `KeysOnly` refusal, and the site
+    /// mint's plan in its place ([`Body::plan_moved_rows`]'s errors);
+    /// and it does not ask the move's keys. Its production caller, the
+    /// boolean's seam zip, relies on that move, and
+    /// [`Body::kfmrh_describing`] absorbs it once the zip states its
+    /// re-descriptions
+    /// (`work/topo/kef-and-kfmrh-across-keys-want-a-describing-door-or-reordered-callers`).
+    pub fn kfmrh_minting(
+        &mut self,
+        f1: FaceKey,
+        f2: FaceKey,
+        tol: Tol,
+    ) -> Result<KfmrhResult, EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let plan = self.kfmrh_plan(f1, f2, Some(tol), |_, _| Ok(Vec::new()))?;
+        #[cfg(debug_assertions)]
+        let declared = plan.delta();
+        let fused = self.kfmrh_execute(plan);
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, declared, "kfmrh_minting");
+        Ok(fused)
+    }
+
+    /// **The describing kill**: [`Body::kfmrh_minting`]'s kill with the
+    /// re-descriptions of the demoted loop's edges, under `tol`'s band
+    /// — the twin [`Body::kfmrh`]'s refusals name, as
+    /// [`Body::kef_describing`] is [`Body::kef`]'s, and on its terms:
+    /// each listed description is stated on the adjacency the kill
+    /// leaves, a key `f2` wears standing for `f1`'s
+    /// ([`Body::kfmrh_carried_redescriptions`] states the stored ones
+    /// there), certified on the edge's own carrier and interval, and
+    /// nothing unlisted is re-described.
+    ///
+    /// # Precondition check order
+    ///
+    /// [`Body::kfmrh`]'s structural list; then
+    /// [`Body::kef_describing`]'s listed-edge, strand and residual
+    /// checks, an edge with a half in the demoted loop counting as
+    /// moved ([`EulerOpError::NotMovedEdge`] otherwise); then
+    /// [`Body::kfmrh_minting`]'s site mint.
+    ///
+    /// # Errors
+    ///
+    /// The first failing precondition above; the body is untouched on
+    /// `Err`.
+    ///
+    /// # Panics
+    ///
+    /// As [`Body::kfmrh`].
+    pub fn kfmrh_describing(
+        &mut self,
+        f1: FaceKey,
+        f2: FaceKey,
+        redescriptions: &[(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)],
+        tol: Tol,
+    ) -> Result<KfmrhResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        let plan = self.kfmrh_plan(f1, f2, Some(tol), |body, m| {
+            body.vouch_described_kill(RechartDoor::KfmrhDescribing, m, redescriptions, tol)
+        })?;
+        #[cfg(debug_assertions)]
+        let declared = plan.delta();
+        let fused = self.kfmrh_execute(plan);
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, declared, "kfmrh_describing");
+        Ok(fused)
+    }
+
+    /// **The re-descriptions [`Body::kfmrh_describing`] would need to
+    /// carry `kfmrh(f1, f2)`'s move**: [`Body::kef_carried_redescriptions`]'
+    /// reading for the demoted loop, in its cycle order. Pure.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::kfmrh`]'s structural list: `f1` resolves, then `f2`
+    /// ([`BadArgument::Stale`]); they are distinct
+    /// ([`EulerOpError::SameFace`]); they share a solid
+    /// ([`EulerOpError::CrossSolid`]); `f2` has no rings
+    /// ([`EulerOpError::FaceHasRings`]).
+    pub fn kfmrh_carried_redescriptions(
+        &self,
+        f1: FaceKey,
+        f2: FaceKey,
+    ) -> Result<Vec<(EdgeKey, geom_brep::EdgeDescriptionSpec<T>)>, EulerOpError> {
+        Ok(self.carried_by_kill(&self.kfmrh_move(f1, f2)?.kill))
+    }
+
+    /// [`Body::kfmrh`]'s structural preconditions and the move it makes,
+    /// which [`Body::kfmrh_carried_redescriptions`] states and the doors
+    /// vouch and carry out.
+    fn kfmrh_move(&self, f1: FaceKey, f2: FaceKey) -> Result<KfmrhMove, EulerOpError> {
+        let f1_data = lookup(&self.faces, f1, EntityId::Face, Arg("f1"))?;
         let f1_shell = f1_data.shell;
         let f1_surface = f1_data.surface;
-        let f2_data = self.get_face(f2).cloned().ok_or(EulerOpError::StaleKey {
-            key: EntityId::Face(f2),
-        })?;
+        let f2_data = lookup(&self.faces, f2, EntityId::Face, Arg("f2"))?.clone();
         if f1 == f2 {
             return Err(EulerOpError::SameFace { face: f1 });
         }
         let f2_shell = f2_data.shell;
         let cross_shell = f2_shell != f1_shell;
-        let s1_solid = self
-            .get_shell(f1_shell)
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Shell(f1_shell),
-            })?
-            .solid;
-        let s2_data = self
-            .get_shell(f2_shell)
-            .cloned()
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Shell(f2_shell),
-            })?;
+        let s1_solid = linked(
+            &self.shells,
+            f1_shell,
+            EntityId::Shell,
+            EntityId::Face(f1),
+            "shell",
+        )
+        .solid;
+        let s2_data = linked(
+            &self.shells,
+            f2_shell,
+            EntityId::Shell,
+            EntityId::Face(f2),
+            "shell",
+        )
+        .clone();
         if cross_shell && s2_data.solid != s1_solid {
             return Err(EulerOpError::CrossSolid { f1, f2 });
         }
@@ -798,21 +1120,163 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::FaceHasRings { face: f2 });
         }
         let ring = f2_data.outer;
-        require_key(&self.loops, ring, EntityId::Loop)?;
+        let _ = linked(
+            &self.loops,
+            ring,
+            EntityId::Loop,
+            EntityId::Face(f2),
+            "outer",
+        );
         if cross_shell {
             // The fusion re-homes f2's shell's surviving faces and
-            // rewrites the shared solid's shell list; both are keys read
-            // out of the body rather than arguments, so prove them live
-            // here — the mutation below cannot fail midway (atomicity).
+            // rewrites the shared solid's shell list: prove them live
+            // here, so the mutation below cannot fail midway (atomicity).
             for &face in &s2_data.faces {
                 if face != f2 {
-                    require_key(&self.faces, face, EntityId::Face)?;
+                    let _ = linked(
+                        &self.faces,
+                        face,
+                        EntityId::Face,
+                        EntityId::Shell(f2_shell),
+                        "faces",
+                    );
                 }
             }
-            require_key(&self.solids, s2_data.solid, EntityId::Solid)?;
+            let _ = linked(
+                &self.solids,
+                s2_data.solid,
+                EntityId::Solid,
+                EntityId::Shell(f2_shell),
+                "solid",
+            );
         }
+        let kill = KillMove::of(
+            self,
+            f1,
+            (f2_data.surface, f1_surface),
+            self.whole_cycle(ring),
+        );
+        Ok(KfmrhMove {
+            f1_shell,
+            f2_data,
+            s2_data,
+            cross_shell,
+            ring,
+            kill,
+        })
+    }
 
-        // ---- Mutation (infallible from here on). ----
+    /// [`Body::kfmrh`]'s preconditions and site mint plan, with the band
+    /// the site mint runs at, or none for the keys-only door.
+    fn kfmrh_plan(
+        &self,
+        f1: FaceKey,
+        f2: FaceKey,
+        tol: Option<Tol>,
+        vouch: impl FnOnce(
+            &Self,
+            &KillMove,
+        ) -> Result<Vec<(EdgeKey, geom_brep::EdgeCurve<T>)>, EulerOpError>,
+    ) -> Result<KfmrhPlan<T>, EulerOpError> {
+        // ---- Preconditions. ----
+        let KfmrhMove {
+            f1_shell,
+            f2_data,
+            s2_data,
+            cross_shell,
+            ring,
+            kill,
+        } = self.kfmrh_move(f1, f2)?;
+        let f2_shell = f2_data.shell;
+        let f1_surface = kill.onto;
+        // Nothing the kill keeps names `f2`, or, in the fusion form,
+        // `f2`'s shell: the ring re-homes onto `f1`, the shell that
+        // drops `f2` is `f1`'s in the same-shell form and dies in the
+        // fusion form, whose other faces re-home and whose solid drops
+        // it.
+        let moved: Vec<FaceKey> = if cross_shell {
+            s2_data.faces.iter().copied().filter(|&f| f != f2).collect()
+        } else {
+            Vec::new()
+        };
+        let (removed_shells, edited_shells) = if cross_shell {
+            (&[f2_shell][..], &[][..])
+        } else {
+            (&[][..], &[f1_shell][..])
+        };
+        self.require_face_unnamed(
+            f2,
+            Clearing {
+                removed: Records {
+                    shells: removed_shells,
+                    ..Records::default()
+                },
+                edited: Records {
+                    loops: &[ring],
+                    shells: edited_shells,
+                    ..Records::default()
+                },
+                ..Clearing::default()
+            },
+        );
+        if cross_shell {
+            self.require_shell_unnamed(
+                f2_shell,
+                Clearing {
+                    removed: Records {
+                        faces: &[f2],
+                        ..Records::default()
+                    },
+                    edited: Records {
+                        faces: &moved,
+                        solids: &[s2_data.solid],
+                        ..Records::default()
+                    },
+                    ..Clearing::default()
+                },
+            );
+        }
+        let one_payload = kill.one_payload;
+        let described = vouch(self, &kill)?;
+        let ring_halves = kill.moving;
+        let rows = self.plan_moved_rows(
+            &ring_halves,
+            one_payload,
+            f1,
+            |body| Ok(body.site_face_receiving(f1, &ring_halves)),
+            tol,
+        )?;
+        Ok(KfmrhPlan {
+            f1,
+            f2,
+            f1_shell,
+            f1_surface,
+            f2_data,
+            s2_data,
+            cross_shell,
+            ring,
+            ring_halves,
+            rows,
+            described,
+        })
+    }
+
+    /// [`Body::kfmrh`]'s surgery, from its proved plan. Infallible.
+    fn kfmrh_execute(&mut self, plan: KfmrhPlan<T>) -> KfmrhResult {
+        let KfmrhPlan {
+            f1,
+            f2,
+            f1_shell,
+            f1_surface,
+            f2_data,
+            s2_data,
+            cross_shell,
+            ring,
+            ring_halves,
+            rows,
+            described,
+        } = plan;
+        let f2_shell = f2_data.shell;
         // The surviving loop is repointed and demoted; nothing else at
         // the half-edge/vertex/edge level is touched.
         let Some(l) = self.get_loop_mut(ring) else {
@@ -823,7 +1287,12 @@ impl<T: Decide> Body<T> {
             unreachable!("kfmrh: `f1` resolved in the plan phase")
         };
         face.rings.push(ring);
-        self.drop_rows_on_chart_change(ring, f2_data.surface, f1_surface);
+        self.drop_rows_on_chart_change(ring_halves, f2_data.surface, f1_surface);
+        crate::pcurves::apply_site_rows(self, rows, None);
+        // A re-described edge keeps its carrier, so its rows stand.
+        for (edge, curve) in described {
+            self.replace_edge_curve(edge, curve);
+        }
         let killed_shell = if cross_shell {
             // Shell fusion: f2's surviving faces re-home into f1's
             // shell — appended in their surviving f2-shell list order
@@ -855,45 +1324,19 @@ impl<T: Decide> Body<T> {
         };
         self.faces.remove(f2);
         self.face_provenance.remove(f2);
-        // Null-face record hygiene (M3 PR 1): a record never outlives
-        // its face (crate::null).
+        // A null-face record lives only while its face holds both loops
+        // it names (crate::null).
         self.null_faces.remove(f2);
+        self.drop_null_face_records_naming(ring);
         let killed_surface = self
             .remove_surface_if_orphaned(f2_data.surface)
             .then_some(f2_data.surface);
-
-        #[cfg(debug_assertions)]
-        {
-            // The declared arena shift is chosen by `cross_shell` —
-            // the PLAN phase's own form decision, taken before any
-            // mutation and never written again. Choosing it on
-            // `killed_shell.is_some()` instead would read the shift
-            // back out of the mutation being checked, so the
-            // postcondition would follow the code down whichever
-            // branch it took and a fusion that ran when it should not
-            // have could not fail it. `ArenaDelta` is one operator's
-            // signed shift (`crate::euler`), and a shift a site
-            // computes from its own effect is not one.
-            let declared = if cross_shell {
-                ArenaDelta {
-                    shells: -1,
-                    faces: -1,
-                    ..ArenaDelta::ZERO
-                }
-            } else {
-                ArenaDelta {
-                    faces: -1,
-                    ..ArenaDelta::ZERO
-                }
-            };
-            self.assert_euler_postcondition(before, declared, "kfmrh");
-        }
-        Ok(KfmrhResult {
+        KfmrhResult {
             ring,
             killed_face: f2,
             killed_surface,
             killed_shell,
-        })
+        }
     }
 
     /// Reparents a ring from its face to `to_face` (same shell).
@@ -918,21 +1361,37 @@ impl<T: Decide> Body<T> {
     /// the caller's bug, surfaced by the designation-sensitive
     /// consumers (tier-3 region checks, mass properties), not here.
     ///
-    /// Pure reparenting: the ring leaves its face's `rings`, joins
+    /// Reparenting: the ring leaves its face's `rings`, joins
     /// `to_face.rings` (appended — deterministic order), and its `face`
-    /// back-pointer is repointed. Moving a ring to its own face is a
-    /// documented no-op (`Ok(())`, body untouched — the rings order is
-    /// NOT perturbed, keeping replay byte-stable).
+    /// back-pointer is repointed. Every null-face record naming the ring is
+    /// dropped, as a null-face record lives only while its face holds both
+    /// loops it names ([`crate::null`]). Moving a ring to its own face is a
+    /// documented no-op (`Ok(())`, body untouched — the rings order is NOT
+    /// perturbed, keeping replay byte-stable, and a record naming the ring
+    /// stands).
     ///
     /// **Pcurve rows** ([`crate::pcurves`]): this door mints and kills
     /// no half-edge, and it still writes the map — a re-parenting is
     /// pure of the ARENAS, not of the pcurve map. A row is a curve
     /// stated in a FACE's chart, so the ring's rows survive the move
     /// only when `to_face` is on the same CHART as the ring's old face
-    /// ([`Body::same_chart`]); when it is not they are DROPPED, for
-    /// the reasons and with the consequences
-    /// [`Body::drop_rows_on_chart_change`] states. Neither face's other
-    /// loops are touched, and the same-face no-op moves nothing.
+    /// ([`Body::same_chart`]); when it is not they are DROPPED
+    /// ([`Body::drop_rows`]). Where they do not stand on `to_face` —
+    /// dropped, or missing — and `to_face`'s rows were complete on an
+    /// analytic chart, this keys-only door refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] before anything
+    /// moves, as [`Body::kfmrh`] does; [`Body::ring_move_minting`]
+    /// takes a band and re-mints `to_face` with the ring walked in its
+    /// chart. Neither face's other loops are touched, the face the ring
+    /// leaves needs nothing beyond the record drop, and the same-face
+    /// no-op moves nothing.
+    ///
+    /// **A ring moved onto a face on another chart is vouched for by
+    /// its edges, or refused** ([`RechartDoor::RingMove`]), at both
+    /// doors: every edge of the ring is asked [`Body::vouch_move`]'s
+    /// questions against `to_face`'s key. The containment decision
+    /// stays the caller's; this is the keys' half of it. The lever is
+    /// the face the ring moves onto: one on a chart its edges name.
     ///
     /// # Tier-1 preservation (the demotion claim's least obvious case)
     ///
@@ -956,35 +1415,86 @@ impl<T: Decide> Body<T> {
     ///
     /// # Precondition check order
     ///
-    /// The ring resolves ([`EulerOpError::StaleKey`]); its face
-    /// resolves (`StaleKey`); it is not that face's outer loop
-    /// ([`EulerOpError::RingIsOuter`]); `to_face` resolves (`StaleKey`);
-    /// both faces lie in one shell ([`EulerOpError::CrossShell`]).
+    /// The ring resolves ([`BadArgument::Stale`]); it is not its face's
+    /// outer loop ([`EulerOpError::RingIsOuter`]); `to_face` resolves
+    /// (`BadArgument::Stale`); both faces lie in one shell
+    /// ([`EulerOpError::CrossShell`]); then, where `to_face`'s key is
+    /// not the ring's face's, no edge of the ring is stranded
+    /// ([`EulerOpError::RechartStrandsDescriptions`], every one named,
+    /// in cycle order) and every certified one names that key
+    /// ([`EulerOpError::RechartUnvouched`], the same); then the site
+    /// mint's plan ([`Body::plan_moved_rows`]'s errors): where `to_face`
+    /// would be re-minted, `KeysOnly` at this door.
     ///
     /// # Errors
     ///
     /// The first failing precondition above; the body is untouched on
     /// `Err`.
+    ///
+    /// # Panics
+    ///
+    /// Where the ring's face does not resolve, or the ring's walk is not
+    /// exactly the half-edges that claim it: every public door keeps the
+    /// body tier-1-valid, where neither happens.
     pub fn ring_move(&mut self, ring: LoopKey, to_face: FaceKey) -> Result<(), EulerOpError> {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
+        self.ring_move_with(ring, to_face, None)?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move");
+        Ok(())
+    }
 
+    /// [`Body::ring_move`] with a band: where `ring_move` refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] — the ring's rows
+    /// do not stand on a complete `to_face` — this door re-mints
+    /// `to_face` at `tol`'s band, the ring walked in its chart
+    /// ([`Body::plan_moved_rows`]); everywhere else it is `ring_move`.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::ring_move`], except the `KeysOnly` refusal, and the
+    /// site mint's plan in its place ([`Body::plan_moved_rows`]'s
+    /// errors).
+    pub fn ring_move_minting(
+        &mut self,
+        ring: LoopKey,
+        to_face: FaceKey,
+        tol: Tol,
+    ) -> Result<(), EulerOpError> {
+        #[cfg(debug_assertions)]
+        let before = self.arena_counts();
+        self.ring_move_with(ring, to_face, Some(tol))?;
+        #[cfg(debug_assertions)]
+        self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move_minting");
+        Ok(())
+    }
+
+    /// [`Body::ring_move`]'s plan and surgery, with the band its site
+    /// mint runs at, or none for the keys-only door. The door that
+    /// calls it declares the postcondition.
+    fn ring_move_with(
+        &mut self,
+        ring: LoopKey,
+        to_face: FaceKey,
+        tol: Option<Tol>,
+    ) -> Result<(), EulerOpError> {
         // ---- Preconditions. ----
-        let ring_data = self.get_loop(ring).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Loop(ring),
-        })?;
+        let ring_data = lookup(&self.loops, ring, EntityId::Loop, Arg("ring"))?;
         let from_face = ring_data.face;
-        let from_data = self.get_face(from_face).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Face(from_face),
-        })?;
+        let from_data = linked(
+            &self.faces,
+            from_face,
+            EntityId::Face,
+            EntityId::Loop(ring),
+            "face",
+        );
         if from_data.outer == ring {
             return Err(EulerOpError::RingIsOuter { r#loop: ring });
         }
         let from_surface = from_data.surface;
         let from_shell = from_data.shell;
-        let to_data = self.get_face(to_face).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Face(to_face),
-        })?;
+        let to_data = lookup(&self.faces, to_face, EntityId::Face, Arg("to_face"))?;
         let to_surface = to_data.surface;
         if to_data.shell != from_shell {
             return Err(EulerOpError::CrossShell {
@@ -992,6 +1502,28 @@ impl<T: Decide> Body<T> {
                 f2: to_face,
             });
         }
+        let (ring_halves, rows) = if from_face == to_face {
+            (Vec::new(), Vec::new())
+        } else {
+            let ring_halves = self.whole_cycle(ring);
+            self.vouch_move(
+                RechartDoor::RingMove,
+                to_face,
+                self.landing_on(from_surface, to_surface),
+                self.run_edges(&ring_halves),
+                |_, l, _| l == ring,
+                self.same_chart(from_surface, to_surface),
+                None,
+            )?;
+            let rows = self.plan_moved_rows(
+                &ring_halves,
+                self.same_chart(from_surface, to_surface),
+                to_face,
+                |body| Ok(body.site_face_receiving(to_face, &ring_halves)),
+                tol,
+            )?;
+            (ring_halves, rows)
+        };
 
         // ---- Mutation (infallible; no-op when the faces coincide). ----
         if from_face != to_face {
@@ -1007,20 +1539,19 @@ impl<T: Decide> Body<T> {
                 unreachable!("ring_move: the ring resolved in the plan phase")
             };
             l.face = to_face;
+            self.drop_null_face_records_naming(ring);
         }
-        self.drop_rows_on_chart_change(ring, from_surface, to_surface);
-
-        #[cfg(debug_assertions)]
-        self.assert_euler_postcondition(before, ArenaDelta::ZERO, "ring_move");
+        self.drop_rows_on_chart_change(ring_halves, from_surface, to_surface);
+        crate::pcurves::apply_site_rows(self, rows, None);
         Ok(())
     }
 
-    /// The loop-re-parenting doors' chart decision, and the walk it
-    /// governs: drops every stored row of `r#loop` when the loop's
-    /// new face is on a different CHART from its old one, and touches
-    /// nothing when it is not. [`Body::drop_face_rows`] is the same
-    /// answer for a face re-charted in place, where one chart decision
-    /// covers every loop the face has.
+    /// The loop-re-parenting doors' chart decision: drops the stored
+    /// row of every half-edge in `halves`, a moved loop's members, when
+    /// the loop's new face is on a different CHART from its old one,
+    /// and touches nothing when it is not. A face re-charted in place
+    /// takes the same answer, one chart decision over every loop the
+    /// face has ([`Body::face_cycles`] proves them).
     ///
     /// A pcurve row is a curve stated in a FACE's chart, keyed on a
     /// half-edge ([`crate::pcurves`]). Re-parenting a loop changes
@@ -1029,40 +1560,100 @@ impl<T: Decide> Body<T> {
     /// the chart decides which. Same chart: every row still says what
     /// it said, and the door carries them all untouched. A different
     /// chart: none of them does, and the door drops them —
-    /// [`Body::drop_rows`] states why dropping and what it costs;
+    /// [`Body::drop_rows`] states what the drop removes and what a
+    /// `_minting` door's site mint puts back ([`Body::plan_moved_rows`]);
     /// [`Body::same_chart`] states which charts count as one. The
-    /// decision is taken here once, for the three doors that move a
-    /// whole loop ([`Body::kfmrh`], [`Body::mfkrh`],
-    /// [`Body::ring_move`]); the two doors that move a RUN of one
-    /// ([`Body::mef`]'s chord surgery, [`Body::kef`]'s unsplice) take
-    /// it at their own sites, over the run their plan phase holds.
+    /// decision is taken here once, for the two doors that move a
+    /// whole loop between existing faces ([`Body::kfmrh`],
+    /// [`Body::ring_move`]); [`Body::mfkrh`] takes it with its spec
+    /// ([`Body::resolve_face_surface`]) and drops the same list; the
+    /// two doors that move a RUN of one ([`Body::mef`]'s chord surgery,
+    /// [`Body::kef`]'s unsplice) take it at their own sites, over the
+    /// run their plan phase holds.
     ///
-    /// **What it drops is what the validator would read.** The rows
-    /// removed are exactly the rows the face's own walk attributes to
-    /// this loop — both walks are
-    /// [`crate::pcurves::loop_rows`], the one per-loop rows walk — so
-    /// the door and [`crate::pcurves::validate_pcurves`] never
-    /// disagree about which rows a face has. A row on a half-edge that
-    /// walk does not reach is reachable from no face at all: the
-    /// module docs' dead-key case, which no door disposes of.
-    ///
-    /// Infallible, so it sits in a door's mutation phase: a loop whose
-    /// boundary is not a cycle has no half-edge to carry a row, and a
-    /// cycle that does not walk is tier-1 corruption the body arrived
-    /// with and the validator reports.
+    /// **What it drops is what the validator would read.** `halves` is
+    /// the plan's [`Body::whole_cycle`]: the one per-loop rows walk
+    /// ([`crate::pcurves::loop_rows`]) that
+    /// [`crate::pcurves::validate_pcurves`] reads the face with, proven
+    /// in the plan to be every half-edge that claims the loop and none
+    /// that does not. The drop walks nothing, so it is infallible and
+    /// sits in the door's mutation phase.
     pub(crate) fn drop_rows_on_chart_change(
         &mut self,
-        r#loop: LoopKey,
+        halves: Vec<HalfEdgeKey>,
         from: SurfaceKey,
         to: SurfaceKey,
     ) {
-        if self.same_chart(from, to) {
-            return;
+        if !self.same_chart(from, to) {
+            self.drop_rows(halves);
         }
-        let crate::pcurves::LoopRows::Cycle(cycle) = crate::pcurves::loop_rows(self, r#loop) else {
-            return;
-        };
-        self.drop_rows(cycle);
+    }
+
+    /// **The site mint of a door that moves a loop or run onto a
+    /// face**, planned before the door mutates. `moved` is the loop's
+    /// or run's half-edges, and `same_chart` whether the face it lands
+    /// on is on the chart it leaves ([`Body::same_chart`]).
+    ///
+    /// Where every moved half carries a row and the chart is one, the
+    /// rows move with their keys: nothing is derived, and there is
+    /// nothing to plan. Otherwise the moved rows do not stand on the
+    /// destination — they are about another chart, which the door drops
+    /// them for ([`Body::drop_rows`]), or missing — and the destination
+    /// is re-minted exactly as an Euler operator's rewired face is
+    /// ([`Body::plan_site_mint_of`]): the rows of `rows_from` as found
+    /// decide ([`crate::pcurves::StoredRows::remints`]), and `site`
+    /// describes the destination as the door leaves it, with the moved
+    /// loop rewired and [`crate::pcurves::SiteFace::moved`] set. A
+    /// complete destination on an analytic chart leaves complete, the
+    /// moved loop walked in its chart, or storing nothing where that
+    /// walk does not certify; any other destination is left as found,
+    /// its moved rows dropped. An empty `moved` moves nothing and plans
+    /// nothing.
+    ///
+    /// `tol` is the band door's. `None` is the keys-only door, which
+    /// derives nothing and refuses
+    /// [`crate::pcurves::SiteRowRefusal::KeysOnly`] where
+    /// [`crate::pcurves::site_rows_owed`] holds: where the band door's
+    /// plan writes the destination.
+    ///
+    /// The face a loop LEAVES needs nothing: it loses that loop's
+    /// half-edges and their rows together, its other loops and its
+    /// chart are untouched, so it is left as complete as it was, or
+    /// more.
+    ///
+    /// # Errors
+    ///
+    /// [`Body::plan_site_mint_of`]'s, and what `site` raises.
+    pub(crate) fn plan_moved_rows(
+        &self,
+        moved: &[HalfEdgeKey],
+        same_chart: bool,
+        rows_from: FaceKey,
+        site: impl FnOnce(&Self) -> Result<SiteFace<T>, EulerOpError>,
+        tol: Option<Tol>,
+    ) -> Result<Vec<SiteRows<T>>, EulerOpError> {
+        let stand = same_chart && moved.iter().all(|&he| self.pcurve(he).is_some());
+        if moved.is_empty() || stand {
+            return Ok(Vec::new());
+        }
+        self.plan_site_mint_of(
+            [rows_from],
+            |body, _| Ok(vec![site(body)?]),
+            crate::pcurves::SiteCarriers::Existing,
+            tol,
+        )
+    }
+
+    /// `face` as a door leaves it that moves the loop `halves` walk onto
+    /// it as a new ring ([`Body::kfmrh`], [`Body::ring_move`]): its own
+    /// loops kept, the moved loop rewired after them.
+    fn site_face_receiving(&self, face: FaceKey, halves: &[HalfEdgeKey]) -> SiteFace<T> {
+        let mut site = self.site_face(face, &[], None);
+        site.moved = true;
+        site.loops.push(SiteLoop::Rewired(
+            halves.iter().copied().map(SiteHalf::Existing).collect(),
+        ));
+        site
     }
 
     /// Removes the stored pcurve row of every half-edge in
@@ -1072,45 +1663,45 @@ impl<T: Decide> Body<T> {
     /// is each door's, taken once at its own site, and this takes none.
     ///
     /// **Why dropping rather than re-stating.** An image on another
-    /// chart is DERIVED, not restated — unlike
-    /// [`Body::split_edge`]'s restriction of one image to a
-    /// sub-interval of its own carrier — and every derivation door in
-    /// [`crate::pcurves`] carries the `PcurveFittedLane` bound, which
-    /// the `Decide` doors that call this do not have and cannot take
-    /// without rippling it through every caller. Dropping is the
-    /// honest remainder: absence is never a claim, and a caller that
-    /// wants the target face's rows runs
-    /// [`crate::pcurves::mint_pcurves`].
+    /// chart is DERIVED, not restated — unlike [`Body::split_edge`]'s
+    /// restriction of one image to a sub-interval of its own carrier —
+    /// so the moved rows go. What replaces them on a complete analytic
+    /// destination is the `_minting` door's site mint
+    /// ([`Body::plan_moved_rows`]); a SPLINE chart derives through the
+    /// fitted lane, which these `Decide` doors do not hold, and there
+    /// the drop stands.
     ///
-    /// **What the drop costs, and its scope.** Where the target face
-    /// carries rows of its own, the drop leaves it INCOMPLETE and
-    /// tier 3 reports that (`MissingCache` per rowless half-edge).
-    /// Where it does not — a target whose whole boundary is the moved
-    /// loop or run, or one that was never minted — the face reads as
-    /// one the minting pass has not run on, and that pass says nothing
-    /// about such a face by design. So EVERY rowless CURVED target,
-    /// through every door that calls this, trades a loud reading for
-    /// a silent one: before the drop those rows were re-certified
-    /// against the target's chart and refused
-    /// (`PcurveMintError::Certify` per row), and after it there is
-    /// nothing to refuse. The trade is not one direction of one door;
-    /// it is the whole rowless-curved-target class, and what buys it
-    /// is that the body no longer HOLDS the wrong row for `props`, the
-    /// tessellator or `chart_boundary` to read. That the pass cannot
-    /// tell a never-minted face from one a door emptied is
-    /// `work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
+    /// **What the drop costs.** Where the site mint leaves the
+    /// destination as found, the drop is the whole answer. A
+    /// destination that carries rows of its own is then INCOMPLETE,
+    /// and tier 3 reports it (`MissingCache` per rowless half-edge). A
+    /// CURVED one that stores none — never minted, its whole boundary
+    /// the moved loop or run, or emptied by the site mint — is the
+    /// producer's closing mint's to re-derive; left at rest without it,
+    /// tier 3 re-derives the face and reports it unminted, or the
+    /// refusal its derivation meets. The drop buys a body that no
+    /// longer HOLDS the wrong row for `props`, the tessellator or
+    /// `chart_boundary` to read.
+    ///
+    /// A row is the half-edge's image and the element of the joint into
+    /// it, and both go. The element of the joint OUT of a dropped half
+    /// is its successor's, which the caller's link write re-states where
+    /// the successor stays ([`Body::link_half_edges`]).
     ///
     /// A key with no row is a no-op, so a caller hands over every key
     /// it moved and none of them has to be checked first.
     pub(crate) fn drop_rows(&mut self, half_edges: impl IntoIterator<Item = HalfEdgeKey>) {
         for half_edge in half_edges {
             self.pcurves.remove(half_edge);
+            self.joints.remove(half_edge);
         }
     }
 
-    /// [`Body::drop_rows_on_chart_change`] for a whole FACE: the same
-    /// answer where the chart moves under every row at once rather
-    /// than the rows moving to another chart.
+    /// The rows a face re-charted in place drops: every half-edge of
+    /// every loop of `face`, outer then rings, each loop proven whole
+    /// ([`Body::whole_cycle`]). [`Body::drop_rows_on_chart_change`]'s
+    /// answer for a whole FACE, taken in the setter's plan phase and
+    /// handed to [`Body::drop_rows`] in its mutation phase.
     ///
     /// A surface setter re-charts a face in place — no loop moves, no
     /// key changes, and every row the face stores is suddenly a curve
@@ -1124,32 +1715,45 @@ impl<T: Decide> Body<T> {
     /// arrives from a face of its own; a face re-charted in place has
     /// ONE pair of keys for all of its rows, and its setter compares
     /// them where both still resolve — before any orphan sweep can
-    /// take the old key out of the arena. So this door takes no keys
-    /// and reads no surface: it is the face's walk handed to
-    /// [`Body::drop_rows`], and the sentence that decided it lives
-    /// with the two keys.
+    /// take the old key out of the arena. So this reads no surface.
     ///
-    /// The face's rows are its loops' rows — the outer loop and every
-    /// ring — and the walk that says which those are is
-    /// [`crate::pcurves::stored_rows`], the walk
+    /// The face's rows are its loops' rows, and each loop's walk is
+    /// [`crate::pcurves::loop_rows`], the walk
     /// [`crate::pcurves::validate_pcurves`] reads the same face with.
     /// One walk is what makes "the rows the door removed" and "the rows
     /// the validator would have read" the same set by construction
-    /// rather than by agreement.
+    /// rather than by agreement; the whole proof is what makes it every
+    /// row the face holds, so none is left stated in the chart it left.
     ///
-    /// Infallible on the same terms as the loop door: a loop whose
-    /// boundary is not a cycle has no half-edge to carry a row, and a
-    /// cycle that does not walk is tier-1 corruption the body arrived
-    /// with and the validator reports.
-    pub(crate) fn drop_face_rows(&mut self, face: FaceKey) {
-        let Some(face_data) = self.get_face(face) else {
-            unreachable!(
-                "drop_face_rows: `face` is the caller's own resolved face, and a mutation \
-                 phase does not kill it"
-            )
-        };
-        let loops = crate::pcurves::stored_rows(self, face_data).loops;
-        self.drop_rows(loops.into_iter().flatten().flatten());
+    /// `face` is one the caller has already resolved.
+    ///
+    /// # Panics
+    ///
+    /// Where `face` or one of its loops does not resolve, or a loop's
+    /// walk is not whole ([`Body::whole_cycle`]): the caller resolved
+    /// `face`, and on a tier-1-valid body a face's loops are live and
+    /// whole.
+    #[track_caller]
+    pub(crate) fn face_cycles(&self, face: FaceKey) -> Vec<HalfEdgeKey> {
+        let mut halves = Vec::new();
+        for (r#loop, cycle) in crate::pcurves::face_loop_walks(self, face) {
+            self.require_run_of(cycle.iter().copied(), r#loop, RunExtent::Whole, &[]);
+            halves.extend(cycle);
+        }
+        halves
+    }
+
+    /// [`Body::face_cycles`] without the whole-loop proof: the members of
+    /// every cycle bounding `face`, outer loop then rings, each in `next`
+    /// order, for a face this call resolved or read out of a record. The
+    /// walk is [`crate::pcurves::face_loop_walks`], so a miss panics as
+    /// that walk does.
+    #[track_caller]
+    pub(crate) fn face_cycles_linked(&self, face: FaceKey) -> Vec<HalfEdgeKey> {
+        crate::pcurves::face_loop_walks(self, face)
+            .into_iter()
+            .flat_map(|(_, cycle)| cycle)
+            .collect()
     }
 
     /// Do these two surface keys hold one DESCRIPTION, so a pcurve
@@ -1157,27 +1761,38 @@ impl<T: Decide> Body<T> {
     ///
     /// Answered from identity evidence only: one surface key, or two
     /// keys sharing one NURBS / `Approx` payload `Arc`. A
-    /// [`crate::GeomSource`] stamp is not read: it declares what the
-    /// recipe intended, and does not prove the two keys hold one value.
-    /// Whether the recipe has declared two keys one surface is the merge
-    /// door's question (`Body::planes_declared_equal`), not this one's.
+    /// [`crate::GeomSource`] stamp is not read — [`crate::source`]'s
+    /// module docs name this question and the declared one apart.
     ///
     /// Two keys holding equal values with no identity tie answer
     /// `false`, and their rows drop and are re-minted: the price of
     /// never carrying a row onto a surface it is not about. The face's
-    /// `sense` is not read — it does not move the chart.
+    /// `sense` is not read — it does not move the chart. The same
+    /// answer decides where an operator derives a minted face's
+    /// `sense` ([`Body::resolve_face_surface`]).
     pub(crate) fn same_chart(&self, a: SurfaceKey, b: SurfaceKey) -> bool {
         if a == b {
             return true;
         }
         match (self.get_surface(a), self.get_surface(b)) {
-            (Some(geom::Surface::Nurbs(x)), Some(geom::Surface::Nurbs(y))) => {
-                std::sync::Arc::ptr_eq(x, y)
-            }
-            (Some(geom::Surface::Approx(x)), Some(geom::Surface::Approx(y))) => {
-                std::sync::Arc::ptr_eq(x, y)
-            }
+            (Some(x), Some(y)) => one_payload(x, y),
             _ => false,
+        }
+    }
+
+    /// [`Body::same_chart`] asked of a face-surface SPEC before a door
+    /// mints its key: would a face given `spec` be on `from`'s chart?
+    /// `Inherit` is `from` itself and `Shared` names a key the question
+    /// is already about. A `New` surface is minted a fresh key, so of
+    /// the two identity ties only the shared payload can hold for it —
+    /// the answer `same_chart` gives the key once it exists.
+    pub(crate) fn same_chart_spec(&self, from: SurfaceKey, spec: &FaceSurface<T>) -> bool {
+        match spec {
+            FaceSurface::Inherit => true,
+            FaceSurface::Shared { key, .. } => self.same_chart(from, *key),
+            FaceSurface::New { surface, .. } => self
+                .get_surface(from)
+                .is_some_and(|own| one_payload(own, surface)),
         }
     }
 
@@ -1193,12 +1808,15 @@ impl<T: Decide> Body<T> {
         site: MekrSite,
         target: HalfEdgeKey,
         ring: HalfEdgeKey,
-        curve: EdgeCurveSpec<T>,
+        curve: NewCurve<T>,
         tol: Tol,
-    ) -> Result<MekrResult, EulerOpError> {
+    ) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         // ---- Preconditions. ----
-        let (target_live, target_data) = self.resolve_half_edge_live(target)?;
-        let (ring_live, ring_data) = self.resolve_half_edge_live(ring)?;
+        let (target_live, target_data) = self.resolve_half_edge_live(target, Arg("target"))?;
+        let (ring_live, ring_data) = self.resolve_half_edge_live(ring, Arg("ring"))?;
         let target_loop = target_data.parent_loop;
         let ring_loop = ring_data.parent_loop;
         if target_loop == ring_loop {
@@ -1206,21 +1824,8 @@ impl<T: Decide> Body<T> {
                 r#loop: target_loop,
             });
         }
-        let target_loop_data = self.get_loop(target_loop).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Loop(target_loop),
-        })?;
-        if matches!(target_loop_data.boundary, LoopBoundary::Empty { .. }) {
-            return Err(EulerOpError::LoopNotCycle {
-                r#loop: target_loop,
-            });
-        }
-        let face_key = target_loop_data.face;
-        let ring_loop_data = self.get_loop(ring_loop).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Loop(ring_loop),
-        })?;
-        if matches!(ring_loop_data.boundary, LoopBoundary::Empty { .. }) {
-            return Err(EulerOpError::LoopNotCycle { r#loop: ring_loop });
-        }
+        let face_key = self.claimed_cycle(target, target_loop).face;
+        let ring_loop_data = self.claimed_cycle(ring, ring_loop);
         if ring_loop_data.face != face_key {
             return Err(EulerOpError::NotSameFace {
                 target: target_loop,
@@ -1230,20 +1835,32 @@ impl<T: Decide> Body<T> {
         self.check_ring_not_outer(face_key, ring_loop)?;
         // The ring's full cycle (bounded, D9): reparented wholesale, and
         // its last member (= prev(ring)) is a splice point.
-        let ring_members = self
-            .loop_cycle_live(ring)
-            .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
-        let ring_last = ring_members
-            .last()
-            .copied()
-            .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
-        let target_prev = self.require_live(target_data.prev)?;
+        let (ring_members, ring_last) = self.ring_cycle(ring);
+        self.require_ring_unnamed(ring_loop, ring_members.iter().map(|m| m.key()), face_key);
+        let target_prev =
+            self.require_live(target_data.prev, link(EntityId::HalfEdge(target), "prev"));
         let u = target_data.start;
         let w = ring_data.start;
-        let (p_u, p_w) = self.check_anchors(u, w)?;
+        let (p_u, p_w) = self.check_anchors(
+            (u, EntityId::HalfEdge(target), "start"),
+            (w, EntityId::HalfEdge(ring), "start"),
+        );
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
+        let certified =
+            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        // ---- The pcurve rows the new halves need (still no mutation):
+        // he_plus → ring … prev(ring) → he_minus → target … prev(target).
+        let rows = self.plan_site_rows(
+            &[target_loop],
+            |body| {
+                let target_side = body.site_cycle_from(target, target_loop);
+                let ring_side = ring_members.iter().map(|m| m.key());
+                Ok(body.mekr_site(face_key, target_loop, ring_loop, ring_side, target_side))
+            },
+            &certified,
+            tol,
+        )?;
 
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, certified);
@@ -1258,10 +1875,10 @@ impl<T: Decide> Body<T> {
         }
         // Splice (module docs diagram): he_plus → ring … prev(ring) →
         // he_minus → target … prev(target) → he_plus.
-        self.link_half_edges(target_prev, he_plus);
-        self.link_half_edges(he_plus, ring_live);
-        self.link_half_edges(ring_last, he_minus);
-        self.link_half_edges(he_minus, target_live);
+        self.link_half_edges(target_prev, he_plus, None);
+        self.link_half_edges(he_plus, ring_live, None);
+        self.link_half_edges(ring_last, he_minus, None);
+        self.link_half_edges(he_minus, target_live, None);
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
         self.mekr_finish(
@@ -1270,6 +1887,7 @@ impl<T: Decide> Body<T> {
             face_key,
             (u, w),
             (he_plus, he_minus),
+            rows,
         );
 
         Ok(MekrResult {
@@ -1288,27 +1906,20 @@ impl<T: Decide> Body<T> {
         site: MekrSite,
         target: HalfEdgeKey,
         ring: LoopKey,
-        curve: EdgeCurveSpec<T>,
+        curve: NewCurve<T>,
         tol: Tol,
-    ) -> Result<MekrResult, EulerOpError> {
+    ) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         // ---- Preconditions. ----
-        let (target_live, target_data) = self.resolve_half_edge_live(target)?;
+        let (target_live, target_data) = self.resolve_half_edge_live(target, Arg("target"))?;
         let target_loop = target_data.parent_loop;
         if target_loop == ring {
             return Err(EulerOpError::SameLoop { r#loop: ring });
         }
-        let target_loop_data = self.get_loop(target_loop).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Loop(target_loop),
-        })?;
-        if matches!(target_loop_data.boundary, LoopBoundary::Empty { .. }) {
-            return Err(EulerOpError::LoopNotCycle {
-                r#loop: target_loop,
-            });
-        }
-        let face_key = target_loop_data.face;
-        let ring_data = self.get_loop(ring).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Loop(ring),
-        })?;
+        let face_key = self.claimed_cycle(target, target_loop).face;
+        let ring_data = lookup(&self.loops, ring, EntityId::Loop, Arg("ring"))?;
         let LoopBoundary::Empty { vertex: w } = ring_data.boundary else {
             return Err(EulerOpError::LoopNotEmpty { r#loop: ring });
         };
@@ -1319,24 +1930,48 @@ impl<T: Decide> Body<T> {
             });
         }
         self.check_ring_not_outer(face_key, ring)?;
-        let target_prev = self.require_live(target_data.prev)?;
+        self.require_ring_unnamed(ring, [], face_key);
+        let target_prev =
+            self.require_live(target_data.prev, link(EntityId::HalfEdge(target), "prev"));
         let u = target_data.start;
-        let (p_u, p_w) = self.check_anchors(u, w)?;
+        let (p_u, p_w) = self.check_anchors(
+            (u, EntityId::HalfEdge(target), "start"),
+            (w, EntityId::Loop(ring), "boundary"),
+        );
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
+        let certified =
+            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        // ---- The pcurve rows the new halves need (still no mutation):
+        // he_plus → he_minus → target … prev(target).
+        let rows = self.plan_site_rows(
+            &[target_loop],
+            |body| {
+                let target_side = body.site_cycle_from(target, target_loop);
+                Ok(body.mekr_site(face_key, target_loop, ring, [], target_side))
+            },
+            &certified,
+            tol,
+        )?;
 
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, certified);
         // Splice: … prev(target) → he_plus → he_minus → target … (the
         // strut shape, re-created; inverse of kemr's ring-side-empty
         // case).
-        self.link_half_edges(target_prev, he_plus);
-        self.link_half_edges(he_plus, he_minus);
-        self.link_half_edges(he_minus, target_live);
+        self.link_half_edges(target_prev, he_plus, None);
+        self.link_half_edges(he_plus, he_minus, None);
+        self.link_half_edges(he_minus, target_live, None);
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
-        self.mekr_finish(target_loop, ring, face_key, (u, w), (he_plus, he_minus));
+        self.mekr_finish(
+            target_loop,
+            ring,
+            face_key,
+            (u, w),
+            (he_plus, he_minus),
+            rows,
+        );
 
         Ok(MekrResult {
             edge,
@@ -1354,28 +1989,24 @@ impl<T: Decide> Body<T> {
         site: MekrSite,
         target: LoopKey,
         ring: HalfEdgeKey,
-        curve: EdgeCurveSpec<T>,
+        curve: NewCurve<T>,
         tol: Tol,
-    ) -> Result<MekrResult, EulerOpError> {
+    ) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         // ---- Preconditions. ----
-        let target_data = self.get_loop(target).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Loop(target),
-        })?;
+        let target_data = lookup(&self.loops, target, EntityId::Loop, Arg("target"))?;
         let LoopBoundary::Empty { vertex: u } = target_data.boundary else {
             return Err(EulerOpError::LoopNotEmpty { r#loop: target });
         };
         let face_key = target_data.face;
-        let (ring_live, ring_data) = self.resolve_half_edge_live(ring)?;
+        let (ring_live, ring_data) = self.resolve_half_edge_live(ring, Arg("ring"))?;
         let ring_loop = ring_data.parent_loop;
         if ring_loop == target {
             return Err(EulerOpError::SameLoop { r#loop: target });
         }
-        let ring_loop_data = self.get_loop(ring_loop).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Loop(ring_loop),
-        })?;
-        if matches!(ring_loop_data.boundary, LoopBoundary::Empty { .. }) {
-            return Err(EulerOpError::LoopNotCycle { r#loop: ring_loop });
-        }
+        let ring_loop_data = self.claimed_cycle(ring, ring_loop);
         if ring_loop_data.face != face_key {
             return Err(EulerOpError::NotSameFace {
                 target,
@@ -1383,18 +2014,28 @@ impl<T: Decide> Body<T> {
             });
         }
         self.check_ring_not_outer(face_key, ring_loop)?;
-        let ring_members = self
-            .loop_cycle_live(ring)
-            .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
-        let ring_last = ring_members
-            .last()
-            .copied()
-            .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring_loop })?;
+        let (ring_members, ring_last) = self.ring_cycle(ring);
+        self.require_ring_unnamed(ring_loop, ring_members.iter().map(|m| m.key()), face_key);
         let w = ring_data.start;
-        let (p_u, p_w) = self.check_anchors(u, w)?;
+        let (p_u, p_w) = self.check_anchors(
+            (u, EntityId::Loop(target), "boundary"),
+            (w, EntityId::HalfEdge(ring), "start"),
+        );
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
+        let certified =
+            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        // ---- The pcurve rows the new halves need (still no mutation):
+        // he_plus → ring … prev(ring) → he_minus.
+        let rows = self.plan_site_rows(
+            &[target],
+            |body| {
+                let ring_side = ring_members.iter().map(|m| m.key());
+                Ok(body.mekr_site(face_key, target, ring_loop, ring_side, Vec::new()))
+            },
+            &certified,
+            tol,
+        )?;
 
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified);
@@ -1409,12 +2050,19 @@ impl<T: Decide> Body<T> {
         // Splice: he_plus → ring … prev(ring) → he_minus → he_plus (the
         // target contributes no half-edges; its Empty boundary grows to
         // this cycle — inverse of kemr's old-side-empty case).
-        self.link_half_edges(he_plus, ring_live);
-        self.link_half_edges(ring_last, he_minus);
-        self.link_half_edges(he_minus, he_plus);
+        self.link_half_edges(he_plus, ring_live, None);
+        self.link_half_edges(ring_last, he_minus, None);
+        self.link_half_edges(he_minus, he_plus, None);
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
-        self.mekr_finish(target, ring_loop, face_key, (u, w), (he_plus, he_minus));
+        self.mekr_finish(
+            target,
+            ring_loop,
+            face_key,
+            (u, w),
+            (he_plus, he_minus),
+            rows,
+        );
 
         Ok(MekrResult {
             edge,
@@ -1432,13 +2080,14 @@ impl<T: Decide> Body<T> {
         site: MekrSite,
         target: LoopKey,
         ring: LoopKey,
-        curve: EdgeCurveSpec<T>,
+        curve: NewCurve<T>,
         tol: Tol,
-    ) -> Result<MekrResult, EulerOpError> {
+    ) -> Result<MekrResult, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         // ---- Preconditions. ----
-        let target_data = self.get_loop(target).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Loop(target),
-        })?;
+        let target_data = lookup(&self.loops, target, EntityId::Loop, Arg("target"))?;
         let LoopBoundary::Empty { vertex: u } = target_data.boundary else {
             return Err(EulerOpError::LoopNotEmpty { r#loop: target });
         };
@@ -1446,9 +2095,7 @@ impl<T: Decide> Body<T> {
         if target == ring {
             return Err(EulerOpError::SameLoop { r#loop: target });
         }
-        let ring_data = self.get_loop(ring).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Loop(ring),
-        })?;
+        let ring_data = lookup(&self.loops, ring, EntityId::Loop, Arg("ring"))?;
         let LoopBoundary::Empty { vertex: w } = ring_data.boundary else {
             return Err(EulerOpError::LoopNotEmpty { r#loop: ring });
         };
@@ -1456,25 +2103,38 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::NotSameFace { target, ring });
         }
         self.check_ring_not_outer(face_key, ring)?;
-        if u == w {
-            // Two empty loops holding one lone vertex — tier-1-invalid
-            // input (see the module docs), checked defensively.
-            return Err(EulerOpError::EmptyAnchorsCollide { vertex: u });
-        }
-        let (p_u, p_w) = self.check_anchors(u, w)?;
+        self.require_ring_unnamed(ring, [], face_key);
+        assert!(
+            u != w,
+            "the empty loops {target:?} and {ring:?} are both empty at {u:?}: on a tier-1-valid \
+             body a vertex is the lone vertex of one empty loop"
+        );
+        let (p_u, p_w) = self.check_anchors(
+            (u, EntityId::Loop(target), "boundary"),
+            (w, EntityId::Loop(ring), "boundary"),
+        );
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
-        let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
+        let certified =
+            self.certify_edge_spec(None, curve.spec(u == w, p_u, p_w), p_u, p_w, tol)?;
+        // ---- The pcurve rows the new halves need (still no mutation):
+        // he_plus → he_minus.
+        let rows = self.plan_site_rows(
+            &[target],
+            |body| Ok(body.mekr_site(face_key, target, ring, [], Vec::new())),
+            &certified,
+            tol,
+        )?;
 
         // ---- Mutation (infallible from here on). ----
         let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified);
         // The two halves form the whole cycle: u → w → u (the segment
         // loop — inverse of kemr's both-empty case).
-        self.link_half_edges(he_plus, he_minus);
-        self.link_half_edges(he_minus, he_plus);
+        self.link_half_edges(he_plus, he_minus, None);
+        self.link_half_edges(he_minus, he_plus, None);
         // The splice is done; past it the halves are ordinary keys.
         let (he_plus, he_minus) = (he_plus.key(), he_minus.key());
-        self.mekr_finish(target, ring, face_key, (u, w), (he_plus, he_minus));
+        self.mekr_finish(target, ring, face_key, (u, w), (he_plus, he_minus), rows);
 
         Ok(MekrResult {
             edge,
@@ -1490,38 +2150,104 @@ impl<T: Decide> Body<T> {
     // ------------------------------------------------------------------
 
     /// The shared face-side precondition: the loop named as the ring
-    /// must not be `face`'s outer loop. (`face` was resolved by the
-    /// caller; a stale face key here is unreachable.)
+    /// must not be `face`'s outer loop. `face` is the one `ring`'s
+    /// `face` field names.
     fn check_ring_not_outer(&self, face: FaceKey, ring: LoopKey) -> Result<(), EulerOpError> {
-        let face_data = self.get_face(face).ok_or(EulerOpError::StaleKey {
-            key: EntityId::Face(face),
-        })?;
+        let face_data = linked(
+            &self.faces,
+            face,
+            EntityId::Face,
+            EntityId::Loop(ring),
+            "face",
+        );
         if face_data.outer == ring {
             return Err(EulerOpError::RingIsOuter { r#loop: ring });
         }
         Ok(())
     }
 
-    /// The shared vertex-side preconditions: both anchor vertices and
-    /// their points resolve (`emanating` is rewritten; the points are
-    /// the certification gate's endpoints). Returns `(u's point, w's
-    /// point)`.
+    /// The loop `he`'s `parent_loop` names, `r#loop`.
     ///
-    /// The [`EulerOpError::StaleGeometry`] arm is dead-but-defensive:
-    /// point removal exists (PR 4's `kev`/`kvfs` reap orphaned points),
-    /// but every reaped point's vertex dies with it, so a live vertex
-    /// with a stale point is still unreachable through the public API
-    /// without in-crate corruption (tier 1 would report it as
-    /// `DanglingGeometry`). Kept because the op must stay sound
-    /// standalone.
+    /// # Panics
+    ///
+    /// Where it does not resolve or is `Empty`: on a tier-1-valid body a
+    /// half-edge claims a live loop, and an empty loop reaches none.
+    #[track_caller]
+    fn claimed_cycle(&self, he: HalfEdgeKey, r#loop: LoopKey) -> &Loop {
+        let data = linked(
+            &self.loops,
+            r#loop,
+            EntityId::Loop,
+            EntityId::HalfEdge(he),
+            "parent_loop",
+        );
+        assert!(
+            !matches!(data.boundary, LoopBoundary::Empty { .. }),
+            "{he:?} claims loop {l:?}, which is empty: on a tier-1-valid body an empty loop \
+             reaches no half-edge",
+            l = r#loop
+        );
+        data
+    }
+
+    /// The ring's cycle walk from `ring`, and its last member
+    /// (`prev(ring)`).
+    ///
+    /// # Panics
+    ///
+    /// Where the walk does not close ([`Body::loop_cycle_live`]).
+    #[track_caller]
+    fn ring_cycle(&self, ring: HalfEdgeKey) -> (Vec<Live>, Live) {
+        let members = self.loop_cycle_live(ring);
+        let Some(&last) = members.last() else {
+            unreachable!("a closed cycle walk from {ring:?} holds {ring:?} itself")
+        };
+        (members, last)
+    }
+
+    /// The ring every site removes is named by nothing the kill keeps:
+    /// no half-edge but `members`, the ring's cycle walk (none for an
+    /// `Empty` ring), claims it ([`Body::require_run_of`]), and no face
+    /// but `face`, which drops it, lists it
+    /// ([`Body::require_loop_unlisted`]).
+    ///
+    /// # Panics
+    ///
+    /// As those two proofs do: on a tier-1-valid body neither fails.
+    #[track_caller]
+    fn require_ring_unnamed(
+        &self,
+        ring: LoopKey,
+        members: impl IntoIterator<Item = HalfEdgeKey>,
+        face: FaceKey,
+    ) {
+        self.require_run_of(members, ring, RunExtent::Whole, &[]);
+        let edited = Records {
+            faces: &[face],
+            ..Records::default()
+        };
+        self.require_loop_unlisted(
+            ring,
+            Clearing {
+                edited,
+                ..Clearing::default()
+            },
+        );
+    }
+
+    /// The two anchor vertices' points, each `(vertex, holder, field)`
+    /// for the record field that names it: the certification gate's
+    /// endpoints. Returns `(u's point, w's point)`.
+    #[track_caller]
     fn check_anchors(
         &self,
-        u: VertexKey,
-        w: VertexKey,
-    ) -> Result<(Point3<T>, Point3<T>), EulerOpError> {
-        let p_u = self.resolve_vertex_point(u)?;
-        let p_w = self.resolve_vertex_point(w)?;
-        Ok((p_u, p_w))
+        (u, u_holder, u_field): (VertexKey, EntityId, &'static str),
+        (w, w_holder, w_field): (VertexKey, EntityId, &'static str),
+    ) -> (Point3<T>, Point3<T>) {
+        (
+            self.linked_vertex_point(u, u_holder, u_field),
+            self.linked_vertex_point(w, w_holder, w_field),
+        )
     }
 
     /// `mekr`'s mint phase (documented minting order: curve — the
@@ -1544,6 +2270,26 @@ impl<T: Decide> Body<T> {
         (curve, edge, he_plus, he_minus)
     }
 
+    /// `mekr`'s face as the surgery leaves it: the target loop becomes
+    /// `he_plus`, the ring's half-edges from the ring anchor, `he_minus`,
+    /// then the target's from the target anchor — re-anchored at
+    /// `he_plus` — and the ring loop is gone.
+    fn mekr_site(
+        &self,
+        face: FaceKey,
+        target_loop: LoopKey,
+        ring_loop: LoopKey,
+        ring_side: impl IntoIterator<Item = HalfEdgeKey>,
+        target_side: Vec<HalfEdgeKey>,
+    ) -> Vec<crate::pcurves::SiteFace<T>> {
+        let merged: Vec<SiteHalf> = core::iter::once(SiteHalf::NewPlus)
+            .chain(ring_side.into_iter().map(SiteHalf::Existing))
+            .chain(core::iter::once(SiteHalf::NewMinus))
+            .chain(target_side.into_iter().map(SiteHalf::Existing))
+            .collect();
+        vec![self.site_face(face, &[(target_loop, merged)], Some(ring_loop))]
+    }
+
     /// `mekr`'s common tail: re-anchor the target loop at `he_plus`
     /// (unconditional), drop the ring from the face's ring list, kill
     /// the ring loop with its provenance entry, and apply the emanating
@@ -1556,9 +2302,14 @@ impl<T: Decide> Body<T> {
         face: FaceKey,
         anchors: (VertexKey, VertexKey),
         halves: (HalfEdgeKey, HalfEdgeKey),
+        rows: Vec<SiteRows<T>>,
     ) {
         let (u, w) = anchors;
         let (he_plus, he_minus) = halves;
+        // What the plan phase decided the face stores
+        // ([`Body::plan_site_rows`]), written once the splice has made
+        // its joints.
+        crate::pcurves::apply_site_rows(self, rows, Some(halves));
         let Some(l) = self.get_loop_mut(target_loop) else {
             unreachable!(
                 "mekr: `target_loop` proven live by the caller's plan phase (mekr_cycles / mekr_empty_ring / mekr_empty_target / mekr_both_empty)"
@@ -1571,6 +2322,7 @@ impl<T: Decide> Body<T> {
         face_data.rings.retain(|&l| l != ring_loop);
         self.loops.remove(ring_loop);
         self.loop_provenance.remove(ring_loop);
+        self.drop_null_face_records_naming(ring_loop);
         let Some(vertex) = self.get_vertex_mut(u) else {
             unreachable!("mekr: `u` resolved in check_anchors")
         };
@@ -1579,6 +2331,16 @@ impl<T: Decide> Body<T> {
             unreachable!("mekr: `w` resolved in check_anchors")
         };
         vertex.emanating = Some(he_minus);
+    }
+}
+
+/// [`Body::same_chart`]'s second identity rung: two spline surfaces
+/// holding one shared payload are one described chart.
+fn one_payload<T: Decide>(a: &geom::Surface<T>, b: &geom::Surface<T>) -> bool {
+    match (a, b) {
+        (geom::Surface::Nurbs(x), geom::Surface::Nurbs(y)) => std::sync::Arc::ptr_eq(x, y),
+        (geom::Surface::Approx(x), geom::Surface::Approx(y)) => std::sync::Arc::ptr_eq(x, y),
+        _ => false,
     }
 }
 
@@ -1591,11 +2353,36 @@ mod tests {
     use super::*;
     use crate::entity::{Edge, Face, HalfEdge, Shell, Solid, SolidKey, Vertex};
     use crate::euler::{MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
-    use crate::fixtures::{deep_snapshot, mvfs_state, pillow, prov};
+    use crate::fixtures::{assert_err_deep_unchanged, deep_snapshot, mvfs_state, pillow, prov};
     use crate::validate::validate;
 
     fn p(x: f64) -> Point3<f64> {
         Point3::new(x, 0.0, 0.0)
+    }
+
+    /// Runs `op` on a torn body and returns its panic message, asserting
+    /// the body deep-unchanged: the plan phase reads the tear and panics
+    /// before any write.
+    #[track_caller]
+    fn plan_panic<R: core::fmt::Debug>(
+        body: &mut Body<f64>,
+        op: impl FnOnce(&mut Body<f64>) -> R,
+    ) -> String {
+        crate::review_d18::assert_torn_op_panics("torn body", body, &[], op)
+    }
+
+    /// [`plan_panic`], asserting the message names `premise`.
+    #[track_caller]
+    fn assert_plan_panics<R: core::fmt::Debug>(
+        body: &mut Body<f64>,
+        premise: &str,
+        op: impl FnOnce(&mut Body<f64>) -> R,
+    ) {
+        crate::review_d18::assert_torn_op_panics("torn body", body, &[premise], op);
+    }
+
+    fn stale(role: &'static str, key: EntityId) -> EulerOpError {
+        EulerOpError::Argument(BadArgument::Stale { role, key })
     }
 
     /// The start vertices along a loop cycle from `he` — the structural
@@ -1609,53 +2396,15 @@ mod tests {
             .collect()
     }
 
-    /// Runs `op` on `body`, asserts it fails with exactly `expected`,
-    /// and asserts the body is DEEPLY untouched (every arena entry,
-    /// payload, and provenance record — counts alone are too weak for
-    /// kill-direction atomicity).
-    fn assert_err_deep_unchanged(
-        body: &mut Body<f64>,
-        expected: &EulerOpError,
-        op: impl FnOnce(&mut Body<f64>) -> EulerOpError,
-    ) {
-        let before = deep_snapshot(body);
-        let err = op(body);
-        assert_eq!(&err, expected);
-        assert_eq!(deep_snapshot(body), before, "body changed on Err");
-    }
-
-    /// mvfs + mev(Lone): the segment body (v0 —e0— v1, one loop
-    /// `[he_plus, he_minus]`, tol).
+    /// [`crate::fixtures::ops_segment`] (v0 —e0— v1) at the witness tol.
     fn segment() -> (Body<f64>, MvfsCreated, MevCreated) {
-        let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
-        let seg = body
-            .mev_line(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p(1.0),
-                Tol::witness(),
-            )
-            .unwrap();
-        (body, seed, seg)
+        crate::fixtures::ops_segment(Tol::witness())
     }
 
-    /// Segment + one strut at v1: cycle
-    /// `[e0+, strut+, strut−, e0−]` (v0→v1→v2→v1→v0).
+    /// [`crate::fixtures::ops_strutted`] (v0→v1→v2→v1→v0) at the
+    /// witness tol.
     fn strutted() -> (Body<f64>, MvfsCreated, MevCreated, MevCreated) {
-        let (mut body, seed, seg) = segment();
-        let strut = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: seg.he_minus,
-                    he2: seg.he_minus,
-                },
-                p(2.0),
-                Tol::witness(),
-            )
-            .unwrap();
-        (body, seed, seg, strut)
+        crate::fixtures::ops_strutted(Tol::witness())
     }
 
     /// The 3-edge open chain v0–v1–v2–v3 in one loop: mvfs + segment +
@@ -2034,10 +2783,13 @@ mod tests {
     }
 
     #[test]
-    fn kemr_rejects_colliding_empty_anchors() {
+    fn kemr_panics_on_colliding_empty_anchors() {
         let (mut body, h1, h2, v) = self_loop_segment();
-        let expected = EulerOpError::EmptyAnchorsCollide { vertex: v };
-        assert_err_deep_unchanged(&mut body, &expected, |b| b.kemr(h1, h2).unwrap_err());
+        assert_plan_panics(
+            &mut body,
+            &format!("and its ring both empty at {v:?}"),
+            |b| b.kemr(h1, h2),
+        );
     }
 
     #[test]
@@ -2054,13 +2806,11 @@ mod tests {
             prov(),
         );
         body.half_edges.remove(dead);
-        let expected = EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(dead),
-        };
-        assert_err_deep_unchanged(&mut body, &expected, |b| {
+        let key = EntityId::HalfEdge(dead);
+        assert_err_deep_unchanged(&mut body, &stale("he1", key), |b| {
             b.kemr(dead, e1.he_minus).unwrap_err()
         });
-        assert_err_deep_unchanged(&mut body, &expected, |b| {
+        assert_err_deep_unchanged(&mut body, &stale("he2", key), |b| {
             b.kemr(e1.he_plus, dead).unwrap_err()
         });
     }
@@ -2069,36 +2819,31 @@ mod tests {
     fn kemr_rejects_non_mate_half_edges() {
         let (mut body, _seed, [e0, e1, _e2]) = chain3();
         // The same key twice.
-        let expected = EulerOpError::NotSameEdge {
+        let expected = EulerOpError::Argument(BadArgument::NotMates {
             he1: e0.he_plus,
             he2: e0.he_plus,
-        };
+        });
         assert_err_deep_unchanged(&mut body, &expected, |b| {
             b.kemr(e0.he_plus, e0.he_plus).unwrap_err()
         });
         // Halves of different edges.
-        let expected = EulerOpError::NotSameEdge {
+        let expected = EulerOpError::Argument(BadArgument::NotMates {
             he1: e0.he_plus,
             he2: e1.he_minus,
-        };
+        });
         assert_err_deep_unchanged(&mut body, &expected, |b| {
             b.kemr(e0.he_plus, e1.he_minus).unwrap_err()
         });
     }
 
     #[test]
-    fn kemr_rejects_an_edge_that_does_not_claim_its_halves() {
+    fn kemr_panics_on_an_edge_that_does_not_claim_its_halves() {
         // Corrupt bijection: both halves agree on the edge key, but the
-        // edge claims something else in one slot — tier-1-invalid input
-        // surfaced as the same typed error.
+        // edge claims something else in one slot.
         let (mut body, _seed, [e0, e1, _e2]) = chain3();
         body.get_edge_mut(e1.edge).unwrap().he_plus = e0.he_plus;
-        let expected = EulerOpError::NotSameEdge {
-            he1: e1.he_plus,
-            he2: e1.he_minus,
-        };
-        assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kemr(e1.he_plus, e1.he_minus).unwrap_err()
+        assert_plan_panics(&mut body, "the edge <-> half-edge bijection holds", |b| {
+            b.kemr(e1.he_plus, e1.he_minus)
         });
     }
 
@@ -2401,9 +3146,7 @@ mod tests {
         let (mut body, _seed, [e0, e1, _e2]) = chain3();
         body.kemr(e1.he_plus, e1.he_minus).unwrap();
         // The killed plus half as an anchor: stale.
-        let expected = EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(e1.he_plus),
-        };
+        let expected = stale("target", EntityId::HalfEdge(e1.he_plus));
         assert_err_deep_unchanged(&mut body, &expected, |b| {
             b.mekr_chord(
                 MekrSite::Cycles {
@@ -2416,9 +3159,7 @@ mod tests {
         });
         // A null loop key as the ring.
         let dead_loop = LoopKey::default();
-        let expected = EulerOpError::StaleKey {
-            key: EntityId::Loop(dead_loop),
-        };
+        let expected = stale("ring", EntityId::Loop(dead_loop));
         assert_err_deep_unchanged(&mut body, &expected, |b| {
             b.mekr_chord(
                 MekrSite::EmptyRing {
@@ -2432,10 +3173,9 @@ mod tests {
     }
 
     #[test]
-    fn mekr_rejects_colliding_lone_vertices() {
+    fn mekr_panics_on_colliding_lone_vertices() {
         // Two empty loops of one face holding the SAME lone vertex —
-        // tier-1-invalid (MultiplyOwned), raw-built to pin the
-        // defensive check.
+        // tier-1-invalid (MultiplyOwned), raw-built to pin the check.
         let mut t = mvfs_state();
         let extra = t.body.add_loop(
             Loop {
@@ -2445,9 +3185,8 @@ mod tests {
             prov(),
         );
         t.body.get_face_mut(t.face).unwrap().rings.push(extra);
-        let expected = EulerOpError::EmptyAnchorsCollide { vertex: t.vertex };
         let target = t.lone_loop;
-        assert_err_deep_unchanged(&mut t.body, &expected, |b| {
+        assert_plan_panics(&mut t.body, "are both empty at", |b| {
             b.mekr_chord(
                 MekrSite::BothEmpty {
                     target,
@@ -2455,7 +3194,6 @@ mod tests {
                 },
                 Tol::witness(),
             )
-            .unwrap_err()
         });
     }
 
@@ -2632,7 +3370,7 @@ mod tests {
     /// doctest construction): two faces sharing two edges.
     fn ops_pillow() -> (Body<f64>, MvfsCreated, MevCreated, MefCreated) {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p(0.0)).unwrap();
+        let seed = body.mvfs(p(0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -2773,7 +3511,7 @@ mod tests {
         // A second mvfs is a second solid+shell in the same body:
         // cross-SOLID kfmrh stays a typed error (M3 PR 1 lifted only
         // the same-solid cross-shell case, as shell fusion).
-        let other = body.mvfs(p(9.0)).unwrap();
+        let other = body.mvfs(p(9.0), true).unwrap();
         let expected = EulerOpError::CrossSolid {
             f1: seed.face,
             f2: other.face,
@@ -2781,6 +3519,12 @@ mod tests {
         assert_err_deep_unchanged(&mut body, &expected, |b| {
             b.kfmrh(seed.face, other.face).unwrap_err()
         });
+        assert_eq!(
+            body.kfmrh_carried_redescriptions(seed.face, other.face)
+                .unwrap_err(),
+            expected,
+            "the restater refuses what the door refuses"
+        );
     }
 
     /// A same-solid two-shell body: the shape `kfmrh`'s fusion form
@@ -2791,28 +3535,25 @@ mod tests {
     /// posture as the rest of this module's corruption rows.
     fn fused_two_shell_body() -> (Body<f64>, MvfsCreated, MvfsCreated) {
         let (mut body, seed, _seg, _split) = ops_pillow();
-        let other = body.mvfs(p(9.0)).unwrap();
+        let other = body.mvfs(p(9.0), true).unwrap();
         let first_solid = body.solid_of_face(seed.face).unwrap();
         crate::fixtures::refile_shells(&mut body, other.solid, first_solid);
         (body, seed, other)
     }
 
     /// The fusion's first plan-phase guard, on the exact corruption it
-    /// exists to refuse. The re-homing walks `f2`'s shell's face list —
+    /// exists to catch. The re-homing walks `f2`'s shell's face list —
     /// a key read out of the body, not an argument — so
     /// `kfmrh_rejects_stale_faces`, which corrupts only the two
     /// ARGUMENTS, cannot reach it. Without the guard the op half-wrote
     /// the fusion and returned `Ok`.
     #[test]
-    fn kfmrh_refuses_a_dangling_face_in_f2s_shell() {
+    fn kfmrh_panics_on_a_dangling_face_in_f2s_shell() {
         let (mut body, seed, other) = fused_two_shell_body();
         let dead = FaceKey::default();
         body.get_shell_mut(other.shell).unwrap().faces.push(dead);
-        let expected = EulerOpError::StaleKey {
-            key: EntityId::Face(dead),
-        };
-        assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, other.face).unwrap_err()
+        assert_plan_panics(&mut body, "'s faces names face", |b| {
+            b.kfmrh(seed.face, other.face)
         });
     }
 
@@ -2821,17 +3562,14 @@ mod tests {
     /// and the solid guard is the only thing left to catch it. The
     /// fusion rewrites that solid's shell list.
     #[test]
-    fn kfmrh_refuses_a_dead_shared_solid() {
+    fn kfmrh_panics_on_a_dead_shared_solid() {
         let (mut body, seed, other) = fused_two_shell_body();
         let dead = SolidKey::default();
         let f1_shell = body.get_face(seed.face).unwrap().shell;
         body.get_shell_mut(f1_shell).unwrap().solid = dead;
         body.get_shell_mut(other.shell).unwrap().solid = dead;
-        let expected = EulerOpError::StaleKey {
-            key: EntityId::Solid(dead),
-        };
-        assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, other.face).unwrap_err()
+        assert_plan_panics(&mut body, "'s solid names solid", |b| {
+            b.kfmrh(seed.face, other.face)
         });
     }
 
@@ -2862,15 +3600,12 @@ mod tests {
     #[test]
     fn kfmrh_rejects_stale_faces() {
         let (mut body, seed, _seg, split) = ops_pillow();
-        let dead = FaceKey::default();
-        let expected = EulerOpError::StaleKey {
-            key: EntityId::Face(dead),
-        };
-        assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(dead, split.face).unwrap_err()
+        let dead = EntityId::Face(FaceKey::default());
+        assert_err_deep_unchanged(&mut body, &stale("f1", dead), |b| {
+            b.kfmrh(FaceKey::default(), split.face).unwrap_err()
         });
-        assert_err_deep_unchanged(&mut body, &expected, |b| {
-            b.kfmrh(seed.face, dead).unwrap_err()
+        assert_err_deep_unchanged(&mut body, &stale("f2", dead), |b| {
+            b.kfmrh(seed.face, FaceKey::default()).unwrap_err()
         });
     }
 
@@ -2960,28 +3695,454 @@ mod tests {
         });
         // Stale ring key.
         let dead_loop = LoopKey::default();
-        let expected = EulerOpError::StaleKey {
-            key: EntityId::Loop(dead_loop),
-        };
+        let expected = stale("ring", EntityId::Loop(dead_loop));
         assert_err_deep_unchanged(&mut body, &expected, |b| {
             b.ring_move(dead_loop, split.face).unwrap_err()
         });
         // Stale destination face.
         let dead_face = FaceKey::default();
-        let expected = EulerOpError::StaleKey {
-            key: EntityId::Face(dead_face),
-        };
+        let expected = stale("to_face", EntityId::Face(dead_face));
         assert_err_deep_unchanged(&mut body, &expected, |b| {
             b.ring_move(kill.ring, dead_face).unwrap_err()
         });
         // Cross-shell destination: a second solid's face.
-        let other = body.mvfs(p(9.0)).unwrap();
+        let other = body.mvfs(p(9.0), true).unwrap();
         let expected = EulerOpError::CrossShell {
             f1: seed.face,
             f2: other.face,
         };
         assert_err_deep_unchanged(&mut body, &expected, |b| {
             b.ring_move(kill.ring, other.face).unwrap_err()
+        });
+    }
+
+    #[test]
+    fn kemr_panics_on_a_ring_anchor_that_leaves_its_vertex() {
+        // The first counterexample of a seeded search of one `next`
+        // tear on the ring bridge: the tear shortcuts the ring side,
+        // whose first member anchors `start(he2)` and now starts at
+        // another vertex. Unchecked, the kill writes that anchor and
+        // returns `Ok`.
+        let mut body = crate::fixtures::ops_ring_bridge(Tol::witness()).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        body.get_half_edge_mut(halves[48]).unwrap().next = halves[27];
+        let (he1, he2) = (halves[48], body.mate(halves[48]).unwrap());
+        assert_ne!(
+            body.get_half_edge(halves[27]).unwrap().start,
+            body.get_half_edge(he2).unwrap().start,
+            "the ring side's first member starts off the vertex it would anchor"
+        );
+        assert_plan_panics(
+            &mut body,
+            "the next of a half ending at a vertex starts there",
+            |b| b.kemr(he1, he2),
+        );
+    }
+
+    /// Whether a half-edge other than `he1`/`he2` starts at `v`: the
+    /// vertex keeps an edge through the kill.
+    fn keeps_incidence(body: &Body<f64>, v: VertexKey, he1: HalfEdgeKey, he2: HalfEdgeKey) -> bool {
+        body.half_edges()
+            .any(|(x, data)| data.start == v && x != he1 && x != he2)
+    }
+
+    #[test]
+    fn kemr_panics_on_a_none_anchor_on_a_vertex_that_keeps_its_edges() {
+        // The kill-anchor review's `None`-arm constructions on the ring
+        // bridge: a killed half's `next` torn onto its mate empties one
+        // side, which reads as "that side's vertex is stranded", while
+        // the vertex keeps the box's edges. Unchecked, the kill anchors
+        // it at `None` and returns `Ok`. Emptying the ring side strands
+        // `start(he2)`, and emptying the old side strands `start(he1)`.
+        let bridge = crate::fixtures::ops_ring_bridge(Tol::witness()).body;
+        let halves: Vec<HalfEdgeKey> = bridge.half_edges().map(|(k, _)| k).collect();
+        let (he1, he2) = (halves[48], bridge.mate(halves[48]).unwrap());
+        for (torn_half, onto, stranded) in [(he1, he2, he2), (he2, he1, he1)] {
+            let mut body = bridge.clone();
+            body.get_half_edge_mut(torn_half).unwrap().next = onto;
+            let v = body.get_half_edge(stranded).unwrap().start;
+            assert!(
+                keeps_incidence(&body, v, he1, he2),
+                "next({torn_half:?}) = {onto:?}: the stranded vertex keeps edges"
+            );
+            let message = plan_panic(&mut body, |b| b.kemr(he1, he2));
+            assert!(
+                message.contains("leaves without an anchor has no other half-edge")
+                    && message.contains(&format!("a kill takes {v:?}")),
+                "next({torn_half:?}) = {onto:?}: {message}"
+            );
+        }
+    }
+
+    #[test]
+    fn kemr_panics_on_an_old_side_anchor_that_leaves_its_vertex() {
+        // `next(he2)` shortcut past its successor inside the old side:
+        // the cycle still closes and the ring side's anchor stands, but
+        // the old side's first member, `start(he1)`'s anchor, now starts
+        // elsewhere.
+        let mut body = crate::fixtures::ops_ring_bridge(Tol::witness()).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        let (he1, he2) = (halves[48], body.mate(halves[48]).unwrap());
+        let successor = body.get_half_edge(he2).unwrap().next;
+        let skip = body.get_half_edge(successor).unwrap().next;
+        assert_ne!(skip, he1, "the old side has a member past its first");
+        body.get_half_edge_mut(he2).unwrap().next = skip;
+        let start = |b: &Body<f64>, x: HalfEdgeKey| b.get_half_edge(x).unwrap().start;
+        let ring_first = body.get_half_edge(he1).unwrap().next;
+        assert_eq!(
+            start(&body, ring_first),
+            start(&body, he2),
+            "the ring side's anchor stands"
+        );
+        assert_ne!(
+            start(&body, skip),
+            start(&body, he1),
+            "the old side's anchor starts off `start(he1)`"
+        );
+        assert_plan_panics(
+            &mut body,
+            "the next of a half ending at a vertex starts there",
+            |b| b.kemr(he1, he2),
+        );
+    }
+
+    #[test]
+    fn kemr_proves_the_anchor_that_wins_where_both_ends_are_one_vertex() {
+        // A circular edge at one vertex `x` whose inside is made a ring of
+        // its outside and then joined back to it by a second circular
+        // edge at `x`: both halves of the first edge lie in the one loop
+        // `[he1, j+, he2, j-]`, every half-edge starts at `x`, and each
+        // side anchors `x`. The `start(he2)`-side write, the ring side's
+        // first member, is last and wins.
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+        let circle = body
+            .mef_chord(
+                MefSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                tol,
+            )
+            .unwrap();
+        body.kfmrh(seed.face, circle.face).unwrap();
+        let in_outer =
+            |b: &Body<f64>, x: HalfEdgeKey| b.get_half_edge(x).unwrap().parent_loop == seed.r#loop;
+        let (he1, he2) = if in_outer(&body, circle.he_plus) {
+            (circle.he_plus, circle.he_minus)
+        } else {
+            (circle.he_minus, circle.he_plus)
+        };
+        let joined = body
+            .mekr_chord(
+                MekrSite::Cycles {
+                    target: he1,
+                    ring: he2,
+                },
+                tol,
+            )
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        let x = seed.vertex;
+        let next = |b: &Body<f64>, h: HalfEdgeKey| b.get_half_edge(h).unwrap().next;
+        assert_eq!(
+            (next(&body, he1), next(&body, he2)),
+            (joined.he_plus, joined.he_minus),
+            "one loop, a live anchor on each side"
+        );
+        assert!(body.half_edges().all(|(_, data)| data.start == x));
+
+        let mut killed = body.clone();
+        killed.kemr(he1, he2).unwrap();
+        assert_eq!(validate(&killed), Ok(()));
+        assert_eq!(
+            killed.get_vertex(x).unwrap().emanating,
+            Some(joined.he_plus)
+        );
+
+        // `next(he1)` torn onto the mate empties the ring side, so the
+        // winning write is `None` while `x` keeps the joining edge.
+        body.get_half_edge_mut(he1).unwrap().next = he2;
+        assert_plan_panics(
+            &mut body,
+            "leaves without an anchor has no other half-edge",
+            |b| b.kemr(he1, he2),
+        );
+    }
+
+    #[test]
+    fn kemr_panics_rather_than_empty_a_loop_that_keeps_members() {
+        // The loop-anchor probe's first counterexample for `kemr`: the
+        // strut cube, killed with `he1` its half ending at the tip, so
+        // the old side is empty and the loop empties at the tip. One
+        // `next` tear in the top face's loop shortcuts the walk past
+        // members that still claim the loop. Unchecked, the kill empties
+        // a loop that keeps them, and returns `Ok`.
+        let fixture = crate::fixtures::ops_strut_cube(Tol::witness());
+        let mut body = fixture.body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        body.get_half_edge_mut(halves[18]).unwrap().next = halves[22];
+        let he1 = halves[25];
+        let he2 = body.mate(he1).unwrap();
+        assert_eq!(
+            [he1, he2],
+            [fixture.strut.he_minus, fixture.strut.he_plus],
+            "the strut, from its tip"
+        );
+        assert_eq!(
+            body.get_half_edge(he2).unwrap().next,
+            he1,
+            "the old side is empty"
+        );
+        let walk = body.loop_cycle(he1).unwrap();
+        assert!(
+            body.half_edges()
+                .any(|(x, data)| data.parent_loop == fixture.outer && !walk.contains(&x)),
+            "the loop keeps members the walk skips"
+        );
+        assert_plan_panics(&mut body, "does not hold once the kill has run", |b| {
+            b.kemr(he1, he2)
+        });
+    }
+
+    #[test]
+    fn kemr_panics_on_a_ring_side_walked_through_another_loop() {
+        // The loop-anchor probe's `kemr` counterexample once the written
+        // anchor is proven (the ring bridge, seed 71, two tears): the
+        // walk from `he1` is diverted through another loop and back, so
+        // the ring side carries that loop's anchor into the new ring.
+        // Unchecked, that loop keeps an anchor the ring took, and the
+        // kill returns `Ok`.
+        let mut body = crate::fixtures::ops_ring_bridge(Tol::witness()).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        body.get_half_edge_mut(halves[29]).unwrap().next = halves[28];
+        body.get_half_edge_mut(halves[37]).unwrap().next = halves[27];
+        let (he1, he2) = (halves[48], body.mate(halves[48]).unwrap());
+        let loop_key = body.get_half_edge(he1).unwrap().parent_loop;
+        let walk = body.loop_cycle(he1).unwrap();
+        let position = walk.iter().position(|&x| x == he2).unwrap();
+        let ring_side = &walk[1..position];
+        assert!(
+            body.loops().any(|(l, data)| {
+                l != loop_key
+                    && matches!(data.boundary, LoopBoundary::Cycle { first } if ring_side.contains(&first))
+            }),
+            "the ring side takes another loop's anchor"
+        );
+        assert_plan_panics(&mut body, "cycle, does not claim it", |b| b.kemr(he1, he2));
+    }
+
+    #[test]
+    fn mekr_panics_on_a_ring_walked_through_another_loop() {
+        // The diverted walk of `mef-and-mekr-move-a-walked-run-they-never-
+        // prove-is-the-loops`, on the holed box's hole rim: two `next`
+        // tears route the ring's first step through a side face's first
+        // two members and back (`next(r) := first(l3)`,
+        // `next(next(first(l3))) := next(r)`). The walk keeps every ring
+        // member, so the ring's move carries that loop's anchor into the
+        // target. Unchecked, that loop is left anchored in the target,
+        // and the join returns `Ok`.
+        let t = crate::fixtures::ops_holed_box(Tol::witness());
+        let mut body = t.body;
+        let top = body.get_face(t.seed.face).unwrap().clone();
+        let first_of = |body: &Body<f64>, l: LoopKey| match body.get_loop(l).unwrap().boundary {
+            LoopBoundary::Cycle { first } => first,
+            LoopBoundary::Empty { .. } => panic!("a cycle"),
+        };
+        let (target, ring) = (first_of(&body, top.outer), first_of(&body, top.rings[0]));
+        let ring_loop = top.rings[0];
+        let l3 = body.get_face(t.box_mefs[0].face).unwrap().outer;
+        let f = first_of(&body, l3);
+        let (after_ring, after_f) = (
+            body.get_half_edge(ring).unwrap().next,
+            body.get_half_edge(f).unwrap().next,
+        );
+        body.get_half_edge_mut(ring).unwrap().next = f;
+        body.get_half_edge_mut(after_f).unwrap().next = after_ring;
+        let walk = body.loop_cycle(ring).unwrap();
+        assert!(
+            walk.contains(&f)
+                && body
+                    .half_edges()
+                    .all(|(x, data)| data.parent_loop != ring_loop || walk.contains(&x)),
+            "the ring's walk takes another loop's anchor, and misses no ring member"
+        );
+        assert_plan_panics(&mut body, "cycle, does not claim it", |b| {
+            b.mekr_chord(MekrSite::Cycles { target, ring }, Tol::witness())
+        });
+    }
+
+    #[test]
+    fn mekr_panics_rather_than_kill_a_ring_whose_walk_skips_a_member() {
+        // The anchor probe's one-tear `mekr` counterexample on the holed
+        // box (`review_d18::kill_anchors_on_torn_bodies`, seed 8): the
+        // ring's walk torn past a member, which still claims the ring.
+        // Unchecked, the join kills the ring, leaves that member naming
+        // it, and returns `Ok`.
+        let mut body = crate::fixtures::ops_holed_box(Tol::witness()).body;
+        let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
+        body.get_half_edge_mut(halves[40]).unwrap().next = halves[44];
+        let (target, ring) = (halves[1], halves[40]);
+        let ring_loop = body.get_half_edge(ring).unwrap().parent_loop;
+        let walk = body.loop_cycle(ring).unwrap();
+        assert!(
+            body.half_edges()
+                .any(|(x, data)| data.parent_loop == ring_loop && !walk.contains(&x)),
+            "the walk skips a member of the ring"
+        );
+        assert_plan_panics(&mut body, "and its cycle walk does not reach it", |b| {
+            b.mekr_chord(MekrSite::Cycles { target, ring }, Tol::witness())
+        });
+    }
+
+    #[test]
+    fn mekr_panics_rather_than_grow_an_empty_target_around_a_ring_whose_walk_skips_a_member() {
+        // The anchor probe's `mekr` counterexample at an `Empty` target
+        // (`review_d18::kill_anchors_on_torn_bodies`, seed 1, one `next`
+        // tear): the strutted segment with the strut killed from its
+        // tip, so the outer loop is `Empty` and the ring is the
+        // segment's two halves, then one half torn onto itself. The
+        // ring's walk from it is that half alone. Unchecked, the join
+        // grows the target around it, kills the ring, leaves the other
+        // half naming it, and returns `Ok`.
+        let (mut body, seed, seg, strut) = strutted();
+        body.kemr(strut.he_minus, strut.he_plus).unwrap();
+        let ring = seg.he_minus;
+        let ring_loop = body.get_half_edge(ring).unwrap().parent_loop;
+        body.get_half_edge_mut(ring).unwrap().next = ring;
+        assert_eq!(body.loop_cycle(ring), Some(vec![ring]));
+        assert_eq!(
+            body.get_half_edge(seg.he_plus).unwrap().parent_loop,
+            ring_loop
+        );
+        assert_plan_panics(&mut body, "and its cycle walk does not reach it", |b| {
+            b.mekr_chord(
+                MekrSite::EmptyTarget {
+                    target: seed.r#loop,
+                    ring,
+                },
+                Tol::witness(),
+            )
+        });
+    }
+
+    #[test]
+    fn mekr_chord_panics_in_mekrs_own_order() {
+        // Two faults at once, after the review's two-fault probe: the
+        // ring's walk torn short, as above, and the target's lone vertex
+        // removed, which `mekr` checks after the walk. The sugar derives
+        // its chord inside `mekr`'s plan, so it panics where `mekr` does,
+        // on the walk.
+        let (mut body, seed, seg, strut) = strutted();
+        body.kemr(strut.he_minus, strut.he_plus).unwrap();
+        let ring = seg.he_minus;
+        let ring_loop = body.get_half_edge(ring).unwrap().parent_loop;
+        body.get_half_edge_mut(ring).unwrap().next = ring;
+        let mut body = body
+            .with_entity_removed_for_tests(EntityId::Vertex(strut.vertex))
+            .unwrap();
+        let site = MekrSite::EmptyTarget {
+            target: seed.r#loop,
+            ring,
+        };
+        let spec = EdgeCurveSpec::line_between(p(0.0), p(1.0));
+        let by_mekr = plan_panic(&mut body.clone(), |b| b.mekr(site, spec, Tol::witness()));
+        assert!(
+            by_mekr.contains("and its cycle walk does not reach it")
+                && by_mekr.contains(&format!("{ring_loop:?}")),
+            "{by_mekr}"
+        );
+        let by_sugar = plan_panic(&mut body, |b| b.mekr_chord(site, Tol::witness()));
+        assert_eq!(by_sugar, by_mekr, "the sugar panics where `mekr` does");
+    }
+
+    /// **A band door's re-mint panics before the door moves anything.**
+    /// The minted cylinder-wall sheet: the wall face and the seed face
+    /// bound one another on one cylinder key, so every loop moved below
+    /// lands on a complete face on its own chart, and one row taken off
+    /// the moved loop is what sends the door to the site mint. With the
+    /// curve of that half's edge torn out, the mint's walk of the moved
+    /// loop cannot read it, and `kfmrh_minting`, `kef_minting` and
+    /// `mfkrh_minting` each panic naming the edge whose curve link
+    /// dangles (D2 row 4), with the arenas and the pcurve map as found.
+    #[test]
+    fn a_torn_half_on_a_moved_loop_panics_before_the_door_moves_it() {
+        use crate::test_support_fixtures::{CylFrame, cyl_wall_sheet};
+        let tol = Tol::witness();
+        let sheet = || {
+            let mut body = Body::<f64>::new();
+            let wall = cyl_wall_sheet(
+                &mut body,
+                CylFrame::canonical(1.0),
+                None,
+                (0.2, 1.4),
+                (0.0, 1.0),
+                tol,
+            );
+            let seed = body
+                .faces()
+                .map(|(k, _)| k)
+                .find(|&k| k != wall)
+                .expect("the sheet has a second face");
+            (body, wall, seed)
+        };
+        let outer_cycle = |body: &Body<f64>, face: FaceKey| {
+            let outer = body.get_face(face).unwrap().outer;
+            let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+                panic!("the sheet's faces are bounded by cycles")
+            };
+            body.loop_cycle(first).unwrap()
+        };
+        // The premise the panic names: the torn edge's `curve` link.
+        let tear = |body: &mut Body<f64>, gap: HalfEdgeKey| -> String {
+            body.pcurves.remove(gap).expect("the sheet is minted");
+            let edge = body.get_half_edge(gap).unwrap().edge;
+            let torn = body.get_edge(edge).unwrap().curve;
+            body.curves.remove(torn).unwrap();
+            format!(
+                "{}'s curve names {}, which does not resolve",
+                EntityId::Edge(edge),
+                crate::entity::GeomRef::Curve(torn)
+            )
+        };
+        let panics =
+            |body: &mut Body<f64>,
+             door: &str,
+             premise: &str,
+             op: &dyn Fn(&mut Body<f64>) -> Result<(), EulerOpError>| {
+                crate::review_d18::assert_torn_op_panics(
+                    door,
+                    body,
+                    &[premise, crate::review_d18::ROW_FOUR],
+                    op,
+                );
+            };
+
+        // `kfmrh`: the seed's outer loop demotes into the wall.
+        let (mut body, wall, seed) = sheet();
+        let gap = outer_cycle(&body, seed)[0];
+        let premise = tear(&mut body, gap);
+        panics(&mut body, "kfmrh", &premise, &|b| {
+            b.kfmrh_minting(wall, seed, tol).map(|_| ())
+        });
+
+        // `kef`: the seed dies and its remnant joins the wall's loop.
+        let (mut body, _, seed) = sheet();
+        let cycle = outer_cycle(&body, seed);
+        let premise = tear(&mut body, cycle[1]);
+        panics(&mut body, "kef", &premise, &|b| {
+            b.kef_minting(cycle[0], tol).map(|_| ())
+        });
+
+        // `mfkrh`: the demoted ring is promoted back out of the wall.
+        let (mut body, wall, seed) = sheet();
+        let ring = body.kfmrh(wall, seed).unwrap().ring;
+        let LoopBoundary::Cycle { first } = body.get_loop(ring).unwrap().boundary else {
+            panic!("the demoted ring is a cycle")
+        };
+        let premise = tear(&mut body, first);
+        panics(&mut body, "mfkrh", &premise, &|b| {
+            b.mfkrh_minting(ring, FaceSurface::Inherit, tol).map(|_| ())
         });
     }
 }

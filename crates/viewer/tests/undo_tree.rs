@@ -33,25 +33,25 @@ fn session(tol: Tol) -> (DocSession, pncad::document::RecipeNodeId) {
 /// The distance edit these rows use: the extrude carries a DRIVEN
 /// distance, so the literal slot they move is the profile's — but the
 /// simplest editable literal in this fixture is a new document
-/// parameter, which every row below shares.
+/// variable, which every row below shares.
 fn set_thickness(session: &mut DocSession, metres: f64) -> Vec<DocEdit<ProfileProgram>> {
     session
-        .perform(SessionOp::SetParam {
-            name: common::thickness_param(),
+        .perform(SessionOp::SetVariable {
+            var: common::thickness_var(session.committed_doc()),
             value: SlotValue::Continuous(metres),
         })
         .committed
 }
 
 fn thickness_of(doc: &Doc<ProfileProgram>) -> f64 {
-    match props::param_rows(doc)
+    match props::variable_rows(doc)
         .into_iter()
-        .find(|row| row.name == common::thickness_param())
-        .expect("the fixture declares the parameter")
+        .find(|row| row.label.name() == Some(&common::thickness_param()))
+        .expect("the fixture declares the variable")
         .value
     {
         SlotValue::Continuous(v) => v,
-        SlotValue::Count(_) => panic!("the fixture's parameter is continuous"),
+        SlotValue::Count(_) => panic!("the fixture's variable is continuous"),
     }
 }
 
@@ -188,15 +188,16 @@ fn a_replayed_history_is_the_files_log_step_for_step() {
             node: extrude,
             slot: SlotId::Distance,
             expr: common::len(0.02),
+            fresh: Vec::new(),
         },
         DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
             expr: common::len(0.03),
+            fresh: Vec::new(),
         },
     ];
-    let history = History::replayed(doc, &pncad::document::LoggedEdit::bare_all(&edits), tol)
-        .expect("the log replays");
+    let history = History::replayed(doc, &edits, tol).expect("the log replays");
     assert_eq!(history.len(), 3);
     assert_eq!(history.path_edits().len(), 2);
     assert_eq!(

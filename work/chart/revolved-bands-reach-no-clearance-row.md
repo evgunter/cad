@@ -4,7 +4,6 @@ kind: issue
 title: No revolve replays at Interval over an epsilon box, so a revolved band never reaches window_of
 status: open
 opened: 2026-09-14
-refs: [clearance-window-tightening-needs-chart-boundary]
 priority: P3
 cost: D
 ---

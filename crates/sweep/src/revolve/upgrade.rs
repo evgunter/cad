@@ -9,8 +9,8 @@
 
 use geom::Curve3;
 use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MustCarryVerdict, classify_dihedral,
-    edge_extent, must_carry_over_edge,
+    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MustCarryDescription, MustCarryRefusal,
+    classify_dihedral, edge_extent, must_carry_over_edge,
 };
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Point3, Real};
@@ -32,44 +32,45 @@ struct EdgeData<T: Real> {
     extent: T,
 }
 
-/// A vertex's point, with the kernel read-back door's unresolved
-/// reference renamed into the operator layer's stale-key vocabulary
-/// (total: stale keys surface as operator-layer typed errors).
-pub(super) fn vertex_point<T: Real>(
-    body: &Body<T>,
-    vertex: topo::VertexKey,
-) -> Result<Point3<T>, RevolveError> {
-    topo::readback::vertex_point_ref(body, vertex).map_err(|what| EulerOpError::from(what).into())
+/// The point of `vertex`, read off a live half-edge.
+///
+/// # Panics
+///
+/// If the vertex or its point does not resolve: both are links a
+/// live half-edge holds on a tier-1-valid body.
+#[track_caller]
+fn vertex_point<T: Real>(body: &Body<T>, vertex: topo::VertexKey) -> Point3<T> {
+    topo::readback::vertex_point(body, vertex).unwrap_or_else(|_| {
+        unreachable!("vertex {vertex:?}, held by a live half-edge, does not resolve")
+    })
 }
 
 fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>, RevolveError> {
-    let edge_rec = body.get_edge(edge).ok_or(EulerOpError::StaleKey {
-        key: topo::EntityId::Edge(edge),
-    })?;
+    let edge_rec = body.get_edge(edge).unwrap_or_else(|| {
+        unreachable!(
+            "edge {edge:?} was minted by this revolve and is upgraded before any kill of it"
+        )
+    });
     let curve = body
         .get_curve_geom(edge_rec.curve)
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Curve(edge_rec.curve),
-        })?
+        .unwrap_or_else(|| unreachable!("curve {:?} is held by live edge {edge:?}", edge_rec.curve))
         .certified()
         .ok_or(EulerOpError::NullScaffoldCurve {
             curve: edge_rec.curve,
         })?;
     let carrier = curve.carrier().clone();
     let (t0, t1) = curve.params();
-    let witness = carrier.eval(t0 + (t1 - t0) * T::from_f64(0.5));
+    let witness = curve.mid_point();
     let he_plus = edge_rec.he_plus;
     let start = body
         .get_half_edge(he_plus)
-        .ok_or(EulerOpError::StaleKey {
-            key: topo::EntityId::HalfEdge(he_plus),
-        })?
+        .unwrap_or_else(|| unreachable!("half-edge {he_plus:?} is live edge {edge:?}'s plus half"))
         .start;
-    let end = body.half_edge_end(he_plus).ok_or(EulerOpError::StaleKey {
-        key: topo::EntityId::HalfEdge(he_plus),
-    })?;
-    let p_start = vertex_point(body, start)?;
-    let p_end = vertex_point(body, end)?;
+    let end = body.half_edge_end(he_plus).unwrap_or_else(|| {
+        unreachable!("half-edge {he_plus:?}'s end is its live mate's start on a tier-1-valid body")
+    });
+    let p_start = vertex_point(body, start);
+    let p_end = vertex_point(body, end);
     let extent = edge_extent(&carrier, t0, t1, p_start.distance(p_end));
     Ok(EdgeData {
         carrier,
@@ -91,7 +92,7 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
 /// [`RevolveError::SmoothJoinRefuted`]; Indeterminate is the typed
 /// error built by `sliver`, at the first-order classification and at
 /// the rule alike.
-pub(super) fn upgrade_intersection<T: Decide>(
+pub(super) fn upgrade_intersection<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     s1: SurfaceKey,
@@ -104,15 +105,11 @@ pub(super) fn upgrade_intersection<T: Decide>(
     let surf1 = body
         .get_surface(s1)
         .cloned()
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Surface(s1),
-        })?;
+        .unwrap_or_else(|| unreachable!("surface {s1:?} was read off a live face of this revolve"));
     let surf2 = body
         .get_surface(s2)
         .cloned()
-        .ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Surface(s2),
-        })?;
+        .unwrap_or_else(|| unreachable!("surface {s2:?} was read off a live face of this revolve"));
     match classify_dihedral(&surf1, &surf2, data.witness, data.extent, band) {
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {
@@ -140,6 +137,20 @@ pub(super) fn upgrade_intersection<T: Decide>(
         // predicate at the same stations, so the demanded set and the
         // stored set stay one set.
         Ok(DihedralClass::Smooth) => {
+            // In-band: near-osculating geometry, certifiable as
+            // neither intrinsic nor conventional. A conventional
+            // description is not an escape hatch from ill-conditioned
+            // geometry (D2), so the escalation is typed through the
+            // caller's own `sliver` (D4 ¶3) — the same answer the
+            // transverse arm's `Err` below gives, and the same one the
+            // extrude strut gives. A station that reads the join a
+            // corner where the witness read it smooth refutes this
+            // arm's premise, and the edge refuses rather than store a
+            // description neither reading chose.
+            let refused = |refusal| match refusal {
+                MustCarryRefusal::InBand(source) => sliver(source.diag()),
+                MustCarryRefusal::Refuted => RevolveError::SmoothJoinRefuted { edge },
+            };
             match must_carry_over_edge(
                 &surf1,
                 &surf2,
@@ -148,21 +159,20 @@ pub(super) fn upgrade_intersection<T: Decide>(
                 data.t1,
                 data.extent,
                 band,
-            ) {
-                MustCarryVerdict::JetDeterminate => {
+            )
+            .description(s1, s2, data.witness)
+            .map_err(refused)?
+            {
+                MustCarryDescription::Intrinsic(description) => {
                     let spec = EdgeCurveSpec {
-                        description: EdgeDescriptionSpec::TangentIntersection {
-                            s1,
-                            s2,
-                            witness: data.witness,
-                        },
+                        description,
                         carrier: data.carrier,
                         param_start: data.t0,
                         param_end: data.t1,
                     };
                     body.set_edge_curve(edge, spec, tol)?;
                 }
-                MustCarryVerdict::UnderDetermined => {
+                MustCarryDescription::Conventional => {
                     // The surfaces UNDER-determine the locus, so the
                     // description stays CONVENTIONAL — but the edge is
                     // at rest between two faces now, so it says where
@@ -173,62 +183,47 @@ pub(super) fn upgrade_intersection<T: Decide>(
                     // prefer-intrinsic reading unchanged.
                     body.describe_at_rest(edge, s1, tol)?;
                 }
-                // In-band: near-osculating geometry, certifiable as
-                // neither intrinsic nor conventional. A conventional
-                // description is not an escape hatch from
-                // ill-conditioned geometry (D2), so the escalation is
-                // typed through the caller's own `sliver` (D4 ¶3) —
-                // the same answer the transverse arm's `Err` below
-                // gives, and the same one the extrude strut gives.
-                MustCarryVerdict::InBand(source) => return Err(sliver(source)),
-                // A station reads the join a corner where the witness
-                // read it smooth: this arm's premise is refuted, and
-                // the edge refuses rather than store a description
-                // neither reading chose.
-                MustCarryVerdict::Transverse => {
-                    return Err(RevolveError::SmoothJoinRefuted { edge });
-                }
             }
             Ok(())
         }
-        Err(source) => Err(sliver(source)),
+        Err(geom_brep::LeverEscalation { diag: source, .. }) => Err(sliver(source)),
     }
 }
 
-/// Re-describes a full-revolve meridian as `Seam { surface }` when the
-/// wall surface is periodic; a plane wall's meridian becomes an image
-/// at rest in that wall's chart (module docs — `Seam` is malformed on
-/// a non-periodic chart, and one surface on both sides determines no
-/// locus, so D2's conventional split applies). Carrier and interval
-/// kept verbatim either way.
-pub(super) fn upgrade_meridian_seam<T: Decide>(
+/// Re-describes a full-revolve meridian as its wall's wrap edge (D1)
+/// when both its halves bound one face on a periodic wall surface — a
+/// lamina wall, closed on itself across it. Otherwise it is an image at
+/// rest in that wall's chart: a plane wall's meridian (module docs — a
+/// plane's chart closes in no direction, and one surface on both sides
+/// determines no locus, so D2's conventional split applies), and a wire
+/// wall's angle-0 meridian, which parts its two π-bands rather than
+/// closing either. Carrier and interval kept verbatim either way.
+pub(super) fn upgrade_meridian_wrap<T: Decide + topo::AtRestPolicy>(
     body: &mut Body<T>,
     edge: EdgeKey,
     wall: SurfaceKey,
     tol: Tol,
 ) -> Result<(), RevolveError> {
     let is_plane = matches!(
-        body.get_surface(wall).ok_or(EulerOpError::StaleGeometry {
-            key: topo::GeomRef::Surface(wall),
-        })?,
+        body.get_surface(wall).unwrap_or_else(|| {
+            unreachable!("wall surface {wall:?} was read off a live wall face of this revolve")
+        }),
         geom::Surface::Plane { .. }
     );
-    if is_plane {
-        // A plane wall has no seam to be — but the meridian is still
-        // at rest in that wall's chart, and the scaffolding door it
-        // was minted through is for edges whose surfaces do not exist
-        // yet (D3's transience fence). So it is described where it
-        // rests, as an ordinary chart image owing the one meter.
+    let (f_plus, f_minus) = topo::readback::edge_sides(body, edge)
+        .unwrap_or_else(|_| {
+            unreachable!("meridian {edge:?} was minted by this revolve and is live")
+        })
+        .faces();
+    if is_plane || f_plus != f_minus {
+        // The meridian is at rest in that wall's chart, and the
+        // scaffolding door it was minted through is for edges whose
+        // surfaces do not exist yet (D3's transience fence). So it is
+        // described where it rests, as an ordinary chart image owing
+        // the one meter.
         body.describe_at_rest(edge, wall, tol)?;
         return Ok(());
     }
-    let data = edge_data(body, edge)?;
-    let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::seam(wall),
-        carrier: data.carrier,
-        param_start: data.t0,
-        param_end: data.t1,
-    };
-    body.set_edge_curve(edge, spec, tol)?;
+    crate::swept::describe_wrap_edge(body, edge, wall, tol)?;
     Ok(())
 }

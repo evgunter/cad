@@ -351,7 +351,8 @@ impl PickCache {
             // is the per-frame rebuild loop; the error is already
             // recorded and the caller has already seen it.
             Some(Attempt::Answered(key)) if key == wanted => return CacheStep::Held,
-            _ => {}
+            // Nothing asked yet, or asked for another picture.
+            Some(Attempt::Asked(_) | Attempt::Answered(_)) | None => {}
         }
         self.attempt = Some(Attempt::Asked(wanted));
         // **Dropped before the answer, not after it.** What is held
@@ -463,6 +464,12 @@ impl PickCache {
     /// every frame between a submit and its answer.
     pub fn index(&self) -> Option<&PickIndex> {
         self.index.as_ref()
+    }
+
+    /// The held index, for a whole-app row to plant a fault in.
+    #[cfg(all(test, feature = "app"))]
+    pub(crate) fn index_mut(&mut self) -> Option<&mut PickIndex> {
+        self.index.as_mut()
     }
 
     /// Whether a build is outstanding: the indexing state the chrome
@@ -623,10 +630,7 @@ pub fn unindexed<'a>(
         .any(|action| match action {
             // An ACT: the user asked for something and did not get it.
             PickAction::Select(_) => true,
-            // Observations. Exhaustive on purpose, the way
-            // `ToolKind::pick_kinds` is: a fifth action added to the
-            // stream must be classified here rather than falling into
-            // "not news" because a wildcard put it there.
+            // Observations.
             PickAction::Hover(_) | PickAction::ClearHover => false,
         })
         .then_some(match (held, indexing) {

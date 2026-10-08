@@ -85,9 +85,9 @@ fn selection_of(
 fn fillet_and_target(
     doc: &editor_core::ProfileDoc,
 ) -> (editor_core::RecipeNodeId, editor_core::RecipeNodeId) {
-    for id in doc.order() {
-        if let Some(Node::Fillet { target, .. }) = doc.node(*id) {
-            return (*id, *target);
+    for id in doc.ids() {
+        if let Some(Node::Fillet { target, .. }) = doc.node(id) {
+            return (id, *target);
         }
     }
     panic!("the composed die has a fillet node")
@@ -120,7 +120,8 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
     // The ball's names ride the Transform through unchanged, so the
     // `FromB` payloads name the revolve node — recovered here from the
     // target's own table rather than restated.
-    let ball = edge_names(&eval(&doc.doc), target)
+    let ev0 = eval(&doc.doc);
+    let ball = edge_names(&ev0, target)
         .into_iter()
         .find_map(|n| match n.path.first() {
             Some(RoleSeg::FromB(inner)) => Some(inner.node),
@@ -129,7 +130,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
         .expect("the cavity contributes FromB edges");
 
     let selection = selection_of(&doc.doc, fillet);
-    for meridian in die_composed::excluded_meridians(&doc.doc, ball, target) {
+    for meridian in die_composed::excluded_meridians(&doc.doc, &ev0, ball, target) {
         // Grown the ONLY way a selection grows: an explicit `Rebind`
         // swapping one selected box edge for the meridian.
         let d = apply(
@@ -154,7 +155,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
             } => {
                 assert_eq!(margin.predicate, "fillet3_convexity_sign");
                 assert_eq!(
-                    margin.value(),
+                    margin.reading.diagnostic_f64_for_error_text().value(),
                     Some(0.0),
                     "a co-surface seam has exactly no wedge"
                 );

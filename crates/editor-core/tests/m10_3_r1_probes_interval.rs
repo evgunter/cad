@@ -37,6 +37,7 @@ test_utils::gated_to![
 ];
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -47,8 +48,8 @@ use editor_core::drive::{
     BudgetKind, DriveConfig, MeasureAccounting, ReasonClass, RefusalReason, drive,
 };
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
-    NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, evaluate,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram,
+    Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -58,8 +59,8 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 fn config(max_leaves: usize) -> DriveConfig {
@@ -69,7 +70,7 @@ fn config(max_leaves: usize) -> DriveConfig {
     }
 }
 
-fn unit_square() -> LoopProgram {
+fn unit_square() -> LoopProgram<Formula> {
     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         .expect("finite square corners")
 }
@@ -78,14 +79,14 @@ fn unit_square() -> LoopProgram {
 /// only as the substrate for boxes this reviewer sizes differently).
 fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("q"),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
             distribution: Some(dist),
-        },
+        }),
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -95,22 +96,23 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
     }));
     r.insert(Node::Extrude {
         profile: p,
-        distance: Expr::param(name("q"), Dimension::Length),
+        distance: Formula::named(name("q"), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
 
-/// **A bounded chamber**: two extrudes, distances `q` and `c - q`, so
+/// **A bounded chamber**: two extrudes, depths `q` and `c - q`, so
 /// the witness branch holds only for `q` inside an interval bounded on
-/// BOTH sides — the geometry a containment-firing drive needs, and
-/// different geometry from every fixture the PR ships. A door for the
+/// BOTH sides, past either end of which one depth refuses — different
+/// geometry from every fixture the PR ships. A door for the
 /// tier's cost rows (`m10_sym_profile_interval`,
 /// `m10_sym_drive_memo_interval`); nothing in this suite drives it.
 pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
+    r.push(DocEdit::DeclareVar {
         name: name("q"),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -118,7 +120,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
                 lo: -half,
                 hi: half,
             }),
-        },
+        }),
     });
     let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
@@ -128,7 +130,8 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     }));
     r.insert(Node::Extrude {
         profile: p,
-        distance: Expr::param(name("q"), Dimension::Length),
+        distance: Formula::named(name("q"), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let xy_frame_2 = r.insert(xy_frame());
     let p2 = r.insert(Node::Profile(ProfileProgram {
@@ -138,8 +141,9 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     }));
     r.insert(Node::Extrude {
         profile: p2,
-        distance: Expr::sub(len(c), Expr::param(name("q"), Dimension::Length))
+        distance: Formula::sub(len(c), Formula::named(name("q"), Dimension::Length))
             .expect("length minus length"),
+        side: ExtrudeSide::Along,
     });
     r.doc
 }
@@ -362,8 +366,9 @@ fn a_wrapped_escalation_never_certifies_inside_the_band() {
     // No certified leaf's absolute distance interval may sit wholly
     // inside the band (eps, K*eps), K = 10: there the extrusion is
     // genuinely undecidable and a certificate would be false.
+    let q = doc.var_named("q").expect("declared");
     for leaf in v.certified() {
-        let (lo, hi) = leaf.box_.get(&name("q")).unwrap().span();
+        let (lo, hi) = leaf.box_.get(q).unwrap().span();
         let (alo, ahi) = (20.0 * eps() + lo, 20.0 * eps() + hi);
         assert!(
             !(alo > eps() && ahi < 10.0 * eps()),
@@ -390,7 +395,10 @@ fn a_wrapped_escalation_never_certifies_inside_the_band() {
 fn evidence_only_a_negative_zero_axis_refuses_at_f64() {
     let doc = slab_with(Distribution::Uniform { lo: -1.0, hi: 1.0 }, 1.0);
     let mut axes = BTreeMap::new();
-    axes.insert(name("q"), BoxAxis::Varying { lo: -0.0, hi: 0.0 });
+    axes.insert(
+        doc.var_named("q").expect("declared"),
+        BoxAxis::Varying { lo: -0.0, hi: 0.0 },
+    );
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::from_axes(axes))),
         ..EvalOptions::default()
@@ -415,9 +423,9 @@ fn evidence_only_a_negative_zero_axis_refuses_at_f64() {
 fn evidence_only_e2e_consumer_walk() {
     let mk = |half_r: f64, half_d: f64| {
         let mut r = Recorder::new();
-        r.push(DocEdit::SetDocParam {
+        r.push(DocEdit::DeclareVar {
             name: name("hole_r"),
-            value: DocParam::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.25,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -425,16 +433,16 @@ fn evidence_only_e2e_consumer_walk() {
                     lo: -half_r,
                     hi: half_r,
                 }),
-            },
+            }),
         });
-        r.push(DocEdit::SetDocParam {
+        r.push(DocEdit::DeclareVar {
             name: name("depth"),
-            value: DocParam::Continuous {
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.5,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(Distribution::Normal { sigma: half_d }),
-            },
+            }),
         });
         let xy_frame_3 = r.insert(xy_frame());
         let p = r.insert(Node::Profile(ProfileProgram {
@@ -444,14 +452,15 @@ fn evidence_only_e2e_consumer_walk() {
                     .expect("finite plate corners"),
                 LoopProgram::Circle {
                     centre: [len(1.0), len(1.0)],
-                    radius: Expr::param(name("hole_r"), Dimension::Length),
+                    radius: Formula::named(name("hole_r"), Dimension::Length),
                 },
             ],
             ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile: p,
-            distance: Expr::param(name("depth"), Dimension::Length),
+            distance: Formula::named(name("depth"), Dimension::Length),
+            side: ExtrudeSide::Along,
         });
         r.doc
     };

@@ -9,10 +9,10 @@
 //!
 //! # Two layers, and only one of them is new here
 //!
-//! [`MeasureExpr`] is `Expr`'s arithmetic over two leaf kinds — an
+//! [`MeasureExpr`] is `Formula`'s arithmetic over two leaf kinds — an
 //! ordinary document expression, and a [`MeasurePrimitive`] naming a
 //! closed-form measurement of entities the NODE references. The
-//! ordinary expression enters through `Doc.parse_expr`, the one text
+//! ordinary expression enters through `Doc.parse_formula`, the one text
 //! door this surface has: there is no second spelling of the grammar
 //! here, exactly as `py/expr.rs` rules for the builders it leaves out.
 //!
@@ -35,7 +35,7 @@
 //! # The F1 lattice is asked, not restated
 //!
 //! Every arithmetic constructor here calls the kernel's, which builds
-//! probe expressions at the operand dimensions and runs `Expr`'s own
+//! probe expressions at the operand dimensions and runs `Formula`'s own
 //! smart constructors over them. So a mis-dimensioned measurement
 //! refuses in the same words a document expression would have earned,
 //! and it refuses at the CONSTRUCTOR rather than at the `Doc.apply`
@@ -132,7 +132,7 @@ pub(crate) fn measure_unavailable_at_err(
 ///
 /// It is `LiteralError`, the class that already IS this kernel type
 /// crossing: the measurement sublanguage does not restate the F1
-/// table, it builds probe expressions and runs `Expr`'s own
+/// table, it builds probe expressions and runs `Formula`'s own
 /// constructors, so the refusal a caller gets here is the one a
 /// document expression would have earned. `value` is `None` because
 /// this door refuses over two operands' DIMENSIONS and has no single
@@ -329,21 +329,26 @@ const fn _binds_every_kernel_direction(kernel: d::AssertionDir) -> AssertionDir 
     }
 }
 
-/// **A dimension-checked measurement expression**: `Expr`'s arithmetic
+/// **A dimension-checked measurement expression**: `Formula`'s arithmetic
 /// over a closed-form measurement leaf.
 ///
 /// Private fields and fallible constructors, exactly as the kernel's:
 /// an ill-dimensioned tree is unrepresentable, so `dimension` is
 /// trustworthy by construction.
 ///
-/// **No `__hash__`**, for `Expr`'s reason: equality is the kernel's
+/// **It nests at most 128 levels**, the bound it shares with `Formula`, a
+/// value leaf counting as the expression it holds: a constructor that
+/// would nest deeper refuses `nested_too_deep`, so a flat chain of more
+/// than 128 terms refuses.
+///
+/// **No `__hash__`**, for `Formula`'s reason: equality is the kernel's
 /// own `PartialEq`, an IEEE comparison of the literals inside, so
 /// `0.0` and `-0.0` are equal trees whose bit patterns are not, and
 /// there is no hash that respects the first without lying about the
 /// second.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct MeasureExpr(pub(crate) d::MeasureExpr);
+pub(crate) struct MeasureExpr(pub(crate) d::MeasureExpr<d::Formula>);
 
 #[pymethods]
 impl MeasureExpr {
@@ -357,12 +362,12 @@ impl MeasureExpr {
     /// An ordinary document expression as a leaf — a literal bound, a
     /// parameter, a whole arithmetic subtree of them.
     ///
-    /// `Doc.parse_expr` is where one comes from, and it is the only
+    /// `Doc.parse_formula` is where one comes from, and it is the only
     /// door: the checking parser reaches the whole algebra through a
     /// single call, and a second spelling of that grammar is what
     /// `py/expr.rs` already rules out.
     #[staticmethod]
-    fn value(e: &super::expr::Expr) -> Self {
+    fn value(e: &super::expr::Formula) -> Self {
         Self(d::MeasureExpr::value(e.0.clone()))
     }
 
@@ -382,10 +387,12 @@ impl MeasureExpr {
             .map_err(|err| measure_dimension_err(py, &err))
     }
 
-    /// Negation — any dimension, and total.
+    /// Negation — any dimension; only the nesting bound refuses it.
     #[staticmethod]
-    fn neg(a: &Self) -> Self {
-        Self(d::MeasureExpr::neg(a.0.clone()))
+    fn neg(py: Python<'_>, a: &Self) -> PyResult<Self> {
+        d::MeasureExpr::neg(a.0.clone())
+            .map(Self)
+            .map_err(|err| measure_dimension_err(py, &err))
     }
 
     /// Product; the F1 rule, at least one operand dimensionless.

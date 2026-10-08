@@ -12,10 +12,11 @@
 
 use crate::common::approx::band;
 use crate::common::charts::hollow_moves;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_brep::intersect::route;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
 
@@ -161,7 +162,7 @@ fn corner_forms(body: &Body<f64>) -> Vec<(String, usize)> {
         }
         let mut names: Vec<&'static str> = keys
             .iter()
-            .map(|k| SurfaceKind::of(body.get_surface(*k).expect("surface")).name())
+            .map(|k| body.get_surface(*k).expect("surface").kind().name())
             .collect();
         names.sort_unstable();
         let form = format!("{} [{}]", names.len(), names.join(" ∩ "));
@@ -190,18 +191,13 @@ fn edge_pairs(body: &Body<f64>) -> Vec<(String, usize)> {
         }
         let kinds: Vec<SurfaceKind> = keys
             .iter()
-            .map(|k| SurfaceKind::of(body.get_surface(*k).expect("surface")))
+            .map(|k| body.get_surface(*k).expect("surface").kind())
             .collect();
         let carrier = body
             .get_edge(e)
             .and_then(|d| body.get_curve_geom(d.curve))
             .and_then(topo::CurveGeom::certified)
-            .map(|c| match c.carrier() {
-                geom::Curve3::Line { .. } => "Line",
-                geom::Curve3::Circle { .. } => "Circle",
-                geom::Curve3::Ellipse { .. } => "Ellipse",
-                _ => "other",
-            })
+            .map(|c| c.carrier().kind().name())
             .unwrap_or("none");
         let desc = body
             .get_edge(e)
@@ -212,7 +208,7 @@ fn edge_pairs(body: &Body<f64>) -> Vec<(String, usize)> {
                     geom_brep::EdgeDescription::Intersection { .. } => "Intersection",
                     geom_brep::EdgeDescription::TangentIntersection { .. } => "TangentIntersection",
                     geom_brep::EdgeDescription::Chart(ch) => {
-                        if ch.seam {
+                        if ch.wrap {
                             "Chart/seam"
                         } else {
                             "Chart"
@@ -264,7 +260,7 @@ fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
             .and_then(|f| one.get_surface(f.surface))
             .cloned();
         match topo::replace_faces_offset(&mut one, &m.faces, m.distance, tol) {
-            Ok(()) => {
+            Ok(_) => {
                 let after = one
                     .get_face(m.faces[0])
                     .and_then(|f| one.get_surface(f.surface))
@@ -277,14 +273,12 @@ fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
     let mut cavity = body.clone();
     match topo::offset_charts_together(&mut cavity, &moves, band(), tol) {
         Err(e) => println!("  cavity REFUSED: {e:?}"),
-        Ok(()) => {
+        Ok(_) => {
             let outer = topo::mass_properties(body, tol).map(|p| p.volume);
             let inner = topo::mass_properties(&cavity, tol).map(|p| p.volume);
             println!("  {what}: outer {outer:?} cavity {inner:?}");
-            for (k, v) in cavity.vertices() {
-                if let Some(p) = cavity.get_point(v.point) {
-                    println!("    {k:?} -> [{:.6}, {:.6}, {:.6}]", p.x, p.y, p.z);
-                }
+            for (k, p) in cavity.vertex_points() {
+                println!("    {k:?} -> [{:.6}, {:.6}, {:.6}]", p.x, p.y, p.z);
             }
         }
     }
@@ -297,7 +291,7 @@ fn sf2b_bellied_pot_sealed_and_opened() {
     let tol = Tol::witness();
     let t = 1.0 / 128.0;
     let body = bellied_pot();
-    match topo::shell(&body, t, tol) {
+    match topo::shell(&finished("the operand", body.clone(), tol), t, tol) {
         Ok(topo::Shelled { body: p, .. }) => println!(
             "[pot] SEALED hollows: {} shells, props {:?}",
             p.shells().count(),
@@ -314,7 +308,7 @@ fn sf2b_bellied_pot_sealed_and_opened() {
         .map(|(k, _)| k)
         .collect();
     println!("[pot] mouth chart: {} face(s)", mouth.len());
-    match topo::shell_open(&body, t, &mouth, tol) {
+    match topo::shell_open(&finished("the operand", body.clone(), tol), t, &mouth, tol) {
         Ok(topo::Shelled { body: p, .. }) => println!(
             "[pot] OPENED: {} shells, props {:?}",
             p.shells().count(),
@@ -339,7 +333,7 @@ fn sf2b_head_measurement() {
         ("the drum", drum()),
     ] {
         println!("=== {what} ===");
-        match topo::shell(&body, t, tol) {
+        match topo::shell(&finished("the operand", body.clone(), tol), t, tol) {
             Ok(_) => println!("  HOLLOWS"),
             Err(e) => {
                 println!("  Display: {e}");

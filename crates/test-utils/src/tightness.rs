@@ -18,8 +18,9 @@
 //!    [`crate::vacuity::Exposure`] but on a magnitude rather than a
 //!    count: a fixture whose sampled truth collapsed satisfies every
 //!    comparison below it for free.
-//! 2. [`Sup::dominates`] / [`Meter::dominates`] — soundness, the half
-//!    that was already there.
+//! 2. [`Sup::dominates`], and [`Sup::dominates_up_to`] /
+//!    [`Meter::dominates_up_to`] where the sampled truth carries a
+//!    rounding budget — soundness, the half that was already there.
 //! 3. [`Sup::within`] / [`Meter::gives_away_at_most`] — the ceiling.
 //!
 //! # What makes a ceiling a guard
@@ -175,6 +176,27 @@ impl<'a> Sup<'a> {
         self
     }
 
+    /// Soundness up to `slack`: the bound is not below the sampled
+    /// truth by more than `slack`. For a bound tight enough to meet the
+    /// sampling's own rounding, where the sampled value is a rounded
+    /// evaluation of the quantity the bound encloses; `why` states the
+    /// rounding `slack` budgets.
+    ///
+    /// # Panics
+    ///
+    /// If the bound is below the truth by more than `slack` (or is NaN).
+    #[track_caller]
+    pub fn dominates_up_to(self, slack: f64, why: &str) -> Self {
+        assert!(
+            self.bound >= self.truth - slack,
+            "UNSOUND: {self} — the certified bound is below a value that was \
+             actually sampled, by {:e}, past this row's rounding budget of \
+             {slack:e}; {why}",
+            self.truth - self.bound
+        );
+        self
+    }
+
     /// The ceiling: `bound <= ratio * truth + extra`.
     ///
     /// `extra` is for the rows whose truth approaches zero, where a
@@ -278,7 +300,7 @@ impl<'a> Meter<'a> {
     ///
     /// If the meter exceeds the sampled minimum by more than `slack`.
     #[track_caller]
-    pub fn dominates(self, slack: f64, why: &str) -> Self {
+    pub fn dominates_up_to(self, slack: f64, why: &str) -> Self {
         assert!(
             self.bound - self.truth <= slack,
             "UNSOUND: {self} — the meter is above a speed that was actually \
@@ -376,6 +398,22 @@ mod tests {
         .expect("an undercut must fire");
         assert!(msg.contains("UNSOUND"), "{msg}");
         assert!(msg.contains("ratio"), "the ratio is in the message: {msg}");
+    }
+
+    #[test]
+    fn sup_soundness_fires_past_the_slack_and_passes_inside_it() {
+        assert!(
+            caught(|| {
+                let _ = Sup::new("row", 1.0 - 1e-13, 1.0).dominates_up_to(1e-12, "rounding");
+            })
+            .is_none()
+        );
+        let msg = caught(|| {
+            let _ = Sup::new("row", 0.9, 1.0).dominates_up_to(1e-12, "rounding");
+        })
+        .expect("a bound below the sampled truth past the slack must fire");
+        assert!(msg.contains("UNSOUND"), "{msg}");
+        assert!(msg.contains("rounding budget"), "{msg}");
     }
 
     #[test]
@@ -481,12 +519,12 @@ mod tests {
     fn meter_soundness_fires_past_the_slack_and_passes_inside_it() {
         assert!(
             caught(|| {
-                let _ = Meter::new("row", 1.0 + 1e-13, 1.0).dominates(1e-12, "rounding");
+                let _ = Meter::new("row", 1.0 + 1e-13, 1.0).dominates_up_to(1e-12, "rounding");
             })
             .is_none()
         );
         let msg = caught(|| {
-            let _ = Meter::new("row", 1.1, 1.0).dominates(1e-12, "rounding");
+            let _ = Meter::new("row", 1.1, 1.0).dominates_up_to(1e-12, "rounding");
         })
         .expect("a meter above the sampled minimum must fire");
         assert!(msg.contains("UNSOUND"), "{msg}");

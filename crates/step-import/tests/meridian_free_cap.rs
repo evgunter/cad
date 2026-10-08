@@ -20,7 +20,7 @@
 //! reported, and meshes.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 
@@ -61,9 +61,7 @@ fn an_imported_rim_only_sphere_cap_passes_every_tier_and_the_mesh_lane_refuses_i
         );
         let (cap, _) = body
             .faces()
-            .find(|(_, f)| {
-                SurfaceKind::of(body.get_surface(f.surface).unwrap()) == SurfaceKind::Sphere
-            })
+            .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == SurfaceKind::Sphere)
             .expect("the cap's sphere face");
         assert_eq!(
             mesh::tessellate(&body, 1e-4, tol).map(|_| ()),

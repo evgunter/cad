@@ -3,12 +3,16 @@
 //! its fixtures, and a seamed frustum against a tilted slab.
 //!
 //! The operand gate keeps every cone pair off the operations until the
-//! roster flips, so the rows read the section pass on the no-crossings
-//! path directly (`topo::test_support::no_crossings_section_report`):
-//! each pair with the cone face, its components cleared or refused with
-//! no event anywhere. A W1 or W2 clearance holds whatever the crossing
-//! layer finds; W3 and the no-event decision are what the pass answers
-//! when it finds nothing.
+//! roster flips (and past it the sector algebra has no cone arm), so the
+//! rows read the certificate directly: on the crossings path with the
+//! events of the cone's root lane (`topo::section_report_admitting_cones`,
+//! behind `sweep-testing`), and on the no-crossings path
+//! (`topo::test_support::no_crossings_section_report`), each pair with
+//! the cone face, its components cleared or refused with no event
+//! anywhere. A W1 or W2 clearance holds whatever the crossing layer
+//! finds; W3 and the no-event decision are what the pass answers when it
+//! finds nothing. No op returns a body with a cone operand yet, so there
+//! is no body to measure.
 //!
 //! The preview cone is the triangle `(0,0) (1,0) (0,1)` revolved fully
 //! about `y`, merged to one cone face: apex `(0, 1, 0)`, lateral face
@@ -266,5 +270,70 @@ fn a_tilted_slab_cuts_ellipses_cleared_by_w2() {
     ] {
         let v = cone_verdicts(&body, &slab);
         verdicts_are(&v, &[W1, W2], &[W2], what);
+    }
+}
+
+// -------------------------------------------------------------------
+// The crossings path: the cone sweep's events
+// -------------------------------------------------------------------
+
+/// **With the crossing layer's events, the preview pairs still clear
+/// by W1 and W2**: P2a's pin through the base disc, P3's apex pin (whose
+/// four pierces near the apex the cone's root lane now records), P5's
+/// slab, P10's coaxial pin and a parallel pin through the lateral face,
+/// each with the cone as `A` and as `B`. Every component these pairs
+/// carry is unbounded or essential on a face that describes, so the
+/// events change nothing: the rows pin that the crossings path reads
+/// the same arms. The mutant reading the ellipse's class as R-reach
+/// reds them.
+#[test]
+fn the_preview_pairs_clear_with_the_sweeps_events() {
+    let cone = cone();
+    let fixtures: Vec<(&str, Body<f64>)> = vec![
+        (
+            "P2a",
+            brick::<f64>((-0.7, -0.5), (-0.3, 0.1), (-0.1, 0.1), Tol::witness()),
+        ),
+        (
+            "P3",
+            brick::<f64>((-0.02, 0.02), (0.5, 1.5), (0.02, 0.06), Tol::witness()),
+        ),
+        (
+            "P5",
+            brick::<f64>((-2.0, 2.0), (0.3, 0.6), (-2.0, 2.0), Tol::witness()),
+        ),
+        ("P10", pin(0.1, 0.0, -0.5, 0.5)),
+        ("the parallel pin", pin(0.1, 0.4, -0.5, 1.5)),
+    ];
+    let cleared = |v: &str| {
+        matches!(
+            v,
+            "Ok([Unbounded, Unbounded])"
+                | "Ok([Essential(F)])"
+                | "Ok([Essential(G)])"
+                | "Ok([Essential(F), Essential(F)])"
+                | "Ok([Essential(G), Essential(G)])"
+        )
+    };
+    for (what, b) in &fixtures {
+        for (x, y, cone_is_a) in [(&cone, b, true), (b, &cone, false)] {
+            let v: Vec<String> = topo::section_report_admitting_cones(x, y, Tol::witness())
+                .unwrap_or_else(|e| panic!("{what}: the sweep refused {e:?}"))
+                .into_iter()
+                .filter(|(fa, fb, _)| {
+                    if cone_is_a {
+                        is_cone(&cone, *fa)
+                    } else {
+                        is_cone(&cone, *fb)
+                    }
+                })
+                .map(|(_, _, v)| v)
+                .collect();
+            assert!(!v.is_empty(), "{what}: no cone pair");
+            assert!(
+                v.iter().all(|x| cleared(x)),
+                "{what}, cone as A {cone_is_a}: {v:?}"
+            );
+        }
     }
 }

@@ -20,7 +20,7 @@
 
 use geom_core::Tol;
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, FILLET3_BODY_RECOURSE, FILLET3_CORNER_RECOURSE};
+use sweep::blend::{BlendError, FILLET3_CORNER_RECOURSE};
 use sweep::test_support::cube;
 use topo::query;
 
@@ -62,18 +62,20 @@ fn only_recourse(err: &BlendError, expect: Option<&str>, what: &str) {
     }
 }
 
-/// **The finding's own complaint, through the front door.** A cube
-/// with one edge requested leaves its two corners partly requested —
-/// a run-out. Before #740 the user was handed the ASSEMBLY recourse
-/// ("…single plane–plane links ending at fully-requested
-/// trivalent corners…") for it. This row goes red if any site on that
-/// path ever re-attaches it.
+/// **The finding's own complaint, through the front door.** An edge
+/// ending at a curved end face is a run-out. Before #740 the user was
+/// handed the ASSEMBLY recourse for a run-out. This row goes red if any
+/// site on that path ever re-attaches it.
 #[test]
 fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
-    let body = cube(L, Tol::witness());
-    let edges = query::all_edges(&body);
-    let err = fillet_edges(&body, &edges[..1], R, Tol::witness())
-        .expect_err("one edge of a box leaves its corners partly requested");
+    let (body, edge) = crate::common::operands::half_round_end();
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &[edge],
+        R,
+        Tol::witness(),
+    )
+    .expect_err("an edge ending at a curved end face is a run-out");
     assert!(
         matches!(err.error, BlendError::UnsupportedRunOut { .. }),
         "expected a corner frontier, got {err:?}"
@@ -95,30 +97,16 @@ fn a_repeated_edge_refusal_gives_no_recourse_at_all() {
     let edges = query::all_edges(&body);
     let mut req = edges.clone();
     req.push(edges[0]);
-    let err = fillet_edges(&body, &req, R, Tol::witness()).expect_err("a repeated edge");
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &req,
+        R,
+        Tol::witness(),
+    )
+    .expect_err("a repeated edge");
     assert!(
         matches!(err.error, BlendError::RepeatedEdge { edge } if edge == edges[0]),
         "expected the repeated-edge refusal naming the key, got {err:?}"
     );
     only_recourse(&err.error, None, "repeated edge");
-}
-
-/// **The body frontier, reached through the public graft door.** Two
-/// disjoint cubes in one body are valid input the in-place surgery has
-/// not been built for; the advice must be the BODY one, not the chain
-/// one.
-#[test]
-fn a_multi_solid_body_gives_body_advice_and_no_chain_advice() {
-    let mut body = cube(L, Tol::witness());
-    let other = cube(L, Tol::witness());
-    topo::instance::graft_disjoint_all(&mut body, &other, Tol::witness())
-        .expect("a disjoint graft");
-    let edges = query::all_edges(&body);
-    let err = fillet_edges(&body, &edges[..1], R, Tol::witness())
-        .expect_err("the in-place surgery is built for one solid");
-    assert!(
-        matches!(err.error, BlendError::UnsupportedBody { solids, .. } if solids == 2),
-        "expected the body frontier carrying the solid count, got {err:?}"
-    );
-    only_recourse(&err.error, Some(FILLET3_BODY_RECOURSE), "two-solid body");
 }

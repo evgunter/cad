@@ -13,6 +13,8 @@ use profile::{
     EscalationSite, Profile, ProfileError, SegmentRef, SketchPlane, ValidatedProfile,
     test_support::bulge_loop,
 };
+use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -28,9 +30,16 @@ fn try_polygon(pts: &[(f64, f64)]) -> Result<ValidatedProfile<f64>, ProfileError
 /// A right prism on a polygon (the PR's own helper, copied).
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let profile = try_polygon(pts).expect("a polygon is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("a polygon extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("a polygon extrudes")
+    .body
 }
 
 /// Shoelace area of a CCW polygon.
@@ -98,11 +107,7 @@ fn planes(body: &Body<f64>) -> Vec<PlaneFrame> {
 }
 
 fn points(body: &Body<f64>) -> Vec<Point3<f64>> {
-    body.vertices()
-        .filter_map(|(k, _)| body.get_vertex(k))
-        .filter_map(|v| body.get_point(v.point))
-        .copied()
-        .collect()
+    body.vertex_points().map(|(_, p)| p).collect()
 }
 
 fn report(what: &str, r: Result<Body<f64>, topo::ShellError<f64>>) -> Option<Body<f64>> {
@@ -144,7 +149,12 @@ fn r1a_hexagon_cavity_corners_sit_at_minus_t_on_all_three_planes() {
     let outer = planes(&body);
     let Some(hollow) = report(
         "hexagonal prism t=0.02",
-        topo::shell(&body, t, Tol::witness()).map(|shelled| shelled.body),
+        topo::shell(
+            &finished("the operand", body.clone(), Tol::witness()),
+            t,
+            Tol::witness(),
+        )
+        .map(|shelled| shelled.body),
     ) else {
         return;
     };
@@ -206,7 +216,11 @@ fn r1b_the_unpinned_oblique_fixtures_against_their_closed_forms() {
     ] {
         let want = wall_volume(&pts, h, t);
         let body = prism(&pts, h);
-        match topo::shell(&body, t, Tol::witness()) {
+        match topo::shell(
+            &finished("the operand", body.clone(), Tol::witness()),
+            t,
+            Tol::witness(),
+        ) {
             Ok(topo::Shelled { body: b, .. }) => {
                 let got = topo::mass_properties(&b, Tol::witness())
                     .expect("props")
@@ -239,9 +253,14 @@ fn r1b_the_unpinned_oblique_fixtures_against_their_closed_forms() {
 fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
     let body = sweep::test_support::cube(1.0, Tol::witness());
     let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let chamfered = sweep::chamfer::chamfer_edges(&body, &edges, 0.1, Tol::witness())
-        .expect("a cube chamfers")
-        .body;
+    let chamfered = sweep::chamfer::chamfer_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges,
+        0.1,
+        Tol::witness(),
+    )
+    .expect("a cube chamfers")
+    .body;
     println!(
         "[r1c] chamfered cube: V={} E={} F={}",
         chamfered.vertices().count(),
@@ -282,7 +301,12 @@ fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
     println!("[r1c] distinct-plane valence histogram: {hist:?}");
     report(
         "chamfered cube t=0.05",
-        topo::shell(&chamfered, 0.05, Tol::witness()).map(|shelled| shelled.body),
+        topo::shell(
+            &finished("the operand", chamfered.clone(), Tol::witness()),
+            0.05,
+            Tol::witness(),
+        )
+        .map(|shelled| shelled.body),
     );
 }
 
@@ -304,7 +328,12 @@ fn r1d_the_straight_footprint_vertex_through_shell() {
     let body = prism(&pts, h);
     if let Some(b) = report(
         "straight-footprint prism t=0.05",
-        topo::shell(&body, t, Tol::witness()).map(|shelled| shelled.body),
+        topo::shell(
+            &finished("the operand", body.clone(), Tol::witness()),
+            t,
+            Tol::witness(),
+        )
+        .map(|shelled| shelled.body),
     ) {
         let got = topo::mass_properties(&b, Tol::witness())
             .expect("props")
@@ -412,7 +441,7 @@ fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
                 assert_eq!(source.band, b);
                 // `==`, not a ceiling: the replica above and the
                 // kernel's own arithmetic must agree bit for bit.
-                assert_eq!(source.margin, MarginDiag::Value(margin));
+                assert_eq!(source.margin, MarginDiag::value(margin));
                 println!(
                     "[r1e] delta={delta:e}: chord_side margin {margin:e} IN BAND ({:e}, {:e}) \
                      — the profile escalates honestly; the conditioning meter is not reached",
@@ -450,7 +479,11 @@ fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
         for t in [0.05, 1e-3, 1e-5, 1e-7] {
             let body = prism(&pts, h);
             let want = wall_volume(&pts, h, t);
-            match topo::shell(&body, t, Tol::witness()) {
+            match topo::shell(
+                &finished("the operand", body.clone(), Tol::witness()),
+                t,
+                Tol::witness(),
+            ) {
                 Ok(topo::Shelled { body: b, .. }) => {
                     let got = topo::mass_properties(&b, Tol::witness())
                         .expect("props")
@@ -486,9 +519,16 @@ fn r1f_one_curved_face_among_planars() {
     let profile = Profile::new(SketchPlane::xy(), vec![bulge_loop(vs)])
         .validate(Tol::witness())
         .expect("the bulged hexagon validates");
-    let body = extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("extrudes")
-        .body;
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("extrudes")
+    .body;
     let curved = body
         .faces()
         .filter(|(_, f)| {
@@ -504,7 +544,12 @@ fn r1f_one_curved_face_among_planars() {
     );
     report(
         "hexagon with ONE arc side t=0.02",
-        topo::shell(&body, 0.02, Tol::witness()).map(|shelled| shelled.body),
+        topo::shell(
+            &finished("the operand", body.clone(), Tol::witness()),
+            0.02,
+            Tol::witness(),
+        )
+        .map(|shelled| shelled.body),
     );
 }
 
@@ -520,7 +565,12 @@ fn r1g_box_control() {
     let body = prism(&pts, 4.0);
     if let Some(b) = report(
         "box 2x3x4 t=0.25",
-        topo::shell(&body, 0.25, Tol::witness()).map(|shelled| shelled.body),
+        topo::shell(
+            &finished("the operand", body.clone(), Tol::witness()),
+            0.25,
+            Tol::witness(),
+        )
+        .map(|shelled| shelled.body),
     ) {
         let got = topo::mass_properties(&b, Tol::witness())
             .expect("props")
@@ -555,11 +605,7 @@ fn wide_dump(body: &Body<f64>) -> String {
         body.loops().count(),
         body.shells().count(),
     );
-    for (k, _) in body.vertices() {
-        let p = body
-            .get_vertex(k)
-            .and_then(|v| body.get_point(v.point))
-            .unwrap();
+    for (k, p) in body.vertex_points() {
         let _ = writeln!(
             s,
             "v {k:?} {:x} {:x} {:x}",
@@ -647,16 +693,28 @@ fn r1h_widened_bit_identity_dump() {
     let top = plane_face_at_z(&body, h);
     let bottom = plane_face_at_z(&body, 0.0);
     for (name, b) in [
-        ("sealed_box", topo::shell(&body, t, tol).unwrap().body),
+        (
+            "sealed_box",
+            topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+                .unwrap()
+                .body,
+        ),
         (
             "box_cup",
-            topo::shell_open(&body, t, &[top], tol).unwrap().body,
+            topo::shell_open(&finished("the operand", body.clone(), tol), t, &[top], tol)
+                .unwrap()
+                .body,
         ),
         (
             "box_tube",
-            topo::shell_open(&body, t, &[top, bottom], tol)
-                .unwrap()
-                .body,
+            topo::shell_open(
+                &finished("the operand", body.clone(), tol),
+                t,
+                &[top, bottom],
+                tol,
+            )
+            .unwrap()
+            .body,
         ),
     ] {
         std::fs::write(dir.join(format!("{name}.wide.txt")), wide_dump(&b)).unwrap();

@@ -101,3 +101,15 @@ their names (`segment_distance_px(a, b)`, `ray_segment_closest(a, b)`,
 the `[f64; 2]` and `Point3` geometry pairs), which is the gradient this
 item already says the class has. The dozen it lists are the hits where
 a transposition would produce a plausible wrong answer.
+
+## Update (2026-09-30, EDIT's PR 3497 fix pass)
+
+`combine::transform_node` is gone: `Session::add_transform` builds the
+node itself, naming the rigid step's components
+(`Step::Rigid { translation, axis: rotation_axis, angle: rotation_angle }`),
+and the kernel's public constructors take them by name
+(`Node::transform(input, Step::Rigid { .. })`; Python's
+`Placement.rigid` is keyword-only). The worst hit keeps one hop:
+`TransformTool::op(translation, rotation_axis, …)` into
+`SessionOp::AddTransform` and `Session::add_transform`'s own four
+positional arguments, which are this row's.

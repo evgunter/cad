@@ -60,7 +60,7 @@ use crate::predicate::Sign;
 /// A DESTRUCTURE and not a field list: a column added to
 /// [`SymCounts`] is a compile error here until this row says which
 /// side of the partition below it is on.
-fn columns(counts: SymCounts) -> [(&'static str, u64); 8] {
+fn columns(counts: SymCounts) -> [(&'static str, u64); 9] {
     let SymCounts {
         symbolic_zero,
         sign_gated,
@@ -69,6 +69,7 @@ fn columns(counts: SymCounts) -> [(&'static str, u64); 8] {
         registrations_contradicted,
         theorems_disputed,
         numeric,
+        retried,
         frozen,
     } = counts;
     [
@@ -79,6 +80,7 @@ fn columns(counts: SymCounts) -> [(&'static str, u64); 8] {
         ("registrations_contradicted", registrations_contradicted),
         ("theorems_disputed", theorems_disputed),
         ("numeric", numeric),
+        ("retried", retried),
         ("frozen", frozen),
     ]
 }
@@ -95,12 +97,17 @@ fn columns(counts: SymCounts) -> [(&'static str, u64); 8] {
 /// `numeric`, as a decision with no discharge is, and this column is a
 /// second fact about that same decision rather than a fourth place for
 /// one to land, so no [`Discharge`] reaches it and none may; `frozen`
-/// counts nodes, not decisions.
-const NOT_A_DISCHARGE_KIND: [&str; 5] = [
+/// counts nodes, not decisions; and `retried` counts decisions a RETRY
+/// closed, which is a fact about WHICH attempt answered and not about
+/// what the answer claims — a retry's discharge lands in the same
+/// column the first attempt's would ([`super::SymRetry`]), which is
+/// exactly why this row must not expect a kind of its own for it.
+const NOT_A_DISCHARGE_KIND: [&str; 6] = [
     "registrations_refused",
     "registrations_contradicted",
     "theorems_disputed",
     "numeric",
+    "retried",
     "frozen",
 ];
 
@@ -225,7 +232,11 @@ fn every_discharge_kind_records_a_report_row_of_its_own() {
         // The numeric side of the pair is ignored by every discharge
         // arm of `record`'s match; a definite sign here is the reading
         // that would mask a mis-wired arm rather than agree with it.
-        report::record(&Ok(Sign::Positive), Some(kind), None, None);
+        let definite = crate::predicate::Decided {
+            sign: Sign::Positive,
+            margin: crate::MarginDiag::value(1.0),
+        };
+        report::record(&Ok(definite), Some(kind), None, None);
     }
     let rows: Vec<ShapeOutcome> = report::take_shape_report()
         .into_iter()

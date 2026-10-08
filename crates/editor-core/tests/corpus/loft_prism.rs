@@ -34,7 +34,7 @@
 //! suite (`sweep/tests/m6_loft_body.rs`), where the derivation above
 //! is asserted against the certified enclosure.
 
-use editor_core::{DocEdit, Expr, LoopProgram, Node, ProfileProgram, RecipeNodeId, SlotId};
+use editor_core::{DocEdit, Formula, LoopProgram, Node, ProfileProgram, RecipeNodeId, SlotId};
 use sweep::test_support::{PRISM_SQUARE, PRISM_TRAPEZOID};
 
 use super::super::fixture::frame;
@@ -63,7 +63,7 @@ pub fn document() -> CorpusDoc {
     let top = section(&mut r, 2.0, PRISM_SQUARE);
     let loft = r.insert(Node::Loft {
         profiles: vec![bottom, middle, top],
-        v_degree: Expr::count(2),
+        v_degree: Formula::count(2),
     });
 
     CorpusDoc {
@@ -81,7 +81,8 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetStructuralParam {
             node: loft,
             slot: SlotId::VDegree,
-            expr: Expr::count(1),
+            expr: Formula::count(1),
+            fresh: Vec::new(),
         },
         bump_root: loft,
     }

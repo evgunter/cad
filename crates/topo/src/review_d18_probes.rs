@@ -8,16 +8,14 @@
 //!
 //! What each row is for:
 //!
-//! - The two new plan-phase link checks (`split_edge`'s `prev(hm)` and
-//!   `kef`'s `prev(he)`) are claimed to be **reachable** and to preserve
-//!   atomicity. Nothing in the tree plants a dangling `prev`, so nothing
-//!   in the tree distinguishes "the check is there" from "the check is
-//!   dead code". These rows plant one and assert both the typed
-//!   `StaleKey` and a deep-equal body.
+//! - The two plan-phase link checks (`split_edge`'s `prev(hm)` and
+//!   `kef`'s `prev(he)`) are claimed to be **reachable** and to fire
+//!   before any write. These rows plant a dangling `prev` and assert
+//!   both the plan phase's panic naming that link and a deep-equal
+//!   body.
 //! - The unit's PR body claims
-//!   `review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking` is
-//!   "the row most exposed to `kef`'s new check" and that under it "some
-//!   of those calls return `StaleKey` earlier than they used to". That
+//!   `review_m1_pr4::kill_ops_on_torn_bodies_panic_only_naming_a_premise` is
+//!   "the row most exposed to `kef`'s new check". That
 //!   fixture tears only `next` links and edge bijections. The evidence
 //!   row below rebuilds the tear and shows every `prev` stays live, so
 //!   the new check never fires there and the row carries no coverage of
@@ -40,11 +38,11 @@ test_utils::gated_to![
 
 use geom_core::Point3;
 
+use crate::Body;
 use crate::entity::{EntityId, HalfEdgeKey};
 use crate::euler::{MefSite, MevSite};
-use crate::fixtures::deep_snapshot;
+use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
 use crate::test_support_fixtures::declined_cube;
-use crate::{Body, EulerOpError};
 use geom_core::Tol;
 
 /// Strut count for the torn-body evidence row. On the workspace's
@@ -61,71 +59,61 @@ fn p(x: f64) -> Point3<f64> {
     Point3::new(x, 0.0, 0.0)
 }
 
-/// `split_edge`'s new `prev(he_minus)` check is reachable: a dangling
-/// `prev` on the minus half is refused **typed and atomically**, before
-/// any mutation and before the geometry gate.
-///
-/// This is the check the unit added. Without it the dangling key would
-/// reach `link_half_edges` — which, after this unit, announces. So the
-/// row also pins that the refusal is a `StaleKey`, never a panic.
+/// Asserts `op` panics in its plan phase naming `holder`'s `field` as a
+/// link to the null half-edge key, with `body` deep-unchanged.
+fn assert_dangling_link_panics<R: core::fmt::Debug>(
+    label: &str,
+    body: &mut Body<f64>,
+    holder: HalfEdgeKey,
+    field: &str,
+    op: impl FnOnce(&mut Body<f64>) -> R,
+) {
+    let named = format!(
+        "{}'s {field} names {}, which does not resolve",
+        EntityId::HalfEdge(holder),
+        EntityId::HalfEdge(HalfEdgeKey::default())
+    );
+    assert_torn_op_panics(label, body, &[&named, ROW_FOUR], op);
+}
+
+/// `split_edge`'s `prev(he_minus)` check is reachable: a dangling
+/// `prev` on the minus half panics in the plan phase naming the link,
+/// before any mutation and before the geometry gate. Without the check
+/// the dangling key would reach `link_half_edges`' mutation-phase arm.
 #[test]
-fn d18_split_edge_refuses_a_dangling_prev_of_he_minus() {
+fn d18_split_edge_panics_at_a_dangling_prev_of_he_minus() {
     let tol = Tol::witness();
     let cube = declined_cube::<f64>(tol);
     let mut body = cube.body;
     let edge = cube.mevs[0].edge;
     let hm = body.get_edge(edge).unwrap().he_minus;
     body.get_half_edge_mut(hm).unwrap().prev = HalfEdgeKey::default();
-
-    let before = deep_snapshot(&body);
-    let err = body.split_edge(edge, 0.5, tol).unwrap_err();
-    assert_eq!(
-        err,
-        EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(HalfEdgeKey::default()),
-        },
-        "split_edge must refuse a dangling prev(he_minus) typed"
-    );
-    assert_eq!(
-        deep_snapshot(&body),
-        before,
-        "split_edge atomicity: the body must be untouched on Err"
-    );
+    assert_dangling_link_panics("split_edge", &mut body, hm, "prev", |b| {
+        b.split_edge(edge, 0.5, tol)
+    });
 }
 
-/// The symmetric control: `split_edge`'s pre-existing `next(he_plus)`
-/// check still refuses the same way, so the new check joined a pair
-/// rather than replacing one.
+/// The symmetric control: `split_edge`'s `next(he_plus)` check panics
+/// the same way, so the `prev` check joined a pair rather than
+/// replacing one.
 #[test]
-fn d18_split_edge_still_refuses_a_dangling_next_of_he_plus() {
+fn d18_split_edge_panics_at_a_dangling_next_of_he_plus() {
     let tol = Tol::witness();
     let cube = declined_cube::<f64>(tol);
     let mut body = cube.body;
     let edge = cube.mevs[0].edge;
     let hp = body.get_edge(edge).unwrap().he_plus;
     body.get_half_edge_mut(hp).unwrap().next = HalfEdgeKey::default();
-
-    let before = deep_snapshot(&body);
-    let err = body.split_edge(edge, 0.5, tol).unwrap_err();
-    assert_eq!(
-        err,
-        EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(HalfEdgeKey::default()),
-        },
-        "split_edge must still refuse a dangling next(he_plus) typed"
-    );
-    assert_eq!(
-        deep_snapshot(&body),
-        before,
-        "split_edge atomicity on the pre-existing check"
-    );
+    assert_dangling_link_panics("split_edge", &mut body, hp, "next", |b| {
+        b.split_edge(edge, 0.5, tol)
+    });
 }
 
 /// The digon pillow, built by operators: two vertices, two edges, two
 /// faces. `kef` applies to either half of the second edge.
 fn pillow(tol: Tol) -> (Body<f64>, crate::MevCreated, crate::MefCreated) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -147,40 +135,28 @@ fn pillow(tol: Tol) -> (Body<f64>, crate::MevCreated, crate::MefCreated) {
     (body, seg, split)
 }
 
-/// `kef`'s new `prev(he)` check is reachable: a dangling `prev` on the
-/// dying half-edge is refused typed and atomically.
+/// `kef`'s `prev(he)` check is reachable: a dangling `prev` on the
+/// dying half-edge panics in the plan phase naming the link.
 ///
 /// The tear is on `prev` only, so `loop_cycle(he)` — which steps
-/// `next` — still closes; the refusal therefore comes from the link
-/// loop the unit widened from `[c, d]` to `[a, c, d]`, and not from
-/// `LoopCycleBroken`. That distinction is the whole content of the
-/// unit's `kef` half.
+/// `next` — still closes; the panic therefore comes from the link
+/// checks `[a, c, d]`, not from the loop walk. That distinction is the
+/// whole content of the unit's `kef` half.
 #[test]
-fn d18_kef_refuses_a_dangling_prev_of_he() {
+fn d18_kef_panics_at_a_dangling_prev_of_he() {
     let tol = Tol::witness();
     let (mut body, _seg, split) = pillow(tol);
     let he = split.he_minus;
     body.get_half_edge_mut(he).unwrap().prev = HalfEdgeKey::default();
-
-    let before = deep_snapshot(&body);
-    let err = body.kef(he).unwrap_err();
-    assert_eq!(
-        err,
-        EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(HalfEdgeKey::default()),
-        },
-        "kef must refuse a dangling prev(he) typed, not LoopCycleBroken \
-         and not a panic"
+    assert!(
+        body.loop_cycle(he).is_some(),
+        "fixture: tearing prev must not disturb the next-walk"
     );
-    assert_eq!(
-        deep_snapshot(&body),
-        before,
-        "kef atomicity: the body must be untouched on Err"
-    );
+    assert_dangling_link_panics("kef", &mut body, he, "prev", |b| b.kef(he));
 }
 
 /// EVIDENCE, not a kernel gate: the torn-body fixture that
-/// `review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking`
+/// `review_m1_pr4::kill_ops_on_torn_bodies_panic_only_naming_a_premise`
 /// builds tears `next` links and edge bijections and **never touches a
 /// `prev` field**, so every `prev` in it stays live and `kef`'s new
 /// `[a, c, d]` check cannot fire there.
@@ -192,7 +168,7 @@ fn d18_kef_refuses_a_dangling_prev_of_he() {
 fn d18_torn_body_fixture_leaves_every_prev_live() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -219,7 +195,7 @@ fn d18_torn_body_fixture_leaves_every_prev_live() {
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let foreign = {
         let mut other = Body::<f64>::new();
-        let s = other.mvfs(p(0.0)).unwrap();
+        let s = other.mvfs(p(0.0), true).unwrap();
         let sg = other
             .mev_line(MevSite::Lone { r#loop: s.r#loop }, p(1.0), tol)
             .unwrap();

@@ -20,7 +20,8 @@ condition.
 The exact spiric rim carrier is delivered end to end and the klein
 elbow hollows. Everything else this program carried on 2026-09-19 (69
 items across six lanes) moved on Ev's in-chat direction to three
-successor tracks opened in the same commit: **REACH** (`work/reach/`,
+successor tracks opened in the same commit: **REACH** (closed 2026-10-08 into
+ORBIT, ROOTS, TALLY, APEX, GAUGE, REACHTAIL and REACHHOLD;
 the boolean lanes and S-BOOL's residue, 49 items), **TANG**
 (`work/tang/`, declared tangency, germ and pierce, the pinch design, 8
 items) and **CHART** (`work/chart/`, the three SSI drive-bys with

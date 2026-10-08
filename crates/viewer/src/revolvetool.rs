@@ -24,14 +24,14 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, Expr, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Formula, ProfileProgram, RecipeNodeId};
 
 use crate::seats::{Seat, SeatError, SeatEvent, Seats};
 use crate::session::SessionOp;
 
 /// The modal revolve tool. A value: the chrome holds one while the tool
 /// is active, a test constructs one and drives the same methods.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RevolveTool {
     seats: Seats,
 }
@@ -82,6 +82,11 @@ impl RevolveTool {
         self.seats.reconcile(doc)
     }
 
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
+    }
+
     /// **The one committed edit**: the session op that inserts the
     /// revolve node through the ordinary commit door, at `angle` (the
     /// chrome's default is a full turn).
@@ -91,7 +96,7 @@ impl RevolveTool {
     /// [`SeatError::Empty`] until both seats are filled. Node KINDS are
     /// not judged here — the session door refuses a wrong-kind pick
     /// typed.
-    pub fn op(&self, angle: Expr) -> Result<SessionOp, SeatError> {
+    pub fn op(&self, angle: Formula) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddRevolve {
             profile: self.seats.require(0)?,
             axis: self.seats.require(1)?,

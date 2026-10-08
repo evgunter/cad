@@ -21,10 +21,10 @@
 //!    verb is called by, so its `Display` is the row's too.
 //! 2. [`Step`] — the step vocabulary: one variant per authoring verb,
 //!    storing **authored data only**. `ArcVia`/`ArcCenter` keep the
-//!    points the author wrote; their bulges are DERIVED at replay, by
-//!    the same binders the typed surface calls. Storing a derived bulge
-//!    would re-type a computed value as authored and kill its
-//!    parametricity (PROFILES-V2 §V1/§V2).
+//!    points the author wrote; their arcs are DERIVED at replay, by the
+//!    same binders the typed surface calls. Storing a derived arc would
+//!    re-type a computed value as authored and kill its parametricity
+//!    (PROFILES-V2 §V1/§V2).
 //! 3. [`ClosedLoop`] — what a closing verb now returns: the lowered
 //!    [`ProfileLoop`] *and* the program that produced it. One authoring
 //!    surface, two consumers; no second spelling of any verb.
@@ -1252,11 +1252,11 @@ transition_table! {
             /// `Via{q, p}` through a point, `Center{c, winding, p}` about a
             /// centre). `p: Start` is the sharp arc seam.
             ///
-            /// Each mode's authored data is stored VERBATIM and its bulge
-            /// derived by the one closed form the raw chain uses
-            /// ([`crate::bulge_from_via`] / [`crate::bulge_from_center`]), so
-            /// the doors emit the same bits. On a directed point the §4 item 1
-            /// junction check runs on the arc's START TANGENT.
+            /// Each mode's authored data is stored VERBATIM and its arc
+            /// built by the mode's one conversion: `Bulge` and `Via` lowered
+            /// from the chord, `Center` about the authored centre. On a
+            /// directed point the §4 item 1 junction check runs on the arc's
+            /// START TANGENT.
             ///
             /// Refusals: a through-point within ε_input of the chord LINE
             /// ([`PathError::ArcViaCollinear`] — the whole collinear class);
@@ -1825,7 +1825,7 @@ transition_table! {
     } = "circle" bind { centre, radius } rows {
         free {
             /// The circle primitive (G1 constructor 1): a **one-step complete-loop
-            /// program form**, not a chain — `circle(center, r)` IS the whole loop,
+            /// program form**, not a chain — `circle(centre, r)` IS the whole loop,
             /// so it returns the lowered [`ProfileLoop`] directly and there is
             /// nothing to continue, close, or bind.
             ///
@@ -1836,7 +1836,7 @@ transition_table! {
             /// at all. The conventional split — two semicircles at the ±x poles,
             /// counterclockwise — is the primitive's PRIVATE lowering, exactly the
             /// M2 closed-carrier precedent: a detail of how a closed carrier
-            /// reaches a vertex+bulge document, not a junction anyone said. The two
+            /// reaches a vertex-and-segment document, not a junction anyone said. The two
             /// joints are same-carrier identities, so nothing is declared tangent
             /// (there is no tangency to declare — it is one circle).
             ///
@@ -1846,22 +1846,20 @@ transition_table! {
             /// mix circle loops and chain loops freely (per-loop wholesale, which
             /// is the mixed-authoring rule of §6 read at loop granularity).
             fn circle [<T: Decide>(
-                center: Point2<T>,
+                centre: Point2<T>,
                 radius: T,
                 tol: Tol,
             ) -> Result<ClosedLoop<T>, PathError<T>>] {
-                let loop_ = super::circle_kernel(center, radius, tol)?;
+                let loop_ = super::circle_kernel(centre, radius, tol)?;
                 Ok(ClosedLoop {
                     // A closed carrier resolves no fillet: no gate, no
                     // ladder, nothing discrete to record but the one
                     // step's reach, which is the whole loop.
                     structure: ReplayStructure::carrier(loop_.vertices.len())?,
-                    loop_,
-                    program: vec![Step::Circle {
-                        centre: center,
-                        radius,
-                    }],
+                    loop_: ConstructedLoop(loop_),
+                    program: vec![Step::Circle { centre, radius }],
                 })
+                .inspect(|closed| closed.structure.check_role_lists(&closed.program))
             }
             arms {
                 Entry => Ok(Applied::Closed(circle(centre, radius, tol)?)),
@@ -1894,36 +1892,39 @@ transition_table! {
             /// (the boss corpus document is the recorded use case).
             ///
             /// Numerics, stated plainly: vertex `k` sits at
-            /// `center + radius·(cos θ_k, sin θ_k)`, `θ_k = phase + k·2π/n`, and
-            /// every bulge is `tan(π/(2n))` — all through the scalar's libm-pure
+            /// `centre + radius·(cos θ_k, sin θ_k)`, `θ_k = phase + k·2π/n`, and
+            /// every arc sweeps `4·atan(tan(π/(2n)))` about the authored centre at
+            /// the authored radius — all through the scalar's libm-pure
             /// trig (D9-deterministic; no exactness promise at axis crossings, the
             /// same posture as `.angle(θ)` directors).
             ///
             /// `radius` must classify definitely positive (the [`circle`] gate,
             /// same funnel row); `n` must lie in `2..=u32::MAX` ([`PathError::CircleSplitCount`]
-            /// — a one-vertex full turn has no bulge representation). `n` is
+            /// — a one-vertex full turn's quarter-tangent, `tan(π/2)`, is the
+            /// pole). `n` is
             /// structural (a count, never a value); `phase` is continuous.
             fn circle_split [<T: Decide>(
-                center: Point2<T>,
+                centre: Point2<T>,
                 radius: T,
                 n: usize,
                 phase: T,
                 tol: Tol,
             ) -> Result<ClosedLoop<T>, PathError<T>>] {
-                let loop_ = super::circle_split_kernel(center, radius, n, phase, tol)?;
+                let loop_ = super::circle_split_kernel(centre, radius, n, phase, tol)?;
                 Ok(ClosedLoop {
                     // Structural subdivisions of one carrier: still no
                     // fillet resolution anywhere in the form, and the
                     // one step reaches every subdivision.
                     structure: ReplayStructure::carrier(loop_.vertices.len())?,
-                    loop_,
+                    loop_: ConstructedLoop(loop_),
                     program: vec![Step::CircleSplit {
-                        centre: center,
+                        centre,
                         radius,
                         n,
                         phase,
                     }],
                 })
+                .inspect(|closed| closed.structure.check_role_lists(&closed.program))
             }
             arms {
                 Entry => Ok(Applied::Closed(
@@ -2068,8 +2069,8 @@ impl<T: Real> ArcData<T> {
 /// [`From`]/`.into()` or by reading [`ClosedLoop::loop_`].
 #[derive(Clone, Debug)]
 pub struct ClosedLoop<T: Real> {
-    /// The lowered loop.
-    pub loop_: ProfileLoop<T>,
+    /// The lowered loop, carrying the provenance of its construction.
+    pub loop_: ConstructedLoop<T>,
     /// The recorded program: replaying it reproduces `loop_` exactly.
     pub program: Vec<Step<T>>,
     /// The discrete choices this lowering made — the third value one
@@ -2079,9 +2080,17 @@ pub struct ClosedLoop<T: Real> {
     pub structure: crate::structure::ReplayStructure,
 }
 
-impl<T: Real> From<ClosedLoop<T>> for ProfileLoop<T> {
+impl<T: Real> From<ClosedLoop<T>> for ConstructedLoop<T> {
     fn from(closed: ClosedLoop<T>) -> Self {
         closed.loop_
+    }
+}
+
+/// The loop, giving up the provenance ([`ConstructedLoop::into_loop`]):
+/// a `ProfileLoop` validates as a table.
+impl<T: Real> From<ClosedLoop<T>> for ProfileLoop<T> {
+    fn from(closed: ClosedLoop<T>) -> Self {
+        closed.loop_.into_loop()
     }
 }
 
@@ -2665,13 +2674,18 @@ spec_dispatch! {
 /// (`common::pinned`), and per-verb reachability by the
 /// replay-coverage census (see the module docs).
 ///
+/// The loop comes back as a [`ConstructedLoop`]: its arcs are the ones
+/// this replay constructed, verified at their construction (D1), and
+/// [`crate::ConstructedProfile`] validates it without deciding their
+/// consistency checks again.
+///
 /// # Errors
 ///
 /// [`ReplayError`], carrying the offending step index.
 pub fn replay<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     tol: Tol,
-) -> Result<ProfileLoop<T>, ReplayError<T>> {
+) -> Result<ConstructedLoop<T>, ReplayError<T>> {
     drive(steps, tol, Guide::recording()).map(|closed| closed.loop_)
 }
 
@@ -2690,7 +2704,7 @@ pub fn replay<T: ArcCarrierScalar>(
 pub fn replay_recording<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     tol: Tol,
-) -> Result<(ProfileLoop<T>, ReplayStructure), ReplayError<T>> {
+) -> Result<(ConstructedLoop<T>, ReplayStructure), ReplayError<T>> {
     drive(steps, tol, Guide::recording()).map(|closed| (closed.loop_, closed.structure))
 }
 
@@ -2725,7 +2739,7 @@ pub fn replay_guided<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     structure: &ReplayStructure,
     tol: Tol,
-) -> Result<ProfileLoop<T>, ReplayError<T>> {
+) -> Result<ConstructedLoop<T>, ReplayError<T>> {
     let want = structure.fillets.len();
     let closed = drive(steps, tol, Guide::guided(structure.clone()))?;
     // Reaching FEWER resolutions than the record describes is not a
@@ -2815,6 +2829,50 @@ pub fn replay_guided<T: ArcCarrierScalar>(
         }
     }
     Ok(closed.loop_)
+}
+
+/// A loop the path lattice constructed: the loop, and the fact that
+/// every arc in it was verified at its construction, at this scalar
+/// (D1) — each by the mode's one conversion that built it, which
+/// registers the endpoint identities its algebra proves and decides
+/// the rest inline (a `Center` arc's `path_arc_center_equidistant`, a
+/// fillet's offset tangency or exact fit).
+///
+/// Minted only at the lattice's closing — a chain's `finish` and the
+/// `circle` and `circle_split` forms — which the builder and every
+/// replay ([`replay`], [`replay_recording`], [`replay_guided`]) go
+/// through; the field is private to the `path` module. It is the loop
+/// [`crate::ConstructedProfile`] is built from, so a table cannot reach
+/// the validation that consumes that fact. It reads as its loop
+/// ([`Deref`](core::ops::Deref)), and gives the provenance up only by
+/// [`ConstructedLoop::into_loop`].
+#[derive(Clone, Debug)]
+pub struct ConstructedLoop<T: Real>(pub(in crate::path) ProfileLoop<T>);
+
+impl<T: Real> ConstructedLoop<T> {
+    /// The loop.
+    pub fn as_loop(&self) -> &ProfileLoop<T> {
+        &self.0
+    }
+
+    /// The loop, giving up the provenance.
+    pub fn into_loop(self) -> ProfileLoop<T> {
+        self.0
+    }
+}
+
+impl<T: Real> core::borrow::Borrow<ProfileLoop<T>> for ConstructedLoop<T> {
+    fn borrow(&self) -> &ProfileLoop<T> {
+        &self.0
+    }
+}
+
+impl<T: Real> core::ops::Deref for ConstructedLoop<T> {
+    type Target = ProfileLoop<T>;
+
+    fn deref(&self) -> &ProfileLoop<T> {
+        &self.0
+    }
 }
 
 /// The driver proper: one walk over the steps, one guide, one chain.

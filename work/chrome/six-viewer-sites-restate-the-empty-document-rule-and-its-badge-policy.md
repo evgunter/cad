@@ -2,10 +2,13 @@
 id: six-viewer-sites-restate-the-empty-document-rule-and-its-badge-policy
 kind: issue
 title: at least six viewer sites outside frame.rs restate the classification and the badge policy that frame::badge_site now decides, and the sweep that closed the originating row found two of them
-status: open
+status: closed
+branch: chrome/empty-doc-badge
 opened: 2026-09-21
 priority: P3
 cost: E
+closed: 2026-09-24
+pr: 3135
 ---
 
 ## Finding
@@ -108,3 +111,32 @@ for `chrome/empty-document-gate`, whose scope was `frame.rs`,
 claimed by CHROME jointly with VIEW (and VSEAM, VGEOM, FIT); filed on
 CHROME because what the chrome says about a document is CHROME's
 charter and the loudest site is a badge-column comment.
+
+## Closed
+
+Closed by PR 3135 (`chrome/empty-doc-badge`). Each of the six was
+verified against the tree before it was touched; all six were there as
+described, and each now cites the home in one line:
+
+- `app.rs`, the badge column: *"Which faults reach it is
+  `frame::badge_site`'s."* — the enumeration of its arms is gone.
+- `app.rs`, the landing arm: the naming-collision argument is gone; the
+  comment keeps only why the verdict is a badge and not a line.
+- `scene.rs`, `SceneError::NoProduct`: any of the gather's reasons, and
+  `ProductErrorKind::means_no_body` says which is an absence.
+- `scene.rs`, `SceneMesh::nothing`: which documents those are is
+  `means_no_body`'s.
+- `pane/viewport.rs`, the fixture comment: a failed root is one
+  `frame::badge_site` sends to the feature tree.
+- `session.rs`, `product_fault`'s doc: every class, and which channel
+  reports which is `frame::badge_site`'s — the old sentence was also
+  false, since the field carries the per-node classes too.
+
+The two sites recorded as out of reach are in: `session.rs`'s landing
+comment now keeps every class and cites `badge_site`, and the
+borderline `landing_gathers.rs` header names `means_no_body` as the
+reading. `tree.rs`'s row-badge docs and `crates/viewer/README.md`'s
+`frame` row were read and are not hits: the first cites `badge_site`
+and states the tree's own policy, the second names `product_badge` as a
+member of the badge family without restating what it declines. The
+PR body carries the sweep's hit list and dispositions.

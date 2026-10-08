@@ -5,13 +5,13 @@
 //! invariance per carrier, reversed authoring, a bore-groove torus
 //! band), plus the D1 guard: a TOUCHING union against a reversed-face
 //! body must refuse typed until boolean splitting inherits the parent
-//! face's sense (see `Body::set_face_sense` docs — the mef re-mint
-//! hazard). When curved unions start answering, D1 fails loudly and
-//! the inheritance fix becomes due.
+//! face's sense (the mef re-mint hazard). When curved unions start
+//! answering, D1 fails loudly and the inheritance fix becomes due.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use core::f64::consts::PI;
 use profile::RawLoop;
@@ -24,6 +24,7 @@ use profile::{
     ArcSweep, Center, Open, Profile, ProfileLoop, SketchPlane, Start, test_support::bulge_loop,
 };
 use revolve_common::{assert_all_tiers, axis_y, validated};
+use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
@@ -60,7 +61,15 @@ fn adv_mixed_convex_concave_hole() {
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(
         topo::validate::validate_geometric(&t.body, Tol::witness()),
@@ -69,7 +78,7 @@ fn adv_mixed_convex_concave_hole() {
     // Equal-sagitta segments cancel: hole area exactly 4, volume 32.
     assert!((vol(&t.body) - 32.0).abs() < 1e-9, "vol {}", vol(&t.body));
     let mut seen = (0, 0, 0); // (false-cyl, true-cyl, true-plane)
-    for &f in &t.side_faces[1] {
+    for &f in &t.side_faces()[1] {
         let sk = t.body.get_face(f).unwrap().surface;
         match *t.body.get_surface(sk).unwrap() {
             Surface::Cylinder { origin, .. } => {
@@ -143,6 +152,7 @@ fn eye_slot(radius: f64) -> ProfileLoop<f64> {
     )
     .unwrap()
     .loop_
+    .into_loop()
 }
 
 /// A2: extrude the eye slot as an OUTER region -> every wall convex,
@@ -155,13 +165,21 @@ fn adv_eye_slot_outer_and_hole_senses() {
     let vp = Profile::new(SketchPlane::xy(), vec![eye_slot(0.3)])
         .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(
         topo::validate::validate_geometric(&t.body, Tol::witness()),
         Ok(())
     );
-    for &f in &t.side_faces[0] {
+    for &f in &t.side_faces()[0] {
         assert!(sense_of(&t.body, f), "outer vesica walls are all convex");
     }
     let v_outer = vol(&t.body);
@@ -176,13 +194,21 @@ fn adv_eye_slot_outer_and_hole_senses() {
     let vp = Profile::new(SketchPlane::xy(), vec![outer, eye_slot(0.3)])
         .validate(Tol::witness())
         .unwrap();
-    let t = extrude(&vp, Extrusion::Distance(1.0), Tol::witness()).unwrap();
+    let t = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(
         topo::validate::validate_geometric(&t.body, Tol::witness()),
         Ok(())
     );
-    for &f in &t.side_faces[1] {
+    for &f in &t.side_faces()[1] {
         assert!(!sense_of(&t.body, f), "every eye-slot hole wall is concave");
     }
     assert!(
@@ -223,7 +249,10 @@ fn adv_asymmetric_downward_invariance() {
         &Profile::new(SketchPlane::xy(), vec![mk()])
             .validate(Tol::witness())
             .unwrap(),
-        Extrusion::Distance(1.0),
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap();
@@ -238,7 +267,7 @@ fn adv_asymmetric_downward_invariance() {
     assert_all_tiers(&up.body);
     assert_all_tiers(&down.body);
     let carriers = |t: &sweep::Extruded<f64>| {
-        let mut v: Vec<((i64, i64, i64), bool)> = t.side_faces[0]
+        let mut v: Vec<((i64, i64, i64), bool)> = t.side_faces()[0]
             .iter()
             .map(|&f| {
                 let sk = t.body.get_face(f).unwrap().surface;
@@ -294,7 +323,7 @@ fn adv_reversed_authoring_revolve_same_senses() {
             Tol::witness(),
         )
         .unwrap();
-        let mut m: Vec<(String, bool)> = t.walls[0]
+        let mut m: Vec<(String, bool)> = t.walls()[0]
             .iter()
             .flatten()
             .map(|&f| {
@@ -349,7 +378,7 @@ fn adv_bore_groove_torus_band() {
     );
     // bottom annulus F, outer cyl T, top annulus T, bore upper F,
     // groove torus F, bore lower F.
-    let senses: Vec<Option<bool>> = t.walls[0]
+    let senses: Vec<Option<bool>> = t.walls()[0]
         .iter()
         .map(|w| w.map(|f| sense_of(&t.body, f)))
         .collect();
@@ -365,7 +394,7 @@ fn adv_bore_groove_torus_band() {
         ]
     );
     // The groove wall really is a torus.
-    let groove = t.walls[0][4].unwrap();
+    let groove = t.walls()[0][4].unwrap();
     let sk = t.body.get_face(groove).unwrap().surface;
     assert!(matches!(
         t.body.get_surface(sk).unwrap(),
@@ -373,25 +402,23 @@ fn adv_bore_groove_torus_band() {
     ));
 }
 
-/// D1: a TOUCHING union against a body that carries reversed faces -
+/// D1: a union against a body that carries reversed faces -
 /// must not silently split a reversed face through sense-true mef
 /// re-mints.
 ///
 /// **Re-aimed at M5 S12.** When S11 adopted this probe the `mef`
 /// re-mints DID stamp `sense: true`, so an answer here would have been
 /// a silently mis-oriented body and panicking was the right response.
-/// S12 landed the inheritance fix (`mint_face_surface_and_sense`
-/// hands `mef`'s re-mint the parent's bit whenever the fragment lands
-/// on the parent's surface; `mfkrh` takes the same decision from the
-/// same helper), so an answer is no longer prima facie wrong — the
-/// row therefore AUDITS an answer instead of rejecting it, and keeps
-/// accepting the typed refusal this washer/box pair still takes (its
-/// door is the annulus-touching lane, not sense inheritance). The
+/// S12 landed the inheritance fix (`mef`'s re-mint takes the parent's
+/// bit whenever the fragment lands on the parent's chart,
+/// `Body::resolve_face_surface`), so an answer is no longer prima
+/// facie wrong — the
+/// row therefore AUDITS the answer, by volume and tier 3. The
 /// mixed-sense split that S12 genuinely made reachable is pinned with
 /// exact volumes in `m5_s12_curved_ops.rs`
 /// (`a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`).
 #[test]
-fn adv_touching_union_with_reversed_faces_refuses_typed() {
+fn adv_union_with_reversed_faces_answers_exactly() {
     let lp = ProfileLoop::polygon([
         Point2::new(1.0, 0.0),
         Point2::new(2.0, 0.0),
@@ -417,11 +444,22 @@ fn adv_touching_union_with_reversed_faces_refuses_typed() {
     let vp = Profile::new(plane, vec![sq])
         .validate(Tol::witness())
         .unwrap();
-    let boxb = extrude(&vp, Extrusion::Distance(0.4), Tol::witness())
-        .unwrap()
-        .body;
+    let boxb = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 0.4,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    let (washer, boxb) = (
+        finished("the washer", washer, Tol::witness()),
+        finished("the box", boxb, Tol::witness()),
+    );
     match topo::boolean::union(&washer, &boxb, Tol::witness()) {
-        Err(e) => println!("typed refusal (expected today): {e}"),
+        Err(e) => panic!("the washer's full-turn walls are served at both doors: {e}"),
         Ok(r) => {
             let out = r.body().expect("non-empty");
             println!(
@@ -431,14 +469,16 @@ fn adv_touching_union_with_reversed_faces_refuses_typed() {
             );
             // Answering is legal as of S12; being WRONG is not. The
             // washer is the full revolve of a 1x1 square at r in [1, 2]
-            // about the y axis, and the box (0.6 x 1.0 x 0.4 at
-            // x in [1.2, 1.8]) lies wholly under its bottom annulus,
-            // so a touching union is exactly additive.
+            // about the y axis, y in [0, 1]. The box (0.6 x 1.0 x 0.4 at
+            // x in [1.2, 1.8], y in [-0.5, 0.5], z in [0, 0.4]) pokes
+            // through the bottom annulus: its y in [0, 0.5] half lies in
+            // the washer (r stays within [1.2, 1.85]), so the union is
+            // the sum less that 0.6 x 0.5 x 0.4 overlap.
             let washer_vol = std::f64::consts::PI * (2.0f64.powi(2) - 1.0) * 1.0;
-            let expect = washer_vol + 0.6 * 1.0 * 0.4;
+            let expect = washer_vol + 0.6 * 1.0 * 0.4 - 0.6 * 0.5 * 0.4;
             assert!(
                 (vol(&out.body) - expect).abs() < 1e-9,
-                "touching curved union answered with {} for {expect} - inspect \
+                "curved union answered with {} for {expect} - inspect \
                  sense inheritance",
                 vol(&out.body)
             );

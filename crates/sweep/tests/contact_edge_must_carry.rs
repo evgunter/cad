@@ -67,14 +67,16 @@
 
 use std::fmt::Write as _;
 
+use geom::SurfaceKind;
 use geom_brep::{
-    CERT_SAMPLES, EdgeDescription, MustCarryVerdict, SurfaceKind, edge_extent,
-    must_carry_over_edge, sample_param, tangent_certificate_lane, tangent_second_order,
+    CERT_SAMPLES, EdgeDescription, MustCarryVerdict, edge_extent, must_carry_over_edge,
+    sample_param, tangent_certificate_lane, tangent_second_order,
 };
-use geom_core::{Band, Margin, MarginDiag, Sign, Tol, Vec3};
+use geom_core::{Band, ErrorTextReading, Margin, Sign, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::{
-    BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
+    BlendDecision, BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted,
+    fillet_edges,
 };
 use sweep::test_support::{
     ROD_FILLET, ball_poled_z, bored_block_of_arcs, boss_of_arcs, circle_arcs_at_z, cube,
@@ -161,7 +163,7 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
                 let reading =
                     tangent_second_order(s1, s2, carrier.eval(t), carrier.deriv(t), extent, band);
                 let margin = Margin::sagitta(reading.jet.kappa_rel.abs(), reading.arm).value();
-                let tag = match reading.verdict {
+                let tag = match reading.verdict.map(|d| d.sign) {
                     Ok(Sign::Positive) => "+",
                     Ok(Sign::Zero) => "0",
                     Ok(Sign::Negative) => "-",
@@ -172,7 +174,7 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
             .collect();
         let verdict = must_carry_over_edge(s1, s2, carrier, t0, t1, extent, band);
         out.push(ContactReading {
-            kinds: (SurfaceKind::of(s1), SurfaceKind::of(s2)),
+            kinds: (s1.kind(), s2.kind()),
             in_lane,
             stations,
             verdict,
@@ -230,7 +232,7 @@ fn summary(name: &str, readings: &[ContactReading]) -> String {
 fn corpus() -> Vec<(String, Body<f64>)> {
     let tol = tol();
     let carve = |name: &str, body: &Body<f64>, edges: &[EdgeKey], r: f64| {
-        let out = fillet_edges(body, edges, r, tol)
+        let out = fillet_edges(&sweep::test_support::at_rest(body, tol), edges, r, tol)
             .unwrap_or_else(|e| panic!("{name} carves on the corpus: {e}"));
         (name.to_owned(), out.body)
     };
@@ -361,7 +363,12 @@ fn rod_family(ratio: f64, r: f64) -> Result<Filleted<f64>, BlendRefusal> {
     let body = rod_with_flat_at(ratio * r, r, 10.0 * r, 2.0 * ratio * r, tol())
         .expect("the family member mills");
     let crease = rod_upper_crease(&body);
-    fillet_edges(&body, &[crease], r, tol())
+    fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[crease],
+        r,
+        tol(),
+    )
 }
 
 /// The radius at which the rod family at `ratio` reads a second-order
@@ -380,6 +387,7 @@ fn in_band_refusal(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> B
         Err(BlendRefusal { error, .. }) => {
             let BlendError::Escalated {
                 site: BlendSite::Link { .. },
+                decision: BlendDecision::ContactSecondOrder,
                 source,
             } = &error
             else {
@@ -390,7 +398,7 @@ fn in_band_refusal(result: Result<Filleted<f64>, BlendRefusal>, what: &str) -> B
                 Some("tangent_second_order"),
                 "{what}: the escalation names the metered predicate"
             );
-            let MarginDiag::Value(m) = source.margin else {
+            let ErrorTextReading::Value(m) = source.margin.diagnostic_f64_for_error_text() else {
                 panic!("{what}: the deciding station's margin is a value, got {source:?}");
             };
             let b = band();
@@ -559,7 +567,12 @@ fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever(
     let die = cube(1.0, tol());
     let r = 1.5 * b.escalate();
     in_band_refusal(
-        fillet_edges(&die, &query::all_edges(&die), r, tol()),
+        fillet_edges(
+            &sweep::test_support::at_rest(&die, tol()),
+            &query::all_edges(&die),
+            r,
+            tol(),
+        ),
         "the die at r = 1.5·Kε",
     );
     for ratio in [2.0, 1.5] {
@@ -587,7 +600,7 @@ fn a_contact_in_the_bands_octave_refuses_typed_with_the_predicate_and_the_lever(
 #[test]
 fn the_contact_recourse_is_followable_at_each_site_kind() {
     let b = band();
-    let die = cube(1.0, tol());
+    let die = sweep::test_support::finished("die", cube(1.0, tol()), tol());
     in_band_refusal(
         fillet_edges(&die, &query::all_edges(&die), 1.5 * b.escalate(), tol()),
         "the die at r = 1.5·Kε",
@@ -622,11 +635,21 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
     let theta = (1.5 * b.escalate() / r).sqrt();
     let (body, edges) = skewed_cavity_edges(theta, scale);
     in_band_refusal(
-        fillet_edges(&body, &edges, r, tol()),
+        fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            r,
+            tol(),
+        ),
         "the slim wedge at θ²·r/2 = 0.75·Kε",
     );
-    let out = fillet_edges(&body, &edges, 0.1 * r, tol())
-        .unwrap_or_else(|e| panic!("the wedge at a tenth of the radius builds: {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        0.1 * r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the wedge at a tenth of the radius builds: {e}"));
     assert_eq!(
         corner_arc_chart_images(&out),
         4,
@@ -651,7 +674,7 @@ fn corner_arc_chart_images(out: &Filleted<f64>) -> usize {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(|c| c.description()),
-                    Some(EdgeDescription::Chart(c)) if !c.seam
+                    Some(EdgeDescription::Chart(c)) if !c.wrap
                 )
         })
         .count()
@@ -674,8 +697,13 @@ fn each_contact_edge_spends_the_rules_stations_once_beside_the_certificates() {
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the D-rod's two creases");
     k_stats::start_recording();
-    let out = fillet_edges(&body, &creases, Probe(ROD_FILLET), tol())
-        .unwrap_or_else(|e| panic!("the D-rod's creases carve: {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &creases,
+        Probe(ROD_FILLET),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the D-rod's creases carve: {e}"));
     let spent = k_stats::take_samples()
         .iter()
         .filter(|s| s.predicate == "tangent_second_order")

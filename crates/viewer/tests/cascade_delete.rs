@@ -19,6 +19,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use pncad::document::{
     BooleanOp, Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, cascade_delete_order,
@@ -50,6 +51,7 @@ fn die_shaped(tol: Tol) -> Die {
         Node::Extrude {
             profile: blank_profile,
             distance: common::len(0.04),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -59,6 +61,7 @@ fn die_shaped(tol: Tol) -> Die {
         Node::Extrude {
             profile: pip_profile,
             distance: common::len(0.004),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -68,16 +71,18 @@ fn die_shaped(tol: Tol) -> Die {
     for i in 0..PIPS {
         let (next, placed) = common::inserted(
             &doc,
-            Node::Transform {
-                input: pip,
-                translation: [
-                    common::len(0.001 * f64::from(u32::try_from(i).expect("a small index"))),
-                    common::len(0.0),
-                    common::len(0.0),
-                ],
-                rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: common::ang(0.0),
-            },
+            Node::transform(
+                pip,
+                pncad::document::Step::Rigid {
+                    translation: [
+                        common::len(0.001 * f64::from(u32::try_from(i).expect("a small index"))),
+                        common::len(0.0),
+                        common::len(0.0),
+                    ],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
+            ),
             tol,
         );
         let (next, cut) = common::inserted(
@@ -86,7 +91,7 @@ fn die_shaped(tol: Tol) -> Die {
                 op: BooleanOp::Subtract,
                 a: body,
                 b: placed,
-                declare: None,
+                declare: Vec::new(),
             },
             tol,
         );
@@ -123,7 +128,7 @@ fn die_shaped(tol: Tol) -> Die {
 
 /// The live node ids, sorted — a document's identity for these rows.
 fn live(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
-    let mut ids = doc.order().to_vec();
+    let mut ids = doc.ids().to_vec();
     ids.sort_unstable();
     ids
 }
@@ -175,7 +180,7 @@ fn a_mid_chain_delete_takes_exactly_the_downstream_cone() {
         );
     }
     assert_eq!(
-        after.order().len(),
+        after.ids().len(),
         before.len() - expected.len(),
         "nothing else moved"
     );
@@ -230,7 +235,13 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     let session = DocSession::inline(die.doc, tol);
 
     let leaf = session.delete_affordance(die.fillets[1]);
-    assert_eq!(leaf.label, "Delete feature 'Fillet'");
+    assert_eq!(
+        leaf.label,
+        format!(
+            "Delete Fillet {}",
+            test_utils::refusal::tag(die.fillets[1].0.digest())
+        )
+    );
     assert_eq!(
         leaf.hover, None,
         "nothing depends on it, so nothing to warn"
@@ -239,7 +250,10 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     let mid = session.delete_affordance(die.booleans[10]);
     assert_eq!(
         mid.label,
-        "Delete feature 'Boolean' and 12 dependent features"
+        format!(
+            "Delete Boolean {} and 12 dependent features",
+            test_utils::refusal::tag(die.booleans[10].0.digest())
+        )
     );
     assert_eq!(
         mid.hover.as_deref(),
@@ -252,12 +266,21 @@ fn the_delete_affordance_names_the_count_and_the_kinds() {
     let blank_cascade = session.delete_affordance(die.booleans[0]);
     assert_eq!(
         blank_cascade.label,
-        "Delete feature 'Boolean' and 22 dependent features"
+        format!(
+            "Delete Boolean {} and 22 dependent features",
+            test_utils::refusal::tag(die.booleans[0].0.digest())
+        )
     );
 
     // Singular reads as singular.
     let one = session.delete_affordance(die.fillets[0]);
-    assert_eq!(one.label, "Delete feature 'Fillet' and 1 dependent feature");
+    assert_eq!(
+        one.label,
+        format!(
+            "Delete Fillet {} and 1 dependent feature",
+            test_utils::refusal::tag(die.fillets[0].0.digest())
+        )
+    );
     assert_eq!(
         one.hover.as_deref(),
         Some("Also deletes 1 feature that depends on it: 1 × Fillet")

@@ -33,12 +33,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::{EdgeDescription, SurfaceKind};
-use geom_core::{Band, MarginDiag, Point2, Tol};
+use geom::SurfaceKind;
+use geom_brep::EdgeDescription;
+use geom_core::{Band, ErrorTextReading, Point2, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::Revolution;
 use sweep::blend::{
-    BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
+    BlendDecision, BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted,
+    fillet_edges,
 };
 use sweep::test_support::{revolved_about_y, rod_upper_crease, rod_with_flat_at};
 use sweep::{Extrusion, extrude};
@@ -67,13 +70,14 @@ fn contact_in_band_margin(result: Result<Filleted<f64>, BlendRefusal>, what: &st
         Err(BlendRefusal { error, .. }) => {
             let BlendError::Escalated {
                 site: BlendSite::Link { .. },
+                decision: BlendDecision::ContactSecondOrder,
                 source,
             } = &error
             else {
                 panic!("{what}: refused, but not as the rule's in-band escalation: {error}");
             };
             assert_eq!(source.predicate, Some("tangent_second_order"), "{what}");
-            let MarginDiag::Value(m) = source.margin else {
+            let ErrorTextReading::Value(m) = source.margin.diagnostic_f64_for_error_text() else {
                 panic!("{what}: the deciding station's margin is a value, got {source:?}");
             };
             let b = band();
@@ -171,7 +175,12 @@ fn r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door() {
     let body = sphere_zone_on_base(big_r);
     let rim = equator(&body);
     let m = contact_in_band_margin(
-        fillet_edges(&body, &[rim], r, tol()),
+        fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &[rim],
+            r,
+            tol(),
+        ),
         "the zone's equator at R/r = 10, r = 2.1·Kε",
     );
     let predicted = sphere_side_margin(r, big_r);
@@ -182,8 +191,13 @@ fn r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door() {
     // Clause one, on the sphere support: enlarge toward R/2.
     let r1 = 0.3 * big_r;
     assert!(sphere_side_margin(r1, big_r) > b.escalate());
-    let out = fillet_edges(&body, &[rim], r1, tol())
-        .unwrap_or_else(|e| panic!("the zone at r = 0.3·R builds: {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[rim],
+        r1,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the zone at r = 0.3·R builds: {e}"));
     assert_eq!(
         intrinsic_edges(&out.body),
         2,
@@ -192,8 +206,13 @@ fn r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door() {
     // Clause two: twice the feature.
     let body = sphere_zone_on_base(2.0 * big_r);
     let rim = equator(&body);
-    let out = fillet_edges(&body, &[rim], 2.0 * r, tol())
-        .unwrap_or_else(|e| panic!("the zone at twice the scale builds: {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[rim],
+        2.0 * r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the zone at twice the scale builds: {e}"));
     assert_eq!(
         intrinsic_edges(&out.body),
         2,
@@ -227,7 +246,13 @@ fn r1_the_screened_ratio_scaled_into_the_band_is_refused_at_the_mill() {
             let crease = rod_upper_crease(&body);
             panic!(
                 "the rod mills at this scale; the door then says {:?}",
-                fillet_edges(&body, &[crease], r, tol()).err()
+                fillet_edges(
+                    &sweep::test_support::at_rest(&body, tol()),
+                    &[crease],
+                    r,
+                    tol()
+                )
+                .err()
             );
         }
     }
@@ -256,9 +281,16 @@ fn block_with_d_bore(big_r: f64, flat: f64, len: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![block, hole])
         .validate(tol())
         .expect("the D-bore profile validates");
-    extrude(&profile, Extrusion::Distance(len), tol())
-        .expect("the D-bore extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: len,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the D-bore extrudes")
+    .body
 }
 
 /// **The D-bore's concave crease carves in its caps' RINGS**, requested
@@ -298,8 +330,13 @@ fn r1_the_d_bore_crease_carves_in_its_caps_ring() {
             "the crease's end {v:?} sits on a ring of its cap"
         );
     }
-    let out = fillet_edges(&body, &[crease], 0.1, tol())
-        .unwrap_or_else(|e| panic!("the D-bore's crease carves, got {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[crease],
+        0.1,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the D-bore's crease carves, got {e}"));
     assert_eq!(out.blend_faces.len(), 1, "one band");
     let census = |b: &Body<f64>| (b.vertices().count(), b.edges().count(), b.faces().count());
     let (v0, e0, f0) = census(&body);
@@ -355,13 +392,25 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
     let profile = Profile::new(SketchPlane::<Probe>::xy(), vec![square])
         .validate(tol())
         .expect("the die's profile validates");
-    let die: Body<Probe> = extrude(&profile, Extrusion::Distance(Probe(1.0)), tol())
-        .expect("the die extrudes")
-        .body;
+    let die: Body<Probe> = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: Probe(1.0),
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the die extrudes")
+    .body;
     let edges = query::all_edges(&die);
     k_stats::start_recording();
-    let out = fillet_edges(&die, &edges, Probe(0.15), tol())
-        .unwrap_or_else(|e| panic!("the die carves: {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&die, tol()),
+        &edges,
+        Probe(0.15),
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the die carves: {e}"));
     let spent = k_stats::take_samples()
         .iter()
         .filter(|s| s.predicate == "tangent_second_order")
@@ -385,7 +434,7 @@ fn chart_contact_edges(body: &Body<f64>) -> usize {
                 body.get_curve_geom(e.curve)
                     .and_then(|g| g.certified())
                     .map(|c| c.description()),
-                Some(EdgeDescription::Chart(c)) if !c.seam
+                Some(EdgeDescription::Chart(c)) if !c.wrap
             )
         })
         .count()
@@ -417,7 +466,12 @@ fn r1_a_slim_wedges_corner_arcs_reach_the_in_band_and_under_determined_verdicts(
     let theta = (1.5 * b.escalate() / r).sqrt();
     let (body, edges) = skewed_cavity_edges(theta, scale);
     let m = contact_in_band_margin(
-        fillet_edges(&body, &edges, r, tol()),
+        fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            r,
+            tol(),
+        ),
         &format!("the skewed cavity at θ = {theta:e}, r = {r:e}"),
     );
     let predicted = 2.0 * r * (0.5 * theta).sin().powi(2);
@@ -428,8 +482,13 @@ fn r1_a_slim_wedges_corner_arcs_reach_the_in_band_and_under_determined_verdicts(
     // Under-determined: the same pose, slimmer.
     let theta = (b.zero() / r).sqrt();
     let (body, edges) = skewed_cavity_edges(theta, scale);
-    let out = fillet_edges(&body, &edges, r, tol())
-        .unwrap_or_else(|e| panic!("the slimmer skew at θ = {theta:e} builds: {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the slimmer skew at θ = {theta:e} builds: {e}"));
     assert_eq!(
         topo::validate_geometric(&out.body, tol()),
         Ok(()),

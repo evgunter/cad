@@ -29,14 +29,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
+    Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramStep,
+    ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
     select_where,
 };
 use geom_core::sym::report::ShapeOutcome;
@@ -46,8 +47,8 @@ use crate::fixture::{Recorder, len, xy_frame};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{ceiling, certifies_whole, dials};
 
-fn plen(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn plen(n: &'static str) -> Formula {
+    Formula::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// M10-9's tier with the door shut — M10-8's. The rows here are
@@ -89,15 +90,15 @@ const BORE: f64 = 0.6e-3;
 /// ask for (±20 µm on the half-width, σ = 10 µm on the bores).
 pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
-        r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
-            value: DocParam::Continuous {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
+        r.push(DocEdit::DeclareVar {
+            name: VarName::from_static(n),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: Some(distribution),
-            },
+            }),
         });
     };
     declare(
@@ -120,7 +121,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
 
     let plane = r.insert(xy_frame());
 
-    let neg_w = Expr::neg(plen("half_w"));
+    let neg_w = Formula::neg(plen("half_w")).expect("a shallow negation");
     // The chain's own idiom for a tangent arc between two tangent legs:
     // `.tangent()` before the arc and before the leg out of it, the
     // leg out authored as a LENGTH since it rides the inherited
@@ -144,6 +145,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
     let body = r.insert(Node::Extrude {
         profile,
         distance: thickness.clone(),
+        side: ExtrudeSide::Along,
     });
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
@@ -156,6 +158,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
     let bore = r.insert(Node::Extrude {
         profile: bore_profile,
         distance: thickness,
+        side: ExtrudeSide::Along,
     });
 
     let refs = {
@@ -166,14 +169,14 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId, which: usize| {
             let mut faces = select_where(
                 &ev,
                 node,
                 &Selector::of(NamePat::of_kind(EntityKind::Face)),
                 &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                    geom_brep::SurfaceKind::Cylinder,
+                    geom::SurfaceKind::Cylinder,
                 ))],
                 &env,
                 tol,
@@ -467,7 +470,10 @@ fn r2_link_end_to_end_with_and_without_the_door() {
             tol,
         )
         .expect("the link builds");
-        println!("== link, real study, {label}:\n{}", v.render(&analyzed));
+        println!(
+            "== link, real study, {label}:\n{}",
+            v.render(&doc, &analyzed)
+        );
     }
 
     // The ceiling, both ways.
@@ -834,7 +840,7 @@ fn r2_evidence_plate_enclosure_vs_scale() {
             let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
             let (shapes, refusal, _) = replay(&doc, &ParamBox::of(&analyzed), rules, tol);
             let table = envelopes(&shapes);
-            let pick = |p: &str| {
+            let pick = |p: &'static str| {
                 table
                     .get(p)
                     .map_or("-".to_owned(), |w| format!("[{:.4e},{:.4e}]", w.lo, w.hi))

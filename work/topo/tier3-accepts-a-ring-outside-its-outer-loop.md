@@ -29,9 +29,9 @@ passed on the mutant.
 is no longer true of the tree, and the premise it rests on was never
 true of `shell_open`. Both blinded reviews re-installed the SHELL-5 R1
 mutant at this unit's head and measured the verb, not the validator:
-`shell_open` refuses the inverted pick with
-`ShellError::Corrupt { key: Edge(..) }` from the naming record's
-`ring_rows` walk — the glued ring's entities have no source row on an
+`shell_open` refused the inverted pick from the naming record's
+`ring_rows` walk (now a panic naming the ring edge with no source row,
+D2 row 4) — the glued ring's entities have no source row on an
 inverted pick, and the record is built before the verb's closing
 `validate_geometric` runs — so the R1 e2e row now FAILS on the mutant,
 at the verb, and the closing validate never sees the inverted body.

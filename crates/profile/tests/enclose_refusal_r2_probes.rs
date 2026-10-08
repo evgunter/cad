@@ -72,7 +72,7 @@ fn arc_arc_corner(
         Tol::witness(),
     )?
     .line_to(Start, Tol::witness())
-    .map(|closed| closed.loop_)
+    .map(|closed| closed.loop_.into_loop())
 }
 
 /// Recover a segment's circle from the stored chord + bulge.
@@ -188,7 +188,7 @@ fn fillet_endpoints(lp: &ProfileLoop<f64>, r: f64) -> Option<(Point2<f64>, Point
     for i in 0..n {
         let a = lp.vertices()[i];
         let b = lp.vertices()[(i + 1) % n];
-        let bulge = lp.bulges()[i];
+        let bulge = crate::common::quarter_tan(&lp.segments()[i]);
         if bulge == 0.0 {
             continue;
         }
@@ -539,7 +539,7 @@ fn p4_a_line_partner_corner_with_a_negative_rho_arc_leg() {
                 .and_then(|b| b.toward(dx, dy, Tol::witness()))
                 .and_then(|b| b.line(0.25, Tol::witness()))
                 .and_then(|b| b.line_to(Start, Tol::witness()))
-                .map(|closed| closed.loop_);
+                .map(|closed| closed.loop_.into_loop());
             println!("P4 r = {fillet}, dir ({dx}, {dy}) -> {}", label(&res));
         }
     }
@@ -659,7 +659,7 @@ fn p7_the_named_bound_on_a_corner_whose_carriers_differ() {
             Tol::witness(),
         )
         .and_then(|b| b.line_to(Start, Tol::witness()))
-        .map(|closed| closed.loop_)
+        .map(|closed| closed.loop_.into_loop())
     };
     let err = build(2.0).unwrap_err();
     println!("P7 at r = 2: {}", label(&Err(err.clone())));
@@ -721,7 +721,7 @@ fn e2e_a_rounded_slot_authored_through_the_public_doors() {
                 Tol::witness(),
             )
             .and_then(|b| b.line_to(Start, Tol::witness()))
-            .map(|closed| closed.loop_);
+            .map(|closed| closed.loop_.into_loop());
         println!("E2E fillet r = {fillet:<7} -> {}", label(&res));
         if let Err(e) = &res
             && crate::common::is_enclosing(e)

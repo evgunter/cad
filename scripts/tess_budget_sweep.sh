@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Tessellation-budget sweep (issue #320): tessellates every demo tour
-# scene at its own δ with `mesh::budget` armed and writes one CSV row
-# per face — chart, triangles, the grid the lane used, and the cheaper
-# grids the SAME certificates admit.
+# body at the δ the tour renders it at, with `mesh::budget` armed, and
+# writes one CSV row per face — chart, triangles, the grid the lane
+# used, and the cheaper grids the SAME certificates admit.
 #
 # Usage:
 #   scripts/tess_budget_sweep.sh <out.csv> [--sizing-only]

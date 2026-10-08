@@ -68,18 +68,36 @@ struct Tally {
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
 ///
-/// Last moved when validation began keeping each loop's authored start
-/// (`profile` README V3): from `(442782, 141992, 20016, 10536)`. The
-/// rays are unchanged, because the point sets are. Per document, the
-/// move is entirely three documents' triangulations, whose loops start
-/// at another vertex, so the caps fan and the walls seam from there:
-/// - `cut_cylinder` takes 7236 fewer determinant refusals (3660 rays)
-///   and 63 fewer grazes, over its open and edited states.
-/// - `gallery_ring` gains 36 grazes and 6 refusals.
-/// - `boss_union` gains 18 grazes.
+/// Last moved when every boolean output came to have maximal edges
+/// (`boolean/edge_join.rs::join_stage`): from
+/// `(442782, 141885, 14124, 7254)`. A collinear valence-two vertex a
+/// flush union or cut left is joined away, so the landings that had one
+/// (`corner_table`, `part_select` and `kitchen_sink` among them) aim
+/// from fewer vertices: 1584 fewer rays, 612 fewer answered at the aimed
+/// vertex. The refusals are unchanged.
 ///
 /// No genuine crossing is refused either way.
-const PINNED: (usize, usize, usize, usize) = (442_782, 141_983, 12_786, 6_882);
+///
+/// Before that, it moved when each construction began storing the arc it builds
+/// (`store-constructed-carriers`): from `(442782, 141890, 13932, 7110)`.
+/// The rays are unchanged. Per document:
+/// - `boss_union` (its `circle_split` rims on the authored carrier)
+///   takes 192 determinant refusals over 144 rays and 12 fewer grazes;
+/// - `declared_tangency` gains 10 grazes;
+/// - `gallery_ring` loses 3 grazes.
+///
+/// No genuine crossing is refused either way.
+///
+/// Before that, it moved when a boolean match came to mint both its chords on one
+/// computed curve (`chord_join::SegmentCurve`): the die's pip rims, the
+/// subtracted pips' edges on its top face, shift by 1 ulp, and only
+/// `die_composed_tour`'s aim crosses candidates whose determinant
+/// certification flips with it — 6 fewer refused candidates and 6 fewer
+/// rays with a refusal at each of its two landings, the rays and grazes
+/// unchanged.
+///
+/// No genuine crossing is refused either way.
+const PINNED: (usize, usize, usize, usize) = (441_198, 141_273, 14_124, 7_254);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let reference = FlatReference::of(index);

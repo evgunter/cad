@@ -47,16 +47,6 @@ use geom_core::{SymRules, Tol};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{certifies_whole, over_band_set};
 
-/// The ε row this run is on, as the index into a three-row table
-/// (`1e-6`, `1e-9`, `1e-12`); any other ε has no measured row and
-/// fails loud rather than reading a neighbour's.
-fn eps_row(eps: f64) -> usize {
-    [1.0e-6, 1.0e-9, 1.0e-12]
-        .iter()
-        .position(|&e| (eps / e - 1.0).abs() < 1.0e-3)
-        .unwrap_or_else(|| panic!("no measured row at eps = {eps:e}: measure one and add it"))
-}
-
 /// **The shipped set carries the algebra, and the algebra is the only
 /// difference from M10-9's set.**
 #[test]
@@ -68,12 +58,18 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
         "rule D, rules A/B per node and rule E ship: {s:?}"
     );
     assert!(
+        s.canonical_root && s.decision_read,
+        "rule G and the decision read ship: {s:?}"
+    );
+    assert!(
         s.early && s.const_fold && s.registered,
         "on top of the early walk, A0 and the door: {s:?}"
     );
     assert!(
         !s.signed_root,
-        "rule C stays dial-off: no rule here reads a value"
+        "rule C's own fold at `sqrt`/`abs` stays dial-off: it is inert at the shipped ring \
+         width and costs ~2x. The decision read is the value read that DOES ship, at the \
+         ops rule C never reached, and it has a dial of its own"
     );
     let off = SymRules::without_the_algebra();
     assert!(
@@ -82,29 +78,85 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             && !off.sqrt_square
             && !off.pythagoras
             && !off.common_factor
-            && !off.manifest_sign,
+            && !off.manifest_sign
+            && !off.canonical_root
+            && !off.abs_square
+            && !off.root_magnitude
+            && !off.root_quotient
+            && !off.decision_read,
         "the algebra off: {off:?}"
     );
-    // SIX dials since SYM-8: rule E (the quotient's common factor,
-    // SYM-5) and rule F (the manifest sign, SYM-8) are form-level
-    // algebra in the early walk like the other four, and
-    // `without_the_algebra` is M10-9's tier bit for bit, which had
-    // neither. `m10_9_pins_interval` holds M10-9's rows under it. A
+    // ELEVEN dials, and the last three are rule G's own conjuncts.
+    // Eight of them have been the list since DECIDE-3: rule E
+    // (the quotient's common factor, SYM-5), rule F (the manifest sign,
+    // SYM-8), rule G (the canonical root) and the decision read are
+    // form-level algebra in the early walk like the other four, and
+    // `without_the_algebra` is M10-9's tier bit for bit, which had none
+    // of them. `m10_9_pins_interval` holds M10-9's rows under it. A
     // dial left out of this list makes the differential one against a
     // tier that never existed — SYM-8's review found exactly that, with
     // rule F on BOTH sides of it.
+    //
+    // **`abs_square` and `root_magnitude` are the ninth and tenth**
+    // (SYM-9): rule G's companion rewrite `|X|² = X²` and its magnitude
+    // door `sqrt(R²) = |R|`, each read as a conjunction with
+    // `canonical_root`, so neither can turn a step ON in a tier that
+    // has rule G shut and `without_the_algebra` is the same TIER it was
+    // before they existed. They are here because they must be the same
+    // VALUE too: a tier shut two ways is one `SymRules` and rows
+    // compare them (`m10_8_pins_interval`'s `a0_alone`).
+    //
+    // **`root_quotient` is the eleventh**: rule G's exact quotient — a
+    // root over `N/D` with `D | N` minted over the polynomial quotient
+    // — read as a conjunction with `canonical_root` for the same reason.
+    //
+    // **Both sets are written out WHOLE, field by field**, with no
+    // rest pattern: a dial added to `SymRules` is then a compile error
+    // here until this row says which side it is on, and a dial left
+    // ON in `without_the_algebra` reds the first assertion rather than
+    // hiding behind a `..` the second one filled from it.
     assert_eq!(
+        off,
         SymRules {
-            trig_of_atan: true,
-            early_ab: true,
+            sqrt_square: false,
+            pythagoras: false,
+            const_fold: true,
+            early: true,
+            early_ab: false,
+            trig_of_atan: false,
+            signed_root: false,
+            common_factor: false,
+            manifest_sign: false,
+            canonical_root: false,
+            abs_square: false,
+            root_magnitude: false,
+            root_quotient: false,
+            decision_read: false,
+            registered: true,
+        },
+        "`without_the_algebra` is M10-9's tier: A0 and the early walk and the door, and \
+         nothing of the algebra"
+    );
+    assert_eq!(
+        s,
+        SymRules {
             sqrt_square: true,
             pythagoras: true,
+            const_fold: true,
+            early: true,
+            early_ab: true,
+            trig_of_atan: true,
+            signed_root: false,
             common_factor: true,
             manifest_sign: true,
-            ..off
+            canonical_root: true,
+            abs_square: true,
+            root_magnitude: true,
+            root_quotient: true,
+            decision_read: true,
+            registered: true,
         },
-        s,
-        "`without_the_algebra` differs from `shipped` in the six algebra dials and nothing else"
+        "`shipped` is `without_the_algebra` with the eleven algebra dials on, and nothing else"
     );
 }
 
@@ -115,18 +167,19 @@ fn split_at_the_nominal(rules: SymRules, tol: Tol) -> BTreeMap<&'static str, [u6
     crate::m10_8_harness::split_at_the_nominal(&doc, rules, tol)
 }
 
-/// **ALL FOUR OF THE PLATE'S, at the nominal, each through its own
-/// rule.** With the algebra off the split is M10-9's; with it on,
+/// **ALL FOUR OF THE PLATE'S, at the nominal, as THEOREMS.** With the
+/// algebra off the split is M10-9's; with it on,
 /// `carrier_on_surface_2` and `witness_on_surface_2` are theorems
-/// outright (rule D with A/B per node, no value read, no axiom),
-/// `carrier_matches_mapped_source` is discharged through the door at
-/// every sample (rule D meets the two spellings; the rim identity
-/// closes it), and `pcurve_map_residual` is discharged through the
-/// door at every sample too: rule D's A1 folds take the chart's phase
-/// (`atan2(0, r²/sqrt(r²))` is the zero form; `cos π` on the negative
-/// frame is `−1`), and what is left is the rim identity again.
-/// `symbolic_zero` does not fall anywhere: the plain form is asked
-/// first, so the algebra can only add.
+/// outright (rule D with A/B per node, no value read, no axiom), and so
+/// are `carrier_matches_mapped_source` at every sample (rule D meets
+/// the two spellings) and `pcurve_map_residual` at every sample (rule
+/// D's A1 folds take the chart's phase — `atan2(0, r²/sqrt(r²))` is the
+/// zero form; `cos π` on the negative frame is `−1`). What is left of
+/// each after the trig is the rim identity `‖q − c‖ = r`, and the
+/// circles store their authored radius as `|r|`, so the rim at a
+/// vertex folds onto it with no registration. `symbolic_zero` does not
+/// fall anywhere: the plain form is asked first, so the algebra can
+/// only add.
 #[test]
 fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     let tol = Tol::witness();
@@ -137,17 +190,17 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
             .copied()
             .unwrap_or_else(|| panic!("no {p} decisions"))
     };
-    // M10-9's split, unchanged with the algebra off.
-    assert_eq!(row(&off, "carrier_matches_mapped_source"), [180, 0, 8, 64]);
+    // The split with the algebra off.
+    assert_eq!(row(&off, "carrier_matches_mapped_source"), [180, 0, 16, 56]);
     assert_eq!(row(&off, "carrier_on_surface_2"), [108, 0, 0, 72]);
     assert_eq!(row(&off, "witness_on_surface_2"), [12, 0, 0, 8]);
     assert_eq!(row(&off, "pcurve_map_residual"), [0, 0, 0, 36]);
     // The algebra on.
     assert_eq!(
         row(&on, "carrier_matches_mapped_source"),
-        [180, 0, 72, 0],
-        "rule D meets the pushforward and the carrier at every sample; the rim identity \
-         the door states closes it, so every one of the 72 is REGISTERED"
+        [252, 0, 0, 0],
+        "rule D meets the pushforward and the carrier at every sample, and the rim at a \
+         vertex folds onto the authored |r|, so every one of the 72 is a THEOREM"
     );
     assert_eq!(
         row(&on, "carrier_on_surface_2"),
@@ -161,103 +214,141 @@ fn m10_10_all_four_discharge_at_the_nominal_and_the_chart_phase_is_the_doors() {
     );
     assert_eq!(
         row(&on, "pcurve_map_residual"),
-        [0, 0, 36, 0],
+        [36, 0, 0, 0],
         "the chart's phase `atan2(0, r²/sqrt(r²))` folds to the zero form (A1) and `cos π` \
-         on the negative frame to −1; the rim identity the door states closes the rest, \
-         so every one of the 36 is REGISTERED"
+         on the negative frame to −1; the rim folds onto |r|, so every one of the 36 is a \
+         THEOREM"
+    );
+    assert_eq!(
+        row(&on, "line_span"),
+        [8, 0, 0, 0],
+        "the plate's eight `line_span` comparisons are between two rational CONSTANTS, \
+         which A0 decides exactly — THEOREMS, no value read \
+         (`work/decide/a0-leaves-max-and-min-of-constants-opaque`'s fix)"
     );
     for (p, before) in &off {
         let after = row(&on, p);
+        let discharged = |s: [u64; 4]| s[0] + s[1] + s[2];
         assert!(
-            after[0] >= before[0] && after[1] == 0 && before[1] == 0,
-            "{p}: the plain form is asked first, so `symbolic_zero` never falls and \
-             nothing is sign-gated: {before:?} -> {after:?}"
+            after[0] >= before[0] && discharged(after) >= discharged(*before),
+            "{p}: the plain form is asked first, so `symbolic_zero` never falls, and no \
+             decision is LOST — what the algebra discharges it keeps: {before:?} -> {after:?}"
         );
     }
 }
 
-/// **The door and the algebra move the plate TOGETHER, and neither
-/// alone.** Between M10-9's ceiling and M10-10's — at `1.0e3 · ε` of
-/// the real study — the plate certifies whole under the shipped set
-/// and refuses under each of its two halves: the algebra with the door
-/// shut (rule D meets the two spellings' trig at every sample, but the
-/// rim identity `‖q − c‖ = r` that closes the scaffold residual is the
-/// door's), and the door with the algebra off (M10-9's tier, whose
-/// door reaches the `i = 0` sample alone). This is the mechanism claim
-/// in one drive triple, ε-relative.
+/// **The plate needs no door.** Its circles store their authored
+/// carrier, the radius as `|r|`, so the rim identity `‖q − c‖ = r` that
+/// closed its scaffold residuals through the registered-identity door
+/// is the tier's own algebra: with the door shut, the split at the
+/// nominal is the shipped set's, row for row, and at `1.0e3 · ε` of the
+/// real study the plate certifies whole under the shipped set and
+/// under the shipped set with the door shut. With the algebra off it
+/// refuses there: M10-9's tier does not reach the plate's ceiling.
 #[test]
-fn m10_10_the_door_and_the_algebra_move_the_plate_together() {
+fn m10_10_the_plate_needs_no_door() {
     let tol = Tol::witness();
+    assert_eq!(
+        split_at_the_nominal(SymRules::shipped_without_the_door(), tol),
+        split_at_the_nominal(SymRules::shipped(), tol),
+        "the door shut moves no decision on the plate"
+    );
     let eps = tol.eps();
     let doc = crate::m10_7_plate::plate(5.0e-5 * 1.0e3 * eps, 1.0e-5 * 1.0e3 * eps, tol).0;
-    assert!(
-        certifies_whole(&doc, SymRules::shipped(), tol),
-        "the shipped set certifies the plate whole at 1e3·ε"
-    );
-    assert!(
-        !certifies_whole(&doc, SymRules::shipped_without_the_door(), tol),
-        "the algebra with the door shut does not: the rim identity is the door's"
-    );
+    for (label, rules) in [
+        ("shipped", SymRules::shipped()),
+        ("door shut", SymRules::shipped_without_the_door()),
+    ] {
+        assert!(
+            certifies_whole(&doc, rules, tol),
+            "{label}: the plate certifies whole at 1e3·ε"
+        );
+    }
     assert!(
         !certifies_whole(&doc, SymRules::without_the_algebra(), tol),
-        "the door with the algebra off does not: M10-9's ceiling is 7.81e2·ε"
+        "the algebra off does not: M10-9's tier refuses the plate at 1e3·ε"
     );
 }
 
-/// **THE PLATE'S CEILING IS DEPENDENCY WIDENING OF A REAL MARGIN, NOT
-/// A FLIP** (R2's MAJOR, by execution; the class
-/// `work/sym/real-margin-dependency-widening` names). The web
-/// assertion's margin is AFFINE in the study's parameters — `web −
-/// floor = 1e-4 + 2·Δhalf_spacing − Δr_a − Δr_b` — so its TRUE range
-/// over the box at scale `s` of the study is exact arithmetic: `1e-4 ±
-/// 1.6e-4·s` (the spacing's ±5e-5·s doubled, and each radius's ±3σ =
-/// ±3e-5·s). The flip therefore first enters the box at `s = 0.625`.
-/// At the measured ceiling (`s ≈ 0.2632`) the true margin is `[5.79e-5,
-/// 1.42e-4]`, positive everywhere, while the enclosure the replay
-/// reports for `assert_bound` straddles zero (`1e-9`, `1e-12`) or sits
-/// in the band (`1e-6`) — widened by ~6e-5 on each side. That widening
-/// is what bounds the whole-certifying ceiling; the flip is what the
-/// LEAVES certify up to (the whole drive's refusals refine to
-/// `{assert_bound}` alone at every depth: both reviews' rows).
+/// **THE PLATE'S CEILING IS THE FLIP, AND THE WEB MARGIN IS READ
+/// EXACTLY.** The web assertion's margin is AFFINE in the study's
+/// parameters — `web − floor = 1e-4 + 2·Δhalf_spacing − Δr_a − Δr_b` —
+/// so its TRUE range over the box at scale `s` of the real study is
+/// `1e-4 ± 1.6e-4·s` (the spacing's ±5e-5·s doubled, and each radius's
+/// ±3σ = ±3e-5·s), and the flip enters the box at `s = 0.625`. The
+/// circles store their authored radius, so each radius enters the
+/// margin once and the replay's enclosure of `assert_bound` IS the true
+/// range: a shade under the flip nothing is over the band, and past it
+/// `assert_bound` alone is, with its enclosure's lower end the true
+/// one.
 #[test]
-fn m10_10_the_plates_ceiling_is_dependency_widening_not_a_flip() {
+fn m10_10_the_plates_ceiling_is_the_flip() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let row = eps_row(eps);
-    let s = [0.2369, 0.2632, 0.2632][row];
-    // The true margin over the box at the refusing end of the bracket.
-    let (true_lo, true_hi) = (1.0e-4 - 1.6e-4 * s, 1.0e-4 + 1.6e-4 * s);
-    assert!(true_lo > 0.0, "the true margin is positive at s = {s}");
     let flip_enters_at: f64 = 1.0e-4 / 1.6e-4;
     assert!((flip_enters_at - 0.625).abs() < 1.0e-12);
+    let over = |s: f64| {
+        let doc = crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0;
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let (shapes, _, _) = replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
+        over_band_set(&shapes)
+            .into_iter()
+            .filter(|e| e.over > 0)
+            .collect::<Vec<_>>()
+    };
+    // Below the flip by twenty ε of margin: the true margin clears the
+    // band, and so does every enclosure.
+    let below = (1.0e-4 - 20.0 * eps) / 1.6e-4;
+    let set = over(below);
     assert!(
-        s < flip_enters_at,
-        "the ceiling is well inside the flip-free box"
+        set.is_empty(),
+        "s = {below}: nothing is over the band below the flip: {}",
+        crate::m10_8_harness::render_over_band(&set)
     );
-    let doc = crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0;
+    // Past it: the true margin's lower end is negative, and the
+    // enclosure's is that end.
+    let past = 0.63;
+    let true_lo = 1.0e-4 - 1.6e-4 * past;
+    let set = over(past);
+    assert_eq!(
+        set.iter().map(|e| e.predicate).collect::<Vec<_>>(),
+        ["assert_bound"],
+        "s = {past}: the web assertion alone is over the band: {}",
+        crate::m10_8_harness::render_over_band(&set)
+    );
+    let (lo, _) = set[0].enclosure;
+    println!("   s = {past}: true lower end {true_lo:.6e}, enclosure's {lo:.6e}");
+    assert!(
+        (lo - true_lo).abs() < 1.0e-9,
+        "the enclosure's lower end is the true margin's: {lo:e} against {true_lo:e}"
+    );
+}
+
+/// **THE WALKED ROWS' ENVELOPE IS A THEOREM OVER THE PLATE'S BOX** (the
+/// row that closed `work/pcert/loop-walk-branch-is-an-opaque-floor-atom`).
+/// The loop walk stores each wall row's whole-period branch as a literal
+/// `k` (`geom_brep::whole_periods`, decided once from the joint's margin
+/// as `pcurve_loop_branch`), and check 4's fidelity reads the branch the
+/// same way (`pcurve_fidelity_branch`). So the stored azimuth is
+/// `α + k·τ` with `k` a constant, and the stored image minus the one
+/// check 4 re-derives from the carrier is the zero polynomial on every
+/// row, each loop's first and the twelve walked after them alike. Each
+/// term of the envelope is then a theorem (`EnvelopeTerm`), and so is
+/// their sum: `pcurve_envelope` is 16/0/0/0 over the box at `s = 0.2`
+/// of the real study, where the plate certifies whole. While `k` was a
+/// `floor` atom the twelve walked rows' azimuth fidelity was numeric,
+/// and bounded the plate at `4.8077e2·ε`.
+#[test]
+fn m10_10_the_walked_rows_envelope_is_a_theorem_over_the_box() {
+    let tol = Tol::witness();
+    let doc = crate::m10_7_plate::plate(5.0e-5 * 0.2, 1.0e-5 * 0.2, tol).0;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let (shapes, _, _) = replay(&doc, &ParamBox::of(&analyzed), SymRules::shipped(), tol);
-    let set = over_band_set(&shapes);
-    let ab = set
-        .iter()
-        .find(|e| e.predicate == "assert_bound")
-        .expect("assert_bound is over the band at ceiling + δ");
-    let (lo, hi) = ab.enclosure;
-    println!(
-        "   s = {s}: true margin [{true_lo:.4e}, {true_hi:.4e}], enclosure [{lo:.4e}, {hi:.4e}], \
-         widened {:.3e} below and {:.3e} above",
-        true_lo - lo,
-        hi - true_hi
-    );
-    // The enclosure reaches into the band (or past zero) while the
-    // true margin never comes within 5e-5 of it.
-    assert!(
-        lo < 10.0 * eps,
-        "the enclosure's lower end is what refuses: {lo:e} against a band of 10·ε"
-    );
-    let (below, above) = (true_lo - lo, hi - true_hi);
-    assert!(
-        (4.0e-5..=8.0e-5).contains(&below) && (4.0e-5..=8.0e-5).contains(&above),
-        "the widening is ~6e-5 on each side (measured 5.8e-5): {below:e} / {above:e}"
-    );
+    let split = crate::m10_8_harness::split(&shapes);
+    assert_eq!(split.get("pcurve_envelope"), Some(&[16, 0, 0, 0]));
+    // The branches themselves are definite sign decisions read off the
+    // value: 32 for check 4's fidelity, 34 for the walk, which decides
+    // each loop's closure joint as it does every other.
+    assert_eq!(split.get("pcurve_fidelity_branch"), Some(&[0, 0, 0, 32]));
+    assert_eq!(split.get("pcurve_loop_branch"), Some(&[0, 0, 0, 34]));
 }

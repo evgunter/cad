@@ -396,10 +396,15 @@ fn a_parallel_axis_cylinder_every_class() {
 // -------------------------------------------------------------------
 
 /// The full rim of [`unit_cone`] at height `z`, as the intersection of
-/// `cone` and the rim plane there.
-fn cone_rim(body: &mut Body<f64>, cone: crate::geometry::SurfaceKey, z: f64) -> EdgeCurveSpec<f64> {
-    let rim_plane = body.add_surface(plane(p(0.0, 0.0, z), Vec3::unit_z()));
-    EdgeCurveSpec {
+/// `cone` and the rim plane there (normal `normal`), and that plane.
+fn cone_rim(
+    body: &mut Body<f64>,
+    cone: crate::geometry::SurfaceKey,
+    z: f64,
+    normal: Vec3<f64>,
+) -> (EdgeCurveSpec<f64>, crate::geometry::SurfaceKey) {
+    let rim_plane = body.add_surface(plane(p(0.0, 0.0, z), normal));
+    let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::Intersection {
             s1: cone,
             s2: rim_plane,
@@ -413,7 +418,8 @@ fn cone_rim(body: &mut Body<f64>, cone: crate::geometry::SurfaceKey, z: f64) -> 
         },
         param_start: 0.0,
         param_end: TAU,
-    }
+    };
+    (spec, rim_plane)
 }
 
 /// **A seamless frustum band** of [`unit_cone`] over `z ∈ [z0, z1]`:
@@ -424,18 +430,27 @@ fn cone_rim(body: &mut Body<f64>, cone: crate::geometry::SurfaceKey, z: f64) -> 
 fn seamless_cone_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(z0, 0.0, z0)).unwrap();
+    let seed = body.mvfs(p(z0, 0.0, z0), true).unwrap();
     let cone = body
-        .set_face_surface(seed.face, FaceSurface::New(unit_cone()))
+        .set_face_surface(
+            seed.face,
+            FaceSurface::New {
+                surface: unit_cone(),
+                sense: true,
+            },
+        )
         .unwrap();
-    let bottom = cone_rim(&mut body, cone, z0);
+    let (bottom, bottom_plane) = cone_rim(&mut body, cone, z0, v(0.0, 0.0, -1.0));
     let cap_b = body
         .mef(
             MefSite::Lone {
                 r#loop: seed.r#loop,
             },
             bottom,
-            FaceSurface::New(plane(p(0.0, 0.0, z0), v(0.0, 0.0, -1.0))),
+            FaceSurface::Shared {
+                key: bottom_plane,
+                sense: true,
+            },
             tol,
         )
         .unwrap();
@@ -449,14 +464,17 @@ fn seamless_cone_band(z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
             tol,
         )
         .unwrap();
-    let top = cone_rim(&mut body, cone, z1);
+    let (top, top_plane) = cone_rim(&mut body, cone, z1, Vec3::unit_z());
     body.mef(
         MefSite::Chords {
             he1: strut.he_minus,
             he2: strut.he_minus,
         },
         top,
-        FaceSurface::New(plane(p(0.0, 0.0, z1), Vec3::unit_z())),
+        FaceSurface::Shared {
+            key: top_plane,
+            sense: true,
+        },
         tol,
     )
     .unwrap();
@@ -490,7 +508,7 @@ fn scan_with(
         b,
         band(),
         ops::SectionPath::Crossings,
-        |_, _| false,
+        ops::Exempt::Nothing,
         |_, _| evented,
         false,
     )
