@@ -1197,7 +1197,11 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                value: crate::fixture::value_of(&d2, b),
+                // The box's body, read as a length: no value at all.
+                value: Formula::var(
+                    d2.output(b, 0).expect("a box defines its body"),
+                    editor_core::Dimension::Length,
+                ),
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             }),

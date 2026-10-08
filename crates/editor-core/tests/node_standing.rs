@@ -560,7 +560,7 @@ const READERS: [(&str, usize, &str); 12] = [
     ),
     (
         "crates/editor-core/src/eval/measure.rs",
-        2,
+        3,
         "the observed binding holds the result map by type, as the op wiring does, and reads \
          a measure's row only through `usable_in`",
     ),

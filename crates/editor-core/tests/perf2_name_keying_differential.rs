@@ -128,6 +128,12 @@ fn sans_epsilon(t: &str) -> String {
 /// **Re-pinned for INTENT-LITERALS PR D** (`Expr` holds no float):
 /// `kitchen_sink` alone, whose formulas hold written quantities that
 /// now mint variables of their own; every other row held its word.
+///
+/// **Re-pinned for INTENT stage 2 PR D** (a measure is one primitive):
+/// `measured_web` alone. Its measure holds the distance and the web is
+/// a definition the assertion reads, so the measure's mint preimage,
+/// its id and its saved text moved; every other row held its word, and
+/// the id-masked geometry fence held untouched.
 const PINNED: &[(&str, u64, u64)] = &[
     ("die", 0x72f57b94cc9fe884, 0xaae0cb48a6016f0f),
     ("corner_table", 0x414c750a0f2fdc07, 0xd6f34726eeb6a399),
@@ -147,7 +153,7 @@ const PINNED: &[(&str, u64, u64)] = &[
     ("declared_tangency", 0x20dcf45fc699b192, 0x8eb4f6d857b96daf),
     ("kitchen_sink", 0xeac5a0519d4e3623, 0x5cfb9e8e5a134138),
     ("cut_cylinder", 0x5c3f85efc061d526, 0x8bac2bef268572bb),
-    ("measured_web", 0x6c33c2e52d4ef7a5, 0x7b3589f58b2daaa2),
+    ("measured_web", 0xfb70782992fd7d34, 0xb62330fd8504bfef),
     ("boss_union", 0x21dd428a780ae942, 0xfa6dd5f60bdab416),
     ("die_fillet", 0x2ea00cf1a1d2af81, 0x90b7b79403a12799),
     ("die_chamfer", 0x433e53c9fa2da26a, 0x0b27f3cfc386cf10),
