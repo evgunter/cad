@@ -91,10 +91,10 @@ pub struct LeverEscalation {
     pub diag: Indeterminate,
     /// The sign the arm gate decided and refused, where it decided one:
     /// the arm is not there, a verdict rather than an undecided margin.
-    /// Minted only from the gate's own escalation
-    /// ([`LeverEscalation::arm`]) and kept, never recomputed, when the
-    /// escalation re-quotes the reading the arm meters
-    /// ([`LeverEscalation::with_diag`]).
+    /// Only [`LeverEscalation::arm`] mints it, from the gate's own
+    /// escalation, so it is `Some` on the arm's rung alone; it is kept,
+    /// never recomputed, when the escalation re-quotes the reading the
+    /// arm meters ([`LeverEscalation::with_diag`]).
     refused: Option<Sign>,
 }
 
@@ -134,19 +134,17 @@ impl LeverEscalation {
     /// The arm's verdict where the gate decided it not there, quoting the
     /// escalation's margin: a decision of its own, not an undecided
     /// margin. `None` for an arm the gate could not decide, and for the
-    /// reading's rung.
+    /// reading's rung, which no verdict is minted on.
     #[must_use]
     pub fn collapsed_arm(&self) -> Option<crate::recourse::Refused> {
-        match (self.rung, self.refused) {
-            (LeverRung::Arm, Some(sign)) => crate::recourse::Refused::of(
-                geom_core::Decided {
-                    sign,
-                    margin: self.diag.margin,
-                },
-                self.diag.band,
-            ),
-            (LeverRung::Arm, None) | (LeverRung::Reading, _) => None,
-        }
+        let sign = self.refused?;
+        crate::recourse::Refused::of(
+            geom_core::Decided {
+                sign,
+                margin: self.diag.margin,
+            },
+            self.diag.band,
+        )
     }
 }
 
