@@ -474,6 +474,43 @@ mod tie_tests {
         );
     }
 
+    /// **A join over edges of different kinds refuses**: a trimline and
+    /// a surviving input edge are images of different cells, so no one
+    /// reading covers both. No blend run reaches it either, so the row
+    /// plants the record: a join of a trim the surgery minted with an
+    /// edge it carried.
+    #[test]
+    fn a_join_over_a_trim_and_a_survivor_refuses() {
+        let (body, table) = cube();
+        let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
+        let v = body.vertices().next().unwrap().0;
+        let f = body.faces().next().unwrap().0;
+        let rec = BlendNaming {
+            trims: vec![(edges[1], edges[0], f)],
+            edge_joins: vec![topo::EdgeJoin {
+                vertex: v,
+                gone: edges[1],
+                kept: edges[2],
+                conventional: None,
+            }],
+            ..BlendNaming::default()
+        };
+        let named = name_blend(
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 1),
+            &table,
+            &body,
+            &rec,
+        );
+        assert!(
+            matches!(
+                named,
+                Err(NamingError::Emission { what }) if what.contains("different kinds")
+            ),
+            "the stop case refuses typed"
+        );
+    }
+
     /// Rebuilds `table` with `a` and `b` TIED under `a`'s name — the
     /// planted upstream tie. Everything else is copied across
     /// unchanged, so the only difference from the real table is the one
