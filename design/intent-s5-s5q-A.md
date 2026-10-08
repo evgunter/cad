@@ -216,3 +216,35 @@ Neither avoids a zero anywhere else, so neither passes Ev's test.
 - It does not change `Assert`, fills the one dimension without a constant, and covers formulas too.
 
 A smaller alternative that does pass the test: make `bound` optional on `Assert`, with absence meaning exact zero, mirroring the mate offset. It is local to assertions, but it gives zero two spellings once formulas want one, so I prefer the constant.
+
+## Round 4
+
+**Short answer.** The rule as it now stands complains by default about every new overlap. The one exception is "more of the same" on the pair already asserted, and there the person's own bound decides. No change is needed.
+
+**Ev's scenario.** A pin pressed into a bore under `Gap(bore, pin) ≤ −5 µm`, accepted and quiet. The parts then move closer, and a second region interferes.
+
+| Where the second region is | `≤ b` | `= b` | `≤ b` plus a requirement `≥ c` |
+|---|---|---|---|
+| Same carrier pair, deeper | quiet: the person wrote "at least" | loud: the assertion is Violated, and the first region goes loud too | quiet, but the `≥ c` requirement reports Violated |
+| Different faces of the same two copies, connected to the accepted overlap (the sunk flange) | loud: a bounding piece lies outside the asserted shell | loud | loud |
+| Different faces of the same two copies, a separate overlap (a rib, the second lug of a clevis) | loud: the asserted faces do not bound it | loud | loud |
+| A new pair of copies | loud: no assertion speaks for that pair | loud | loud |
+
+- On a carrier pair `Gap` covers, moving closer changes the gap uniformly. So "another region interferes" can only mean other faces or other copies, and those rows are loud whatever bound was written.
+- The first row is not a new region. It is the same fact at a new value.
+- A contact accepted under `Gap = 0` goes loud as soon as it becomes an interference, because `= 0` is then Violated.
+
+**Default posture.** It is "complain when a new overlap appears", and that is right under D10's fail-loud stance.
+- An assertion speaks only for the overlap its own faces bound and its own carriers contain.
+- So a person never has to anticipate an overlap to be warned of it. Silence about a region is always written, never assumed.
+- What the person decides is how much of the *same* fact is acceptable, and the bound says that:
+  - `≤ b`: any interference at least this deep;
+  - `= b`: exactly this (at rest, decided with a margin);
+  - a band, written as a quieting `≤ b` plus a requirement `≥ c`: the usual press-fit tolerance, where too deep is reported as a failed requirement.
+- Under the requirement, the finding itself stays quiet. "Too much of the intended interference" is a violated requirement, not a new interference, so the report names the assertion that failed rather than an unexplained overlap. I think that is the right distinction.
+
+**Change.** None to the D10 sentence or to points 1–5. One clarification belongs in the PR body: an assertion's reach is its own faces and carriers, so a new overlap is loud by default, and a one-sided bound accepts only deeper interference *on its own pair*.
+
+Rejected, both on the default posture:
+- **Requiring a two-sided band before an interference can be quiet.** It would make every one-sided fit loud, although `≤ b` admits only interference and so entails the finding. "How deep" is a requirement about magnitude, not intent about which stratum.
+- **Re-louding a quiet finding when the overlap's extent grows.** Extent is not measured (Round 3). The cases where extent grows onto other faces are already loud.
