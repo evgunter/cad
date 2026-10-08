@@ -26,22 +26,39 @@ retire or needs a witness no hand split supplies.
   `review_3701_probes.rs`, `band_subdivided_side_walls.rs`
   (`a_split_rim_is_joined_before_it_blends`,
   `a_rim_band_is_cut_off_at_both_ends`),
-  `blend_band_reach_chain_ends.rs`.
+  `blend_band_reach_chain_ends.rs`. **Dead code**: the blend doors
+  (`fillet_edges`, `chamfer_edges`) take an `AtRestBody`, and the
+  surgery plans its chains from that operand before anything is
+  carved, so no construction-state caller reaches the arm. Only the
+  test-only meter (`band_reach_for_tests`) still reads a jointed chain.
 - **The blend's half-band gate on a curved support carrying both arcs**
   (`crates/sweep/src/blend/surgery.rs:1333`): its row,
   `fillet_h5_r2_probes.rs`'s merged wall, holds the killed meridian's
   ends between two arcs of each rim, so it is construction state.
-  Whether another at-rest operand reaches the gate is open.
+  Whether another at-rest operand reaches the gate is open; no
+  construction-state caller does, through the same `AtRestBody` doors.
 - **The shell's axial corners at a hand-split vertex**
   (`crates/topo/src/offset_axial.rs:1281`, "no profile constraint";
   `:1322`, "a line profile and a plane parallel to the axis"; and the
   line arm on a vertex whose only surface is a cylinder): the rows in
   `shell7_seam_corner.rs` say no door builds such a vertex, and the
-  hand split that made one is construction state now.
+  hand split that made one is construction state now. **Still
+  reachable**: the public offset doors (`topo::offset_charts_together`,
+  `topo::replace_face_offset`) take a `&mut Body`, so a construction-state
+  caller still meets these arms (`shell7_dump.rs`'s direct-door lines do).
+  The shell, which takes an `AtRestBody`, no longer does.
 - **The boolean's single-operand fallback joining station vertices**:
   an at-rest operand holds none, so the fallback's join is a no-op on
   every input it can be given (`band_subdivided_side_walls.rs`,
-  `a_stationed_prism_is_construction_state_until_joined`).
+  `a_stationed_prism_is_construction_state_until_joined`). Not dead code:
+  the same output stage joins what the boolean's own cuts and merges
+  leave, which is the join's real work; only the operand-borne case is
+  gone.
+
+**The remove-or-keep list** is the blend's joined-band arm (with its
+naming in `emit_blend.rs` and the joint arm of the clearance screen),
+and, if no at-rest witness turns up, the half-band gate on a support
+carrying both arcs of one rim.
 
 The join chase those rows also exercised is kept: on the fixture itself
 through `Body::join_edges` (`a_rim_joined_twice_reads_through_both_joins`)
