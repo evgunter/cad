@@ -253,7 +253,7 @@ fn saved_block() -> (String, String, String) {
 
 fn output_fault(text: &str) -> OutputFault {
     match load(text, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::OutputSignature { fault, .. })) => fault,
+        Err(PersistError::Snapshot(SnapshotError::OutputSignature { fault, .. })) => *fault,
         other => panic!("the load door refuses OutputSignature, got {other:?}"),
     }
 }
@@ -390,7 +390,7 @@ fn the_up_to_ids_comparator_holds_a_document_and_refuses_each_mutant() {
 
     let mut dropped = old.clone();
     let nodes = dropped["snapshot"]["nodes"].as_object_mut().unwrap();
-    let last = nodes.keys().last().unwrap().clone();
+    let last = nodes.keys().next_back().unwrap().clone();
     nodes.remove(&last);
     let err = up_to_ids::equal_up_to_ids(&dropped, &new).expect_err("a dropped node");
     assert!(err.contains("nodes"), "{err}");

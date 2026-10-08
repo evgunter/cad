@@ -481,10 +481,8 @@ fn the_older_shaped_document_refuses_at_the_ambient_eps_for_want_of_its_outputs(
     assert!(
         matches!(
             &err,
-            PersistError::Snapshot(editor_core::SnapshotError::OutputSignature {
-                fault: editor_core::OutputFault::Missing { port: "frame" },
-                ..
-            })
+            PersistError::Snapshot(editor_core::SnapshotError::OutputSignature { fault, .. })
+                if matches!(**fault, editor_core::OutputFault::Missing { port: "frame" })
         ),
         "{err:?}"
     );

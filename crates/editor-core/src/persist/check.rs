@@ -509,14 +509,14 @@ fn first_output_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
         };
         let fault = |fault| SnapshotError::OutputSignature {
             node: snapshot.spoken(node),
-            fault,
+            fault: Box::new(fault),
         };
         let Some(live) = snapshot.nodes.get(&node) else {
             return Some(SnapshotError::OutputSignature {
                 node: crate::spoken::SpokenNode::absent(node),
-                fault: OutputFault::NodeAbsent {
+                fault: Box::new(OutputFault::NodeAbsent {
                     var: snapshot.spoken_var(id),
-                },
+                }),
             });
         };
         let ports = live.outputs();
@@ -530,15 +530,14 @@ fn first_output_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
         if let Some(kind) = snapshot
             .signature(node)
             .and_then(|sig| sig.get(usize::from(port)).map(|&(_, kind)| kind))
+            && kind != var.kind()
         {
-            if kind != var.kind() {
-                return Some(fault(OutputFault::Kind {
-                    var: snapshot.spoken_var(id),
-                    port: signed.name,
-                    stored: var.kind(),
-                    signature: kind,
-                }));
-            }
+            return Some(fault(OutputFault::Kind {
+                var: snapshot.spoken_var(id),
+                port: signed.name,
+                stored: var.kind(),
+                signature: kind,
+            }));
         }
         if let Some(&first) = rows.get(&(node, port)) {
             return Some(fault(OutputFault::Twice {
@@ -554,7 +553,7 @@ fn first_output_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             if !rows.contains_key(&(node, port)) {
                 return Some(SnapshotError::OutputSignature {
                     node: snapshot.spoken(node),
-                    fault: OutputFault::Missing { port: signed.name },
+                    fault: Box::new(OutputFault::Missing { port: signed.name }),
                 });
             }
         }
@@ -1099,7 +1098,7 @@ pub enum SnapshotError {
         /// The operation, absent where the row names no live node.
         node: SpokenNode,
         /// How the table disagrees.
-        fault: OutputFault,
+        fault: Box<OutputFault>,
     },
     /// A variable id the mint log does not hold as a variable's — one
     /// the document never minted (VR1).
@@ -1472,7 +1471,7 @@ impl core::fmt::Display for SnapshotError {
                 "{var} is not in the document's mint log — the document never \
                  minted it"
             ),
-            Self::OutputSignature { node, fault } => match fault {
+            Self::OutputSignature { node, fault } => match &**fault {
                 OutputFault::NodeAbsent { var } => {
                     write!(
                         f,
@@ -2285,7 +2284,7 @@ mod tests {
             },
             SnapshotError::OutputSignature {
                 node: node(),
-                fault: super::OutputFault::Missing { port: "body" },
+                fault: Box::new(super::OutputFault::Missing { port: "body" }),
             },
             SnapshotError::VarNotMinted {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),

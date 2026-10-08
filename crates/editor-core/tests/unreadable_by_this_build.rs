@@ -250,10 +250,8 @@ fn an_older_shaped_document_lacking_its_outputs_refuses_with_the_regenerate_reco
     assert!(
         matches!(
             &err,
-            PersistError::Snapshot(editor_core::SnapshotError::OutputSignature {
-                fault: editor_core::OutputFault::Missing { .. },
-                ..
-            })
+            PersistError::Snapshot(editor_core::SnapshotError::OutputSignature { fault, .. })
+                if matches!(**fault, editor_core::OutputFault::Missing { .. })
         ),
         "{err:?}"
     );

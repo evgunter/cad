@@ -325,7 +325,7 @@ impl Var {
     #[must_use]
     pub fn new(def: VarDef) -> Self {
         let Some(kind) = def.kind() else {
-            panic!("an output's kind is its port's, which `Var::output` takes")
+            unreachable!("an output's kind is its port's, which `Var::output` takes")
         };
         Self { kind, def }
     }

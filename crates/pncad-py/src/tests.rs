@@ -155,7 +155,16 @@ fn var_kind_tags_are_stable() {
             VarKind::Profile,
         ]
         .map(var_kind_tag),
-        ["point", "direction", "axis", "plane", "frame", "body", "bodies", "profile"]
+        [
+            "point",
+            "direction",
+            "axis",
+            "plane",
+            "frame",
+            "body",
+            "bodies",
+            "profile"
+        ]
     );
 }
 

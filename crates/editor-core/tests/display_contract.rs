@@ -1249,32 +1249,32 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::OutputSignature {
                 node: editor_core::test_support::spoken(RecipeNodeId::new(0, tagged(5)), None),
-                fault: editor_core::OutputFault::NodeAbsent {
+                fault: Box::new(editor_core::OutputFault::NodeAbsent {
                     var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
-                },
+                }),
             },
             vec!["is stored as an output of node 000000000005", "not live"],
         ),
         (
             SnapshotError::OutputSignature {
                 node: held(5, "Extrude"),
-                fault: editor_core::OutputFault::PortOutside {
+                fault: Box::new(editor_core::OutputFault::PortOutside {
                     var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
                     port: 1,
                     ports: 1,
-                },
+                }),
             },
             vec!["is stored as port 1 of", "whose signature has 1 port(s)"],
         ),
         (
             SnapshotError::OutputSignature {
                 node: held(5, "Extrude"),
-                fault: editor_core::OutputFault::Kind {
+                fault: Box::new(editor_core::OutputFault::Kind {
                     var: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
                     port: "body",
                     stored: editor_core::VarKind::Length,
                     signature: editor_core::VarKind::Body,
-                },
+                }),
             },
             vec![
                 "is stored as a length",
@@ -1285,21 +1285,21 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::OutputSignature {
                 node: held(5, "Revolve"),
-                fault: editor_core::OutputFault::Twice {
+                fault: Box::new(editor_core::OutputFault::Twice {
                     port: "axis",
                     first: editor_core::SpokenVar::new(editor_core::VarId::new(0, tagged(7)), None),
                     second: editor_core::SpokenVar::new(
                         editor_core::VarId::new(0, tagged(8)),
                         None,
                     ),
-                },
+                }),
             },
             vec!["are both stored as the axis port of"],
         ),
         (
             SnapshotError::OutputSignature {
                 node: held(5, "Split"),
-                fault: editor_core::OutputFault::Missing { port: "below" },
+                fault: Box::new(editor_core::OutputFault::Missing { port: "below" }),
             },
             vec!["defines a below port and no variable is stored for it"],
         ),
