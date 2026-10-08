@@ -24,7 +24,8 @@
 //! The ladder's rows here are `bool_circle_torus_pole`, `_conditioning`,
 //! `_noise` and the quartic's `bool_circle_torus_*`, and every in-band
 //! sign escalates as [`BooleanDecision::ArcTorusRoots`]; the answer is
-//! the certified subdivision's (`bool_circle_torus_sub_*`).
+//! the certified subdivision's (`bool_circle_torus_sub_*`), each root
+//! metered for its slack ("The root slack" below).
 //!
 //! # The noise meter's floor, and what it costs
 //!
@@ -62,6 +63,23 @@
 //! torus's extent. The biquadratic arm's accuracy is metered by the same
 //! lever, and taking the smaller length keeps its dropped term within
 //! the band on the spread the roots actually have.
+//!
+//! # The root slack
+//!
+//! The subdivision bisects a root on the `f64` residual and checks that
+//! it reads ON the torus. At a shallow crossing `F`'s slope along the
+//! carrier is small, so the residual's rounding moves its sign change
+//! along the arc by that rounding over the slope, far past the band while
+//! the point still reads on the surface. Each certified root therefore
+//! carries its slack (`bool_circle_torus_sub_root_slack`,
+//! [`super::circle_roots::RootSlack`]): `F` at the root, read in its
+//! factored form `((ρ − R)² + h² − r²)·((ρ + R)² + h² − r²)` with a
+//! running bound on its rounding ([`geom_brep::conic_torus_implicit`]),
+//! bounds the true `|F|` there, so the true root lies within that over
+//! `F`'s least slope near it; at the top speed `ρ` that is an arc length,
+//! and a root whose arc the band does not read as zero is refused. The
+//! reading is `F` itself, so no ceiling on `|F|` per metre of residual
+//! enters.
 //!
 //! # The special poses
 //!
@@ -102,8 +120,8 @@
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use super::circle_roots::{
-    CircleRoots, HalfAngleFrame, HalfAngleRows, SubdivisionFrame, SubdivisionRows, TrigPoly,
-    constant_residual_roots, half_angle_roots, rounding_charge,
+    CircleRoots, HalfAngleFrame, HalfAngleRows, RootSlack, SubdivisionFrame, SubdivisionRows,
+    TrigPoly, constant_residual_roots, half_angle_roots, rounding_charge,
 };
 use super::solid_contain::QuarticRows;
 use super::{BooleanDecision, BooleanError};
@@ -130,6 +148,9 @@ const CIRCLE_TORUS_ROWS: HalfAngleRows = HalfAngleRows {
     },
     decision: BooleanDecision::ArcTorusRoots,
 };
+
+/// The general arm's root-slack row (module docs, "The root slack").
+const ROOT_SLACK: &str = "bool_circle_torus_sub_root_slack";
 
 /// An in-band sign of this door's own rows, escalated as its decision.
 fn escalated(diag: Indeterminate) -> BooleanError {
@@ -258,14 +279,11 @@ pub(super) fn circle_torus_roots<T: Decide>(
     // `F` along the carrier from the torus's one home along a conic
     // ([`geom_brep::ConicTorusHarmonics`]): of degree two on a circle, its
     // third and fourth harmonics no more than the frame's rounding, which
-    // the noise carries.
-    let h = geom_brep::conic_torus_harmonics(
-        &geom_brep::Conic::circle(center, axis, radius, u_ref),
-        t_center,
-        t_axis,
-        major_radius,
-        minor_radius,
-    );
+    // the noise carries. The walk charges the `j`-th derivative `2ʲ·noise`
+    // (Bernstein at degree two), and theirs is up to `4ʲ·dropped`, so they
+    // are charged sixteen-fold: that covers every `j ≤ 4` it reads.
+    let conic = geom_brep::Conic::circle(center, axis, radius, u_ref);
+    let h = geom_brep::conic_torus_harmonics(&conic, t_center, t_axis, major_radius, minor_radius);
     let hypot = |x: T, y: T| (x.powi(2) + y.powi(2)).sqrt();
     let dropped = hypot(h.cos[3], h.sin[3]) + hypot(h.cos[4], h.sin[4]);
     let harmonics = TrigPoly::second(h.cos[0], h.cos[1], h.sin[1], h.cos[2], h.sin[2]);
@@ -279,7 +297,7 @@ pub(super) fn circle_torus_roots<T: Decide>(
                 t0,
                 t1,
                 speed_hi: radius,
-                noise: rounding_charge(h.terms) + dropped,
+                noise: rounding_charge(h.terms) + T::from_f64(16.0) * dropped,
                 f_per_metre: h.f_per_metre_lo,
                 // The clear margin is read through the FLOOR, which
                 // overstates it (`work/hone/circle-torus-clear-margin-reads-the-floor.md`).
@@ -290,7 +308,20 @@ pub(super) fn circle_torus_roots<T: Decide>(
             lever,
         },
         &CIRCLE_TORUS_ROWS,
-        None,
+        Some(&RootSlack {
+            row: ROOT_SLACK,
+            residual: &|theta| {
+                geom_brep::conic_torus_implicit(
+                    &conic,
+                    t_center,
+                    t_axis,
+                    major_radius,
+                    minor_radius,
+                    theta,
+                )
+            },
+            f_per_metre_hi: T::one(),
+        }),
         band,
     )
 }
@@ -512,6 +543,10 @@ fn parallel_axes_roots<T: Decide>(
         CircleRoots::Certified { count, thetas }
     })
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic)]
+mod shallow_sweep;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
@@ -1392,6 +1427,192 @@ mod tests {
             "at ρ = 10 the door still answers: {answered:?}"
         );
     }
+    /// The general arm's shallow crossings at `ε = 1e-12` that the `f64`
+    /// lane once placed tens of bands from the truth, each as `[t0, t1 |
+    /// centre | axis | ρ | u_ref | torus centre | torus axis | R, r]` with
+    /// its true crossings over the turn (mpmath at 70 digits on these
+    /// exact inputs, `v̂ = n̂ × û` exact).
+    pub(super) const SHALLOW_POSES: [(&str, [f64; 20], &[f64]); 3] = [
+        (
+            "a near-parallel circle at the tube's top, its tilt in the gap",
+            [
+                -3.930_597_365_412_273_4,
+                -1.609_445_425_789_279_2,
+                0.019_185_322_485_892_85,
+                -0.049_505_276_644_974_7,
+                -0.249_999_999_829_764_8,
+                3.045_264_808_137_040_3e-13,
+                -1.136_254_354_833_023_5e-12,
+                1.0,
+                1.053_097_717_686_373_2,
+                0.726_269_536_922_667_8,
+                -0.687_410_037_559_922_2,
+                -1.002_240_954_934_652_3e-12,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                1.0,
+                0.25,
+            ],
+            &[2.685_922_410_923_398, 2.710_943_695_213_426_3],
+        ),
+        (
+            "a ten-metre-scale torus",
+            [
+                8.492_969_774_488_93,
+                10.356_489_392_302_237,
+                5.463_512_492_317_101,
+                -9.746_523_357_584_595,
+                -8.536_346_470_744_599,
+                -0.376_844_075_612_356_17,
+                0.708_864_775_492_544_9,
+                -0.596_237_597_558_031_3,
+                0.998_902_123_005_966_1,
+                0.234_919_854_312_025_83,
+                -0.549_505_558_951_724_3,
+                -0.801_783_201_826_509_6,
+                5.890_357_356_241_01,
+                -9.360_284_482_369_583,
+                -6.886_263_665_719_765,
+                0.266_750_385_940_342_6,
+                -0.873_228_420_448_758_6,
+                0.407_819_025_207_560_1,
+                2.428_454_476_566_526_6,
+                0.302_517_561_644_429_8,
+            ],
+            &[
+                4.839_135_368_952_223e-5,
+                0.027_670_534_202_976_136,
+                1.475_588_767_894_032_3,
+                6.283_137_001_763_05,
+            ],
+        ),
+        (
+            "the unit torus, an everyday pose",
+            [
+                2.133_241_833_704_526,
+                2.721_386_152_157_228,
+                -0.269_743_561_126_599_36,
+                0.180_110_200_879_629_95,
+                1.572_015_540_757_338_2,
+                -0.822_678_302_897_906,
+                -0.052_700_024_459_512_32,
+                -0.566_059_287_851_536_1,
+                2.209_443_825_872_272,
+                0.561_611_431_474_315_7,
+                0.079_275_393_383_984_45,
+                -0.823_594_567_758_423_7,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                1.0,
+                0.25,
+            ],
+            &[
+                3.126_815_815_599_285e-5,
+                0.589_305_912_820_224_2,
+                6.278_594_383_971_98,
+                6.283_153_825_682_388,
+            ],
+        ),
+    ];
+
+    /// The door on a [`SHALLOW_POSES`] row: its certified roots as
+    /// `(lo, hi)` pairs, or what it answered instead.
+    fn shallow_door<T: Decide + Bounds>(
+        v: &[f64; 20],
+        band: Band,
+    ) -> Result<Vec<(f64, f64)>, String> {
+        let at = T::from_f64;
+        let p = |i: usize| Point3::new(at(v[i]), at(v[i + 1]), at(v[i + 2]));
+        let w = |i: usize| Vec3::new(at(v[i]), at(v[i + 1]), at(v[i + 2]));
+        let torus = geom::Surface::Torus {
+            center: p(12),
+            axis: w(15),
+            major_radius: at(v[18]),
+            minor_radius: at(v[19]),
+            u_ref: {
+                let (e, _) = Vec3::new(v[15], v[16], v[17]).orthonormal_basis();
+                Vec3::new(at(e.x), at(e.y), at(e.z))
+            },
+        };
+        match roots_of(p(2), w(5), at(v[8]), w(9), at(v[0]), at(v[1]), &torus, band) {
+            Ok(CircleRoots::Certified { count, thetas }) => {
+                Ok(thetas[..count].iter().map(|t| (t.lo(), t.hi())).collect())
+            }
+            Ok(other) => Err(format!("{other:?}")),
+            Err(e) => Err(format!("refused: {e:?}")),
+        }
+    }
+
+    /// **A shallow crossing's root is placed within the band, or the door
+    /// refuses** (`bool_circle_torus_sub_root_slack`). At these poses the
+    /// residual's slope along the carrier at a root is `1e-8`–`1e-6`, so
+    /// the `f64` residual's rounding moves its sign change by up to
+    /// 1.85e-9 m of arc, 185 bands at `ε = 1e-12`, while the root still
+    /// reads ON the torus. Each pose is outside the band (at least
+    /// 1.2 `Kε` deep); on both lanes a certified answer must hold every
+    /// true root and each of its roots within `Kε` of arc of one.
+    #[test]
+    fn a_shallow_crossings_root_is_within_the_band_or_refused() {
+        use core::f64::consts::TAU;
+        let band = Band::new(1e-12, 1e-11).unwrap();
+        let reach = 1e-11;
+        for (label, v, truth) in SHALLOW_POSES {
+            let rho = v[8];
+            let off = |(lo, hi): (f64, f64), t: f64| {
+                let (mid, half) = ((lo + hi) / 2.0, (hi - lo) / 2.0);
+                let turn = (mid - t).rem_euclid(TAU);
+                (turn.min(TAU - turn) - half).max(0.0) * rho
+            };
+            for (lane, got) in [
+                ("f64", shallow_door::<f64>(&v, band)),
+                ("Interval", shallow_door::<Interval>(&v, band)),
+            ] {
+                let roots = match got {
+                    Ok(roots) => roots,
+                    Err(what) if what == "Uncertain" || what.starts_with("refused") => continue,
+                    Err(what) => {
+                        panic!("{label} ({lane}): a refusal or the true roots, got {what}")
+                    }
+                };
+                assert_eq!(
+                    roots.len(),
+                    truth.len(),
+                    "{label} ({lane}): the certified count"
+                );
+                for &r in &roots {
+                    let near = truth
+                        .iter()
+                        .map(|&t| off(r, t))
+                        .fold(f64::INFINITY, f64::min);
+                    assert!(
+                        near <= reach,
+                        "{label} ({lane}): certified root {r:?} lies {near:.3e} m of arc from \
+                         every true root, past the band's {reach:e}"
+                    );
+                }
+                for &t in truth {
+                    let near = roots
+                        .iter()
+                        .map(|&r| off(r, t))
+                        .fold(f64::INFINITY, f64::min);
+                    assert!(
+                        near <= reach,
+                        "{label} ({lane}): the true root {t} lies {near:.3e} m of arc from every \
+                         certified root"
+                    );
+                }
+            }
+        }
+    }
+
     /// **The admitted tilt moves the parallel arm's ROOTS, not just its
     /// margins** (delta review of PR 3375). Near the tube's top the
     /// carrier crosses the outer contour shallowly — a bump of 5e-8 m,

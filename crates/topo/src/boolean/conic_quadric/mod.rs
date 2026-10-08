@@ -67,7 +67,14 @@
 //!   scale `2b` (a circle's `2ρ`), and it is not clamped by the surface's
 //!   size: the roots spread along the carrier, not across the surface (a
 //!   circle in a plane through a wall's axis meets it at points a whole
-//!   diameter apart whatever `r` is).
+//!   diameter apart whatever `r` is). Each root the subdivision certifies
+//!   carries its slack (`bool_conic_quadric_sub_root_slack`): the
+//!   residual at the root with its running bound
+//!   ([`geom_brep::conic_quadric_residual`]), over `F`'s least slope near
+//!   it, at the top speed. At a shallow crossing that slope is small, and
+//!   the `f64` residual's sign change sits that reading's rounding over
+//!   it from the true root; a root whose slack the band cannot hold is
+//!   refused.
 //!
 //! The two arms' meters keep their cores' postures, which differ on a
 //! reading in the band's gap: the first-harmonic arm's refuse it, the
@@ -189,7 +196,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
                ellipse or a surface that is not a sphere, a cylinder or a cone",
     };
     let conic = geom_brep::Conic::of(carrier).ok_or_else(desync)?;
-    let (h, decision) = match (carrier, surface) {
+    let (h, decision, quadric) = match (carrier, surface) {
         (
             &geom::Curve3::Circle {
                 center,
@@ -226,6 +233,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
         (_, &geom::Surface::Sphere { center, radius, .. }) => (
             geom_brep::conic_sphere_harmonics(&conic, center, radius),
             BooleanDecision::ArcSphereRoots,
+            (center, None, radius),
         ),
         (
             _,
@@ -238,6 +246,7 @@ pub(super) fn conic_quadric_roots<T: Decide>(
         ) => (
             geom_brep::conic_cylinder_harmonics(&conic, origin, axis, radius),
             BooleanDecision::ArcCylinderRoots,
+            (origin, Some(axis), radius),
         ),
         (
             _,
@@ -272,10 +281,18 @@ pub(super) fn conic_quadric_roots<T: Decide>(
         |theta| geom_brep::implicit_residual(surface, conic.point(theta)),
         ladder_frame(&conic, (t0, t1), noise, h.floor),
         &ladder_rows(decision),
-        None,
+        Some(&RootSlack {
+            row: LADDER_ROOT_SLACK,
+            residual: &|theta| geom_brep::conic_quadric_residual(&conic, quadric, theta),
+            f_per_metre_hi: T::one(),
+        }),
         band,
     )
 }
+
+/// The ladder's root-slack row on a sphere or a wall (module docs, "Two
+/// arms"): `F` is the residual, so its ceiling per metre is `1`.
+const LADDER_ROOT_SLACK: &str = "bool_conic_quadric_sub_root_slack";
 
 /// The first-harmonic arm's reading of `h` (module docs, "Two arms"),
 /// or `None` where the second harmonic takes the ladder.
