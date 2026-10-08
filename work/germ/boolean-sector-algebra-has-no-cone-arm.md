@@ -82,3 +82,15 @@ island and re-homes its rings by `chord_join::path_island_winding` and
 form and pins every op at the pair gate. It goes red when this item, with
 `VERBS-CONE`, opens the gate, and then becomes the lane's first public
 row: the six ops at tiers 3 and 3′, against a slice-integral volume.
+
+## Spec (2026-10-08)
+
+`docs/GERM-CONE-SECTOR-SPEC.md` measures the whole chain on
+`c333c6ac65` and cuts the units. The chain above is short two kinds of
+door. The germ pair's section frame (`join::pair_section_frame_at`)
+stands before `bool_connect`'s dispatch. The section certificate's
+interior-loop guard and the result door's ring volume stand after the
+chord (§0.1 there). With every door given a scratch arm, the 51 bodies
+returned were all correct (§0.2 there). The second-order reading at a
+tangency, and a cone sector lying on a curved face, are held by D10
+(§2 there).
