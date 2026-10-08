@@ -11,3 +11,5 @@ Recorded at dispatch, 2026-10-07, under protocol b43aa794e5. Even byte: Opus is 
 - FORK-2b byte 29: Fable=A Opus=B (re-run of FORK-2 after Ev's #4220 comments)
 - FORK-1b byte 63: Fable=A Opus=B (the pose lattice, from Ev's #4222 comment)
 - FORK-7 byte 150: Opus=A Fable=B (must every variable be named; Ev on #4247)
+- FORK-S5Q byte 174: Opus=A Fable=B (stage 5 spec forks: S5-1/2/3 the quieting rule)
+- FORK-S5C byte 180: Opus=A Fable=B (stage 5 spec forks: S5-4/5 the census as a check)
