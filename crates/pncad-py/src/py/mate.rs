@@ -10,7 +10,7 @@
 //!
 //! # The solve is TOTAL, so its faults are VALUES
 //!
-//! [`solve_document`] never raises. A refusing cluster must not fail
+//! [`solve_document`] never raises. A refusing group must not fail
 //! an unrelated one, so the refusal is recorded per node and read back
 //! through [`SolvedPoses::fault`] as a [`MateFault`] value. The one
 //! door that RAISES is [`SolvedPoses::placement`], which must answer
@@ -34,12 +34,15 @@ use crate::errors::ErrorClass;
 use crate::py::typed_err;
 use crate::tags::{
     class_admission_tag, maintenance_tag, mate_fault_tag, mate_primitive_tag, subgroup_tag,
+    unplaced_tag,
 };
+use std::sync::Arc;
+
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
 use super::doc::NodeId;
-use super::place::Frame;
+use super::place::{Frame, Placement};
 use super::quantity::{Angle, Length};
 
 /// Metres in, as the `Frame` family spells a position.
@@ -59,7 +62,7 @@ fn lengths(v: [f64; 3]) -> (Length, Length, Length) {
 
 /// A kernel point as three lengths.
 fn point(p: pncad::geom_core::Point3<f64>) -> (Length, Length, Length) {
-    lengths([p.x, p.y, p.z])
+    lengths(p.to_array())
 }
 
 /// A kernel vector as three plain numbers — a DIRECTION carries no
@@ -70,88 +73,126 @@ fn direction(v: pncad::geom_core::Vec3<f64>) -> (f64, f64, f64) {
 
 // ---- The authored payload ----
 
-/// One side's **mate frame**, in that instance's own part
-/// coordinates: an origin, the primary axis (a planar rest's normal, a
-/// coaxial mate's axis), and the clocking reference that fixes roll.
+/// One side's **mate frame**: a base composed with an offset, a
+/// `Placement` written in the base's frame (`ASSEMBLY.md` A3).
 ///
-/// **Authored data, not geometry read back.** The solve is structural
-/// plus decided predicates over exactly these numbers, so a frame that
-/// does not match the face its mate names is a silent disagreement
-/// this library cannot see (issue #944 — nothing mints an alignment
-/// frame from a selected face yet).
+/// **Part base** (`MateFrame.on_part(offset)`): the side's part frame.
+/// Three authored vectors — `MateFrame(origin, axis, reference)` —
+/// are the part base with one literal step: local +Z is `axis`, the
+/// local origin `origin`, the roll fixed by `reference`. `axis` need
+/// not be unit and `reference` need not be perpendicular to it: only
+/// the axis's direction and the reference's perpendicular part are
+/// read.
 ///
-/// `axis` need not be unit and `reference` need not be perpendicular
-/// to it: only the axis's direction and the reference's perpendicular
-/// part are read. Both are plain numbers — a direction has no
-/// dimension — while `origin` is three lengths.
+/// **Face base** (`MateFrame.from_face()`, or `MateFrame.on_face(offset)`):
+/// no name. The side's frame is its own HEAD's face — the face the
+/// mate's reference on that side names, read in the mated part —
+/// whose canonical pose the solve reads off the part's own evaluation
+/// at every evaluation (`ASSEMBLY.md` A11 rule 5): the carrier's
+/// origin, its CHART axis as local +Z, and its own in-frame reference
+/// direction as local +Y (the `point_at` convention: local +X is the
+/// reference crossed with the axis). The offset is written in that
+/// frame, so it slides
+/// along the face, turns about its normal, or sets back from it, and
+/// it follows the face through any edit of the part. The face's
+/// orientation sense is not folded into the axis; the mate's
+/// `AxisSense` says which way the sides point. A face with no
+/// canonical frame (a NURBS carrier) refuses at the solve, typed.
+///
+/// The offset is any rigid motion; the mate's contact class says which
+/// offsets are legal — a `Rest` side set back from its face declares a
+/// contact that is not there, and the at-rest gate refutes it. A rigid
+/// step's expressions can read a document parameter, so a parameter
+/// can drive where a side sits; a literal step is held to the
+/// placement frame's bar (finite, proper, rigid) at the edit door.
+///
+/// A face base resolves on every lane: a seed run reads the pose with
+/// its tangent, a box run an enclosure of it, and so does a parameter
+/// an offset step reads.
 #[pyclass(frozen, module = "pncad", from_py_object)]
-#[derive(Clone, Copy)]
-pub(crate) struct MateFrame(pub(crate) d::MateFrame);
+#[derive(Clone)]
+pub(crate) struct MateFrame(pub(crate) d::MateFrame<d::Formula>);
 
 #[pymethods]
 impl MateFrame {
-    #[new]
-    fn new(
-        origin: (Length, Length, Length),
-        axis: (f64, f64, f64),
-        reference: (f64, f64, f64),
-    ) -> Self {
-        Self(d::MateFrame {
-            origin: meters(origin),
-            axis: [axis.0, axis.1, axis.2],
-            reference: [reference.0, reference.1, reference.2],
-        })
-    }
-
-    /// The frame's origin, in the part's own coordinates.
-    #[getter]
-    fn origin(&self) -> (Length, Length, Length) {
-        lengths(self.0.origin)
-    }
-
-    /// The primary axis, as authored (not normalised).
-    #[getter]
-    fn axis(&self) -> (f64, f64, f64) {
-        (self.0.axis[0], self.0.axis[1], self.0.axis[2])
-    }
-
-    /// The clocking reference, as authored.
-    #[getter]
-    fn reference(&self) -> (f64, f64, f64) {
-        (
-            self.0.reference[0],
-            self.0.reference[1],
-            self.0.reference[2],
-        )
-    }
-
-    /// The rigid placement this frame denotes: local +Z is `axis`,
-    /// the local origin is `origin`, roll fixed by `reference`.
+    /// Three authored vectors: the part base with the one literal step
+    /// they denote.
     ///
     /// Raises `FrameError` when the axis has no definite direction,
     /// when the reference has no definite perpendicular offset from
     /// it, or — asked before either sign — when the axis's length or
     /// that perpendicular offset is not a finite number, whose
     /// `variant` reads `non_finite_aim` or `non_finite_roll_reference`.
-    /// The same refusal the solve meets, reachable BEFORE authoring
-    /// the mate that would carry it.
-    fn placement(&self, py: Python<'_>) -> PyResult<Frame> {
-        let tol = Tol::witness();
-        self.0
-            .placement(tol)
-            .map(|affine| Frame(d::Frame::from_affine(affine)))
-            .map_err(|err| super::place::frame_err(py, &err))
+    ///
+    /// The frame is decided at the process tolerance, the one ε this
+    /// session holds: every door here — `Doc.insert`, `Doc.apply` —
+    /// decides at it, and a document recording another ε is refused
+    /// before any of its geometry is read (D4). The literal step it
+    /// stores is judged again where it lands, by the placement frame
+    /// rule (finite, proper, rigid) at the insert door and at load.
+    #[new]
+    fn new(
+        py: Python<'_>,
+        origin: (Length, Length, Length),
+        axis: (f64, f64, f64),
+        reference: (f64, f64, f64),
+    ) -> PyResult<Self> {
+        d::MateFrame::authored(
+            meters(origin),
+            [axis.0, axis.1, axis.2],
+            [reference.0, reference.1, reference.2],
+            Tol::witness(),
+        )
+        .map(Self)
+        .map_err(|err| super::place::frame_err(py, &err))
     }
 
+    /// The part base composed with `offset`, written in the part's own
+    /// coordinates.
+    #[staticmethod]
+    fn on_part(offset: &Placement) -> Self {
+        Self(d::MateFrame::on_part(offset.0.clone()))
+    }
+
+    /// The side's own head face, with no offset: the face's pose
+    /// itself (the class docs say how it is read).
+    #[staticmethod]
+    fn from_face() -> Self {
+        Self(d::MateFrame::from_face())
+    }
+
+    /// The side's own head face composed with `offset`, written in the
+    /// face's frame: origin on the face, +Z along its chart axis, +Y
+    /// along its reference direction.
+    #[staticmethod]
+    fn on_face(offset: &Placement) -> Self {
+        Self(d::MateFrame::on_face(offset.0.clone()))
+    }
+
+    /// What the offset is written in: `"part"` or `"face"`.
+    #[getter]
+    fn base(&self) -> &'static str {
+        self.0.base.name()
+    }
+
+    /// The offset, in the base's frame.
+    #[getter]
+    fn offset(&self) -> Placement {
+        Placement(self.0.offset.clone())
+    }
+
+    /// BIT-exact equality: the same base, and offsets equal by
+    /// `Placement.__eq__`'s rule.
     fn __eq__(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.0.bit_eq(&other.0)
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "MateFrame(origin={:?}, axis={:?}, reference={:?})",
-            self.0.origin, self.0.axis, self.0.reference
-        )
+        let offset = Placement(self.0.offset.clone()).__repr__();
+        match self.0.base {
+            d::FrameBase::Part => format!("MateFrame.on_part({offset})"),
+            d::FrameBase::Face => format!("MateFrame.on_face({offset})"),
+        }
     }
 }
 
@@ -296,8 +337,8 @@ impl MatePrimitive {
 /// redundant-or-contradictory and gets decided; on a planar rest the
 /// table has no entry and the solve refuses typed.
 #[pyclass(frozen, module = "pncad", from_py_object)]
-#[derive(Clone, Copy)]
-pub(crate) struct Alignment(pub(crate) d::Alignment);
+#[derive(Clone)]
+pub(crate) struct Alignment(pub(crate) d::Alignment<d::Formula>);
 
 #[pymethods]
 impl Alignment {
@@ -311,8 +352,8 @@ impl Alignment {
         clocking: Option<Angle>,
     ) -> Self {
         Self(d::Alignment {
-            a: a.0,
-            b: b.0,
+            a: a.0.clone(),
+            b: b.0.clone(),
             primitive: primitive.0,
             sense: sense.to_kernel(),
             clocking: clocking.map(|angle| angle.0.radians()),
@@ -322,13 +363,13 @@ impl Alignment {
     /// The `a` side's mate frame, in `a`'s part coordinates.
     #[getter]
     fn a(&self) -> MateFrame {
-        MateFrame(self.0.a)
+        MateFrame(self.0.a.clone())
     }
 
     /// The `b` side's mate frame, in `b`'s part coordinates.
     #[getter]
     fn b(&self) -> MateFrame {
-        MateFrame(self.0.b)
+        MateFrame(self.0.b.clone())
     }
 
     /// Which coset this mate pins.
@@ -351,22 +392,10 @@ impl Alignment {
             .map(|r| Angle(pncad::quantity::Angle::from_radians(r)))
     }
 
-    /// The **datum's own contribution to the lever** this mate's
-    /// angular decisions turn on: both mate frames' distances from
-    /// their parts' origins plus every length the primitive authors,
-    /// summed. The lever itself adds the two mated parts' own extent
-    /// (an upper bound from each evaluated body), which only the solve
-    /// has in hand — so this is the part an alignment can answer
-    /// alone, never the whole, and it is zero for a datum authored at
-    /// both origins with no length, which is the ordinary spelling of
-    /// an axis-to-axis mate rather than a defect.
-    #[getter]
-    fn lever_arm(&self) -> Length {
-        Length(pncad::quantity::Length::from_meters(self.0.lever_arm()))
-    }
-
+    /// BIT-exact equality, `MateFrame.__eq__`'s rule over both frames,
+    /// with the primitive's lengths and the rider compared by bits.
     fn __eq__(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.0.bit_eq(&other.0)
     }
 
     fn __repr__(&self) -> String {
@@ -560,8 +589,9 @@ impl Subgroup {
 /// `predicate`, `clash`, `part`, `named`, `selected`, `what`,
 /// `expected_document`, `found_document`, `inner_variant`, `margin`,
 /// `margin_low`, `margin_high`, `zero`, `escalate`, `field`, `value`,
-/// `lever_tilt`, `lever_residual`, `lever_arm`. The human message is
-/// the kernel's own prose, available as `str(fault)`.
+/// `lever_tilt`, `lever_residual`, `lever_arm`, `cause`. The human
+/// message is the kernel's own prose, available as `str(fault)`; the
+/// refusal it carries and does not quote is `cause`.
 ///
 /// **The classifier's words are the frame door's words.** `margin` /
 /// `margin_low` / `margin_high`, `zero` / `escalate`, `field` /
@@ -577,7 +607,38 @@ impl Subgroup {
 /// accessor here silently answers `None` about.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
-pub(crate) struct MateFault(pub(crate) d::MateFault);
+pub(crate) struct MateFault(pub(crate) d::MateFault, pub(crate) Voice);
+
+/// **Who says the nodes a fault's words name**: the document the fault
+/// was raised over, as the solve that recorded it read it, or the nodes
+/// an edit door kept when it refused the mate. A fault is memoized with
+/// the solve, so it holds ids; its node getters cross them in full.
+#[derive(Clone)]
+pub(crate) enum Voice {
+    /// The document the solve read.
+    Doc(Arc<d::ProfileDoc>),
+    /// The nodes the edit door kept ([`d::HeldNodes`]).
+    Held(d::HeldNodes),
+}
+
+impl Voice {
+    /// The speaker this voice says nodes by.
+    fn speaker(&self) -> d::Speaker<'_> {
+        match self {
+            Self::Doc(doc) => d::Speaker::of(&**doc),
+            Self::Held(held) => d::Speaker::held(held),
+        }
+    }
+
+    /// The document a carried refusal's level in it is spoken from,
+    /// when this voice holds one.
+    fn doc(&self) -> Option<&d::ProfileDoc> {
+        match self {
+            Self::Doc(doc) => Some(doc),
+            Self::Held(_) => None,
+        }
+    }
+}
 
 #[pymethods]
 impl MateFault {
@@ -620,16 +681,52 @@ impl MateFault {
     /// every node failure crosses with (`EvaluationError.kind`) — the
     /// same vocabulary, so a caller branches on one set of words
     /// whether the refusal reached them from the node or from the
-    /// mate that placed it. `str(fault)` carries its prose.
+    /// mate that placed it. [`MateFault::cause`] carries its prose.
     #[getter]
     fn error(&self) -> Option<&'static str> {
         self.payload().error
     }
 
-    /// The instance a self-mate names twice.
+    /// **The refusal this fault carries, typed** — the placer's own,
+    /// on `mate_placer_refused` where the placer is poisoned and cannot
+    /// state it: the `EvaluationError` the placer's own evaluation
+    /// raises, which `str(fault)` points at and never quotes. The same
+    /// value a raised `MateError` carries as its `__cause__`. `None` on
+    /// every other arm, and where the placer fails in its own right and
+    /// its own failure states it.
+    #[getter]
+    fn cause(&self, py: Python<'_>) -> Option<Py<PyAny>> {
+        super::value::carried_cause(py, self.0.carried_chain(), self.1.doc())
+            .map(|cause| cause.into_value(py).into_any())
+    }
+
+    /// The instance a self-mate names twice, the instance whose part
+    /// a lever or a face frame was asked of, or whose checked offset
+    /// faulted (`mate_offset_disagrees`, `mate_offset_unchecked`).
     #[getter]
     fn instance(&self) -> Option<NodeId> {
         self.payload().instance.map(NodeId)
+    }
+
+    /// The root of a faulted checked offset's group: the member whose
+    /// offset places the group the solve placed the instance in.
+    #[getter]
+    fn root(&self) -> Option<NodeId> {
+        self.payload().root.map(NodeId)
+    }
+
+    /// The face a `from_face` side read — its head's face, as its name
+    /// text in the PART's own spelling, or the head itself where it
+    /// names no face of the part — where the refusal is about one
+    /// (`mate_face_unresolved`, whose `inner_variant` names why: the
+    /// part not in hand, the face's own row, tie or carrier, or
+    /// `no_part_face`).
+    #[getter]
+    fn face(&self, py: Python<'_>) -> PyResult<Option<String>> {
+        self.payload()
+            .face
+            .map(|face| super::doc::name_text(py, face))
+            .transpose()
     }
 
     /// The instance an under-determined tree mate extended FROM.
@@ -820,8 +917,10 @@ impl MateFault {
         self.payload().lever_arm.map(length)
     }
 
+    /// The fault's words, each node it names spoken from the document
+    /// it was raised over.
     fn __str__(&self) -> String {
-        self.0.to_string()
+        d::Said(&self.0, self.1.speaker()).to_string()
     }
 
     fn __repr__(&self) -> String {
@@ -837,7 +936,7 @@ impl MateFault {
     /// exhaustively, with no wildcard, in `crate::mate_payload` — and
     /// an arm added kernel-side is a compile error there instead of
     /// seventeen attributes silently answering `None`.
-    fn payload(&self) -> crate::mate_payload::MateFaultPayload {
+    fn payload(&self) -> crate::mate_payload::MateFaultPayload<'_> {
         crate::mate_payload::mate_payload(&self.0)
     }
 }
@@ -850,14 +949,14 @@ impl MateFault {
 /// exception, because [`SolvedPoses::fault`] hands the SAME value back
 /// without raising: two spellings of one payload is exactly the drift
 /// a single vocabulary avoids.
-pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
-    let value = Py::new(py, MateFault(fault.clone()))
+pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault, voice: &Voice) -> PyErr {
+    let value = Py::new(py, MateFault(fault.clone(), voice.clone()))
         .map(|v| v.into_any())
         .unwrap_or_else(|_| py.None());
-    typed_err(
+    let err = typed_err(
         py,
         ErrorClass::Mate,
-        fault.to_string(),
+        d::Said(fault, voice.speaker()).to_string(),
         &[
             (
                 "variant",
@@ -865,13 +964,49 @@ pub(crate) fn mate_err(py: Python<'_>, fault: &d::MateFault) -> PyErr {
             ),
             ("fault", value),
         ],
-    )
+    );
+    // The refusal the fault carries, typed, as the cause — the value's
+    // own `cause`, and what a node failure does with one.
+    super::value::with_carried(py, err, fault.carried_chain(), voice.doc())
+}
+
+/// [`d::SolvedPoses::placement`]'s refusal, raised: the solve's own
+/// fault as `MateError`, spoken from `solved`, the document the solve
+/// recorded it over; and the two placement refusals as the
+/// `EvaluationError` the instance's own row would carry, spoken from
+/// `doc`, the document the placement door read them off.
+fn pose_err(
+    py: Python<'_>,
+    instance: NodeId,
+    refusal: &d::PoseRefusal,
+    solved: &Arc<d::ProfileDoc>,
+    doc: &d::ProfileDoc,
+) -> PyErr {
+    let kind = match refusal {
+        d::PoseRefusal::Mate(fault) => {
+            return mate_err(py, fault, &Voice::Doc(Arc::clone(solved)));
+        }
+        d::PoseRefusal::Unplaced { group, cause, .. } => d::NodeErrorKind::Unplaced {
+            group: *group,
+            cause: *cause,
+        },
+        d::PoseRefusal::Placement { node, error } => d::NodeErrorKind::PlacementRefused {
+            node: *node,
+            error: error.clone(),
+        },
+    };
+    let err = super::value::refused(py, instance, &kind, refusal.spoken(doc), None);
+    super::value::with_carried(py, err, kind.carried_chain(), Some(doc))
 }
 
 /// The document's solved poses: each instance's pose relative to its
-/// cluster gauge, each mate's role, and the per-node refusals.
+/// group root, each mate's role, and the per-node refusals.
+///
+/// It keeps a copy of the document as it solved it: a fault is the
+/// solve's, recorded over that version, so its words are spoken from it
+/// even after the document is edited.
 #[pyclass(frozen, module = "pncad")]
-pub(crate) struct SolvedPoses(d::SolvedPoses);
+pub(crate) struct SolvedPoses(d::SolvedPoses, Arc<d::ProfileDoc>);
 
 #[pymethods]
 impl SolvedPoses {
@@ -879,10 +1014,13 @@ impl SolvedPoses {
     /// for it.
     ///
     /// Recorded against the refusing MATE and against every instance
-    /// in its cluster that consequently has no pose — a refusal
+    /// in its group that consequently has no pose — a refusal
     /// reaches the nodes it actually affects and no further.
     fn fault(&self, node: &NodeId) -> Option<MateFault> {
-        self.0.fault(node.0).cloned().map(MateFault)
+        self.0
+            .fault(node.0)
+            .cloned()
+            .map(|fault| MateFault(fault, Voice::Doc(Arc::clone(&self.1))))
     }
 
     /// A mate's role, `None` if the node is not a live mate.
@@ -890,35 +1028,51 @@ impl SolvedPoses {
         self.0.role(mate.0).map(MateRole::from_kernel)
     }
 
-    /// An instance's cluster gauge, `None` if the node is not a live
-    /// instance. A singleton cluster is its own gauge.
-    fn gauge(&self, instance: &NodeId) -> Option<NodeId> {
-        self.0.gauge(instance.0).map(NodeId)
+    /// An instance's group root, `None` if the node is not a live
+    /// instance. A singleton group is its own root.
+    fn root(&self, instance: &NodeId) -> Option<NodeId> {
+        self.0.root(instance.0).map(NodeId)
     }
 
-    /// An instance's pose RELATIVE TO ITS CLUSTER GAUGE. The gauge's
-    /// own entry is the identity, bit-exactly.
+    /// An instance's pose in its group's own space: where it sits when
+    /// the group's frame is the identity — relative to its root when no
+    /// placer stands on the path from the root, and in an unplaced
+    /// group the pose the group is evaluated at.
     fn relative(&self, instance: &NodeId) -> Option<Frame> {
         self.0.relative(instance.0).map(Frame)
     }
 
-    /// **The instance's world placement**: the cluster's recorded
-    /// frame composed onto the solved relative pose.
+    /// Why an instance's group is **unplaced** — `no_offset` (no member
+    /// carries an offset) or `dead_gauge` (its gauge chain names a
+    /// deleted gauge) — or `None` when it is placed or the node is not
+    /// a live instance. An unplaced group lives in its own space: it
+    /// evaluates in its own frame, and nothing outside it is compared
+    /// with it.
+    fn unplaced(&self, instance: &NodeId) -> Option<&'static str> {
+        self.0
+            .unplaced(instance.0)
+            .map(|cause| unplaced_tag(&cause))
+    }
+
+    /// **The instance's world placement, at the document's own
+    /// parameters**: its group's frame — the gauge chain composed with
+    /// the root's offset — composed into the solved pose.
     ///
-    /// A singleton cluster returns its recorded frame VERBATIM — the
-    /// mate-less document's placement is bit-for-bit what it was
-    /// before mates existed.
+    /// A lone instance returns its offset's frame on its gauge, bit for
+    /// bit, and on the world at the empty offset the identity.
     ///
-    /// `doc` is read for its placement registry, and it must be the
+    /// `doc` is read for its gauges and offsets, and it must be the
     /// document this solve is OF: passing a different one would
-    /// compose this document's relative poses onto that one's cluster
-    /// frames, which is not a pose of either. The door refuses that
-    /// first — a `SolvedPoses` carries the id of the document
-    /// `solve_document` solved, and a mismatch raises `MateError`
-    /// with tag `mate_poses_of_another_document` before any frame is
-    /// read.
+    /// compose this document's poses onto that one's placements, which
+    /// is not a pose of either. The door refuses that first — a
+    /// `SolvedPoses` carries the id of the document `solve_document`
+    /// solved, and a mismatch raises `MateError` with tag
+    /// `mate_poses_of_another_document` before any frame is read.
     ///
-    /// Raises `MateError` when the instance's cluster did not solve.
+    /// Raises `MateError` when the instance's group did not solve, and
+    /// `EvaluationError` — kind `unplaced`, or `placement_refused` with
+    /// the placement's own refusal as the cause — when nothing places
+    /// its group or a placement on its frame does not evaluate.
     fn placement(
         &self,
         py: Python<'_>,
@@ -928,7 +1082,7 @@ impl SolvedPoses {
         self.0
             .placement(&doc.inner, instance.0)
             .map(Frame)
-            .map_err(|fault| mate_err(py, &fault))
+            .map_err(|refusal| pose_err(py, *instance, &refusal, &self.1, &doc.inner))
     }
 
     fn __repr__(&self) -> String {
@@ -938,22 +1092,26 @@ impl SolvedPoses {
 
 /// Solve the document's mates: the per-pair coset fold along a
 /// deterministic spanning tree, yielding every instance's pose
-/// relative to its cluster gauge and every mate's role.
+/// relative to its group root and every mate's role.
 ///
-/// **Total — this never raises.** A refusing cluster must not fail an
+/// **Total — this never raises.** A refusing group must not fail an
 /// unrelated one, so refusals are recorded per node and read back
 /// through `SolvedPoses.fault`.
 ///
-/// The solve reads no geometry except each mated part's own extent —
-/// an upper bound taken from its evaluated body, entering only as the
-/// lever a parallelism verdict is decided over — so `resolver` is the
-/// same document seam `evaluate(doc, resolver=)` crosses: a
-/// `Workspace`, or `None`, under which every mate on a part faults
-/// `mate_unleverable` in the resolver's own voice (`part_no_resolver`)
-/// rather than levering over nothing. In particular the solve does
-/// NOT check that a mate's frames match the faces its references
-/// name — that is issue #944, and it is why a document can solve
-/// cleanly and still refuse at the at-rest gate.
+/// The solve reads no geometry except what each mated part's own
+/// evaluation answers: its extent — an upper bound taken from its
+/// evaluated body, entering only as the lever a parallelism verdict
+/// is decided over — and, for a `MateFrame.from_face` side, that
+/// face's canonical pose. So `resolver` is the same document seam
+/// `evaluate(doc, resolver=)` crosses: a `Workspace`, or `None`, under
+/// which every mate on a part refuses in the resolver's own voice
+/// (`part_no_resolver`) rather than reading nothing — a face side as
+/// `mate_face_unresolved` (read first), an authored one as
+/// `mate_unleverable`. A face frame IS its face, so it cannot drift
+/// from the part; the solve does NOT check that AUTHORED vectors
+/// match the faces the mate's references name, which is why a
+/// document authored so can solve cleanly and still refuse at the
+/// at-rest gate.
 #[pyfunction]
 #[pyo3(signature = (doc, *, resolver=None))]
 pub(crate) fn solve_document(
@@ -963,32 +1121,33 @@ pub(crate) fn solve_document(
     let tol = Tol::witness();
     let seam = super::doc::seam(resolver);
     let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
-    SolvedPoses(d::solve_document(&doc.inner, &reach, tol))
+    SolvedPoses(
+        d::solve_document(&doc.inner, &reach, tol),
+        Arc::new(doc.inner.clone()),
+    )
 }
 
-/// The **placement clusters**: instances coupled by mates, each
-/// listed with its cluster's members in document order.
-///
-/// The partition placement is keyed by. A mate-less document's
-/// clusters are all singletons, which is why placement stayed
-/// per-instance before mates existed.
+/// The **placement groups**: instances coupled by PLACING mates — both
+/// instances on one gauge — each listed with its group's members in
+/// document order. A mate-less document's groups are all singletons.
 #[pyfunction]
-pub(crate) fn clusters(doc: &super::doc::Doc) -> Vec<Vec<NodeId>> {
-    d::clusters(&doc.inner)
+pub(crate) fn groups(doc: &super::doc::Doc) -> Vec<Vec<NodeId>> {
+    d::groups(&doc.inner)
         .into_iter()
         .map(|c| c.into_iter().map(NodeId).collect())
         .collect()
 }
 
-/// An instance's cluster GAUGE: the document-order-first instance of
-/// its cluster, whose recorded frame places the whole cluster.
+/// An instance's group ROOT: the earliest member, in document order,
+/// that carries an offset — whose offset on the group's gauge places
+/// the whole group — or the earliest instance when none does or its
+/// gauge chain names a deleted gauge, and the group is unplaced.
 ///
-/// Answers the instance itself for a node that is not in any cluster,
-/// which is the kernel's own total shape — a singleton is its own
-/// gauge and a non-instance has no cluster to be second in.
+/// Answers the node itself for a node that is not a live instance,
+/// which is the kernel's own total shape.
 #[pyfunction]
-pub(crate) fn gauge_of(doc: &super::doc::Doc, instance: &NodeId) -> NodeId {
-    NodeId(d::gauge_of(&doc.inner, instance.0))
+pub(crate) fn root_of(doc: &super::doc::Doc, instance: &NodeId) -> NodeId {
+    NodeId(d::root_of(&doc.inner, instance.0))
 }
 
 /// The **reading edges**: for each mate, the instantiate node each of
@@ -1009,7 +1168,7 @@ pub(crate) fn reading_edges(doc: &super::doc::Doc) -> Vec<(NodeId, NodeId)> {
 /// The **relative-freedom partition**: components over consuming ∪
 /// reading edges, so mates couple what they constrain.
 ///
-/// Coarser than `clusters`, which partitions instances alone.
+/// Coarser than `groups`, which partitions instances alone.
 #[pyfunction]
 pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<NodeId>> {
     d::relative_freedom_components(&doc.inner)
@@ -1020,51 +1179,32 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
 
 // ---- The accepted edit's maintenance ----
 
-/// One act of automatic maintenance an accepted edit performed: what
-/// an ordinary edit's motion of the mate graph forced on the placement
-/// registry, or a reference its delete stranded.
+/// One act of automatic maintenance an accepted edit performed: the
+/// offset the mate door cleared, or a reference its delete stranded.
 ///
 /// It rides the accepted edit rather than being an edit of its own —
-/// automatic maintenance is the invariant's own bookkeeping,
-/// deterministic from the edit, so a replay reproduces it and undo
-/// (keeping the prior document) restores it exactly. What the record
-/// adds is VISIBILITY: an absorbed cluster's frame is consumed here,
-/// where a caller can read what was consumed, and a stranded name is
-/// said at the delete rather than at the next evaluation.
+/// automatic maintenance is deterministic from the edit, so a replay
+/// reproduces it and undo (keeping the prior document) restores it
+/// exactly. What the record adds is VISIBILITY: a cleared offset is
+/// said where it was cleared, with the offset it held, and a stranded
+/// name is said at the delete rather than at the next evaluation.
 ///
 /// Payload attributes are present on every arm, `None` where
-/// inapplicable: `survived`, `absorbed`, `absorbed_frame`, `source`,
-/// `target`, `frame`, `gauge` for the four cluster acts; `node` and
-/// `name` for a strand, `name` alone for a `stranded_appearance`,
-/// whose carrier is the appearance store and not a node, and `node`
-/// alone for an `orphaned_declare`, whose subject is the surviving
-/// declaration rather than anything the edit broke.
-/// (`source`/`target` rather than `from`/`to`: `from` is a Python
-/// keyword.)
+/// inapplicable: `node` and `offset` for an `offset_cleared` — a
+/// member of the mate's first operand's group, now placed on the
+/// second's, and the offset it gave up; `node` and `name` for a
+/// strand, and `name` alone for a `stranded_appearance`, whose carrier is
+/// the appearance store and not a node.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Maintenance(pub(crate) d::Maintenance);
 
-impl Maintenance {
-    /// The cluster act this row is, or `None` for a strand — the one
-    /// place the four cluster attributes narrow, so each getter below
-    /// states only which act carries it.
-    fn cluster(&self) -> Option<&d::ClusterMaintenance> {
-        match &self.0 {
-            d::Maintenance::Cluster(act) => Some(act),
-            d::Maintenance::Strand { .. }
-            | d::Maintenance::StrandedAppearance { .. }
-            | d::Maintenance::OrphanedDeclare { .. } => None,
-        }
-    }
-}
-
 #[pymethods]
 impl Maintenance {
-    /// The stable tag: `join`, `split`, `gauge_rewrite`, `drop`,
-    /// `strand`, `stranded_appearance` or `orphaned_declare`, the seven
-    /// the stub lists for this attribute. The
-    /// word decides which of the payload attributes below carry.
+    /// The stable tag: `offset_cleared`, `strand` or
+    /// `stranded_appearance`, the three the stub lists for this
+    /// attribute. The word decides which of the payload
+    /// attributes below carry.
     // The map is `crate::tags::maintenance_tag`, whose words
     // `TAG_INVENTORY` pins.
     #[getter]
@@ -1072,23 +1212,23 @@ impl Maintenance {
         maintenance_tag(&self.0)
     }
 
-    /// The node this row is about: the surviving node whose payload
-    /// carries a stranded name, or the declaration an
-    /// `orphaned_declare` left with no consumer. `None` for a
-    /// `stranded_appearance`, which has no carrying node to name, and
-    /// for the cluster acts, which name gauges through their own
-    /// attributes.
+    /// The node this row is about: the instance whose offset the mate
+    /// door cleared, or the surviving node whose payload carries a
+    /// stranded name. `None` for a `stranded_appearance`, which has
+    /// no carrying node to name.
     ///
-    /// The two arms answer different questions with one attribute on
+    /// The arms answer different questions with one attribute on
     /// purpose: each is the node a reader would go and look at, which
     /// is the whole use of the getter. `variant` says which question
     /// was answered.
     #[getter]
     fn node(&self) -> Option<NodeId> {
         match &self.0 {
-            d::Maintenance::Strand { node, .. } => Some(NodeId(*node)),
-            d::Maintenance::OrphanedDeclare { declare } => Some(NodeId(*declare)),
-            d::Maintenance::Cluster(_) | d::Maintenance::StrandedAppearance { .. } => None,
+            d::Maintenance::OffsetCleared { instance, .. } => Some(NodeId(instance.id())),
+            d::Maintenance::Strand { node, .. } => Some(NodeId(node.id())),
+            d::Maintenance::LabelDropped { gauge, .. } => Some(NodeId(gauge.id())),
+            d::Maintenance::StrandedAppearance { .. }
+            | d::Maintenance::AnonymousVarRemoved { .. } => None,
         }
     }
 
@@ -1097,93 +1237,32 @@ impl Maintenance {
     /// `strand`, the appearance store's stranded key for a
     /// `stranded_appearance`. A stranded name is spelled as the
     /// document holds it — its minting node deleted, or its profile
-    /// step dropped — and `DocEdit.rebind` from that spelling is the
-    /// repair this surface carries.
+    /// piece no longer drawn — and `DocEdit.rebind` from that spelling
+    /// is the repair this surface carries.
     #[getter]
     fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
         match &self.0 {
-            d::Maintenance::Strand { name, .. } | d::Maintenance::StrandedAppearance { name } => {
-                super::doc::name_text(py, name).map(Some)
+            d::Maintenance::Strand { name, .. }
+            | d::Maintenance::StrandedAppearance { name, .. } => {
+                super::doc::name_text(py, name.name()).map(Some)
             }
-            d::Maintenance::Cluster(_) | d::Maintenance::OrphanedDeclare { .. } => Ok(None),
+            d::Maintenance::OffsetCleared { .. }
+            | d::Maintenance::LabelDropped { .. }
+            | d::Maintenance::AnonymousVarRemoved { .. } => Ok(None),
         }
     }
 
-    /// The gauge that survived a join: the earlier of the two.
+    /// The offset the mate door cleared, for an `offset_cleared`.
     #[getter]
-    fn survived(&self) -> Option<NodeId> {
-        use d::ClusterMaintenance as M;
-        match *self.cluster()? {
-            M::Join { survived, .. } => Some(NodeId(survived)),
-            M::Split { .. } | M::GaugeRewrite { .. } | M::Drop { .. } => None,
-        }
-    }
-
-    /// The absorbed cluster's former gauge.
-    #[getter]
-    fn absorbed(&self) -> Option<NodeId> {
-        use d::ClusterMaintenance as M;
-        match *self.cluster()? {
-            M::Join { absorbed, .. } => Some(NodeId(absorbed)),
-            M::Split { .. } | M::GaugeRewrite { .. } | M::Drop { .. } => None,
-        }
-    }
-
-    /// The absorbed cluster's frame, consumed into this record —
-    /// `None` when the row was absent (the identity).
-    #[getter]
-    fn absorbed_frame(&self) -> Option<Frame> {
-        use d::ClusterMaintenance as M;
-        match *self.cluster()? {
-            M::Join {
-                absorbed_frame: f, ..
-            } => f.map(Frame),
-            M::Split { .. } | M::GaugeRewrite { .. } | M::Drop { .. } => None,
-        }
-    }
-
-    /// The gauge a split separated FROM, or a rewrite's dead gauge.
-    #[getter]
-    fn source(&self) -> Option<NodeId> {
-        use d::ClusterMaintenance as M;
-        match *self.cluster()? {
-            M::Split { from, .. } | M::GaugeRewrite { from, .. } => Some(NodeId(from)),
-            M::Join { .. } | M::Drop { .. } => None,
-        }
-    }
-
-    /// The new cluster's gauge, or the dead gauge's successor.
-    #[getter]
-    fn target(&self) -> Option<NodeId> {
-        use d::ClusterMaintenance as M;
-        match *self.cluster()? {
-            M::Split { to, .. } | M::GaugeRewrite { to, .. } => Some(NodeId(to)),
-            M::Join { .. } | M::Drop { .. } => None,
-        }
-    }
-
-    /// The minted, rewritten or dropped frame, `None` for the
-    /// identity.
-    #[getter]
-    fn frame(&self) -> Option<Frame> {
-        use d::ClusterMaintenance as M;
-        match *self.cluster()? {
-            M::Split { frame, .. } | M::GaugeRewrite { frame, .. } | M::Drop { frame, .. } => {
-                frame.map(Frame)
+    fn offset(&self) -> Option<super::place::Placement> {
+        match &self.0 {
+            d::Maintenance::OffsetCleared { offset, .. } => {
+                Some(super::place::Placement(offset.authored()))
             }
-            // A join CONSUMES a frame rather than minting one, and
-            // names it `absorbed_frame`.
-            M::Join { .. } => None,
-        }
-    }
-
-    /// The dead gauge whose record went with its last instance.
-    #[getter]
-    fn gauge(&self) -> Option<NodeId> {
-        use d::ClusterMaintenance as M;
-        match *self.cluster()? {
-            M::Drop { gauge, .. } => Some(NodeId(gauge)),
-            M::Join { .. } | M::Split { .. } | M::GaugeRewrite { .. } => None,
+            d::Maintenance::Strand { .. }
+            | d::Maintenance::StrandedAppearance { .. }
+            | d::Maintenance::LabelDropped { .. }
+            | d::Maintenance::AnonymousVarRemoved { .. } => None,
         }
     }
 
@@ -1206,8 +1285,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ClassAdmission>()?;
     m.add_class::<Maintenance>()?;
     m.add_function(wrap_pyfunction!(solve_document, m)?)?;
-    m.add_function(wrap_pyfunction!(clusters, m)?)?;
-    m.add_function(wrap_pyfunction!(gauge_of, m)?)?;
+    m.add_function(wrap_pyfunction!(groups, m)?)?;
+    m.add_function(wrap_pyfunction!(root_of, m)?)?;
     m.add_function(wrap_pyfunction!(reading_edges, m)?)?;
     m.add_function(wrap_pyfunction!(relative_freedom_components, m)?)?;
     m.add_function(wrap_pyfunction!(class_admission, m)?)?;
@@ -1215,5 +1294,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("UNDER_RECOURSE", d::UNDER_RECOURSE)?;
     m.add("CONTRADICTORY_RECOURSE", d::CONTRADICTORY_RECOURSE)?;
     m.add("NO_AT_REST_RECORD_RECOURSE", d::NO_AT_REST_RECORD_RECOURSE)?;
+    m.add("OFFSET_RECOURSE", d::OFFSET_RECOURSE)?;
+    m.add("UNPLACED_RECOURSE", d::UNPLACED_RECOURSE)?;
     Ok(())
 }

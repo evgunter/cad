@@ -42,7 +42,7 @@ fn probe_coincident_stacking_refuses_degenerate() {
         Affine3::identity(),
     ];
     match loft_body::<f64>(&sections, &places, 2, Tol::witness()) {
-        Err(LoftError::DegenerateStacking { .. } | LoftError::Skin(_)) => {}
+        Err(LoftError::DegenerateStacking { slab: 0 }) => {}
         other => panic!("expected a degenerate refusal, got {other:?}"),
     }
 }

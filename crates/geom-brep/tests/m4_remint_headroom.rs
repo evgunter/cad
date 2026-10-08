@@ -41,7 +41,7 @@ fn marginal_witness_slack_vs_remint_freshness() {
     };
     let (t0, t1) = (0.0, 2.0);
     let mid_i = (CERT_SAMPLES - 1) / 2;
-    let mid_t = t0 + (t1 - t0) * (f64::from(mid_i) / f64::from(CERT_SAMPLES - 1));
+    let mid_t = geom_brep::sample_param(t0, t1, mid_i);
     let true_mid = carrier.eval(mid_t);
     let offset = eps * 0.9;
     let marginal = Point3::new(true_mid.x + offset, 0.0, 0.0);

@@ -8,7 +8,8 @@
 //! `decide_nonzero`, `gate_measured`). The gate's refusal is therefore
 //! the funnel's own escalation, recorded on the open frame beside the
 //! definite verdict the classifier reached, and no op mints an
-//! `Indeterminate` its caller's log cannot see.
+//! `Indeterminate` its caller's log cannot see. A rejection carries the
+//! margin the funnel decided: a collapsed arm escalates with its zero.
 //!
 //! The rows below drive that through the public doors. The census at
 //! the end says a narrower thing than it looks: no file under this
@@ -26,10 +27,11 @@ use geom_brep::{
     enters_material_order2,
 };
 use geom_core::k_stats::{Bracket, Recorded};
-use geom_core::{Band, MarginDiag, Point3, Sign, Tol, Vec3};
+use geom_core::{Band, ErrorTextReading, Point3, Sign, Tol, Vec3};
 
-/// The one escalation `recorded` holds, as `(predicate, margin)`.
-fn sole_escalation(recorded: &Recorded) -> (&'static str, MarginDiag) {
+/// The one escalation `recorded` holds, as `(predicate, margin, the
+/// sign the gate rejected)`.
+fn sole_escalation(recorded: &Recorded) -> (&'static str, ErrorTextReading, Option<Sign>) {
     assert_eq!(
         recorded.escalations.len(),
         1,
@@ -37,7 +39,12 @@ fn sole_escalation(recorded: &Recorded) -> (&'static str, MarginDiag) {
         recorded.escalations
     );
     let e = &recorded.escalations[0];
-    (e.predicate(), e.source.margin)
+    let m = e.source.margin;
+    (
+        e.predicate(),
+        m.diagnostic_f64_for_error_text(),
+        m.rejected_sign(),
+    )
 }
 
 /// The verdicts, as `(predicate, sign)` pairs.
@@ -70,8 +77,14 @@ fn an_indeterminate_minted_after_a_definite_verdict_is_on_the_escalation_log() {
     );
     let recorded = bracket.finish();
     let escalated = out.expect_err("the predicate escalates to its caller");
-    assert_eq!(escalated.predicate, Some("enters_material_arm"));
-    assert_eq!(escalated.margin, MarginDiag::INVALID);
+    assert_eq!(escalated.diag.predicate, Some("enters_material_arm"));
+    assert_eq!(
+        (
+            escalated.diag.margin.diagnostic_f64_for_error_text(),
+            escalated.diag.margin.rejected_sign()
+        ),
+        (ErrorTextReading::Value(0.0), Some(Sign::Zero))
+    );
     assert_eq!(
         verdicts(&recorded),
         [("enters_material_arm", Sign::Zero)],
@@ -79,7 +92,11 @@ fn an_indeterminate_minted_after_a_definite_verdict_is_on_the_escalation_log() {
     );
     assert_eq!(
         sole_escalation(&recorded),
-        ("enters_material_arm", MarginDiag::INVALID),
+        (
+            "enters_material_arm",
+            ErrorTextReading::Value(0.0),
+            Some(Sign::Zero)
+        ),
         "and the escalation the caller received is on the log beside it"
     );
 }
@@ -99,7 +116,7 @@ fn the_order2_sector_arm_gate_records_its_escalation() {
     );
     let recorded = bracket.finish();
     assert_eq!(
-        out.expect_err("a collapsed arm escalates").predicate,
+        out.expect_err("a collapsed arm escalates").diag.predicate,
         Some("tangent_sector_order2_arm")
     );
     assert_eq!(
@@ -108,7 +125,11 @@ fn the_order2_sector_arm_gate_records_its_escalation() {
     );
     assert_eq!(
         sole_escalation(&recorded),
-        ("tangent_sector_order2_arm", MarginDiag::INVALID)
+        (
+            "tangent_sector_order2_arm",
+            ErrorTextReading::Value(0.0),
+            Some(Sign::Zero)
+        )
     );
 }
 
@@ -130,13 +151,17 @@ fn the_dihedral_arm_gate_records_its_escalation() {
     let out = classify_dihedral(&s1, &s2, Point3::origin(), 0.0f64, band);
     let recorded = bracket.finish();
     assert_eq!(
-        out.expect_err("a collapsed arm escalates").predicate,
+        out.expect_err("a collapsed arm escalates").diag.predicate,
         Some("dihedral_arm")
     );
     assert_eq!(verdicts(&recorded), [("dihedral_arm", Sign::Zero)]);
     assert_eq!(
         sole_escalation(&recorded),
-        ("dihedral_arm", MarginDiag::INVALID)
+        (
+            "dihedral_arm",
+            ErrorTextReading::Value(0.0),
+            Some(Sign::Zero)
+        )
     );
 }
 
@@ -166,7 +191,11 @@ fn the_material_pairing_gate_records_its_escalation() {
     assert_eq!(verdicts(&recorded), [("material_wedge_side", Sign::Zero)]);
     assert_eq!(
         sole_escalation(&recorded),
-        ("material_wedge_side", MarginDiag::INVALID)
+        (
+            "material_wedge_side",
+            ErrorTextReading::Value(0.0),
+            Some(Sign::Zero)
+        )
     );
 }
 

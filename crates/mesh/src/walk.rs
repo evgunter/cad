@@ -130,7 +130,7 @@
 
 use std::collections::HashMap;
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Point3, Vec3};
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
 
@@ -243,16 +243,16 @@ pub(crate) fn traversals(
     Ok(out)
 }
 
-/// Rim-vs-meridian classification (module docs): `Seam` descriptions
-/// and line carriers are meridians; circle carriers split on axis
-/// alignment (structurally either parallel — a rim — or perpendicular
-/// — a meridian; 0.5 splits the two classes with maximal margin).
+/// Rim-vs-meridian classification (module docs): line carriers are
+/// meridians; circle carriers split on axis alignment (structurally
+/// either parallel — a rim — or perpendicular — a meridian; 0.5 splits
+/// the two classes with maximal margin). The description is not read:
+/// a wrap edge classifies by its carrier like any other edge.
 ///
 /// A meridian's column u always comes from the mid-point chart
-/// inversion — **never** from the edge kind: a `Seam` edge is the
-/// surface's `u_ref`-half-plane meridian, whose chart u is 0 on
-/// ordinary kinds but π on a cone's mirror nappe (the kernel defines
-/// the seam spatially via `u_ref`; `u_of` carries the nappe
+/// inversion — **never** from the edge's description: a wrap edge sits
+/// wherever the construction cut the wall, so its column is wherever
+/// its carrier puts it (`u_of` carrying a cone's mirror-nappe
 /// correction).
 fn classify(
     chart: &Chart,
@@ -914,7 +914,7 @@ pub(crate) fn loop_polygon(
         .ok_or(TessellateError::MissingEntity {
             what: "face surface",
         })?;
-    let surface_kind = SurfaceKind::of(surface);
+    let surface_kind = surface.kind();
     require_a_meridian(kinds, face, surface_kind)?;
     let m = travs.len();
     // ISO-SIDE RUNS (#653): which traversals open a side, and so take
@@ -1970,9 +1970,9 @@ mod tests {
             .body;
         let mut positions = Vec::new();
         let mut vids = HashMap::new();
-        for (vk, v) in body.vertices() {
+        for (vk, p) in body.vertex_points() {
             vids.insert(vk, u32::try_from(positions.len()).unwrap());
-            positions.push(*body.get_point(v.point).unwrap());
+            positions.push(p);
         }
         let mut bounds = crate::nurbs_cert::FaceBounds::new();
         let chords = crate::chords::compute_chords(

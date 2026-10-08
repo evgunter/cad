@@ -27,13 +27,15 @@ from pncad import (
     DocEdit,
     EntityKind,
     EvaluationError,
-    Expr,
+    Formula,
     NamePat,
     Node,
     OpGroup,
+    Open,
     SegPat,
     SegTag,
     Selector,
+    Start,
     evaluate,
     m,
 )
@@ -55,15 +57,15 @@ def blank(doc, side, h):
     square = doc.insert(
         Node.polygon(
             [
-                (Expr.length_in(0, m), Expr.length_in(0, m)),
-                (Expr.length_in(side, m), Expr.length_in(0, m)),
-                (Expr.length_in(side, m), Expr.length_in(side, m)),
-                (Expr.length_in(0, m), Expr.length_in(side, m)),
+                (Formula.length_in(0, m), Formula.length_in(0, m)),
+                (Formula.length_in(side, m), Formula.length_in(0, m)),
+                (Formula.length_in(side, m), Formula.length_in(side, m)),
+                (Formula.length_in(0, m), Formula.length_in(side, m)),
             ],
             plane=doc.sketch_frame(),
         )
     )
-    return doc.insert(Node.extrude(square, Expr.length_in(h, m)))
+    return doc.insert(Node.extrude(square, Formula.length_in(h, m)))
 
 
 def top_of(doc, box):
@@ -80,7 +82,7 @@ def top_of(doc, box):
 
 def cup(doc, side=L, h=H, t=T):
     box = blank(doc, side, h)
-    return box, doc.insert(Node.shell(box, Expr.length_in(t, m), [top_of(doc, box)]))
+    return box, doc.insert(Node.shell(box, Formula.length_in(t, m), [top_of(doc, box)]))
 
 
 def mass(doc, node):
@@ -103,7 +105,7 @@ class TestCup(unittest.TestCase):
     def test_an_empty_open_list_is_the_sealed_hollow(self):
         doc = Doc()
         box = blank(doc, L, H)
-        sealed = doc.insert(Node.shell(box, Expr.length_in(T, m), []))
+        sealed = doc.insert(Node.shell(box, Formula.length_in(T, m), []))
         body = evaluate(doc).value(sealed).body()
         body.validate()
         inner = L - 2 * T
@@ -155,9 +157,9 @@ class TestCup(unittest.TestCase):
             Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.group(OpGroup.Shell))),
         )
 
-        doc.apply(DocEdit.set_param(box, "distance", doc.parse_expr(f"{H_BUMPED} m")))
+        doc.apply(DocEdit.set_param(box, "distance", doc.parse_formula(f"{H_BUMPED} m")))
         doc.apply(
-            DocEdit.set_param(hollow, "shell_thickness", doc.parse_expr(f"{T_BUMPED} m"))
+            DocEdit.set_param(hollow, "shell_thickness", doc.parse_formula(f"{T_BUMPED} m"))
         )
 
         ev = evaluate(doc)
@@ -174,13 +176,21 @@ class TestCup(unittest.TestCase):
         ev = evaluate(doc)
         faces = NamePat.of_kind(EntityKind.Face)
         names = ev.select(hollow, Selector.of(faces.seg(SegPat.group(OpGroup.Shell))))
-        # The same recipe at the bumped height and wall: node ids and
-        # therefore name text coincide, and every name still resolves.
+        # The same recipe authored afresh at the bumped height and wall:
+        # its inserts state other values, so they mint other ids, and a
+        # name from the first document answers nothing here. It
+        # publishes as many names of its own. Keeping names across new
+        # values is the slot edits' road (the row above).
         bumped = Doc()
         _box2, hollow2 = cup(bumped, L, H_BUMPED, T_BUMPED)
         ev2 = evaluate(bumped)
+        names2 = ev2.select(hollow2, Selector.of(faces.seg(SegPat.group(OpGroup.Shell))))
+        self.assertEqual(len(names2), len(names))
         for name in names:
-            self.assertEqual(ev2.resolve(name).status, "resolved", name)
+            verdict = ev2.resolve(name)
+            self.assertEqual(
+                (verdict.status, verdict.variant), ("failed", "node_gone"), name
+            )
         props = ev2.value(hollow2).body().mass_properties()
         want_v, want_a = closed_forms(L, H_BUMPED, T_BUMPED)
         self.assertEqual(props.volume, want_v)
@@ -194,62 +204,43 @@ class TestRefusals(unittest.TestCase):
         return caught.exception
 
     def test_an_unresolvable_open_name_refuses_typed(self):
-        # A name the target never minted, read off a sibling document
-        # whose recipe has the same node ids and one more wall: a
-        # pentagon prism's fifth wall names an entity the square box's
-        # extrude never had, so it resolves to nothing there. The box's
-        # document authors a second profile after the box, so the step
-        # the fifth wall spells is one it minted — for that profile, not
-        # the box's — and the name is a well-formed one the door admits.
-        pentagon = Doc()
-        five = pentagon.insert(
-            Node.polygon(
-                [
-                    (Expr.length_in(0, m), Expr.length_in(0, m)),
-                    (Expr.length_in(1, m), Expr.length_in(0, m)),
-                    (Expr.length_in(1.5, m), Expr.length_in(0.5, m)),
-                    (Expr.length_in(1, m), Expr.length_in(1, m)),
-                    (Expr.length_in(0, m), Expr.length_in(1, m)),
-                ],
-                plane=pentagon.sketch_frame(),
-            )
-        )
-        prism = pentagon.insert(Node.extrude(five, Expr.length_in(H, m)))
-        walls = evaluate(pentagon).select(
-            prism,
-            Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Lateral))),
-        )
-        self.assertEqual(len(walls), 5)
+        # A name the target no longer mints: the box's walls are read,
+        # then its square is reshaped into a triangle that keeps every
+        # step but the fourth corner's leg. That leg's wall keeps its
+        # spelling — its step was minted, so the door admits the name —
+        # and resolves to nothing on the reshaped box.
         doc = Doc()
         box = blank(doc, L, H)
-        doc.insert(
-            Node.polygon(
-                [
-                    (Expr.length_in(0, m), Expr.length_in(0, m)),
-                    (Expr.length_in(1, m), Expr.length_in(0, m)),
-                    (Expr.length_in(0, m), Expr.length_in(1, m)),
-                ],
-                plane=doc.sketch_frame(),
-            )
+        profile = doc.order()[-2]
+        walls = evaluate(doc).select(
+            box,
+            Selector.of(NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Lateral))),
         )
-        self.assertEqual(
-            len(set(walls) - set(evaluate(doc).all_faces(box))), 1, "one wall the box lacks"
-        )
-        ghost = sorted(set(walls) - set(evaluate(doc).all_faces(box)))[0]
-        node = doc.insert(Node.shell(box, Expr.length_in(T, m), [ghost]))
+        self.assertEqual(len(walls), 4)
+        (s,) = doc.step_ids(profile)
+        start = Open.at((0 * m, 0 * m))
+        base = start.line_to((L * m, 0 * m))
+        side = base.line_to((L * m, L * m))
+        triangle = side.line_to(Start)
+        keep = {start.step: s[0], base.step: s[1], side.step: s[2], triangle.step: s[4]}
+        doc.apply(DocEdit.set_program(profile, triangle, [keep]))
+        gone = set(walls) - set(evaluate(doc).all_faces(box))
+        self.assertEqual(len(gone), 1, "one wall the box lacks")
+        (ghost,) = gone
+        node = doc.insert(Node.shell(box, Formula.length_in(T, m), [ghost]))
         self.assertEqual(self.refusal(doc, node).kind, "shell_open_resolve")
 
     def test_an_edge_in_the_open_list_refuses_typed(self):
         doc = Doc()
         box = blank(doc, L, H)
         edge = evaluate(doc).all_edges(box)[0]
-        node = doc.insert(Node.shell(box, Expr.length_in(T, m), [edge]))
+        node = doc.insert(Node.shell(box, Formula.length_in(T, m), [edge]))
         self.assertEqual(self.refusal(doc, node).kind, "shell_open_kind")
 
     def test_a_non_positive_wall_is_the_kernels_refusal(self):
         doc = Doc()
         box = blank(doc, L, H)
-        node = doc.insert(Node.shell(box, Expr.length_in(-0.125, m), [top_of(doc, box)]))
+        node = doc.insert(Node.shell(box, Formula.length_in(-0.125, m), [top_of(doc, box)]))
         refusal = self.refusal(doc, node)
         self.assertEqual(refusal.kind, "shell")
         self.assertIn("not certifiably positive", str(refusal))
@@ -258,7 +249,7 @@ class TestRefusals(unittest.TestCase):
         doc = Doc()
         box = blank(doc, L, H)
         with self.assertRaises(ValueError):
-            Node.shell(box, Expr.length_in(T, m), ["the top face"])
+            Node.shell(box, Formula.length_in(T, m), ["the top face"])
 
     def test_the_designation_order_is_kept_and_a_repeat_keeps_its_first(self):
         doc = Doc()
@@ -271,15 +262,15 @@ class TestRefusals(unittest.TestCase):
                 NamePat.of_kind(EntityKind.Face).seg(SegPat.tag(SegTag.Cap).side(CapEnd.Start))
             ),
         )[0]
-        forward = Doc(label="shell-order")
-        backward = Doc(label="shell-order")
-        doubled = Doc(label="shell-order")
+        forward = Doc(seed="shell-order")
+        backward = Doc(seed="shell-order")
+        doubled = Doc(seed="shell-order")
         for target, order in (
             (forward, [top, bottom]),
             (backward, [bottom, top]),
             (doubled, [top, bottom, top]),
         ):
-            target.insert(Node.shell(blank(target, L, H), Expr.length_in(T, m), order))
+            target.insert(Node.shell(blank(target, L, H), Formula.length_in(T, m), order))
         # Order is meaning, so the two orders are two documents; a
         # repeat keeps its first occurrence, so the doubled list is the
         # forward one bit for bit.

@@ -15,6 +15,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -102,6 +103,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     doc
@@ -126,6 +128,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile: plate_p,
             distance: len(0.8),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, boss_p) = on_frame(
@@ -140,6 +143,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile: boss_p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = insert(
@@ -148,7 +152,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
             op: editor_core::BooleanOp::Union,
             a: plate,
             b: boss,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     doc
@@ -170,6 +174,7 @@ fn two_solid_part(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     doc
@@ -207,8 +212,8 @@ fn part_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> PartFault {
 /// 4 need. Exact (no arithmetic beyond the comparison), so a rigid
 /// translation moves it by exactly the translation.
 fn min_x(body: &topo::Body<f64>) -> f64 {
-    body.vertices()
-        .filter_map(|(_, v)| body.get_point(v.point))
+    body.vertex_points()
+        .map(|(_, p)| p)
         .map(|p| p.x)
         .fold(f64::INFINITY, f64::min)
 }
@@ -227,9 +232,12 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
     let (doc, ids) = assembly("asm2a-r1-asm", &[doc_ref, doc_ref]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([5.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                5.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
 
@@ -276,9 +284,12 @@ fn row2_one_part_two_instances_one_evaluation() {
     let (doc, ids) = assembly("asm2a-r2-asm", &[doc_ref, doc_ref, doc_ref]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[2],
-            frame: Frame::translation([9.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[2],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                9.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
 
@@ -305,9 +316,12 @@ fn row2_one_part_two_instances_one_evaluation() {
     let (doc, ids) = assembly("asm2a-r2-two", &[a, b]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([20.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                20.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(run(&doc, &opts).part_evaluations, 2);
@@ -341,16 +355,22 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // and an op that does nothing decides nothing.
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([0.0, 9.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                0.0, 9.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([9.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                9.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &opts);
@@ -391,11 +411,11 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // The counts are literals on purpose: a row that only compares the
     // two instances passes when both lose the same decisions. 466 is
     // the placing op's own log on this part (placement + validation of
-    // the placed body); 726 is the part's, on its own nodes — its
+    // the placed body); 728 is the part's, on its own nodes — its
     // profile's pre-pass on the Profile node's log, decided once (the
     // pinned lift reuses the pre-pass's validated form).
     assert_eq!(first.len(), 466, "the instantiate op's own decisions");
-    assert_eq!(direct_total, 726, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 728, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----
@@ -421,9 +441,12 @@ fn row3_instance_qualified_names_are_distinct_and_resolve_to_their_own_copy() {
     let (doc, ids) = assembly("asm2a-r3-asm", &[doc_ref, doc_ref]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::translation([5.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                5.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &opts);
@@ -516,14 +539,14 @@ fn row3_instance_qualified_names_round_trip_persistence() {
     assert!(loaded.bit_eq(&doc), "the whole document round-trips");
 }
 
-// ---- Row 4: SetPlacement ----
+// ---- Row 4: SetOffset ----
 
-/// Row 4 — the placement moves the copy without changing its volume;
+/// Row 4 — the offset moves the copy without changing its volume;
 /// the pre-edit document is untouched (undo = keeping the prior value);
 /// an improper frame refuses typed NAMING the R4 prerequisite; a
 /// non-instance target refuses typed.
 #[test]
-fn row4_set_placement_moves_undoes_and_refuses() {
+fn row4_set_offset_moves_undoes_and_refuses() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r4-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
@@ -531,13 +554,20 @@ fn row4_set_placement_moves_undoes_and_refuses() {
 
     let before = run(&doc, &opts);
     let before_body = product(&doc, &before, Tol::witness()).expect("gathers");
-    assert!(doc.placement(ids[0]).is_identity_bits());
+    assert_eq!(
+        fixture::offset_of(&doc, ids[0]),
+        Some(editor_core::Placement::IDENTITY),
+        "an inserted instance sits at the empty offset on the world"
+    );
 
     let (moved, _) = step(
         doc.clone(),
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([7.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                7.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let after = run(&moved, &opts);
@@ -553,8 +583,11 @@ fn row4_set_placement_moves_undoes_and_refuses() {
     );
 
     // Undo, as this layer offers it: the prior document is unchanged.
-    assert!(doc.placement(ids[0]).is_identity_bits(), "undo restores");
-    assert!(doc.placements().is_empty());
+    assert_eq!(
+        fixture::offset_of(&doc, ids[0]),
+        Some(editor_core::Placement::IDENTITY),
+        "undo restores"
+    );
 
     // An improper frame (a mirror) refuses, naming R4's prerequisite.
     let mirror = Frame {
@@ -563,15 +596,22 @@ fn row4_set_placement_moves_undoes_and_refuses() {
     };
     match editor_core::apply(
         &doc,
-        &DocEdit::SetPlacement {
-            node: ids[0],
-            frame: mirror,
+        &DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&mirror)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(e @ EditError::ImproperPlacement { node, determinant }) => {
-            assert_eq!(node, ids[0]);
+        Err(
+            ref e @ EditError::ImproperPlacement {
+                ref node,
+                determinant,
+                ..
+            },
+        ) => {
+            assert_eq!(node.id(), ids[0]);
             assert!(determinant < 0.0);
             let rendered = e.to_string();
             assert!(
@@ -584,42 +624,22 @@ fn row4_set_placement_moves_undoes_and_refuses() {
 
     // A non-instance target refuses typed.
     let part_doc = part("asm2a-r4-nontarget", 0.0, 1.0);
-    let target = part_doc.order()[0];
+    let target = part_doc.ids()[0];
     match editor_core::apply(
         &part_doc,
-        &DocEdit::SetPlacement {
-            node: target,
-            frame: Frame::translation([1.0, 0.0, 0.0]),
+        &DocEdit::SetOffset {
+            instance: target,
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                1.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::PlacementOnNonInstance { node }) => assert_eq!(node, target),
+        Err(EditError::OffsetOnNonInstance { node }) => assert_eq!(node.id(), target),
         other => panic!("a non-instance target must refuse, got {other:?}"),
     }
-}
-
-/// Row 4 (registry hygiene) — deleting an instance takes its placement
-/// with it; the save validator would refuse a stranded row.
-#[test]
-fn row4_deleting_an_instance_clears_its_placement() {
-    let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-r4d-part", 0.0, 1.0), Tol::witness());
-    let _ = with_resolver(store);
-    let (doc, ids) = assembly("asm2a-r4d-asm", &[doc_ref, doc_ref]);
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([3.0, 0.0, 0.0]),
-        },
-    );
-    assert_eq!(doc.placements().len(), 1);
-    let (doc, _) = step(doc, DocEdit::DeleteNode { id: ids[0] });
-    assert!(
-        doc.placements().is_empty(),
-        "the placement dies with its instance"
-    );
 }
 
 // ---- Row 5: the refusals, each its own row ----
@@ -727,7 +747,7 @@ fn row5d_multi_solid_part_instantiates_since_asm_2b() {
 
 // ---- Row 6: pin semantics ----
 
-/// Row 6 — the assembly's own pin moves on `SetPlacement` and on a
+/// Row 6 — the assembly's own pin moves on `SetOffset` and on a
 /// pin-bump of a reference, and an untouched-content re-save leaves it
 /// fixed.
 #[test]
@@ -747,9 +767,12 @@ fn row6_the_assembly_pin_moves_exactly_when_its_content_does() {
     // A placement moves it.
     let (moved, _) = step(
         doc.clone(),
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([1.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                1.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     assert_ne!(content_pin(&moved, Tol::witness()).expect("pins"), pin0);
@@ -776,9 +799,12 @@ fn row6_placement_is_part_of_the_content_key() {
 
     let (moved, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([4.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                4.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let second = evaluate::<f64>(
@@ -823,24 +849,28 @@ fn row7_instantiate_and_placement_round_trip() {
     let (doc, ids) = assembly("asm2a-r7-asm", &[doc_ref, doc_ref]);
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[1],
-            frame: Frame::rotate_then_translate(
-                [0.0, 0.0, 1.0],
-                0.25,
-                [2.0, 3.0, 0.0],
-                fixture::band(),
-            )
-            .expect("a literal axis has a definite direction"),
+        DocEdit::SetOffset {
+            instance: ids[1],
+            offset: Some(editor_core::Placement::literal(
+                &Frame::rotate_then_translate(
+                    [0.0, 0.0, 1.0],
+                    0.25,
+                    [2.0, 3.0, 0.0],
+                    fixture::band(),
+                )
+                .expect("a literal axis has a definite direction"),
+            )),
+            fresh: Vec::new(),
         },
     );
 
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let loaded = load(&text, Tol::witness()).expect("loads").doc;
-    assert!(loaded.bit_eq(&doc), "the placement round-trips bit for bit");
-    assert_eq!(loaded.placements().len(), 1);
+    assert!(loaded.bit_eq(&doc), "the offset round-trips bit for bit");
     assert!(
-        loaded.placement(ids[1]).bit_eq(&doc.placement(ids[1])),
+        fixture::offset_of(&loaded, ids[1])
+            .zip(fixture::offset_of(&doc, ids[1]))
+            .is_some_and(|(a, b)| a.bit_eq(&b)),
         "the frame's bits survive"
     );
     assert!(
@@ -853,17 +883,16 @@ fn row7_instantiate_and_placement_round_trip() {
     );
 }
 
-/// Row 7 (validator half) — a file whose placement names a
-/// non-instance, or carries an improper frame, refuses at the save
-/// door: the file can hold no placement state the edit doors could not
-/// have produced.
+/// Row 7 (validator half) — a file whose instance names a live node
+/// that is not a gauge as its gauge refuses at the load door: the file
+/// can hold no gauge state the edit doors could not have produced.
 #[test]
-fn row7_the_validator_refuses_placement_states_the_edits_cannot_produce() {
+fn row7_the_validator_refuses_gauge_states_the_edits_cannot_produce() {
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r7v-part", 0.0, 1.0), Tol::witness());
     let (doc, ids) = assembly("asm2a-r7v-asm", &[doc_ref]);
-    // A second, NON-instance node, so the corrupted key below names a
-    // live node and the diagnosis is the placement rule rather than an
+    // A second, NON-gauge node, so the corrupted reference below names a
+    // live node and the diagnosis is the gauge rule rather than an
     // id-range fault.
     let (doc, other) = on_frame(
         doc,
@@ -874,25 +903,25 @@ fn row7_the_validator_refuses_placement_states_the_edits_cannot_produce() {
     );
     let (doc, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[0],
-            frame: Frame::translation([1.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[0],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                1.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("saves");
 
-    // Re-key the placement row onto the profile node — a state no edit
+    // Point the instance's gauge at the profile node — a state no edit
     // door can produce.
-    let corrupt = text.replace(
-        &format!("\"placements\": {{\n      \"{}\"", ids[0].0),
-        &format!("\"placements\": {{\n      \"{}\"", other.0),
-    );
+    let corrupt = text.replacen("\"gauge\": null", &format!("\"gauge\": \"{}\"", other.0), 1);
     assert_ne!(corrupt, text, "the corruption really landed");
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::PlacementSite { node })) => {
-            assert_eq!(node, other);
+        Err(PersistError::Snapshot(SnapshotError::NotAGauge { node, gauge })) => {
+            assert_eq!((node.id(), gauge.id()), (ids[0], other));
         }
-        other => panic!("a stranded placement must refuse, got {other:?}"),
+        other => panic!("a gauge reference to a non-gauge must refuse, got {other:?}"),
     }
 }
 
@@ -918,14 +947,20 @@ fn the_named_gather_agrees_with_the_plain_one() {
 
 // ---- Review fixes (R1): the seam's diagnosis, and its guards ----
 
-/// The innermost cause of a chained seam fault — what the author has
-/// to be told, however many documents down it lies.
-fn root_cause(fault: &PartFault) -> &PartFault {
-    match fault {
-        PartFault::PartRootFailed {
-            cause: Some(inner), ..
-        } => root_cause(inner),
-        other => other,
+/// The last level of a failure's carried chain — what the author has
+/// to be told, however many documents down it lies — as its refusal
+/// and the line its node's own tree draws for it.
+fn root_cause(kind: &NodeErrorKind) -> Option<(&NodeErrorKind, String)> {
+    kind.carried_chain()
+        .last()
+        .map(|level| (level.refusal.kind(), level.line()))
+}
+
+/// The failure `node` raised.
+fn failure(ev: &Evaluation<f64>, node: RecipeNodeId) -> &NodeErrorKind {
+    match ev.result(node) {
+        Some(NodeResult::Failed(e)) => &e.kind,
+        other => panic!("expected a failed node, got {other:?}"),
     }
 }
 
@@ -978,9 +1013,14 @@ fn r1_a_reference_cycle_refuses_naming_the_loop() {
 
     // Terminates at the FIRST revisit — the guard is structural, not a
     // depth counter waiting 1024 levels out.
-    let fault = part_fault(&run(&doc, &opts), ids[0]);
-    match root_cause(&fault) {
-        PartFault::ReferenceCycle { cycle } => {
+    let ev = run(&doc, &opts);
+    let (cause, rendered) =
+        root_cause(failure(&ev, ids[0])).expect("the cycle is reached through a failed root");
+    match cause {
+        NodeErrorKind::Part {
+            fault: PartFault::ReferenceCycle { cycle },
+            ..
+        } => {
             assert_eq!(
                 cycle,
                 &vec![a, b, a],
@@ -989,9 +1029,8 @@ fn r1_a_reference_cycle_refuses_naming_the_loop() {
         }
         other => panic!("expected a named cycle, got {other:?}"),
     }
-    // The DIAGNOSIS reaches the top: the rendering names the loop, not
-    // an evaluation the caller cannot reach.
-    let rendered = fault.to_string();
+    // The DIAGNOSIS reaches the caller: the chain's last line names the
+    // loop, not an evaluation the caller cannot reach.
     assert!(
         rendered.contains("returns to a document it already entered"),
         "the top-level message names the cycle: {rendered}"
@@ -1019,24 +1058,28 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
         let (doc, _) = insert(doc, Node::instantiate_part(missing));
         doc
     };
-    let inner_root = broken.order()[0];
+    let inner_root = broken.ids()[0];
     let doc_ref = store.insert(broken, Tol::witness());
     let opts = with_resolver(store);
 
     let (doc, ids) = assembly("asm2a-broken-asm", &[doc_ref]);
-    let fault = part_fault(&run(&doc, &opts), ids[0]);
+    let ev = run(&doc, &opts);
+    let fault = part_fault(&ev, ids[0]);
     match &fault {
-        PartFault::PartRootFailed { node, cause, .. } => {
+        PartFault::PartRootFailed { node, refusal, .. } => {
             assert_eq!(*node, inner_root, "the failing ROOT is named");
             assert!(
                 matches!(
-                    cause.as_deref(),
-                    Some(PartFault::Unresolved {
-                        fault: ResolveFault::Unresolved,
-                        ..
-                    })
+                    refusal.kind(),
+                    NodeErrorKind::Part {
+                        doc_ref,
+                        fault: PartFault::Unresolved {
+                            fault: ResolveFault::Unresolved,
+                            ..
+                        },
+                    } if *doc_ref == missing
                 ),
-                "the cause travels typed, not as prose: {cause:?}"
+                "the root's refusal travels typed, with the reference it crossed: {refusal:?}"
             );
         }
         other => panic!("expected PartRootFailed, got {other:?}"),
@@ -1047,26 +1090,270 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
         "the message never points at an object the caller cannot reach: {rendered}"
     );
     assert!(
-        rendered.contains("product root") && rendered.contains("did not resolve"),
-        "it names the root AND the reason: {rendered}"
+        rendered.contains(&format!(
+            "InstantiatePart {}",
+            test_utils::refusal::tag(inner_root.0.digest())
+        )) && !rendered.contains("did not resolve"),
+        "it names the root and points, never quoting the root's own refusal: {rendered}"
+    );
+    assert!(
+        root_cause(failure(&ev, ids[0])).is_some_and(|(_, line)| line.contains("did not resolve")),
+        "the reason is the carried line's"
     );
 }
 
-/// The gather's OTHER refusals cross the seam as a CLASS beside their
-/// sentence, so a consumer branches instead of substring-matching.
+/// **A real chain three documents deep reads one level per document,
+/// each in the document its node is numbered in.** The assembly
+/// instantiates `p1`, whose root instantiates `p2`, whose root
+/// instantiates `p3`, whose root, an extrude, refuses. The kernel's
+/// chain names `p1`, `p2` and `p3` in order with each level's failed
+/// root, and the last line is `p3`'s node error exactly as `p3`'s own
+/// evaluation renders it.
+#[test]
+fn a_depth_three_chain_keeps_every_level_and_its_document() {
+    let tol = Tol::witness();
+    let mut store = StubStore::default();
+    let p3 = ProfileDoc::empty(DocumentId::derive("asm2a-depth-p3"), tol);
+    let (p3, profile) = on_frame(
+        p3,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (p3, p3_root) = insert(
+        p3,
+        Node::Extrude {
+            profile,
+            distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let p3_ev = run(&p3, &EvalOptions::default());
+    let p3_own = match p3_ev.result(p3_root) {
+        Some(NodeResult::Failed(e)) => e.spoken(&p3, &p3_ev),
+        other => panic!("p3's extrude refuses on its own: {other:?}"),
+    };
+    let r3 = store.insert(p3, tol);
+    let wrapper = |label: &str, inner: DocRef| {
+        insert(
+            ProfileDoc::empty(DocumentId::derive(label), tol),
+            Node::instantiate_part(inner),
+        )
+    };
+    let (p2, p2_root) = wrapper("asm2a-depth-p2", r3);
+    let r2 = store.insert(p2, tol);
+    let (p1, p1_root) = wrapper("asm2a-depth-p1", r2);
+    let r1 = store.insert(p1, tol);
+    let (asm, instance) = wrapper("asm2a-depth-asm", r1);
+    let ev = run(&asm, &with_resolver(store));
+    let levels: Vec<_> = failure(&ev, instance)
+        .carried_chain()
+        .map(|level| (level.document.doc_ref(), level.node, level.line()))
+        .collect();
+    assert_eq!(
+        levels
+            .iter()
+            .map(|(document, node, _)| (*document, *node))
+            .collect::<Vec<_>>(),
+        vec![
+            (Some(&r1), p1_root),
+            (Some(&r2), p2_root),
+            (Some(&r3), p3_root),
+        ],
+        "one level per document, in order, each in the part it is numbered in"
+    );
+    assert_eq!(levels[2].2, p3_own, "the last line is p3's own rendering");
+}
+
+/// **A part whose root was poisoned carries the failure that poisoned
+/// it.** The part's extrude refuses and its one root, a transform over
+/// the extrude, never runs: the instance names both nodes, points at
+/// the extrude, and carries the extrude's own refusal typed — the last
+/// level of its chain is the extrude's line exactly as the part's own
+/// evaluation draws it.
+#[test]
+fn a_poisoned_root_carries_the_failure_that_poisoned_it() {
+    let tol = Tol::witness();
+    let (part, extrude, moved) = poisoned_part("asm2a-poisoned-part");
+    let own = own_line(&part, extrude, &EvalOptions::default());
+    let mut store = StubStore::default();
+    let part_ref = store.insert(part, tol);
+    let (doc, ids) = assembly("asm2a-poisoned-asm", &[part_ref]);
+    let ev = run(&doc, &with_resolver(store));
+
+    let fault = part_fault(&ev, ids[0]);
+    let PartFault::PartRootPoisoned {
+        root,
+        through,
+        refusal,
+        ..
+    } = &fault
+    else {
+        panic!("expected PartRootPoisoned, got {fault:?}");
+    };
+    assert_eq!((*root, *through), (moved, extrude), "both nodes are named");
+    assert!(
+        matches!(refusal.kind(), NodeErrorKind::Expr { .. }),
+        "the extrude's refusal travels typed: {refusal:?}"
+    );
+    let rendered = fault.to_string();
+    assert!(
+        rendered.contains(&format!(
+            "repair Extrude {}",
+            test_utils::refusal::tag(extrude.0.digest())
+        )) && rendered.contains(&format!(
+            "Transform {}",
+            test_utils::refusal::tag(moved.0.digest())
+        )),
+        "the instance names the root and points at the failed node: {rendered}"
+    );
+    let levels: Vec<_> = failure(&ev, ids[0])
+        .carried_chain()
+        .map(|level| (level.document.doc_ref(), level.node, level.line()))
+        .collect();
+    assert_eq!(
+        levels,
+        vec![(Some(&part_ref), extrude, own.clone())],
+        "the traceback ends at the failing node, drawn as the part draws it"
+    );
+    let refused = own
+        .strip_prefix(&format!(
+            "Extrude {} failed: ",
+            test_utils::refusal::tag(extrude.0.digest())
+        ))
+        .expect("a node line opens with its node");
+    assert!(
+        !rendered.contains(refused),
+        "the instance never quotes the refusal it carries: {rendered}"
+    );
+}
+
+/// A transform over `input`: the root a part's move makes.
+fn moved_over(doc: ProfileDoc, input: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+    insert(
+        doc,
+        Node::transform(
+            input,
+            editor_core::Step::Rigid {
+                translation: [len(0.1), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
+    )
+}
+
+/// A part whose extrude refuses (its distance is 1/0) and whose one
+/// root is a transform over it: the extrude, then the root.
+fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let part = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (part, profile) = on_frame(
+        part,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (part, extrude) = insert(
+        part,
+        Node::Extrude {
+            profile,
+            distance: editor_core::Formula::div(len(1.0), scl(0.0)).unwrap(),
+            side: ExtrudeSide::Along,
+        },
+    );
+    let (part, moved) = moved_over(part, extrude);
+    assert_eq!(
+        part.roots(),
+        &[moved],
+        "the transform is the part's one root"
+    );
+    (part, extrude, moved)
+}
+
+/// `node`'s own refusal line, as `doc`'s own tree draws it.
+fn own_line(doc: &ProfileDoc, node: RecipeNodeId, opts: &EvalOptions) -> String {
+    let ev = run(doc, opts);
+    match ev.result(node) {
+        Some(NodeResult::Failed(e)) => e.spoken(doc, &ev),
+        other => panic!(
+            "node {} refuses on its own: {other:?}",
+            test_utils::refusal::tag(node.0.digest())
+        ),
+    }
+}
+
+/// **Two documents down, the chain still ends at the failing node.**
+/// The bracket's root is a transform over an instance of the poisoned
+/// part, so the bracket's root is poisoned through a failed INSTANCE,
+/// whose own fault is the part's poisoned root in turn. The assembly's
+/// instance carries both levels, typed, each drawn as its own document
+/// draws it, and the last is the extrude's line.
+#[test]
+fn a_poisoned_root_two_documents_down_chains_to_the_failing_node() {
+    let tol = Tol::witness();
+    let mut store = StubStore::default();
+    let (part, extrude, part_root) = poisoned_part("asm2a-poisoned-deep-part");
+    let broken_line = own_line(&part, extrude, &EvalOptions::default());
+    let part_ref = store.insert(part, tol);
+
+    let bracket = ProfileDoc::empty(DocumentId::derive("asm2a-poisoned-deep-bracket"), tol);
+    let (bracket, inner) = insert(bracket, Node::instantiate_part(part_ref));
+    let (bracket, bracket_root) = moved_over(bracket, inner);
+    let bracket_ref = store.insert(bracket.clone(), tol);
+
+    let (doc, ids) = assembly("asm2a-poisoned-deep-asm", &[bracket_ref]);
+    let opts = with_resolver(store);
+    let ev = run(&doc, &opts);
+
+    let fault = part_fault(&ev, ids[0]);
+    let PartFault::PartRootPoisoned {
+        root,
+        through,
+        refusal,
+        ..
+    } = &fault
+    else {
+        panic!("expected PartRootPoisoned, got {fault:?}");
+    };
+    assert_eq!(
+        (*root, *through),
+        (bracket_root, inner),
+        "the bracket's root, poisoned through its failed instance"
+    );
+    assert!(
+        matches!(refusal.kind(), NodeErrorKind::Part {
+            fault: PartFault::PartRootPoisoned { root, through, .. }, ..
+        } if (*root, *through) == (part_root, extrude)),
+        "the carried refusal is the inner instance's own poisoned root: {refusal:?}"
+    );
+    let bracket_line = own_line(&bracket, inner, &opts);
+    let levels: Vec<_> = failure(&ev, ids[0])
+        .carried_chain()
+        .map(|level| (level.document.doc_ref(), level.node, level.line()))
+        .collect();
+    assert_eq!(
+        levels,
+        vec![
+            (Some(&bracket_ref), inner, bracket_line),
+            (Some(&part_ref), extrude, broken_line),
+        ],
+        "one level per document, ending at the failing node"
+    );
+}
+
+/// The gather's OTHER refusals cross the seam whole, so a consumer
+/// branches on their class instead of substring-matching.
 ///
 /// Two documents refuse the gather for two different reasons, and both
 /// arrive as [`PartFault::PartProduct`]: the prose differs, which is
 /// all a caller used to have, and the classes differ too — including
 /// on `means_no_body`, the one reading every consumer of a gather
-/// refusal draws. `RootFailed` is the arm that does NOT come here (it
-/// chains, typed, above).
+/// refusal draws. A failed or poisoned root is what does NOT come here
+/// (it chains, typed, above).
 #[test]
 fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
-    let missing = DocRef {
-        id: DocumentId::derive("asm2a-class-missing"),
-        pin: ContentPin([9u8; 32]),
-    };
     let mut store = StubStore::default();
 
     // Nothing denotes a body: the one class that is an ABSENCE rather
@@ -1075,35 +1362,44 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
         ProfileDoc::empty(DocumentId::derive("asm2a-class-empty"), Tol::witness()),
         Tol::witness(),
     );
-    // A root that never ran, poisoned through a failed ancestor: a
-    // refusal, and NOT the absence above.
-    let poisoned = {
-        let doc = ProfileDoc::empty(DocumentId::derive("asm2a-class-poisoned"), Tol::witness());
-        let (doc, inner) = insert(doc, Node::instantiate_part(missing));
-        let (doc, _) = insert(
-            doc,
-            Node::Transform {
-                input: inner,
-                translation: [len(0.0), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
-        );
-        doc
+    // One body placed under two roots: a refusal, and NOT the absence
+    // above.
+    let twice = {
+        let doc = part("asm2a-class-twice", 0.0, 1.0);
+        let body = *doc.ids().last().expect("the part has its extrude");
+        let moved = |doc, dx| {
+            insert(
+                doc,
+                Node::transform(
+                    body,
+                    editor_core::Step::Rigid {
+                        translation: [len(dx), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.0),
+                    },
+                ),
+            )
+            .0
+        };
+        moved(moved(doc, 2.0), 4.0)
     };
-    let poisoned = store.insert(poisoned, Tol::witness());
+    let twice = store.insert(twice, Tol::witness());
 
     let opts = with_resolver(store);
-    let (doc, ids) = assembly("asm2a-class-asm", &[empty, poisoned]);
+    let (doc, ids) = assembly("asm2a-class-asm", &[empty, twice]);
     let ev = run(&doc, &opts);
 
     let kind_of = |fault: &PartFault| match fault {
-        PartFault::PartProduct { kind, message } => {
+        PartFault::PartProduct { refusal, .. } => {
+            let said = fault.to_string();
+            let sentence = said
+                .strip_prefix("the part has no product: ")
+                .unwrap_or_else(|| panic!("the part's own header: {said}"));
             assert!(
-                message.starts_with("product: "),
-                "the gather's own sentence travels beside the class: {message}"
+                !sentence.starts_with("product"),
+                "the part says the gather's sentence without the gather's stage word: {said}"
             );
-            *kind
+            refusal.kind()
         }
         other => panic!("expected PartProduct, got {other:?}"),
     };
@@ -1120,15 +1416,15 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
         "and the sentence says so: {empty_fault}"
     );
 
-    let poisoned_fault = part_fault(&ev, ids[1]);
-    let poisoned_kind = kind_of(&poisoned_fault);
-    assert_eq!(poisoned_kind, ProductErrorKind::RootPoisoned);
+    let twice_fault = part_fault(&ev, ids[1]);
+    let twice_kind = kind_of(&twice_fault);
+    assert_eq!(twice_kind, ProductErrorKind::PlacedUnderTwoRoots);
     assert!(
-        !poisoned_kind.means_no_body(),
-        "a poisoned root is a fault, not an absence"
+        !twice_kind.means_no_body(),
+        "a body placed twice is a fault, not an absence"
     );
     assert_ne!(
-        empty_kind, poisoned_kind,
+        empty_kind, twice_kind,
         "the two refusals are distinguishable without reading either sentence"
     );
 }
@@ -1235,10 +1531,10 @@ fn r1_the_placement_frame_matches_the_transform_node_bit_for_bit() {
         // `eval::wire::wire_transform`'s own expression, verbatim: the
         // axis normalized (its `unit`), then `Mat3::rotation_about`,
         // then `Affine3::from_parts` with the translation.
-        let unit = geom_core::Vec3::new(axis[0], axis[1], axis[2]).normalize();
+        let unit = geom_core::Vec3::from_array(axis).normalize();
         let expected = geom_core::Affine3::from_parts(
             geom_core::Mat3::rotation_about(unit, angle),
-            geom_core::Vec3::new(translation[0], translation[1], translation[2]),
+            geom_core::Vec3::from_array(translation),
         );
         let got = frame.affine::<f64>();
         let cols = [

@@ -82,3 +82,11 @@ bare "zero name comparisons" would not be; whichever sentence replaces
 the stale one has to say which.
 
 Signed: (CHROME orchestrator)
+
+**Moved again (AUTH-10, 2026-09-30):** `BlendTool::mark_segments` is
+gone; the one-pass walk it held is `marks::HeldEdges::segments` in
+`crates/viewer/src/marks.rs`, whose doc now carries the `O(E²)`
+argument `edge_segments` used to point at.
+
+**Renamed (AUTH-14, 2026-09-30):** the walk is `marks::HeldEdges::mark`,
+which also carries the index's refusal for a drawn edge with no name.

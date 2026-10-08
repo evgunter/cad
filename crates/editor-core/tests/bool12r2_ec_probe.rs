@@ -14,6 +14,7 @@
 //! These rows execute them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::Formula;
 use editor_core::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId};
 use geom_core::{Point2, Tol};
 use profile::{Open, Start};
@@ -73,7 +74,7 @@ fn r2_the_declared_arrivals_lift_to_the_document() {
         let LoopProgram::Chain(doc) = &prog else {
             panic!("{name}: a chain program")
         };
-        let found: Vec<&ProgramStep> = doc
+        let found: Vec<&ProgramStep<Formula>> = doc
             .iter()
             .filter(|s| {
                 matches!(
@@ -103,7 +104,7 @@ fn r2_the_declared_arrivals_survive_the_wire() {
             // Scaffolding: this program is serialized on its own, never
             // inserted into a document, so no row here reads the node
             // the plane points at.
-            plane: RecipeNodeId(0),
+            plane: RecipeNodeId::new(0, 0),
             loops: vec![LoopProgram::Chain(doc)],
             ids: Vec::new(),
         };
@@ -113,7 +114,7 @@ fn r2_the_declared_arrivals_survive_the_wire() {
             text.contains("StartArriving"),
             "{name}: the arrival reaches the wire: {text}"
         );
-        let after: ProfileProgram = serde_json::from_str(&text).expect("deserializes");
+        let after: ProfileProgram<Formula> = serde_json::from_str(&text).expect("deserializes");
         assert_eq!(before, after, "{name}");
     }
 }

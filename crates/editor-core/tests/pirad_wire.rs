@@ -16,9 +16,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::expr::DimensionError;
-use editor_core::{Dimension, Expr, Node, PersistError, ProfileDoc, RecipeNodeId, load, save};
+use editor_core::{Dimension, Formula, Node, PersistError, ProfileDoc, SlotId, load, save};
 use fixture::{insert, len, on_frame, scl};
 use geom_core::Tol;
 
@@ -39,9 +40,10 @@ fn half_turn_doc() -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
-    let angle = Expr::literal_with_unit(
+    let angle = Formula::literal_with_unit(
         0.5 * core::f64::consts::PI,
         Dimension::Angle,
         quantity::PI.def(),
@@ -49,12 +51,14 @@ fn half_turn_doc() -> ProfileDoc {
     .expect("a half-turn multiple is an angle");
     let (doc, _tr) = insert(
         doc,
-        Node::Transform {
-            input: block,
-            translation: [len(0.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: angle,
-        },
+        Node::transform(
+            block,
+            editor_core::Step::Rigid {
+                translation: [len(0.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle,
+            },
+        ),
     );
     doc
 }
@@ -67,18 +71,20 @@ fn a_half_turn_literal_round_trips() {
     let doc = half_turn_doc();
     let text = save(&doc, &[], Tol::witness()).expect("the document saves");
     assert!(
-        text.contains(r#""unit": "pi rad""#),
+        text.contains(r#""display_unit": "pi rad""#),
         "the half-turn symbol is on the wire: {text}"
     );
     assert!(
-        !text.contains(r#""unit": "pi""#),
+        !text.contains(r#""display_unit": "pi""#),
         "the retired spelling is gone: {text}"
     );
     let back = load(&text, Tol::witness()).expect("its own bytes load").doc;
     // Frame, profile, extrude, then the transform.
-    let unit = match back.node(RecipeNodeId(3)) {
-        Some(Node::Transform { rotation_angle, .. }) => {
-            rotation_angle.display_unit().expect("the unit survives")
+    let unit = match back.node(back.ids()[3]) {
+        Some(Node::Transform { .. }) => {
+            back.slot_value(back.ids()[3], SlotId::RotationAngle)
+                .expect("a one-step transform reads its written angle")
+                .1
         }
         other => panic!("expected the transform, got {other:?}"),
     };
@@ -100,7 +106,7 @@ fn a_half_turn_literal_round_trips() {
 #[test]
 fn the_retired_spelling_refuses_and_carries_the_symbol() {
     let text = save(&half_turn_doc(), &[], Tol::witness()).expect("the document saves");
-    let retired = text.replace(r#""unit": "pi rad""#, r#""unit": "pi""#);
+    let retired = text.replace(r#""display_unit": "pi rad""#, r#""display_unit": "pi""#);
     assert_ne!(retired, text, "the substitution must actually land");
     match load(&retired, Tol::witness()) {
         Err(PersistError::Dimension { error, .. }) => assert_eq!(

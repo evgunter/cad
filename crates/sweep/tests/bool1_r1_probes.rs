@@ -29,6 +29,7 @@
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, SurfaceKey};
 
@@ -39,9 +40,16 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> profile::ValidatedProfile<f64> {
 }
 
 fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
-    extrude(&validated(loops), Extrusion::Distance(h), Tol::witness())
-        .expect("the probe profile extrudes")
-        .body
+    extrude(
+        &validated(loops),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the probe profile extrudes")
+    .body
 }
 
 /// The Fig. 14.2 notched block of issue 1152's reproduction, with the
@@ -65,10 +73,11 @@ fn notched(dy: f64) -> ProfileLoop<f64> {
 }
 
 fn plane_y1() -> topo::SplitPlane<f64> {
-    topo::SplitPlane {
-        origin: Point3::new(0.0, 1.0, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-    }
+    topo::test_support::split_plane(
+        Point3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        geom_core::Tol::witness(),
+    )
 }
 
 /// The two face surfaces an edge actually lies between, in this body.
@@ -132,6 +141,7 @@ fn non_adjacent_citations(body: &Body<f64>) -> Vec<EdgeKey> {
 #[test]
 fn coplanar_below_citations_are_all_adjacent() {
     let body = extruded(vec![notched(0.0)], 1.0);
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let result = topo::split(&body, &plane_y1(), Tol::witness()).expect("the coplanar split runs");
     for (name, part) in [("above", &result.above), ("below", &result.below)] {
         let b = part.body().expect("side has material");
@@ -187,6 +197,7 @@ fn near_coplanar_notch_floor_outcome_table() {
         -5e-7, -1e-6, -2e-6, -5e-6, -1e-5,
     ] {
         let body = extruded(vec![notched(dy)], 1.0);
+        let body = sweep::test_support::finished("the body", body, Tol::witness());
         let outcome = match topo::split(&body, &plane_y1(), Tol::witness()) {
             Err(e) => format!("split refused: {e:?}"),
             Ok(r) => {
@@ -217,17 +228,28 @@ fn near_coplanar_notch_floor_outcome_table() {
 #[test]
 fn coplanar_split_e2e_volume_and_watertight() {
     let body = extruded(vec![notched(0.0)], 1.0);
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let v0 = topo::mass_properties(&body, Tol::witness())
         .expect("operand mass properties")
         .volume;
     let result = topo::split(&body, &plane_y1(), Tol::witness()).expect("the coplanar split runs");
     let mut total = 0.0;
+    let mut shared_points = 0;
     for (name, part) in [("above", &result.above), ("below", &result.below)] {
         let b = part.body().expect("side has material");
         assert_eq!(
             topo::validate_geometric(b, Tol::witness()),
             Ok(()),
             "{name} at tier 3"
+        );
+        // The pinch's tip copies share the cut vertex's point (D1 tier
+        // 3′), so the census clears the touch with no records.
+        let points: std::collections::BTreeSet<_> = b.vertices().map(|(_, v)| v.point).collect();
+        shared_points += b.vertices().count() - points.len();
+        assert_eq!(
+            topo::validate_pseudomanifold(b, &topo::ContactRecords::default(), Tol::witness()),
+            Ok(()),
+            "{name} passes the pseudomanifold door with no records"
         );
         total += topo::mass_properties(b, Tol::witness())
             .unwrap_or_else(|e| panic!("{name} mass properties: {e:?}"))
@@ -240,6 +262,7 @@ fn coplanar_split_e2e_volume_and_watertight() {
         (total - v0).abs() <= 1e-12 * v0,
         "volume conserved: {total} vs {v0}"
     );
+    assert!(shared_points > 0, "a pinch half holds copies on one point");
 }
 
 /// PROBE 5: a DECLARED locus through the coplanar restatement. The
@@ -250,6 +273,7 @@ fn coplanar_split_e2e_volume_and_watertight() {
 #[test]
 fn declared_authority_across_the_coplanar_restatement() {
     let body = extruded(vec![notched(0.0)], 1.0);
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let before: usize = body
         .edges()
         .filter_map(|(_, e)| body.get_curve_geom(e.curve)?.certified())
@@ -282,6 +306,7 @@ fn cylindrical_wall_tangent_to_the_section_plane() {
         (Point2::new(5.0, 2.0), 1.0),
     ]);
     let body = extruded(vec![disc], 1.0);
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     let outcome = match topo::split(&body, &plane_y1(), Tol::witness()) {
         Err(e) => format!("refused: {e:?}"),
         Ok(r) => {
@@ -308,6 +333,7 @@ fn cylindrical_wall_tangent_to_the_section_plane() {
         (Point2::new(5.0, 1.5), 1.0),
     ]);
     let body2 = extruded(vec![disc2], 1.0);
+    let body2 = sweep::test_support::finished("the body2", body2, Tol::witness());
     println!(
         "control (transverse cylinder): {:?}",
         topo::split(&body2, &plane_y1(), Tol::witness())

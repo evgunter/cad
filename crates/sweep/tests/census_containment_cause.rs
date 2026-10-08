@@ -33,6 +33,7 @@
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{Body, ContactRecords, ValidationError};
 
@@ -47,7 +48,16 @@ fn lens(z0: f64, h: f64) -> Body<f64> {
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(h), tol).unwrap().body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// A lens solid in z ∈ [0, 1] and a small box standing on its top cap,
@@ -59,7 +69,7 @@ fn lens_under_a_box() -> Body<f64> {
     let tol = Tol::witness();
     let mut body = lens(0.0, 1.0);
     let b = sweep::test_support::brick((-0.2, 0.2), (-0.1, 0.1), (1.0, 2.0), tol);
-    topo::graft_disjoint(&mut body, &b, tol).expect("two disjoint solids in one body");
+    topo::graft_disjoint(&mut body, &b).expect("two disjoint solids in one body");
     body
 }
 

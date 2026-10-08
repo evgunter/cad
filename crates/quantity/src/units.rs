@@ -79,7 +79,7 @@ pub enum UnitQuantity {
 /// symbol DETERMINES the other two fields.** A row whose `symbol` is
 /// `"mm"` and whose `quantity` is `Angle` is not merely refused, it is
 /// unrepresentable. That is what closes #650, where such a row defeated
-/// `Expr::literal_with_unit`'s dimension guard — the guard read the
+/// `Formula::literal_with_unit`'s dimension guard — the guard read the
 /// CALLER's `quantity`, then stored the table's row unchecked — and
 /// produced an `Expr` that serialized into a document editor-core's own
 /// load door then refused (`DisplayUnitMismatch`): a round-trip break,

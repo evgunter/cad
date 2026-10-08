@@ -16,12 +16,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
+use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
-use topo::Body;
+use topo::{AtRestBody, Body};
 
 /// The certificate's verdicts on the crossings path, one string per
 /// pair: `Ok([...])` with each component's witness, or `Err(...)` with
@@ -55,27 +57,31 @@ fn bracket_xz(pts: &[(f64, f64)], half_y: f64) -> Body<f64> {
         .expect("the bracket profile validates");
     sweep::extrude(
         &vp,
-        sweep::Extrusion::Distance(2.0 * half_y),
+        sweep::Extrusion::Distance {
+            depth: 2.0 * half_y,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("the bracket extrudes")
     .body
 }
 
-fn half_donut() -> Body<f64> {
+fn half_donut() -> AtRestBody<f64> {
     let vp = validated(vec![revolve_common::donut_profile()]);
-    revolve(
+    let half = revolve(
         &vp,
         axis_y(),
         Revolution::Partial(std::f64::consts::PI),
         Tol::witness(),
     )
     .expect("the half donut revolves")
-    .body
+    .body;
+    finished("the half donut", half, Tol::witness())
 }
 
-fn torus_bracket() -> Body<f64> {
-    bracket_xz(
+fn torus_bracket() -> AtRestBody<f64> {
+    let bracket = bracket_xz(
         &[
             (1.95, -0.1),
             (2.05, -0.1),
@@ -89,10 +95,11 @@ fn torus_bracket() -> Body<f64> {
             (1.95, 1.0),
         ],
         0.3,
-    )
+    );
+    finished("the torus bracket", bracket, Tol::witness())
 }
 
-fn dome() -> Body<f64> {
+fn dome() -> AtRestBody<f64> {
     let t = (std::f64::consts::PI / 8.0).tan();
     let lp = bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
@@ -105,7 +112,7 @@ fn dome() -> Body<f64> {
         .body;
     up.merge_coplanar_faces(Tol::witness())
         .expect("the split base disc merges");
-    up
+    finished("the dome", up, Tol::witness())
 }
 
 fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
@@ -122,9 +129,16 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the box profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .expect("the box extrudes")
-        .body
+    sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: z.1 - z.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the box extrudes")
+    .body
 }
 
 /// The cap direction: azimuth 90° off the dome's seam, latitude 30°.
@@ -132,8 +146,8 @@ fn cap_dir() -> Vec3<f64> {
     Vec3::new(0.0, 0.5, 0.75_f64.sqrt())
 }
 
-fn dome_bracket() -> Body<f64> {
-    let top = boxed((-0.6, 0.6), (0.9, 1.5), (-0.6, 0.6));
+fn dome_bracket() -> AtRestBody<f64> {
+    let top = top_box();
     let u = cap_dir();
     let e2 = Vec3::new(0.0, 0.75_f64.sqrt(), -0.5);
     let foot = topo::transform_rigid(
@@ -145,12 +159,17 @@ fn dome_bracket() -> Body<f64> {
         Tol::witness(),
     )
     .expect("the foot tilts");
+    let foot = finished("the tilted foot", foot, Tol::witness());
     let r = topo::union(&top, &foot, Tol::witness()).expect("the bracket's two boxes union");
     r.body().expect("non-empty").body.clone()
 }
 
-fn top_box() -> Body<f64> {
-    boxed((-0.6, 0.6), (0.9, 1.5), (-0.6, 0.6))
+fn top_box() -> AtRestBody<f64> {
+    finished(
+        "the top box",
+        boxed((-0.6, 0.6), (0.9, 1.5), (-0.6, 0.6)),
+        Tol::witness(),
+    )
 }
 
 fn volume(b: &Body<f64>) -> f64 {
@@ -169,7 +188,7 @@ fn close(got: f64, want: f64, what: &str) {
 fn refuses_as_the_interior_loop_guard(
     r: Result<topo::BooleanResult<f64>, topo::BooleanError>,
     op: topo::BooleanOp,
-    kind: geom_brep::SurfaceKind,
+    kind: geom::SurfaceKind,
     what: &str,
 ) {
     refuses_at(r, topo::PairRefusalSite::InteriorLoopGuard, op, kind, what);
@@ -181,7 +200,7 @@ fn refuses_at(
     r: Result<topo::BooleanResult<f64>, topo::BooleanError>,
     site: topo::PairRefusalSite,
     op: topo::BooleanOp,
-    kind: geom_brep::SurfaceKind,
+    kind: geom::SurfaceKind,
     what: &str,
 ) {
     match r {
@@ -213,7 +232,7 @@ fn refuses_at(
 fn a_torus_oval_refuses_every_op_at_the_guard() {
     use topo::BooleanOp as Op;
     let (h, c) = (half_donut(), torus_bracket());
-    let torus = geom_brep::SurfaceKind::Torus;
+    let torus = geom::SurfaceKind::Torus;
     for (op, r, what) in [
         (Op::Union, topo::union(&h, &c, Tol::witness()), "h ∪ c"),
         (
@@ -305,8 +324,8 @@ fn the_pin_alone_answers_its_closed_form() {
 /// The bracket without its foot: the pin, the bridge and the upright.
 /// Its profile is `0.99 m²` (the pin `0.1 × 1.1`, the bridge
 /// `1.15 × 0.2`, the upright `0.2 × 3.25`), `0.6` thick, so `0.594 m³`.
-fn pin_only_bracket() -> Body<f64> {
-    bracket_xz(
+fn pin_only_bracket() -> AtRestBody<f64> {
+    let bracket = bracket_xz(
         &[
             (1.95, -0.1),
             (2.05, -0.1),
@@ -318,7 +337,8 @@ fn pin_only_bracket() -> Body<f64> {
             (1.95, 1.0),
         ],
         0.3,
-    )
+    );
+    finished("the pin-only bracket", bracket, Tol::witness())
 }
 
 /// **The pin alone under ∖ and ∩, both orders, in closed form.** The
@@ -424,12 +444,7 @@ fn a_sphere_cap_behind_crossings_elsewhere_refuses_every_op() {
             topo::subtract(&c, &d, Tol::witness()),
         ),
     ] {
-        refuses_as_the_interior_loop_guard(
-            r,
-            op,
-            geom_brep::SurfaceKind::Sphere,
-            "dome and bracket",
-        );
+        refuses_as_the_interior_loop_guard(r, op, geom::SurfaceKind::Sphere, "dome and bracket");
     }
     assert!(
         verdicts(&d, &c).iter().any(|v| v == "Err(Loop)"),
@@ -545,15 +560,19 @@ fn the_oval_lens_is_well_above_the_rows_tolerance() {
 /// W4; the side faces cut `(0,1)` and `(1,0)` pairs, W2): the lens arcs
 /// are evidenced, and tracing them is the crossing layer's business.
 /// What keeps the result from being a body is downstream of the guard —
-/// the chord rule and the sagitta charge, where the reduction refuses
-/// today — and that is what this row pins.
+/// the join's germ frame, which has no torus × plane arm and is where
+/// every op refuses today — and that is what this row pins.
 #[test]
 fn the_corner_bar_never_comes_back_a_body() {
     let d = donut();
     let hw = 0.1_f64;
     let rho = 2.0 - (0.25 - hw * hw).sqrt();
     let z = (rho * rho - hw * hw).sqrt();
-    let b = boxed((-hw, hw), (-hw, hw), (-z, z));
+    let b = finished(
+        "the corner bar",
+        boxed((-hw, hw), (-hw, hw), (-z, z)),
+        Tol::witness(),
+    );
     for (what, r) in [
         ("∪", topo::union(&d, &b, Tol::witness())),
         ("∩", topo::intersect(&d, &b, Tol::witness())),
@@ -570,17 +589,18 @@ fn the_corner_bar_never_comes_back_a_body() {
 }
 
 /// The full donut, `R = 2`, `r = 0.5` about `y`.
-fn donut() -> Body<f64> {
+fn donut() -> AtRestBody<f64> {
     let vp = validated(vec![revolve_common::donut_profile()]);
-    revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
+    let donut = revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
         .expect("the donut revolves")
-        .body
+        .body;
+    finished("the donut", donut, Tol::witness())
 }
 
 /// A wedge above the donut, `6` deep in `z`: its profile runs from
 /// `y = 2.2` at `x = −3` down to `y = 0.4` at `x = 3` along the
 /// underside `0.3x + y = 1.3`, and up to `y = 2.5` — `7.2 m²`.
-fn wedge_above_the_donut() -> Body<f64> {
+fn wedge_above_the_donut() -> AtRestBody<f64> {
     let lp = ProfileLoop::polygon([
         Point2::new(-3.0, 2.2),
         Point2::new(3.0, 0.4),
@@ -594,9 +614,17 @@ fn wedge_above_the_donut() -> Body<f64> {
     let vp = profile::Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .expect("the wedge profile validates");
-    sweep::extrude(&vp, sweep::Extrusion::Distance(6.0), Tol::witness())
-        .expect("the wedge extrudes")
-        .body
+    let wedge = sweep::extrude(
+        &vp,
+        sweep::Extrusion::Distance {
+            depth: 6.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the wedge extrudes")
+    .body;
+    finished("the wedge", wedge, Tol::witness())
 }
 
 /// **A wedge clear of the donut's carrier answers although its box
@@ -711,9 +739,13 @@ fn nurbs_bump() -> Body<f64> {
         })
         .map(|(k, _)| k)
         .expect("the block has a top face");
-    body.set_face_surface(
+    // Lifts RechartStrandsDescriptions: the bump's net is the fixture; the top edges stay the lines they were.
+    body.set_face_surface_unvouched_for_tests(
         top,
-        topo::FaceSurface::New(geom::Surface::Nurbs(std::sync::Arc::new(patch))),
+        topo::FaceSurface::New {
+            surface: geom::Surface::Nurbs(std::sync::Arc::new(patch)),
+            sense: true,
+        },
     )
     .expect("the bump replaces the top face's carrier");
     body
@@ -726,10 +758,23 @@ fn nurbs_bump() -> Body<f64> {
 /// bar's four long edges pierce the block's `x = ±2` walls (the
 /// crossings). Every clamp edge stands below `z = 0`, at `x ≤ −2.5` or
 /// `x = 3`, or at `y = ±3`: clear of the bump face's box.
-fn nurbs_clamp() -> Body<f64> {
-    let plate = boxed((-3.0, 3.0), (-3.0, 3.0), (0.8, 2.5));
-    let leg = boxed((-2.9, -2.5), (-1.2, 1.2), (-0.8, 1.0));
-    let bar = boxed((-2.8, 3.0), (-1.0, 1.0), (-0.7, -0.3));
+fn nurbs_clamp() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let plate = finished(
+        "the plate",
+        boxed((-3.0, 3.0), (-3.0, 3.0), (0.8, 2.5)),
+        tol,
+    );
+    let leg = finished(
+        "the leg",
+        boxed((-2.9, -2.5), (-1.2, 1.2), (-0.8, 1.0)),
+        tol,
+    );
+    let bar = finished(
+        "the bar",
+        boxed((-2.8, 3.0), (-1.0, 1.0), (-0.7, -0.3)),
+        tol,
+    );
     let r = topo::union(&plate, &leg, Tol::witness()).expect("plate ∪ leg");
     let r = topo::union(&r.body().expect("non-empty").body, &bar, Tol::witness())
         .expect("(plate ∪ leg) ∪ bar");
@@ -741,13 +786,15 @@ fn nurbs_clamp() -> Body<f64> {
 fn nurbs_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
     let kind = |x: &Body<f64>, f| {
         let fd = x.get_face(f).expect("a reported face resolves");
-        geom_brep::SurfaceKind::of(x.get_surface(fd.surface).expect("its surface resolves"))
+        x.get_surface(fd.surface)
+            .expect("its surface resolves")
+            .kind()
     };
     topo::test_support::section_report(topo::BooleanOp::Union, a, b, Tol::witness())
         .expect("the reduction runs")
         .into_iter()
         .map(|(fa, fb, v)| (kind(a, fa), kind(b, fb), v))
-        .filter(|(ka, kb, _)| [ka, kb].contains(&&geom_brep::SurfaceKind::Nurbs))
+        .filter(|(ka, kb, _)| [ka, kb].contains(&&geom::SurfaceKind::Nurbs))
         .map(|(ka, kb, v)| format!("{ka:?} × {kb:?}: {v}"))
         .collect()
 }
@@ -761,18 +808,14 @@ fn nurbs_verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
 /// leaves NURBS out (no NURBS pair is examined) and against W0 reading
 /// any one control point clear of the plane rather than all.
 ///
-/// ∪ never reaches the guard today: the join's role resolution probes
-/// the clamp's regions against the bump block, and point-in-solid has
-/// no NURBS arm, so ∪ refuses there first (and the volume backstop's
-/// closed form, which has no NURBS arm either, stands behind it). The
-/// row pins that refusal, so the day containment serves NURBS it goes
-/// red and says whether the guard is what refuses. ∩ and ∖ refuse at
-/// the revert roster, which has no NURBS.
+/// The bump block is not a finished body: its top edges keep the line
+/// descriptions of the plane the bump replaced, so the at-rest gate
+/// refuses it there (and on the bump's pcurves) before any boolean takes
+/// it. The row pins that refusal, so the day the bump block is built as
+/// a finished body it goes red and the door legs return.
 #[test]
 fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
-    use topo::{BooleanOp as Op, PairRefusalSite as Site};
     let (a, b) = (nurbs_bump(), nurbs_clamp());
-    let nurbs = geom_brep::SurfaceKind::Nurbs;
     assert_eq!(
         nurbs_verdicts(&a, &b),
         vec!["Nurbs × Plane: Err(Reach)".to_string()],
@@ -783,54 +826,39 @@ fn a_nurbs_graze_behind_crossings_is_refused_on_every_op() {
         vec!["Plane × Nurbs: Err(Reach)".to_string()],
         "the same with the operands swapped"
     );
-    for (what, r) in [
-        ("a ∪ b", topo::union(&a, &b, Tol::witness())),
-        ("b ∪ a", topo::union(&b, &a, Tol::witness())),
-    ] {
-        match r {
-            Err(topo::BooleanError::Containment(topo::PointInSolidError::KindUnsupported {
-                kind,
-                ..
-            })) => assert_eq!(kind, nurbs, "{what}"),
-            Err(e) => panic!("{what}: refused, but not at the join's containment probe: {e:?}"),
-            Ok(r) => panic!(
-                "{what}: answered {:?}",
-                r.body()
-                    .map(|x| (x.kind, in_solid(&x.body, Point3::new(0.0, 0.0, 0.9))))
-            ),
-        }
-    }
-    for (op, r, what) in [
-        (
-            Op::Intersect,
-            topo::intersect(&a, &b, Tol::witness()),
-            "a ∩ b",
-        ),
-        (
-            Op::Subtract,
-            topo::subtract(&a, &b, Tol::witness()),
-            "a ∖ b",
-        ),
-        (
-            Op::Subtract,
-            topo::subtract(&b, &a, Tol::witness()),
-            "b ∖ a",
-        ),
-    ] {
-        refuses_at(r, Site::RevertRoster, op, nurbs, what);
-    }
+    let errors = topo::AtRestBody::validate(a, Tol::witness())
+        .expect_err("the stranded bump block is not a finished body");
+    assert_eq!(
+        errors
+            .iter()
+            .filter(|e| matches!(e, topo::ValidationError::DescriptionNotAdjacent { .. }))
+            .count(),
+        4,
+        "the four top edges keep the replaced plane's descriptions: {errors:?}"
+    );
+    assert!(
+        errors.iter().all(|e| matches!(
+            e,
+            topo::ValidationError::DescriptionNotAdjacent { .. }
+                | topo::ValidationError::Pcurve { .. }
+        )),
+        "every finding is the stranded top's: {errors:?}"
+    );
 }
 
-/// **A plane clear of the bump's control net is certified apart though
-/// its box overlaps (W0).** A wedge over the bump block whose underside
+/// **A plane clear of the bump's control net is parted before the
+/// certificate is asked, though its box overlaps.** A wedge over the bump block whose underside
 /// rises along `z = 2.4 + 0.3x`: every control point of the net lies
 /// below it (the inner four by `0.2` at the least, at `x = −2/3`), while
 /// the underside's box reaches down to `z = 1.5` into the bump face's.
 /// Every wedge edge stands at `x = ±3` or `y = ±3`, so the pair meets no
-/// crossing, and the certificate answers it with no component. Red
-/// against W0 dropped from the NURBS arm.
+/// crossing, and the walk's narrow phase (`boolean::separating`) parts
+/// it along the underside's own normal before the certificate is asked.
+/// Red against the walk reading the box overlap alone, which hands the
+/// pair to the certificate's W0 (whose own row is `section_cert_rows`'
+/// NURBS × plane one).
 #[test]
-fn a_plane_clear_of_the_bumps_net_is_certified_apart() {
+fn a_plane_clear_of_the_bumps_net_never_reaches_the_certificate() {
     let wedge = {
         let lp = ProfileLoop::polygon([
             Point2::new(-3.0, 1.5),
@@ -847,12 +875,16 @@ fn a_plane_clear_of_the_bumps_net_is_certified_apart() {
         )
         .validate(Tol::witness())
         .expect("the wedge profile validates");
-        sweep::extrude(&vp, sweep::Extrusion::Distance(6.0), Tol::witness())
-            .expect("the wedge extrudes")
-            .body
+        sweep::extrude(
+            &vp,
+            sweep::Extrusion::Distance {
+                depth: 6.0,
+                side: ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .expect("the wedge extrudes")
+        .body
     };
-    assert_eq!(
-        nurbs_verdicts(&nurbs_bump(), &wedge),
-        vec!["Nurbs × Plane: Ok([])".to_string()]
-    );
+    assert_eq!(nurbs_verdicts(&nurbs_bump(), &wedge), Vec::<String>::new());
 }

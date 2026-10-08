@@ -3,10 +3,10 @@
 //! the partially-carved body immediately before that rim's own phase —
 //! identity only, every decision stays in the plan, resolved against
 //! the source. The served sharing is any pair of ANNULUS rims — on a
-//! revolution WALL (this file's rows) or on a full-revolve PLANE CAP,
-//! whose radial seam is the same shape (`blend2_r2_probes`' cap-pair
-//! and four-rim-cycle rows). These rows are what makes the widened
-//! door's claims measured rather than hoped:
+//! revolution WALL (this file's rows) or on a full revolve's PLANE
+//! wall, which has no seam and struts each rim's foot instead
+//! (`blend2_r2_probes`' cap-pair and four-rim-cycle rows). These rows
+//! are what makes the widened door's claims measured rather than hoped:
 //!
 //! - **The one-call result IS the sequential composition**, bit-level:
 //!   the volume of the one-call body equals the sequential result's in
@@ -110,7 +110,7 @@ fn lantern_sequential(order: &[(f64, f64)], r: f64) -> f64 {
             2,
             "each lantern rim is its seam's two arcs before its carve"
         );
-        body = fillet_edges(&body, &arcs, r, tol())
+        body = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| {
                 panic!("the ({rim_r}, {rim_y}) rim fillets sequentially, got {e:?}")
             })
@@ -136,8 +136,20 @@ fn the_request_order_of_a_shared_wall_pair_is_structurally_inert() {
         one_rim(&body, ZONE_SPHERE_LO),
         one_rim(&body, ZONE_SPHERE_HI),
     );
-    let a = fillet_edges(&body, &[lo, hi], r, tol()).expect("the pair builds");
-    let b = fillet_edges(&body, &[hi, lo], r, tol()).expect("the reversed pair builds");
+    let a = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[lo, hi],
+        r,
+        tol(),
+    )
+    .expect("the pair builds");
+    let b = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &[hi, lo],
+        r,
+        tol(),
+    )
+    .expect("the reversed pair builds");
     let keys = |body: &Body<f64>| {
         let mut vs: Vec<_> = body.vertices().map(|(k, _)| k).collect();
         let mut es: Vec<_> = body.edges().map(|(k, _)| k).collect();
@@ -169,7 +181,7 @@ fn a_seam_split_rim_pair_on_shared_half_band_walls_composes_in_one_call() {
     let mut both = rim_arcs_at(&body, LANTERN_RIMS[0].0, LANTERN_RIMS[0].1);
     both.extend(rim_arcs_at(&body, LANTERN_RIMS[1].0, LANTERN_RIMS[1].1));
     assert_eq!(both.len(), 4, "two rims, two arcs each");
-    let one = fillet_edges(&body, &both, r, tol())
+    let one = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &both, r, tol())
         .unwrap_or_else(|e| panic!("neck + shoulder build in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 2, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
@@ -199,7 +211,7 @@ fn three_chained_shared_wall_rims_carve_in_one_call() {
         all.extend(rim_arcs_at(&body, rim_r, rim_y));
     }
     assert_eq!(all.len(), 6, "three rims, two arcs each");
-    let one = fillet_edges(&body, &all, r, tol())
+    let one = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &all, r, tol())
         .unwrap_or_else(|e| panic!("all three lantern rims build in one call, got {e:?}"));
     assert_eq!(one.band_faces.len(), 3, "one band per rim");
     validate_geometric(&one.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
@@ -229,7 +241,13 @@ fn a_shared_wall_carve_records_every_birth_and_every_death_once() {
         one_rim(&zone_body, ZONE_SPHERE_LO),
         one_rim(&zone_body, ZONE_SPHERE_HI),
     );
-    let zone_out = fillet_edges(&zone_body, &[lo, hi], 0.08, tol()).expect("the zone pair builds");
+    let zone_out = fillet_edges(
+        &sweep::test_support::at_rest(&zone_body, tol()),
+        &[lo, hi],
+        0.08,
+        tol(),
+    )
+    .expect("the zone pair builds");
     partition_check(&zone_body, &zone_out, &[lo, hi]);
 
     let lantern_body = lantern();
@@ -237,8 +255,13 @@ fn a_shared_wall_carve_records_every_birth_and_every_death_once() {
     for (rim_r, rim_y) in LANTERN_RIMS {
         all.extend(rim_arcs_at(&lantern_body, rim_r, rim_y));
     }
-    let lantern_out =
-        fillet_edges(&lantern_body, &all, 0.05, tol()).expect("the lantern triple builds");
+    let lantern_out = fillet_edges(
+        &sweep::test_support::at_rest(&lantern_body, tol()),
+        &all,
+        0.05,
+        tol(),
+    )
+    .expect("the lantern triple builds");
     partition_check(&lantern_body, &lantern_out, &all);
 }
 
@@ -257,6 +280,110 @@ fn partition_check(src: &Body<f64>, out: &Filleted<f64>, requested: &[EdgeKey]) 
     );
 
     assert_naming_totality(src, out, requested, "a shared-wall rim carve");
+}
+
+/// **A seam two bands split is named after its SOURCE key, by every
+/// row that names it.** The later band splits the piece the earlier
+/// one left — on these fixtures a key the earlier split MINTED (the
+/// refresh moves the later rim's seam onto it: once on the zone pair,
+/// four times on the lantern triple, measured) — yet each of its rows
+/// names the source seam: both bands' `meridian_splits` rows (a mate
+/// seam's; a host seam's split mints a rim foot instead), and the ONE
+/// `meridian_remnants` row the seam's surviving middle piece keeps
+/// after the later split supersedes the earlier band's. A row naming
+/// the split key instead names an entity the caller's body never had,
+/// which the document layer cannot resolve; a second remnant row names
+/// one entity twice, which its emitter refuses.
+#[test]
+fn a_seam_two_bands_split_is_named_after_its_source_by_every_row() {
+    let zone_body = zone();
+    let pair = [
+        one_rim(&zone_body, ZONE_SPHERE_LO),
+        one_rim(&zone_body, ZONE_SPHERE_HI),
+    ];
+    let zone_out = fillet_edges(
+        &sweep::test_support::at_rest(&zone_body, tol()),
+        &pair,
+        0.08,
+        tol(),
+    )
+    .expect("the zone pair builds");
+    assert_eq!(
+        twice_split_seams(&zone_body, &zone_out),
+        1,
+        "the zone's sphere wall has one seam meridian, both bands split it"
+    );
+
+    let lantern_body = lantern();
+    let mut all: Vec<EdgeKey> = Vec::new();
+    for (rim_r, rim_y) in LANTERN_RIMS {
+        all.extend(rim_arcs_at(&lantern_body, rim_r, rim_y));
+    }
+    let lantern_out = fillet_edges(
+        &sweep::test_support::at_rest(&lantern_body, tol()),
+        &all,
+        0.05,
+        tol(),
+    )
+    .expect("the lantern triple builds");
+    assert_eq!(
+        twice_split_seams(&lantern_body, &lantern_out),
+        2,
+        "the lantern's shared walls are half-band pairs, and one of them is \
+         both its bands' MATE: its two seams are each split by both"
+    );
+}
+
+/// Check every seam `out` split against the rows naming it, and return
+/// how many MATE seams two bands split.
+fn twice_split_seams(src: &Body<f64>, out: &Filleted<f64>) -> usize {
+    let rec = out.naming.as_ref().expect("the surgery keeps its records");
+    let mut seams: Vec<EdgeKey> = rec
+        .meridian_splits
+        .iter()
+        .map(|(_, e, _)| *e)
+        .chain(rec.meridian_remnants.iter().map(|(_, e)| *e))
+        .collect();
+    seams.sort_unstable();
+    seams.dedup();
+    let mut twice = 0;
+    for seam in seams {
+        assert!(
+            src.get_edge(seam).is_some(),
+            "a split or remnant row names {seam:?}, which the source does not carry"
+        );
+        let bands: Vec<&Vec<EdgeKey>> = rec
+            .meridian_splits
+            .iter()
+            .filter(|(_, e, _)| *e == seam)
+            .map(|(_, _, b)| b)
+            .collect();
+        let remnants: Vec<EdgeKey> = rec
+            .meridian_remnants
+            .iter()
+            .filter(|(_, e)| *e == seam)
+            .map(|(piece, _)| *piece)
+            .collect();
+        // A HOST seam's split mints a rim foot, not a `meridian_splits`
+        // row, so only a mate seam's splits are counted here; the one
+        // remnant row below holds on both sides.
+        match bands[..] {
+            [] | [_] => {}
+            [a, b] => {
+                assert_ne!(a, b, "{seam:?}'s two splits are two bands'");
+                twice += 1;
+            }
+            _ => panic!("{seam:?} split {} times; a seam has two ends", bands.len()),
+        }
+        let [piece] = remnants[..] else {
+            panic!("{seam:?} keeps ONE surviving middle piece, recorded once: {remnants:?}")
+        };
+        assert!(
+            out.body.get_edge(piece).is_some(),
+            "{seam:?}'s remnant {piece:?} survives"
+        );
+    }
+    twice
 }
 
 /// **Bands that would collide on the shared wall refuse UPFRONT, the
@@ -281,7 +408,7 @@ fn partition_check(src: &Body<f64>, out: &Filleted<f64>, requested: &[EdgeKey]) 
 /// fixture's geometry, not of one-call metering.
 #[test]
 fn colliding_bands_on_a_shared_wall_refuse_upfront() {
-    let body = zone();
+    let body = sweep::test_support::finished("body", zone(), tol());
     let rims = [
         one_rim(&body, ZONE_SPHERE_LO),
         one_rim(&body, ZONE_SPHERE_HI),
@@ -328,10 +455,69 @@ fn colliding_bands_on_a_shared_wall_refuse_upfront() {
     let first = fillet_edges(&body, &[rims[0]], r, tol())
         .expect("the bottom rim alone builds at r = 0.749");
     fillet_edges(
-        &first.body,
+        &sweep::test_support::at_rest(&first.body, tol()),
         &[one_rim(&first.body, ZONE_SPHERE_HI)],
         r,
         tol(),
     )
     .expect("the split the refusal names composes at r = 0.749");
+}
+
+/// **A `meridian_splits` row names the seam its foot SPLIT, not merely
+/// a source seam.** The foot a band minted on a seam is an endpoint of
+/// that seam's surviving remnant, so every split row's foot touches the
+/// remnant recorded against the split row's own seam. Membership in the
+/// source (the surgery postcondition, and the row above) cannot see a
+/// row that names ANOTHER crossing's seam of the same band: red under
+/// `mate_feet[(ix + 1) % n].source` at the birth block, which
+/// every other `sweep` rim row passes.
+#[test]
+fn every_band_crossing_names_the_seam_its_foot_split() {
+    let zone_body = zone();
+    let pair = [
+        one_rim(&zone_body, ZONE_SPHERE_LO),
+        one_rim(&zone_body, ZONE_SPHERE_HI),
+    ];
+    let zone_out = fillet_edges(
+        &sweep::test_support::at_rest(&zone_body, tol()),
+        &pair,
+        0.08,
+        tol(),
+    )
+    .expect("the zone pair builds");
+    foot_touches_its_seams_remnant(&zone_out);
+
+    let lantern_body = sweep::test_support::finished("lantern_body", lantern(), tol());
+    let one = rim_arcs_at(&lantern_body, LANTERN_RIMS[1].0, LANTERN_RIMS[1].1);
+    let one_out = fillet_edges(&lantern_body, &one, 0.05, tol()).expect("one lantern rim builds");
+    foot_touches_its_seams_remnant(&one_out);
+
+    let mut all: Vec<EdgeKey> = Vec::new();
+    for (rim_r, rim_y) in LANTERN_RIMS {
+        all.extend(rim_arcs_at(&lantern_body, rim_r, rim_y));
+    }
+    let lantern_out =
+        fillet_edges(&lantern_body, &all, 0.05, tol()).expect("the lantern triple builds");
+    foot_touches_its_seams_remnant(&lantern_out);
+}
+
+fn foot_touches_its_seams_remnant(out: &Filleted<f64>) {
+    let rec = out.naming.as_ref().expect("the surgery keeps its records");
+    let ends = |e: EdgeKey| -> [topo::VertexKey; 2] {
+        let he = out.body.get_edge(e).expect("a remnant survives").he_plus;
+        [
+            out.body.get_half_edge(he).expect("its half").start,
+            out.body.half_edge_end(he).expect("its end"),
+        ]
+    };
+    assert!(!rec.meridian_splits.is_empty());
+    for (foot, seam, _) in &rec.meridian_splits {
+        assert!(
+            rec.meridian_remnants
+                .iter()
+                .any(|(piece, src)| src == seam && ends(*piece).contains(foot)),
+            "the split row naming {seam:?} has foot {foot:?}, which no remnant of \
+             {seam:?} touches"
+        );
+    }
 }

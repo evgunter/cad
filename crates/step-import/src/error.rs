@@ -28,8 +28,9 @@ pub enum AdoptionCandidate {
     Intersection,
     /// Tangential contact locus of the two adjacent surfaces.
     TangentIntersection,
-    /// The parameterization seam of one closed surface.
-    Seam,
+    /// A wrap edge: the edge both of whose uses bound one face, across
+    /// which that face's periodic chart closes (D1).
+    Wrap,
     /// A NURBS wall's own `u ∈ {0, 1}` boundary iso-curve (M7-3): the
     /// loft/sweep wall–wall seam class, offered when the parsed
     /// carrier bitwise-matches an adjacent wall's boundary column.
@@ -44,7 +45,7 @@ impl fmt::Display for AdoptionCandidate {
         f.write_str(match self {
             Self::Intersection => "intersection",
             Self::TangentIntersection => "tangent intersection",
-            Self::Seam => "seam",
+            Self::Wrap => "wrap edge",
             Self::IsoCurve => "boundary iso-curve",
             Self::MappedCurve => "mapped curve",
         })
@@ -155,28 +156,6 @@ pub enum StepImportError {
         /// anchor (a vertex-rest anchor needs exactly two).
         found: usize,
     },
-    /// A vertex of the assembled body carries a point key that does
-    /// not resolve in that body's own point arena, found while
-    /// resolving a position-anchored declaration
-    /// ([`crate::ImportContact`]).
-    ///
-    /// Such a vertex has no position to compare against the anchor,
-    /// and passing over it would understate the anchor's coincidence
-    /// count — a resolvable anchor would report as
-    /// [`StepImportError::DeclarationUnresolved`] with the wrong
-    /// `found`, and a three-way coincidence would resolve as exactly
-    /// two. The resolution refuses instead: a corrupt body is
-    /// announced, never silently miscounted.
-    VertexWithoutPoint {
-        /// The offending vertex — the only name the assembled body has
-        /// for it, and the half of this diagnosis that can be acted
-        /// on. Rendered like the arena keys `TierInvalid` already
-        /// forwards from the kernel's own validator.
-        vertex: topo::VertexKey,
-        /// The anchor position being resolved when the dangling point
-        /// key was found.
-        anchor: [f64; 3],
-    },
     /// A real token failed to parse as an f64.
     MalformedReal {
         /// The entity instance carrying the token.
@@ -230,26 +209,16 @@ pub enum StepImportError {
         residual: f64,
     },
     /// A described NURBS wall's own boundary column would not re-wrap
-    /// as a curve while an edge was being adopted against it:
-    /// **a weight on that column is not a positive finite number**,
-    /// which no surface that passed `geom::NurbsSurface::new` can
-    /// hold. Unreachable from any body this reader assembles, and
-    /// surfaced rather than swallowed (D4 ¶2, and
-    /// [`geom_brep::boundary_iso_u`]'s own `# Errors` contract): the
-    /// payload names the offending weight and its position, and a
-    /// discarded one would leave a kernel-bug report saying only that
-    /// a kernel bug happened.
-    ///
-    /// **A weight violation is the only payload this arm can carry**,
-    /// which is narrower than [`geom_core::spline::SplineError`]'s
-    /// vocabulary and is a fact about the doors rather than about this
-    /// reader. Extraction slices `control` and `weights` to the same
-    /// length and re-wraps them over the surface's own `knots_v` (or
-    /// `knots_u`), so `WeightCountMismatch` cannot arise at all; and a
-    /// net whose length disagrees with those knots panics in the slice
-    /// before any refusal is built, so `ControlCountMismatch` cannot
-    /// reach here either. Both were measured against a
-    /// validation-bypassed surface.
+    /// as a curve while an edge was being adopted against it: the
+    /// stored surface's control net disagrees with the knot vector it
+    /// is indexed by, or a weight on the extracted column is not a
+    /// positive finite number — neither of which a surface that passed
+    /// `geom::NurbsSurface::new` can do. Unreachable from any body
+    /// this reader assembles, and surfaced rather than swallowed (D4
+    /// ¶2, and [`geom_brep::boundary_iso_u`]'s own `# Errors`
+    /// contract): the payload says WHICH structural invariant the wall
+    /// broke, and a discarded one would leave a kernel-bug report
+    /// saying only that a kernel bug happened.
     ///
     /// It is **not** a "this edge is not that shape" answer. The
     /// recognizers state their negatives some other way — a wall that
@@ -261,9 +230,9 @@ pub enum StepImportError {
         /// The `EDGE_CURVE` entity instance being adopted.
         id: u64,
         /// The extraction door's refusal, carried rather than
-        /// discarded: which weight of the extracted column is not a
-        /// positive finite number. Its `index` counts along that
-        /// COLUMN, not through the wall's net.
+        /// discarded: which count or weight the wall's stored net
+        /// broke. A count is the whole net's; a weight's `index`
+        /// counts along the extracted COLUMN, not through the net.
         source: geom_core::spline::SplineError,
     },
     /// D7's typed ambiguity at ε_in (stage-1 surface recognition,
@@ -308,11 +277,9 @@ pub enum StepImportError {
     },
     /// A placed assembly instance refused to graft into the result
     /// body at the kernel's own [`topo::graft_disjoint`] door — the
-    /// transplant found the placed component ill-formed, or a
-    /// transplanted edge description did not re-certify against the
-    /// destination's surfaces. Both are kernel-side refusals about a
-    /// body this reader had already built and gated; neither is
-    /// silently absorbed.
+    /// transplant found the placed component ill-formed. That is a
+    /// kernel-side refusal about a body this reader had already built
+    /// and gated, and it is not silently absorbed.
     Instance {
         /// The `MANIFOLD_SOLID_BREP` whose instance was being placed.
         solid: u64,
@@ -409,13 +376,6 @@ impl fmt::Display for StepImportError {
                  exactly two) — fix the anchor or remove the declaration; unresolved \
                  intent never silently drops"
             ),
-            Self::VertexWithoutPoint { vertex, anchor } => write!(
-                f,
-                "step import: resolving the declared contact anchored at {anchor:?} found \
-                 vertex {vertex:?} of the assembled body, whose point key does not resolve — \
-                 the body is corrupt, and skipping the vertex would miscount the anchor's \
-                 coincidences"
-            ),
             Self::MalformedReal { id, token } => write!(
                 f,
                 "step import: entity #{id}: token '{token}' is not a Part 21 real"
@@ -457,8 +417,9 @@ impl fmt::Display for StepImportError {
             ),
             Self::WallColumnStructure { id, source } => write!(
                 f,
-                "step import: edge #{id}: an adjacent NURBS wall's own boundary column \
-                 will not re-wrap as a curve — {source}. No validated surface can be in \
+                "step import: edge #{id}: an adjacent NURBS wall's control net, or the \
+                 boundary column read from it, is not valid spline structure — {source}. \
+                 No validated surface can be in \
                  that state, so the file is refused rather than adopted against a wall \
                  whose stored structure is corrupt"
             ),

@@ -9,6 +9,7 @@ use geom_core::Tol;
 use mesh::{TessellateError, tessellate};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 use topo::{Body, MevSite, NewVertexSide};
 
@@ -29,9 +30,16 @@ fn tessellate_refuses_null_scaffold_typed() {
     )
     .validate(Tol::witness())
     .unwrap();
-    let mut body: Body<f64> = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let mut body: Body<f64> = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
     let mesh_before = tessellate(&body, 0.01, Tol::witness()).unwrap();
     let v = body.vertices().next().map(|(k, _)| k).unwrap();
     let he = body.get_vertex(v).unwrap().emanating.unwrap();

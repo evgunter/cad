@@ -12,9 +12,9 @@
 //!    material arm, now validly posed") establish that first. At the
 //!    frozen head the crossing rung did NOT: it handed the algebra
 //!    any declared pair that merely held the crossing point, and the
-//!    unit's own perpendicular row mis-read the resulting
-//!    `MarginKind::Invalid` — "the question was never validly posed
-//!    here" — as an in-band ε residue. This probe is the RECORD of
+//!    unit's own perpendicular row mis-read the resulting decided
+//!    zero — normals that name no side — as an in-band
+//!    ε residue. This probe is the RECORD of
 //!    those algebra facts (it consults `geom_brep` directly, so it is
 //!    green before and after): the reason the rung now runs the edge
 //!    screen and the `classify_dihedral == Smooth` gate before ever
@@ -70,7 +70,7 @@ fn straddle_parts() -> (Body<f64>, FaceKey, FaceKey, FaceKey, FaceKey) {
     );
     let post_side_x030 = post.side_faces[3];
     let mut body = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
     let shelf_side_y030 = keys.face(shelf.side_faces[2]).unwrap();
     (
@@ -137,10 +137,10 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
 /// margin. But `classify_material_pairing`'s contract is a
 /// `DihedralClass::Smooth` site, and this pair classifies
 /// `Transverse` — so the algebra is being consulted outside its
-/// documented domain, and the `Indeterminate` it returns is
-/// `MarginKind::Invalid` ("the pairing question is not validly posed
-/// at this site", per its own `# Errors` section), NOT the in-band
-/// residue `CrossingSideVerdict::Undecided`'s doc claims.
+/// documented domain, and the `Indeterminate` it returns carries a
+/// DECIDED zero (normals that name no side, per its own `# Errors`
+/// section), NOT the in-band residue `CrossingSideVerdict::Undecided`'s
+/// doc claims.
 #[test]
 fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
     let q = Point3::new(0.30, 0.30, 0.5);
@@ -162,17 +162,17 @@ fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
          domain"
     );
 
-    // (b) And the pairing call's failure is Invalid — the
+    // (b) And the pairing call's failure is a decided zero — the
     //     question-not-posed diagnosis — at every band, not an
     //     in-band ε residue.
     let err = geom_brep::classify_material_pairing(&s_post, true, &s_shelf, true, q, arm, band())
         .expect_err("perpendicular normals decide neither aligned nor opposed");
     assert_eq!(
-        err.margin,
-        geom_core::MarginDiag::INVALID,
-        "the undecided arm's cause is `Invalid` (the question was not \
-         validly posed), which is not what `CrossingSideVerdict::\
-         Undecided`'s doc — \"could not decide at this ε\" — says: {err:?}"
+        err.margin.rejected_sign(),
+        Some(geom_core::Sign::Zero),
+        "the undecided arm's cause is a decided zero (normals that name no \
+         side), which is not what `CrossingSideVerdict::Undecided`'s doc — \
+         \"could not decide at this ε\" — says: {err:?}"
     );
     // Widening the band does not change it: nothing about this is a
     // tolerance question.
@@ -181,8 +181,8 @@ fn r2_the_undecided_arm_is_a_precondition_violation_not_an_epsilon_residue() {
         geom_brep::classify_material_pairing(&s_post, true, &s_shelf, true, q, arm, wide)
             .expect_err("still no verdict at a 1e-3 band");
     assert_eq!(
-        err_wide.margin,
-        geom_core::MarginDiag::INVALID,
+        err_wide.margin.rejected_sign(),
+        Some(geom_core::Sign::Zero),
         "ε-independent: {err_wide:?}"
     );
 }
@@ -307,9 +307,9 @@ fn r2_an_unverified_opposed_pair_backs_no_crossing() {
         Tol::witness(),
     );
     let mut body = post.body;
-    let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let skeys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_b = skeys.face(shelf.bottom_face).unwrap();
-    let fkeys = topo::graft_disjoint_all_keyed(&mut body, &far.body, Tol::witness()).unwrap();
+    let fkeys = topo::graft_disjoint_all_keyed(&mut body, &far.body).unwrap();
     let far_top = fkeys.face(far.top_face).unwrap();
     let _ = body_base;
 

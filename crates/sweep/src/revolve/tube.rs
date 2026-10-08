@@ -65,7 +65,7 @@ use geom_core::{
 
 use super::axis::AxisFrame;
 use super::{RevolveAxis, RevolveError, Revolved, SweptSeg, full, partial};
-use crate::swept::SweptKind;
+use crate::swept::Traversed;
 
 /// The traversed window of the spine arc.
 #[derive(Clone, Copy, Debug)]
@@ -200,23 +200,40 @@ impl core::fmt::Display for TubeError {
             ),
             Self::NonpositiveWall { eps } => write!(
                 f,
-                "{door}'s wall is not definitely thicker than the run's threshold of {eps} m \
-                 (tube_wall). Recourse: supply a thicker wall, or drop the wall for a solid \
-                 tube"
+                "{door}'s wall is not definitely thicker than the run's threshold of {eps} \
+                 m. Recourse: supply a thicker wall, or drop the wall for a solid tube"
             ),
             Self::WallExceedsRadius { eps } => write!(
                 f,
                 "{door}'s wall leaves no bore: the minor radius minus the wall is not \
-                 definitely positive (tube_wall_bore; threshold {eps} m). Recourse: supply a \
+                 definitely positive (threshold {eps} m). Recourse: supply a \
                  thinner wall, or drop the wall for a solid tube"
             ),
             Self::WallGapCollapsed { eps } => write!(
                 f,
                 "{door}'s inner and outer radii would be stored as one value at this outer \
-                 radius (tube_wall_gap; threshold {eps} m). Recourse: supply a thicker wall, \
+                 radius (threshold {eps} m). Recourse: supply a thicker wall, \
                  or a smaller outer radius"
             ),
-            Self::Escalated { source } => write!(f, "{door} escalated: {source}"),
+            Self::Escalated { source } => {
+                let what = match source.predicate {
+                    Some("tube_wall") => "wall is thicker than the run's threshold",
+                    Some("tube_wall_bore") => "wall leaves a bore",
+                    Some("tube_wall_gap") => "inner and outer radii stay distinct",
+                    Some("tube_window_span") => "arc window ends after it starts",
+                    Some("tube_window_headroom") => "arc window stays short of a full turn",
+                    // Only the five names above are decided here; any
+                    // other is a decision this door has no words for.
+                    _ => {
+                        return write!(
+                            f,
+                            "{} is too close to call: {source}",
+                            geom_core::UNNAMED_DECISION
+                        );
+                    }
+                };
+                write!(f, "whether {door}'s {what} is too close to call: {source}")
+            }
             Self::Revolve(e) => write!(f, "{e}"),
         }
     }
@@ -238,7 +255,7 @@ impl std::error::Error for TubeError {}
 /// [`OrthoFrame`] is orthonormal by its type, decided at whichever
 /// mint built it, so the axis and the reference radial arrive as facts
 /// rather than as claims this door has to re-examine.
-pub fn tube_along_arc<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn tube_along_arc<T: Decide + topo::AtRestPolicy>(
     frame: OrthoFrame<T>,
     major_radius: T,
     window: TubeWindow<T>,
@@ -269,7 +286,7 @@ pub fn tube_along_arc<T: Decide + geom_brep::PcurveFittedLane>(
 // struct would hide which numbers the body stores verbatim. The frame
 // is not such a subset: it is one intent, an origin and a spin, and it
 // arrives carrying the decision that its axes are orthonormal.
-pub fn tube_along_arc_hollow<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn tube_along_arc_hollow<T: Decide + topo::AtRestPolicy>(
     frame: OrthoFrame<T>,
     major_radius: T,
     window: TubeWindow<T>,
@@ -282,7 +299,7 @@ pub fn tube_along_arc_hollow<T: Decide + geom_brep::PcurveFittedLane>(
 
 /// Both doors' body (module docs). `wall` present ⇔ hollow.
 #[allow(clippy::too_many_arguments)]
-fn build<T: Decide + geom_brep::PcurveFittedLane>(
+fn build<T: Decide + topo::AtRestPolicy>(
     frame: OrthoFrame<T>,
     major_radius: T,
     window: TubeWindow<T>,
@@ -454,16 +471,15 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
     Ok(out)
 }
 
-/// The circle of `radius` about `center` as a two-arc swept
+/// The circle of `radius` about `centre` as a two-arc swept
 /// traversal: the half-circle from `(cx + radius, 0)` to
-/// `(cx - radius, 0)` and the one back, with `center` and `radius`
+/// `(cx - radius, 0)` and the one back, with `centre` and `radius`
 /// stored as given.
 ///
 /// A hand-written COPY OF `swept::swept_segments` for a known two-arc
-/// input instead of a call: that builder takes a `ValidatedLoop`,
-/// whose arc centre and radius come back from bulge arithmetic, and
-/// storing the caller's numbers instead of reconstructing them is
-/// this door's entire reason to exist (module docs). So the
+/// input instead of a call: that builder takes a `ValidatedLoop`, and
+/// this door has none — it stores the caller's numbers as given, which
+/// is its entire reason to exist (module docs). So the
 /// convention is shared with `swept_segments` and the code is not:
 /// **a change to that builder is a change to this function.**
 /// (Phrased with the marker vocabulary on purpose: a duplication
@@ -471,8 +487,10 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
 /// duplication nothing will find. S131.)
 ///
 /// The two arguments are the two bits `swept_segments` carries. `turn`
-/// is the TRAVERSAL's own sense (its bulge follows: `+1` for a
-/// positive half-turn, `-1` for a negative one). `reversed` says
+/// is the TRAVERSAL's own sense (its sweep follows: `−π` where
+/// [`crate::swept::turn_negates`] reads the turn as clockwise, `+π`
+/// otherwise — the crate's one reading, so the sweep and the carrier's
+/// axis and span agree at every turn). `reversed` says
 /// whether this traversal is the reversal of its canonical chain,
 /// which is what permutes the canonical labels — the involution's
 /// `(n - j) % n` / `n - 1 - j` written out for `n = 2`. The three
@@ -483,28 +501,19 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
 /// hole loop (canonical clockwise, reversed with the outer) is
 /// `(Positive, true)`.
 fn circle_traversal<T: Real>(
-    center: Point2<T>,
+    centre: Point2<T>,
     radius: T,
     turn: Sign,
     reversed: bool,
 ) -> Vec<SweptSeg<T>> {
     let (lo, hi) = (
-        Point2::new(center.x - radius, T::zero()),
-        Point2::new(center.x + radius, T::zero()),
+        Point2::new(centre.x - radius, T::zero()),
+        Point2::new(centre.x + radius, T::zero()),
     );
-    let bulge = match turn {
-        Sign::Positive => T::one(),
-        Sign::Negative | Sign::Zero => T::zero() - T::one(),
-    };
     let arc = |a, b, canonical_vertex, canonical_segment| SweptSeg {
         a,
         b,
-        bulge,
-        kind: SweptKind::Arc {
-            center,
-            radius,
-            turn,
-        },
+        kind: Traversed::half_turn(centre, radius, turn),
         canonical_vertex,
         canonical_segment,
     };
@@ -512,5 +521,38 @@ fn circle_traversal<T: Real>(
         vec![arc(hi, lo, 0, 1), arc(lo, hi, 1, 0)]
     } else {
         vec![arc(hi, lo, 0, 0), arc(lo, hi, 1, 1)]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use crate::swept::arc_span;
+    use profile::SegmentKind;
+
+    /// **The traversal's sweep agrees with the crate's reading of its
+    /// turn**, at every turn `Sign` has, `Zero` included: each half-turn
+    /// arc's span (its sweep signed by its turn) is `π`, bit for bit. A
+    /// sweep minted against another reading of `Zero` gives `−π` here.
+    #[test]
+    fn the_traversals_sweep_reads_its_turn_as_the_carrier_does() {
+        for turn in [Sign::Positive, Sign::Negative, Sign::Zero] {
+            for reversed in [false, true] {
+                for seg in circle_traversal(Point2::new(2.0_f64, 0.0), 1.0, turn, reversed) {
+                    let SegmentKind::Arc { arc, turn: t } = seg.kind.get() else {
+                        panic!("a circle traversal is arcs");
+                    };
+                    let span = arc_span(t, arc);
+                    assert_eq!(
+                        span.to_bits(),
+                        core::f64::consts::PI.to_bits(),
+                        "{turn:?} reversed={reversed}: sweep {} against its turn",
+                        arc.sweep
+                    );
+                }
+            }
+        }
     }
 }

@@ -26,14 +26,15 @@
 //! needs them as such — a magnitude sup cannot bound `‖S_u × S_v‖`
 //! from below, because the cross product's sign structure is exactly
 //! the information a magnitude throws away — and a sup-side consumer
-//! reads a vector magnitude off them with [`sq_norm`], whose
+//! reads a vector magnitude off them with
+//! [`norm_sq`](geom_core::interval::norm_sq), whose
 //! `√hi` is a sup bound on the norm.
 //!
 //! **The signed reading is the only one**, and it is a reading of the
 //! quotient rule itself: the true `−` signs, divided by the whole
 //! weight hull. The cancellations that survive that are real — on a
 //! quarter cylinder they are worth an order of magnitude on
-//! `sup‖S_uv‖` — so a consumer wanting a magnitude takes [`sq_norm`]
+//! `sup‖S_uv‖` — so a consumer wanting a magnitude takes `norm_sq`
 //! of a signed enclosure and never a magnitude recurrence.
 //!
 //! # The rational arm
@@ -55,8 +56,8 @@
 //! **The divisor is the cell's weight hull, argued not assumed.** On
 //! the cell `w` is a convex combination of the active weights, so
 //! `w ∈ [w_min, w_max]`; interval arithmetic's division refuses a zero-touching
-//! divisor, so a net whose positivity was never proven poisons rather
-//! than answering.
+//! divisor, so a net whose positivity was never proven is refused
+//! rather than answering.
 //!
 //! **Recentring keeps the cross terms cell-sized**: with the cell's
 //! control centroid as `c`, `sup|S − c|` is a cell-of-control-net
@@ -86,10 +87,10 @@
 //! correlation a steep ramp lives in. The cost is only how finely a
 //! consumer must subdivide; the bound is never wrong.
 //!
-//! # Poison (fail-loud, D4 ¶2)
+//! # Refusal (fail-loud, D4 ¶2)
 //!
 //! Structural refusals are typed ([`PatchBoundError`]); arithmetic
-//! failures are refusals, and a poisoned hull fails every `≤ ε`
+//! failures are refusals, and a refused hull fails every `≤ ε`
 //! comparison it reaches.
 
 use geom_core::Bounds;
@@ -97,6 +98,7 @@ use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
 use geom_core::interval::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::algebra::{equal_split_plan, equal_split_points};
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{CurvePlan, KnotVector};
@@ -120,7 +122,7 @@ use geom_core::spline::{CurvePlan, KnotVector};
 /// affine combination, and the count therefore also sets how much
 /// outward rounding the refined net carries. That width grows with the
 /// NUMBER of insertions rather than by a factor per insertion, which is
-/// what makes 16 affordable ([`geom_core::spline::CurvePlan::apply_ring`]
+/// what makes 16 affordable ([`geom_core::spline::CurvePlan::apply_certified`]
 /// argues the form that buys it).
 pub const RATIONAL_CERT_SPLITS: usize = 16;
 
@@ -151,11 +153,12 @@ pub enum PatchBoundError {
     /// carrying one is also a finding.
     NonPositiveWeight,
     /// The same, discovered after the fixed rational refinement: the
-    /// refined weight ENCLOSURE reaches zero. Positivity survives knot
-    /// insertion in ℝ, and the refinement's two barycentric ratios are
-    /// both non-negative, so no weight RATIO can reach this; what does
-    /// is a weight so small that its product with a ratio UNDERFLOWS to
-    /// zero, which needs a subnormal near the bottom of the `f64` range.
+    /// refined weight ENCLOSURE reaches zero. Outside the certified
+    /// inventory: every insertion step is met with the hull of its two
+    /// sources, so each refined weight's enclosure lies within the
+    /// described weights' range, whose lower end the door has already
+    /// proven positive — even at the smallest subnormal, where a
+    /// product with a ratio below one underflows to zero.
     RefinedWeightLostPositivity,
     /// The fixed rational refinement failed to materialise. Outside
     /// the certified inventory: the fixed schedule inserts knots into a
@@ -191,11 +194,11 @@ impl PatchBoundError {
                 "rational NURBS face with a non-positive or non-finite weight, which \
                  describes no valid surface. Recourse: supply strictly positive, finite weights"
             }
-            Self::RefinedWeightLostPositivity => {
-                "rational NURBS face whose weights are too small to refine without one \
-                 rounding to zero. Recourse: describe the face with every weight scaled up \
-                 by one constant, which is the same surface"
-            }
+            Self::RefinedWeightLostPositivity => concat!(
+                "rational NURBS face whose refined weights lost positivity, which the \
+                 refinement of positive weights never does. ",
+                geom_core::kernel_defect_ending!()
+            ),
             Self::RefinementFailed => concat!(
                 "NURBS face that could not be subdivided for bounding, which a valid face \
                  always allows. ",
@@ -412,7 +415,7 @@ pub type Net = TensorNet;
 /// The signed hull of `a[i][j] − c·w[i][j]` over the window
 /// `wu × wv` — the recentred homogeneous net `Ã = A − c·w` read
 /// through the linearity of knot differencing (`d(A − c·w) = dA −
-/// c·dw`, entrywise, same knots). Out-of-range indices poison.
+/// c·dw`, entrywise, same knots). Out-of-range indices are refused.
 ///
 /// This module's own READING, not the shared assembly: no other
 /// consumer of a tensor net recentres at the hull read, because no
@@ -438,7 +441,7 @@ pub fn window_tilde_hull(
             });
         }
     }
-    acc.unwrap_or_else(Interval::poison)
+    acc.unwrap_or_else(Interval::refused)
 }
 
 /// The signed hull of `net[i][j]` over the window `wu × wv` —
@@ -451,18 +454,6 @@ pub fn window_tilde_hull(
 /// CELL's bound above the whole-patch hull it is a subset of.
 pub fn window_hull(net: &Net, wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>) -> Interval {
     net.window_hull(wu, wv)
-}
-
-/// **The squared-sum collapse of one signed componentwise enclosure**:
-/// `sum over c of sup squared`, whose `sqrt(hi)` is a sup bound on the
-/// vector's norm. One spelling, consumed wherever a vector partial's
-/// magnitude is read off its signed enclosure.
-///
-/// Fixed association (D9): channel order `x, y, z`, accumulated left
-/// to right from interval arithmetic zero. Poison in one channel poisons the sum.
-#[must_use]
-pub fn sq_norm(v: [Interval; 3]) -> Interval {
-    v.iter().fold(Interval::zero(), |acc, c| acc + c.sqr())
 }
 
 /// A span's `[knot, next knot]` extent (the caller has already
@@ -719,7 +710,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     // code may not assume the ARITHMETIC proved it, so the refined
     // licence is read off the enclosure's own `lo` — a weight hull that
     // touches or straddles zero voids the convex-combination licence
-    // just as a described non-positive weight does, and poison is not a
+    // just as a described non-positive weight does, and a refusal is not a
     // proof of positivity either.
     for i in 0..nu {
         for j in 0..nv {
@@ -777,13 +768,13 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
             let point_at = |comp: usize, i: usize, j: usize| {
                 p_nets
                     .get(comp)
-                    .map_or_else(Interval::poison, |p| p.get(i, j))
+                    .map_or_else(Interval::refused, |p| p.get(i, j))
             };
             // The cell centroid — a translation CHOICE, so ANY finite
             // value is sound and none of it has to be enclosed. Taken
             // from the midpoint of each enclosed control point, in a
             // fixed order; a non-finite midpoint (an overflowed or
-            // poisoned enclosure) contributes `0`, which is still a
+            // refused enclosure) contributes `0`, which is still a
             // finite centre and leaves the widened hulls to report the
             // trouble.
             let mut c = [0.0f64; 3];
@@ -837,7 +828,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                         });
                     }
                 }
-                let v0s = v0h.unwrap_or_else(Interval::poison);
+                let v0s = v0h.unwrap_or_else(Interval::refused);
                 // Recentred homogeneous derivative hulls
                 // `Ã_kl = A_kl − c·w_kl` on the cell.
                 let at =
@@ -879,23 +870,16 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
 mod tests {
     use super::*;
 
-    /// **`RefinedWeightLostPositivity` is reachable, and only by
-    /// underflow.** The arm's prose claims a weight RATIO cannot reach
-    /// it, which is a claim about the refinement's arithmetic: both
-    /// barycentric ratios are non-negative, so a convex combination of
-    /// positive weights is positive unless one of the PRODUCTS rounds to
-    /// zero. That needs a weight within a few ulps of the smallest
-    /// subnormal, whatever the other weights are.
-    ///
-    /// So this row walks the weight scale beside a fixed `1e2` — a ratio
-    /// of 1e304 at the bottom end — and demands the refusal at the
-    /// minimum subnormal and coverage everywhere a real description
-    /// could sit. It is the row that would catch the arm becoming
-    /// unreachable (a refusal nothing can produce is not a refusal) or
-    /// becoming reachable from an ordinary extreme-weight face, which is
-    /// what its prose tells a caller it is not.
+    /// **`RefinedWeightLostPositivity` is not reached from a door-valid
+    /// face, even at the minimum subnormal.** The arm's prose claims the
+    /// refinement keeps every weight's enclosure inside the described
+    /// weights' range. The sharpest witness is the smallest subnormal
+    /// beside `1e2` — a ratio of 1e304 — where `β·w` alone underflows
+    /// to zero: only the step's meet with its sources' hull keeps the
+    /// enclosure's lower end at `w`. The walk up the scale covers
+    /// everywhere a real description could sit.
     #[test]
-    fn refined_weight_lost_positivity_is_reached_only_by_underflow() {
+    fn refined_weight_lost_positivity_is_not_reached_from_a_valid_face() {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("kv");
         let control: Vec<geom_core::Point3<f64>> = (0..9)
             .map(|i| geom_core::Point3::new(f64::from(i), 0.0, 0.0))
@@ -910,17 +894,20 @@ mod tests {
                 Err(PatchBoundError::RefinedWeightLostPositivity)
             )
         };
-        assert!(
-            refuse(f64::from_bits(1)),
-            "the minimum subnormal weight beside 1e2 must refuse: a product of it with a \
-             ratio below 1 underflows, and the weight hull's `lo` reaches zero"
-        );
-        for w in [1.0e-320, 1.0e-300, 1.0e-200, 1.0e-30, 1.0e-2, 1.0, 1.0e2] {
+        for w in [
+            f64::from_bits(1),
+            1.0e-320,
+            1.0e-300,
+            1.0e-200,
+            1.0e-30,
+            1.0e-2,
+            1.0,
+            1.0e2,
+        ] {
             assert!(
                 !refuse(w),
-                "weight {w:e} beside 1e2 is a ratio of {:e} and must still certify: \
-                 a ratio cannot reach this refusal, only an underflow can",
-                1.0e2 / w
+                "weight {w:e} beside 1e2 lost positivity in the refinement: a step reached \
+                 below the hull of its two sources"
             );
         }
     }

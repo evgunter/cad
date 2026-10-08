@@ -43,7 +43,7 @@ use common::asm;
 use common::{body_volume, near};
 use pncad::document::{Doc, DocumentId, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::select::{Resolution, RunCtx, resolve};
+use pncad::select::{Resolution, RunCtx, face_frame, resolve};
 use viewer::camera::{self, Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::input::ViewportSize;
@@ -119,18 +119,11 @@ fn close3(got: Vec3<f64>, want: Vec3<f64>, what: &str) {
     );
 }
 
-fn pt(m: [f64; 3]) -> Point3<f64> {
-    Point3::new(m[0], m[1], m[2])
-}
-
-fn vc(m: [f64; 3]) -> Vec3<f64> {
-    Vec3::new(m[0], m[1], m[2])
-}
-
 /// Drive one free-move gesture to its committed display value,
 /// asserting it is display state and never a document edit.
 fn park(session: &mut DocSession, instance: RecipeNodeId, at: [f64; 3]) {
     let history_len = session.history().len();
+    let before = session.doc().node(instance).cloned();
     for op in [
         SessionOp::BeginFreeMove { instance },
         SessionOp::PreviewFreeMove {
@@ -149,9 +142,10 @@ fn park(session: &mut DocSession, instance: RecipeNodeId, at: [f64; 3]) {
         history_len,
         "the probe leaves no history state"
     );
-    assert!(
-        session.doc().placements().get(&instance).is_none(),
-        "the probe authors no placement"
+    assert_eq!(
+        session.doc().node(instance).cloned(),
+        before,
+        "the probe leaves the instance's offset where it stood"
     );
 }
 
@@ -244,7 +238,7 @@ fn the_windmill_story() {
     assert_eq!(session.history().len(), 3, "root plus two adds");
     let undone = session.perform(SessionOp::Undo);
     assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
-    assert_eq!(session.doc().order().len(), 1, "the slip is off the path");
+    assert_eq!(session.doc().ids().len(), 1, "the slip is off the path");
     let abandoned = session
         .history()
         .entry(session.history().current())
@@ -267,14 +261,14 @@ fn the_windmill_story() {
         "the slip's branch is still a child"
     );
     assert_eq!(
-        history.entry(abandoned).doc().order().len(),
+        history.entry(abandoned).doc().ids().len(),
         2,
         "the abandoned two-tower document is intact"
     );
     // Backwards and forwards across the add: redo follows the branch
     // the cursor is on — the hub, not the abandoned second tower.
     session.perform(SessionOp::Undo);
-    assert_eq!(session.doc().order().len(), 1);
+    assert_eq!(session.doc().ids().len(), 1);
     session.perform(SessionOp::Redo);
     assert!(
         session.doc().node(hub_i).is_some(),
@@ -294,7 +288,7 @@ fn the_windmill_story() {
     let rows = session.tree_rows();
     assert_eq!(rows.len(), 2);
     for row in &rows {
-        assert_eq!(row.kind, "InstantiatePart");
+        assert_eq!(row.spoken.kind(), Some("InstantiatePart"));
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
 
@@ -449,12 +443,12 @@ fn the_windmill_story() {
     let tower_top = common::displayed_face_at(&session, &index, &asm::down_at(0.0, 0.0));
     assert_eq!(tower_top.node, tower_i);
     let mut tool = MateTool::new();
-    tool.pick(hub_bottom);
-    tool.pick(tower_top);
+    tool.pick(session.doc(), hub_bottom.clone());
+    tool.pick(session.doc(), tower_top);
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
     let seat_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
-        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        tool.proposal(doc, eval, asm::seat_choice())
             .expect("the seat proposes")
     };
     let outcome = session.perform(seat_proposal.op());
@@ -474,7 +468,7 @@ fn the_windmill_story() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == hub_i && !mates.is_empty()
+                if instance.id() == hub_i && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
@@ -485,7 +479,7 @@ fn the_windmill_story() {
     session.pump();
     let seat_mate = *session
         .committed_doc()
-        .order()
+        .ids()
         .last()
         .expect("the mate landed");
 
@@ -494,30 +488,28 @@ fn the_windmill_story() {
     // identity-placed — and the mate axes meet opposed. The base
     // CERTIFIES at rest: one declared contact, nested, answered.
     {
-        let (doc, _) = session.landed_pair().expect("landed");
-        let poses = common::solve(&session, doc, tol);
-        let placed_hub = poses
-            .placement(doc, hub_i)
-            .expect("the hub is solved")
-            .affine::<f64>();
-        let world = placed_hub.transform_point(pt(seat_proposal.alignment.a.origin));
+        let (_, eval) = session.landed_pair().expect("landed");
+        let pose = face_frame(eval, hub_bottom.node, &hub_bottom.name)
+            .expect("the seated hub's underside has a pose");
         close3(
-            world - Point3::new(0.0, 0.0, 0.0),
+            pose.origin - Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, TOWER_HEIGHT),
             "the hub seats on the tower's top centre",
         );
-        let axis = placed_hub.transform_vec(vc(seat_proposal.alignment.a.axis));
         close3(
-            axis,
+            pose.axis,
             Vec3::new(0.0, 0.0, -1.0),
-            "the hub's mate axis opposes the tower top's normal",
+            "the hub's underside chart axis opposes the tower top's normal",
         );
     }
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
     assert!(
-        session.tree_rows().iter().any(|row| row.kind == "Mate"),
+        session
+            .tree_rows()
+            .iter()
+            .any(|row| row.spoken.kind() == Some("Mate")),
         "the mate has a row"
     );
     assert_eq!(
@@ -534,8 +526,11 @@ fn the_windmill_story() {
             instance,
             mates,
         }))) => {
-            assert_eq!(instance, hub_i);
-            assert!(mates.contains(&seat_mate), "the refusal names the mate");
+            assert_eq!(instance.id(), hub_i);
+            assert!(
+                mates.iter().any(|mate| mate.id() == seat_mate),
+                "the refusal names the mate"
+            );
         }
         other => panic!("expected the mate-constrained refusal, got {other:?}"),
     }
@@ -600,11 +595,11 @@ fn the_windmill_story() {
     assert_ne!(front_wall.name, back_wall.name, "two distinct walls");
 
     let mut tool = MateTool::new();
-    tool.pick(sail_a_bottom);
-    tool.pick(front_wall);
+    tool.pick(session.doc(), sail_a_bottom.clone());
+    tool.pick(session.doc(), front_wall.clone());
     let sail_a_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
-        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+        tool.proposal(doc, eval, asm::seat_choice())
             .expect("the first sail proposes")
     };
     let outcome = session.perform(sail_a_proposal.op());
@@ -624,7 +619,7 @@ fn the_windmill_story() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == sail_a && !mates.is_empty()
+                if instance.id() == sail_a && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
@@ -648,37 +643,42 @@ fn the_windmill_story() {
     };
 
     let mut tool = MateTool::new();
-    tool.pick(sail_b_bottom);
-    tool.pick(back_wall);
+    tool.pick(session.doc(), sail_b_bottom.clone());
+    tool.pick(session.doc(), back_wall.clone());
     let sail_b_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
         let base = tool
-            .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
+            .proposal(doc, eval, asm::seat_choice())
             .expect("the second sail proposes");
-        // Turn the roll: of the derived reference and its in-plane
+        // Turn the roll: of the wall's own reference and its in-plane
         // quarter turn (for unit vectors, r turned 90° about n is
         // n × r), keep whichever lands the blade square to the first —
         // the two walls are parallel planes, so exactly one does.
         // Hand-derived because no affordance clocks a mate: the coset
         // table statically refuses a clocking rider on a frame
         // coincidence, and `face_frame` roll references carry no
-        // documented relation across opposite walls — issue 1461.
+        // documented relation across opposite walls — issue 1461. A
+        // face frame carries no reference beside the carrier's own,
+        // so the wall side is AUTHORED here: the wall's world pose
+        // read off the landed evaluation, pulled back through the
+        // hub's solved placement, with the chosen roll — the vector
+        // spelling a user reaches for exactly when the face's own
+        // roll is not the one wanted.
         let mut chosen = base;
-        let derived = vc(chosen.alignment.b.reference);
-        let quarter = vc(chosen.alignment.b.axis).cross(derived);
-        let world_of = |candidate: Vec3<f64>| hub_placed.transform_vec(candidate);
-        let candidate = if world_of(derived).dot(blade_a_dir).abs()
-            < world_of(quarter).dot(blade_a_dir).abs()
-        {
+        let wall = face_frame(eval, back_wall.node, &back_wall.name)
+            .expect("the hub's back wall has a pose");
+        let derived = wall.u_ref.expect("a wall fixes a reference");
+        let quarter = wall.axis.cross(derived);
+        let candidate = if derived.dot(blade_a_dir).abs() < quarter.dot(blade_a_dir).abs() {
             derived
         } else {
             quarter
         };
         assert!(
-            world_of(candidate).dot(blade_a_dir).abs() < 1e-9,
+            candidate.dot(blade_a_dir).abs() < 1e-9,
             "one of the two quarter turns is square to the first blade"
         );
-        chosen.alignment.b.reference = [candidate.x, candidate.y, candidate.z];
+        chosen.alignment.b = asm::authored_from_world(&hub_placed, &wall, candidate);
         chosen
     };
     let outcome = session.perform(SessionOp::AddMate {
@@ -700,7 +700,7 @@ fn the_windmill_story() {
         matches!(
             &superseded.cause,
             AdmissionFault::MateConstrained { instance, mates }
-                if *instance == sail_b && !mates.is_empty()
+                if instance.id() == sail_b && !mates.is_empty()
         ),
         "and the outcome carries WHY it went, not only which went — the \
          fault's own PAYLOAD, which is what would go red if the prune paired \
@@ -735,14 +735,19 @@ fn the_windmill_story() {
                 .expect("the instance is solved")
                 .affine::<f64>()
         };
-        let hub_placed = placed(hub_i);
-        for (proposal, sail) in [(&sail_a_proposal, sail_a), (&sail_b_proposal, sail_b)] {
-            let world_sail = placed(sail).transform_point(pt(proposal.alignment.a.origin));
-            let world_hub = hub_placed.transform_point(pt(proposal.alignment.b.origin));
+        let (_, eval) = session.landed_pair().expect("landed");
+        for (sail_pick, wall_pick) in [(&sail_a_bottom, &front_wall), (&sail_b_bottom, &back_wall)]
+        {
+            let world_sail = face_frame(eval, sail_pick.node, &sail_pick.name)
+                .expect("the sail's underside has a pose")
+                .origin;
+            let world_hub = face_frame(eval, wall_pick.node, &wall_pick.name)
+                .expect("the hub's wall has a pose")
+                .origin;
             close3(
                 world_sail - Point3::new(0.0, 0.0, 0.0),
                 world_hub - Point3::new(0.0, 0.0, 0.0),
-                "the sail's mated frame lands on the hub's wall frame",
+                "the sail's mated face lands on the hub's wall",
             );
         }
         (
@@ -807,7 +812,7 @@ fn the_windmill_story() {
         clocked.committed
     );
     assert_eq!(
-        session.doc().order().len(),
+        session.doc().ids().len(),
         7,
         "the history holds the four instances and three mates it held before"
     );
@@ -843,13 +848,10 @@ fn the_windmill_story() {
         reopened.at_rest()
     );
     {
-        let (doc, _) = reopened.landed_pair().expect("landed");
-        let poses = common::solve(&reopened, doc, tol);
-        let placed_hub = poses
-            .placement(doc, hub_i)
-            .expect("the hub is solved after reopen")
-            .affine::<f64>();
-        let world = placed_hub.transform_point(pt(seat_proposal.alignment.a.origin));
+        let (_, eval) = reopened.landed_pair().expect("landed");
+        let world = face_frame(eval, hub_bottom.node, &hub_bottom.name)
+            .expect("the hub's underside has a pose after reopen")
+            .origin;
         close3(
             world - Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 0.0, TOWER_HEIGHT),

@@ -461,3 +461,64 @@ fn an_interior_rim_inside_the_band_measures_and_outside_it_refuses() {
         );
     }
 }
+
+// ---------------------------------------------------------------------
+// `props_torus_axis` — a carrier axis's length, levered
+// ---------------------------------------------------------------------
+
+/// The `props_torus_axis` margins of a torus about `z` with major radius
+/// `3·scale` and minor radius `scale`, read through one meridian edge
+/// centred on its major circle.
+fn torus_axis_margins(scale: f64) -> Vec<f64> {
+    let s = |v: f64| Probe(v * scale);
+    let torus = Surface::Torus {
+        center: p(0.0, 0.0, 0.0),
+        axis: v3(0.0, 0.0, 1.0),
+        major_radius: s(3.0),
+        minor_radius: s(1.0),
+        u_ref: v3(1.0, 0.0, 0.0),
+    };
+    let meridian = Curve3::Circle {
+        center: p(3.0 * scale, 0.0, 0.0),
+        axis: v3(0.0, 1.0, 0.0),
+        radius: s(1.0),
+        u_ref: v3(1.0, 0.0, 0.0),
+    };
+    let edges = vec![LoopEdge::hand_built(
+        meridian,
+        Probe(0.0),
+        Probe(core::f64::consts::FRAC_PI_2),
+        true,
+        0,
+        1,
+    )];
+    k_stats::start_recording();
+    geom_brep::require_iso_rectangle(&torus, &edges, band()).expect("one meridian edge");
+    k_stats::take_samples()
+        .iter()
+        .filter(|s| s.predicate == "props_torus_axis")
+        .map(|s| s.margin)
+        .collect()
+}
+
+/// **A torus axis's length is decided at the model's scale.** The axis
+/// is unit at rest, a pure number; levered by the meridian's reach from
+/// the centre, `3 + 1`, its margin is `4·scale`, and so `1e3` apart
+/// between the twins. The bare norm reads `1` at both.
+#[test]
+fn torus_axis_margin_is_the_meridian_reach_and_scales_linearly() {
+    for scale in [1e-3, 1.0] {
+        let margins = torus_axis_margins(scale);
+        assert_eq!(
+            margins.len(),
+            1,
+            "one axis decision at {scale:e}: {margins:?}"
+        );
+        let want = 4.0 * scale;
+        assert!(
+            ((margins[0] - want) / want).abs() < 1e-12,
+            "at {scale:e} the axis margin {:e} is not the meridian reach {want:e}",
+            margins[0]
+        );
+    }
+}

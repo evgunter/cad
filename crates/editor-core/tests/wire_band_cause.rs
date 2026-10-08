@@ -164,10 +164,11 @@ fn child_band_row() {
     let refused = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(desc(
+                node: Box::new(Node::Profile(desc(
                     node,
                     vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
-                )),
+                ))),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -191,7 +192,7 @@ fn child_band_row() {
             node,
             &Selector::of(NamePat::any()),
             &[],
-            &doc.param_env::<f64>(),
+            &doc.var_env::<f64>(),
             Tol::witness(),
         )
         .expect("select_where short-circuits before its band"),

@@ -1250,3 +1250,70 @@ class of 65 sites is PRED's row.
   - Seam notes posted to every program in the territory.
 - 2026-09-29 — Dispatched `certify-collapsed-arm-gates-route-as-the-decision-they-guard` (P3/M) on `encl/collapsed-arm-gates`.
 - 2026-09-29 — `adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap` is held. Ev's #3380 door decision (m ≤ ε_in, miss within ε_in) is a decision on the reporting margin, which #3402 forbids. The likely resolution is a named comparison decided inside geom-core that returns words. Raising it with Ev is pending the user's go-ahead.
+- 2026-09-29 — Dispatch paused by the user (usage limit); the running collapsed-arm lane is allowed to finish. The import row's ε_in comparison is confirmed as error-text-only (it picks the sentence, and no outcome changes), so it needs no `[ev]` question. The row now carries the implementation note, and it is ready to dispatch when work resumes.
+- 2026-09-29 — The collapsed-arm lane opened PR 3431 (head `8e44f443e9`; local gates green; hosted CI not yet checked). It adds `decide_positive_reported`/`GateRefusal`, `CertCheck::{TransversalityArm, ParamSpanMeter}`, `ArmCollapsed`/`SpanMeterCollapsed`, and validate's `NoDihedralArm`/`WedgeCheck::LeverArm` (a new pncad-py tag). It files six rows (pcert, ssi, contact, carve, reach, encl). **Not reviewed: dispatch is paused.** A full review is owed on resume.
+
+- 2026-10-01 — Seam note from PROPS (`props/recourse-grammar`, the last unit of that program): the D4 ¶1 (i) recourse GRAMMAR moved in `geom-core`, so refusal text changed across the tree. `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and `SPLIT_PLANE_RECOURSE` lost their unvalued `", or lower the tolerance"` tail and are now the LEVERS alone; `DEFINITE_COINCIDENCE_RECOURSE` retired into `COINCIDENCE_RECOURSE` (with the tail gone the two were one string). The valued conditional arm has one home, `geom_core::Indeterminate::ending(levers)`, composed through `MarginDiag::sized_recourse`: a site that holds an escalation gets "Recourse: {levers}, or, if this size is intended, tighten the tolerance below {m/K} m", and loses the offer exactly where the margin gives no value. `Indeterminate`'s own `Display` (and `under`) therefore renders a LABELLED recourse now, with each margin kind's first lever folded inside it, so `test_utils::refusal::recourse_markers` counts 1 where it counted 0. `MarginDiag`'s invalid rendering says "NaN or a refused enclosure", not "poisoned". Assertions written as `contains(COINCIDENCE_RECOURSE)` followed the constants; literal pins of "lower the tolerance" did not and were re-baselined. (PROPS implementer)
+- 2026-09-30 — **Seam note from PROPS (PR 3524, `props/convex-insert`, DUAL review, not yet merged): `offset_fit.rs` is edited from outside.** This is the fix ENCL asked for and parked two rows on — `geom_core::spline::compose`'s `insert_once_ring` goes from the lerp form `c_{i−1} + (c_i − c_{i−1})·α` to the convex form `c_{i−1}·β + c_i·α`, with `β` derived from the knots rather than as `1 − α`. Site 5 of PROPS' `f64-refinement-inside-an-enclosure-has-five-more-sites` is closed by it; the item stays open for the other four.
+  - **What moved in ENCL's territory.** `crates/geom-brep/tests/offset_fit.rs`: five rows re-baselined, all in the TIGHTENING direction, and `crates/geom-brep/src/offset_fit.rs`'s in-src `the_sign_witness_floors_norm_e_where_the_components_straddle_zero`. Nothing in `patch_bound.rs` or `offset_meters.rs` moved.
+    - `the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre`: `5.0593e-10` → `1.39976e-10` (3.6x tighter) on the same 609 cells of the same round 3.
+    - `a_bound_that_never_became_finite_refuses_with_no_number`: `5.8508e-7` → `5.82838e-7` on the same round 5 / 1144 cells. `1e-8` and `1e-9` still never become finite, so the boundary this row draws is unmoved.
+    - `a_micron_scale_offset_certifies_and_names_its_limit`: the cap stop's `achieved` `3.7544e-7` → `3.75359e-7`, same 5 rounds. The `1e-3` request's own `hull_sup` (`1.7072e-5`) did not move at the four digits it is pinned to.
+    - `the_second_non_improving_round_is_the_stalls_face`: **subject re-found, not re-pinned.** The `theta = 0.3` saddle's `d = ±5e-10` and `1e-6` requests all certify now — the `5e-10` one at `7.9933e-15` on round 3, which is the figure the row's own doc predicted the convex form would produce. Re-hunted per the row's instructions to `theta = 0.6`, `d = ±5.6234132519034906e-11` (round 5) and `1.333521432163324e-10` (the budget's last round).
+    - `a_single_non_improving_round_is_the_budgets_face_not_the_stalls`: **subject re-found, not re-pinned, and this one is worth ENCL's attention.** The row stood on the bumpy patch at `d = 1e-4`, whose round 6 ROSE to `8.3524739e-9` over round 5's `6.0173058e-9`. Under the convex form that request's ladder is MONOTONE — round 6 now improves to `1.4808214e-9`, and the refusal's `last_round` is `Improved`. A number move would have left the row green over a loop that was no longer its subject. The replacement is the bumpy patch at `d = -1e-5`, whose round 6 rises to `1.8241931e-7` over round 5's `5.9970628e-10`. **The mechanism ENCL described is confirmed by that**: the non-monotone bound was the insertion fold's width growing with the grid faster than the geometry error fell.
+    - in-src `the_sign_witness_floors_norm_e_where_the_components_straddle_zero`: the sup CELL moved `(21, 12)` → `(21, 6)` on both grids, the sup's VALUE unmoved at four digits; four componentwise constants moved in the third digit (`1.5798e-8` → `1.5814e-8`, `3.2219e-4` → `3.2189e-4`, `3.1059e-4` → `3.1030e-4`, ratio `18.872` → `18.855`).
+  - **ENCL's two parked rows are now checkable, and both measurements reproduce.** Measured as an A/B on hosted CI, one branch off `main` and one off the fix, with `OFFSET_FIT_BUDGET` 6→20 and `OFFSET_FIT_SAMPLE_CAP` 48→256 so the loop can run (runs 36698302670 and 36698287741):
+    - `offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart`: `bowed()` at `d = 0.05`, target 1e-12 — lerp stalls on round 7 at `2.4905e-9` (ENCL: round 7, 2.49e-9), convex certifies on round 9 at `7.9222e-13` (ENCL: round 9, 7.92e-13). Saddle wall at `d = 0.05`, target 1e-9 — lerp bottoms out at `1.14902e-9` and rises, convex certifies on round 9 at `3.8714e-10` (ENCL: round 9, 3.87e-10). Same wall at 1e-12 — convex certifies on round 16 at `6.3987e-13` (ENCL: round 16, 6.40e-13). Same wall at `d = 5e-10`, target 1e-14 — lerp stalls on round 4 at `1.29153e-11`, convex certifies on round 3 at `7.9933e-15` (ENCL: round 4 / 1.29e-11, round 3 / 7.99e-15). **Every row reproduces to the digits ENCL recorded.** The grids differ slightly from ENCL's because the raised cap is not the same number; the certificate carries `cells` rather than a grid, so cells are quoted instead.
+    - **The caveat ENCL needs: at the SHIPPED budget of 6 the saddle wall still does not certify at the default ε.** It certifies on round 9, and the loop cannot reach round 9. So the row's "certifies at the DEFAULT eps where it refuses today" holds for the arithmetic and not yet for the shipped limits: what this fix changes is that the bound now FALLS monotonically instead of bottoming out and rising, so the budget question becomes a budget question rather than an unreachable floor. That is the row's own section 1 ("whether the engine's round budget (6) and per-direction sample cap (48) are the right numbers") and it is still open.
+    - `a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12`: `topo::fixtures::bowed_patch`'s net at `d = ±0.05`, target 1e-12, re-deriving the certificate on 96 rigid images (4 axes x 24 angles), at the shipped budget (runs 36701471437 and 36701373637). Lerp: seed fits in 3 rounds over 64 cells at `3.6541e-13` / `3.6519e-13` (ENCL: 3 rounds, 64 cells, 3.652e-13), **10 of 96 maps refuse the re-derivation and 4 of those have a re-fit that also refuses** (ENCL: 4 maps whose re-fit stalls), worst drift x2.711 (ENCL: up to x3.10 over their 93). Convex: seed `8.3379e-14` (ENCL: 8.34e-14), **0 of 96 refuse and 0 re-fits stall, worst drift x1.014** (ENCL: 0 of 93, worst drift x1.014), and the fixture's own `hull_sup` drops 4.38x (ENCL: 4.4x). **This measurement reproduces exactly, including the frame-invariance figure.**
+  - Filed on PROPS by the same sweep, for ENCL's awareness since it is one applier below `patch_bound`: `the-projective-applier-still-lerps-so-a-nurbs-refined-at-t-interval-pays-twice`.
+- 2026-10-01 — **PROPS, addendum to the 2026-09-30 seam note (PR 3524).** A nightly dispatched on the branch (run 36820204785, full SHA as the `ref` input) caught four rows the default-eps gate could not: the plane-NURBS declare-and-check seam's certified between-samples sup also rides the Bézier decomposition, and it fell about two orders, moving that seam's ε boundary from 1e-9 to 1e-13 in `crates/sweep/tests/m8_4_intersection_iso.rs`, `crates/sweep/tests/review_probes_m8_4.rs` and `crates/step-import/tests/recognize_pins.rs`. Seam notes posted to `tint`, `tcost` and `exch`; residue filed as `work/tint/the-plane-nurbs-seam-refusal-cell-is-below-every-gated-eps-row.md`. Nothing in ENCL's territory moved beyond the 2026-09-30 list. `k-lint (dev-probe)` is red on that nightly and was already red on main's own last scheduled nightly (36707053778), same failing step — reported to the orchestrator, not touched here.
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+- 2026-10-08 — Resumed after the pause.
+  - Read: the D10 hold (it applies to new units on D10's ground; ENCL's live units are off it), D4 ¶1 ("make the two one construction", replacing "declare"), PROPS' recourse-grammar move, and the prompt and memory changes.
+  - Triaged the seven rows filed while paused:
+    - P1: `the-offset-certificate-reads-vector-norms-off-per-coordinate-cell-hulls` (D4 ¶2 now ratifies norm-of-coefficient bounds);
+    - P2: `offset-fit-on-locus-fold-drops-a-nan-sample` (fail-loud);
+    - P3: the rest.
+  - Next: bring PR 3431 up to main and give it a full review; dispatch the import follow-through.

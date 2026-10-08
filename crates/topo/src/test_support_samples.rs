@@ -21,7 +21,8 @@
 //! [`ContactRefusal`] and [`ContainError`]; every `CertifyError`,
 //! [`PcurveMintError`], [`MassPropsError`], `OffsetFitError` and
 //! [`BandError`]; every margin shape an [`Indeterminate`] renders;
-//! every [`CensusContact`], [`StaleDeclaration`] and [`RingContact`];
+//! every [`CensusContact`], [`StaleDeclaration`], [`RingContact`] and
+//! [`RingPairContact`];
 //! and every [`Undecided`] reason, which is every `what` the
 //! cross-solid backstop can raise. One level further in, the enums
 //! `PcurveMintError::Certify`, `MassPropsError::Face` and
@@ -57,8 +58,8 @@ use crate::geometry::{CurveKey, PointKey};
 use crate::pcurves::PcurveMintError;
 use crate::props::MassPropsError;
 use crate::validate::{
-    CensusContact, CensusSubject, CensusUnsupportedCause, RingContact, StaleDeclaration,
-    ValidationError, WedgeCheck,
+    CensusContact, CensusSubject, CensusUnsupportedCause, RingContact, RingPairContact,
+    StaleDeclaration, ValidationError, WedgeCheck,
 };
 
 fn band() -> Band {
@@ -178,7 +179,7 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     v.extend(
         [
             "a declared face's surface kind is outside the Rest ladder's inventory \
-             (plane, sphere, cylinder)",
+             (plane, sphere, cylinder, torus)",
             "the (carrier kind, surface-kind pair) triple is outside the jet \
              certificate's span-bound lane (the order-k boundary)",
         ]
@@ -187,15 +188,103 @@ fn contact_refusals() -> Vec<ContactRefusal> {
     v
 }
 
+fn uncrossable() -> crate::splitting::Uncrossable {
+    crate::splitting::Uncrossable {
+        r#loop: LoopKey::default(),
+        edge: EdgeKey::default(),
+        carrier: crate::splitting::UncrossableCarrier::Spiric,
+    }
+}
+
+/// Every refusal the solid door can hand the face door's curved reads,
+/// carried as [`ContainError::Curved`]; `Loop` once per loop refusal, and
+/// `OffPlane` once per cause.
+fn point_in_solid_errors() -> Vec<crate::boolean::PointInSolidError> {
+    use crate::boolean::PointInSolidError as S;
+    use crate::splitting::{OffPlane, OffPlaneCause, PointInLoopError as L};
+    let face = FaceKey::default();
+    let r#loop = LoopKey::default();
+    vec![
+        S::Escalated { face, diag: diag() },
+        S::RayExhausted,
+        S::ZeroVolumeBody,
+        S::Loop(L::Escalated {
+            r#loop,
+            diag: diag(),
+        }),
+        S::Loop(L::RayExhausted { r#loop }),
+        S::Loop(L::CorruptLoop { r#loop }),
+        S::Loop(L::Uncrossable(uncrossable())),
+        S::Loop(L::OffPlane(OffPlane {
+            r#loop,
+            cause: OffPlaneCause::Loop {
+                edge: crate::entity::EdgeKey::default(),
+            },
+        })),
+        S::Loop(L::OffPlane(OffPlane {
+            r#loop,
+            cause: OffPlaneCause::Query,
+        })),
+        S::Loop(L::OffPlane(OffPlane {
+            r#loop,
+            cause: OffPlaneCause::NormalNotUnit,
+        })),
+        S::CorruptFace { face },
+        S::KindUnsupported {
+            face,
+            kind: geom::SurfaceKind::Nurbs,
+        },
+        S::VolumeUncertified,
+        S::PartialSphereFace { face },
+        S::PartialConeFace { face },
+        S::PartialTorusFace { face },
+        S::EdgeCarrierUnsupported {
+            face,
+            cause: uncrossable(),
+        },
+        S::WallOutlineUnsupported { face },
+        S::NoSuchSolid {
+            solid: SolidKey::default(),
+        },
+    ]
+}
+
 fn contain_errors() -> Vec<ContainError> {
     vec![
         ContainError::Escalated(diag()),
         ContainError::RayExhausted,
-        ContainError::Corrupt,
-        ContainError::ArcLoopUnsupported {
-            r#loop: LoopKey::default(),
-        },
+        ContainError::StaleFace(crate::entity::FaceKey::default()),
+        ContainError::EmptyLoop(LoopKey::default()),
+        ContainError::LoopUnreadable(LoopKey::default()),
+        ContainError::Uncrossable(uncrossable()),
     ]
+    .into_iter()
+    .chain(
+        point_in_solid_errors()
+            .into_iter()
+            .map(ContainError::Curved),
+    )
+    .collect()
+}
+
+/// The carrier-domain refusal on a width that overflows.
+fn carrier_domain_invalid() -> geom_brep::CarrierDomainRefusal {
+    geom_brep::CarrierDomainRefusal {
+        lo: -f64::MAX,
+        hi: f64::MAX,
+        fault: geom_brep::CarrierDomainFault::Interval,
+    }
+}
+
+/// The carrier-domain refusal on a domain too narrow for its ends.
+fn carrier_domain_collapsed() -> geom_brep::CarrierDomainRefusal {
+    geom_brep::CarrierDomainRefusal {
+        lo: 1.0e6,
+        hi: 1.0e6 + 1.0e-9,
+        fault: geom_brep::CarrierDomainFault::Collapse(
+            geom_core::spline::KnotVectorIssue::InteriorMultiplicityTooHigh { index: 2 },
+        ),
+    }
 }
 
 fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
@@ -206,9 +295,12 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
         },
         PlaneNurbsRefusal::NotTransverse {
             sample: 3,
+            lever: geom_brep::ssi::PointLever::CurvatureRadius,
             verdict: zero_verdict(0.0),
         },
         PlaneNurbsRefusal::PcurveFit,
+        PlaneNurbsRefusal::CarrierDomain(carrier_domain_invalid()),
+        PlaneNurbsRefusal::CarrierDomain(carrier_domain_collapsed()),
         PlaneNurbsRefusal::Limb {
             limb: geom_brep::SsiLimb::Tube,
             value: 1e-7,
@@ -230,7 +322,42 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             sample: 4,
             cause: diag(),
         },
-        PlaneNurbsRefusal::Escalated(diag()),
+        PlaneNurbsRefusal::Escalated {
+            limb: geom_brep::SsiLimb::OnLocus,
+            cause: diag(),
+        },
+        PlaneNurbsRefusal::Escalated {
+            limb: geom_brep::SsiLimb::HullSup,
+            cause: diag(),
+        },
+        PlaneNurbsRefusal::Escalated {
+            limb: geom_brep::SsiLimb::Tube,
+            cause: diag(),
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Short,
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Undecided(diag()),
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 3,
+            cause: geom_brep::ssi::OneArcRefusal::Count { solutions: 0 },
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 20,
+            cause: geom_brep::ssi::OneArcRefusal::Count { solutions: 4 },
+        },
+        PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 20,
+            cause: geom_brep::ssi::OneArcRefusal::Unlinked,
+        },
+        PlaneNurbsRefusal::ReportedTransversalityPoisoned(diag()),
+        PlaneNurbsRefusal::ChartSpeed(geom_brep::ChartSpeedRefusal::Zero {
+            axis: geom_brep::ChartAxis::U,
+        }),
         PlaneNurbsRefusal::Unsupported {
             what: "a rational NURBS surface",
         },
@@ -241,13 +368,14 @@ fn certify_errors() -> Vec<CertifyError> {
     let key = geom_brep::SurfaceKey::default();
     let mut v = vec![
         CertifyError::ChartImageUnavailable {
-            chart: "cone",
-            carrier: "ellipse",
+            chart: geom::SurfaceKind::Cone,
+            carrier: geom::CurveKind::Ellipse,
         },
         CertifyError::UnresolvedSurface { key },
         CertifyError::Unimplemented,
+        CertifyError::NurbsLaneNotSupplied,
         CertifyError::IntersectionSameSurface { key },
-        CertifyError::SeamOnNonPeriodic,
+        CertifyError::WrapOnNonPeriodic,
         // Both zero-span stories: a length a smaller tolerance decides,
         // and a span of no length, which none does.
         CertifyError::IntervalNotForward {
@@ -265,6 +393,7 @@ fn certify_errors() -> Vec<CertifyError> {
             sample: 4,
         },
         CertifyError::NotTransverse {
+            lever: None,
             sample: 4,
             verdict: zero_verdict(5e-10),
         },
@@ -322,10 +451,31 @@ fn certify_errors() -> Vec<CertifyError> {
 
 fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
     let mut v = vec![
-        PcurveCertifyError::UnsupportedChart { chart: "torus" },
-        PcurveCertifyError::UnsupportedCarrier,
-        PcurveCertifyError::FittedLaneUnsupported { scalar: "Dual64" },
+        PcurveCertifyError::UnsupportedChart {
+            chart: geom::SurfaceKind::Torus,
+        },
+        PcurveCertifyError::UnsupportedCarrier {
+            chart: geom::SurfaceKind::Torus,
+            carrier: geom::CurveKind::Nurbs,
+            class: geom_brep::UncoveredClass::SplineCarrier,
+        },
+        PcurveCertifyError::CarrierGrazesChart {
+            chart: geom::SurfaceKind::Torus,
+            carrier: geom::CurveKind::Circle,
+            grazer: geom_brep::Grazer::TorusCircle,
+        },
+        PcurveCertifyError::CarrierOffChart {
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Line,
+            why: "a sphere holds no line",
+        },
+        PcurveCertifyError::ImageMismatch {
+            image: geom_brep::PcurveKind::General,
+            why: "a fitted-grade image at the closed-form door",
+        },
+        PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" },
         PcurveCertifyError::FittedMateMissing,
+        PcurveCertifyError::ArcNearPole,
         PcurveCertifyError::IsoUnsupported {
             what: "a rational NURBS surface",
         },
@@ -340,15 +490,18 @@ fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
                 boxes: 12,
             }),
         },
+        PcurveCertifyError::CarrierDomain(carrier_domain_collapsed()),
         PcurveCertifyError::FittedEscalated { cause: diag() },
         PcurveCertifyError::IntervalNotForward,
         PcurveCertifyError::ChartWindingUnsupported,
+        PcurveCertifyError::PlaceholderChart,
         PcurveCertifyError::AzimuthPeriodExceeded,
+        PcurveCertifyError::TubePeriodExceeded,
+        PcurveCertifyError::BranchOutOfReach,
         PcurveCertifyError::ResidualExceeded {
             check: PcurveCheck::MapResidual,
             sample: 4,
         },
-        PcurveCertifyError::TrimEscape,
         PcurveCertifyError::Escalated {
             check: PcurveCheck::Envelope,
             sample: 4,
@@ -364,7 +517,12 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
     let half_edge = HalfEdgeKey::default();
     let r#loop = LoopKey::default();
     let mut v = vec![
-        PcurveMintError::Corrupt,
+        PcurveMintError::Stale {
+            role: "half_edge",
+            key: EntityId::HalfEdge(half_edge),
+        },
+        PcurveMintError::NoCarrier { half_edge },
+        PcurveMintError::EmptyOuter { face },
         PcurveMintError::LoopDiscontinuity { half_edge },
         PcurveMintError::LoopNotClosed { face },
         PcurveMintError::SingularChartJoint {
@@ -372,9 +530,18 @@ fn pcurve_mint_errors() -> Vec<PcurveMintError> {
             r#loop,
             half_edge,
         },
+        PcurveMintError::JointWithoutRoom {
+            face,
+            r#loop,
+            half_edge,
+        },
         PcurveMintError::OuterSpansPeriod,
         PcurveMintError::LoopWraps { face, r#loop },
         PcurveMintError::MissingCache { half_edge },
+        PcurveMintError::Unminted { face },
+        PcurveMintError::RowInterval { half_edge },
+        PcurveMintError::UncertifiedImage { half_edge },
+        PcurveMintError::PlaceholderChart { face },
         PcurveMintError::Escalated {
             half_edge,
             cause: diag(),
@@ -396,12 +563,22 @@ fn props_errors() -> Vec<PropsError> {
             what: "a trim edge that is not an iso-parameter line",
         },
         PropsError::NappeSpanning,
+        PropsError::SphereLoop {
+            what: "props_sphere_loop_closed",
+        },
+        PropsError::SenseContradicted,
         PropsError::NotOneChartBranch {
             edge: 2,
             what: "the edge crosses the seam",
         },
         PropsError::DegenerateFace,
-        PropsError::Escalated { cause: diag() },
+        PropsError::OffSurface {
+            what: "a rim circle that is not on the cylinder",
+        },
+        PropsError::Escalated {
+            cause: diag(),
+            check: geom_brep::props::PropsCheck::Inventory,
+        },
         PropsError::QuadratureBudget {
             width_len: 1e-6,
             target_len: 1e-9,
@@ -606,6 +783,14 @@ fn stale_declarations() -> Vec<StaleDeclaration> {
             b: vertex,
         },
         StaleDeclaration::VertexOnFace { vertex, face },
+        StaleDeclaration::VertexOnEdge {
+            vertex,
+            edge: EdgeKey::default(),
+        },
+        StaleDeclaration::EdgeEdge {
+            a: EdgeKey::default(),
+            b: EdgeKey::default(),
+        },
         StaleDeclaration::CurveLocus {
             face_a: face,
             face_b: face,
@@ -648,6 +833,36 @@ fn ring_contacts() -> Vec<RingContact> {
     ]
 }
 
+fn ring_pair_contacts() -> Vec<RingPairContact> {
+    let (vertex, edge, r#loop) = (VertexKey::default(), EdgeKey::default(), LoopKey::default());
+    vec![
+        RingPairContact::Vertex {
+            ring_vertex: vertex,
+            other_vertex: vertex,
+        },
+        RingPairContact::VertexOnEdge {
+            ring_vertex: vertex,
+            other_edge: edge,
+        },
+        RingPairContact::Edge {
+            ring_edge: edge,
+            other_edge: edge,
+        },
+        RingPairContact::OtherVertexOnEdge {
+            other_vertex: vertex,
+            ring_edge: edge,
+        },
+        RingPairContact::Circles {
+            ring_loop: r#loop,
+            other_loop: r#loop,
+        },
+        RingPairContact::EdgesMeet {
+            ring_edge: edge,
+            other_edge: edge,
+        },
+    ]
+}
+
 /// `arm/Variant`, the variant read off the nested value's `Debug`.
 fn label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
     let debug = format!("{nested:?}");
@@ -656,6 +871,31 @@ fn label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
         .take_while(|c| c.is_alphanumeric() || *c == '_')
         .collect();
     format!("{arm}/{head}")
+}
+
+/// `arm/Curved/Loop/Variant`: [`label`] read down the arms that carry a
+/// solid or loop refusal whole, and down to an off-plane loop's cause,
+/// so each carried refusal gets its own label.
+fn path_label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
+    let debug = format!("{nested:?}");
+    let mut path = arm.to_owned();
+    let mut rest = debug.as_str();
+    loop {
+        let head: String = rest
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        path = format!("{path}/{head}");
+        match rest[head.len()..].strip_prefix('(') {
+            Some(inner) if matches!(head.as_str(), "Curved" | "Loop") => rest = inner,
+            // An off-plane loop's refusals differ by cause alone.
+            _ if head == "OffPlane" => match rest.split_once("cause: ") {
+                Some((_, cause)) => rest = cause,
+                None => return path,
+            },
+            _ => return path,
+        }
+    }
 }
 
 /// Every [`ValidationError`] shape the viewer can draw, each with a
@@ -780,12 +1020,19 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             face,
             named_loop: loop_,
         },
+        ValidationError::StaleNullFaceOwnership {
+            face,
+            named_loop: loop_,
+        },
         ValidationError::NullEdgeAtRest { edge },
         ValidationError::NullFaceAtRest { face },
         // Tier 3 arms that carry nothing nested.
         ValidationError::UncertifiableSurface { face },
         ValidationError::PoisonedSurfaceDescription { face },
-        ValidationError::ApproxLaneUnsupported { face },
+        ValidationError::ApproxLaneUnsupported {
+            face,
+            scalar: "interval",
+        },
         ValidationError::DegenerateTorus {
             face,
             verdict: zero_verdict(5e-10),
@@ -816,6 +1063,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             ring: loop_,
             ring_vertex: vertex,
         },
+        ValidationError::PinchCornerCrossed { face, vertex, edge },
         ValidationError::CensusLaneUnsupported { subject: pair },
         ValidationError::InstanceInterference {
             outer: solid,
@@ -829,7 +1077,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     // A surface datum, poisoned or outside its range: every datum, at
     // each end of the range.
     for datum in geom::SurfaceDatum::iter() {
-        let kind = geom_brep::SurfaceKind::Torus;
+        let kind = geom::SurfaceKind::Torus;
         s.push((
             label("PoisonedSurfaceDatum", &datum),
             ValidationError::PoisonedSurfaceDatum { face, kind, datum },
@@ -858,7 +1106,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     // A carrier datum, poisoned or outside its range: every datum, at
     // each end of the range.
     for datum in geom::CurveDatum::iter() {
-        let kind = crate::query::CurveKind::Ellipse;
+        let kind = geom::CurveKind::Ellipse;
         s.push((
             label("PoisonedCurveDatum", &datum),
             ValidationError::PoisonedCurveDatum { edge, kind, datum },
@@ -926,6 +1174,23 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 },
             ),
             (
+                "RingPairContactEscalated",
+                ValidationError::RingPairContactEscalated {
+                    face,
+                    ring: loop_,
+                    other: loop_,
+                    source: cause,
+                },
+            ),
+            (
+                "PinchCornerEscalated",
+                ValidationError::PinchCornerEscalated {
+                    face,
+                    vertex,
+                    source: cause,
+                },
+            ),
+            (
                 "CensusEscalated",
                 ValidationError::CensusEscalated { cause },
             ),
@@ -933,8 +1198,8 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             s.push((format!("{arm}{m}"), e));
         }
         for check in [
+            WedgeCheck::Arm,
             WedgeCheck::Dihedral,
-            WedgeCheck::LeverArm,
             WedgeCheck::SecondOrder,
             WedgeCheck::MaterialSide,
         ] {
@@ -968,9 +1233,20 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             },
         ));
     }
+    for contact in ring_pair_contacts() {
+        s.push((
+            label("RingMeetsRing", &contact),
+            ValidationError::RingMeetsRing {
+                face,
+                ring: loop_,
+                other: loop_,
+                contact,
+            },
+        ));
+    }
     for source in contain_errors() {
         s.push((
-            label("RingNestingUndecided", &source),
+            path_label("RingNestingUndecided", &source),
             ValidationError::RingNestingUndecided {
                 face,
                 ring: loop_,
@@ -991,6 +1267,23 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             },
         ));
     }
+    s.push((
+        "SolidOuterShells".to_owned(),
+        ValidationError::SolidOuterShells { solid, outer: 2 },
+    ));
+    s.push((
+        "VolumeSignUnresolved".to_owned(),
+        ValidationError::VolumeSignUnresolved { solid },
+    ));
+    s.push((
+        "ShellRoleUndecided".to_owned(),
+        ValidationError::ShellRoleUndecided {
+            solid,
+            error: crate::ShellClassifyError::Straddles {
+                shell: ShellKey::default(),
+            },
+        },
+    ));
 
     // Tier 3′: the census.
     for contact in census_contacts() {
@@ -1066,7 +1359,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     }
     for e in contain_errors() {
         causes.push((
-            label("CensusUnsupported/Containment", &e),
+            path_label("CensusUnsupported/Containment", &e),
             CensusUnsupportedCause::Containment(e),
         ));
     }
@@ -1130,7 +1423,8 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
     use crate::pcurves::PcurveMintErrorKind;
     use crate::props::MassPropsErrorKind;
     use crate::validate::{
-        CensusContactKind, CensusUnsupportedCauseKind, RingContactKind, StaleDeclarationKind,
+        CensusContactKind, CensusUnsupportedCauseKind, RingContactKind, RingPairContactKind,
+        StaleDeclarationKind,
     };
     use geom_brep::certify::CertifyErrorKind;
     use geom_brep::edge_nurbs::PlaneNurbsRefusalKind;
@@ -1164,6 +1458,27 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         "ContainError",
         &contain_errors(),
     ));
+    let carried: Vec<crate::boolean::PointInSolidError> = contain_errors()
+        .into_iter()
+        .filter_map(|e| match e {
+            ContainError::Curved(e) => Some(e),
+            _ => None,
+        })
+        .collect();
+    out.extend(gaps::<
+        _,
+        crate::boolean::solid_contain::PointInSolidErrorKind,
+    >("PointInSolidError", &carried));
+    let loops: Vec<crate::splitting::PointInLoopError> = carried
+        .into_iter()
+        .filter_map(|e| match e {
+            crate::boolean::PointInSolidError::Loop(e) => Some(e),
+            _ => None,
+        })
+        .collect();
+    out.extend(
+        gaps::<_, crate::splitting::containment::PointInLoopErrorKind>("PointInLoopError", &loops),
+    );
     out.extend(gaps::<_, CertifyErrorKind>(
         "CertifyError",
         &certify_errors(),
@@ -1200,5 +1515,9 @@ pub(crate) fn nested_coverage_gaps() -> Vec<String> {
         &stale_declarations(),
     ));
     out.extend(gaps::<_, RingContactKind>("RingContact", &ring_contacts()));
+    out.extend(gaps::<_, RingPairContactKind>(
+        "RingPairContact",
+        &ring_pair_contacts(),
+    ));
     out
 }

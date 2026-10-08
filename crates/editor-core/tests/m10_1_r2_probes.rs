@@ -36,26 +36,39 @@ test_utils::gated_to![
 use crate::fixture;
 
 use editor_core::{
-    AnalysisPolicy, CancelToken, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit, DocParam,
-    DocParamValue, DocumentId, EditError, EvalOptions, MeasureUnavailable, OffsetInterval,
-    ParamName, PersistError, ProfileDoc, analyzed_box, apply, box_mass, evaluate, load, save,
+    AnalysisPolicy, CancelToken, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit,
+    DocumentId, EditError, EvalOptions, FreeValue, FreeVar, MeasureUnavailable, OffsetInterval,
+    PersistError, ProfileDoc, VarName, analyzed_box, apply, box_mass, evaluate, load, save,
     tail_mass,
 };
 use geom_core::Tol;
 use test_utils::fuzz;
 
-fn p(name: &str) -> ParamName {
-    ParamName::new(name)
+/// A variable as the free mass doors' refusals speak it.
+/// The variable `doc` declares as `name`, or an id it never minted.
+fn v(doc: &editor_core::ProfileDoc, name: &str) -> editor_core::VarId {
+    doc.var_named(name).unwrap_or(editor_core::VarId::new(0, 0))
 }
 
-fn doc_with(params: &[(&str, DocParam)]) -> ProfileDoc {
+fn sp(name: &'static str) -> editor_core::SpokenVar {
+    editor_core::SpokenVar::new(
+        editor_core::VarId::new(0, 0),
+        Some(editor_core::VarName::from_static(name)),
+    )
+}
+
+fn p(name: &'static str) -> VarName {
+    VarName::from_static(name)
+}
+
+fn doc_with(params: &[(&'static str, FreeVar)]) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-1-r2-probes"), Tol::witness());
     for (name, value) in params {
         doc = apply(
             &doc,
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: p(name),
-                value: value.clone(),
+                def: editor_core::VarDecl::Free(value.clone()),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -66,8 +79,8 @@ fn doc_with(params: &[(&str, DocParam)]) -> ProfileDoc {
     doc
 }
 
-fn annotated(value: f64, distribution: Distribution) -> DocParam {
-    DocParam::continuous_with(Dimension::Length, value, distribution)
+fn annotated(value: f64, distribution: Distribution) -> FreeVar {
+    FreeVar::continuous_with(Dimension::Length, value, distribution)
 }
 
 // ---------------------------------------------------------------
@@ -98,7 +111,7 @@ fn the_normal_tail_is_the_exterior_mass_not_merely_one_minus_inside() {
         let hi = sigma * rng.range(0.05, 6.0);
         let dist = Distribution::Normal { sigma };
         let interval = OffsetInterval { lo, hi };
-        let reported = tail_mass(&p("n"), &dist, &interval).expect("a normal prices");
+        let reported = tail_mass(&sp("n"), &dist, &interval).expect("a normal prices");
         // The second route: the two exterior half-lines, each from
         // `erfc`, never touching `1 - x`.
         let independent = normal_upper_tail(sigma, hi) + normal_upper_tail(sigma, -lo);
@@ -138,7 +151,7 @@ fn the_deep_tail_is_not_lost_to_cancellation() {
     let dist = Distribution::Normal { sigma };
     // Where it still holds: the ±3σ default is accurate.
     let near = OffsetInterval { lo: -3.0, hi: 3.0 };
-    let near_reported = tail_mass(&p("n"), &dist, &near).expect("priceable");
+    let near_reported = tail_mass(&sp("n"), &dist, &near).expect("priceable");
     let near_exact = normal_upper_tail(sigma, 3.0) * 2.0;
     assert!(
         (near_reported - near_exact).abs() / near_exact < 1e-12,
@@ -146,7 +159,7 @@ fn the_deep_tail_is_not_lost_to_cancellation() {
     );
     // Where it does not: 8 sigma.
     let far = OffsetInterval { lo: -8.0, hi: 8.0 };
-    let far_reported = tail_mass(&p("n"), &dist, &far).expect("priceable");
+    let far_reported = tail_mass(&sp("n"), &dist, &far).expect("priceable");
     let far_exact = normal_upper_tail(sigma, 8.0) * 2.0;
     assert!(
         far_exact > 0.0,
@@ -161,7 +174,7 @@ fn the_deep_tail_is_not_lost_to_cancellation() {
     // And the endpoint the old subtraction rounded away: real mass,
     // reported as the real number.
     let wider = OffsetInterval { lo: -9.0, hi: 9.0 };
-    let wider_reported = tail_mass(&p("n"), &dist, &wider).expect("priceable");
+    let wider_reported = tail_mass(&sp("n"), &dist, &wider).expect("priceable");
     let wider_exact = normal_upper_tail(sigma, 9.0) * 2.0;
     assert!(wider_exact > 0.0, "{wider_exact}");
     assert!(
@@ -180,7 +193,7 @@ fn the_deep_tail_is_not_lost_to_cancellation() {
         hi: 50.0,
     };
     assert_eq!(
-        tail_mass(&p("n"), &dist, &vast).expect("priceable"),
+        tail_mass(&sp("n"), &dist, &vast).expect("priceable"),
         normal_upper_tail(sigma, 50.0) * 2.0,
         "where erfc underflows, both routes underflow together"
     );
@@ -200,7 +213,7 @@ fn the_analyzed_box_holds_the_requested_mass_for_random_policies() {
         let policy = AnalysisPolicy::new(mass).expect("a mass strictly inside (0, 1)");
         let doc = doc_with(&[("n", annotated(1.0, Distribution::Normal { sigma }))]);
         let axis = analyzed_box(&doc, &policy)
-            .get(&p("n"))
+            .get(v(&doc, "n"))
             .copied()
             .expect("a continuous param is an axis");
         assert_eq!(
@@ -210,7 +223,7 @@ fn the_analyzed_box_holds_the_requested_mass_for_random_policies() {
             fuzz::replay()
         );
         let held = box_mass(
-            &p("n"),
+            &sp("n"),
             &Distribution::Normal { sigma },
             (axis.offsets.lo, axis.offsets.hi),
         )
@@ -242,14 +255,14 @@ fn box_mass_is_additive_over_an_abutting_partition() {
     ];
     for dist in forms {
         let (lo, hi) = (-0.4, 0.5);
-        let whole = box_mass(&p("x"), &dist, (lo, hi)).expect("priceable");
+        let whole = box_mass(&sp("x"), &dist, (lo, hi)).expect("priceable");
         let n = 10;
         let step = (hi - lo) / f64::from(n);
         let mut sum = 0.0;
         for i in 0..n {
             let a = lo + step * f64::from(i);
             let b = lo + step * f64::from(i + 1);
-            sum += box_mass(&p("x"), &dist, (a, b)).expect("priceable");
+            sum += box_mass(&sp("x"), &dist, (a, b)).expect("priceable");
         }
         assert!(
             (sum - whole).abs() < 1e-12,
@@ -272,13 +285,13 @@ fn the_truncated_normal_tail_is_bit_exactly_zero_on_its_own_support() {
     ] {
         let dist = Distribution::TruncatedNormal { sigma, lo, hi };
         let support = OffsetInterval { lo, hi };
-        let tail = tail_mass(&p("t"), &dist, &support).expect("priceable");
+        let tail = tail_mass(&sp("t"), &dist, &support).expect("priceable");
         assert_eq!(
             tail.to_bits(),
             0.0f64.to_bits(),
             "{dist:?}: tail is {tail}, not a positive zero"
         );
-        assert_eq!(box_mass(&p("t"), &dist, (lo, hi)), Ok(1.0), "{dist:?}");
+        assert_eq!(box_mass(&sp("t"), &dist, (lo, hi)), Ok(1.0), "{dist:?}");
     }
 }
 
@@ -300,24 +313,24 @@ fn the_truncated_normal_tail_is_bit_exactly_zero_on_its_own_support() {
 fn a_band_does_price_the_two_set_theoretic_cases() {
     let dist = Distribution::Band { lo: -0.1, hi: 0.1 };
     assert_eq!(
-        box_mass(&p("bore"), &dist, (-0.5, 0.5)),
+        box_mass(&sp("bore"), &dist, (-0.5, 0.5)),
         Ok(1.0),
         "a covering box is priced at 1, not refused"
     );
-    assert_eq!(box_mass(&p("bore"), &dist, (0.5, 0.6)), Ok(0.0));
-    assert_eq!(box_mass(&p("bore"), &dist, (-0.1, 0.1)), Ok(1.0));
+    assert_eq!(box_mass(&sp("bore"), &dist, (0.5, 0.6)), Ok(0.0));
+    assert_eq!(box_mass(&sp("bore"), &dist, (-0.1, 0.1)), Ok(1.0));
     // And the consequence a driver sees: a document whose only
     // parameter is a Band reports a COMPLETE analysis — zero tail —
     // over a distribution that states no shape at all.
     let doc = doc_with(&[("bore", annotated(1.0, dist))]);
     let axis = analyzed_box(&doc, &AnalysisPolicy::default())
-        .get(&p("bore"))
+        .get(v(&doc, "bore"))
         .copied()
         .expect("axis");
-    assert_eq!(tail_mass(&p("bore"), &dist, &axis.offsets), Ok(0.0));
+    assert_eq!(tail_mass(&sp("bore"), &dist, &axis.offsets), Ok(0.0));
     // Anything finer refuses, which is the honest half.
     assert!(matches!(
-        box_mass(&p("bore"), &dist, (-0.05, 0.05)),
+        box_mass(&sp("bore"), &dist, (-0.05, 0.05)),
         Err(MeasureUnavailable::BandHasNoMeasure { .. })
     ));
 }
@@ -348,7 +361,7 @@ fn zero_width_bounded_forms_are_accepted_and_analyze_as_fixed() {
         assert!(dist.check().is_ok(), "{dist:?} is a legal inhabitant");
         let doc = doc_with(&[("z", annotated(2.0, dist))]);
         let axis = analyzed_box(&doc, &AnalysisPolicy::default())
-            .get(&p("z"))
+            .get(v(&doc, "z"))
             .copied()
             .expect("axis");
         assert_eq!(axis.offsets, OffsetInterval::FIXED, "{dist:?}");
@@ -360,7 +373,7 @@ fn zero_width_bounded_forms_are_accepted_and_analyze_as_fixed() {
         assert!(axis.distribution.is_some());
         // The point mass is held whole by any window containing it,
         // and nothing divides by zero.
-        let m = box_mass(&p("z"), &dist, (-1.0, 1.0));
+        let m = box_mass(&sp("z"), &dist, (-1.0, 1.0));
         assert!(matches!(m, Ok(x) if x == 1.0), "{dist:?}: {m:?}");
     }
 }
@@ -385,7 +398,7 @@ fn an_unbounded_normal_can_report_a_bit_exactly_zero_tail() {
         lo: -100.0,
         hi: 100.0,
     };
-    let tail = tail_mass(&p("n"), &dist, &wide).expect("priceable");
+    let tail = tail_mass(&sp("n"), &dist, &wide).expect("priceable");
     assert_eq!(
         tail.to_bits(),
         0.0f64.to_bits(),
@@ -395,10 +408,10 @@ fn an_unbounded_normal_can_report_a_bit_exactly_zero_tail() {
     // latent shape rather than a live defect.
     let doc = doc_with(&[("n", annotated(1.0, dist))]);
     let axis = analyzed_box(&doc, &AnalysisPolicy::default())
-        .get(&p("n"))
+        .get(v(&doc, "n"))
         .copied()
         .expect("axis");
-    let default_tail = tail_mass(&p("n"), &dist, &axis.offsets).expect("priceable");
+    let default_tail = tail_mass(&sp("n"), &dist, &axis.offsets).expect("priceable");
     assert!(
         default_tail > 0.0,
         "at the ±3σ default the tail is real: {default_tail}"
@@ -418,7 +431,7 @@ fn the_quantile_bisection_is_deterministic_and_monotone() {
     let width = |mass: f64| {
         let doc = doc_with(&[("n", annotated(0.0, Distribution::Normal { sigma: 1.0 }))]);
         analyzed_box(&doc, &AnalysisPolicy::new(mass).expect("valid"))
-            .get(&p("n"))
+            .get(v(&doc, "n"))
             .copied()
             .expect("axis")
             .offsets
@@ -475,8 +488,8 @@ fn a_hand_written_nominal_outside_support_refuses_at_load() {
     let corrupt = text.replace("\"lo\": -0.2", "\"lo\": 0.2");
     assert_ne!(corrupt, text, "the corruption must land");
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Distribution { name, fault }) => {
-            assert_eq!(name.0, "b");
+        Err(PersistError::Distribution { var, fault }) => {
+            assert_eq!(var.name().map(VarName::as_str), Some("b"));
             assert_eq!(
                 fault,
                 editor_core::DistributionFault::NominalOutsideSupport { lo: 0.2, hi: 0.3 }
@@ -510,10 +523,10 @@ fn an_unknown_key_inside_a_distribution_refuses_at_load() {
 /// hand.** E11.3's "no distributions on structural parameters" is
 /// claimed to come out UNREPRESENTABLE; the load door is where a
 /// hand-written file would test that claim, and `deny_unknown_fields`
-/// on `DocParam` is what has to enforce it.
+/// on `FreeVar` is what has to enforce it.
 #[test]
 fn a_distribution_on_a_count_param_refuses_at_load() {
-    let doc = doc_with(&[("n", DocParam::Count { value: 4 })]);
+    let doc = doc_with(&[("n", FreeVar::Count { value: 4 })]);
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let corrupt = text.replace(
         "\"value\": 4",
@@ -536,12 +549,15 @@ fn a_distribution_on_a_count_param_refuses_at_load() {
 /// about every legal v15 file.
 #[test]
 fn an_explicit_null_distribution_loads_and_is_normalized_out() {
-    let doc = doc_with(&[("plain", DocParam::continuous(Dimension::Length, 1.0))]);
+    let doc = doc_with(&[("plain", FreeVar::continuous(Dimension::Length, 1.0))]);
     let text = save(&doc, &[], Tol::witness()).expect("saves");
     let corrupt = text.replace("\"value\": 1.0", "\"value\": 1.0, \"distribution\": null");
     assert_ne!(corrupt, text, "the corruption must land");
     let back = load(&corrupt, Tol::witness()).expect("an explicit null is accepted");
-    assert_eq!(back.doc.params()[&p("plain")].distribution(), None);
+    assert_eq!(
+        (*back.doc.free_named("plain").expect("declared")).distribution(),
+        None
+    );
     let again = save(&back.doc, &[], Tol::witness()).expect("saves");
     assert_ne!(
         again, corrupt,
@@ -567,9 +583,13 @@ fn a_distribution_changes_no_content_key_naming_key_or_verdict() {
     let plain = fixture::die().doc;
     let annotated_doc = apply(
         &plain,
-        &DocEdit::SetDocParam {
-            name: p("pip_depth"),
-            value: annotated(fixture::DEPTH, Distribution::Normal { sigma: 0.001 }),
+        &DocEdit::DefineVar {
+            var: p("pip_depth").into(),
+            def: editor_core::VarDecl::Free(annotated(
+                fixture::DEPTH,
+                Distribution::Normal { sigma: 0.001 },
+            )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -591,7 +611,7 @@ fn a_distribution_changes_no_content_key_naming_key_or_verdict() {
     };
     let (a, b) = (run(&plain), run(&annotated_doc));
     let mut compared = 0usize;
-    for &id in plain.order() {
+    for id in plain.ids() {
         let (va, vb) = (a.value(id), b.value(id));
         match (va, vb) {
             (Some(va), Some(vb)) => {
@@ -617,9 +637,13 @@ fn a_distribution_changes_no_content_key_at_interval() {
     let plain = fixture::die().doc;
     let annotated_doc = apply(
         &plain,
-        &DocEdit::SetDocParam {
-            name: p("pip_depth"),
-            value: annotated(fixture::DEPTH, Distribution::Normal { sigma: 0.001 }),
+        &DocEdit::DefineVar {
+            var: p("pip_depth").into(),
+            def: editor_core::VarDecl::Free(annotated(
+                fixture::DEPTH,
+                Distribution::Normal { sigma: 0.001 },
+            )),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -637,7 +661,7 @@ fn a_distribution_changes_no_content_key_at_interval() {
     };
     let (a, b) = (run(&plain), run(&annotated_doc));
     let mut compared = 0usize;
-    for &id in plain.order() {
+    for id in plain.ids() {
         if let (Some(va), Some(vb)) = (a.value(id), b.value(id)) {
             assert_eq!(va.content_key, vb.content_key, "node {}", id.0);
             assert_eq!(va.naming_key, vb.naming_key, "node {}", id.0);
@@ -652,17 +676,17 @@ fn a_distribution_changes_no_content_key_at_interval() {
 // 6. The carry-forward CLASS, at the API level
 // ---------------------------------------------------------------
 
-/// **The rebuild-from-parts hazard, stated as a test.** `SetDocParam`
-/// is create-or-replace, so ANY caller that reconstructs a parameter
+/// **The rebuild-from-parts hazard, stated as a test.** `DefineVar`
+/// replaces the whole definition, so ANY caller that reconstructs a parameter
 /// from `(dim, value)` silently deletes the annotation, with no
 /// refusal and no diagnostic. The hazard was never the GUI's: it
 /// belongs to the door.
 ///
-/// The door is still create-or-replace and this row still pins its
-/// sharp edge, because that is what create-or-replace MEANS and a
-/// redeclaration really does replace. What closed the class is that
+/// The door still replaces the whole definition and this row still
+/// pins its sharp edge, because that is what a definition door MEANS
+/// and a redefinition really does replace. What closed the class is that
 /// rebuilding is no longer the only spelling of "move the value":
-/// `SetDocParamValue` carries the declaration forward, and the
+/// `SetVarValue` carries the declaration forward, and the
 /// companion row below pins that it does. The pair is the point —
 /// this one shows the edge, that one shows the door with no edge.
 #[test]
@@ -671,15 +695,16 @@ fn rebuilding_a_param_from_dim_and_value_silently_drops_the_distribution() {
         "hole_r",
         annotated(0.003, Distribution::Normal { sigma: 1e-5 }),
     )]);
-    let existing = before.params()[&p("hole_r")].clone();
+    let existing = (*before.free_named("hole_r").expect("declared")).clone();
     assert!(existing.distribution().is_some());
     // The natural "just change the value" edit, spelled the only way
     // the constructors offer.
     let after = apply(
         &before,
-        &DocEdit::SetDocParam {
-            name: p("hole_r"),
-            value: DocParam::continuous(existing.dim(), 0.004),
+        &DocEdit::DefineVar {
+            var: p("hole_r").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(existing.dim(), 0.004)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -687,25 +712,25 @@ fn rebuilding_a_param_from_dim_and_value_silently_drops_the_distribution() {
     .expect("the edit door accepts it — there is nothing to refuse")
     .doc;
     assert_eq!(
-        after.params()[&p("hole_r")].distribution(),
+        (*after.free_named("hole_r").expect("declared")).distribution(),
         None,
         "the annotation is gone, silently"
     );
-    // And the analysis agrees the parameter is now FIXED — the
-    // modelling statement changed without anyone saying so.
+    // And the analysis agrees the parameter is now FIXED — no axis at
+    // all, a constant (VR8) — the modelling statement changed without
+    // anyone saying so.
     let axis = analyzed_box(&after, &AnalysisPolicy::default())
-        .get(&p("hole_r"))
-        .copied()
-        .expect("axis");
+        .get(v(&after, "hole_r"))
+        .copied();
     assert!(
-        axis.offsets.is_fixed(),
-        "a value edit turned a varying parameter into a fixed one"
+        axis.is_none(),
+        "a value edit turned a varying parameter into a constant: {axis:?}"
     );
 }
 
 /// **The class, closed: the value door carries the declaration.** The
 /// same edit the row above spells destructively, spelled through
-/// `SetDocParamValue`: the number moves, the dimension stays, the
+/// `SetVarValue`: the number moves, the dimension stays, the
 /// distribution survives BIT for bit, and the analysis still sees a
 /// varying axis. Its two refusals are here too, because a door whose
 /// safety depends on the caller checking first is not safe.
@@ -718,21 +743,21 @@ fn the_value_door_carries_the_declaration_forward() {
     let dist = Distribution::Normal { sigma: 1e-5 };
     let before = doc_with(&[
         ("hole_r", annotated(0.003, dist)),
-        ("ribs", DocParam::Count { value: 4 }),
+        ("ribs", FreeVar::Count { value: 4 }),
     ]);
     let after = apply(
         &before,
-        &DocEdit::SetDocParamValue {
-            name: p("hole_r"),
-            value: DocParamValue::Continuous(0.004),
+        &DocEdit::SetVarValue {
+            var: p("hole_r").into(),
+            value: FreeValue::Continuous(0.004),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
     .expect("a value edit on a declared parameter applies")
     .doc;
-    match after.params()[&p("hole_r")] {
-        DocParam::Continuous {
+    match *after.free_named("hole_r").expect("declared") {
+        FreeVar::Continuous {
             dim,
             value,
             display_unit: _,
@@ -743,10 +768,10 @@ fn the_value_door_carries_the_declaration_forward() {
             let got = distribution.expect("the annotation SURVIVED");
             assert!(got.bit_eq(&dist), "and survived bit for bit");
         }
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
     let axis = analyzed_box(&after, &AnalysisPolicy::default())
-        .get(&p("hole_r"))
+        .get(v(&after, "hole_r"))
         .copied()
         .expect("axis");
     assert!(
@@ -756,29 +781,32 @@ fn the_value_door_carries_the_declaration_forward() {
     // A count moves through the same door.
     let counted = apply(
         &before,
-        &DocEdit::SetDocParamValue {
-            name: p("ribs"),
-            value: DocParamValue::Count(7),
+        &DocEdit::SetVarValue {
+            var: p("ribs").into(),
+            value: FreeValue::Count(7),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
     .expect("a count value edit applies")
     .doc;
-    assert_eq!(counted.params()[&p("ribs")], DocParam::Count { value: 7 });
+    assert_eq!(
+        (*counted.free_named("ribs").expect("declared")),
+        FreeVar::Count { value: 7 }
+    );
     // Refusal 1: nothing to carry forward.
     assert_eq!(
         apply(
             &before,
-            &DocEdit::SetDocParamValue {
-                name: p("never_declared"),
-                value: DocParamValue::Continuous(1.0),
+            &DocEdit::SetVarValue {
+                var: p("never_declared").into(),
+                value: FreeValue::Continuous(1.0)
             },
             Tol::witness(),
             &editor_core::RefusingReach
         ),
-        Err(EditError::DocParamNotDeclared {
-            name: p("never_declared"),
+        Err(EditError::UnknownVar {
+            var: p("never_declared").into(),
             // The arm both carry-forward doors share; the field is
             // which one refused.
             door: editor_core::CarryForwardDoor::Value,
@@ -788,30 +816,30 @@ fn the_value_door_carries_the_declaration_forward() {
     assert_eq!(
         apply(
             &before,
-            &DocEdit::SetDocParamValue {
-                name: p("hole_r"),
-                value: DocParamValue::Count(2),
+            &DocEdit::SetVarValue {
+                var: p("hole_r").into(),
+                value: FreeValue::Count(2)
             },
             Tol::witness(),
             &editor_core::RefusingReach
         ),
-        Err(EditError::DocParamValueKindMismatch {
-            name: p("hole_r"),
+        Err(EditError::VarValueKindMismatch {
+            var: before.spoken_var(before.var_named("hole_r").expect("declared")),
             declared: Dimension::Length,
-            offered: DocParamValue::Count(2),
+            offered: FreeValue::Count(2),
         })
     );
     assert!(matches!(
         apply(
             &before,
-            &DocEdit::SetDocParamValue {
-                name: p("ribs"),
-                value: DocParamValue::Continuous(2.0),
+            &DocEdit::SetVarValue {
+                var: p("ribs").into(),
+                value: FreeValue::Continuous(2.0)
             },
             Tol::witness(),
             &editor_core::RefusingReach
         ),
-        Err(EditError::DocParamValueKindMismatch { .. })
+        Err(EditError::VarValueKindMismatch { .. })
     ));
 }
 
@@ -827,19 +855,14 @@ fn a_value_edit_round_trips_through_the_file() {
         hi: 3e-5,
     };
     let doc = doc_with(&[("bore", annotated(0.01, dist))]);
-    let edits = [DocEdit::SetDocParamValue {
-        name: p("bore"),
-        value: DocParamValue::Continuous(0.011),
+    let edits = [DocEdit::SetVarValue {
+        var: p("bore").into(),
+        value: FreeValue::Continuous(0.011),
     }];
-    let text = save(
-        &doc,
-        &editor_core::LoggedEdit::bare_all(&edits),
-        Tol::witness(),
-    )
-    .expect("saves");
+    let text = save(&doc, edits.as_ref(), Tol::witness()).expect("saves");
     let back = load(&text, Tol::witness()).expect("loads");
-    match back.doc.params()[&p("bore")] {
-        DocParam::Continuous {
+    match *back.doc.free_named("bore").expect("declared") {
+        FreeVar::Continuous {
             value,
             distribution,
             ..
@@ -850,6 +873,6 @@ fn a_value_edit_round_trips_through_the_file() {
                 "the annotation crossed the file and the replay"
             );
         }
-        DocParam::Count { .. } => panic!("still continuous"),
+        FreeVar::Count { .. } => panic!("still continuous"),
     }
 }

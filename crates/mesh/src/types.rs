@@ -193,15 +193,28 @@ pub enum TessellateError {
         face: FaceKey,
     },
     /// A trimmed face's boundary polyline passes EXACTLY through
-    /// another boundary chord point of the same loop (a self-touching
-    /// trim loop): the CDT would realise one face's constraint through
-    /// a vertex its neighbour does not share — a 3-D T-junction no
-    /// grid-retry can repair. No at-rest construction mints one (split
-    /// sections and boolean seams are simple loops); the arm is the
-    /// watertightness backstop's tripwire, kept typed rather than
-    /// silent.
+    /// another boundary chord point of the same loop, inside one of its
+    /// segments (a self-touching trim loop): the CDT would realise one
+    /// face's constraint through a vertex its neighbour does not share
+    /// — a 3-D T-junction no grid-retry can repair. A loop through two
+    /// vertices at one point is not this shape ([`Self::PinchWedge`]
+    /// is where that one can refuse). The arm is the watertightness
+    /// backstop's tripwire, kept typed rather than silent.
     SelfTouchingTrimLoop {
         /// The face whose trim loop touches itself.
+        face: FaceKey,
+    },
+    /// A face's boundary passes several vertices at one point (a
+    /// pinch, one vertex per cone of the solid), and a triangle there
+    /// lies in a sector of the point that no single pass of the boundary
+    /// bounds: in the planar and trimmed lanes, the sector's two sides
+    /// belong to two different passes, as where the boundary crosses
+    /// itself at the point or a ring touches its face's outer loop
+    /// there. The curved lane meshes only a walk that is its own UV box,
+    /// and refuses any point two mesh ids reach (two vertices, or the
+    /// chord points of two coincident edges).
+    PinchWedge {
+        /// The face whose boundary meets the point.
         face: FaceKey,
     },
     /// A curved face's boundary walk does not trace its own UV
@@ -373,7 +386,7 @@ pub enum TessellateError {
         /// The offending face.
         face: FaceKey,
         /// The kind of surface the face lies on.
-        surface: geom_brep::SurfaceKind,
+        surface: geom::SurfaceKind,
     },
     /// A curved face's single boundary loop has **no rim traversal and
     /// opens every one of its iso sides on ONE edge**, so it stands on a
@@ -459,7 +472,7 @@ pub enum TessellateError {
         /// The offending face.
         face: FaceKey,
         /// The kind of surface the face lies on.
-        surface: geom_brep::SurfaceKind,
+        surface: geom::SurfaceKind,
     },
     /// The run's tolerance cannot form props' linear decision band —
     /// K·ε overflows. A configuration failure of the run rather than a
@@ -560,10 +573,16 @@ impl core::fmt::Display for TessellateError {
             ),
             Self::SelfTouchingTrimLoop { .. } => f.write_str(
                 "tessellate: a trimmed face's boundary passes exactly through \
-                 another chord point of the same loop, so the neighbouring \
+                 another chord point of its own trim loop, so the neighbouring \
                  faces would disagree about that vertex — a 3-D T-junction no \
-                 grid retry repairs. No at-rest construction mints a \
-                 self-touching trim loop, so this is a kernel bug",
+                 grid retry repairs",
+            ),
+            Self::PinchWedge { .. } => f.write_str(
+                "tessellate: a face's boundary passes several vertices at one \
+                 point, and a triangle there lies in a sector no single pass of \
+                 the boundary bounds: the boundary crosses itself at the point, \
+                 or a ring touches the face's outer loop there (the curved lane \
+                 meshes no such point)",
             ),
             Self::UnsupportedCurvedDomain {
                 off_bbox,
@@ -593,7 +612,7 @@ impl core::fmt::Display for TessellateError {
                  it",
             ),
             Self::MeridianFreeCurvedFace { surface, .. } => {
-                use geom_brep::SurfaceKind as K;
+                use geom::SurfaceKind as K;
                 let recourse = match *surface {
                     K::Sphere | K::Cone => {
                         "restate it in the seamed form — two half-faces, each bounded \
@@ -619,7 +638,7 @@ impl core::fmt::Display for TessellateError {
                 )
             }
             Self::SingleColumnCurvedFace { surface, .. } => {
-                use geom_brep::SurfaceKind as K;
+                use geom::SurfaceKind as K;
                 let recourse = match *surface {
                     K::Sphere | K::Cone => {
                         "restate it as a band bounded by two meridians on DIFFERENT \

@@ -144,6 +144,24 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                                "is the facade crate's row and owes the CUR3 property "
                                "row plus a Python word"),
     "BandField": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
+    # `BooleanError::Escalated`'s and `DeclarationContradicted`'s closed
+    # decision types. The row also holds the two types nested one rung
+    # further down (`SectorRung`, `CrossingDecision`), which this sweep
+    # does not reach.
+    "BooleanDecision": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                        "boolean-error.md"),
+    "Contradiction": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                      "boolean-error.md"),
+    # `BooleanError::CoplanarNeighbours`'s refused offset and
+    # `RestZipUnsupported`'s sub-frontier: the same carrier, the same row.
+    "NeighbourOffset": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                        "boolean-error.md"),
+    "RestZipFrontier": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                        "boolean-error.md"),
+    # `BooleanError::VertexReadTwice`'s two reads (PR 4234): the same
+    # carrier, the same row.
+    "SectorRead": ("filed", "work/lib/boolean-decision-and-contradiction-are-rungs-under-"
+                   "boolean-error.md"),
     "CarrierRelation": ("false-positive", "blind spot (b): the prelude carries this very "
                         "declaration under the alias `PlaneRelation` "
                         "(crates/topo/src/boolean/plane_eq.rs)"),
@@ -151,8 +169,16 @@ DISPOSITIONS: dict[str, tuple[str, str]] = {
                             "crates/pncad/src/select.rs"),
     "KProbe": ("filed", "work/lib/kprobe-is-a-rung-under-drive-config-on-the-analysis-list.md"),
     "MappedCurve": ("argued", "non-carriage with its falsifier, crates/pncad/src/prelude.rs"),
+    # `RefusalReason::MeasureRefused`'s closed class, which replaced a
+    # `&'static str`. The carry owes a Python word and a decision about
+    # `ClearanceRefusal`, the eleven-arm enum its engine arm holds.
+    "MeasureRefusalClass": ("filed", "work/lib/measure-refusal-class-is-a-rung-under-"
+                            "refusal-reason.md"),
     "MetaValue": ("argued", "NOT_CARRIED, the metadata family; crates/pncad/src/document.rs "
                             "says why the value tree stays out"),
+    "Minted": ("argued", "NOT_CARRIED, the mint family (crates/pncad/tests/all.rs): a "
+                         "consumer holds ids, never the mint log, and a snapshot refusal "
+                         "crosses as its tag word"),
     "PairingViolation": ("argued", "NOT_CARRIED, the analysis lane's interior residue "
                                    "(crates/pncad/tests/all.rs)"),
     "ParamValue": ("argued", "NOT_CARRIED, a curated face of a different shape "
@@ -201,6 +227,20 @@ CROSS_LIST_DISPOSITIONS: dict[str, tuple[str, str]] = {
                                        "spelled once; the general rule is at the "
                                        "payload-rule header of "
                                        "crates/pncad/src/document.rs"),
+    # A node's standing is the evaluation's own vocabulary — the refusal of
+    # `Evaluation::usable`, carried beside `Evaluation` on `document` — and the
+    # select-list refusals (hit test, pick, name lookup, name read, resolution,
+    # query) carry it as their payload. The same rule as the rows above.
+    "NodeStanding": ("argued", "the evaluation vocabulary is `document`'s and is spelled "
+                               "once, beside `Evaluation`; the general rule is at the "
+                               "payload-rule header of crates/pncad/src/document.rs"),
+    # Why a group is unplaced (A11 (2)) is the evaluation's own vocabulary as
+    # well: `Space::Own` carries it, and the select-list refusals that meet
+    # two spaces (hit test, selection) name the group's cause as their
+    # payload. The same rule as `NodeStanding`.
+    "Unplaced": ("argued", "the placement vocabulary is `document`'s and is spelled "
+                           "once, beside `Evaluation`; the general rule is at the "
+                           "payload-rule header of crates/pncad/src/document.rs"),
 }
 
 

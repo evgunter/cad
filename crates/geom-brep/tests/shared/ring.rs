@@ -8,6 +8,7 @@
 
 use geom_brep::props::quad::RVec3;
 use geom_core::Interval;
+use geom_core::interval::certification::Certification;
 
 /// The degenerate enclosure of an exactly-known coordinate.
 ///

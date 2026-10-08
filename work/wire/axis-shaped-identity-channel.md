@@ -193,3 +193,16 @@ now gate WIRE's steps: step 2 (EXCH's
 and step 3, filed on TOPO's slate as
 `axis-per-component-source-beside-geom-source` so the park names a row
 that exists. The cut above is unchanged.
+
+## Evidence (2026-10-01, `reach-snowman`): the coaxial cylinder × ball union now stops here
+
+With a line × sphere root lane in the boolean's crossing layer, the
+`verbs_cylsph_opening` fixture (a radius-1 cylinder along `z`, a
+radius-1.5 ball centred on its axis) no longer stops at the pierce
+door: both the direct pose and its re-posed twin reach the join and
+refuse `GermFrameUnsupported { a_kind: Cylinder, b_kind: Sphere }` —
+`boolean::join::cs_pair_frame` called with `CoaxialEvidence::None`,
+keeping `NoArm`. A coaxiality declaration this channel could carry is
+now the first door this ordinary union reaches
+(`crates/sweep/tests/verbs_cylsph_opening.rs`,
+`the_coaxial_union_refuses_at_the_germ_frame`).

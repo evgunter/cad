@@ -20,15 +20,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
-use crate::common::shell_operands::tube;
+use crate::common::shell_operands::{tube, vessel};
 use geom::Surface;
 use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::fillet_edges;
 use sweep::test_support::{
-    PRISM_V_DEGREE, PRISM_Z, arcs_at, loft_prism_sections, stacked_at, tube_frame,
+    PRISM_V_DEGREE, PRISM_Z, arcs_at, finished, loft_prism_sections, stacked_at, tube_frame,
 };
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, loft_body, revolve, tube_along_arc,
@@ -41,12 +42,9 @@ use topo::{Body, BooleanDeclarations, CurveGeom, EdgeKey, ValidationError};
 fn scaffold_edges(body: &Body<f64>) -> Vec<EdgeKey> {
     body.edges()
         .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(CurveGeom::certified)
-                    .map(topo::EdgeCurve::description),
-                Some(EdgeDescription::Scaffold(_))
-            )
+            body.get_curve_geom(e.curve)
+                .and_then(CurveGeom::certified)
+                .is_some_and(|c| c.description().is_scaffold())
         })
         .map(|(k, _)| k)
         .collect()
@@ -104,9 +102,16 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> profile::ValidatedProfile<f64> {
 }
 
 fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
-    extrude(&validated(loops), Extrusion::Distance(h), Tol::witness())
-        .expect("the probe profile extrudes")
-        .body
+    extrude(
+        &validated(loops),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the probe profile extrudes")
+    .body
 }
 
 /// A two-vertex full circle (two semicircular arcs), counterclockwise.
@@ -317,6 +322,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
         ])],
         1.0,
     );
+    let plate = finished("the plate", plate, Tol::witness());
     let disc = extruded(vec![circle_loop(0.0, 0.0, 0.6)], 1.0);
     let tall_disc = topo::transform_rigid(
         &disc,
@@ -333,6 +339,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
         Tol::witness(),
     )
     .unwrap();
+    let tall = finished("the tall disc", tall, Tol::witness());
     drop(tall_disc);
     let holed = boolean_op_with(
         BooleanOp::Subtract,
@@ -356,6 +363,7 @@ fn boolean_products_carry_no_scaffold_at_rest() {
         Tol::witness(),
     )
     .unwrap();
+    let boss = finished("the boss", boss, Tol::witness());
     let united = boolean_op_with(
         BooleanOp::Union,
         &plate,
@@ -381,9 +389,14 @@ fn fillet_products_carry_no_scaffold_at_rest() {
     // row measures what the finished body actually carries.
     let body = sweep::test_support::cube(1.0, Tol::witness());
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let filleted = fillet_edges(&body, &edges, 0.125, Tol::witness())
-        .expect("the die blank fillets")
-        .body;
+    let filleted = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges,
+        0.125,
+        Tol::witness(),
+    )
+    .expect("the die blank fillets")
+    .body;
     fence_crosscheck(&filleted, "fillet (die blank)");
 }
 
@@ -414,27 +427,27 @@ fn cylinder_face_at(body: &Body<f64>, radius: f64) -> topo::FaceKey {
 /// silently in either direction.
 #[test]
 fn offsets_preserve_the_authority_census() {
-    // Cap offset: rigid translation, declarations carried bodily.
-    let mut body = tube(0.4, 0.8, 0.6);
+    // Cap offset: rigid translation. The vessel's declared edge is its
+    // wall's angle-π meridian, which the cap's move re-anchors.
+    let mut body = vessel(0.5, 0.4);
     let before = authority_census(&body);
     assert!(
         before.iter().any(|(_, d)| *d),
-        "the tube must carry declared edges for this row to mean anything"
+        "the vessel must carry declared edges for this row to mean anything"
     );
-    let cap = plane_face_at(&body, 0.6);
+    let cap = plane_face_at(&body, 0.4);
     topo::replace_face_offset(&mut body, cap, 0.05, Tol::witness()).expect("the cap offsets");
     assert_eq!(
         authority_census(&body),
         before,
         "a translating offset must not flip any edge's is_declared"
     );
-    fence_crosscheck(&body, "tube after cap offset");
+    fence_crosscheck(&body, "vessel after cap offset");
 
     // Wall offset: the cylinder's offset is not a rigid translation,
     // but no DECLARED edge lies on the wall's own boundary (its rims
     // are intrinsic, its meridian is the chart's derived seam), so the
-    // op succeeds and must still not flip anyone — in particular the
-    // cap seams it re-anchors keep their declarations.
+    // op succeeds and must still not flip anyone.
     let mut body = tube(0.4, 0.8, 0.6);
     let before = authority_census(&body);
     let wall = cylinder_face_at(&body, 0.4);
@@ -454,14 +467,14 @@ fn offsets_preserve_the_authority_census() {
 /// this row's).
 #[test]
 fn rigid_transform_preserves_the_authority_census() {
-    let body = tube(0.4, 0.8, 0.6);
+    let body = vessel(0.5, 0.4);
     let before: Vec<bool> = authority_census(&body).iter().map(|(_, d)| *d).collect();
     let map = Affine3::translation(Vec3::new(3.0, -1.0, 2.0))
         * Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::unit_z(), PI / 2.0);
-    let moved = topo::transform_rigid(&body, &map, Tol::witness()).expect("the tube transforms");
+    let moved = topo::transform_rigid(&body, &map, Tol::witness()).expect("the vessel transforms");
     let after: Vec<bool> = authority_census(&moved).iter().map(|(_, d)| *d).collect();
     assert_eq!(after, before, "transform_rigid must not flip is_declared");
-    fence_crosscheck(&moved, "tube after rigid transform");
+    fence_crosscheck(&moved, "vessel after rigid transform");
 }
 
 /// Where a declaration CANNOT be carried, the door refuses loudly
@@ -484,8 +497,8 @@ fn rigid_transform_preserves_the_authority_census() {
 /// can be planted — so neither fixture can reach the offset door by
 /// this route any more, and both `set_edge_curve` calls below now
 /// refuse instead. R1's two shapes are kept as exactly that: two
-/// shapes of false declaration, one a chart image on a cylinder and
-/// one a rotation-family payload on a plane, both named by the meter.
+/// shapes of false declaration, one a chart image on a circle and one
+/// a rotation-family payload on a line, both named by the meter.
 ///
 /// The obligation the row originally tested — that the offset door
 /// refuses LOUDLY on a declaration it cannot carry rather than
@@ -534,23 +547,20 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
         "(a) the meter names it, on a chart image over a cylinder: {err:?}"
     );
 
-    // (b) Give the top cap's seam a rotation-family declaration, then
-    // offset the cap (a rigid translation — the placement would carry,
-    // the trajectory cannot).
-    let mut body = tube(0.4, 0.8, 0.6);
-    let cap = plane_face_at(&body, 0.6);
+    // (b) Give the vessel's declared meridian, a chart image on its
+    // wall, a rotation-family declaration off its carrier.
+    let mut body = vessel(0.5, 0.4);
     let seam = body
         .edges()
-        .find(|(k, e)| {
-            let Some(c) = body.get_curve_geom(e.curve).and_then(CurveGeom::certified) else {
-                return false;
-            };
-            c.authority().is_declared()
-                && matches!(c.carrier(), geom::Curve3::Line { .. })
-                && edge_touches_face(&body, *k, cap)
+        .find(|(_, e)| {
+            body.get_curve_geom(e.curve)
+                .and_then(CurveGeom::certified)
+                .is_some_and(|c| {
+                    c.authority().is_declared() && matches!(c.carrier(), geom::Curve3::Line { .. })
+                })
         })
         .map(|(k, _)| k)
-        .expect("the top cap's declared radial seam");
+        .expect("the vessel's declared meridian");
     let curve = body
         .get_edge(seam)
         .and_then(|e| body.get_curve_geom(e.curve))
@@ -561,16 +571,16 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
     let EdgeDescriptionSpec::Chart {
         surface,
         image,
-        seam: seam_flag,
+        wrap: seam_flag,
         ..
     } = spec.description
     else {
-        panic!("the cap seam is a chart image at rest");
+        panic!("the meridian is a chart image at rest");
     };
     spec.description = EdgeDescriptionSpec::Chart {
         surface,
         image,
-        seam: seam_flag,
+        wrap: seam_flag,
         declared: Some(MappedCurve::RevolvedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(Vec3::new(0.4, 0.0, 0.0)),
@@ -592,7 +602,7 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
                 }
             }
         ),
-        "(b) the meter names it, on a rotation-family payload over a plane: {err:?}"
+        "(b) the meter names it, on a rotation-family payload over a line: {err:?}"
     );
 }
 
@@ -660,7 +670,7 @@ fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
                 body.get_curve_geom(e.curve)
                     .and_then(CurveGeom::certified)
                     .map(topo::EdgeCurve::description),
-                Some(EdgeDescription::Chart(c)) if c.seam
+                Some(EdgeDescription::Chart(c)) if c.wrap
             )
         })
         .map(|(k, _)| k)
@@ -676,12 +686,12 @@ fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
         EdgeDescriptionSpec::Chart {
             surface,
             image,
-            seam,
+            wrap,
             ..
         } => EdgeDescriptionSpec::Chart {
             surface,
             image,
-            seam,
+            wrap,
             declared: Some(dummy_declaration()),
         },
         other => panic!("expected a chart image, got {other:?}"),
@@ -746,13 +756,15 @@ fn coplanar_split_products_carry_no_scaffold_at_rest() {
         .map(|(x, y)| Point2::new(x, y)),
     );
     let body = extruded(vec![notched], 1.0);
+    let body = sweep::test_support::finished("the body", body, Tol::witness());
     fence_crosscheck(&body, "notched block (extruded)");
     let result = topo::split(
         &body,
-        &topo::SplitPlane {
-            origin: Point3::new(0.0, 1.0, 0.0),
-            normal: Vec3::new(0.0, 1.0, 0.0),
-        },
+        &topo::test_support::split_plane(
+            Point3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            geom_core::Tol::witness(),
+        ),
         Tol::witness(),
     )
     .expect("the face-coplanar split runs");

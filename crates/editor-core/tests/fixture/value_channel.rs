@@ -22,7 +22,7 @@
 //! (`Ok`/`Failed`/`Poisoned`), the payload's arm, and the payload's
 //! stored geometry read through the scalar's own value channel — every
 //! body point, every datum frame, every profile loop's vertices and
-//! bulges, plus arena counts.
+//! arc carriers, plus arena counts.
 //!
 //! It does NOT read curve carriers, surface geometry, or pcurves, and
 //! it does not read a `Failed` node's error or a `Poisoned` node's
@@ -184,7 +184,8 @@ impl Digest {
 /// through the scalar's value channel. The single feed both entry
 /// points below share.
 fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, id: RecipeNodeId) {
-    d.u64(id.0);
+    d.u64(u64::from(id.0.ordinal()));
+    d.u64(id.0.digest());
     match ev.result(id) {
         None => d.u64(0),
         Some(NodeResult::Failed(_)) => d.u64(1),
@@ -238,7 +239,19 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                         for (v, s) in lp.vertices().iter().zip(lp.segments()) {
                             d.scalar(v.x);
                             d.scalar(v.y);
-                            d.scalar(s.bulge);
+                            match s.kind {
+                                profile::SegmentKind::Line => d.u64(0),
+                                profile::SegmentKind::Arc { arc, turn } => {
+                                    d.u64(match turn {
+                                        geom_core::Sign::Negative => 2,
+                                        geom_core::Sign::Zero | geom_core::Sign::Positive => 1,
+                                    });
+                                    d.scalar(arc.centre.x);
+                                    d.scalar(arc.centre.y);
+                                    d.scalar(arc.radius);
+                                    d.scalar(arc.sweep);
+                                }
+                            }
                         }
                     }
                 }
@@ -270,11 +283,8 @@ fn feed_node<T: Decide + ValueChannelBits>(d: &mut Digest, ev: &Evaluation<T>, i
                         d.body(b);
                     }
                 }
-                ValuePayload::Declarations(pairs) => {
-                    d.u64(19);
-                    d.u64(pairs.len() as u64);
-                }
                 ValuePayload::Mate(_) => d.u64(20),
+                ValuePayload::Gauge => d.u64(25),
                 // The measured quantity IS a lane value, so it is
                 // digested through the same value-channel bracket
                 // every coordinate takes.

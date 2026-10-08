@@ -212,10 +212,7 @@ fn f4_interval_removal_bound_encloses_f64_bound() {
     for i in 0..=1000 {
         let t = i as f64 / 1000.0;
         let (p, q) = (c.eval(t), hat_f.eval(t));
-        let e = (p.x - q.x)
-            .abs()
-            .max((p.y - q.y).abs())
-            .max((p.z - q.z).abs());
+        let e = (p - q).norm_inf();
         assert!(e <= bf + 1e-12, "bound violated at t={t}");
     }
 }

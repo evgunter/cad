@@ -20,7 +20,7 @@ use geom_brep::{
     CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
     MappedCurve, NewellError, SketchSegment, classify_dihedral, newell_plane,
 };
-use geom_core::{Affine3, Point2, Point3, Vec3};
+use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
 
 // =====================================================================
 // Target 1 — certification aliasing: is the 9-sample schedule enough?
@@ -48,12 +48,16 @@ use geom_core::{Affine3, Point2, Point3, Vec3};
 /// winding within the period.
 #[test]
 fn fixed_winding_aliased_arc_interval_refused() {
-    let bulge = (PI / 8.0).tan(); // quarter arc, CCW, unit circle
+    // The quarter arc, counterclockwise, on the unit circle.
     let desc = MappedCurve::PlacedSegment {
         segment: SketchSegment::Arc {
             a: Point2::new(1.0, 0.0),
             b: Point2::new(0.0, 1.0),
-            bulge,
+            arc: Arc2 {
+                centre: Point2::new(0.0, 0.0),
+                radius: 1.0,
+                sweep: FRAC_PI_2,
+            },
         },
         place: Affine3::identity(),
     };
@@ -119,12 +123,15 @@ fn fixed_winding_aliased_full_period_refused() {
 /// schedule only aliases at 8k·tau).
 #[test]
 fn survives_wrong_carriers_are_rejected() {
-    let bulge = (PI / 8.0).tan();
     let arc = MappedCurve::PlacedSegment {
         segment: SketchSegment::Arc {
             a: Point2::new(1.0, 0.0),
             b: Point2::new(0.0, 1.0),
-            bulge,
+            arc: Arc2 {
+                centre: Point2::new(0.0, 0.0),
+                radius: 1.0,
+                sweep: FRAC_PI_2,
+            },
         },
         place: Affine3::identity(),
     };
@@ -455,10 +462,14 @@ fn fixed_sub_epsilon_cone_arm_escalates() {
     let p = at(3.0 * eps());
     assert!(classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).is_err());
     // Collapsed arm: now an honest escalation naming the arm gate —
-    // never a definite classification.
+    // never a definite classification. It quotes the wedge the arm
+    // meters (PR 3513's fifth fix pass), under that reading's own name.
     let p = at(0.5 * eps());
     let err = classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).unwrap_err();
-    assert_eq!(err.predicate, Some("dihedral_arm"));
+    assert_eq!(
+        (err.rung, err.diag.predicate),
+        (geom_brep::LeverRung::Arm, Some("dihedral_arm_wedge"))
+    );
 }
 
 /// (c) FIXED (was `finding_sub_epsilon_chord_true_corner_reads_smooth`):
@@ -481,77 +492,19 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
         normal: Vec3::unit_x(),
         u_ref: Vec3::unit_y(),
     };
+    // The arm gate escalates, quoting the wedge it meters where that is
+    // nonzero, and its own decided zero where the arm is exactly zero.
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.5 * eps(), band()).unwrap_err();
-    assert_eq!(err.predicate, Some("dihedral_arm"), "sub-eps extent");
+    assert_eq!(
+        (err.rung, err.diag.predicate),
+        (geom_brep::LeverRung::Arm, Some("dihedral_arm_wedge")),
+        "sub-eps extent"
+    );
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.0, band()).unwrap_err();
-    assert_eq!(err.predicate, Some("dihedral_arm"), "zero extent");
-}
-
-/// **A collapsed arm refuses as the arm's decision**, not as an
-/// unreadable transversality margin. An `Intersection` edge along a
-/// cone's generator, through its apex, with a plane holding the axis:
-/// every interior sample crosses at a right angle, and at the apex
-/// (sample 4) the cone's radius, and with it the folded arm, is zero,
-/// so there is no angle to measure. The refusal carries the arm's zero
-/// verdict and ends in the arm's lever and what a vanishing radius
-/// means — never the poisoned-margin note, which is a real poison's.
-#[test]
-fn a_collapsed_arm_refuses_as_the_arm_decision() {
-    use geom_brep::keys::SurfaceKey;
-    use geom_brep::recourse::Reading;
-    let cone = Surface::Cone {
-        apex: Point3::origin(),
-        axis: Vec3::unit_z(),
-        half_angle: FRAC_PI_6,
-        u_ref: Vec3::unit_x(),
-    };
-    let plane = Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_y(),
-        u_ref: Vec3::unit_x(),
-    };
-    let mut arena: slotmap::SlotMap<SurfaceKey, Surface<f64>> = slotmap::SlotMap::with_key();
-    let (s1, s2) = (arena.insert(cone), arena.insert(plane));
-    let carrier = Curve3::Line {
-        origin: Point3::origin(),
-        dir: Vec3::new(FRAC_PI_6.sin(), 0.0, FRAC_PI_6.cos()),
-    };
-    let (start, end) = (carrier.eval(-1.0), carrier.eval(1.0));
-    let spec = EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
-            witness: carrier.eval(0.0),
-        },
-        carrier,
-        param_start: -1.0,
-        param_end: 1.0,
-    };
-    let err = EdgeCurve::certify(spec, start, end, |k| arena.get(k).cloned(), band()).unwrap_err();
     assert_eq!(
-        err,
-        CertifyError::ArmCollapsed {
-            sample: 4,
-            verdict: Refused::Zero(Classified {
-                margin: geom_core::MarginDiag::value(0.0),
-                band: band(),
-            }),
-        },
-        "the apex has no arm to measure the angle over"
-    );
-    assert_eq!(
-        err.decision().map(|(check, _)| check),
-        Some(CertCheck::TransversalityArm)
-    );
-    let text = err.render(Reading::Build);
-    assert!(!text.contains("unreadable"), "{text}");
-    assert!(
-        text.ends_with(
-            "Recourse: move the geometry so neither the edge nor its faces' radii along it are \
-             vanishingly small; an arm of no length, as at a cone apex, leaves no angle \
-             between the faces to measure"
-        ),
-        "{text}"
+        (err.rung, err.diag.predicate),
+        (geom_brep::LeverRung::Arm, Some("dihedral_arm")),
+        "zero extent"
     );
 }
 
@@ -923,8 +876,8 @@ mod interval_lane {
     /// FIXED (was
     /// `finding_interval_winding_alias_refused_only_by_the_poison`):
     /// the interval lane used to refuse the 9-revolution alias only via
-    /// the blanket norm-sqrt-clamp poison (every inexact distance
-    /// enclosure degraded to Trv). With the poison fixed (B1: tight
+    /// the blanket norm-sqrt-clamp refusal (every inexact distance
+    /// enclosure degraded to Trv). With that refusal fixed (B1: tight
     /// per-component squares in `norm_squared`), the alias must STILL
     /// be refused — and now it is, by DETECTION: the circle winding
     /// bound classifies `(tau − 9·tau)·r` definitely negative through
@@ -955,7 +908,7 @@ mod interval_lane {
         assert_eq!(
             err,
             CertifyError::WindingExceeded,
-            "the fixed lane must refuse the alias by detection, not poison"
+            "the fixed lane must refuse the alias by detection, not by a blanket Trv refusal"
         );
     }
 
@@ -968,7 +921,7 @@ mod interval_lane {
     /// enclosure straddles zero, and `norm`'s old `sqrt(dot(v, v))`
     /// squared the straddle through plain interval `Mul` (negative
     /// lo), so the sqrt clamped, degraded the decoration to Trv, and
-    /// every decision downstream read poison. The fix: `norm_squared`
+    /// every decision downstream was refused. The fix: `norm_squared`
     /// sums tight per-component squares (`powi(2)` — the interval
     /// backend's dedicated integer power),
     /// whose enclosures are `[0, hi]` with decoration preserved, so

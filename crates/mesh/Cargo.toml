@@ -90,6 +90,9 @@ sweep = { path = "../sweep", features = ["test-support"] }
 # same reason as `step-export`'s and `step-import`'s edges onto the same
 # door.
 topo = { path = "../topo", features = ["test-support"] }
+# `test-support` ON: the key rows' one fixture of every analytic kind is
+# `geom::test_support`'s. Dev-only, like the edges above.
+geom = { path = "../geom", features = ["test-support"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

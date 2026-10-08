@@ -7,11 +7,13 @@
 //!
 //! Two families, and they no longer share a fate:
 //!
-//! - #347's cylinder unions (coaxial, parallel, Steinmetz) STILL refuse
-//!   at `CurvedPierceUnsupported` — the curved sweep arm's frontier.
-//!   That is the crossing layer, not the join, and opening it needs a
-//!   pierce/split substrate that is its own unit; the rows below pin
-//!   the refusals so that unit starts from a measurement.
+//! - #347's cylinder unions still refuse, each at its own door: the
+//!   coaxial poses at the reduction, as an undeclared aligned wall
+//!   pair; the Steinmetz pose at `CurvedPierceUnsupported`, the curved
+//!   sweep arm's frontier; and the parallel pose — whose rim
+//!   crossings the circle × cylinder root lane certifies — at its
+//!   coplanar cap discs' undeclared coincidence. The rows below pin
+//!   each door with the datum that says whose work it waits on.
 //! - #347's bracket bound is GONE. It used to read `r ≤ 4` passes,
 //!   `r ≥ 5` refuses — exactly `2r > 8`, the corner round's CARRIER
 //!   reaching the pocket's `x = 8` wall while its ARC stayed 2 mm
@@ -27,10 +29,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -41,18 +44,30 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
-    topo::union(a, b, Tol::witness()).expect_err("this pair has no arm yet")
+    let tol = Tol::witness();
+    let (a, b) = (
+        finished("operand A", a.clone(), tol),
+        finished("operand B", b.clone(), tol),
+    );
+    topo::union(&a, &b, tol).expect_err("this pair has no arm yet")
 }
 
 /// The carrier kind of the edge a refusal names — the datum that says
-/// WHICH family a row belongs to, since the line × wall roots exist in
-/// closed form and the circle × wall roots do not exist anywhere.
+/// WHICH family a row belongs to: a circle's door waits on a
+/// declaration, a line's on second-order or declaration work.
 fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
     let BooleanError::CurvedPierceUnsupported { edge, .. } = err else {
         panic!("not a pierce refusal: {err:?}");
@@ -71,26 +86,31 @@ fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
 }
 
 /// #347's "two `circle`-derived cylinders refuse to union at all
-/// (coaxial or not)": every crossing pose meets the CURVED SWEEP ARM's
-/// frontier — the pierce door, not a kind gate and not a join refusal.
+/// (coaxial or not)": every pose still refuses before the join — three
+/// at an undeclared coincidence, one at the CURVED SWEEP ARM's
+/// frontier — and none of them at a kind gate.
 ///
 /// **The four rows are not one family, and the ring lane moves none of
 /// them.** Each is named with the pair that actually raises, measured
 /// rather than inferred, and with the carrier kind pinned because that
 /// is what decides whose work the row is waiting on:
 ///
-/// 1. `coaxial-equal-r` — A's rim CIRCLE lies on B's wall carrier. An
-///    undeclared value-coincident contact; CONTACT-DESIGN C2/C4 forbid
-///    inferring the gluing at any ε, so its destination is the
-///    declaration ladder and no crossing or join arm moves it.
-/// 2. `coaxial-stacked` — A's seam LINE lies on B's wall carrier
-///    (residual identically zero). Same class, same destination; the
-///    binding coincidence is the cap discs, a plane × plane rest.
-/// 3. `parallel-equal-r` — A's rim CIRCLE genuinely crosses B's wall.
-///    A real pierce, and the one this lane cannot serve: the circle ×
-///    wall event parameters are the roots of a degree-2 TRIGONOMETRIC
-///    polynomial, and no quartic, cubic or resolvent lane exists in
-///    this tree at all.
+/// 1. `coaxial-equal-r` — the two walls are ONE carrier facing the same
+///    way. An undeclared value-coincident pair; CONTACT-DESIGN C2/C4
+///    forbid inferring the gluing at any ε, so the reduction refuses
+///    the pair before its crossing layer runs, naming it and its
+///    aligned relation, and its destination is the declaration ladder.
+/// 2. `coaxial-stacked` — the walls are one carrier carried on across
+///    the caps: an undeclared continuation, refused at the same door
+///    for the same reason.
+/// 3. `parallel-equal-r` — A's rim CIRCLE genuinely crosses B's wall,
+///    and the conic × quadric root door (`topo::boolean::conic_quadric`)
+///    certifies where. Both operands span one height, so their cap
+///    discs overlap in the planes `z = 0` and `z = 2`: an undeclared
+///    coincidence, refused at `UndeclaredCoincidence` and moved by a
+///    declaration, as rows 1–2 are. Staggered in height the same pair
+///    pierces, and stops at the pierce's sector side
+///    (`tang_circle_cylinder.rs`).
 /// 4. `steinmetz` — A's seam RULING is TANGENT to B's wall. The two
 ///    walls meet in two ellipses that CROSS at `(±1, 0, 0)`, where the
 ///    surfaces are mutually tangent, and the extruded circle puts its
@@ -102,11 +122,10 @@ fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
 ///    where it is; what moves this row is a second-order lane or a
 ///    declaration, not an arm.
 ///
-/// Rows 1–2 and row 4 all refuse for reasons the ARMS unit does not
-/// touch either, which is why this table pins the reason and not just
-/// the variant.
+/// Every row refuses for a reason the ARMS unit does not touch, which
+/// is why this table pins the reason and not just the variant.
 #[test]
-fn cylinder_unions_refuse_at_the_curved_pierce_door() {
+fn cylinder_unions_refuse_before_the_join_each_at_its_own_door() {
     let turned = topo::transform_rigid(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
         &Affine3::rotation_about_axis(
@@ -119,10 +138,10 @@ fn cylinder_unions_refuse_at_the_curved_pierce_door() {
     .unwrap();
     let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
     let a_tall = cyl(0.0, 0.0, 1.0, -2.0, 2.0);
-    let rows: [(&str, BooleanError); 4] = [
+    let rows: [(&str, BooleanError); 3] = [
         // Coaxial, equal radius, overlapping heights: B's rim circles
-        // lie ON A's wall carrier, so the circle row's residual
-        // extremes are Zero and the incidence is undeclared.
+        // lie ON A's wall carrier, so the circle row's residual is a
+        // zero constant and the incidence is undeclared.
         (
             "coaxial-equal-r",
             union_err(&a, &cyl(0.0, 0.0, 1.0, 1.0, 3.0)),
@@ -132,30 +151,36 @@ fn cylinder_unions_refuse_at_the_curved_pierce_door() {
             "coaxial-stacked",
             union_err(&a, &cyl(0.0, 0.0, 1.0, 2.0, 4.0)),
         ),
-        // Parallel axes, definitely crossing walls.
-        (
-            "parallel-equal-r",
-            union_err(&a, &cyl(1.2, 0.0, 1.0, 0.0, 2.0)),
-        ),
         // Perpendicular axes, equal radius (the Steinmetz pair).
         ("steinmetz", union_err(&a_tall, &turned)),
     ];
     // The carrier of the edge each row names — the family datum (doc
-    // above): a `line` row waits on second-order or declaration work, a
-    // `circle` row waits on the trigonometric root lane that does not
-    // exist.
-    let carriers = ["circle", "line", "circle", "line"];
+    // above): an undeclared wall pair (`None`) waits on a declaration,
+    // a `line` row on second-order or declaration work.
+    let carriers = [None, None, Some("line")];
     for ((name, err), want) in rows.into_iter().zip(carriers) {
+        let Some(want) = want else {
+            assert!(
+                matches!(
+                    err,
+                    BooleanError::UndeclaredCoincidence {
+                        relation: topo::PlaneRelation::SameOriented,
+                        ..
+                    }
+                ),
+                "{name}: expected the undeclared aligned wall pair, got {err:?}"
+            );
+            continue;
+        };
         assert!(
             matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
             "{name}: expected the curved pierce door, got {err:?}"
         );
         // The carrier is read from the body the refusal NAMES, not from
-        // an assumption that it is always A: all four rows measure
+        // an assumption that it is always A: the pierce row measures
         // A-side today, and asserting that here means a row that moves
         // to B reds this table instead of silently reading the wrong
-        // body's arena. (`coaxial-*` and `parallel-*` share one A;
-        // `steinmetz` has the tall one.)
+        // body's arena.
         let BooleanError::CurvedPierceUnsupported { operand, .. } = err else {
             panic!("{name}: not a pierce refusal: {err:?}");
         };
@@ -167,6 +192,38 @@ fn cylinder_unions_refuse_at_the_curved_pierce_door() {
         let owner = if name == "steinmetz" { &a_tall } else { &a };
         assert_eq!(refused_carrier(owner, &err), want, "{name}");
     }
+    // Parallel axes, definitely crossing walls, one height: the cap
+    // discs at z = 0 coincide, and the refusal names that pair of planes.
+    let b = cyl(1.2, 0.0, 1.0, 0.0, 2.0);
+    let err = union_err(&a, &b);
+    let BooleanError::UndeclaredCoincidence { pair, .. } = &err else {
+        panic!("parallel-equal-r: expected the cap discs' coincidence, got {err:?}");
+    };
+    let plane_of = |body: &Body<f64>, f: topo::FaceKey| match body
+        .get_face(f)
+        .and_then(|face| body.get_surface(face.surface))
+    {
+        Some(topo::Surface::Plane { origin, normal, .. }) => (origin.z, normal.z),
+        other => panic!("parallel-equal-r: a cap plane, got {other:?}"),
+    };
+    let heights: Vec<f64> = pair
+        .iter()
+        .map(|&(operand, f)| {
+            let body = if operand == topo::Operand::A { &a } else { &b };
+            let (z, nz) = plane_of(body, f);
+            assert!(
+                (nz.abs() - 1.0).abs() < 1e-12,
+                "parallel-equal-r: a cap disc square to the axes: n_z {nz}"
+            );
+            z
+        })
+        .collect();
+    assert!(
+        pair[0].0 != pair[1].0
+            && (heights[0] - heights[1]).abs() < 1e-12
+            && [0.0, 2.0].iter().any(|h| (heights[0] - h).abs() < 1e-12),
+        "parallel-equal-r: one cap disc of each operand, in one cap plane: {pair:?} at {heights:?}"
+    );
 }
 
 /// The COAXIAL UNEQUAL-radius pose (a boss on a shaft) is not a pierce
@@ -183,8 +240,8 @@ fn cylinder_unions_refuse_at_the_curved_pierce_door() {
 fn the_coaxial_boss_unions_and_meters_at_the_closed_form() {
     let tol = Tol::witness();
     let topo::BooleanResult::Body(out) = topo::union(
-        &cyl(0.0, 0.0, 1.0, 0.0, 2.0),
-        &cyl(0.0, 0.0, 0.5, 1.0, 3.0),
+        &finished("the shaft", cyl(0.0, 0.0, 1.0, 0.0, 2.0), tol),
+        &finished("the boss", cyl(0.0, 0.0, 0.5, 1.0, 3.0), tol),
         tol,
     )
     .expect("the boss unions") else {
@@ -216,10 +273,14 @@ fn the_coaxial_boss_unions_and_meters_at_the_closed_form() {
 fn the_bracket_rounds_at_every_radius_and_meters_exactly() {
     let tol = Tol::witness();
     for r in [3.0_f64, 4.0, 5.0, 6.0] {
-        let plate = rounded_plate(80.0, 40.0, r, 8.0);
+        let plate = finished("the plate", rounded_plate(80.0, 40.0, r, 8.0), tol);
         // `bracket.py`'s pocket, in millimetres — the other half of
         // the corpus `rounded_plate` above carries.
-        let pocket = brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol);
+        let pocket = finished(
+            "the pocket",
+            brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+            tol,
+        );
         let out = topo::subtract(&plate, &pocket, tol)
             .unwrap_or_else(|e| panic!("r = {r} mm must cut: {e:?}"));
         let topo::BooleanResult::Body(bb) = out else {
@@ -243,10 +304,14 @@ fn the_bracket_rounds_at_every_radius_and_meters_exactly() {
 fn the_bracket_rounds_at_six_millimetres() {
     let tol = Tol::witness();
     let out = topo::subtract(
-        &rounded_plate(80.0, 40.0, 6.0, 8.0),
+        &finished("the plate", rounded_plate(80.0, 40.0, 6.0, 8.0), tol),
         // `bracket.py`'s pocket, in millimetres — the other half of
         // the corpus `rounded_plate` above carries.
-        &brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+        &finished(
+            "the pocket",
+            brick((8.0, 28.0), (10.0, 30.0), (-2.0, 5.0), tol),
+            tol,
+        ),
         tol,
     )
     .expect("#347's requested radius cuts");
@@ -287,6 +352,7 @@ fn a_fully_crossing_cylinder_pair_with_no_edge_event_refuses_typed() {
     // The wrong answer the silence used to give, kept as the row's own
     // yardstick: 10π + 20π, the lens counted twice.
     assert!((va + vb - 30.0 * core::f64::consts::PI).abs() < 1e-9);
+    let (a, b) = (finished("A", a, tol), finished("B", b, tol));
     let err = topo::union(&a, &b, tol).expect_err("the silence never re-opens");
     let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
         panic!("expected the fallback's section pass, got {err:?}");
@@ -304,8 +370,8 @@ fn a_fully_crossing_cylinder_pair_with_no_edge_event_refuses_typed() {
 #[test]
 fn cylinders_standing_clear_of_each_other_still_answer() {
     let tol = Tol::witness();
-    let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
-    let b = cyl(5.0, 0.0, 1.0, 0.0, 2.0);
+    let a = finished("A", cyl(0.0, 0.0, 1.0, 0.0, 2.0), tol);
+    let b = finished("B", cyl(5.0, 0.0, 1.0, 0.0, 2.0), tol);
     let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol).unwrap() else {
         panic!("two disjoint solids union into a two-shell body");
     };
@@ -368,9 +434,16 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
     let prof = Profile::new(plane, vec![outline.into()])
         .validate(tol)
         .unwrap();
-    extrude(&prof, Extrusion::Distance(thick), tol)
-        .unwrap()
-        .body
+    extrude(
+        &prof,
+        Extrusion::Distance {
+            depth: thick,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 // ---------------------------------------------------------------- D3 --
@@ -506,37 +579,63 @@ fn the_containment_door_reports_the_trim_boundary_rather_than_guessing() {
     }
 }
 
-/// The class gate: a wall the chart trim CANNOT express answers `None`,
-/// never a verdict. A tilted cut leaves the wall bounded by a section
+/// The class gate: a wall the chart trim's RECTANGLE cannot express is
+/// never read as one. A tilted cut leaves the wall bounded by a section
 /// ELLIPSE, whose height extreme is interior to an edge, so the
 /// rectangle the boundary vertices pin misstates the face in both
-/// directions — and the door refuses to speak rather than read it.
+/// directions. The door reads such a wall by its chart outline's parity
+/// along the point's ruling instead, so a point on the carrier is `In`
+/// exactly one wall face below the cut and in none above it — the
+/// rectangle would put both of the points below inside the face.
 #[test]
-fn a_wall_the_trim_cannot_express_gets_no_verdict() {
+fn a_wall_closed_by_a_tilted_section_is_read_by_its_outline() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let post = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let post = sweep::test_support::finished("the post", post, tol);
     let phi = 0.3_f64;
-    let plane = topo::splitting::SplitPlane {
-        origin: Point3::new(0.0, 0.0, 1.0),
-        normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 1.0),
+        Vec3::new(phi.sin(), 0.0, phi.cos()),
+        geom_core::Tol::witness(),
+    );
     let result = topo::splitting::split(&post, &plane, tol).unwrap();
     let topo::splitting::SplitPart::Body(below) = &result.below else {
         panic!("the tilted cut leaves material below");
     };
     let walls = wall_faces(below);
     assert!(!walls.is_empty(), "the cut post still has wall faces");
-    // On the carrier, well inside the surviving stub: an iso-bounded
-    // wall answers In or Out here; an ellipse-bounded one must not.
-    let verdicts: Vec<_> = walls
-        .iter()
-        .map(|&f| topo::curved_face_containment(below, f, on_wall(0.4, 0.5), band).unwrap())
-        .collect();
-    assert!(
-        verdicts.iter().all(Option::is_none),
-        "a wall closed by a tilted section must get no verdict, got {verdicts:?}"
-    );
+    // The cut is at `z = 1 − x·tan φ`: 0.715 over θ = 0.4, 1.285 over
+    // θ = π − 0.4. Each point is 0.2 off it.
+    for (theta, h, inside) in [
+        (0.4, 0.515, true),
+        (0.4, 0.915, false),
+        (core::f64::consts::PI - 0.4, 1.085, true),
+        (core::f64::consts::PI - 0.4, 1.485, false),
+    ] {
+        let q = on_wall(theta, h);
+        assert!(
+            ((1.0 - q.x * phi.tan()) - h).abs() > 0.19,
+            "θ = {theta}, h = {h}: off the cut"
+        );
+        let verdicts: Vec<_> = walls
+            .iter()
+            .map(|&f| topo::curved_face_containment(below, f, q, band).unwrap())
+            .collect();
+        let ins = verdicts
+            .iter()
+            .filter(|v| matches!(v, Some(topo::FaceContainment::In)))
+            .count();
+        assert!(
+            verdicts.iter().all(Option::is_some),
+            "θ = {theta}, h = {h}: a verdict on every wall, got {verdicts:?}"
+        );
+        assert_eq!(
+            ins,
+            usize::from(inside),
+            "θ = {theta}, h = {h}: {verdicts:?}"
+        );
+    }
 }
 
 /// **The dip clamp's own row.** The blinded review found the clamp
@@ -564,7 +663,7 @@ fn a_wall_the_trim_cannot_express_gets_no_verdict() {
 #[test]
 fn the_line_clearance_clamp_is_what_lets_a_radial_edge_clear() {
     let tol = Tol::witness();
-    let wall = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let wall = finished("the wall", cyl(0.0, 0.0, 1.0, 0.0, 2.0), tol);
     let lp = profile::ProfileLoop::polygon([
         Point2::new(0.5, 0.999),
         Point2::new(2.5, 0.999),
@@ -574,11 +673,15 @@ fn the_line_clearance_clamp_is_what_lets_a_radial_edge_clear() {
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.9)));
     let brick = extrude(
         &Profile::new(plane, vec![lp]).validate(tol).unwrap(),
-        Extrusion::Distance(0.2),
+        Extrusion::Distance {
+            depth: 0.2,
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .unwrap()
     .body;
+    let brick = finished("the brick", brick, tol);
     let out = topo::union(&wall, &brick, tol)
         .expect("the radial edge clears the wall; only the clamp proves it");
     let topo::BooleanResult::Body(bb) = out else {

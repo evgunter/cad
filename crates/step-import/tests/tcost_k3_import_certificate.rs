@@ -41,6 +41,7 @@ test_utils::gated_to![
     "crates/step-import/src/lib.rs",
     "crates/topo/src/validate.rs",
     "crates/topo/src/props.rs",
+    "crates/topo/src/props/",
     "crates/geom-brep/src/props/",
     "crates/step-import/tests/common/",
 ];

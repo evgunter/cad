@@ -11,10 +11,9 @@
 //!
 //! A decision with no size the user chose ([`Unsized`]) ends here too.
 
-use geom_core::k_stats::NonPositiveSign;
 use geom_core::{
     Band, Decided, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
-    KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, Sign, SizedWords,
+    KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, NOT_YET_ENDING, Sign, SizedWords,
 };
 pub use geom_core::{SizedPass, UNREADABLE_MARGIN_NOTE};
 
@@ -46,6 +45,30 @@ pub fn defect_ending(reading: Reading) -> &'static str {
     match reading {
         Reading::Build => KERNEL_DEFECT_ENDING,
         Reading::AtRest | Reading::Adopt => KERNEL_OR_FILE_DEFECT_ENDING,
+    }
+}
+
+/// **The ending of a refusal at a shape the kernel has no arm for yet**
+/// ([`geom_core::NOT_YET_ENDING`]): nothing the user changes in the
+/// model gets through today, and nothing is wrong with what they asked
+/// for, so the sentence says so plainly rather than labelling a
+/// capability gap `Recourse:`.
+///
+/// It is the one home for that ending beside the others here, and an
+/// unreadable margin adds what it may mean as every ending in this
+/// table does — `topo::validate`'s at-rest readings compose it too, so
+/// the words are not spelled twice.
+#[must_use]
+pub fn not_yet(arm: RefusedArm<'_>) -> String {
+    let unreadable = match arm {
+        RefusedArm::Undecided(cause) => cause.margin.is_invalid(),
+        RefusedArm::Zero(Classified { margin, .. }) => margin.is_invalid(),
+        RefusedArm::SignCertain => false,
+    };
+    if unreadable {
+        format!("{NOT_YET_ENDING}: {UNREADABLE_MARGIN_NOTE}")
+    } else {
+        NOT_YET_ENDING.to_owned()
     }
 }
 
@@ -123,14 +146,17 @@ impl Refused {
         }
     }
 
-    /// The verdict a collapsed-arm gate refused
-    /// ([`geom_core::k_stats::GateRefusal::Collapsed`]), classified at
-    /// `band`.
+    /// The verdict a gate that passes on a positive sign carries in its
+    /// rejection ([`MarginDiag::rejected_sign`]): the quantity it meters
+    /// is not there, decided zero or negative. `None` where the gate
+    /// could not decide (in band, straddling, poisoned).
     #[must_use]
-    pub fn collapsed(sign: NonPositiveSign, margin: MarginDiag, band: Band) -> Self {
-        match sign {
-            NonPositiveSign::Zero => Self::Zero(Classified { margin, band }),
-            NonPositiveSign::Negative => Self::Negative { margin },
+    pub fn rejected(cause: &Indeterminate) -> Option<Self> {
+        let (margin, band) = (cause.margin, cause.band);
+        match margin.rejected_sign()? {
+            Sign::Zero => Some(Self::Zero(Classified { margin, band })),
+            Sign::Negative => Some(Self::Negative { margin }),
+            Sign::Positive => None,
         }
     }
 
@@ -321,7 +347,8 @@ mod tests {
         let passing_below = |passes: SizedPass, margin: MarginDiag| {
             let on = |v: f64| match passes {
                 SizedPass::Positive | SizedPass::NonNegative => v > 0.0,
-                SizedPass::NonZero => v != 0.0,
+                SizedPass::NonZero | SizedPass::AnySign => v != 0.0,
+                SizedPass::Negative => v < 0.0,
             };
             match margin.diagnostic_f64_for_error_text() {
                 geom_core::ErrorTextReading::Value(m) => on(m).then(|| m.abs() / k),
@@ -346,6 +373,8 @@ mod tests {
             SizedPass::Positive,
             SizedPass::NonNegative,
             SizedPass::NonZero,
+            SizedPass::Negative,
+            SizedPass::AnySign,
         ] {
             for stored in [StoredDefinite::Contradiction, StoredDefinite::Lever] {
                 for at_zero in [None, Some(AtZero::same("a note"))] {

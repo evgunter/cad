@@ -10,8 +10,8 @@
 //! - **Two operand inputs** (`a`, `b`), each a node whose evaluated
 //!   body AND name table the lowering reads — the arity the kernel
 //!   declaration states (`verbs::VerbKind::arity`).
-//! - **The `declare` input**: an optional `Node::Declare` operand
-//!   whose name pairs resolve through the OPERANDS' name tables into
+//! - **The `declare` payload**: the node's declared pairs, whose
+//!   names resolve through the OPERANDS' name tables into
 //!   the kernel's `BooleanDeclarations` (`resolve_declarations`, the
 //!   N5 ladder — resolution failures are the typed trio, never a
 //!   silent drop). Name resolution is the document's semantics, so it

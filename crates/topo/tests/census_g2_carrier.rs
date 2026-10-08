@@ -302,11 +302,25 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         // two independently authored curved descriptions, each in its
         // own arena, with no shared key and no `GeomSource`.
         let (mut a_body, mut b_body) = (a.body, b.body);
+        // Lifts RechartStrandsDescriptions: two independently authored curved descriptions are the declared pair.
         a_body
-            .set_face_surface(a.top_face, FaceSurface::New(surface.clone()))
+            .set_face_surface_unvouched_for_tests(
+                a.top_face,
+                FaceSurface::New {
+                    surface: surface.clone(),
+                    sense: true,
+                },
+            )
             .unwrap();
+        // Lifts RechartStrandsDescriptions: two independently authored curved descriptions are the declared pair.
         b_body
-            .set_face_surface(b.bottom_face, FaceSurface::New(surface.clone()))
+            .set_face_surface_unvouched_for_tests(
+                b.bottom_face,
+                FaceSurface::New {
+                    surface: surface.clone(),
+                    sense: true,
+                },
+            )
             .unwrap();
         (a_body, a.top_face, b_body, b.bottom_face)
     };

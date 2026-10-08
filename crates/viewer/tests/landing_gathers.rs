@@ -24,14 +24,20 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use std::sync::Arc;
 
-use pncad::document::{Doc, Node, ProductError, ProfileProgram, gathers_on_this_thread};
+use pncad::document::{
+    Doc, DocumentId, Formula, MeasureExpr, Node, NodeStanding, ProductError, ProfileDoc,
+    ProfileProgram, SitedRef, gathers_on_this_thread,
+};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
+use pncad::workspace::Workspace;
 use viewer::evalseam::EvalDone;
-use viewer::session::{AtRestBadge, DocSession, Landing};
+use viewer::session::{AtRestBadge, DocSession, Landing, SessionOp};
+use viewer::tree::RowStatus;
 
 /// Re-land the result a session already holds, and answer how many
 /// times the gather ran while it did.
@@ -261,18 +267,21 @@ fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
         Node::Extrude {
             profile,
             distance: common::len(0.02),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
     let moved = |doc: &Doc<ProfileProgram>, dx: f64| {
         common::inserted(
             doc,
-            Node::Transform {
-                input: extrude,
-                translation: [common::len(dx), common::len(0.0), common::len(0.0)],
-                rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: common::ang(0.0),
-            },
+            Node::transform(
+                extrude,
+                pncad::document::Step::Rigid {
+                    translation: [common::len(dx), common::len(0.0), common::len(0.0)],
+                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                    angle: common::ang(0.0),
+                },
+            ),
             tol,
         )
     };
@@ -295,7 +304,7 @@ fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
         session
             .tree_rows()
             .iter()
-            .all(|row| !matches!(row.status, viewer::tree::RowStatus::Failed { .. })),
+            .all(|row| !matches!(row.status, RowStatus::Failed { .. })),
         "and no node failed, so no other channel carries this"
     );
     assert!(
@@ -303,13 +312,14 @@ fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
         "the registry has no subject and says so by reporting nothing"
     );
     assert!(
-        viewer::frame::product_badge(session.product_fault()).is_some(),
+        viewer::frame::product_badge(session.product_fault(), session.committed_doc()).is_some(),
         "this IS the fault channel's own case"
     );
     assert!(session.at_rest().is_none(), "a part has no A5 badge");
 }
 
-/// **A4 — a document that denotes no body is not a refusal.** The
+/// **A4 — a document that denotes no body is not a refusal**
+/// (`ProductErrorKind::means_no_body` is that reading). The
 /// gather says `NoBodyRoots`, which the landing reads as a SUBJECT: the
 /// registry runs over it and reports clean. The fault field still
 /// carries the gather's answer, and the badge channel is the one that
@@ -328,12 +338,127 @@ fn a_document_with_no_body_lands_a_clean_report() {
         session.product_fault()
     );
     assert!(
-        viewer::frame::product_badge(session.product_fault()).is_none(),
+        viewer::frame::product_badge(session.product_fault(), session.committed_doc()).is_none(),
         "which the badge channel deliberately stays quiet about"
     );
     let report = session.checks().expect("the registry still reports");
     assert!(report.findings.is_empty(), "cleanly: {report}");
     assert!(session.at_rest().is_none(), "and there is no badge");
+}
+
+/// **A body-less ASSEMBLY takes no at-rest badge either.** An
+/// instance whose only reader is a measure read AT it is no root — the
+/// measure is, and it denotes no body — so the gather says
+/// `NoBodyRoots` while the document still holds an `InstantiatePart`.
+/// The landing reads that refusal as an absence for the registry, and
+/// the A5 badge agrees with it: there is no product for the gate to
+/// judge, and an at-rest badge reading "at rest: product: …" would
+/// show a failure the line above it says is not one.
+///
+/// This is one instance of the rule the row below witnesses for a
+/// refusal proper — a gather refusal takes no at-rest badge, whatever
+/// its class. `LandedRun`'s shape already keeps a badge off the
+/// refusal; what this row adds is the end-to-end reading at the
+/// session's door, over the one class the registry treats as an
+/// absence.
+#[test]
+fn a_body_less_assembly_takes_no_at_rest_badge() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("body-less-assembly", tol);
+    let mut asm = ProfileDoc::empty(DocumentId::derive("body-less-assembly"), tol);
+    let post = common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
+    let top = common::asm::in_part(post, &bench.post_top);
+    common::insert_into(
+        &mut asm,
+        Node::measure(
+            MeasureExpr::value(common::len(1.0)),
+            vec![SitedRef::new(post, top)],
+        )
+        .expect("the measure indexes no reference it lacks"),
+        tol,
+    );
+    let path = Workspace::open(&bench.dir)
+        .expect("the bench's workspace opens")
+        .create(&asm, tol)
+        .expect("the assembly stores");
+    let mut session = DocSession::inline(Doc::empty_derived("body-less-boot", tol), tol);
+    let outcome = session.perform(SessionOp::Open(path));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+
+    assert!(
+        matches!(session.product_fault(), Some(ProductError::NoBodyRoots)),
+        "the premise: the measure de-sinks the instance and denotes no body: {:?}",
+        session.product_fault()
+    );
+    assert!(
+        session.checks().is_some(),
+        "the landing reads it as an absence, so the registry still reports"
+    );
+    assert_eq!(
+        session.at_rest(),
+        None,
+        "and the A5 badge agrees: a body-less assembly is not a refusal"
+    );
+}
+
+/// **An assembly whose gather REALLY refuses takes no at-rest badge
+/// either.** Beside an instance, an extrude whose distance divides by
+/// zero fails at evaluation, so the gather refuses with a class
+/// `ProductErrorKind::means_no_body` does not claim, in a document that
+/// is assembly-shaped. The A5 gate never ran, so it gave no verdict:
+/// the refusal is `DocSession::product_fault`'s, and
+/// `frame::badge_site` routes it (a failed root to the feature tree).
+///
+/// The badge's absence is the type's doing, so the row witnesses the
+/// whole path rather than guarding one arm: the gather refuses, the
+/// session says nothing at rest, and the refusal is still loud where
+/// it belongs — the root's tree row reads `Failed`.
+#[test]
+fn an_assembly_whose_gather_refuses_takes_no_at_rest_badge() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("refused-gather-assembly", tol);
+    let asm = ProfileDoc::empty(DocumentId::derive("refused-gather-assembly"), tol);
+    let (mut asm, profile) = common::framed_square(&asm, 0.04, tol);
+    common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
+    let extrude = common::insert_into(
+        &mut asm,
+        Node::Extrude {
+            profile,
+            distance: Formula::div(common::len(0.008), common::scl(0.0))
+                .expect("length / scalar is a length"),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    );
+    let path = Workspace::open(&bench.dir)
+        .expect("the bench's workspace opens")
+        .create(&asm, tol)
+        .expect("the assembly stores");
+    let mut session = DocSession::inline(Doc::empty_derived("refused-gather-boot", tol), tol);
+    let outcome = session.perform(SessionOp::Open(path));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+
+    assert!(
+        matches!(
+            session.product_fault(),
+            Some(ProductError::Root(NodeStanding::Failed { .. }))
+        ),
+        "the premise: a failed root, which is a refusal and not an absence: {:?}",
+        session.product_fault()
+    );
+    assert_eq!(
+        session.at_rest(),
+        None,
+        "and the A5 badge takes no verdict on a product the gate never saw"
+    );
+    let rows = session.tree_rows();
+    assert!(
+        matches!(common::status_of(&rows, extrude), RowStatus::Failed { .. }),
+        "not silent everywhere: the failed root reads Failed at its tree row, got {:?}",
+        common::status_of(&rows, extrude)
+    );
 }
 
 /// **Every site of the counter carries the gate attribute.**

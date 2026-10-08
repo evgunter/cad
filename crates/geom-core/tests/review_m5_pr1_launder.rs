@@ -1,10 +1,10 @@
-//! **Poison-laundering attempts over the public `Dual<Interval>`
+//! **Refusal-laundering attempts over the public `Dual<Interval>`
 //! surface.** Adopted from the M5 PR 1 adversarial review's scratch
 //! harness (its F3), an independent derivation kept for its regression
-//! value; `m5_pr1_poison_conservation.rs` pins the same contract at the
+//! value; `m5_pr1_refusal_conservation.rs` pins the same contract at the
 //! bare `Interval` scalar.
 //!
-//! Attempts to launder poison (Trv/Empty/NaI) into a deciding verdict
+//! Attempts to launder the refusal (Trv/Empty/NaI) into a deciding verdict
 //! through every value-independent or freshly-constructed-interval path:
 //! the kink selectors (via the public Dual<Interval> ops that call them),
 //! copysign, and the value-independent ops (powi(0)/abs/floor). Those
@@ -14,26 +14,15 @@
 //!
 //! The final test is an ADDITION beyond the review harness: running it
 //! surfaced a real laundering door in `Dual::powi(0)`'s derivative
-//! channel. See its own comment — it is pre-existing and
-//! backend-independent, so it is pinned as-is rather than fixed here.
+//! channel, since closed; see its own comment.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
+use crate::refusal::assert_refused;
+use geom_core::predicate::{Band, Decide, Sign};
 use geom_core::{Bounds, Dual, Interval, Real};
 
 fn band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
-}
-
-#[track_caller]
-fn assert_still_poisoned(name: &str, x: Interval) {
-    match x.sign_within(band()).map(|d| d.sign) {
-        Err(Indeterminate {
-            margin: MarginDiag::INVALID,
-            ..
-        }) => {}
-        other => panic!("LAUNDERED at {name}: {other:?}"),
-    }
 }
 
 fn clamped() -> Interval {
@@ -56,12 +45,12 @@ fn dvar(v: Interval) -> Dual<Interval> {
 fn laundering_attempts_all_fail() {
     for (tag, p) in [("Trv", clamped()), ("NaI", nai()), ("Empty", empty())] {
         // Value-independent results must not resurrect a decoration.
-        assert_still_poisoned(&format!("{tag}: powi(0)"), p.powi(0));
-        assert_still_poisoned(&format!("{tag}: abs"), p.abs());
-        assert_still_poisoned(&format!("{tag}: floor"), p.floor());
+        assert_refused(&format!("{tag}: powi(0)"), p.powi(0));
+        assert_refused(&format!("{tag}: abs"), p.abs());
+        assert_refused(&format!("{tag}: floor"), p.floor());
         // Kink selectors build FRESH intervals ([1,1], [0,0], ENTIRE) —
         // the classic laundering vector. Reach them through the public
-        // Dual<Interval> ops; BOTH channels must stay poisoned.
+        // Dual<Interval> ops; BOTH channels must stay refused.
         let d = dvar(p);
         for (op, r) in [
             ("Dual::abs", d.abs()),
@@ -76,23 +65,23 @@ fn laundering_attempts_all_fail() {
                 d.copysign(Dual::new(Interval::from_bounds(-1.0, 1.0), h(0.0))),
             ),
         ] {
-            assert_still_poisoned(&format!("{tag}: {op}.value"), r.value);
-            assert_still_poisoned(&format!("{tag}: {op}.deriv"), r.deriv);
+            assert_refused(&format!("{tag}: {op}.value"), r.value);
+            assert_refused(&format!("{tag}: {op}.deriv"), r.deriv);
         }
-        // Poison confined to the DERIVATIVE channel: the value channel
+        // A refusal confined to the DERIVATIVE channel: the value channel
         // may stay healthy (that is the design), but the deriv channel
         // must not shed it through a selector's fresh interval.
         let dp = Dual::new(h(2.0), p);
         for (op, r) in [
-            ("deriv-poison Dual::abs", dp.abs()),
-            ("deriv-poison Dual::min", Real::min(dp, dvar(h(5.0)))),
-            ("deriv-poison Dual::copysign", dp.copysign(dvar(h(3.0)))),
+            ("deriv-refused Dual::abs", dp.abs()),
+            ("deriv-refused Dual::min", Real::min(dp, dvar(h(5.0)))),
+            ("deriv-refused Dual::copysign", dp.copysign(dvar(h(3.0)))),
         ] {
-            assert_still_poisoned(&format!("{tag}: {op}.deriv"), r.deriv);
+            assert_refused(&format!("{tag}: {op}.deriv"), r.deriv);
         }
     }
 
-    // Healthy sanity rows: the paths above do not poison healthy inputs.
+    // Healthy sanity rows: the paths above do not refuse healthy inputs.
     let m = Real::min(dvar(h(2.0)), dvar(h(5.0)));
     assert!(m.value.sign_within(band()).map(|d| d.sign).is_ok());
     assert!(m.deriv.sign_within(band()).map(|d| d.sign).is_ok());
@@ -110,21 +99,21 @@ fn laundering_attempts_all_fail() {
 /// cleanly (this test pinned that laundering while it stood). The fix
 /// routes the zero through `powi_zero_deriv_factor(value) · deriv`
 /// (dual.rs), so the tangent is still exactly zero for every
-/// describable value but inherits the VALUE channel's poison —
-/// poison-in-poison-out per channel pair. This test now pins the FIXED
-/// behavior: both channels of a poisoned `powi(0)` stay poisoned.
+/// describable value but inherits the VALUE channel's refusal —
+/// refusal in, refusal out per channel pair. This test now pins the
+/// FIXED behavior: both channels of a refused `powi(0)` stay refused.
 #[test]
-fn powi_zero_conserves_both_channels_poison_fixed_126() {
+fn powi_zero_conserves_both_channels_refusal_fixed_126() {
     for (tag, p) in [("Trv", clamped()), ("NaI", nai()), ("Empty", empty())] {
         let both = Dual::new(p, p).powi(0);
-        // Value channel: poison conserved, as always contracted.
-        assert_still_poisoned(&format!("{tag}: Dual::powi(0).value"), both.value);
-        // Derivative channel: poison conserved too (the #126 fix) —
-        // the zero is tainted by the value's poison, never fresh.
-        assert_still_poisoned(&format!("{tag}: Dual::powi(0).deriv"), both.deriv);
+        // Value channel: the refusal conserved, as always contracted.
+        assert_refused(&format!("{tag}: Dual::powi(0).value"), both.value);
+        // Derivative channel: the refusal conserved too (the #126 fix) —
+        // the zero is tainted by the value's refusal, never fresh.
+        assert_refused(&format!("{tag}: Dual::powi(0).deriv"), both.deriv);
     }
     // A healthy pair keeps the honest exact-zero tangent (the fix must
-    // not manufacture poison for describable values).
+    // not manufacture a refusal for describable values).
     let clean = dvar(h(2.0)).powi(0);
     assert_eq!(
         clean.deriv.sign_within(band()).map(|d| d.sign),
@@ -132,11 +121,11 @@ fn powi_zero_conserves_both_channels_poison_fixed_126() {
     );
     assert!(clean.value.sign_within(band()).map(|d| d.sign).is_ok());
     // The nonzero-exponent contrast (kept from the pre-fix pin): every
-    // other exponent conserves derivative poison too.
+    // other exponent conserves the derivative's refusal too.
     for (tag, p) in [("Trv", clamped()), ("NaI", nai()), ("Empty", empty())] {
         for n in [1i32, 2, 3, -1, -2] {
             let d = Dual::new(h(2.0), p).powi(n);
-            assert_still_poisoned(&format!("{tag}: Dual::powi({n}).deriv"), d.deriv);
+            assert_refused(&format!("{tag}: Dual::powi({n}).deriv"), d.deriv);
         }
     }
 }

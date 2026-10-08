@@ -38,22 +38,28 @@ test_utils::gated_to![
     "crates/editor-core/src/test_support.rs",
 ];
 
+use pncad::document::AuthoredNode;
+use pncad::document::ExtrudeSide;
 use std::sync::{Arc, Mutex};
 
 use crate::common;
 use crate::common::{ang, len, scl, xy_frame};
 
-use pncad::document::{Doc, Evaluation, Expr, Node, PatternKind, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Formula, Node, PatternKind, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{Ray, Resolution};
 use viewer::camera::Camera;
+use viewer::display::DisplayView;
 use viewer::evalseam::{EvalDone, EvalRequest, EvalService, InlineEvaluator};
 use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 use viewer::narrowing::Narrow;
 use viewer::pickindex::{IdMap, PatchId, PickIndex, PictureKey};
 use viewer::scene::DisplayTolerance;
-use viewer::session::{DocSession, FaceSelection, Hovered, Selection, SessionOp};
+use viewer::session::{
+    DocSession, FaceFrameFault, FaceSelection, Hovered, Selection, SessionOp, face_frame_seat,
+    face_frame_seat_drawn,
+};
 use viewer::{cursor_projection, marks};
 
 // -------------------------------------------------------------------
@@ -70,20 +76,19 @@ fn delta() -> DisplayTolerance {
 
 /// `common::inserted` at this suite's tolerance: one node into `doc`
 /// through the document's door, no session.
-fn inserted(
-    doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
+fn inserted(doc: &Doc<ProfileProgram>, node: AuthoredNode) -> (Doc<ProfileProgram>, RecipeNodeId) {
     common::inserted(doc, node, tol())
 }
 
-fn translated(input: RecipeNodeId, dx: f64, dy: f64, dz: f64) -> Node<ProfileProgram> {
-    Node::Transform {
+fn translated(input: RecipeNodeId, dx: f64, dy: f64, dz: f64) -> AuthoredNode {
+    Node::transform(
         input,
-        translation: [len(dx), len(dy), len(dz)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    }
+        pncad::document::Step::Rigid {
+            translation: [len(dx), len(dy), len(dz)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    )
 }
 
 /// One extruded slab, `w` × `h` × `t`, its own document. Deliberately
@@ -98,6 +103,7 @@ fn slab(w: f64, h: f64, t: f64, label: &str) -> (Doc<ProfileProgram>, RecipeNode
         Node::Extrude {
             profile,
             distance: len(t),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, extrude)
@@ -125,7 +131,7 @@ fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId) {
         &doc,
         Node::Pattern {
             input: extrude,
-            count: Expr::count(count),
+            count: Formula::count(count),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(0.04),
@@ -527,7 +533,7 @@ fn the_id_map_is_a_bijection_over_keys_of_its_own() {
         .flat_map(|node| {
             (0..2).flat_map(move |body| {
                 (0..4).map(move |patch| PatchId {
-                    node: RecipeNodeId(node),
+                    node: RecipeNodeId::new(0, node),
                     body,
                     patch,
                 })
@@ -568,13 +574,13 @@ fn the_id_map_is_a_bijection_over_keys_of_its_own() {
 #[test]
 fn keys_differing_in_any_single_field_never_share_an_id() {
     let base = PatchId {
-        node: RecipeNodeId(4),
+        node: RecipeNodeId::new(0, 4),
         body: 1,
         patch: 2,
     };
     let neighbours = [
         PatchId {
-            node: RecipeNodeId(5),
+            node: RecipeNodeId::new(0, 5),
             ..base
         },
         PatchId { body: 0, ..base },
@@ -817,22 +823,8 @@ fn one_name_can_be_drawn_under_two_ids() {
 /// is gone and this row gates.
 #[test]
 fn the_highlight_marks_the_selected_bodys_patch_not_another_with_the_same_name() {
-    let (doc, _left, right) = two_placements();
-    let mut session = DocSession::inline(doc, tol());
-    session.pump();
-    let index = landed_index(&session);
-    // A ray onto the RIGHT placement's top face (it sits at x ≈ 0.10).
-    let hit = index
-        .pick(evaluation(&session), &down_at(0.115, 0.010))
-        .expect("no refusal")
-        .expect("the right placement is hit");
-    assert_eq!(hit.node, right, "the ray really hit the right placement");
-    let selection = Selection::Face(FaceSelection {
-        name: hit.name.clone(),
-        node: hit.node,
-        body: hit.body,
-    });
-    let marked = marks::highlight(&index, &selection, None);
+    let (_session, index, face) = right_top_face();
+    let marked = marks::highlight(&index, &Selection::Face(face.clone()), None);
     assert_ne!(marked.selected, IdMap::NOTHING, "something is marked");
     let key = index
         .ids()
@@ -840,8 +832,118 @@ fn the_highlight_marks_the_selected_bodys_patch_not_another_with_the_same_name()
         .expect("the marked id names a patch");
     assert_eq!(
         (key.node, key.body),
-        (hit.node, hit.body),
+        (face.node, face.body),
         "the highlight marked {key:?}, which is not the picked body"
+    );
+}
+
+/// **The right placement's top face**, picked by a ray onto it (it
+/// sits at x ≈ 0.10), with the landed session and the index that drew
+/// it.
+fn right_top_face() -> (DocSession, PickIndex, FaceSelection) {
+    let (doc, _left, right) = two_placements();
+    let mut session = DocSession::inline(doc, tol());
+    session.pump();
+    let index = landed_index(&session);
+    let hit = index
+        .pick(evaluation(&session), &down_at(0.115, 0.010))
+        .expect("no refusal")
+        .expect("the right placement is hit");
+    assert_eq!(hit.node, right, "the ray really hit the right placement");
+    let face = FaceSelection {
+        name: hit.name,
+        node: hit.node,
+        body: hit.body,
+    };
+    (session, index, face)
+}
+
+/// **A held face marks the placement it was picked on, not its twin.**
+/// The held lanes go through the selection's own (node, body)
+/// narrowing, so of two held picks of one name — one off each
+/// placement — each lights its own copy, and neither lights the other.
+#[test]
+fn a_held_face_marks_the_placement_it_was_picked_on_not_its_twin() {
+    let (_doc, index, face) = right_top_face();
+    let drawn = index.ids_of(&face.name);
+    assert_eq!(drawn.len(), 2, "both placements draw the held face's name");
+    let node_of = |id: u32| {
+        index
+            .ids()
+            .key_of(id)
+            .expect("a drawn id names a patch")
+            .node
+    };
+    let twin = FaceSelection {
+        node: drawn
+            .iter()
+            .map(|&id| node_of(id))
+            .find(|&node| node != face.node)
+            .expect("the other placement"),
+        ..face.clone()
+    };
+    let held = marks::Held {
+        faces: [None, Some(&face), Some(&twin)],
+        edges: None,
+    };
+    let (marked, _) = marks::compose(&index, &DisplayView::none(), &Selection::None, None, &held);
+    assert_eq!(marked.selected, IdMap::NOTHING, "nothing is selected");
+    let [empty, right, left] = marked.held;
+    assert_eq!(empty, IdMap::NOTHING, "an empty slot marks nothing");
+    assert_ne!(right, left, "two placements' picks lit one patch");
+    for (id, pick) in [(right, &face), (left, &twin)] {
+        assert_ne!(id, IdMap::NOTHING, "a drawn held face is marked");
+        assert_eq!(
+            node_of(id),
+            pick.node,
+            "a face held off one placement lit the other"
+        );
+    }
+}
+
+/// **A held face whose body is no longer drawn marks nothing, and the
+/// form will not commit against it.** The extrude under the two
+/// placements is not a root, so a pick held off its own body names no
+/// drawn patch — and marks neither placement, though both draw its
+/// name.
+#[test]
+fn a_held_face_whose_body_is_not_drawn_marks_nothing() {
+    let (session, index, drawn) = right_top_face();
+    let Some(Node::Transform { input: extrude, .. }) = session.doc().node(drawn.node) else {
+        panic!("the right placement is a transform of the extrude");
+    };
+    let face = FaceSelection {
+        node: *extrude,
+        ..drawn.clone()
+    };
+    assert_eq!(
+        index.ids_of(&face.name).len(),
+        2,
+        "both placements draw the held face's name"
+    );
+    let held = marks::Held {
+        faces: [Some(&face), None, None],
+        edges: None,
+    };
+    let (marked, _) = marks::compose(&index, &DisplayView::none(), &Selection::None, None, &held);
+    assert_eq!(
+        marked.held,
+        [IdMap::NOTHING; marks::HELD_FACES],
+        "a held face on an undrawn body lit {:?}",
+        marked.held
+    );
+    // The add-datum form's gate asks the same question of the same
+    // picture: the face still resolves in the evaluation, so only the
+    // picture can refuse it.
+    let (landed, display) = (session.landed_pair(), DisplayView::none());
+    assert!(
+        face_frame_seat(landed, Some(&face)).is_ok(),
+        "the evaluation still resolves the extrude's face"
+    );
+    assert_eq!(
+        face_frame_seat_drawn(landed, Some(&face), Some((&index, &display))),
+        Err(FaceFrameFault::NotDrawn),
+        "the button would commit against a face nothing marks"
     );
 }
 
@@ -1268,7 +1370,7 @@ fn the_landed_pair_is_never_a_run_that_never_happened() {
     let done = held.release_one().expect("the first request was submitted");
     session.land(done);
     let (first_doc, _) = session.landed_pair().expect("a pair landed");
-    let first_nodes = first_doc.order().len();
+    let first_nodes = first_doc.ids().len();
     let first_generation = session.landed_generation().expect("a generation");
 
     // Edit: the shown document moves, the landed pair must not.
@@ -1276,7 +1378,7 @@ fn the_landed_pair_is_never_a_run_that_never_happened() {
     assert!(held.outstanding() >= 1, "the edit asked for a new run");
     let (still_doc, _) = session.landed_pair().expect("the old pair stands");
     assert_eq!(
-        still_doc.order().len(),
+        still_doc.ids().len(),
         first_nodes,
         "the landed document moved ahead of the landed evaluation"
     );
@@ -1285,7 +1387,7 @@ fn the_landed_pair_is_never_a_run_that_never_happened() {
         "the landed document is the one the landed run answered"
     );
     assert_ne!(
-        session.doc().order().len(),
+        session.doc().ids().len(),
         first_nodes,
         "the SHOWN document really did move"
     );
@@ -1321,9 +1423,7 @@ fn tree_rows_still_read_the_shown_doc_against_the_old_evaluation() {
         "EVIDENCE tree_rows while a run is outstanding: {before} rows before the edit, \
          {} after; landed_pair still names {} nodes",
         after.len(),
-        session
-            .landed_pair()
-            .map_or(0, |(doc, _)| doc.order().len())
+        session.landed_pair().map_or(0, |(doc, _)| doc.ids().len())
     );
 }
 

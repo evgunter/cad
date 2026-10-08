@@ -103,6 +103,7 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::Escalated {
             site: BlendSite::Chain,
+            decision: sweep::blend::BlendDecision::RingClearance,
             source: Indeterminate {
                 margin: MarginDiag::value(0.0),
                 band,
@@ -112,6 +113,7 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::Escalated {
             site: BlendSite::Chain,
+            decision: sweep::blend::BlendDecision::RadiusHeadroom,
             source: Indeterminate {
                 margin: MarginDiag::value(0.0),
                 band,
@@ -119,14 +121,11 @@ fn seeds() -> Vec<BlendError> {
                 terminal_sliver: false,
             },
         },
-        // The site is the payload one level below the variant, and
-        // two of its three arms carry a field: a roster that samples
-        // only the fieldless one reports green over whatever the other
-        // two render.
         BlendError::Escalated {
             site: BlendSite::Link {
                 edge: EdgeKey::default(),
             },
+            decision: sweep::blend::BlendDecision::RingClearance,
             source: Indeterminate {
                 margin: MarginDiag::value(0.0),
                 band,
@@ -138,6 +137,7 @@ fn seeds() -> Vec<BlendError> {
             site: BlendSite::Joint {
                 vertex: VertexKey::default(),
             },
+            decision: sweep::blend::BlendDecision::ChainG1,
             source: Indeterminate {
                 margin: MarginDiag::value(0.0),
                 band,
@@ -149,10 +149,6 @@ fn seeds() -> Vec<BlendError> {
             edge: EdgeKey::default(),
         },
         BlendError::NonpositiveSize { size: 0.0 },
-        BlendError::UnsupportedBody {
-            solids: 2,
-            shells: 2,
-        },
         BlendError::UnsupportedChain {
             edge: EdgeKey::default(),
             detail: "a chain shape that is not built",
@@ -171,17 +167,19 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::RingClearance {
             face: FaceKey::default(),
+            chain: sweep::blend::Convexity::Convex,
             margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
+            bounded: false,
         },
         BlendError::Certify {
             site: "blend face pcurves",
-            source: topo::PcurveMintError::Corrupt,
+            source: topo::PcurveMintError::LoopNotClosed {
+                face: FaceKey::default(),
+            },
         },
         BlendError::Op {
             site: "strut mev",
-            source: topo::EulerOpError::StaleKey {
-                key: EntityId::Edge(EdgeKey::default()),
-            },
+            source: topo::EulerOpError::DescriptionNotAdjacent { edge: None },
         },
     ]
 }
@@ -283,7 +281,7 @@ fn verb_words_appear_only_where_a_disposition_covers_them() {
 #[test]
 fn a_nonpositive_radius_fillet_refuses_as_invalid_input() {
     let t = Tol::witness();
-    let body = cube(1.0, t);
+    let body = sweep::test_support::finished("body", cube(1.0, t), t);
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     for radius in [0.0, -0.1, f64::NAN] {
         let err = fillet_edges(&body, &edges, radius, t)

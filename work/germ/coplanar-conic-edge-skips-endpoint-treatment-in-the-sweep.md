@@ -14,7 +14,7 @@ refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exi
 ## What
 
 `reduce.rs` `sweep_direction`, the conic × plane lane: when
-`conic_plane_crossing_roots` returns `Ok(None)`, the lane `continue`s
+`plane_crossing_lane` returns `Ok(None)`, the lane `continue`s
 with no endpoint treatment. `Ok(None)` has two causes, and one of them
 is not "never meets": the PARALLEL-frame gate (`classify.rs`, the
 `split_conic_plane_parallel` `Zero` arm) returns it for a conic whose
@@ -54,7 +54,7 @@ certificate's premise-S audit line for the lane.
 
 ## Closed — the parallel frame is told apart (germ/coplanar-conic-endpoints)
 
-`conic_plane_crossing_roots` returns `ConicPlaneMeet`: `Miss` for the
+`plane_crossing_lane` returns `ConicPlaneMeet`: `Miss` for the
 definitely-never-meets graze arm, `Parallel { offset }` for the
 parallel-frame gate, `Roots(..)` otherwise. `sweep_direction` decides
 the offset on the band (`bool_conic_face_plane_offset`): off the plane
@@ -103,4 +103,4 @@ the tilted plane×sphere section:
 - PR 9c's die-pips smoke shape refused `FallbackExtentUnsupported`
   (tangency) and now refuses `Join(SectionInvariant)`; re-pinned as
   `m5_pr9c_sphere_doors.rs`
-  `the_die_pips_shape_stops_typed_at_its_tilted_section`.
+  `the_die_pips_shape_stops_typed_at_its_section_roles`.

@@ -126,7 +126,9 @@ fn u3_differential_loft_prism_is_bit_identical_to_the_recorded_base() {
         let lp = &section[0];
         assert_eq!(lp.vertices().len(), 4, "section {i} is a quad");
         assert!(
-            lp.bulges().iter().all(|&b| b == 0.0),
+            lp.segments()
+                .iter()
+                .all(|s| matches!(s, profile::Segment::Line)),
             "section {i} carries an arc: the pinned bits are a POLYLINE loft's"
         );
         assert!(

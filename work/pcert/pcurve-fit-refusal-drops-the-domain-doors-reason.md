@@ -2,10 +2,13 @@
 id: pcurve-fit-refusal-drops-the-domain-doors-reason
 kind: issue
 title: PlaneNurbsRefusal::PcurveFit discards the domain door's typed SplineError
-status: open
+status: closed
 opened: 2026-09-12
 priority: P1
 cost: E
+branch: pcert/pcurve-fit-domain-refusal
+closed: 2026-10-01
+pr: 3612
 ---
 
 ## Finding
@@ -32,7 +35,7 @@ Two answers are on the table, both TRIM's: give `PcurveFit` a payload
 split a `CarrierDomain { lo, hi }` refusal off it. `PlaneNurbsRefusal`
 is `Copy + PartialEq`, and `SplineError` is neither `Copy` nor `Eq`, so
 the payload choice is a design choice for the enum's derives too. The
-same producer feeds `crate::PcurveFittedLane::general_image`, so the
+same producer feeds `crate::FittedLane::general_image`, so the
 mint's vocabulary moves with it.
 
 A twin on the same seam: `chart_image`'s schedule now ASSIGNS its end
@@ -45,3 +48,15 @@ sample is an ulp off the parameter the schedule actually projected —
 and the certificate's own `sample_param` (`certify.rs`, D9-fixed
 association) computes its last sample the same way, so limb 1's last
 re-projection sits an ulp outside an image whose domain is exact.
+
+## Closed (PR 3612, 2026-10-01)
+
+`PlaneNurbsRefusal::CarrierDomain` and `PcurveCertifyError::CarrierDomain`
+carry `CarrierDomainRefusal { lo, hi, fault }`, with the domain door
+asked before any sample, so an overflowing or collapsing carrier
+refuses as its own fault; one recourse, `CARRIER_DOMAIN_RECOURSE`. The
+twin closed with it: `certify::schedule_param` is the one sample
+schedule with exact ends, read by `chart_image`, the mint's
+`LastFootDistance`, `sample_param` and the former copies. Its merge
+moved `editor-core`'s `m10_sym_profile_interval` ledger, which its
+change filter did not run; re-baselined on `pcert/rebaseline-sym-ledger`.

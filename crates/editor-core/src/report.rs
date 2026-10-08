@@ -35,8 +35,9 @@ use std::collections::BTreeMap;
 
 use crate::analysis::{AnalyzedBox, MeasureUnavailable};
 use crate::distribution::Distribution;
-use crate::doc::ParamName;
 use crate::eval::{ContentKey, KeyHasher, key_of};
+use crate::spoken::SpokenVar;
+use crate::var::VarId;
 
 /// **Priced or forced** — the honesty type the unresolved-mass budget
 /// was missing (the M10-1 adjudication's R2 MINOR-1, this unit's named
@@ -65,8 +66,9 @@ pub enum MassBasis {
     /// report that called them "priced" would be claiming a shape
     /// nobody stated.
     Forced {
-        /// Every band-carrying parameter, in name order.
-        by: Vec<ParamName>,
+        /// Every band-carrying variable, in declaration order — by identity, so
+        /// a rename moves no basis ([`Self::sentence`] speaks them).
+        by: Vec<VarId>,
     },
 }
 
@@ -79,10 +81,10 @@ impl MassBasis {
     /// measure with σ = 0, and a document of nothing but fixed
     /// parameters is priced (trivially, and truthfully).
     pub fn of(analyzed: &AnalyzedBox) -> Self {
-        let by: Vec<ParamName> = analyzed
+        let by: Vec<VarId> = analyzed
             .varying()
             .filter(|(_, p)| matches!(p.distribution, Some(Distribution::Band { .. })))
-            .map(|(name, _)| name.clone())
+            .map(|(id, _)| id)
             .collect();
         if by.is_empty() {
             Self::Priced
@@ -100,20 +102,20 @@ impl MassBasis {
     }
 }
 
-impl core::fmt::Display for MassBasis {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl MassBasis {
+    /// The basis spelled out, each band-carrying variable spoken by
+    /// `speak` — at display time, so the basis itself holds ids alone.
+    pub fn sentence(&self, speak: impl Fn(VarId) -> SpokenVar) -> String {
         match self {
-            Self::Priced => f.write_str(
-                "priced: every varying parameter carries a stated distribution, so these \
-                 masses are integrals of a stated measure",
-            ),
-            Self::Forced { by } => write!(
-                f,
+            Self::Priced => "priced: every varying parameter carries a stated distribution, \
+                             so these masses are integrals of a stated measure"
+                .to_owned(),
+            Self::Forced { by } => format!(
                 "FORCED, not priced: {} carr{} a band — limits with no shape — so these \
                  masses are what set theory forces on any measure consistent with those \
                  limits, and none of them is a probability",
                 by.iter()
-                    .map(|p| p.0.clone())
+                    .map(|&id| speak(id).to_string())
                     .collect::<Vec<_>>()
                     .join(", "),
                 if by.len() == 1 { "ies" } else { "y" }
@@ -128,7 +130,7 @@ impl core::fmt::Display for MassBasis {
 /// The numbers are the drive's own, verbatim — this recomputes
 /// nothing. What it adds is the [`MassBasis`] beside them and the two
 /// doors every report in this lane carries.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct MassBudget {
     /// Mass on certified leaves.
     pub certified: Result<f64, MeasureUnavailable>,
@@ -144,6 +146,27 @@ pub struct MassBudget {
     pub containment: bool,
     /// Priced or forced ([`MassBasis`]).
     pub basis: MassBasis,
+}
+
+impl PartialEq for MassBudget {
+    fn eq(&self, other: &Self) -> bool {
+        // Exhaustive, so a field added to the budget must say whether it
+        // is identity; the spoken forms are not (a rename moves no mass).
+        let Self {
+            certified,
+            unresolved,
+            refused,
+            tail,
+            containment,
+            basis,
+        } = self;
+        *certified == other.certified
+            && *unresolved == other.unresolved
+            && *refused == other.refused
+            && *tail == other.tail
+            && *containment == other.containment
+            && *basis == other.basis
+    }
 }
 
 impl MassBudget {
@@ -170,7 +193,7 @@ impl MassBudget {
         let _ = writeln!(s, "basis {}", self.basis.word());
         if let MassBasis::Forced { by } = &self.basis {
             for p in by {
-                let _ = writeln!(s, "band {}", p.0);
+                let _ = writeln!(s, "band {}", p.full());
             }
         }
         let _ = writeln!(s, "certified {}", mass_bits(&self.certified));
@@ -189,11 +212,18 @@ impl MassBudget {
     }
 
     /// The human form: percentages, the basis spelled out, the tail on
-    /// its own line, and every unavailability named.
-    pub fn render(&self) -> String {
+    /// its own line, and every unavailability named — each variable
+    /// spoken from `doc`, the document the budget's box was taken of, as
+    /// it holds them now (a rename moves no mass, and the line says the
+    /// name the document holds).
+    pub fn render<P>(&self, doc: &crate::doc::Doc<P>) -> String {
         use core::fmt::Write as _;
+        let percent = |m: &Result<f64, MeasureUnavailable>| match m {
+            Ok(_) => percent(m),
+            Err(e) => percent(&Err(e.respoken(doc))),
+        };
         let mut s = String::new();
-        let _ = writeln!(s, "{}", self.basis);
+        let _ = writeln!(s, "{}", self.basis.sentence(|id| doc.spoken_var(id)));
         let _ = writeln!(s, "  certified   {}", percent(&self.certified));
         for (class, m) in &self.refused {
             let _ = writeln!(s, "  refused ({class}) {}", percent(m));
@@ -230,6 +260,9 @@ impl MassBudget {
 /// to infer it from a doc comment they are not reading.
 #[derive(Debug, Clone, PartialEq)]
 pub struct LeafHistogram {
+    /// The document this was taken of, the one document its human
+    /// form speaks from. Outside the goldening form and its content key.
+    pub document: crate::DocumentId,
     /// The measure the rows are about.
     pub measurement: crate::node::RecipeNodeId,
     /// One row per certified leaf, in the drive's own leaf order.
@@ -260,7 +293,7 @@ impl LeafHistogram {
         let _ = writeln!(
             s,
             "histogram measure={} rows={}",
-            self.measurement.0,
+            self.measurement.full(),
             self.rows.len()
         );
         let _ = writeln!(s, "basis {}", self.basis.word());
@@ -285,25 +318,32 @@ impl LeafHistogram {
 
     /// The human form. The advisory label is the first line, and the
     /// uncovered mass is the last: a reader meets both without looking
-    /// for them.
-    pub fn render(&self) -> String {
+    /// for them. The measure is spoken from `doc`, the document the
+    /// histogram was taken of.
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the histogram was taken of.
+    pub fn render<P>(&self, doc: &crate::doc::Doc<P>) -> String {
         use core::fmt::Write as _;
+        crate::spoken::assert_taken_of("this leaf histogram", self.document, doc);
         let mut s = String::new();
         let _ = writeln!(
             s,
-            "ADVISORY leaf-mass histogram of node {} — leaf mass against the measure's \
+            "ADVISORY leaf-mass histogram of {} — leaf mass against the measure's \
              certified enclosure over that leaf. Not a density: a true output density is v2 \
              (E11.6), and nothing here claims one.",
-            self.measurement.0
+            doc.spoken(self.measurement)
         );
-        let _ = writeln!(s, "{}", self.basis);
+        let _ = writeln!(s, "{}", self.basis.sentence(|id| doc.spoken_var(id)));
         for row in &self.rows {
+            let (lo, hi) = row.enclosure;
             let _ = writeln!(
                 s,
                 "  {:>8} of mass in [{}, {}]   {}",
                 percent(&row.mass),
-                row.enclosure.0,
-                row.enclosure.1,
+                lo,
+                hi,
                 row.leaf
             );
         }
@@ -405,6 +445,7 @@ pub fn leaf_histogram(
         (Err(e), _) | (_, Err(e)) => Err(e),
     };
     LeafHistogram {
+        document: doc.id(),
         measurement,
         rows,
         uncovered,
@@ -500,8 +541,8 @@ pub fn report_key(
     h.write_str(kind);
     h.write_u64((slice >> 64) as u64);
     h.write_u64(slice as u64);
-    for (name, axis) in box_.axes() {
-        h.write_str(&name.0);
+    for (var, axis) in box_.axes() {
+        h.write_id(var.0);
         let (lo, hi) = axis.span();
         h.write_f64_bits(lo);
         h.write_f64_bits(hi);
@@ -566,7 +607,7 @@ pub(crate) fn mass_bits(m: &Result<f64, MeasureUnavailable>) -> String {
     match m {
         Ok(v) => format!("{:016x}", v.to_bits()),
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
-            format!("band:{}", param.0)
+            format!("band:{}", param.id().full())
         }
     }
 }

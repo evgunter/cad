@@ -298,7 +298,10 @@ struct Builder<'a> {
 impl<'a> Builder<'a> {
     /// Wraps an operator refusal with the entity being assembled.
     fn op_err(id: u64) -> impl FnOnce(topo::EulerOpError) -> StepImportError {
-        move |source| StepImportError::Assembly { id, source }
+        move |source| StepImportError::Assembly {
+            id,
+            source: source.from_driver(),
+        }
     }
 
     /// The nearest built σ-successor of `u` — the fan-position anchor
@@ -402,7 +405,9 @@ impl<'a> Builder<'a> {
             // `dying` is the outer of `keep`'s own face, so `keep` is
             // one of its rings: promote `keep` to a fresh face, then
             // fall through to the cross-face demotion below.
-            self.body.mfkrh_plug(keep).map_err(Self::op_err(edge_id))?;
+            self.body
+                .mfkrh_plug(keep, true)
+                .map_err(Self::op_err(edge_id))?;
             return self.make_ring_of(edge_id, keep, dying);
         }
         if dying_is_outer {
@@ -847,12 +852,12 @@ fn assemble_solid(
             }
         }
     };
-    let seed = body
-        .mvfs(solid.vertices[&root])
-        .map_err(|source| StepImportError::Assembly {
-            id: solid.id,
-            source,
-        })?;
+    let seed =
+        body.mvfs(solid.vertices[&root], true)
+            .map_err(|source| StepImportError::Assembly {
+                id: solid.id,
+                source: source.from_driver(),
+            })?;
     let mut vstate = BTreeMap::new();
     for &v in solid.vertices.keys() {
         vstate.insert(v, VState::Unbuilt);
@@ -1100,7 +1105,7 @@ mod tests {
         // A body with one real half-edge, so `use_he` can hold a key
         // the fan walk reads as built.
         let anchor = |body: &mut Body<f64>| {
-            let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).expect("mvfs");
+            let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).expect("mvfs");
             body.mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,

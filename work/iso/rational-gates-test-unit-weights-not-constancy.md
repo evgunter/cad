@@ -4,7 +4,7 @@ kind: issue
 title: The cap class's 'is this rational' gate tests weights == 1.0 where any constant weight vector is polynomial - over-strict by TRIM-1's own insight
 status: open
 opened: 2026-09-06
-refs: [interior-iso-curve-de-boor-extractor, 2095]
+refs: [2095]
 priority: P1
 cost: E
 ---

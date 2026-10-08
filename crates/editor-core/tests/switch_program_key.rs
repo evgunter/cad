@@ -10,21 +10,31 @@
 //! The plane is NOT in that stream. It is a document node the profile
 //! names, so it folds into the key as an upstream input key, the same
 //! way every other input does; these rows build every document with
-//! its frame at node 0 and read the profile at node 1.
+//! its frame first and read the profile second.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{ang, len, len2, scl, xy_frame};
 use editor_core::{
-    CancelToken, ContentKey, Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
-    ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, evaluate, parse_expr,
+    CancelToken, ContentKey, Dimension, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram, Node,
+    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SlotId,
+    StepArg, VarName, evaluate, parse_formula,
 };
 use geom_core::Tol;
 
-/// The frame every document below is built on, and the profile drawn
-/// on it: two nodes, inserted in that order.
-const PLANE: RecipeNodeId = RecipeNodeId(0);
-const PROFILE: RecipeNodeId = RecipeNodeId(1);
+/// The frame every document below is built on: the id its insert
+/// mints, first among the minting edits of every document here, so one
+/// id in all of them (D9).
+fn plane() -> RecipeNodeId {
+    crate::fixture::newest(&with_frame(ProfileDoc::empty_derived(
+        "switch_program_key",
+        Tol::witness(),
+    )))
+}
+
+/// The profile drawn on that frame: the document's second node.
+fn profile(doc: &ProfileDoc) -> RecipeNodeId {
+    doc.ids()[1]
+}
 
 fn key_of(doc: &ProfileDoc) -> ContentKey {
     let ev = evaluate::<f64>(
@@ -34,19 +44,22 @@ fn key_of(doc: &ProfileDoc) -> ContentKey {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    ev.value(PROFILE).expect("profile evaluates").content_key
+    ev.value(profile(doc))
+        .expect("profile evaluates")
+        .content_key
 }
 
-fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
+fn doc_with(loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness());
     with_frame(doc)
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
-                    plane: PLANE,
+                node: Box::new(Node::Profile(ProfileProgram {
+                    plane: plane(),
                     loops,
                     ids: Vec::new(),
-                }),
+                })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -55,16 +68,51 @@ fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
         .doc
 }
 
-/// The world xy frame at node 0. Every row here is about the PROGRAM's
+/// The world xy frame, inserted first. Every row here is about the PROGRAM's
 /// key, so every document shares one plane: a key difference between
 /// two of these documents can only have come from their programs.
 fn with_frame(doc: ProfileDoc) -> ProfileDoc {
     doc.apply(
-        &DocEdit::InsertNode { node: xy_frame() },
+        &DocEdit::InsertNode {
+            node: Box::new(xy_frame()),
+            fresh: Vec::new(),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
     .expect("the frame inserts")
+    .doc
+}
+
+/// `doc` with the one expression of its profile at argument `arg`
+/// re-spelled as `expr`, through the value door: the steps keep the ids
+/// the insert minted, so two documents compared here differ in that one
+/// spelling and nothing else. (Two documents authored apart with
+/// different spellings mint their steps from different edits, so their
+/// ids — and so their keys — differ; a display unit alone is not a
+/// different spelling, D6.)
+fn respelled(doc: &ProfileDoc, arg: StepArg, expr: Formula) -> ProfileDoc {
+    let slots: Vec<SlotId> = doc
+        .node(profile(doc))
+        .expect("the profile is the second node")
+        .slots()
+        .into_iter()
+        .filter(|s| matches!(*s, SlotId::Profile { arg: a, .. } if a == arg))
+        .collect();
+    let [slot] = slots.as_slice() else {
+        panic!("one {arg:?} slot, got {slots:?}");
+    };
+    doc.apply(
+        &DocEdit::SetParam {
+            node: profile(doc),
+            slot: *slot,
+            expr,
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the re-spelling applies")
     .doc
 }
 
@@ -119,35 +167,38 @@ fn verb_tags_are_structure() {
 #[test]
 fn resolved_values_feed_the_key() {
     let with_param = |value: f64| {
-        let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness());
+        let doc = with_frame(ProfileDoc::empty_derived(
+            "switch_program_key",
+            Tol::witness(),
+        ));
         let doc = doc
             .apply(
-                &DocEdit::SetDocParam {
-                    name: ParamName::new("r"),
-                    value: DocParam::continuous(Dimension::Length, value),
+                &DocEdit::DeclareVar {
+                    name: VarName::from_static("r"),
+                    def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
                 },
                 Tol::witness(),
                 &editor_core::RefusingReach,
             )
             .unwrap()
             .doc;
-        with_frame(doc)
-            .apply(
-                &DocEdit::InsertNode {
-                    node: Node::Profile(ProfileProgram {
-                        plane: PLANE,
-                        loops: vec![LoopProgram::Circle {
-                            centre: [len(0.0), len(0.0)],
-                            radius: Expr::param(ParamName::new("r"), Dimension::Length),
-                        }],
-                        ids: Vec::new(),
-                    }),
-                },
-                Tol::witness(),
-                &editor_core::RefusingReach,
-            )
-            .unwrap()
-            .doc
+        doc.apply(
+            &DocEdit::InsertNode {
+                node: Box::new(Node::Profile(ProfileProgram {
+                    plane: plane(),
+                    loops: vec![LoopProgram::Circle {
+                        centre: [len(0.0), len(0.0)],
+                        radius: Formula::named(VarName::from_static("r"), Dimension::Length),
+                    }],
+                    ids: Vec::new(),
+                })),
+                fresh: Vec::new(),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .unwrap()
+        .doc
     };
     let k_half = key_of(&with_param(0.5));
     let k_quarter = key_of(&with_param(0.25));
@@ -171,39 +222,43 @@ fn resolved_values_feed_the_key() {
 /// what happened.
 #[test]
 fn a_carrier_centre_respelled_keys_identically() {
-    let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness());
+    let doc = with_frame(ProfileDoc::empty_derived(
+        "switch_program_key",
+        Tol::witness(),
+    ));
     let doc = doc
         .apply(
-            &DocEdit::SetDocParam {
-                name: ParamName::new("cx"),
-                value: DocParam::continuous(Dimension::Length, 1.0),
+            &DocEdit::DeclareVar {
+                name: VarName::from_static("cx"),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
-    let parameterized = with_frame(doc)
+    let parameterized = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
-                    plane: PLANE,
+                node: Box::new(Node::Profile(ProfileProgram {
+                    plane: plane(),
                     loops: vec![LoopProgram::Circle {
                         centre: [
-                            Expr::param(ParamName::new("cx"), Dimension::Length),
+                            Formula::named(VarName::from_static("cx"), Dimension::Length),
                             len(0.0),
                         ],
                         radius: len(0.5),
                     }],
                     ids: Vec::new(),
-                }),
+                })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
         .unwrap()
         .doc;
-    let literal = doc_with(vec![LoopProgram::circle(1.0, 0.0, 0.5).unwrap()]);
+    let literal = respelled(&parameterized, StepArg::CenterX, len(1.0));
     assert_eq!(
         key_of(&parameterized),
         key_of(&literal),
@@ -214,7 +269,7 @@ fn a_carrier_centre_respelled_keys_identically() {
 /// A chain whose one arc is drawn at `radius`, closed back to its
 /// start: a straight leg, a tangent quarter-turn arc, and the closing
 /// leg.
-fn one_arc_chain(radius: Expr) -> LoopProgram {
+fn one_arc_chain(radius: Formula) -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(0.0)]),
         ProgramStep::Toward {
@@ -234,32 +289,35 @@ fn one_arc_chain(radius: Expr) -> LoopProgram {
 
 /// A document declaring `r` at `value`, carrying one profile built from
 /// `loops` — the same two nodes every row here uses.
-fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
-    let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness())
-        .apply(
-            &DocEdit::SetDocParam {
-                name: ParamName::new("r"),
-                value: DocParam::continuous(Dimension::Length, value),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .unwrap()
-        .doc;
-    with_frame(doc)
-        .apply(
-            &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
-                    plane: PLANE,
-                    loops,
-                    ids: Vec::new(),
-                }),
-            },
-            Tol::witness(),
-            &editor_core::RefusingReach,
-        )
-        .unwrap()
-        .doc
+fn doc_with_r(value: f64, loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
+    let doc = with_frame(ProfileDoc::empty_derived(
+        "switch_program_key",
+        Tol::witness(),
+    ))
+    .apply(
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("r"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap()
+    .doc;
+    doc.apply(
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Profile(ProfileProgram {
+                plane: plane(),
+                loops,
+                ids: Vec::new(),
+            })),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .unwrap()
+    .doc
 }
 
 /// **A CHAIN's arc radius is flow-bearing exactly as a carrier loop's
@@ -277,8 +335,8 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
 fn a_chain_arcs_radius_feeds_the_key() {
     let parameterized = doc_with_r(
         0.5,
-        vec![one_arc_chain(Expr::param(
-            ParamName::new("r"),
+        vec![one_arc_chain(Formula::named(
+            VarName::from_static("r"),
             Dimension::Length,
         ))],
     );
@@ -301,7 +359,7 @@ fn a_chain_arcs_radius_feeds_the_key() {
 /// feed that wrote every Length expression of a chain would red here.
 #[test]
 fn a_straight_chain_respelled_keys_identically() {
-    let straight = |length: Expr| {
+    let straight = |length: Formula| {
         LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::Toward {
@@ -315,12 +373,12 @@ fn a_straight_chain_respelled_keys_identically() {
     };
     let parameterized = doc_with_r(
         4.0,
-        vec![straight(Expr::param(
-            ParamName::new("r"),
+        vec![straight(Formula::named(
+            VarName::from_static("r"),
             Dimension::Length,
         ))],
     );
-    let literal = doc_with_r(4.0, vec![straight(len(4.0))]);
+    let literal = respelled(&parameterized, StepArg::Length, len(4.0));
     assert_eq!(
         key_of(&parameterized),
         key_of(&literal),
@@ -333,10 +391,10 @@ fn a_straight_chain_respelled_keys_identically() {
 #[test]
 fn display_units_never_enter_the_key() {
     let params = std::collections::BTreeMap::new();
-    let mm = parse_expr("500 mm", &params).unwrap();
-    let m = parse_expr("0.5 m", &params).unwrap();
+    let mm = parse_formula("500 mm", &params).unwrap();
+    let m = parse_formula("0.5 m", &params).unwrap();
     let canonical = len(0.5);
-    let make = |r: Expr| {
+    let make = |r: Formula| {
         doc_with(vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: r,

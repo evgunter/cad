@@ -31,7 +31,7 @@ pub fn boxed(min: [f64; 3], max: [f64; 3]) -> Aabb {
 /// The ray from `origin` along `dir`.
 pub fn ray(origin: [f64; 3], dir: [f64; 3]) -> Ray {
     Ray {
-        origin: Point3::new(origin[0], origin[1], origin[2]),
-        dir: Vec3::new(dir[0], dir[1], dir[2]),
+        origin: Point3::from_array(origin),
+        dir: Vec3::from_array(dir),
     }
 }

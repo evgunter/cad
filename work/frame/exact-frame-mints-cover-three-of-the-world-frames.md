@@ -53,6 +53,6 @@ Either wants PROPS' call, since the type is `geom-core/src/linalg`'s.
 ## Not the same as a "trust me" mint
 
 Both shapes above stay inside the ruling
-(`work/scalar/unit-vector-invariants-carried-as-prose.md` §RATIFIED):
+(SCALAR's `unit-vector-invariants-carried-as-prose` (ruled on PR 2457; `docs/doc-ledger/scalar-leaves-the-tracker.md`) §RATIFIED):
 they add EXACT frames whose axes are literal basis vectors, never a
 constructor that accepts a pair a caller believes is orthonormal.

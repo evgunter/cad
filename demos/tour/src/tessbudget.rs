@@ -1,5 +1,5 @@
-//! The **tessellation-budget sweep** (issue #320): every tour scene
-//! tessellated at its own δ with `mesh::budget` armed, dumped as one
+//! The **tessellation-budget sweep** (issue #320): every tour body
+//! tessellated at the δ the tour renders it at, with `mesh::budget` armed, dumped as one
 //! CSV row per face.
 //!
 //! This is the DRIVER of the budget instrument — the same shape as the
@@ -111,12 +111,12 @@ pub fn run(path: Option<String>, deviation: bool, tol: Tol) {
                 // The mesh is what the rows are ABOUT: a face's chart and
                 // triangle count are already in it, so the meter is not
                 // asked to report them.
-                let mesh = pncad::mesh::tessellate(&sb.body, stop.delta, tol).unwrap_or_else(|e| {
-                    panic!("{scene}: tessellate at delta {}: {e:?}", stop.delta)
-                });
+                let delta = sb.delta(stop.delta);
+                let mesh = pncad::mesh::tessellate(&sb.body, delta, tol)
+                    .unwrap_or_else(|e| panic!("{scene}: tessellate at delta {delta}: {e:?}"));
                 let measures = budget::take();
                 let rows = tess_meter::face_rows(
-                    stop.delta,
+                    delta,
                     &sb.body,
                     &mesh,
                     &measures,
@@ -129,8 +129,7 @@ pub fn run(path: Option<String>, deviation: bool, tol: Tol) {
                 }
                 faces += rows.len();
                 println!(
-                    "   [{scene}] delta = {:.0e}: {} faces, {} triangles",
-                    stop.delta,
+                    "   [{scene}] delta = {delta:.0e}: {} faces, {} triangles",
                     rows.len(),
                     rows.iter().map(|r| r.triangles).sum::<usize>()
                 );

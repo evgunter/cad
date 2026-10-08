@@ -61,13 +61,14 @@ fn axis_doc(name: &str, dir: [f64; 3]) -> (ProfileDoc, RecipeNodeId) {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Datum(Datum::Axis {
+            node: Box::new(Node::Datum(Datum::Axis {
                 origin: [len(0.0), len(0.0), len(0.0)],
                 direction: dir.map(scl),
-            }),
+            })),
+            fresh: Vec::new(),
         },
     );
-    let spine = *doc.order().last().expect("the datum");
+    let spine = *doc.ids().last().expect("the datum");
     (doc, spine)
 }
 
@@ -103,17 +104,18 @@ fn r2_the_storage_contract_holds_at_non_dyadic_radii() {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::HollowTube {
+            node: Box::new(Node::HollowTube {
                 spine,
                 u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(outer),
                 wall: len(wall),
-            },
+            }),
+            fresh: Vec::new(),
         },
     );
-    let tube = *doc.order().last().expect("the tube");
+    let tube = *doc.ids().last().expect("the tube");
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = body_of(&ev, tube);
@@ -157,7 +159,7 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Tube {
+            node: Box::new(Node::Tube {
                 spine,
                 u_ref: u.clone(),
                 major_radius: len(2.0),
@@ -166,14 +168,15 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
                     t1: ang(1.5),
                 },
                 minor_radius: len(0.5),
-            },
+            }),
+            fresh: Vec::new(),
         },
     );
-    let solid = *doc.order().last().expect("solid tube");
+    let solid = *doc.ids().last().expect("solid tube");
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::HollowTube {
+            node: Box::new(Node::HollowTube {
                 spine,
                 u_ref: u.clone(),
                 major_radius: len(2.0),
@@ -183,17 +186,18 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
                 },
                 minor_radius: len(0.5),
                 wall: len(0.125),
-            },
+            }),
+            fresh: Vec::new(),
         },
     );
-    let hollow = *doc.order().last().expect("hollow tube");
+    let hollow = *doc.ids().last().expect("hollow tube");
     // A THIRD tube identical to the first in every parameter: the
     // sharpest collision candidate the vocabulary permits, since only
     // the minting node distinguishes the two bodies.
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Tube {
+            node: Box::new(Node::Tube {
                 spine,
                 u_ref: u,
                 major_radius: len(2.0),
@@ -202,10 +206,11 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
                     t1: ang(1.5),
                 },
                 minor_radius: len(0.5),
-            },
+            }),
+            fresh: Vec::new(),
         },
     );
-    let twin = *doc.order().last().expect("the twin tube");
+    let twin = *doc.ids().last().expect("the twin tube");
 
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
@@ -272,17 +277,18 @@ fn r2_a_hollow_rings_cavity_is_named_by_the_revolve_template() {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::HollowTube {
+            node: Box::new(Node::HollowTube {
                 spine,
                 u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
                 wall: len(0.125),
-            },
+            }),
+            fresh: Vec::new(),
         },
     );
-    let tube = *doc.order().last().expect("the tube");
+    let tube = *doc.ids().last().expect("the tube");
     let ev = eval::<f64>(&doc);
     assert!(failures(&ev).is_empty(), "{:?}", failures(&ev));
     let body = body_of(&ev, tube);
@@ -323,16 +329,17 @@ fn r2_a_non_unit_axis_refuses_upstream_and_never_reaches_the_tube_door() {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Tube {
+            node: Box::new(Node::Tube {
                 spine,
                 u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
-            },
+            }),
+            fresh: Vec::new(),
         },
     );
-    let tube = *doc.order().last().expect("the tube");
+    let tube = *doc.ids().last().expect("the tube");
     let ev = eval::<f64>(&doc);
 
     // Whatever happens, it must NOT be the tube door's own verdict.
@@ -371,16 +378,17 @@ fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
     long_doc = push(
         &long_doc,
         &DocEdit::InsertNode {
-            node: Node::Tube {
+            node: Box::new(Node::Tube {
                 spine: long_spine,
                 u_ref: [2.0, 0.0, 0.0].map(scl),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
-            },
+            }),
+            fresh: Vec::new(),
         },
     );
-    let long_tube = *long_doc.order().last().expect("the tube");
+    let long_tube = *long_doc.ids().last().expect("the tube");
     let long_ev = eval::<f64>(&long_doc);
     assert!(
         matches!(long_ev.nodes.get(&long_tube), Some(NodeResult::Ok(_))),
@@ -393,16 +401,17 @@ fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Tube {
+            node: Box::new(Node::Tube {
                 spine,
                 u_ref: [0.0, 0.0, 1.0].map(scl),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
-            },
+            }),
+            fresh: Vec::new(),
         },
     );
-    let tube = *doc.order().last().expect("the tube");
+    let tube = *doc.ids().last().expect("the tube");
     let ev = eval::<f64>(&doc);
     match ev.nodes.get(&tube) {
         Some(NodeResult::Failed(e)) => match &e.kind {
@@ -444,13 +453,14 @@ fn r2_a_tube_bearing_save_refuses_typed_on_a_build_that_lacks_the_vocabulary() {
     doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Tube {
+            node: Box::new(Node::Tube {
                 spine,
                 u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
-            },
+            }),
+            fresh: Vec::new(),
         },
     );
     let bytes = save(&doc, &[], Tol::witness()).expect("the document saves");

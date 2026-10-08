@@ -7,6 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
@@ -14,10 +15,10 @@ use editor_core::drive::{DriveConfig, RefusalReason, SymbolicDials, assertion_at
 use editor_core::report::MassBudget;
 use editor_core::stackup::stackup;
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr, GeomPred,
-    LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeResult, ParamName, ProfileDoc,
-    ProfileLift, ProfileProgram, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
-    evaluate, select_where,
+    Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Formula, FreeVar, GeomPred,
+    LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileLift,
+    ProfileProgram, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, evaluate,
+    select_where,
 };
 use fixture::{Recorder, len, scl, xy_frame};
 use geom_core::Tol;
@@ -25,8 +26,8 @@ use geom_core::Tol;
 use crate::m10_3_driver_interval::{slab, sliver_axis};
 use crate::m10_7_plate::plate;
 
-fn param(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn param(n: &'static str) -> Formula {
+    Formula::named(VarName::from_static(n), Dimension::Length)
 }
 
 /// Every `Failed` node of a leaf replay, with its kind — the first is
@@ -46,7 +47,9 @@ fn failures(
         ev.order
             .iter()
             .filter_map(|id| match ev.result(*id) {
-                Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+                Some(NodeResult::Failed(e)) => {
+                    Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+                }
                 _ => None,
             })
             .collect::<Vec<_>>()
@@ -72,7 +75,9 @@ fn failures(
         ev.order
             .iter()
             .filter_map(|id| match ev.result(*id) {
-                Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+                Some(NodeResult::Failed(e)) => {
+                    Some(format!("node {} — {} — {:?}", id.0, e.kind, e.kind))
+                }
                 _ => None,
             })
             .collect()
@@ -274,10 +279,14 @@ fn r1_max_leaves_zero_with_the_tier_on() {
 #[test]
 fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
     use editor_core::mate::{Alignment, AxisSense, MateFrame, MatePrimitive};
-    let frame = |origin: [f64; 3]| MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
+    let frame = |origin: [f64; 3]| {
+        MateFrame::authored(
+            origin,
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            geom_core::Tol::witness(),
+        )
+        .expect("a definite frame")
     };
     let at = |o: f64| Alignment {
         a: frame([o, 0.0, 0.0]),
@@ -286,13 +295,16 @@ fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
         sense: AxisSense::Aligned,
         clocking: None,
     };
+    // The datum term over the two sides' resolved frames — both are
+    // authored vectors here, so resolution is the projection.
+    let lever = fixture::datum_lever;
     // A datum at the origin contributes NOTHING — no metre stands in
     // for the parts, which the solve adds from their own bodies.
-    assert_eq!(at(0.0).lever_arm(), 0.0);
+    assert_eq!(lever(&at(0.0)), 0.0);
     // A datum at a nanometre contributes a nanometre: no floor, no
     // refusal — the parts on either side carry the lever.
-    assert_eq!(at(1e-9).lever_arm(), 1e-9);
-    assert_eq!(at(1e-3).lever_arm(), 1e-3);
+    assert_eq!(lever(&at(1e-9)), 1e-9);
+    assert_eq!(lever(&at(1e-3)), 1e-3);
     // Both origins and every authored length SUM: an upper bound on
     // the datum's own extent, never the larger of them.
     let rest = Alignment {
@@ -302,7 +314,7 @@ fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
         sense: AxisSense::Opposed,
         clocking: None,
     };
-    assert_eq!(rest.lever_arm(), 3.0e-3 + 4.0e-3 + 2.0e-3);
+    assert_eq!(lever(&rest), 3.0e-3 + 4.0e-3 + 2.0e-3);
 }
 
 // ------------------------------------------------------------ e2e
@@ -336,9 +348,9 @@ fn bracket_with(
     tol: Tol,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::new("w"),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("w"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 20.0e-3,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -346,10 +358,10 @@ fn bracket_with(
                 lo: -half_width,
                 hi: half_width,
             }),
-        },
+        }),
     });
     let w = || param("w");
-    let div = |a: Expr, k: f64| Expr::div(a, scl(k)).unwrap();
+    let div = |a: Formula, k: f64| Formula::div(a, scl(k)).unwrap();
     let plane = r.insert(xy_frame());
     let half = |k: f64| div(w(), k);
     // The plate: (−w/2, −w/4) .. (w/2, w/4), parametric corners.
@@ -363,17 +375,20 @@ fn bracket_with(
         .unwrap()
     } else {
         LoopProgram::Chain(vec![
-            editor_core::ProgramStep::At([Expr::neg(half(2.0)), Expr::neg(half(4.0))]),
+            editor_core::ProgramStep::At([
+                Formula::neg(half(2.0)).expect("a shallow negation"),
+                Formula::neg(half(4.0)).expect("a shallow negation"),
+            ]),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
                 half(2.0),
-                Expr::neg(half(4.0)),
+                Formula::neg(half(4.0)).expect("a shallow negation"),
             ])),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
                 half(2.0),
                 half(4.0),
             ])),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Point([
-                Expr::neg(half(2.0)),
+                Formula::neg(half(2.0)).expect("a shallow negation"),
                 half(4.0),
             ])),
             editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Start),
@@ -387,8 +402,9 @@ fn bracket_with(
     let _plate = r.insert(Node::Extrude {
         profile: plate_profile,
         distance: div(w(), 10.0),
+        side: ExtrudeSide::Along,
     });
-    let hole = |r: &mut Recorder, cx: Expr| {
+    let hole = |r: &mut Recorder, cx: Formula| {
         let profile = r.insert(Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Circle {
@@ -400,9 +416,10 @@ fn bracket_with(
         r.insert(Node::Extrude {
             profile,
             distance: div(w(), 10.0),
+            side: ExtrudeSide::Along,
         })
     };
-    let hole_a = hole(&mut r, Expr::neg(half(4.0)));
+    let hole_a = hole(&mut r, Formula::neg(half(4.0)).expect("a shallow negation"));
     let hole_b = hole(&mut r, half(4.0));
     let refs = {
         let ev: editor_core::Evaluation<f64> = evaluate(
@@ -412,14 +429,14 @@ fn bracket_with(
             &EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,
                 node,
                 &Selector::of(NamePat::of_kind(EntityKind::Face)),
                 &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                    geom_brep::SurfaceKind::Cylinder,
+                    geom::SurfaceKind::Cylinder,
                 ))],
                 &env,
                 tol,
@@ -486,15 +503,15 @@ fn r1_e2e_bracket_study() {
                     .or_insert(0usize) += 1;
             }
             println!("   refusals: {classes:?}");
-            println!("{}", MassBudget::of(v.accounting(), &analyzed).render());
+            println!("{}", MassBudget::of(v.accounting(), &analyzed).render(&doc));
             if dials.enabled {
                 let fails = failures(&doc, ParamBox::of(&analyzed), dials, tol);
                 for f in fails.iter().take(3) {
                     println!("   whole-box replay: {f}");
                 }
             }
-            match stackup(&doc, measure, &analyzed, &v, None, true, tol) {
-                Ok(report) => println!("{}", report.render(&analyzed)),
+            match stackup(&doc, measure, &analyzed, &v, None, true, None, tol) {
+                Ok(report) => println!("{}", report.render(&doc, &analyzed)),
                 Err(e) => println!("   stackup refused: {e}"),
             }
             let mut holds = (0, 0, 0);
