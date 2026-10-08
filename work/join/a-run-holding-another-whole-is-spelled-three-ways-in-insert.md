@@ -32,3 +32,12 @@ and settle ties differently, so one helper means choosing one tie rule
 for all three. That is not a contained change. Each reader's tie
 behaviour is pinned by rows today. A unification needs those rows as its
 oracle.
+
+## Since (branch `join/nested-pairing-shared-vertex`)
+
+`sibling_holds` and `sibling_holders` are gone. A plan's holders are
+now read one way, at the plan and again after the reconcile: from the
+runs' arcs of their walk (`insert::arc_holders`, the reading `b_runs`
+had). Two spellings remain: walk positions within one plan
+(`arc_holders`), and sector geometry across plans (`holds_whole`, and
+`held_cut` in the reconcile).
