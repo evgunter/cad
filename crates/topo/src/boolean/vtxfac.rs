@@ -868,7 +868,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             ))
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
-    // The ring's corners (step 3), read before any write.
+    // The ring's corners (step 3, [`ring_corners`]), read before any
+    // write.
     let ring = if runs.len() > 1 {
         let germs: Vec<_> = runs
             .iter()
@@ -881,7 +882,7 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             })
             .collect();
         let ring = ring_corners(&ring_order(&germs, n_pierced.vec(), band)?);
-        ring.ok_or(BooleanError::PierceRunsNested {
+        ring.ok_or(BooleanError::PierceRunsEnclose {
             operand: piercing,
             vertex,
             runs: runs.len(),
@@ -1139,7 +1140,10 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
 
 /// **The germs' order round the ring vertex**: indices into `germs`
 /// (each a direction and its arm), clockwise about the pierced face's
-/// outward `normal` from `germs[0]`.
+/// outward `normal` from `germs[0]`. Each comparison is
+/// [`super::insert::strut_order`]'s, levered at the shortest of its three
+/// germs' arms; one it cannot decide refuses, and nothing orders the
+/// germs otherwise.
 fn ring_order<T: Decide>(
     germs: &[(Vec3<T>, T)],
     normal: Vec3<T>,
@@ -1170,8 +1174,23 @@ fn ring_order<T: Decide>(
 /// **The ring's corners**, from the runs' germs in clockwise `order`
 /// ([`ring_order`]; run `i`'s start germ is `2i`, its end `2i + 1`):
 /// each run with whether its corner meets its start germ first, in the
-/// corners' clockwise order. `None` where a run's two germs are not
-/// neighbours in `order`.
+/// corners' clockwise order. A read of `order` alone, so it adds no
+/// predicate.
+///
+/// The ring is one loop of null struts at the pierce point, each
+/// strut's halves facing its run's two germs. Its corners alternate:
+/// one at each strut's far end, between that strut's halves, and one at
+/// the ring vertex between consecutive struts. They lie disjoint about
+/// the normal exactly when the loop passes the germs in clockwise
+/// order, so each run's two germs are neighbours there and the struts
+/// hang in their pairs' order. The runs are chords of the vertex's link
+/// above the face that do not cross. Where one has others on both
+/// sides its germs are not neighbours, and no ring of struts at one
+/// vertex carries the corners: `None`, which refuses
+/// [`BooleanError::PierceRunsEnclose`]. Otherwise one region of the
+/// link above the face borders every run, so every run meets the same
+/// germ first: its start where that region is outside the piercing
+/// solid.
 fn ring_corners(order: &[usize]) -> Option<Vec<(usize, bool)>> {
     let m = order.len();
     let mut corners = Vec::with_capacity(m / 2);

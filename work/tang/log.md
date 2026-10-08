@@ -804,3 +804,12 @@ slate `ball-lever-reads-the-3d-distance-not-the-axial-travel`,
 `plane-cylinder-gap-reads-the-3d-distance-not-the-in-section-stand-off`;
 the sweep's siblings went to OFFSET, CLEAVE, CHART, CONTACT, FLUX and
 GERM.
+## 2026-10-08 — pierce struts hang in the ring's corner order (TANG implementer)
+
+A pierce's ring struts hang in the order of the ring's corners, read off
+one clockwise sort of all its runs' germs; the order detector
+(`PierceRunsNested`) is retired. Runs nested under one build (the comb
+cone, every op and pose, facing `Above` at k = 3). A run between others
+refuses `PierceRunsEnclose`, a limit of the star ring, filed as
+`a-pierce-whose-run-chords-enclose-one-another-needs-a-tree-ring` for a
+designer pair. Closes `nested-pierce-runs-have-no-ring-order`.

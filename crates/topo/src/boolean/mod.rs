@@ -2351,14 +2351,17 @@ pub enum BooleanError {
         vertex: VertexKey,
     },
     /// A vertex of `operand` pierces a face of the other solid with
-    /// `runs` Out runs (three or more) whose order round the vertex, read
-    /// from their start germs, is not their order along its link
-    /// (`vtxfac::classify_vertex_on_face`). The ring struts hang in link
-    /// order and face each run from the next one's start germ, which
-    /// holds only while the runs' Out wedges lie disjoint about the
-    /// face's normal, one after another. Nested runs are not ordered
-    /// (`work/tang/nested-pierce-runs-have-no-ring-order.md`).
-    PierceRunsNested {
+    /// `runs` Out runs, one of which has others on both sides
+    /// (`vtxfac::classify_vertex_on_face`): in the clockwise order of
+    /// the runs' germs about the face's normal, that run's start and end
+    /// germs are not neighbours. The runs are chords of the vertex's
+    /// link above the face that do not cross, and one encloses another
+    /// with a third outside it. The result is a manifold; this is a limit
+    /// of the ring, whose struts all hang at one vertex, and that star
+    /// carries the runs' corners only where each run's germs are
+    /// neighbours
+    /// (`work/tang/a-pierce-whose-run-chords-enclose-one-another-needs-a-tree-ring.md`).
+    PierceRunsEnclose {
         /// The piercing operand.
         operand: Operand,
         /// Its piercing vertex: a key of the operand's working copy,
@@ -2988,8 +2991,8 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PinchConesOnSeparateKeys`].
     PinchConesOnSeparateKeys,
-    /// [`BooleanError::PierceRunsNested`].
-    PierceRunsNested,
+    /// [`BooleanError::PierceRunsEnclose`].
+    PierceRunsEnclose,
     /// [`BooleanError::VertexReadTwice`].
     VertexReadTwice,
     /// [`BooleanError::NonManifoldResult`].
@@ -3203,7 +3206,7 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PinchConesOnSeparateKeys { .. } => BooleanErrorKind::PinchConesOnSeparateKeys,
-            Self::PierceRunsNested { .. } => BooleanErrorKind::PierceRunsNested,
+            Self::PierceRunsEnclose { .. } => BooleanErrorKind::PierceRunsEnclose,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
@@ -3697,12 +3700,12 @@ impl core::fmt::Display for BooleanError {
                  in the kernel yet",
                 operand_word(*operand)
             ),
-            Self::PierceRunsNested { operand, runs, .. } => write!(
+            Self::PierceRunsEnclose { operand, runs, .. } => write!(
                 f,
                 "a corner of the {} solid sits on a face of the other with {runs} separate \
-                 wedges of the corner outside that face, and some of those wedges wrap \
-                 around others as seen along the face, which the Boolean does not yet \
-                 order. There is no way through this in the kernel yet",
+                 wedges of the corner outside that face, and seen along the face one of \
+                 those wedges has others on both sides of it, which the Boolean cannot yet \
+                 lay out round the point. There is no way through this in the kernel yet",
                 operand_word(*operand)
             ),
             Self::VertexReadTwice { operand, reads, .. } => write!(
@@ -6509,7 +6512,7 @@ mod tests {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
             },
-            BooleanError::PierceRunsNested {
+            BooleanError::PierceRunsEnclose {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
                 runs: 3,
@@ -6691,7 +6694,7 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PinchConesOnSeparateKeys => "PinchConesOnSeparateKeys",
-                BooleanErrorKind::PierceRunsNested => "PierceRunsNested",
+                BooleanErrorKind::PierceRunsEnclose => "PierceRunsEnclose",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",

@@ -19,6 +19,11 @@
 //! - an L-shaped hole with its reflex corner at `MEET`, and two wedges in
 //!   the quadrant it leaves.
 //!
+//! A pyramid with its apex at `MEET` meets the top with runs that nest:
+//! where they nest under one it builds in every op against the plate,
+//! and where one lies between others it refuses typed, as do the holes
+//! of `meeting::arch`.
+//!
 //! Each order asserts its counts, closed-form volume, tiers 3 and 3′,
 //! that every face's corners at one point are angularly disjoint, one
 //! vertex at `MEET`, and the body of the first order, compared by geometry.
@@ -27,9 +32,9 @@
 use crate::common;
 
 use common::meeting::{
-    Hole, MEET, PLATE, Pose, arch, at, corners_disjoint, ell_and_wedges, four_wedges, inner_rows,
-    notch, notch_rows, orders, posed_box, posed_prism, poses, shape, three_wedges, two_wedges,
-    wedge, wedges_on_one_side,
+    Hole, MEET, PLATE, Pose, apex_pyramid, arch, arch_cone, at, comb, corners_disjoint,
+    ell_and_wedges, four_wedges, inner_rows, notch, notch_rows, orders, posed_box, posed_prism,
+    poses, shape, three_wedges, two_wedges, wedge, wedges_on_one_side,
 };
 use geom_core::{Point3, Tol};
 use topo::{AtRestBody, BooleanResult, union, validate_geometric, validate_pseudomanifold};
@@ -323,36 +328,138 @@ fn every_four_hole_grid_configuration_builds_p_minus_u_sound() {
     grid(4);
 }
 
-/// **Holes whose prisms' runs at the meeting point nest refuse typed,
-/// before any strut is hung** ([`arch`]). Leant across one another, the
-/// three prisms' union meets the top with three Out runs whose order
-/// round the point, read from their start germs, is not their order
-/// along the vertex's link; the pierce refuses `PierceRunsNested` in
-/// every op against the plate, both orders, and the prisms' union
-/// builds.
-#[test]
-fn holes_whose_runs_nest_at_their_vertex_refuse_typed_in_every_op() {
+/// Every op on the plate `p` and `u`, both orders, labelled.
+fn every_op(
+    p: &AtRestBody<f64>,
+    u: &AtRestBody<f64>,
+) -> [(&'static str, Result<BooleanResult<f64>, topo::BooleanError>); 6] {
     use topo::{intersect, subtract};
+    [
+        ("P − U", subtract(p, u, t())),
+        ("U − P", subtract(u, p, t())),
+        ("P ∪ U", union(p, u, t())),
+        ("U ∪ P", union(u, p, t())),
+        ("P ∩ U", intersect(p, u, t())),
+        ("U ∩ P", intersect(u, p, t())),
+    ]
+}
+
+/// Whether `q` is inside `body`, `None` on its boundary.
+fn inside(body: &AtRestBody<f64>, q: Point3<f64>) -> Option<bool> {
+    let band = geom_core::Band::linear(t()).unwrap();
+    match topo::point_in_solid(body, q, band, t()).unwrap() {
+        topo::SolidContainment::In => Some(true),
+        topo::SolidContainment::Out => Some(false),
+        topo::SolidContainment::OnBoundary => None,
+    }
+}
+
+/// Probes about [`MEET`] placed by `pose`: a 9 × 9 × 9 grid of points
+/// within 0.4 of it, offset off the fixtures' planes, and 64 points
+/// 0.03 from it spread over the sphere.
+fn probes(pose: &Pose) -> Vec<Point3<f64>> {
+    let mut out = Vec::new();
+    for i in 0..9 {
+        for j in 0..9 {
+            for k in 0..9 {
+                let at = |n: i32, d: f64| 0.1f64.mul_add(f64::from(n) - 4.0, d);
+                out.push([at(i, 0.0137), at(j, 0.0071), at(k, 0.0093)]);
+            }
+        }
+    }
+    for k in 0..64 {
+        let z = 1.0 - (2.0 * f64::from(k) + 1.0) / 64.0;
+        let (s, c) = (2.399_963 * f64::from(k)).sin_cos();
+        let r = z.mul_add(-z, 1.0).sqrt();
+        out.push([0.03 * r * c, 0.03 * r * s, 0.03 * z]);
+    }
+    out.into_iter()
+        .map(|d| pose.at([0, 1, 2].map(|i| MEET[i] + d[i])))
+        .collect()
+}
+
+/// **A cone whose three runs above the top nest under one builds in every
+/// op, pose and operand order** ([`comb`]). The wide run's germs are
+/// neighbours across the ends of the top's line, so the ring hangs its
+/// struts in an order other than the runs' along the apex's link, each
+/// facing its end germ first. Each result passes tiers 3 and 3′ and
+/// `corners_disjoint`, holds its closed-form volume (the pyramid's 0.055
+/// with 0.015 below the top) and the identities between the ops, and at
+/// every probe ([`probes`]) where none reads its boundary, holds material
+/// exactly where the op over the operands' own containment does.
+#[test]
+fn a_cone_whose_runs_nest_under_one_builds_in_every_op() {
+    let (pyramid, below) = (0.055, 0.015);
+    for pose in poses() {
+        let p = posed_box("the plate", PLATE, &pose, t());
+        let u = apex_pyramid(&comb(), &pose, t());
+        let (vp, vu) = (volume(&p), volume(&u));
+        assert!(
+            (vp - 6.0).abs() < 1e-9 && (vu - pyramid).abs() < 1e-9,
+            "{}: the operands' volumes {vp}, {vu}",
+            pose.label
+        );
+        let probes: Vec<_> = probes(&pose)
+            .into_iter()
+            .filter_map(|q| Some((q, inside(&p, q)?, inside(&u, q)?)))
+            .collect();
+        for (what, r) in every_op(&p, &u) {
+            let label = format!("the comb, {}: {what}", pose.label);
+            let (want, keep): (f64, fn(bool, bool) -> bool) = match what {
+                "P − U" => (6.0 - below, |p, u| p && !u),
+                "U − P" => (pyramid - below, |p, u| u && !p),
+                "P ∪ U" | "U ∪ P" => (6.0 + pyramid - below, |p, u| p || u),
+                _ => (below, |p, u| p && u),
+            };
+            let r = built(&label, r);
+            sound(&label, &r, want, &pose);
+            let mut read = 0;
+            for &(q, in_p, in_u) in &probes {
+                if let Some(got) = inside(&r.body, q) {
+                    assert_eq!(got, keep(in_p, in_u), "{label}: material at {q:?}");
+                    read += 1;
+                }
+            }
+            assert!(read > 600, "{label}: {read} probes read");
+        }
+    }
+}
+
+/// **Runs one of which has others on both sides refuse typed, before any
+/// strut is hung, in every op**: [`arch`], whose prisms' union meets the
+/// top with three runs, the second between the other two about the top's
+/// normal; and the arch cone ([`arch_cone`]) at every pose, one run
+/// inside another inside a third. No ring of struts at one vertex lays
+/// out their corners, and each refuses `PierceRunsEnclose` with three
+/// runs against the plate in both operand orders.
+#[test]
+fn runs_one_between_others_refuse_typed_in_every_op() {
     let rest = Pose::rest();
-    let p = posed_box("the plate", PLATE, &rest, t());
     let prisms: Vec<_> = arch().iter().map(|h| posed_prism(h, &rest, t())).collect();
     let u = prisms[1..].iter().fold(prisms[0].clone(), |u, q| {
         body("the arch's prisms' union", union(&u, q, t()))
     });
-    for (what, r) in [
-        ("P − U", subtract(&p, &u, t())),
-        ("U − P", subtract(&u, &p, t())),
-        ("P ∪ U", union(&p, &u, t())),
-        ("U ∪ P", union(&u, &p, t())),
-        ("P ∩ U", intersect(&p, &u, t())),
-        ("U ∩ P", intersect(&u, &p, t())),
-    ] {
-        match r {
-            Err(topo::BooleanError::PierceRunsNested { runs: 3, .. }) => {}
-            other => panic!(
-                "the arch, {what}: refuses PierceRunsNested with 3 runs, got {:?}",
-                other.map(|_| ())
-            ),
+    let mut scenes = vec![(
+        "the arch".to_string(),
+        posed_box("the plate", PLATE, &rest, t()),
+        u,
+    )];
+    for pose in poses() {
+        scenes.push((
+            format!("the arch cone, {}", pose.label),
+            posed_box("the plate", PLATE, &pose, t()),
+            apex_pyramid(&arch_cone(), &pose, t()),
+        ));
+    }
+    for (scene, p, u) in &scenes {
+        for (what, r) in every_op(p, u) {
+            match r {
+                Err(topo::BooleanError::PierceRunsEnclose { runs: 3, .. }) => {}
+                other => panic!(
+                    "{scene}, {what}: refuses PierceRunsEnclose with 3 runs, got {:?}",
+                    other.map(|_| ())
+                ),
+            }
         }
     }
 }

@@ -2,8 +2,9 @@
 id: nested-pierce-runs-have-no-ring-order
 kind: issue
 title: A pierce whose Out runs nest about the pierced face's normal has no ring order; it refuses typed (PierceRunsNested)
-status: open
+status: closed
 opened: 2026-10-06
+closed: 2026-10-08
 priority: P1
 cost: H
 ---
@@ -81,3 +82,22 @@ beside two more runs. No row reaches that pose.
 Done when nested runs get an order of their own, the detector
 retires, and a k ≥ 3 row with a bisector run pins the facing.
 
+
+## Closed
+
+`classify_vertex_on_face` sorts all the runs' germs clockwise about the
+pierced face's normal (`ring_order`, the existing `bool_strut_side` and
+`bool_strut_order` decides) and reads the ring's corners off that sort
+(`ring_corners`, no predicate of its own): where each run's two germs are
+neighbours, the struts hang in their pairs' order, each facing the germ
+its corner meets first. The order detector is retired. The comb cone
+(`meeting::comb`: one run above the top over two others) hangs in an
+order other than run order, every strut facing `Above` at k = 3, and
+builds in every op and pose
+(`holes_meeting_at_a_vertex::a_cone_whose_runs_nest_under_one_builds_in_every_op`).
+Below and Above cannot mix at one vertex: where the star applies, one
+region borders every run and fixes the facing for all of them.
+
+The case where one run lies between others (`meeting::arch`, the arch
+cone) needs a tree of struts, not a star. It refuses `PierceRunsEnclose`
+and moved to `a-pierce-whose-run-chords-enclose-one-another-needs-a-tree-ring`.

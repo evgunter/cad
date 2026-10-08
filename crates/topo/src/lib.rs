@@ -309,10 +309,11 @@ pub mod test_support {
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {
         pub use crate::test_support_meeting::{
-            Hole, MEET, PLATE, Point, Pose, apex_pyramid, arch, at, bearing, corners,
-            corners_disjoint, cycles_of, ell, ell_and_wedges, four_wedges, inner_rows, leaned, mix,
-            nest, nest_polygon, notch, notch_rows, orders, posed_box, posed_boxes, posed_prism,
-            posed_pyramid, poses, shape, three_wedges, two_wedges, wedge, wedges_on_one_side,
+            Hole, MEET, PLATE, Point, Pose, apex_pyramid, arch, arch_cone, at, bearing, comb,
+            corners, corners_disjoint, cycles_of, ell, ell_and_wedges, four_wedges, inner_rows,
+            leaned, mix, nest, nest_polygon, notch, notch_rows, orders, posed_box, posed_boxes,
+            posed_prism, posed_pyramid, poses, shape, three_wedges, two_wedges, wedge,
+            wedges_on_one_side,
         };
     }
 

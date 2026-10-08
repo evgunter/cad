@@ -651,8 +651,8 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             },
         ),
         (
-            "PierceRunsNested",
-            BooleanError::PierceRunsNested {
+            "PierceRunsEnclose",
+            BooleanError::PierceRunsEnclose {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
                 runs: 3,
