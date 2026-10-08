@@ -4049,6 +4049,15 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                     needed: 0.002,
                 },
             ),
+            (
+                "OffsetsCross",
+                S::OffsetsCross {
+                    face,
+                    other,
+                    overlap: 0.001,
+                    thickness: 0.002,
+                },
+            ),
             ("ChartSenseMixed", S::ChartSenseMixed { face, other }),
             ("OpenFaceStale", S::OpenFaceStale { face }),
             ("OpenFaceRepeated", S::OpenFaceRepeated { face }),
