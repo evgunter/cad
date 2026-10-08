@@ -596,6 +596,11 @@ pub(super) fn recl_edges<T: Decide>(
         for j in (i + 1)..mentions.len() {
             // Metered at the shorter of the two mentioning sectors' arms,
             // as every other reading of two directions at a corner is.
+            // No row reaches this margin with a direction the band alone
+            // groups: the reduction splits a line edge at a vertex of the
+            // other's lying on it, onto that vertex's own bits
+            // (`split_edge_onto`), so coincident line edges reach this
+            // site between the same two points, their chords bit-equal.
             let arm = mentions[i].arm.min(mentions[j].arm);
             if !used[j] && parallel_same_dir(mentions[i].dir, mentions[j].dir, arm, band)? {
                 used[j] = true;
@@ -652,6 +657,8 @@ pub(super) fn recl_edges<T: Decide>(
             // of its material, the wedges apart, so a wedge the other
             // solid's crosses is crossed whatever else lies round the
             // line.
+            // Unreached by any row: a contact line lying in a face of the
+            // other solid meets its bisector, the arm below.
             if a_ms.is_empty() || b_ms.is_empty() {
                 return Err(BooleanError::ClassificationInvariant {
                     what: "a solid's coincident edges on one ray lie in a face of the other \

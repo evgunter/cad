@@ -16,6 +16,7 @@
 //! - a third prism crossing one wedge about the line, or both;
 //! - one prism tilted about the line within the zero;
 //! - a prism whose side face holds the line;
+//! - the review's hunt seeds whose pierces the weld leaves apart;
 //! - one prism's corner moved off the line, within the zero, inside the
 //!   band and past it.
 //!
@@ -824,6 +825,140 @@ fn carrying_each_steps_records_serves_the_same_body() {
                     body = r.body;
                 }
                 assert!(shape(&body) == undeclared, "{what}: another body");
+            }
+        }
+    }
+}
+
+/// The prisms of the review's random hunt at `seed` (overlapping
+/// sectors): `k` prisms through the plate's top at [`MEET`], each over
+/// a sector of its own radius from [`MEET`], half of them leant about
+/// it; a pinned generator, so the fixture is the seed.
+fn hunt(seed: u64, k: usize) -> Vec<Prism> {
+    let mut s = seed
+        .wrapping_mul(6_364_136_223_846_793_005)
+        .wrapping_add(1_442_695_040_888_963_407);
+    let mut rnd = move || {
+        s = s
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (s >> 11) as f64 / (1u64 << 53) as f64
+    };
+    let _ = rnd();
+    (0..k)
+        .map(|_| {
+            let w = 100.0f64.mul_add(rnd(), 25.0);
+            let start = rnd() * 360.0;
+            let lean = rnd() < 0.5;
+            let toward = if rnd() < 0.7 {
+                start + w / 2.0
+            } else {
+                rnd() * 360.0
+            };
+            let r = 0.3f64.mul_add(rnd(), 0.25);
+            let z = (0.5f64.mul_add(rnd(), 0.3), 0.6f64.mul_add(rnd(), 1.4));
+            let delta = if lean {
+                0.3f64.mul_add(rnd(), 0.05)
+            } else {
+                0.0
+            };
+            Prism {
+                foot: [(MEET[0], MEET[1]), bearing(start, r), bearing(start + w, r)],
+                z,
+                moved: 0.0,
+                tilt: (toward, delta),
+            }
+        })
+        .collect()
+}
+
+/// **Pierces a weld leaves apart build one body in every member order**:
+/// the review's hunt seeds 506 (three prisms) and 507 (four), overlapping
+/// sectors through the plate's top at [`MEET`], some upright on the line
+/// and some leant about it. Folded first, their edges pierce the top at
+/// [`MEET`], and a pierce the weld has joined meets another copy of a
+/// pierce it already took, whose corners none of the joined vertex's
+/// hold: the pair stays apart. Every order builds sound by tier 3,
+/// corners, a probe oracle about [`MEET`], a Monte Carlo volume, and one
+/// body.
+#[test]
+fn pierces_a_weld_leaves_apart_build_one_body_in_every_member_order() {
+    for (seed, k) in [(506, 3), (507, 4)] {
+        let prisms = hunt(seed, k);
+        let mut members = vec![finished(
+            "the plate",
+            common::brick(PLATE[0], PLATE[1], PLATE[2], t()),
+            t(),
+        )];
+        members.extend(prisms.iter().map(Prism::body));
+        let holds = |q: [f64; 3]| in_plate(q) || prisms.iter().any(|p| p.holds(q));
+        let mut probes = Vec::new();
+        for i in 0..9 {
+            for j in 0..9 {
+                for l in 0..9 {
+                    let f = |n: i32, o: f64| 0.031f64.mul_add(f64::from(n) - 4.0, o);
+                    probes.push([
+                        MEET[0] + f(i, 0.0037),
+                        MEET[1] + f(j, 0.0019),
+                        MEET[2] + f(l, 0.0023),
+                    ]);
+                }
+            }
+        }
+        // The prisms' volume above the top by Monte Carlo over a box
+        // holding them, its error bounded at four standard deviations.
+        let (volume, slack) = {
+            let mut s = seed ^ 0x9e37_79b9_7f4a_7c15;
+            let mut rnd = move || {
+                s = s
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1_442_695_040_888_963_407);
+                (s >> 11) as f64 / (1u64 << 53) as f64
+            };
+            let n = 400_000;
+            let lo: [f64; 3] = [0.6, 0.1, 1.0];
+            let hi: [f64; 3] = [2.4, 1.9, 2.4];
+            let hits = (0..n)
+                .filter(|_| {
+                    let q = [0, 1, 2].map(|i| (hi[i] - lo[i]).mul_add(rnd(), lo[i]));
+                    prisms.iter().any(|p| p.holds(q))
+                })
+                .count();
+            let cube = (0..3).map(|i| hi[i] - lo[i]).product::<f64>();
+            let p = hits as f64 / f64::from(n);
+            (
+                cube.mul_add(p, 6.0),
+                4.0 * cube * (p * (1.0 - p) / f64::from(n)).sqrt(),
+            )
+        };
+        let mut first = None;
+        for order in orders(members.len()) {
+            let what = format!("hunt seed {seed}, member order {order:?}");
+            let r = fold(&members, &order)
+                .unwrap_or_else(|(s, e)| panic!("{what}: step {s} refused: {e:?}"));
+            let body = &r.body;
+            assert_eq!(validate_geometric(body, t()), Ok(()), "{what}: tier 3");
+            assert_eq!(corners_disjoint(body), Ok(()), "{what}: corners");
+            let v = topo::mass_properties(body, t()).unwrap().volume;
+            assert!(
+                (v - volume).abs() < slack,
+                "{what}: volume {v}, Monte Carlo {volume} ± {slack}"
+            );
+            let mut read = 0;
+            for &q in &probes {
+                if let Some(got) = inside_of(body, q) {
+                    assert_eq!(got, holds(q), "{what}: material at {q:?}");
+                    read += 1;
+                }
+            }
+            assert!(
+                read * 100 >= 99 * probes.len(),
+                "{what}: {read} probes read"
+            );
+            let s = shape(body);
+            match &first {
+                None => first = Some(s),
+                Some(f) => assert!(*f == s, "{what}: a different body from the first order"),
             }
         }
     }

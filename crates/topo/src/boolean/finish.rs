@@ -786,7 +786,10 @@ pub(super) fn pinch_site<T: Decide>(
         }
         if hus.is_empty() || hws.is_empty() {
             // No corner of the vertex the face passes twice holds the
-            // other pierce: their corners do not nest here, and the pair
+            // other pierce. That vertex is a pierce an earlier weld
+            // joined, and the other is a copy of a pierce it already
+            // took: one pierce's copies take disjoint corners of the
+            // point, so their corners do not nest here, and the pair
             // stays apart as `corners_nest` leaves one.
             continue;
         }
