@@ -2,13 +2,14 @@
 id: a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings
 kind: issue
 title: A vertex pair whose pairing nests in B's walk order, at a B vertex another crossing pair shares, refuses SharedVertexCrossings (102 pinch-battery lines)
-status: review
+status: closed
 opened: 2026-10-07
 priority: P1
 cost: M
 refs: [a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another, a-six-crossing-vertex-pair-nests-its-pairing-and-refuses-pairing-mismatch]
 branch: join/nested-pairing-shared-vertex
 pr: 4274
+closed: 2026-10-08
 ---
 
 

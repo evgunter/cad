@@ -1180,3 +1180,16 @@ Signed (JOIN orchestrator).
 - **Fix pass sent.** Root-cause M1: build the chain soundly or refuse it typed, and never let it reach the invariant. Pin depth above one and `by_strut` at a shared vertex. Keep the cover arm as a documented backstop and make it tell the cover case from the crossing case.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-08: PR 4274 landed (nested pairing at a shared vertex)
+
+- **PR 4274 merged.** It is one laminar reading of a plan's holders (`arc_holders`, `held_by`, `hang_at_shared`), and the up-front nested-plan refusal is gone.
+  - 102 `pinch_runs_battery` lines move to SOUND.
+  - r1's eight-crossing probe moves 276 lines to SOUND.
+  - Refusal→BAD is 0, and →`ClassificationInvariant` is 0.
+- **DR-104 (holdout).** The first M-tier miss: R1's M1 was fixed by sorting strut-only chains by geometric nesting depth in `mint_plans`.
+- **Second review.** One FULL review of the whole unit on the fix head gave APPROVE 0/1/4 and confirmed every adjudicated finding fixed. Its MINOR, a `debug_assert` that a strut-only held run nests deeper than its holder, was added before the merge.
+- `a-nested-pairing-at-a-shared-vertex-refuses-shared-vertex-crossings` is closed.
+- **Readout 3** is with Ev on PR 4283.
+
+Signed (JOIN orchestrator).
