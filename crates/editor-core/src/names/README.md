@@ -14,7 +14,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 |---|---|
 | N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`: the product's two-roots check and the mate member walk); how each consumer carries an entity of its input up to its own value (`lift`: the at-rest gate's lift from a mate's operand to the product) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
-| N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs`, `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`) |
+| N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs`, `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`, an edge its closing join made over several input edges `Merged`) |
 | N1's node and profile step ids: the mint chain and mint log (`Mint`) | `crates/editor-core/src/mint.rs`; `RecipeNodeId` and `StepId` in `crates/editor-core/src/node.rs` |
 | N2 discriminators — `Borders` over the kernel's record of what a boolean discarded, `Keeps`, `Ends`, the crossing's sense and the same-sense ordinal's predicates; tie propagation | `borders.rs`, `discriminate.rs`; `defer.rs` |
 | A path's canonical form: its name-ordered positions (N3 sets, `Borders` walls, `Keeps` edges, `Ends` pairs, a junction's lines, a union seam's sides), and what ordering a union seam does to the crossings ranked along it | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
@@ -290,7 +290,22 @@ edges, read along the edge's carrier: its line, or the curve a curved edge is
 carried by, where "along" is overlapping it over a length of that curve. A
 closed edge, one the output stage joined round a closed carrier, lies within a
 closed operand edge alone and is covered over its whole period, so its name
-reads nothing off where its vertex sits. A seam vertex cites a member edge
+reads nothing off where its vertex sits.
+
+A split and a shell name an edge their closing join made by the same reading
+over their one operand's edges, read off the joins' records rather than along
+a carrier: each edge the join took is chased to the operand edge it came from.
+An edge that covers one operand edge whole, the cut having separated nothing
+of it, takes that edge's own name. One that lies along a part of one operand
+edge whose other parts live on is a piece of it, named as the split names a
+piece. One that covers several operand edges whole is the `Merged` set of
+their names, flat and in name order: the shell's survivors as `FromTarget` of
+their names and its cavity twins as `Inner` of theirs, a set among them listed by its
+constituents. A split's section chords, joined, stay a chord of the face they
+cross. A join with no such reading, a chord with an operand edge's piece or
+pieces of several operand edges, is refused, not named.
+
+A seam vertex cites a member edge
 whole, `FromMember(m, e)`, never a piece and never a set: the one it lies on,
 the least where several do. In a pair boolean, where an A edge and a B edge
 both hold it, A's is cited. A vertex at a member vertex is that vertex, and one

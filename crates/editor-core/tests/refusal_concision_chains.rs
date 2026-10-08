@@ -1720,6 +1720,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::NestingContradiction { hole: face },
         ),
         (
+            "EdgeJoin",
+            F::EdgeJoin {
+                side: topo::PlaneSide::Above,
+                refusal: join_refusal(),
+            },
+        ),
+        (
             "ResultInvalid",
             F::ResultInvalid {
                 side: topo::PlaneSide::Below,
@@ -3984,7 +3991,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
 
 fn shell() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
-    use topo::{FaceKey, ReplaceFaceError, ShellError as S, ShellKey, SolidKey};
+    use topo::{FaceKey, ReplaceFaceError, ShellError as S, ShellKey};
     let (face, other, shell) = (FaceKey::default(), FaceKey::default(), ShellKey::default());
     let mut rows: Vec<(String, S<f64>)> = replace_face()
         .into_iter()
@@ -4027,18 +4034,6 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
-                "Pieces",
-                S::Pieces {
-                    error: topo::PieceSortError::Crossing { shell },
-                },
-            ),
-            (
-                "OperandOuterShells",
-                S::OperandOuterShells {
-                    solid: SolidKey::default(),
-                },
-            ),
-            (
                 "Partition",
                 S::Partition {
                     shell,
@@ -4052,6 +4047,15 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                     other,
                     gap: 0.001,
                     needed: 0.002,
+                },
+            ),
+            (
+                "OffsetsCross",
+                S::OffsetsCross {
+                    face,
+                    other,
+                    overlap: 0.001,
+                    thickness: 0.002,
                 },
             ),
             ("ChartSenseMixed", S::ChartSenseMixed { face, other }),
@@ -4092,6 +4096,12 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             ("Escalated", S::Escalated { source: diag() }),
             ("Pcurve", S::Pcurve { source: pcurve() }),
             (
+                "Join",
+                S::Join {
+                    refusal: join_refusal(),
+                },
+            ),
+            (
                 "NotValid",
                 S::NotValid {
                     errors: vec![topo::ValidationError::ShellDisconnected {
@@ -4118,11 +4128,17 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
 /// tolerance, since `split_edge` refuses inside the same band.
 fn join_refused_offset() -> topo::ReplaceFaceError<f64> {
     topo::ReplaceFaceError::Join {
-        refusal: topo::JoinRefusal::Undecided(topo::JoinUndecided {
-            vertex: topo::VertexKey::default(),
-            reading: topo::JoinReading::Regularity(payloads::named("join_regular_point")),
-        }),
+        refusal: join_refusal(),
     }
+}
+
+/// The in-band join reading every door that ends with the join carries
+/// typed (`topo::JoinRefusal`).
+fn join_refusal() -> topo::JoinRefusal {
+    topo::JoinRefusal::Undecided(topo::JoinUndecided {
+        vertex: topo::VertexKey::default(),
+        reading: topo::JoinReading::Regularity(payloads::named("join_regular_point")),
+    })
 }
 
 /// Every `topo::ReplaceFaceError` arm but `Fit` ([`offset_fit_routes`]
