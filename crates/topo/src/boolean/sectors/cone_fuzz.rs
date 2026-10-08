@@ -591,20 +591,11 @@ fn probes_about(rng: &mut Rng, cone: &[Sector]) -> Vec<[f64; 3]> {
     out
 }
 
-/// One cone's reading against the oracle; returns the wrong classes'
-/// descriptions, and counts what was not decided.
-fn check_cone(
-    what: &str,
-    cone: &[Sector],
-    probes: &[[f64; 3]],
-    band: Band,
-    rng: &mut Rng,
-    counts: &mut Counts,
-    wedge_known_wrong: bool,
-) -> Vec<String> {
-    // A face whose bounds stand off its own plane beyond the zero band
-    // is no face at this ε: a sector a few nanoradians wide has its
-    // normal drawn in floating point to about 1e-16 over its width.
+/// The exact reading of `cone`, where it is one at `band`: a face
+/// whose bounds stand off its own plane beyond the zero band is no face
+/// at this ε, since a sector a few nanoradians wide has its normal
+/// drawn in floating point to about 1e-16 over its width.
+fn cone_oracle(cone: &[Sector], band: Band) -> Option<Oracle> {
     let planar = cone.iter().all(|s| {
         let n = qv(s.normal);
         [s.start_far, s.end_far].iter().all(|&far| {
@@ -613,51 +604,71 @@ fn check_cone(
             off.sub(&zero).sign() <= 0 && off.add(&zero).sign() >= 0
         })
     });
-    let Some(oracle) = planar.then(|| Oracle::new(cone)).flatten() else {
+    planar.then(|| Oracle::new(cone)).flatten()
+}
+
+/// A probe edge to the far point `far`, as the one sector of the vertex
+/// read whose edge it ends.
+fn probe_sector(far: [f64; 3]) -> BoolSector<f64> {
+    let o = Point3::new(0.0, 0.0, 0.0);
+    let d = Vec3::new(far[0], far[1], far[2]);
+    BoolSector {
+        he: HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | 5000)),
+        start: Vec3::new(0.0, 0.0, 1.0),
+        end: d.normalize(),
+        start_reach: Reach::Bisector(1.0),
+        end_reach: Reach::Chord {
+            base: o,
+            far: o + d,
+        },
+        face: FaceKey::from(slotmap::KeyData::from_ffi((1 << 32) | 99_999)),
+        normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
+        arm: 1.0,
+    }
+}
+
+/// One cone's reading against the oracle; returns the wrong classes'
+/// descriptions, and counts what was not decided.
+fn check_cone(
+    what: &str,
+    cone: &[Sector],
+    probes: &[[f64; 3]],
+    band: Band,
+    rng: &mut Rng,
+    counts: &mut [Counts; 2],
+    wedge_known_wrong: bool,
+) -> Vec<String> {
+    let Some(oracle) = cone_oracle(cone, band) else {
         return Vec::new();
     };
     let sectors = bool_sectors(cone);
-    let o = Point3::new(0.0, 0.0, 0.0);
     let mut wrong = Vec::new();
     for (k, &far) in probes.iter().enumerate() {
-        let d = Vec3::new(far[0], far[1], far[2]);
-        let reach = Reach::Chord {
-            base: o,
-            far: o + d,
-        };
-        let probe = BoolSector {
-            he: HalfEdgeKey::from(slotmap::KeyData::from_ffi((1 << 32) | 5000)),
-            start: Vec3::new(0.0, 0.0, 1.0),
-            end: d.normalize(),
-            start_reach: Reach::Bisector(1.0),
-            end_reach: reach,
-            face: FaceKey::from(slotmap::KeyData::from_ffi((1 << 32) | 99_999)),
-            normal: OutwardNormal::from_chart(Vec3::new(1.0, 0.0, 0.0), true),
-            arm: 1.0,
-        };
+        let probe = probe_sector(far);
+        let (d, reach) = (Vec3::new(far[0], far[1], far[2]), probe.end_reach);
         let readings = [
-            (
-                "cone_side",
-                cone_side(d.normalize(), reach, &sectors, band)
-                    .ok()
-                    .flatten(),
-            ),
+            ("cone_side", cone_side(d.normalize(), reach, &sectors, band)),
             (
                 "wedge_classes",
                 wedge_classes(std::slice::from_ref(&probe), &sectors, band)
-                    .ok()
-                    .flatten()
-                    .map(|r| r.rows[0].1),
+                    .map(|r| r.map(|r| r.rows[0].1)),
             ),
         ];
         let truth = oracle.class(far, rng);
         let flip = least_flip(cone, far);
         let in_band = truth == SideCode::On || flip <= band.zero();
-        for (reader, got) in readings {
+        for ((reader, got), counts) in readings.into_iter().zip(counts.iter_mut()) {
             counts.read += 1;
-            let Some(got) = got else {
-                counts.undecided += 1;
-                continue;
+            let got = match got {
+                Ok(Some(got)) => got,
+                Ok(None) => {
+                    counts.unread += 1;
+                    continue;
+                }
+                Err(_) => {
+                    counts.refused += 1;
+                    continue;
+                }
             };
             let defect = match got {
                 SideCode::On => (!in_band).then_some("On out of band"),
@@ -679,13 +690,197 @@ fn check_cone(
     wrong
 }
 
-/// What a run read, what it left undecided, and the `wedge_classes`
-/// readings of the long-probe family the CLEAVE item knows wrong.
+/// Whether two wedges share a ray off the vertex: the line their
+/// planes meet in lies, one way or the other, within both, closed; two
+/// wedges on one plane are read as sharing one.
+fn shares_ray(f: &Wedge, g: &Wedge) -> bool {
+    let (cf, cg) = (cross(&f.start, &f.end), cross(&g.start, &g.end));
+    let l = cross(&cf, &cg);
+    if l.iter().all(|x| x.sign() == 0) {
+        return true;
+    }
+    let within = |w: &Wedge, c: &V, x: &V| {
+        dot(&cross(&w.start, x), c).sign() >= 0 && dot(&cross(x, &w.end), c).sign() >= 0
+    };
+    let back = vscale(&l, &Q::int(-1));
+    [&l, &back]
+        .iter()
+        .any(|x| within(f, &cf, x) && within(g, &cg, x))
+}
+
+/// A small convex cone in the void of the cone `oracle` reads, a second
+/// partner of the same solid: its boundary meets the cone's only at the
+/// vertex, one of its corners lies in the void, and a bound of the cone
+/// lies outside it, all read exactly; `None` where the draw fails that.
+fn partner_in_void(
+    rng: &mut Rng,
+    cone: &[Sector],
+    oracle: &Oracle,
+) -> Option<(Vec<Sector>, Oracle)> {
+    let q = norm3([
+        rng.range(-1.0, 1.0),
+        rng.range(-1.0, 1.0),
+        rng.range(-1.0, 1.0),
+    ]);
+    let r = [0.3, 0.05, 1e-3][rng.below(3)];
+    let e1 = norm3(cross3(
+        q,
+        if q[0].abs() < 0.9 {
+            [1.0, 0.0, 0.0]
+        } else {
+            [0.0, 1.0, 0.0]
+        },
+    ));
+    let e2 = cross3(q, e1);
+    let ring: Ring = (0..3)
+        .map(|k| {
+            let t = std::f64::consts::TAU * f64::from(k) / 3.0 + rng.range(-0.3, 0.3);
+            let (sn, cs) = t.sin_cos();
+            let d = [0, 1, 2].map(|i| q[i] + r * (cs * e1[i] + sn * e2[i]));
+            (norm3(d), rng.range(0.5, 2.0))
+        })
+        .collect();
+    let mut partner = sectors_from_ring(&ring, false);
+    for s in &mut partner {
+        s.face += 100;
+    }
+    let own = Oracle::new(&partner)?;
+    let apart = oracle.class(partner[0].start_far, rng) == SideCode::Out
+        && own.class(cone[0].start_far, rng) == SideCode::Out
+        && !oracle
+            .wedges
+            .iter()
+            .any(|f| own.wedges.iter().any(|g| shares_ray(f, g)));
+    apart.then_some((partner, own))
+}
+
+/// **A vertex in pairs alone is read against both partners together,
+/// or refuses**: `cone` and a small convex cone in its void
+/// ([`partner_in_void`]), two partners of one solid at the vertex, read
+/// by [`pair_classes`] for each probe edge against the exact reading of
+/// their union. Where a partner reads nothing beside the other it must
+/// refuse; elsewhere, a row is wrong as in [`check_cone`], and a probe
+/// with no row is wrong. A layering that leaves the probe undecided and
+/// keeps each pair's rows is counted, and its wrong rows with it, not
+/// asserted
+/// (`work/tang/pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided.md`);
+/// so is a wrong row of the long-probe family, whose `wedge_classes`
+/// reading of the cone is known wrong (module docs).
+fn check_pair(
+    what: &str,
+    cone: &[Sector],
+    band: Band,
+    rng: &mut Rng,
+    counts: &mut PairCounts,
+    wedge_known_wrong: bool,
+) -> Vec<String> {
+    let Some(oracle) = cone_oracle(cone, band) else {
+        return Vec::new();
+    };
+    let Some((partner, _)) = partner_in_void(rng, cone, &oracle) else {
+        return Vec::new();
+    };
+    let both: Vec<Sector> = cone.iter().chain(&partner).cloned().collect();
+    let Some(union) = Oracle::new(&both) else {
+        return Vec::new();
+    };
+    counts.placed += 1;
+    let key = |n: u64| slotmap::KeyData::from_ffi((1 << 32) | n);
+    let vertex = VertexKey::from(key(7000));
+    let others = [bool_sectors(cone), bool_sectors(&partner)];
+    let mut probes = probes_about(rng, cone);
+    probes.extend(probes_about(rng, &partner));
+    let mut wrong = Vec::new();
+    for (k, &far) in probes.iter().enumerate() {
+        let probe = probe_sector(far);
+        let mut pairs = Vec::new();
+        for (m, other) in others.iter().enumerate() {
+            match wedge_classes(std::slice::from_ref(&probe), other, band) {
+                Ok(read) => pairs.push(crate::boolean::vtxfac::PairRead {
+                    partner: VertexKey::from(key(7001 + m as u64)),
+                    side: None,
+                    read,
+                    sectors: other.clone(),
+                }),
+                Err(_) => break,
+            }
+        }
+        if pairs.len() < 2 {
+            counts.refused += 1;
+            continue;
+        }
+        let unread = pairs.iter().any(|p| p.read.is_none());
+        let rows = match crate::boolean::vtxfac::pair_classes(Operand::A, vertex, &pairs, band) {
+            Err(BooleanError::VertexReadTwice { .. }) if unread => {
+                counts.unread += 1;
+                continue;
+            }
+            Err(_) => {
+                counts.refused += 1;
+                continue;
+            }
+            Ok(rows) if unread => {
+                wrong.push(format!(
+                    "{what}, pair probe {k} {far:?}: rows {rows:?} kept beside a partner that \
+                     reads nothing"
+                ));
+                continue;
+            }
+            Ok(rows) => rows,
+        };
+        let truth = union.class(far, rng);
+        let flip = least_flip(cone, far).min(least_flip(&partner, far));
+        let in_band = truth == SideCode::On || flip <= band.zero();
+        let kept = rows.len() > 1;
+        counts.rows += rows.len();
+        counts.kept += usize::from(kept);
+        if rows.is_empty() {
+            wrong.push(format!("{what}, pair probe {k} {far:?}: no row"));
+        }
+        for &(_, got) in &rows {
+            let defect = match got {
+                SideCode::On => (!in_band).then_some("On out of band"),
+                _ if got != truth => Some("the oracle contradicts it"),
+                _ => in_band.then_some("decided in band"),
+            };
+            match defect {
+                Some(_) if kept => counts.kept_wrong += 1,
+                Some(_) if wedge_known_wrong => counts.known_wrong += 1,
+                Some(defect) => wrong.push(format!(
+                    "{what}, pair probe {k} {far:?}: pair_classes reads {got:?}, exactly \
+                     {truth:?}, flipped by a {flip:.3e} m deviation: {defect}"
+                )),
+                None => {}
+            }
+        }
+    }
+    wrong
+}
+
+/// What the pair oracle read at one ε: partners placed, rows read,
+/// probes refused beside a partner that reads nothing, other refusals,
+/// and probes whose layering kept each pair's rows, with their wrong
+/// rows.
+#[derive(Default)]
+struct PairCounts {
+    placed: usize,
+    rows: usize,
+    unread: usize,
+    refused: usize,
+    kept: usize,
+    kept_wrong: usize,
+    known_wrong: usize,
+}
+
+/// What one reader read at one ε, what it read nothing of or refused,
+/// and, for `wedge_classes`, its readings of the long-probe family the
+/// CLEAVE item knows wrong.
 #[derive(Default)]
 struct Counts {
     known_wrong: usize,
     read: usize,
-    undecided: usize,
+    unread: usize,
+    refused: usize,
 }
 
 /// **No decided class the polygon-cone reader gives contradicts the
@@ -698,7 +893,7 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
     let mut rng = test_utils::fuzz::start("sectors_cone_fuzz");
     let cones = test_utils::fuzz::scaled(90);
     let mut wrong = Vec::new();
-    let mut counts = Counts::default();
+    let mut pair_passes = Vec::new();
     let session = Tol::witness().get().eps;
     let mut eps_set = vec![1e-9, 1e-6, 1e-12];
     if !eps_set.contains(&session) {
@@ -706,6 +901,9 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
     }
     for eps in eps_set {
         let band = Band::linear_at(Tol::witness(), eps).unwrap();
+        let mut counts = [Counts::default(), Counts::default()];
+        let mut read_cones = Vec::new();
+        let before = wrong.len();
         for c in 0..cones {
             let hollow = rng.below(2) == 0;
             let long = c % 5 == 2;
@@ -745,17 +943,49 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
                 &mut counts,
                 long,
             ));
+            read_cones.push((what, cone, long));
         }
+        let [cs, wc] = &counts;
+        println!(
+            "[fuzz] sectors_cone_fuzz at ε {eps:e}: {} wrong; cone_side read {}, {} read \
+             nothing, {} refused; wedge_classes read {}, {} read nothing, {} refused, {} of \
+             the long-probe family known wrong (CLEAVE's \
+             wedge-classes-reads-a-corner-flat-at-its-short-bounds-as-convex)",
+            wrong.len() - before,
+            cs.read,
+            cs.unread,
+            cs.refused,
+            wc.read,
+            wc.unread,
+            wc.refused,
+            wc.known_wrong
+        );
+        pair_passes.push((eps, band, read_cones));
     }
-    println!(
-        "[fuzz] sectors_cone_fuzz: {} readings, {} undecided, {} wrong, {} wedge_classes \
-         readings of the long-probe family known wrong (CLEAVE's \
-         wedge-classes-reads-a-corner-flat-at-its-short-bounds-as-convex)",
-        counts.read,
-        counts.undecided,
-        wrong.len(),
-        counts.known_wrong
-    );
+    // The pair oracle draws after every cone is read, so a seed reads
+    // the same cones with it as without it.
+    for (eps, band, read_cones) in pair_passes {
+        let mut counts = PairCounts::default();
+        let before = wrong.len();
+        for (what, cone, long) in &read_cones {
+            wrong.extend(check_pair(what, cone, band, &mut rng, &mut counts, *long));
+        }
+        println!(
+            "[fuzz] sectors_cone_fuzz pairs at ε {eps:e}: {} wrong; {} partners placed, {} rows, \
+             {} probes refused beside a partner that reads nothing, {} refused otherwise, {} \
+             kept per pair ({} of their rows wrong; \
+             pair-classes-keeps-per-pair-rows-where-its-layering-is-undecided), {} rows of the \
+             long-probe family known wrong",
+            wrong.len() - before,
+            counts.placed,
+            counts.rows,
+            counts.unread,
+            counts.refused,
+            counts.kept,
+            counts.kept_wrong,
+            counts.known_wrong
+        );
+    }
     assert!(
         wrong.is_empty(),
         "{} readings contradict the exact oracle or decide in band; {}:\n{}",
