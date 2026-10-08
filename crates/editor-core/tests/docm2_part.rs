@@ -701,7 +701,7 @@ fn a7_the_product_of_a_lone_part_root_is_that_half() {
         tool: tool.into(),
     });
     let above = part(&mut r, split, half(SplitHalf::Above));
-    assert_eq!(r.doc.roots(), &[above], "the Part is the only sink");
+    r.insert(Node::place_in_world(above, editor_core::Placement::IDENTITY));
     let ev = eval(&r.doc);
     let body = product(&r.doc, &ev, Tol::witness()).expect("the product gathers");
     let m = mass_properties(&body, Tol::witness()).expect("mass properties");

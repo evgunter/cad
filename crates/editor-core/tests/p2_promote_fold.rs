@@ -89,11 +89,10 @@ fn promote_moves_a_groups_frame_onto_a_gauge_and_fold_undoes_it() {
     assert_eq!(offset_of(&promoted, base), Some(Placement::IDENTITY));
     assert_eq!(gauge_of(&promoted, top), Some(k), "the group moves whole");
     assert_eq!(offset_of(&promoted, top), None);
-    let at = |d: &ProfileDoc, id| d.roots().iter().position(|&r| r == id);
     assert_eq!(
-        at(&promoted, k).map(|i| i + 1),
-        at(&promoted, base),
-        "the gauge joins the roots just ahead of the instance"
+        promoted.placements(),
+        doc.placements(),
+        "a promote places nothing (A10)"
     );
     assert_eq!(
         solve(&promoted, &o, Tol::witness()).role(mate),

@@ -222,9 +222,7 @@ fn every_standing_renders_one_way_through_every_door() {
     // extrude is the root of a document of its own (below).
     let (rooted, _) = step(
         s.doc.clone(),
-        DocEdit::SetRoots {
-            roots: vec![s.poisoned],
-        },
+        DocEdit::place(s.poisoned, None),
     );
     for (eval, standing) in [
         (&s.broken, poisoned),
@@ -319,9 +317,7 @@ fn the_checks_root_refusal_names_the_node_the_repair_is_at() {
     let s = Standings::new();
     let (rooted, _) = step(
         s.doc.clone(),
-        DocEdit::SetRoots {
-            roots: vec![s.poisoned],
-        },
+        DocEdit::place(s.poisoned, None),
     );
     let refusal = run_checks(&rooted, &s.broken, &ChecksConfig::default(), Tol::witness())
         .expect_err("a poisoned root refuses the registry");
@@ -358,9 +354,7 @@ fn the_checks_root_refusal_names_the_node_the_repair_is_at() {
     );
     let (doc, _) = step(
         doc,
-        DocEdit::SetRoots {
-            roots: vec![failed],
-        },
+        DocEdit::place(failed, None),
     );
     let ev = run(&doc, &CancelToken::new());
     let standing = NodeStanding::Failed { node: failed };

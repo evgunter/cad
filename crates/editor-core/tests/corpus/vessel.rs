@@ -109,6 +109,7 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
     });
     let open = open(&r.doc, pot);
     let vessel = r.insert(Node::shell(pot, len(WALL), open));
+    r.place(vessel);
 
     CorpusDoc {
         name: "vessel",

@@ -351,11 +351,7 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
             select: PartSelect::Instance(Formula::count(0)),
         },
     );
-    assert!(
-        doc.roots().contains(&part) && !doc.roots().contains(&s.pattern),
-        "the Part consumed the pattern's root: {:?}",
-        doc.roots()
-    );
+    let (doc, _) = crate::fixture::place(doc, part);
     let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
     let b = crate::fixture::head_at(
         part,
@@ -487,11 +483,7 @@ fn an_operand_under_an_empty_boolean_root_refuses_vanished_naming_the_boolean() 
             declare: Vec::new(),
         },
     );
-    assert!(
-        doc.roots().contains(&empty) && !doc.roots().contains(&s.xf),
-        "the boolean consumed the transform's root: {:?}",
-        doc.roots()
-    );
+    let (doc, _) = crate::fixture::place(doc, empty);
     let a = crate::fixture::head(in_part(s.base, s.base_body, CapEnd::End));
     let b = crate::fixture::head_at(s.xf, in_part(s.top, s.top_body, CapEnd::Start));
     let (doc, mate) = mated(doc, seat(a, b));

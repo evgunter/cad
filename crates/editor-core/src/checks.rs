@@ -1547,18 +1547,12 @@ mod tests {
     /// refusal it was handed, whole, so the checks door can forward it
     /// for the frame holding the document to say.
     ///
-    /// The refusal below is reachable: one body placed under two
-    /// roots gathers into `ProductError::PlacedUnderTwoRoots`, which is
-    /// what `editor-core`'s own `docm5` row drives through this door
-    /// end-to-end.
+    /// The refusal below is reachable: a placement whose body was
+    /// deleted gathers into `ProductError::StrandedPlacement`.
     #[test]
     fn the_subject_door_carries_the_gather_refusal_it_saw() {
-        let refusal = || crate::ProductError::PlacedUnderTwoRoots {
-            placed: RecipeNodeId::new(0, 2),
-            twice: crate::PlacedTwice::Body,
-            select: None,
-            first: RecipeNodeId::new(0, 7),
-            second: RecipeNodeId::new(0, 8),
+        let refusal = || crate::ProductError::StrandedPlacement {
+            placement: RecipeNodeId::new(0, 7),
         };
         let subject: Subject<'_, f64> = Subject::refused(refusal());
         let Subject::Unavailable {
@@ -1592,8 +1586,8 @@ mod tests {
 
     /// INVARIANT: the subject door ROUTES the refusal it is handed.
     /// The one class [`product::ProductErrorKind::means_no_body`]
-    /// reads as an ABSENCE — `ProductError::NoBodyRoots`, a document
-    /// that simply denotes no body — becomes [`Subject::EmptyProduct`];
+    /// reads as an ABSENCE — `ProductError::EmptyProduct`, a document
+    /// whose world holds nothing — becomes [`Subject::EmptyProduct`];
     /// every other class becomes [`Subject::Unavailable`].
     ///
     /// That arm is the one refusal that must not go through the
@@ -1612,7 +1606,9 @@ mod tests {
     #[test]
     fn the_subject_door_routes_an_absence_away_from_the_unavailable_arm() {
         for refusal in [
-            crate::ProductError::NoBodyRoots,
+            crate::ProductError::EmptyProduct {
+                unplaced: Vec::new(),
+            },
             crate::ProductError::Root(crate::NodeStanding::Poisoned {
                 node: RecipeNodeId::new(0, 7),
                 through: RecipeNodeId::new(0, 2),

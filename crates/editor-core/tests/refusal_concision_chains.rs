@@ -3610,14 +3610,13 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
 
 /// The instance rows of a part with no product, raised through real
 /// documents so each carries the gather's own sentence: a sketch-only
-/// part, whose roots denote no body; a part that places its body under
-/// two roots; and a part whose split and a move of the split's target
-/// are both roots, so the two alias the block's strict wall names.
+/// part, whose world is empty, and a part whose one placement's body
+/// was deleted.
 fn part_products() -> Vec<(String, NodeErrorKind)> {
     use crate::fixture::resolver::{PartStore, with_resolver};
-    use crate::fixture::{ang, insert, len, on_frame, scl, square};
+    use crate::fixture::{insert, len, on_frame, square};
     use editor_core::{
-        CancelToken, Datum, DocumentId, Node, NodeResult, PartFault, ProductErrorKind, ProfileDoc,
+        CancelToken, DocumentId, Node, NodeResult, PartFault, ProductErrorKind, ProfileDoc,
         evaluate,
     };
     use geom_core::Tol;
@@ -3631,22 +3630,8 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
             vec![square(0.0, 0.0, 0.5)],
         )
     };
-    let moved = |doc, input, dx| {
-        insert(
-            doc,
-            Node::transform(
-                input,
-                editor_core::Step::Rigid {
-                    translation: [len(dx), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ),
-        )
-        .0
-    };
-    let twice = {
-        let (doc, profile) = sketch("concision-part-twice");
+    let stranded = {
+        let (doc, profile) = sketch("concision-part-stranded");
         let (doc, body) = insert(
             doc,
             Node::Extrude {
@@ -3655,50 +3640,20 @@ fn part_products() -> Vec<(String, NodeErrorKind)> {
                 side: ExtrudeSide::Along,
             },
         );
-        moved(moved(doc, body, 2.0), body, 4.0)
-    };
-    let aliased = {
-        let (doc, profile) = sketch("concision-part-aliased");
-        let (doc, block) = insert(
-            doc,
-            Node::Extrude {
-                profile: profile.into(),
-                distance: len(1.0),
-                side: ExtrudeSide::Along,
-            },
-        );
-        let (doc, plane) = insert(
-            doc,
-            Node::Datum(Datum::Plane {
-                origin: [len(0.25), len(0.0), len(0.0)],
-                normal: [scl(1.0), scl(0.0), scl(0.0)],
-            }),
-        );
-        let (doc, _) = insert(
-            doc,
-            Node::Split {
-                target: block.into(),
-                tool: plane.into(),
-            },
-        );
-        moved(doc, block, 2.0)
+        let (doc, _) = crate::fixture::place(doc, body);
+        crate::fixture::step(doc, editor_core::DocEdit::DeleteNode { id: body }).0
     };
     let mut store = PartStore::new();
     let parts = [
         (
             "Part/PartProduct",
             store.insert(sketch("concision-part-sketch").0, tol),
-            ProductErrorKind::NoBodyRoots,
+            ProductErrorKind::EmptyProduct,
         ),
         (
-            "Part/PartProduct(PlacedUnderTwoRoots)",
-            store.insert(twice, tol),
-            ProductErrorKind::PlacedUnderTwoRoots,
-        ),
-        (
-            "Part/PartProduct(Naming)",
-            store.insert(aliased, tol),
-            ProductErrorKind::Naming,
+            "Part/PartProduct(StrandedPlacement)",
+            store.insert(stranded, tol),
+            ProductErrorKind::StrandedPlacement,
         ),
     ];
     let opts = with_resolver(store);

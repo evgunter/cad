@@ -153,6 +153,7 @@ pub fn document() -> CorpusDoc {
         bound: len(MIN_WEB),
         dir: AssertionDir::AtLeast,
     });
+    r.place(plate);
 
     CorpusDoc {
         name: "measured_web",

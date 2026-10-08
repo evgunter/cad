@@ -102,6 +102,8 @@ pub fn document() -> CorpusDoc {
         expr: Formula::named(VarName::from_static("fins"), Dimension::Count),
         fresh: Vec::new(),
     });
+    r.place(fins);
+
     CorpusDoc {
         name: "heat_sink_fins",
         about: "the parametric fin group as ONE node: PlacedUnion(fin, Linear) driven by the fins param",

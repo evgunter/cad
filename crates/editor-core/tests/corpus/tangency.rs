@@ -74,7 +74,6 @@ pub fn document() -> CorpusDoc {
         distance: len(0.5),
         side: ExtrudeSide::Along,
     });
-    let _ = fillet_body;
 
     // (b) Tangency BY HAND: the #100 bracket. The quarter arc leaving
     // (1.5,1) is exactly tangent to the line arriving there and to
@@ -112,6 +111,8 @@ pub fn document() -> CorpusDoc {
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
+    r.place(fillet_body);
+    r.place(tangent_body);
 
     CorpusDoc {
         name: "declared_tangency",

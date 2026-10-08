@@ -22,7 +22,7 @@ use editor_core::{
     MeshPickError, MetaVersionError, MintRefusal, NamingError, NodeErrorKind, NodePickError,
     ParseError, PartFault, PlacementRuleFault, ProgramFault, ReachRefusal, RecipeNodeId,
     RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg,
-    RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId,
+    Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId,
     StepIdFault, StepSegmentsError, UnnamedEntity, VarName,
 };
 use editor_core::{ListFault, Mispaired, NameLookupError, NodeStanding, SpokenName, SpokenNode};
@@ -1122,7 +1122,6 @@ test_utils::f6_variants! {
         DefinitionCycle,
         DefinitionTooLarge,
         EpsilonInvalid,
-        Roots,
         NotAGauge,
         GaugeCycle,
         PlacementNonFinite,
@@ -1177,7 +1176,7 @@ fn a_node_refusal_names_its_slot_by_its_label() {
 /// `Debug` dump.
 ///
 /// The payload-carrying arms forward their payload's own `Display`
-/// (`RootFault`, `PlacementRuleFault`, `MeasureNodeFault`,
+/// (`PlacementRuleFault`, `MeasureNodeFault`,
 /// `InputFault`, `MetaVersionError`) rather than restating it, and the
 /// two placement-frame arms forward the frame rule's clause — so each
 /// case below asks for the payload's words, which is what proves the
@@ -1473,16 +1472,6 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::EpsilonInvalid { value: 0.0 },
             vec!["recorded ε", "finite and strictly positive"],
-        ),
-        (
-            SnapshotError::Roots(RootFault::Ancestor {
-                ancestor: SpokenNode::absent(RecipeNodeId::new(0, tagged(1))),
-                descendant: SpokenNode::absent(RecipeNodeId::new(0, tagged(2))),
-            }),
-            vec![
-                "product root node 000000000001 is an ancestor of product root node \
-                 000000000002",
-            ],
         ),
         (
             SnapshotError::NotAGauge {

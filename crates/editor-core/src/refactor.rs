@@ -3551,16 +3551,6 @@ pub fn split(
 
 // ---- Inline ----
 
-/// **A product name as its copy spells it**: `Placed(inner)` under a
-/// world placement, as the placement and `inner`; `None` for any other
-/// shape.
-fn in_its_copy(name: &StableName) -> Option<(RecipeNodeId, &StableName)> {
-    match &name.path[..] {
-        [RoleSeg::Placed { of }] => Some((name.node, of)),
-        _ => None,
-    }
-}
-
 /// **Whether a world placement's copy stands where a gauge puts it**
 /// (A4): one placing an instance's body at the identity, whose copy is
 /// wherever the instance sits, so it lands on any gauge; any other copy
@@ -3912,7 +3902,7 @@ pub fn inline(
             if here.name.node != instance {
                 continue;
             }
-            let inner = in_its_copy(of)
+            let inner = of.copy_of()
                 .and_then(|(_, of)| FaceName::new(of.clone()).ok())
                 .and_then(|face| {
                     crate::mate::member_of(&part, &crate::node::SitedFace::at_mint(face))
@@ -4121,7 +4111,7 @@ pub fn inline(
     // host spells it once the instance is gone: the body's own name
     // where the readers read that body, else the carried copy's.
     let to_host = |of: &StableName| -> Option<Result<StableName, InlineError>> {
-        let (placement, inner) = in_its_copy(of)?;
+        let (placement, inner) = of.copy_of()?;
         let local = remap_name(inner, &node_map, &step_map)
             .map_err(|missing| InlineError::stranded(&part, inner, missing));
         Some(local.map(|local| {

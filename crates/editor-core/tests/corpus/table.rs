@@ -161,6 +161,8 @@ pub fn document() -> CorpusDoc {
         acc = uni;
         prior = Some(ev);
     }
+    r.place(acc);
+
     CorpusDoc {
         name: "corner_table",
         about: "corner-aligned four-leg table (declared flush contacts)",

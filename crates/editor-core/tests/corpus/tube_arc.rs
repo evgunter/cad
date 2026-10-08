@@ -70,6 +70,8 @@ pub fn document() -> CorpusDoc {
         minor_radius: len(MINOR),
     });
 
+    r.place(bend);
+
     CorpusDoc {
         name: "tube_arc",
         about: "a capped solid bend from its intent parameters, R = 2, r = 0.5, 1 rad",

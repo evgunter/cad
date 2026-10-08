@@ -26,11 +26,16 @@ use crate::fixture::{die, len};
 /// The die corpus document.
 pub fn document() -> CorpusDoc {
     let d = die();
+    let mut r = crate::fixture::Recorder {
+        doc: d.doc,
+        edits: d.edits,
+    };
+    r.place(d.final_node);
     CorpusDoc {
         name: "die",
-        about: "M3 exact-oracle die: 21 declared pip subtracts (63 nodes)",
-        edits: d.edits,
-        doc: d.doc,
+        about: "M3 exact-oracle die: 21 declared pip subtracts (63 nodes), placed",
+        edits: r.edits,
+        doc: r.doc,
         result: Some(d.final_node),
         pin: Some(MassPin {
             volume: 7.8359375,

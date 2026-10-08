@@ -647,6 +647,23 @@ pub enum DocEdit<P: crate::ProfilePayload> {
 }
 
 impl<P: crate::ProfilePayload> DocEdit<P> {
+    /// **One copy of `body` in the world** (A10): the insert of a
+    /// [`Node::PlaceInWorld`] reading it at `pose`, the identity when
+    /// `None`. Nothing places but this; Python's `Doc.place` is the
+    /// same edit.
+    pub fn place(
+        body: impl Into<crate::Operand>,
+        pose: Option<crate::placement::Placement<Formula>>,
+    ) -> Self {
+        Self::InsertNode {
+            node: Box::new(Node::place_in_world(
+                body,
+                pose.unwrap_or(crate::placement::Placement::IDENTITY),
+            )),
+            fresh: Vec::new(),
+        }
+    }
+
     /// **Whether this edit writes a mate's alignment datum** — the
     /// frames, the primitive, the sense and the rider the solve's
     /// per-mate admission decides on. Two edits do, and both ask the

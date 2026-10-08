@@ -122,10 +122,12 @@ struct Scene {
 /// with nothing between them yet.
 fn scene(label: &str) -> Scene {
     let mut store = PartStore::new();
-    let (base_part, base_body) = part_doc(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT);
-    let (top_part, top_body) = part_doc(&format!("{label}-top"), 1.0, TOP_HEIGHT);
-    let base_ref = store.insert(base_part, Tol::witness());
-    let top_ref = store.insert(top_part, Tol::witness());
+    let (base_ref, base_body) = store.insert_part(
+        part_doc(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
+        Tol::witness(),
+    );
+    let (top_ref, top_body) =
+        store.insert_part(part_doc(&format!("{label}-top"), 1.0, TOP_HEIGHT), Tol::witness());
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));

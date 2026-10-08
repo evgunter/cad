@@ -77,6 +77,25 @@ pub mod vessel;
 
 pub use super::fixture::Recorder;
 
+/// **Each of a pattern's `count` copies placed in the world**, in
+/// instance order: a `Part` per instance, each placed at the identity.
+pub fn place_instances(r: &mut Recorder, pattern: RecipeNodeId, count: i64) {
+    for i in 0..count {
+        let copy = r.insert(Node::Part {
+            of: pattern.into(),
+            select: PartSelect::Instance(editor_core::Formula::count(i)),
+        });
+        r.place(copy);
+    }
+}
+
+/// **A split's two halves placed in the world**, above then below:
+/// each half is its port.
+pub fn place_halves(r: &mut Recorder, split: RecipeNodeId) {
+    r.place(editor_core::Operand::output(split, 0));
+    r.place(editor_core::Operand::output(split, 1));
+}
+
 /// An exact mass-property oracle (dyadic dimensions only — see each
 /// document's derivation comment).
 #[derive(Debug, Clone, Copy)]
@@ -343,7 +362,7 @@ pub const BESIDE_THE_REGISTRY: [&str; 1] = ["Shell"];
 ///
 /// Hand-written, not welded to `Node`, and without `InstantiatePart`
 /// or `Mate`: `work/tint/corpus-node-kinds-roster-is-hand-written`.
-pub const NODE_KINDS: [&str; 20] = [
+pub const NODE_KINDS: [&str; 21] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -402,15 +421,17 @@ pub const NODE_KINDS: [&str; 20] = [
     // direction.
     "Measure",
     "Assertion",
+    // The world placement: every document's product is its copies.
+    "PlaceInWorld",
 ];
 
 /// The edit kinds the corpus is required to exercise — the coverage
 /// tally's DOMAIN, not the `DocEdit` vocabulary.
 ///
-/// It is a SUBSET, deliberately and visibly: `SetMembers`, `SetRoots`,
+/// It is a SUBSET, deliberately and visibly: `SetMembers`,
 /// `SetOffset`, `SetGauge`, `Promote`, `Fold`, `UpdateReference` and
 /// `SetDeclare` are arms of `DocEdit` that no corpus document authors,
-/// and listing them here would report eight permanent misses rather
+/// and listing them here would report seven permanent misses rather
 /// than covering anything. `SetProgram` is
 /// listed: `reshaped_rod` authors one, the first persisted in the
 /// tree. What guards the
@@ -567,6 +588,7 @@ pub fn sub_kinds<P, S: editor_core::Slot>(node: &Node<P, S>) -> Vec<&'static str
         | Node::Split { .. }
         | Node::Union { .. }
         | Node::Transform { .. }
+        | Node::PlaceInWorld { .. }
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Mate { .. }
@@ -596,6 +618,7 @@ pub fn node_kind<P, S: editor_core::Slot>(node: &Node<P, S>) -> &'static str {
         Node::Boolean { .. } => "Boolean",
         Node::Union { .. } => "Union",
         Node::Transform { .. } => "Transform",
+        Node::PlaceInWorld { .. } => "PlaceInWorld",
         Node::Pattern { .. } => "Pattern",
         Node::Part { .. } => "Part",
         Node::PlacedUnion { .. } => "PlacedUnion",
@@ -636,7 +659,6 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetTolerance { .. } => "SetTolerance",
         DocEdit::SetAppearanceMeta { .. } => "SetAppearanceMeta",
         DocEdit::ClearAppearanceMeta { .. } => "ClearAppearanceMeta",
-        DocEdit::SetRoots { .. } => "SetRoots",
         DocEdit::SetOffset { .. } => "SetOffset",
         DocEdit::SetGauge { .. } => "SetGauge",
         DocEdit::Promote { .. } => "Promote",

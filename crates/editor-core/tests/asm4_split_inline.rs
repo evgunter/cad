@@ -689,12 +689,17 @@ fn row3_further_typed_refusals() {
             },
         ),
     );
-    match inline(&host, inst, &resolver, Tol::witness()) {
-        Err(InlineError::InstanceConsumed { node, by }) => {
-            assert_eq!((node, by), (host.spoken(inst), host.spoken(consumer)));
-        }
-        other => panic!("expected InstanceConsumed, got {other:?}"),
-    }
+    // A reader of the instance is re-pointed to the inlined body
+    // (InstanceConsumed retired with the world).
+    let inlined = inline(&host, inst, &resolver, Tol::witness())
+        .expect("an instance its reader reads inlines");
+    let Some(Node::Transform { input, .. }) = inlined.doc.node(consumer) else {
+        panic!("the reader stays")
+    };
+    assert!(
+        inlined.doc.operation_of(*input).is_some_and(|at| at != inst),
+        "the reader reads the inlined body"
+    );
 
     // A placed instance of a PLAIN-geometry part cannot inline: the
     // frame is not something the spliced recipe can express (D-3's
@@ -748,12 +753,12 @@ fn row4_roots_and_offsets_land_as_the_rules_say() {
     .expect("legal");
     let mapped = out.node_map[&ids[1]];
     assert_eq!(
-        out.remainder.roots(),
+        out.remainder.placements(),
         &[ids[0], out.instance],
         "the instance takes the cut root's list position"
     );
     assert_eq!(
-        out.part.roots(),
+        out.part.placements(),
         &[mapped],
         "the part's root is the cut root"
     );
@@ -792,14 +797,6 @@ fn row4_roots_and_offsets_land_as_the_rules_say() {
         }
         inst.push(id);
     }
-    // Reorder the roots so the cut pair's list order disagrees with
-    // insertion order.
-    let (doc2, _) = step(
-        doc2,
-        DocEdit::SetRoots {
-            roots: vec![inst[2], inst[0], inst[1]],
-        },
-    );
     let out2 = split(
         &doc2,
         &BTreeSet::from([inst[0], inst[2]]),
@@ -809,12 +806,12 @@ fn row4_roots_and_offsets_land_as_the_rules_say() {
     )
     .expect("legal");
     assert_eq!(
-        out2.remainder.roots(),
+        out2.remainder.placements(),
         &[out2.instance, inst[1]],
         "the instance takes the FIRST cut root's position"
     );
     assert_eq!(
-        out2.part.roots(),
+        out2.part.placements(),
         &[out2.node_map[&inst[2]], out2.node_map[&inst[0]]],
         "the part keeps the cut roots' A10 list order"
     );
@@ -965,13 +962,7 @@ fn a_separated_cut_regroups_at_its_first_root_and_the_round_trip_keeps_the_produ
         inst.push(i);
     }
     let (i0, i1, i2) = (inst[0], inst[1], inst[2]);
-    // A reordered list, the cut roots NON-ADJACENT in it.
-    let (doc, _) = step(
-        doc,
-        DocEdit::SetRoots {
-            roots: vec![e, i2, i0, i1],
-        },
-    );
+    let doc = fixture::place_all(doc, &[e, i2, i0, i1]);
     let opts = with_resolver(store);
     let ev1 = run(&doc, &opts);
     let (body1, names1) = product_named(&doc, &ev1, Tol::witness()).expect("gathers");
@@ -986,12 +977,12 @@ fn a_separated_cut_regroups_at_its_first_root_and_the_round_trip_keeps_the_produ
     )
     .expect("legal");
     assert_eq!(
-        out.remainder.roots(),
+        out.remainder.placements(),
         &[e, out.instance, i0],
         "the cut roots collapse onto the FIRST cut root's position"
     );
     assert_eq!(
-        out.part.roots(),
+        out.part.placements(),
         &[out.node_map[&i2], out.node_map[&i1]],
         "the part keeps the cut roots' host ROOT-LIST order"
     );
@@ -1011,12 +1002,12 @@ fn a_separated_cut_regroups_at_its_first_root_and_the_round_trip_keeps_the_produ
     // correspondence): the spliced block lands whole at the instance's
     // position.
     assert_eq!(
-        inlined.doc.roots(),
+        inlined.doc.placements(),
         &[e, back(i2), back(i1), i0],
         "the spliced block keeps its own order at the instance's position"
     );
     assert_ne!(
-        inlined.doc.roots(),
+        inlined.doc.placements(),
         &[e, back(i2), i0, back(i1)],
         "the original interleaving is genuinely not restored"
     );

@@ -57,6 +57,8 @@ pub fn document() -> CorpusDoc {
     });
     let blank = r.insert(Node::chamfer(cube, len(D), prism_edges(&r.doc, cube, 4)));
 
+    r.place(blank);
+
     CorpusDoc {
         name: "die_chamfer",
         about: "every edge of a unit cube chamfered at a setback of 0.125",

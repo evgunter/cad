@@ -88,7 +88,7 @@ fn assembly(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, PartStore,
         }
         ids.push(id);
     }
-    (doc, ids, store, body)
+    (crate::fixture::place_all(doc, &ids), ids, store, body)
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame<Formula> {
@@ -1116,11 +1116,12 @@ fn row6a_mated_instances_share_an_a9_component() {
 }
 
 #[test]
-fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
+fn row6b_a_mate_insert_and_delete_place_nothing() {
     let (doc, ids, store, body) = assembly("asm-r2a-row6b", 2);
     let o = with_resolver(store);
     let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
-    assert_eq!(doc.roots(), &ids[..], "both instances are roots");
+    let placed = doc.placements();
+    assert_eq!(placed.len(), 2, "both instances are placed");
     let (doc, mate_id) = mint(
         doc,
         DocEdit::InsertNode {
@@ -1138,9 +1139,9 @@ fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
         },
     );
     assert_eq!(
-        doc.roots(),
-        &[ids[0], ids[1], mate_id][..],
-        "no tip transfer: the mate APPENDS as an ordinary non-body root"
+        doc.placements(),
+        placed,
+        "a mate places nothing (A10)"
     );
     // A lone coaxial mate leaves the pair UNDER-determined; deleting
     // it is the recourse that refusal names, and no edit records a
@@ -1150,7 +1151,7 @@ fn row6b_instances_keep_their_roots_across_mate_insert_and_delete() {
         .expect("deleting an under-determined mate is its recourse");
     assert!(applied.maintenance.is_empty(), "{:?}", applied.maintenance);
     let doc = applied.doc;
-    assert_eq!(doc.roots(), &ids[..], "and leaves them as it found them");
+    assert_eq!(doc.placements(), placed, "and leaves them as it found them");
 }
 
 #[test]
@@ -1164,7 +1165,6 @@ fn row6c_the_gather_ignores_the_mate_root() {
         .filter(|&id| matches!(doc.node(id), Some(Node::Mate { .. })))
         .collect();
     for &m in &mates {
-        assert!(doc.roots().contains(&m), "a mate IS listed as a root");
         assert!(matches!(
             ev.result(m),
             Some(NodeResult::Ok(v)) if matches!(v.payload, editor_core::ValuePayload::Mate(_))

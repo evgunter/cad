@@ -2535,6 +2535,35 @@ impl RoleSeg {
 }
 
 impl StableName {
+    /// **This entity as world placement `placement`'s copy names it**
+    /// (D10, A10): the body's own name, worn inside the one
+    /// [`RoleSeg::Placed`] qualifier the placement puts round every
+    /// name of the body it places, headed at the placement. What the
+    /// product's table spells the entity by; [`StableName::copy_of`] is
+    /// its inverse.
+    #[must_use]
+    pub fn in_copy(&self, placement: RecipeNodeId) -> StableName {
+        StableName {
+            kind: self.kind,
+            node: placement,
+            path: vec![RoleSeg::Placed {
+                of: self.clone().into(),
+            }],
+        }
+    }
+
+    /// **The body's own name a copy's name wraps**: the name under the
+    /// one `Placed` qualifier, with the placement that put it there.
+    /// `None` when this name is not of that shape;
+    /// [`StableName::in_copy`] is its inverse.
+    #[must_use]
+    pub fn copy_of(&self) -> Option<(RecipeNodeId, &StableName)> {
+        match self.path.as_slice() {
+            [RoleSeg::Placed { of }] => Some((self.node, of)),
+            _ => None,
+        }
+    }
+
     /// This name with every segment of its path rebuilt through `w`
     /// ([`RoleSeg::rewrite`]), then put back in canonical form; the
     /// kind and the minting node are not the path's and are kept.

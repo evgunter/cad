@@ -204,11 +204,7 @@ fn fused(s: &Scene, at_t1: impl Fn(RecipeNodeId, RecipeNodeId) -> SitedFace) -> 
             declare: Vec::new(),
         },
     );
-    assert!(
-        doc.roots().contains(&union) && !doc.roots().contains(&t1),
-        "the union consumes both transforms: {:?}",
-        doc.roots()
-    );
+    let (doc, _) = crate::fixture::place(doc, union);
     let (doc, m1) = mated(doc, seat(s.base_cap(s.base1), at_t1(t1, union)));
     let (doc, m2) = mated(doc, seat(s.base_cap(s.base2), head_at(t2, s.top_cap())));
     Fused {
@@ -277,11 +273,7 @@ fn a1b_a_transform_above_the_operand_refuses_rather_than_refutes() {
         xform(s.top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0),
     );
     let (doc, t3) = insert(doc, xform(t1, [5.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0));
-    assert!(
-        doc.roots().contains(&t3) && !doc.roots().contains(&t1),
-        "t3 consumes t1's root: {:?}",
-        doc.roots()
-    );
+    let (doc, _) = crate::fixture::place(doc, t3);
     let (doc, mate) = mated(doc, seat(s.base_cap(s.base1), head_at(t1, s.top_cap())));
     let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
@@ -514,7 +506,7 @@ fn a_pair_boolean_above_the_operand_carries_the_face() {
             declare: Vec::new(),
         },
     );
-    assert!(doc.roots().contains(&fused), "{:?}", doc.roots());
+    let (doc, _) = crate::fixture::place(doc, fused);
     let ev = run(&doc, &s.opts);
     let gated = gate(&doc, &ev);
     assert!(gated.is_ok(), "the boolean carries the face: {gated:?}");
@@ -606,7 +598,7 @@ fn a_chamfer_above_the_operand_carries_the_face_it_trims() {
             selection: edges,
         },
     );
-    assert!(doc.roots().contains(&chamfer), "{:?}", doc.roots());
+    let (doc, _) = crate::fixture::place(doc, chamfer);
     let ev = run(&doc, &s.opts);
     let gated = gate(&doc, &ev);
     assert!(gated.is_ok(), "the chamfer carries the face: {gated:?}");

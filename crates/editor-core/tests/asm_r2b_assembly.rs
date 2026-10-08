@@ -1956,13 +1956,8 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
                 ],
             }],
         },
-        ProductError::Naming {
-            node: RecipeNodeId::new(0, tagged(2)),
-            name: Box::new(StableName {
-                kind: EntityKind::Face,
-                node: RecipeNodeId::new(0, tagged(1)),
-                path: vec![RoleSeg::Cap(CapEnd::End)],
-            }),
+        ProductError::StrandedPlacement {
+            placement: RecipeNodeId::new(0, tagged(2)),
         },
         ProductError::Graft {
             node: RecipeNodeId::new(0, tagged(5)),
@@ -1974,11 +1969,12 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     ];
     let expected: [&[&str]; 3] = [
         &[
-            "product: 1 root not valid at rest:",
-            "\n  root 000000000003 output 1: a solid encloses negative volume, so it is inside-out",
+            "product: 1 placement not valid at rest:",
+            "\n  placement 000000000003 output 1: a solid encloses negative volume, so it is \
+             inside-out",
         ],
-        &["in root 000000000002, the end cap of node 000000000001 collides"],
-        &["the kernel could not graft root 000000000005's body: the band's "],
+        &["placement 000000000002 reads a body that is gone"],
+        &["the kernel could not graft placement 000000000005's body: the band's "],
     ];
     for (error, needles) in cases.into_iter().zip(expected) {
         // Through the assembly surface, exactly as a caller sees it.
@@ -2025,9 +2021,9 @@ fn a_mated_assembly_is_silent_and_the_declaration_is_why() {
     // seated flush, so their padded boxes meet and the kernel door
     // denies the pair. This is the half that would make the resident
     // fire if the declaration were not consulted.
-    assert_eq!(product.solid_roots.len(), 2, "two placed solids");
+    assert_eq!(product.solid_copies.len(), 2, "two placed solids");
     let sep = topo::SolidSeparation::of(&product.body, Tol::witness()).expect("boxes");
-    let (a, b) = (product.solid_roots[0].solid, product.solid_roots[1].solid);
+    let (a, b) = (product.solid_copies[0].solid, product.solid_copies[1].solid);
     assert!(
         sep.certify(a, b).is_err(),
         "a flush-seated pair is not box-separable — if this ever passes, \
@@ -2090,21 +2086,21 @@ fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
     let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
 
     // ONE subject, TWO solids — the configuration the guard is for.
-    assert_eq!(product.solid_roots.len(), 2, "two solids");
+    assert_eq!(product.solid_copies.len(), 2, "two solids");
     assert!(
         product
-            .solid_roots
+            .solid_copies
             .iter()
             .all(|o| (o.node, o.output) == (instance, 0)),
         "both solids come from the one instance: {:?}",
-        product.solid_roots
+        product.solid_copies
     );
 
     // The geometry does NOT grant: coincident solids are the case the
     // box rule most emphatically cannot separate. Without the guard
     // this pair reaches the finding.
     let sep = topo::SolidSeparation::of(&product.body, Tol::witness()).expect("boxes");
-    let (a, b) = (product.solid_roots[0].solid, product.solid_roots[1].solid);
+    let (a, b) = (product.solid_copies[0].solid, product.solid_copies[1].solid);
     assert!(
         sep.certify(a, b).is_err(),
         "coincident solids must not be box-separable — if this ever \

@@ -136,6 +136,8 @@ pub fn document() -> CorpusDoc {
         declare: Vec::new(),
     });
 
+    r.place(union);
+
     CorpusDoc {
         name: "plate_param",
         about: "the parametric scene: a plate whose two hole radii are one FreeVar",

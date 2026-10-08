@@ -486,6 +486,19 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
     (doc, minted.unwrap())
 }
 
+/// **One copy of `body` in the world** (A10), at the identity: the
+/// document's product is the copies its placements define.
+pub fn place(doc: ProfileDoc, body: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, minted) = step(doc, DocEdit::place(body, None));
+    (doc, minted.unwrap())
+}
+
+/// [`place`] for each of `bodies`, in order: the document keeps only
+/// the placed document.
+pub fn place_all(doc: ProfileDoc, bodies: &[RecipeNodeId]) -> ProfileDoc {
+    bodies.iter().fold(doc, |doc, &body| place(doc, body).0)
+}
+
 /// **The refusal inserting `node` into `doc` meets**, for a row about
 /// what the insert door refuses.
 ///
@@ -935,6 +948,13 @@ impl Recorder {
             fresh: Vec::new(),
         })
         .expect("minted id")
+    }
+
+    /// **One copy of `body` in the world** (A10), at the identity,
+    /// returning the placement.
+    pub fn place(&mut self, body: impl Into<editor_core::Operand>) -> RecipeNodeId {
+        self.push(DocEdit::place(body, None))
+            .expect("a placement mints its node")
     }
 
     /// **A frame and a profile drawn on it**, returning the PROFILE's
@@ -1762,6 +1782,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::OnToolVertex { of: x, .. }
         | RoleSeg::Instance { of: x, .. }
         | RoleSeg::InPart { of: x }
+        | RoleSeg::Placed { of: x }
         | RoleSeg::FromTarget(x)
         | RoleSeg::BlendFace(x)
         | RoleSeg::CornerFace(x)

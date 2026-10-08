@@ -161,6 +161,8 @@ pub fn document() -> CorpusDoc {
         declare: Vec::new(),
     });
 
+    r.place(pipped);
+
     CorpusDoc {
         name: "die_pips",
         about: "M5 shape (v) stage 2: a spherical pip cut into a cube face (the corpus's first sphere)",

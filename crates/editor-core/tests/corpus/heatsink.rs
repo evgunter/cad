@@ -114,6 +114,9 @@ pub fn document() -> CorpusDoc {
         });
     }
 
+    r.place(acc);
+    super::place_instances(&mut r, pattern, FINS);
+
     CorpusDoc {
         name: "heat_sink",
         about: "parametric fin strip: Pattern instances + explicit union chain",

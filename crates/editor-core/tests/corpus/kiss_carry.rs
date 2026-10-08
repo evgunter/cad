@@ -130,6 +130,8 @@ pub fn document() -> CorpusDoc {
         declare: decl,
     });
 
+    r.place(u2);
+
     CorpusDoc {
         name: "kiss_carry",
         about: "corner-kiss assembly; the surviving v-v record re-entered by a declared pair",

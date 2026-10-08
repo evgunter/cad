@@ -56,7 +56,7 @@ pub fn document() -> CorpusDoc {
         target: cylinder.into(),
         tool: tool.into(),
     });
-    let _ = split;
+    super::place_halves(&mut r, split);
 
     CorpusDoc {
         name: "cut_cylinder",

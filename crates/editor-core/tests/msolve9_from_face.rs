@@ -391,7 +391,7 @@ fn carrier(
         other => panic!("no analytic fixture for {other:?}"),
     };
     let ev = run(&doc, &EvalOptions::default());
-    let root = *doc.roots().first().expect("a product root");
+    let root = *doc.ids().last().expect("the revolve");
     let name = all_faces(&ev, root)
         .into_iter()
         .find(|name| face_carrier_kind(&ev, root, name) == Ok(wanted))
@@ -578,7 +578,7 @@ fn a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides() {
         vec![vec![(0.0, 0.0), (0.4, 0.0), (0.4, 1.0), (0.0, 1.0)]],
     );
     let ev = run(&part, &EvalOptions::default());
-    let root = *part.roots().first().expect("a product root");
+    let root = *part.ids().last().expect("the revolve");
     let (name, pose) = all_faces(&ev, root)
         .into_iter()
         .filter_map(|name| {

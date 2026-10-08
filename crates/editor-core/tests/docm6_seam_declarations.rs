@@ -1708,28 +1708,22 @@ fn part_fault(error: &editor_core::NodeError) -> (&editor_core::PartFault, &DocR
 
 // ---- A part's product refusal says the part's labels ----
 
-/// A block placed under two roots (two transforms of its extrude), the
-/// extrude labelled `label`, in a document named `id`. Every document's
-/// mint starts at the zero chain, so two such documents hold the
-/// extrude under one id.
-fn placed_twice(id: &str, label: &str) -> (ProfileDoc, RecipeNodeId) {
+/// A block placed in the world and then deleted, its placement
+/// labelled `label` and stranded, in a document named `id`. Every
+/// document's mint starts at the zero chain, so two such documents
+/// hold the placement under one id.
+fn stranded(id: &str, label: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, block) = cube_part(id);
-    let (doc, _) = insert(
-        doc,
-        fixture::xform(block, [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0),
-    );
-    let (doc, _) = insert(
-        doc,
-        fixture::xform(block, [4.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.0),
-    );
+    let (doc, placement) = fixture::place(doc, block);
     let (doc, _) = step(
         doc,
         DocEdit::SetLabel {
-            node: block,
+            node: placement,
             label: Some(editor_core::Label::new(label).expect("a valid label")),
         },
     );
-    (doc, block)
+    let (doc, _) = step(doc, DocEdit::DeleteNode { id: block });
+    (doc, placement)
 }
 
 /// **A part's product refusal says the part's labels in a frame holding
@@ -1738,9 +1732,9 @@ fn placed_twice(id: &str, label: &str) -> (ProfileDoc, RecipeNodeId) {
 #[test]
 fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_the_id() {
     let mut store = PartStore::default();
-    let (inner, block) = placed_twice("speak-p-inner", "inner block");
+    let (inner, block) = stranded("speak-p-inner", "inner block");
     let inner_ref = store.insert(inner.clone(), Tol::witness());
-    let (outer, outer_block) = placed_twice("speak-p-outer", "outer block");
+    let (outer, outer_block) = stranded("speak-p-outer", "outer block");
     assert_eq!(
         outer_block, block,
         "both documents mint from the zero chain"
@@ -1757,12 +1751,12 @@ fn a_parts_product_refusal_says_the_parts_label_where_the_outer_document_holds_t
     };
     assert_eq!(
         refusal.kind(),
-        editor_core::ProductErrorKind::PlacedUnderTwoRoots
+        editor_core::ProductErrorKind::StrandedPlacement
     );
     let in_outer = error.spoken(&outer, &ev);
     assert!(
         in_outer.contains(&format!(
-            "Extrude \"inner block\" ({t})'s body is placed under two roots"
+            "PlaceInWorld \"inner block\" ({t}) reads a body that is gone"
         )) && !in_outer.contains("outer block"),
         "a part's refusal says the part's label, never the outer document's for its id: \
          {in_outer}"

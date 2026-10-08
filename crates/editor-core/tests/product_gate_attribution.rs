@@ -21,12 +21,11 @@
 use crate::fixture;
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanValue, CancelToken, Datum, DocEdit, DocumentId, EvalOptions, Evaluation, Formula, Frame,
-    Node, NodeResult, PatternKind, ProductError, ProfileDoc, RecipeNodeId, SourceFinding,
-    SplitHalf, SplitSide, ValuePayload, evaluate, product_recorded,
+    BooleanValue, CancelToken, DocEdit, DocumentId, EvalOptions, Evaluation, Frame,
+    Node, NodeResult, ProductError, ProfileDoc, RecipeNodeId, SourceFinding, ValuePayload, evaluate, product_recorded,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{insert, len, on_frame, scl, square, step};
+use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
 use std::sync::Arc;
 use test_utils::source::{ItemBody, blanked, code_only, item_body, required_matches};
@@ -98,14 +97,15 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId) {
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, 0.5)],
     );
-    insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
-    )
+    );
+    fixture::place(doc, body)
 }
 
 /// `node`'s body, as the evaluation holds it.
@@ -152,7 +152,6 @@ fn named(err: &ProductError) -> Vec<(RecipeNodeId, u32)> {
 #[test]
 fn a_lone_single_solid_source_is_named() {
     let (doc, a) = block(ProfileDoc::empty_derived("per-part-1", Tol::witness()), 0.0);
-    assert_eq!(doc.roots(), &[a][..]);
     let mut ev = run(&doc);
     assert_eq!(flip_one_face(&mut ev, a), 1);
     let err = product_recorded(&doc, &ev, Tol::witness()).expect_err("an invalid root refuses");
@@ -163,9 +162,8 @@ fn a_lone_single_solid_source_is_named() {
 /// failing root and not the clean one beside it.
 #[test]
 fn two_sources_name_only_the_failing_one() {
-    let (doc, a) = block(ProfileDoc::empty_derived("per-part-2", Tol::witness()), 0.0);
+    let (doc, _a) = block(ProfileDoc::empty_derived("per-part-2", Tol::witness()), 0.0);
     let (doc, b) = block(doc, 5.0);
-    assert_eq!(doc.roots(), &[a, b][..]);
     let mut ev = run(&doc);
     assert_eq!(flip_one_face(&mut ev, b), 1);
     let err = product_recorded(&doc, &ev, Tol::witness()).expect_err("an invalid root refuses");
@@ -203,14 +201,14 @@ fn a_lone_multi_solid_source_is_named() {
                 fresh: Vec::new(),
             },
         );
-        sub = next;
+        sub = fixture::place(next, id).0;
     }
     let b = store.insert(sub, Tol::witness());
-    let (doc, source) = insert(
+    let (doc, instance) = insert(
         ProfileDoc::empty(DocumentId::derive("per-part-3-a"), Tol::witness()),
         Node::instantiate_part(b),
     );
-    assert_eq!(doc.roots(), &[source][..], "one source");
+    let (doc, source) = fixture::place(doc, instance);
     let mut ev = fixture::run(&doc, &with_resolver(store));
     assert_eq!(
         flip_one_face(&mut ev, source),
@@ -231,7 +229,6 @@ fn a_lone_multi_solid_source_is_named() {
 fn a_defect_that_stops_check_7_does_not_hide_another_roots_inside_out_body() {
     let (doc, a) = block(ProfileDoc::empty_derived("per-part-4", Tol::witness()), 0.0);
     let (doc, b) = block(doc, 5.0);
-    assert_eq!(doc.roots(), &[a, b][..]);
     let mut ev = run(&doc);
     flip_one_face(&mut ev, a);
     turn_inside_out(&mut ev, b);
@@ -300,78 +297,3 @@ fn flipped(body: &Body<f64>) -> Arc<Body<f64>> {
     Arc::new(out)
 }
 
-/// **A pattern root names each failing INSTANCE by its output index.**
-/// Three instances, the first and the last flipped: the refusal lists
-/// outputs 0 and 2 of the one root, and not 1.
-#[test]
-fn a_pattern_root_names_each_failing_instance() {
-    let (doc, a) = block(ProfileDoc::empty_derived("per-part-5", Tol::witness()), 0.0);
-    let (doc, pattern) = insert(
-        doc,
-        Node::Pattern {
-            input: a.into(),
-            count: Formula::count(3),
-            kind: PatternKind::Linear {
-                direction: [scl(1.0), scl(0.0), scl(0.0)],
-                spacing: len(3.0),
-            },
-        },
-    );
-    assert_eq!(doc.roots(), &[pattern][..]);
-    let mut ev = run(&doc);
-    let Some(NodeResult::Ok(value)) = ev.nodes.get_mut(&pattern) else {
-        panic!("the pattern evaluated to no value");
-    };
-    let ValuePayload::Instances(bodies) = &mut value.payload else {
-        panic!("the pattern is not an instance list: {:?}", value.payload);
-    };
-    assert_eq!(bodies.len(), 3);
-    for i in [0, 2] {
-        bodies[i] = flipped(&bodies[i]);
-    }
-    let err = product_recorded(&doc, &ev, Tol::witness()).expect_err("invalid instances refuse");
-    assert_eq!(named(&err), [(pattern, 0), (pattern, 2)]);
-    let text = err.to_string();
-    assert!(
-        text.starts_with("product: 1 root not valid at rest:"),
-        "one root, however many of its outputs fail: {text}"
-    );
-}
-
-/// **A split root names its BELOW half by that half's output index**
-/// (`SplitHalf::Below.output_body()`, 1), not by its position in the
-/// gather's list.
-#[test]
-fn a_split_root_names_its_below_half_as_output_1() {
-    let (doc, a) = block(ProfileDoc::empty_derived("per-part-6", Tol::witness()), 0.0);
-    let (doc, tool) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(0.0), len(0.0), len(0.5)],
-            normal: [scl(0.0), scl(0.0), scl(1.0)],
-        }),
-    );
-    let (doc, split) = insert(
-        doc,
-        Node::Split {
-            target: a.into(),
-            tool: tool.into(),
-        },
-    );
-    assert_eq!(doc.roots(), &[split][..]);
-    let mut ev = run(&doc);
-    let Some(NodeResult::Ok(value)) = ev.nodes.get_mut(&split) else {
-        panic!("the split evaluated to no value");
-    };
-    let ValuePayload::Split {
-        below: SplitSide::Body(below),
-        above: SplitSide::Body(_),
-    } = &mut value.payload
-    else {
-        panic!("the split has two halves: {:?}", value.payload);
-    };
-    *below = flipped(below);
-    let err = product_recorded(&doc, &ev, Tol::witness()).expect_err("an invalid half refuses");
-    assert_eq!(SplitHalf::Below.output_body(), 1);
-    assert_eq!(named(&err), [(split, SplitHalf::Below.output_body())]);
-}

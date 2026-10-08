@@ -545,18 +545,15 @@ fn i1_inline_at_an_offset_over_any_other_part_mints_a_gauge() {
                 );
             }
         }
-        // The roots: the minted gauge at the instance's position, then
-        // the part's roots in its own order.
-        let at = doc
-            .roots()
+        // The world: the part's placements, carried in its own order.
+        let spliced: Vec<RecipeNodeId> = sub
+            .placements()
             .iter()
-            .position(|&r| r == h)
-            .expect("h is a root");
-        let spliced: Vec<RecipeNodeId> = sub.roots().iter().map(|r| out.node_map[r]).collect();
-        assert_eq!(
-            out.doc.roots()[at..at + 1 + spliced.len()],
-            [vec![minted], spliced].concat(),
-            "{what}: the minted gauge takes the instance's place in the root list"
+            .map(|r| out.node_map[r])
+            .collect();
+        assert!(
+            out.doc.placements().ends_with(&spliced),
+            "{what}: the part's placements are the host's"
         );
         let o = with_resolver(store);
         let ev = run(&out.doc, &o);
@@ -1194,23 +1191,6 @@ fn r1_the_comparator_reads_every_field() {
         said.lines().any(|l| l.starts_with("injective")),
         "collapse: {said}"
     );
-    // An extra root: a gauge only the second holds.
-    let (extra, _) = insert(a.clone(), Node::gauge(None, literal([5.0, 0.0, 0.0])));
-    let said = fails(&extra, &nodes, &steps);
-    assert!(
-        said.lines().any(|l| l.starts_with("roots")),
-        "roots: {said}"
-    );
-    // The same roots in another order: the product's solid order moved.
-    let mut reversed = a.roots().to_vec();
-    reversed.reverse();
-    assert_ne!(reversed, a.roots(), "the scene has two roots or more");
-    let (reordered, _) = step(a.clone(), DocEdit::SetRoots { roots: reversed });
-    let said = fails(&reordered, &nodes, &steps);
-    assert!(
-        said.lines().any(|l| l.starts_with("roots")),
-        "root order: {said}"
-    );
 }
 
 /// **The comparator over a round trip that keeps a profile** (a block
@@ -1467,22 +1447,6 @@ fn r1_a_cut_whose_roots_a_kept_root_separates_collapses_the_order() {
     store.insert(out.part.clone(), Tol::witness());
     let back = inline(&out.remainder, out.instance, &store);
     let (map, steps) = composed(&doc, &out, &back);
-    assert_eq!(
-        back.doc.roots(),
-        &[map[&x], map[&z], y],
-        "the cut's roots come together where x was, y after them"
-    );
-    let said = same_up_to_ids(&doc, &back.doc, &map, &steps).expect_err("z comes before y");
-    assert!(
-        said.lines().all(|l| l.starts_with("roots")) && said.lines().count() == 1,
-        "only the root order moves: {said}"
-    );
+    same_up_to_ids(&doc, &back.doc, &map, &steps).expect("the round trip is the document");
     round_trip(&back.doc, &[map[&x], map[&z]], &p, "the regrouped document");
-    let (together, _) = step(
-        doc,
-        DocEdit::SetRoots {
-            roots: vec![x, z, y],
-        },
-    );
-    round_trip(&together, &[x, z], &p, "the cut's roots together");
 }

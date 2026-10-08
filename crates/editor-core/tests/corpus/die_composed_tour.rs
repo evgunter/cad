@@ -202,13 +202,19 @@ pub fn document() -> CorpusDoc {
             .expect("the tour's edit log replays")
             .doc;
     }
-    let composed = *doc.ids().last().expect("the die has nodes");
+    let Some(&placement) = doc.placements().last() else {
+        panic!("the tour's die is placed in the world")
+    };
+    let Some(Node::PlaceInWorld { body, .. }) = doc.node(placement) else {
+        unreachable!("a placement is a world placement")
+    };
+    let composed = doc.operation_of(*body).expect("the placed body is live");
     assert!(
         matches!(
-            doc.node(composed).expect("the last node"),
+            doc.node(composed).expect("the placed node"),
             Node::Fillet { .. }
         ),
-        "the tour's die ends in the rim blend; if it no longer does, \
+        "the tour's die places the rim blend; if it no longer does, \
          this document's `result` names the wrong node"
     );
     let pip = first_pip(&doc);

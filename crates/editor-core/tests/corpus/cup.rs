@@ -113,6 +113,8 @@ pub fn document() -> CorpusDoc {
     // document states the face it means.
     let cup = r.insert(Node::shell(blank, len(T), vec![top(blank)]));
 
+    r.place(cup);
+
     CorpusDoc {
         name: "cup",
         about: "a unit box hollowed to a wall of 0.125 with its top opened into a rim",

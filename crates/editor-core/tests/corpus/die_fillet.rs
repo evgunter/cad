@@ -100,6 +100,8 @@ pub fn document() -> CorpusDoc {
     // covariance row as well as a shape row.
     let blank = r.insert(Node::fillet(cube, len(R), prism_edges(&r.doc, cube, 4)));
 
+    r.place(blank);
+
     CorpusDoc {
         name: "die_fillet",
         about: "M5 shape (v) stage 1: every edge of a unit cube blended at r = 0.125",

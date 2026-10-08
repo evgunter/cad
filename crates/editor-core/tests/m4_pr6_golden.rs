@@ -440,6 +440,27 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             fresh: Vec::new(),
         },
     );
+    // The world: every body the document builds and nothing builds on,
+    // in document order — the chamfered prism, the two tubes and the
+    // shell.
+    let placed: Vec<editor_core::RecipeNodeId> = doc
+        .ids()
+        .into_iter()
+        .filter(|&id| {
+            matches!(
+                doc.node(id),
+                Some(
+                    Node::Chamfer { .. }
+                        | Node::Tube { .. }
+                        | Node::HollowTube { .. }
+                        | Node::Shell { .. }
+                )
+            )
+        })
+        .collect();
+    for body in placed {
+        doc = push(&doc, &DocEdit::place(body, None));
+    }
     // The committed EDIT LOG half: one trailing continuous edit —
     // authored through the TEXT door with a display unit, so the v4
     // wire's per-literal `unit` field is pinned in the FROZEN bytes

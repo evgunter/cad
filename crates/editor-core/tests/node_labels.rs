@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use editor_core::{
     CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, Maintenance,
-    Node, PersistError, ProfileDoc, RecipeNodeId, RootFault, SnapshotError, SplitError,
+    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, SplitError,
     content_pin, evaluate, inline, load, save, split,
 };
 use fixture::resolver::PartStore;
@@ -504,46 +504,6 @@ fn a_strand_names_the_deleted_minting_node_with_the_label_it_had() {
     );
 }
 
-/// **A root refusal at the edit door speaks both roots with their
-/// labels**, and its recourse names the one to drop the same way.
-#[test]
-fn a_root_refusal_speaks_the_labelled_roots_and_its_recourse_does_too() {
-    let doc = ProfileDoc::empty_derived("node-labels-roots", Tol::witness());
-    let (doc, [_, profile, extrude]) = block(doc, 0.0);
-    let doc = set_label(doc, profile, Some("sketch"));
-    let doc = set_label(doc, extrude, Some("base plate"));
-    let refused = refusal(
-        &doc,
-        DocEdit::SetRoots {
-            roots: vec![profile, extrude],
-        },
-    );
-    let EditError::Roots(RootFault::Ancestor {
-        ancestor,
-        descendant,
-    }) = &refused
-    else {
-        panic!("an ancestor pair refuses, got {refused:?}");
-    };
-    assert_eq!(
-        (ancestor, descendant),
-        (&doc.spoken(profile), &doc.spoken(extrude))
-    );
-    let (p, e) = (tag(profile.0.digest()), tag(extrude.0.digest()));
-    let text = refused.to_string();
-    assert!(
-        text.starts_with(&format!(
-            "product root Profile \"sketch\" ({p}) is an ancestor of product root Extrude \
-             \"base plate\" ({e})"
-        )),
-        "{text}"
-    );
-    assert!(
-        text.contains(&format!("drop Profile \"sketch\" ({p}) from the root list")),
-        "{text}"
-    );
-}
-
 /// **A name an edit refusal forwards speaks its minting node** as the
 /// document holds it.
 #[test]
@@ -570,50 +530,6 @@ fn a_forwarded_name_speaks_its_labelled_minting_node() {
             "the side wall over loop 0 step 1 of Extrude \"base plate\" ({})",
             tag(extrude.0.digest())
         )),
-        "{refused}"
-    );
-}
-
-/// **The load door speaks the node it refuses with its label.** The
-/// validator judges a deserialized document whose labels have already
-/// passed `Label::new` and the live-key rule, so a root refusal there
-/// speaks from it like the edit door's does. The craft drops one of
-/// two tips from the root list, stranding that tip's whole chain.
-#[test]
-fn a_load_root_refusal_speaks_the_labelled_node_from_the_file() {
-    let tol = Tol::witness();
-    let doc = ProfileDoc::empty_derived("node-labels-load-roots", tol);
-    let (doc, [_, _, kept]) = block(doc, 0.0);
-    let (doc, lost) = block(doc, 5.0);
-    let doc = lost
-        .iter()
-        .fold(doc, |doc, &id| set_label(doc, id, Some("stranded")));
-    let text = save(&doc, &[], tol).expect("the honest document saves");
-    let honest = format!(
-        "\"roots\": [\n      \"{}\",\n      \"{}\"\n    ]",
-        kept.0, lost[2].0
-    );
-    assert!(
-        text.contains(&honest),
-        "the save's root list is the two tips"
-    );
-    let crafted = text.replace(
-        &honest,
-        &format!("\"roots\": [\n      \"{}\"\n    ]", kept.0),
-    );
-    let refused = match load(&crafted, tol) {
-        Err(PersistError::Snapshot(SnapshotError::Roots(fault))) => fault,
-        other => panic!("a crafted uncovered document refuses, got {other:?}"),
-    };
-    let RootFault::Uncovered { node } = &refused else {
-        panic!("the stranded chain is uncovered, got {refused:?}");
-    };
-    assert!(lost.contains(&node.id()), "{node}");
-    assert_eq!(node.label(), Some(&label("stranded")), "{node}");
-    assert!(
-        refused
-            .to_string()
-            .contains(&format!("\"stranded\" ({})", tag(node.id().0.digest()))),
         "{refused}"
     );
 }
@@ -1381,12 +1297,6 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
             fresh: Vec::new(),
         },
     );
-    let roots = refusal(
-        &doc,
-        DocEdit::SetRoots {
-            roots: vec![profile, extrude],
-        },
-    );
     let unreferenced = fixture::fname(extrude, fixture::wall(&doc, extrude, 0));
     let rebind = refusal(
         &doc,
@@ -1418,18 +1328,6 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
         (node.kind(), node.label(), input),
         (Some("Union"), None, later.spoken(extrude)),
         "the minted node, which no version holds, by its kind; the input as renamed"
-    );
-    let EditError::Roots(RootFault::Ancestor {
-        ancestor,
-        descendant,
-    }) = roots.respoken(&later)
-    else {
-        panic!("respoken keeps the arm, got {roots:?}");
-    };
-    assert_eq!(
-        (ancestor, descendant),
-        (later.spoken(profile), later.spoken(extrude)),
-        "a root arm says both roots as renamed"
     );
     assert_eq!(
         rebind.respoken(&later),

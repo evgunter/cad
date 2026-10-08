@@ -359,16 +359,17 @@ pub use editor_core::{
 // through the document layer (the memo currency's substrate).
 pub use editor_core::ContentBits;
 
-// Explicit product roots: the ordered root list is read through
-// `Doc::roots` and set through
-// `DocEdit::SetRoots`; `product` is the whole-document gather those
-// roots name, and `RootFault` is the shared invariant refusal both
-// the edit and persistence doors carry. `OwnSpace` is one unplaced
-// group's own space, which a `Product` carries beside the world for
-// the at-rest gate to check, and `own_spaces` gathers every one.
+// The world (A10): the product is every copy a world placement
+// (`Node::PlaceInWorld`) defines, in the placements' document order,
+// read through `Doc::placements` and authored by `DocEdit::place` —
+// the one door that places, and the one Python's `Doc.place` is.
+// `product` is the whole-document gather of those copies. `OwnSpace`
+// is one unplaced group's own space, which a `Product` carries beside
+// the world for the at-rest gate to check, and `own_spaces` gathers
+// every one.
 pub use editor_core::{
-    OwnSpace, PlacedTwice, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal,
-    RootFault, SourceFinding, own_spaces, product, product_recorded,
+    OwnSpace, Product, ProductError, ProductErrorKind, ProductRefusal, Refusal, SourceFinding,
+    own_spaces, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
@@ -397,8 +398,7 @@ pub use editor_core::{
 // offset `Placement` — a `MatePrimitive`, an
 // `AxisSense`), the solve's per-node outcome
 // (`SolvedPoses`, `MateRole`, the residual `Subgroup`), and `MateFault`
-// — the typed refusal every door carries, the way `RootFault` is
-// carried above. `member_of` is A11's member vocabulary itself, which
+// — the typed refusal every door carries. `member_of` is A11's member vocabulary itself, which
 // an authoring door must gate on so it admits exactly the heads the
 // solve places (`Member` is its answer); `member_reading` is the same
 // walk with the name it reached at the member's instance, and

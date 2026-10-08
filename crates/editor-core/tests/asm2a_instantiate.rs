@@ -98,7 +98,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, side / 2.0)],
     );
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
@@ -106,10 +106,10 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
             side: ExtrudeSide::Along,
         },
     );
-    doc
+    crate::fixture::place(doc, body).0
 }
 
-/// A part whose product root is a BOOLEAN: a 3x3x0.8 plate with a
+/// A part whose product is a BOOLEAN: a 3x3x0.8 plate with a
 /// square boss sketched at z = 0.3 and extruded 1.0, poking out of the
 /// top (the `corpus::boss` shape, squared). Strictly interior in x/y,
 /// so no face of the boss is coincident with one of the plate's — the
@@ -146,7 +146,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
             side: ExtrudeSide::Along,
         },
     );
-    let (doc, _) = insert(
+    let (doc, fused) = insert(
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
@@ -155,7 +155,7 @@ fn boolean_part(label: &str) -> ProfileDoc {
             declare: Vec::new(),
         },
     );
-    doc
+    crate::fixture::place(doc, fused).0
 }
 
 /// Two disjoint blocks in one document — a TWO-solid product: what
@@ -169,7 +169,7 @@ fn two_solid_part(label: &str) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(10.0, 0.0, 0.5)],
     );
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
@@ -177,10 +177,11 @@ fn two_solid_part(label: &str) -> ProfileDoc {
             side: ExtrudeSide::Along,
         },
     );
-    doc
+    crate::fixture::place(doc, body).0
 }
 
-/// An assembly document instantiating `refs`, in order, each a root.
+/// An assembly document instantiating `refs`, in order, each placed in
+/// the world.
 fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
@@ -189,7 +190,7 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc = next;
         ids.push(id);
     }
-    (doc, ids)
+    (crate::fixture::place_all(doc, &ids), ids)
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
@@ -1245,7 +1246,8 @@ fn moved_over(doc: ProfileDoc, input: RecipeNodeId) -> (ProfileDoc, RecipeNodeId
 }
 
 /// A part whose extrude refuses (its distance is 1/0) and whose one
-/// root is a transform over it: the extrude, then the root.
+/// placement places a transform over it: the extrude, then the
+/// placement.
 fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let part = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (part, profile) = on_frame(
@@ -1264,12 +1266,8 @@ fn poisoned_part(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         },
     );
     let (part, moved) = moved_over(part, extrude);
-    assert_eq!(
-        part.roots(),
-        &[moved],
-        "the transform is the part's one root"
-    );
-    (part, extrude, moved)
+    let (part, placed) = crate::fixture::place(part, moved);
+    (part, extrude, placed)
 }
 
 /// `node`'s own refusal line, as `doc`'s own tree draws it.
@@ -1362,26 +1360,13 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
         ProfileDoc::empty(DocumentId::derive("asm2a-class-empty"), Tol::witness()),
         Tol::witness(),
     );
-    // One body placed under two roots: a refusal, and NOT the absence
-    // above.
+    // A placement whose body was deleted: a refusal, and NOT the
+    // absence above.
     let twice = {
         let doc = part("asm2a-class-twice", 0.0, 1.0);
-        let body = *doc.ids().last().expect("the part has its extrude");
-        let moved = |doc, dx| {
-            insert(
-                doc,
-                Node::transform(
-                    body,
-                    editor_core::Step::Rigid {
-                        translation: [len(dx), len(0.0), len(0.0)],
-                        axis: [scl(0.0), scl(0.0), scl(1.0)],
-                        angle: ang(0.0),
-                    },
-                ),
-            )
-            .0
-        };
-        moved(moved(doc, 2.0), 4.0)
+        let ids = doc.ids();
+        let body = ids[ids.len() - 2];
+        crate::fixture::step(doc, DocEdit::DeleteNode { id: body }).0
     };
     let twice = store.insert(twice, Tol::witness());
 
@@ -1406,22 +1391,22 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
 
     let empty_fault = part_fault(&ev, ids[0]);
     let empty_kind = kind_of(&empty_fault);
-    assert_eq!(empty_kind, ProductErrorKind::NoBodyRoots);
+    assert_eq!(empty_kind, ProductErrorKind::EmptyProduct);
     assert!(
         empty_kind.means_no_body(),
-        "a body-less document reads as an absence"
+        "an empty world reads as an absence"
     );
     assert!(
-        empty_fault.to_string().contains("no body product"),
+        empty_fault.to_string().contains("nothing is placed in the world"),
         "and the sentence says so: {empty_fault}"
     );
 
     let twice_fault = part_fault(&ev, ids[1]);
     let twice_kind = kind_of(&twice_fault);
-    assert_eq!(twice_kind, ProductErrorKind::PlacedUnderTwoRoots);
+    assert_eq!(twice_kind, ProductErrorKind::StrandedPlacement);
     assert!(
         !twice_kind.means_no_body(),
-        "a body placed twice is a fault, not an absence"
+        "a stranded placement is a fault, not an absence"
     );
     assert_ne!(
         empty_kind, twice_kind,

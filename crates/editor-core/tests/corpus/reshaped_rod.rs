@@ -146,6 +146,8 @@ pub fn document() -> CorpusDoc {
         fresh: Vec::new(),
     });
 
+    r.place(fillet);
+
     CorpusDoc {
         name: "reshaped_rod",
         about: "a rod's section on a block, one crease filleted, the block reshaped under it",
