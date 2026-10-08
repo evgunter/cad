@@ -3636,6 +3636,7 @@ MEMBERS_BOUND_AS = {
     "EditError::FreshUnread": "EditError.variant",
     "EditError::VarKindFixed": "EditError.variant",
     "EditError::NotAFreeVar": "EditError.variant",
+    "EditError::VarIsAnOutput": "EditError.variant",
     "EditError::DefinitionCycle": "EditError.variant",
     "EditError::DefinitionTooLarge": "EditError.variant",
     "EditError::DefinitionUnknownVarName": "EditError.variant",

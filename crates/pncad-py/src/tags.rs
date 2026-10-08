@@ -1845,7 +1845,7 @@ pub fn seed_error_tag(err: &SeedError) -> &'static str {
     match err {
         SeedError::UnknownVar { .. } => "unknown_param",
         SeedError::CountVar { .. } => "count_param",
-        SeedError::SeedOnDefinedVar { .. } => "seed_on_defined_var",
+        SeedError::SeedOnNonFreeVar { .. } => "seed_on_non_free_var",
         SeedError::TangentUnrepresentable { .. } => "tangent_unrepresentable",
     }
 }

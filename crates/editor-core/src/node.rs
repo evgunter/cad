@@ -4201,6 +4201,11 @@ impl<P, S: Slot> Node<P, S> {
     /// order, possibly none. The insert door mints one variable per
     /// port ([`crate::Doc::output`]).
     ///
+    /// A [`Node::Transform`]'s one port has its operand's shape:
+    /// `Bodies` when the operand's first port is `Bodies`, `Body`
+    /// otherwise ([`PortKind::PlacedFrom`]). An instance defines one
+    /// `body` until world placements give it one per placement.
+    ///
     /// Exhaustive over the variants, so one added does not compile
     /// until it states what it defines.
     #[must_use]

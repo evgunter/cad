@@ -10,7 +10,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use crate::errors::{
-    ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag, reads_as_prose,
+    ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag, reads_as_prose, var_kind_tag,
 };
 use crate::tags::{
     expr_dimension_error_tag, normalization_kind_tag, path_error_tag, persist_error_tag,
@@ -128,6 +128,35 @@ fn dimension_tags_are_stable() {
     assert_eq!(dimension_tag(Dimension::Angle), "angle");
     assert_eq!(dimension_tag(Dimension::Count), "count");
     assert_eq!(dimension_tag(Dimension::Scalar), "scalar");
+}
+
+/// A scalar kind's tag is its dimension's, and a pose's or a shape's
+/// is its own word.
+#[test]
+fn var_kind_tags_are_stable() {
+    use pncad::document::VarKind;
+    for (kind, dim) in [
+        (VarKind::Length, Dimension::Length),
+        (VarKind::Angle, Dimension::Angle),
+        (VarKind::Scalar, Dimension::Scalar),
+        (VarKind::Count, Dimension::Count),
+    ] {
+        assert_eq!(var_kind_tag(kind), dimension_tag(dim), "{kind:?}");
+    }
+    assert_eq!(
+        [
+            VarKind::Point,
+            VarKind::Direction,
+            VarKind::Axis,
+            VarKind::Plane,
+            VarKind::Frame,
+            VarKind::Body,
+            VarKind::Bodies,
+            VarKind::Profile,
+        ]
+        .map(var_kind_tag),
+        ["point", "direction", "axis", "plane", "frame", "body", "bodies", "profile"]
+    );
 }
 
 /// The FFI tag and the kernel's prose word are two spellings of one
@@ -5084,6 +5113,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "update_on_non_instance",
             "var_count_has_no_distribution",
             "var_count_has_no_unit",
+            "var_is_an_output",
             "var_kind_fixed",
             "var_name_taken",
             "var_name_unchanged",
@@ -5930,7 +5960,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "seed_error_tag",
         values: &[
             "count_param",
-            "seed_on_defined_var",
+            "seed_on_non_free_var",
             "tangent_unrepresentable",
             "unknown_param",
         ],
@@ -6078,6 +6108,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_step_not_minted",
             "node_not_minted",
             "not_a_gauge",
+            "output_signature",
             "payload_var_kind",
             "placement_improper",
             "placement_non_finite",
@@ -8246,6 +8277,14 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
         held_by: &[Holder::Test {
             name: "the_prose_rule_separates_a_display_from_a_debug_dump",
             holds: "the predicate over both fingerprints",
+        }],
+    },
+    MintingItem {
+        owner: "var_kind_tag",
+        literals: 8,
+        held_by: &[Holder::Test {
+            name: "var_kind_tags_are_stable",
+            holds: "the eight words, and the scalar kinds against `dimension_tag`",
         }],
     },
 ];

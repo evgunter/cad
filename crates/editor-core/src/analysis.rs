@@ -633,11 +633,12 @@ pub enum SeedError {
         /// The structural variable.
         var: SpokenVar,
     },
-    /// The seed names a defined variable. Its derivative is the
-    /// pushforward of its inputs' (VR3), so it has no axis of its own:
-    /// seed a free variable it reads.
-    SeedOnDefinedVar {
-        /// The defined variable.
+    /// The seed names a variable that is not free: a defined one, whose
+    /// derivative is the pushforward of its inputs' (VR3), or an
+    /// operation's output (D10). Neither has an axis of its own: seed a
+    /// free variable it is a function of.
+    SeedOnNonFreeVar {
+        /// The variable.
         var: SpokenVar,
     },
     /// The evaluation scalar carries no tangent channel — a seeded
@@ -661,11 +662,11 @@ impl core::fmt::Display for SeedError {
                 "the seed names {var}, a Count parameter — structural parameters are fixed \
                  under any error analysis and carry no derivative axis"
             ),
-            Self::SeedOnDefinedVar { var } => write!(
+            Self::SeedOnNonFreeVar { var } => write!(
                 f,
-                "the seed names {var}, a defined variable, whose derivative is its \
+                "the seed names {var}, a variable that is not free, whose derivative is its \
                  inputs' pushforward rather than an axis of its own; seed a free variable \
-                 it reads"
+                 it is a function of"
             ),
             Self::TangentUnrepresentable { var } => write!(
                 f,
@@ -704,8 +705,8 @@ pub fn seed_env<T: SeedScalar + geom_core::predicate::Decide, P>(
     seed: VarId,
 ) -> Result<crate::expr::VarEnv<T>, SeedError> {
     let spoken = doc.spoken_var(seed);
-    if doc.var(seed).is_some_and(|v| v.def().defined().is_some()) {
-        return Err(SeedError::SeedOnDefinedVar { var: spoken });
+    if doc.var(seed).is_some_and(|v| v.free().is_none()) {
+        return Err(SeedError::SeedOnNonFreeVar { var: spoken });
     }
     match doc.free(seed) {
         None => Err(SeedError::UnknownVar { var: spoken }),

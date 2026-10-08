@@ -266,7 +266,7 @@ fn a_defined_variable_carries_its_inputs_derivative_and_takes_no_seed() {
         ref other => panic!("{other:?}"),
     }
     match seed_env::<f64, _>(&doc, doc.var_env(), h) {
-        Err(SeedError::SeedOnDefinedVar { var }) => assert_eq!(var.id(), h),
+        Err(SeedError::SeedOnNonFreeVar { var }) => assert_eq!(var.id(), h),
         other => panic!("a seed on a defined variable refuses, got {other:?}"),
     }
 }

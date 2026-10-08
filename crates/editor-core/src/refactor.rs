@@ -380,6 +380,18 @@ fn carry<E>(
                 })
                 .map_err(&edit)?;
         }
+        // A named output crosses with its node: the insert minted the
+        // new one at the same port, and the name moves onto it.
+        for (output, &minted) in source.outputs(old).into_iter().zip(&record.outputs) {
+            if let Some(name) = source.var_name(output) {
+                target
+                    .apply(DocEdit::RenameVar {
+                        var: minted.into(),
+                        name: Some(name.clone()),
+                    })
+                    .map_err(&edit)?;
+            }
+        }
         if let (Node::Profile(from), Some(Node::Profile(to))) = (node, target.doc().node(new)) {
             let shape = |ids: &[Vec<StepId>]| ids.iter().map(Vec::len).collect::<Vec<_>>();
             if shape(&from.ids) != shape(&to.ids) {
@@ -3773,6 +3785,10 @@ pub fn inline(
         };
         if doc.var_named(name.as_str()).is_some() {
             return Err(InlineError::VarNameConflict { name: name.clone() });
+        }
+        // An output crosses with its node (`carry`).
+        if part.var(id).is_some_and(|var| var.def().output().is_some()) {
+            continue;
         }
         vars.declare(&mut current, id, name.clone())
             .map_err(refused)?;

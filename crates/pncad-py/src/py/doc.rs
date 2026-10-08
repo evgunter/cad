@@ -880,9 +880,22 @@ impl Doc {
         match evaluand {
             Evaluand::Formula(formula) => Ok(formula.0),
             Evaluand::Var(Var(var)) => {
-                let dim = self.inner.var(var).map(|held| match held.def() {
-                    d::VarDef::Free(free) => free.dim(),
-                    d::VarDef::Defined(expr) => expr.dim(),
+                // An operation's output of a reference kind is no value an
+                // expression reads; a scalar one has no binding outside an
+                // evaluation, so its reader refuses `unresolved_var`.
+                if let Some(held) = self.inner.var(var)
+                    && held.kind().dimension().is_none()
+                {
+                    return Err(pyo3::exceptions::PyTypeError::new_err(format!(
+                        "{} is an operation's output of kind {}, which no expression reads",
+                        self.inner.spoken_var(var),
+                        held.kind()
+                    )));
+                }
+                let dim = self.inner.var(var).and_then(|held| match held.def() {
+                    d::VarDef::Free(free) => Some(free.dim()),
+                    d::VarDef::Defined(expr) => Some(expr.dim()),
+                    d::VarDef::Output { .. } => held.kind().dimension(),
                 });
                 let Some(dim) = dim else {
                     let unheld = d::EvalError::UnresolvedVar { var };
@@ -1582,6 +1595,15 @@ impl Doc {
     /// The variable this document names `name`, or `None`.
     fn var(&self, name: &VarName) -> Option<Var> {
         self.inner.var_named(name.0.as_str()).map(Var)
+    }
+
+    /// **The variable port `port` of `node` defines** (`Doc::output`):
+    /// an operation's output, which lives exactly as long as its node.
+    /// `None` for a node the document does not hold, or a port its
+    /// signature does not have.
+    #[pyo3(signature = (node, port = 0))]
+    fn output(&self, node: &NodeId, port: u8) -> Option<Var> {
+        self.inner.output(node.0, port).map(Var)
     }
 
     /// **The variable a node's slot reads** (`Doc::slot`), or `None`

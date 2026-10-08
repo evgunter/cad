@@ -4042,6 +4042,11 @@ class Doc:
         hold."""
     def var(self, name: VarName) -> Var | None:
         """The variable this document names `name`, or None."""
+    def output(self, node: NodeId, port: int = 0) -> Var | None:
+        """The variable port `port` of `node` defines: an operation's
+        output, which lives exactly as long as its node. None for a
+        node the document does not hold, or a port its signature does
+        not have."""
     def slot(self, node: NodeId, slot: str) -> Var | None:
         """The variable a node's slot reads, or None for a node or a
         slot the document does not hold. Every slot reads one: a value
