@@ -3979,6 +3979,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::SliverDihedral": "ValidationFinding.variant",
     "ValidationError::TransverseNotIntrinsic": "ValidationFinding.variant",
     "ValidationError::ScaffoldAtRest": "ValidationFinding.variant",
+    "ValidationError::JoinableVertexAtRest": "ValidationFinding.variant",
+    "ValidationError::JoinUndecidedAtRest": "ValidationFinding.variant",
     "ValidationError::TangentNotIntrinsic": "ValidationFinding.variant",
     "ValidationError::LaminaWedge": "ValidationFinding.variant",
     "ValidationError::LoopRoleInverted": "ValidationFinding.variant",

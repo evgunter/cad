@@ -3606,7 +3606,7 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
     ));
     let kept = kept.map_err(|errors| BooleanError::ResultInvalid { errors })?;
     if kept.outcome() == crate::AtRestOutcome::NotRunAtThisScalar {
-        structural_gate(&kept)?;
+        structural_gate(&kept, band)?;
     }
     Ok(kept)
 }
@@ -3614,14 +3614,18 @@ pub(super) fn gate<T: Decide + Bounds + AtRestPolicy>(
 /// The result gate where no at-rest gate ran (a dual's policy answers
 /// [`crate::AtRestOutcome::NotRunAtThisScalar`]): tiers 1 and 2, then
 /// tier 3's transience fence
-/// ([`ValidationError::ScaffoldAtRest`](crate::ValidationError::ScaffoldAtRest)),
+/// ([`ValidationError::ScaffoldAtRest`](crate::ValidationError::ScaffoldAtRest))
+/// and its check 11 in `band`
+/// ([`ValidationError::JoinableVertexAtRest`](crate::ValidationError::JoinableVertexAtRest)),
 /// which read no certification arithmetic and so answer at every
 /// scalar. An edge of the result still described as a scaffold is a
-/// construction that stopped half-way.
-pub(super) fn structural_gate<T: Real>(body: &Body<T>) -> Result<(), BooleanError> {
+/// construction that stopped half-way, and a joinable vertex one the
+/// join did not finish.
+pub(super) fn structural_gate<T: Decide>(body: &Body<T>, band: Band) -> Result<(), BooleanError> {
     validate(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
     validate_closed(body).map_err(|errors| BooleanError::ResultInvalid { errors })?;
-    let errors = scaffolds_at_rest(body);
+    let mut errors = scaffolds_at_rest(body);
+    errors.extend(crate::validate::joinable_at_rest_errors(body, band));
     if errors.is_empty() {
         Ok(())
     } else {

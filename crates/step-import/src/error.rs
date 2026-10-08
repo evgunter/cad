@@ -262,6 +262,18 @@ pub enum StepImportError {
         /// The minting pass's error, displayed.
         source: topo::PcurveMintError,
     },
+    /// The join every finisher ends with (`docs/DESIGN.md`, maximal
+    /// edges; Ev's PR 4251 ruling) refused on the adopted solid: where
+    /// the file states two edges of one carrier meeting at a vertex, the
+    /// kernel joins them, and here it could not — most often because
+    /// whether the vertex is a regular point reads in the band, a size
+    /// finer than the run's tolerance.
+    Join {
+        /// The `MANIFOLD_SOLID_BREP` whose join refused.
+        solid: u64,
+        /// Why the join refused.
+        refusal: topo::JoinRefusal,
+    },
     /// An assembly instance's rigid placement refused at the kernel's
     /// own [`topo::transform_rigid`] door (M7-4 Leg D): a map this
     /// reader's ε_in classification let through that the kernel's
@@ -467,6 +479,10 @@ impl fmt::Display for StepImportError {
                     verdicts.join("; ")
                 )
             }
+            Self::Join { solid, refusal } => write!(
+                f,
+                "step import: joining the edges of the solid at #{solid}: {refusal}"
+            ),
             Self::Placement { transform, source } => write!(
                 f,
                 "step import: the assembly placement stated at #{transform} refused \

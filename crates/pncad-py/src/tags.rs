@@ -2165,6 +2165,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::WallColumnStructure { .. } => "wall_column_structure",
         StepImportError::RecognitionAmbiguous { .. } => "recognition_ambiguous",
         StepImportError::Pcurves { .. } => "pcurves",
+        StepImportError::Join { .. } => "join",
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::TierInvalid { .. } => "tier_invalid",
@@ -2215,15 +2216,16 @@ pub fn promoted_kind_tag(kind: &PromotedKind) -> &'static str {
 /// one word whichever kind it was, and the residual that certifies it
 /// is a number rather than a spelling.
 ///
-/// The match is exhaustive, so a fifth normalization minted
+/// The match is exhaustive, so a sixth normalization minted
 /// kernel-side stops this crate compiling instead of arriving under
-/// one of these four words.
+/// one of these five words.
 pub fn normalization_kind_tag(kind: &NormalizationKind) -> &'static str {
     match kind {
         NormalizationKind::EdgeFreeSphere => "edge_free_sphere",
         NormalizationKind::DegenerateApexCone => "degenerate_apex_cone",
         NormalizationKind::SeamlessPeriodicBand => "seamless_periodic_band",
         NormalizationKind::SurfacePromotion { .. } => "surface_promotion",
+        NormalizationKind::JoinedEdges => "joined_edges",
     }
 }
 
@@ -3089,6 +3091,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::SliverDihedral { .. } => "sliver_dihedral",
         ValidationError::TransverseNotIntrinsic { .. } => "transverse_not_intrinsic",
         ValidationError::ScaffoldAtRest { .. } => "scaffold_at_rest",
+        ValidationError::JoinableVertexAtRest { .. } => "joinable_vertex_at_rest",
+        ValidationError::JoinUndecidedAtRest { .. } => "join_undecided_at_rest",
         ValidationError::TangentNotIntrinsic { .. } => "tangent_not_intrinsic",
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",

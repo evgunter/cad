@@ -153,6 +153,9 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 // classification this module's own walk dispatches on.
 pub(crate) use contain::{driver_face_stale, loop_circle};
 pub use discard::{DiscardRow, HeldEdge, lineage_root};
+// Crate-internal: tier 3's check 11 reads every vertex through the
+// join's own predicate.
+pub(crate) use edge_join::joinable_at_rest;
 pub use edge_join::{
     EdgeJoin, JoinReading, JoinRefusal, JoinUndecided, is_conventional_vertex, join_covers,
     joinable_vertices, joined_edge,

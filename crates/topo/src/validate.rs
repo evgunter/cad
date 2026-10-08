@@ -1155,6 +1155,25 @@ pub enum ValidationError {
         /// The edge still carrying a scaffolding description.
         edge: EdgeKey,
     },
+    /// Tier 3, check 11 (`docs/DESIGN.md`, maximal edges; Ev's PR 4251
+    /// ruling): a body at rest holds a **joinable vertex** — two edges
+    /// meeting at it lie on one carrier and are one edge, read by the
+    /// join's own predicate. Every finisher ends with the join, so a
+    /// finished body holds none; one that does was finished by a door
+    /// that skipped it, or was built by hand and is construction state.
+    JoinableVertexAtRest {
+        /// The vertex the join would take.
+        vertex: VertexKey,
+    },
+    /// Tier 3, check 11's band arm (Ev's PR 4251 ruling, decision 2):
+    /// whether a vertex is joinable reads in the sliver band, so the
+    /// run's tolerance cannot tell it from a regular point. Refused at
+    /// rest rather than exempt: the size is finer than the run, and a
+    /// tighter tolerance decides it.
+    JoinUndecidedAtRest {
+        /// The join's undecided reading at the vertex.
+        undecided: crate::boolean::JoinUndecided,
+    },
     /// Tier 3, the symmetric must-carry (OQ7's two-level shape, level
     /// (ii); M5 PR 9): a **jet-determinate tangency** — every interior
     /// sample definitely Smooth at first order AND the second-order
@@ -3455,6 +3474,16 @@ impl fmt::Display for ValidationError {
                 f,
                 "an edge still carries the stand-in description a construction uses before \
                  its faces exist, so the operation that built it stopped half-way. {DEFECT}"
+            ),
+            Self::JoinableVertexAtRest { .. } => write!(
+                f,
+                "two edges meeting at a vertex lie on one curve and are one edge, so the \
+                 operation that finished the body did not join them. {DEFECT}"
+            ),
+            Self::JoinUndecidedAtRest { undecided } => write!(
+                f,
+                "{}",
+                crate::boolean::JoinRefusal::Undecided(undecided.clone())
             ),
             Self::TangentNotIntrinsic { .. } => write!(
                 f,
@@ -7058,7 +7087,37 @@ pub(crate) fn tier3_local_checks_marked<
         errors.extend(shell_winding_errors(body, band, tol, quad));
     }
 
+    // ------------------------------------------------------------------
+    // Tier 3, check 11: no joinable vertex at rest (`docs/DESIGN.md`,
+    // maximal edges; Ev's PR 4251 ruling). Read by the join's own
+    // predicate, so the check and the finishers' join cannot disagree
+    // on which vertex is joinable. Tier 2 and construction state are
+    // untouched: a merge's own output holds joinable vertices by
+    // design, and the join that follows it is what takes them. A
+    // reading in the sliver band refuses too, with the tighten-ε
+    // recourse — the size is finer than the run.
+    // ------------------------------------------------------------------
+    errors.extend(joinable_at_rest_errors(body, band));
+
     (errors, certificate)
+}
+
+/// Tier 3's check 11 on its own: a [`ValidationError::JoinableVertexAtRest`]
+/// for every vertex the join's predicate takes, and a
+/// [`ValidationError::JoinUndecidedAtRest`] for every one it reads in
+/// `band`, in vertex-arena order. Answers at every scalar the join
+/// reads at, so the dual result gate asks it too.
+pub(crate) fn joinable_at_rest_errors<T: geom_core::Decide>(
+    body: &Body<T>,
+    band: Band,
+) -> Vec<ValidationError> {
+    crate::boolean::joinable_at_rest(body, band)
+        .into_iter()
+        .map(|reading| match reading {
+            Ok(vertex) => ValidationError::JoinableVertexAtRest { vertex },
+            Err(undecided) => ValidationError::JoinUndecidedAtRest { undecided },
+        })
+        .collect()
 }
 
 /// The pairs `(i, j)`, `j < i`, of `rings` whose padded certified
