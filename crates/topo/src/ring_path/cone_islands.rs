@@ -33,6 +33,18 @@ pub(crate) fn scales(small: f64, smallest: f64) -> Vec<f64> {
     out
 }
 
+/// A uniform direction drawn from `rng` (rejection-sampled from the
+/// cube, away from the origin).
+pub(crate) fn direction(rng: &mut test_utils::fuzz::Rng) -> Vec3<f64> {
+    loop {
+        let v = Vec3::new(rng.range(-1., 1.), rng.range(-1., 1.), rng.range(-1., 1.));
+        let n = v.norm();
+        if n > 0.2 && n < 1.0 {
+            return v / n;
+        }
+    }
+}
+
 /// A rigid frame and a scale: the cone's local `x`, `y`, `z`, its apex,
 /// and the length one local unit is.
 #[derive(Clone, Copy)]

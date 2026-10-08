@@ -28,10 +28,12 @@
 //! that remain — the nearer root on the arrival arc, a parameter's
 //! branch, the way round a parallel — are choices every outcome of which
 //! is sound, each argued at its site. A crossing is
-//! passed over once any reading is decided against it. A reading of a
+//! passed over once any reading is decided against it, whatever its
+//! other readings say: a decided rejection is decided. A reading of a
 //! crossing not passed over that lands in the zero band — the path
 //! grazes an arc, runs through an arc's end, or starts on an arc's
-//! plane — makes the path undecided, and the caller asks another.
+//! plane — makes the path undecided, one in the escalation band makes
+//! it escalate, and the caller asks another.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
@@ -413,7 +415,9 @@ impl<T: Real> LoopArc<T> {
 /// interior point; its crossing there is the arrival and is not
 /// counted. `None` when a reading of a crossing not passed over lands
 /// in the zero band; `Err` when one lands in the escalation band, which
-/// says nothing about the parity either: the caller asks another path.
+/// says nothing about the parity either: the caller asks another path. A crossing is passed
+/// over when any of its in-span readings is decided out of span, though
+/// another escalate.
 ///
 /// - A circle piece meets a conic's plane where
 ///   `A cos θ + B sin θ = −D/r` (`A`, `B` the plane normal's components
@@ -446,18 +450,22 @@ pub(crate) fn path_parity<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, Indeterminate> {
     let decide_m = |name, margin| decide(name, margin, band);
-    let in_span = |t: T, (lo, hi): (T, T), arm: T| -> Result<[Sign; 2], Indeterminate> {
-        Ok([
-            decide_m("split_ring_path_in_span", Margin::levered(t - lo, arm))?,
-            decide_m("split_ring_path_in_span", Margin::levered(hi - t, arm))?,
-        ])
+    // A crossing's in-span readings are kept whole, escalations included:
+    // one decided out of span passes the crossing over whatever the
+    // others read.
+    let in_span = |t: T, (lo, hi): (T, T), arm: T| -> [Result<Sign, Indeterminate>; 2] {
+        [
+            decide_m("split_ring_path_in_span", Margin::levered(t - lo, arm)),
+            decide_m("split_ring_path_in_span", Margin::levered(hi - t, arm)),
+        ]
     };
+    let inside = Ok(Sign::Positive);
     let mut odd = false;
     let last = path.pieces.len().saturating_sub(1);
     for (i, piece) in path.pieces.iter().enumerate() {
         for (j, arc) in arcs.iter().enumerate() {
             let arrival = i == last && arrives_on == Some(j);
-            let mut readings: Vec<[Sign; 4]> = Vec::with_capacity(2);
+            let mut readings: Vec<[Result<Sign, Indeterminate>; 4]> = Vec::with_capacity(2);
             match (*piece, *arc) {
                 (
                     Piece::Arc(p),
@@ -497,9 +505,15 @@ pub(crate) fn path_parity<T: Decide>(
                     // roots lie `2rω` apart along the arc, so the root
                     // error against their separation is
                     // `δ/(2rρ·sin ω·ω) ≈ δ/(4g)` for the gap
-                    // `g = rρ − |D| ≈ rρω²/2`. A decided gap `g ≥ Kε`
-                    // keeps that far below the half the pick can absorb
-                    // (about 150× headroom at ε 1e-12, offset 1e3).
+                    // `g = rρ − |D| ≈ rρω²/2`. The pick holds while that
+                    // is under a half. A decided gap is `g ≥ Kε`, and the
+                    // rounding is `δ ≤ ε` wherever the coordinates
+                    // resolve the band at all, so the ratio is at most
+                    // `1/(4K)`: `2K` times inside the half (about 150×
+                    // at ε 1e-12, offset 1e3, where δ is well under ε).
+                    // No row guards the margin, because a fixture with
+                    // `δ ≥ 2g` would have coordinates that cannot resolve
+                    // the band. The bound is the guard.
                     let nearer = (r0 - p.span.1).abs() - (r1 - p.span.1).abs();
                     let roots = if arrival {
                         [nearer.select_le_zero(r1, r0), r1]
@@ -517,8 +531,8 @@ pub(crate) fn path_parity<T: Decide>(
                         // past the span's end.
                         let (st, ct) = t.sin_cos();
                         let slope = (cb * ct - ca * st).abs();
-                        let [p0, p1] = in_span(t, p.span, p.radius * slope)?;
-                        let [a0, a1] = in_span(s, span, b * slope)?;
+                        let [p0, p1] = in_span(t, p.span, p.radius * slope);
+                        let [a0, a1] = in_span(s, span, b * slope);
                         readings.push([p0, p1, a0, a1]);
                     }
                 }
@@ -539,8 +553,8 @@ pub(crate) fn path_parity<T: Decide>(
                     // The plane moved by δ moves the root by δ over the
                     // slope the ruling crosses it at, `|m̂·d̂|`.
                     let slope = across.abs();
-                    let [p0, p1] = in_span(t, p.span, p.radius * slope)?;
-                    let [a0, a1] = in_span(s, span, slope)?;
+                    let [p0, p1] = in_span(t, p.span, p.radius * slope);
+                    let [a0, a1] = in_span(s, span, slope);
                     readings.push([p0, p1, a0, a1]);
                 }
                 (
@@ -572,8 +586,8 @@ pub(crate) fn path_parity<T: Decide>(
                     // The plane moved by δ moves the root by δ over the
                     // slope the segment crosses it at, `|n̂·d̂|`.
                     let slope = ((d0 - d1) / (to - from).norm()).abs();
-                    let [a0, a1] = in_span(s, span, b * slope)?;
-                    readings.push([Sign::Positive, Sign::Positive, a0, a1]);
+                    let [a0, a1] = in_span(s, span, b * slope);
+                    readings.push([inside, inside, a0, a1]);
                 }
                 (Piece::Segment { ruling, lever, .. }, LoopArc::Line { dir, .. }) => {
                     if arrival {
@@ -589,10 +603,13 @@ pub(crate) fn path_parity<T: Decide>(
                 }
             }
             for reading in readings {
-                if reading.contains(&Sign::Negative) {
+                if reading.contains(&Ok(Sign::Negative)) {
                     continue;
                 }
-                if reading.contains(&Sign::Zero) {
+                if let Some(&Err(diag)) = reading.iter().find(|r| r.is_err()) {
+                    return Err(diag);
+                }
+                if reading.contains(&Ok(Sign::Zero)) {
                     return Ok(None);
                 }
                 odd = !odd;
@@ -679,7 +696,9 @@ mod tests {
     /// other end's parallel by the carrier's own ratio would miss the
     /// next by that offset, and a crossing in the gap would go uncounted.
     /// Points on a grid of both nappes in three frames, moved off the cone
-    /// along its normal by up to the escalation threshold.
+    /// along its normal by up to the escalation threshold. The row guards
+    /// a geometric invariant of the paths, that they are continuous, and
+    /// not a parity: no parity row reads a crossing in such a gap.
     #[test]
     fn a_cone_paths_pieces_meet_at_their_seams() {
         let ends = |piece: &Piece<f64>| match *piece {

@@ -762,3 +762,16 @@ That is check 9's premise, assumed on Ellipse, Spiric and NURBS edges,
 and RESTFRONT's item now names this reader as sharing it. At ε 1e-3 the
 slope lever escalates two poses' winding that main decided by arc
 length, inside the root's own error.
+
+2026-10-08 — PR 4246's fourth fix pass (fourth review,
+APPROVE-WITH-FIXES, no MAJOR). The third pass's "the cone's segment
+and ruling arms never graze" was wrong. A parallel crosses a ruling at
+slope `cos α`, which vanishes on a near-flat cone. A ruling crosses a
+near-parabolic section at slope `sin η`. The per-arm rows now sweep
+those cells over ε, scale, offset and jitter, and kill the arc-length
+and per-metre mutants the old rows let through. A crossing any reading
+decides out of span is now passed over, though another escalates. That
+took the two poses that newly escalated at ε 1e-3 back to main's
+outcomes. The class sweep found the same shape in FLUX's props sphere
+side and in CLEAVE's line-wall and carrier-cross span readings, filed
+on each.

@@ -10,6 +10,7 @@ use super::*;
 use crate::MevSite;
 use crate::ring_path::cone_islands::{Frame, band, frames, plane, read_at};
 use core::f64::consts::PI;
+use test_utils::fuzz::{Rng, pinned};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -273,21 +274,8 @@ fn simple(poly: &[(f64, f64)]) -> bool {
     true
 }
 
-struct Rng(u64);
-impl Rng {
-    fn next(&mut self) -> f64 {
-        self.0 ^= self.0 << 13;
-        self.0 ^= self.0 >> 7;
-        self.0 ^= self.0 << 17;
-        (self.0 >> 11) as f64 / (1u64 << 53) as f64
-    }
-    fn range(&mut self, a: f64, b: f64) -> f64 {
-        a + (b - a) * self.next()
-    }
-}
-
 fn random_island(s: Sph, rng: &mut Rng) -> Option<Island> {
-    let k = 3 + (rng.next() * 3.0) as usize;
+    let k = 3 + (rng.unit() * 3.0) as usize;
     let mut th: Vec<f64> = (0..k).map(|_| rng.range(0.0, 2.0 * PI)).collect();
     th.sort_by(f64::total_cmp);
     for i in 0..k {
@@ -326,7 +314,7 @@ fn random_island(s: Sph, rng: &mut Rng) -> Option<Island> {
 /// senses, winds as the oracle's left-of-run membership says.
 #[test]
 fn a_random_sphere_island_winds_as_its_stereographic_oracle_does() {
-    let mut rng = Rng(0x0123456789abcdef);
+    let mut rng = pinned("a random sphere island winds", 0x0123456789abcdef);
     let (mut seen, mut m2, mut asked) = ([0usize; 2], 0usize, 0usize);
     let mut failures = Vec::new();
     let mut built = 0;
@@ -435,7 +423,7 @@ fn a_random_sphere_island_winds_as_its_stereographic_oracle_does() {
 /// one outside stays.
 #[test]
 fn a_bystander_of_a_random_sphere_island_is_re_homed_as_its_oracle_says() {
-    let mut rng = Rng(0xfedcba9876543210);
+    let mut rng = pinned("a random sphere island re-homes", 0xfedcba9876543210);
     let (mut asked, mut failures) = (0usize, Vec::new());
     let mut built = 0;
     let (target, mut stood) = (18, 0);
