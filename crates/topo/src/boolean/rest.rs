@@ -175,7 +175,9 @@ struct Segment {
 /// reduction whose normal join REFUSED; its bodies must be the
 /// pre-join annotated clones. Returns `Ok(None)` when the
 /// configuration is not this lane's frontier — the caller then
-/// surfaces the original join refusal unchanged.
+/// surfaces the original join refusal unchanged. `interior_loops` is
+/// the section certificate's verdict on the reduction, raised on the
+/// zipped body where the crossings path raises it.
 ///
 /// # Errors
 ///
@@ -192,6 +194,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
     decls: &BooleanDeclarations,
+    interior_loops: Result<(), BooleanError>,
     band: Band,
     tol: Tol,
 ) -> Result<Option<BooleanResult<T>>, BooleanError> {
@@ -432,6 +435,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     )?;
     body.sweep_and_close();
     let body = gate(zipped, band, tol)?;
+    interior_loops?;
     T::gate_volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_dead_edges, graft_faces) = graft_rows(&graft);
     let naming = BooleanNaming {

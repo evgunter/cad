@@ -57,3 +57,19 @@ slope (`gap · speed · |n̂·τ̂|`), as PR 4246 does. Port PR 4246's
 vertex-graze rows
 (`topo::ring_path::graze_rows::a_graze_at_a_smooth_vertex_never_decides_a_wrong_parity*`)
 as the guard.
+
+## The transverse case over-reads (TANG, 2026-10-08)
+
+The arc-length reading also over-reads a transverse crossing near a
+span's end, by `1/sin θ`. The tube of
+`crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs` at radius
+`R ± 0.9·zero`, unioned with `dome_on_the_cap()`, discs `Rest`: the
+dome's rim stands `0.9·zero` off the tube's wall, which is inside the
+zero band. The dome's meridian meets the wall at 45°, `√2·0.9·zero` along
+its arc from the rim. Both member orders escalate
+`bool_wall_root_in_span` at margin `±1.2727919974285932e-9` (ε 1e-9; the
+same `√2·0.9` multiple at 1e-6 and 1e-12). Levered by the crossing's
+slope, as the Fix above proposes, the margin is the rim's own deviation,
+`0.9·zero`, and the offset reads Zero. Pinned at its current reading by
+`a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders`;
+that row's `±0.9` arm moves when this lands.
