@@ -601,8 +601,8 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
             floor = n.floor;
         }
         sup = sup.max(n.sup);
-        speed_u = speed_u.max(SupSpeed::new(norm_sup(&cell.s_u)));
-        speed_v = speed_v.max(SupSpeed::new(norm_sup(&cell.s_v)));
+        speed_u = speed_u.max(SupSpeed::new(cell.s_u_sup));
+        speed_v = speed_v.max(SupSpeed::new(cell.s_v_sup));
         if n.sup.is_nan() {
             sup = f64::NAN;
         }
@@ -1211,6 +1211,8 @@ mod tests {
             s_uu: p(0.0, 0.0, 0.0),
             s_uv: p(0.0, 0.0, 0.0),
             s_vv: p(0.0, 0.0, 0.0),
+            s_u_sup: 1.0,
+            s_v_sup: 1.0,
         };
         let refused = PatchCell {
             u: (1.0, 2.0),
@@ -1219,6 +1221,7 @@ mod tests {
                 Interval::point(0.0),
                 Interval::point(0.0),
             ],
+            s_u_sup: f64::NAN,
             ..healthy
         };
         for (order, cells) in [

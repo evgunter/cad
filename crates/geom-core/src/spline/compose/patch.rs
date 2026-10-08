@@ -112,6 +112,38 @@ impl PatchSpans {
         acc
     }
 
+    /// A certified upper bound on `‖(c₀, c₁, c₂)‖` over cell `(su, sv)`
+    /// for the VECTOR form whose three coordinates are `channels`: the
+    /// largest norm of one vector coefficient, which bounds the norm
+    /// because the norm is convex and the form lies in the hull of its
+    /// coefficients. It is a function of the coefficient vectors, so a
+    /// rotation of the coordinates moves it only by rounding, where
+    /// three [`Self::cell_hull`]s folded into one norm read a box that
+    /// can be `√3`× the vector's own reach.
+    ///
+    /// [`super::tensor::coefficient_norm_sup`] on the cell's
+    /// coefficients. `NaN` when the channels do not share one cell
+    /// structure and bidegree, or the cell is out of range.
+    pub fn cell_norm_sup(channels: [&Self; 3], su: usize, sv: usize) -> f64 {
+        let [a, b, c] = channels;
+        if !a.aligned(b) || !a.aligned(c) || a.degree() != b.degree() || a.degree() != c.degree() {
+            return f64::NAN;
+        }
+        let (Some(na), Some(nb), Some(nc)) = (a.block(su, sv), b.block(su, sv), c.block(su, sv))
+        else {
+            return f64::NAN;
+        };
+        super::tensor::coefficient_norm_sup([na, nb, nc])
+    }
+
+    /// Cell `(su, sv)`'s coefficients, `None` out of range.
+    fn block(&self, su: usize, sv: usize) -> Option<&[Interval]> {
+        self.cells
+            .get(su)
+            .and_then(|r| r.get(sv))
+            .map(Vec::as_slice)
+    }
+
     /// Tensor-product Bézier decomposition of one scalar channel of a
     /// spline whose control grid is **row-major `iu·nv + iv`**, with
     /// `extra_u`/`extra_v` break parameters injected in each direction
@@ -697,5 +729,52 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// `cell_norm_sup` reads the largest norm of one coefficient
+    /// VECTOR, bit for bit, where a box of the three cell hulls would
+    /// pair one channel's extreme with another's; a channel triple that
+    /// does not share a bidegree, or a cell out of range, refuses.
+    #[test]
+    fn the_cell_norm_is_the_largest_coefficient_vectors_not_the_boxes() {
+        let (x, y) = (decomposed(2, 2, 1.0), decomposed(2, 2, -0.7));
+        let z = x.mul(&y).sub(&x.mul(&x));
+        let (x, y) = (x.elevated(4, 4), y.elevated(4, 4));
+        let (nu, nv) = z.cell_counts();
+        let mut below_box = 0usize;
+        for su in 0..nu {
+            for sv in 0..nv {
+                let got = PatchSpans::cell_norm_sup([&x, &y, &z], su, sv);
+                let want = (0..x.cells[su][sv].len())
+                    .map(|k| {
+                        crate::interval::norm_sup(&[
+                            x.cells[su][sv][k],
+                            y.cells[su][sv][k],
+                            z.cells[su][sv][k],
+                        ])
+                    })
+                    .fold(0.0f64, f64::max);
+                assert_eq!(got.to_bits(), want.to_bits(), "cell ({su}, {sv})");
+                let boxed = crate::interval::norm_sup(&[
+                    x.cell_hull(su, sv),
+                    y.cell_hull(su, sv),
+                    z.cell_hull(su, sv),
+                ]);
+                assert!(
+                    got <= boxed,
+                    "cell ({su}, {sv}): {got:e} above the box {boxed:e}"
+                );
+                if got < boxed {
+                    below_box += 1;
+                }
+            }
+        }
+        assert!(
+            below_box > 0,
+            "no cell separates the coefficient norm from the box"
+        );
+        let low = decomposed(2, 2, 0.3);
+        assert!(PatchSpans::cell_norm_sup([&x, &y, &low], 0, 0).is_nan());
+        assert!(PatchSpans::cell_norm_sup([&x, &y, &z], nu, 0).is_nan());
     }
 }

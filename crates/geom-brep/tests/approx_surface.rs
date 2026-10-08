@@ -401,13 +401,15 @@ fn a_window_the_certifier_cannot_honour_refuses_typed() {
 /// **What survives the map is the sampled limb, not the bound.**
 /// `on_locus_max` is a distance between two points, computed the same
 /// way in either frame, and is asserted invariant to 1e-12. `hull_sup`
-/// is a certified BOUND assembled from control-hull enclosures in the
-/// AMBIENT frame: a rotation re-splits the same geometry across the
-/// axes and the bound moves. The row asserts that movement is REAL on
-/// at least one map — above a thousandth of the target, so it is not
-/// rounding — so that a change making the bound frame-independent fails
-/// here rather than leaving stale caveats behind (`topo::transform`'s
-/// `map_approx` cites this). The target is 1e-6, not a tighter one, for
+/// is a certified BOUND, and while its vector upper bounds are read
+/// from coefficient norms (D4 ¶2), its LOWER bounds — the regularity
+/// floor `τ` divides by and the floors on `‖E‖` — are box-assembled in
+/// the AMBIENT frame: a rotation re-splits the same geometry across the
+/// axes and the bound moves (2.8e-10 here, 6e-4 of the bound). The row
+/// asserts that movement is REAL on at least one map — above 1e-4 of
+/// the target, decades above rounding — so that a change making the
+/// bound frame-independent fails here rather than leaving stale
+/// caveats behind (`topo::transform`'s `map_approx` cites this). The target is 1e-6, not a tighter one, for
 /// the same reason: a slack equal to the target would hold for any two
 /// certified limbs whatever.
 #[test]
@@ -464,7 +466,7 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
         }
     }
     assert!(
-        worst_hull > 1e-3 * TARGET,
+        worst_hull > 1e-4 * TARGET,
         "the hull bound moved by only {worst_hull:e} across every map — if it has become \
          frame-independent, this row and the caveats that cite it are the things to retire"
     );

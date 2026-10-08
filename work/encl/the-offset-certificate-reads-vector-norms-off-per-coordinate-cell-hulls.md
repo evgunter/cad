@@ -2,10 +2,11 @@
 id: the-offset-certificate-reads-vector-norms-off-per-coordinate-cell-hulls
 kind: issue
 title: the offset certificate's Y limb, its M-tilde divisor and the regularity meter's speeds read a vector norm off per-coordinate cell hulls, so a rigid map moves them
-status: open
+status: closed
 opened: 2026-10-01
 priority: P1
 cost: M
+closed: 2026-10-08
 ---
 
 
@@ -58,3 +59,39 @@ For each upper bound above, decide whether to read it from the vector
 coefficients' norms (the `Y` and `M̃` channels are Bernstein forms over
 the cell, as the tensor composite is), and measure the change in the
 `Approx` rigid-map drift.
+
+## Closed (ENCL, `encl/offset-cert-coefficient-norms`, 2026-10-08)
+
+Per bound:
+
+- `Composite::cell_bound`'s `‖Y‖` and `decompose`'s copy: now
+  `Composite::y_sup`, `PatchSpans::cell_norm_sup` over `Y`'s three
+  channels — the largest norm of one Bernstein coefficient vector.
+- `Composite::m_tilde_sup`: the same reading of `M̃`.
+- `patch_regularity`'s speeds: `PatchCell::s_u_sup`/`s_v_sup`, read on
+  the integral arm from the derived control vectors active on the cell
+  (`patch_bound::window_norm_sup`). The rational arm's `S_u` is a
+  quotient-rule enclosure with no coefficient form, so its speeds stay
+  the box norm; filed with the next item as
+  `the-meters-sup-side-still-reads-boxes-where-the-cell-carries-no-coefficient-form`.
+- `cell_normal`'s `sup`: left. `m` is a box cross product and
+  `gram_sup` subtracts `F²`'s box-assembled lower end; neither is a
+  coefficient form in `PatchCell`. Same filed row.
+
+The doors are `geom_core::spline::compose::tensor::coefficient_norm_bound`
+(now public) and its polynomial case `coefficient_norm_sup`.
+
+Rigid-map drift of `hull_sup`, `bowed_patch` at `d = ±0.05`, 96 rigid
+images (axes (1,1,1), (0.3,−0.4,0.8), x, z × 24 angles of 0.135 rad):
+
+| eps row | before, worst (d = +0.05 / −0.05) | after |
+|---|---|---|
+| 1e-12 (64 cells) | ×1.0302 / ×1.0323 | ×1.0275 / ×1.0299 |
+| 1e-6 (1 cell) | ×1.0056 / ×1.0056 | ×1.00002 / ×1.00002 |
+
+At 1e-6 the fold was the drift; at 1e-12 it was a fraction of a point
+and what remains is `X`'s enclosure width and the box-assembled lower
+bounds (`a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12`,
+`a-rigid-map-can-still-refuse-a-sound-approx-face-at-its-edges-or-meters`).
+The pin is `the_vector_upper_bounds_do_not_move_under_a_rotation`
+(`offset_fit.rs`'s test module).

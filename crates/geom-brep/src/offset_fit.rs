@@ -111,8 +111,12 @@
 //! coefficient net of a small smooth function is small (its
 //! derivatives are small too, so the Bernstein overshoot is), which is
 //! what makes the hull bound track the residual's own scale instead of
-//! the cell's geometric variation. Enclosing `S_fit`, `S` and `d·n`
-//! separately and subtracting the enclosures cannot see that: it
+//! the cell's geometric variation. The vector polynomials `Y` and `M̃`
+//! are bounded from above by the largest norm of one coefficient
+//! vector (D4 ¶2), never by a box of three channel hulls, so a rigid
+//! map of base and fit moves those bounds only by rounding. Enclosing
+//! `S_fit`, `S` and `d·n` separately and subtracting the enclosures
+//! cannot see the cancellation: it
 //! reports the sum of the two surfaces' motions across the cell, which
 //! on a unit cylinder at `d = 0.2 m` would need millions of cells to
 //! reach a micron. That failure mode is the one
@@ -141,13 +145,14 @@
 //!
 //! — `mig(D)` from below over the cell (positive on every cell that
 //! passes the witness, since the witness is `D` definite) against the
-//! sup of `M̃`'s three cell hulls from above. The two disagree by
-//! orders of magnitude exactly where a good fit lives: `E ≈ d·n`, so
+//! sup of `‖M̃‖` from above, read from its coefficient vectors' norms.
+//! The two disagree by orders of magnitude exactly where a good fit
+//! lives: `E ≈ d·n`, so
 //! every component of `E` straddles zero as the normal rotates across
 //! the cell and the componentwise assembly collapses, while the
 //! projection reads `‖E‖ ≈ |d|`. On the quarter cylinder at
 //! `d = 1e-6` the sup cell's two readings are `1.58e-8` and
-//! `5.61e-7`, and the cell's bound is `1.71e-5` rather than
+//! `5.64e-7`, and the cell's bound is `1.70e-5` rather than
 //! `3.22e-4`.
 //!
 //! The `τ²/‖E‖` term takes the same floor, or `|d| − dist` when that
@@ -221,7 +226,6 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::norm_sup;
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
@@ -2344,21 +2348,26 @@ impl Composite {
         )
     }
 
-    /// A certified UPPER bound on `‖M̃‖` over one cell.
+    /// A certified UPPER bound on `‖M̃‖` over one cell, read from the
+    /// norms of its vector coefficients (D4 ¶2).
     ///
     /// It is the DIVISOR of a lower bound on `‖E‖`
     /// ([`Composite::e_floors`]), so an upper bound short by one ulp
-    /// makes that quotient unsound. [`norm_sup`] rounds every step
-    /// outward — the per-channel square and both sums in certification arithmetic,
-    /// then the root's upper end; an `f64` fold of the same three endpoints
-    /// rounds to nearest at each multiply and add and lands below
-    /// this reading on most cells of a real grid.
+    /// makes that quotient unsound; [`PatchSpans::cell_norm_sup`]
+    /// rounds every step outward.
     fn m_tilde_sup(&self, su: usize, sv: usize) -> f64 {
-        norm_sup(&[
-            self.m_tilde[0].cell_hull(su, sv),
-            self.m_tilde[1].cell_hull(su, sv),
-            self.m_tilde[2].cell_hull(su, sv),
-        ])
+        PatchSpans::cell_norm_sup(
+            [&self.m_tilde[0], &self.m_tilde[1], &self.m_tilde[2]],
+            su,
+            sv,
+        )
+    }
+
+    /// A certified UPPER bound on `‖Y‖` over one cell, read from the
+    /// norms of its vector coefficients (D4 ¶2) — the `τ` limb's
+    /// numerator.
+    fn y_sup(&self, su: usize, sv: usize) -> f64 {
+        PatchSpans::cell_norm_sup([&self.y[0], &self.y[1], &self.y[2]], su, sv)
     }
 
     /// The two lower bounds on `‖E‖` one cell carries: the
@@ -2466,16 +2475,8 @@ impl Composite {
         let x_mag = Interval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
         let dist_iv = x_mag / (wt.sqr() * (Interval::point(e_hull_lo) + abs_d));
         // τ = ‖Y‖ / (w̃·‖M̃‖) ≤ sup‖Y‖ / (floor·w̃·w³), using
-        // ‖M̃‖ = w³·‖m‖ ≥ w³·floor. `‖Y‖` from above is interval arithmetic's
-        // own fold, for the reason [`norm_sup`] gives.
-        let y_mag = Interval::from_bounds(
-            0.0,
-            norm_sup(&[
-                self.y[0].cell_hull(su, sv),
-                self.y[1].cell_hull(su, sv),
-                self.y[2].cell_hull(su, sv),
-            ]),
-        );
+        // ‖M̃‖ = w³·‖m‖ ≥ w³·floor.
+        let y_mag = Interval::from_bounds(0.0, self.y_sup(su, sv));
         let tau_iv = y_mag / (Interval::point(floor) * wt * w.powi(3));
         // `‖E‖` from below once more, for the `τ²/‖E‖` term: the
         // better of the two hull readings above, or `|d| − dist` when
@@ -2565,14 +2566,7 @@ mod tests {
         };
         let x_mag = Interval::from_bounds(0.0, comp.x.cell_hull(su, sv).mag());
         let dist_iv = x_mag / (wt.sqr() * (Interval::point(e_hull_lo) + abs_d));
-        let y_mag = Interval::from_bounds(
-            0.0,
-            norm_sup(&[
-                comp.y[0].cell_hull(su, sv),
-                comp.y[1].cell_hull(su, sv),
-                comp.y[2].cell_hull(su, sv),
-            ]),
-        );
+        let y_mag = Interval::from_bounds(0.0, comp.y_sup(su, sv));
         let tau_iv = y_mag / (Interval::point(floor) * wt * w.powi(3));
         let e_floor = e_hull_lo.max(d.abs() - dist_iv.hi());
         if !(e_floor > 0.0) {
@@ -2653,7 +2647,7 @@ mod tests {
     /// rotates across every cell, so each component of `Ẽ` straddles
     /// zero and the componentwise mignitude assembly reads `1.58e-8`
     /// where `‖E‖ ≈ 1e-6`. The projection through the sign witness,
-    /// `|D|/(w̃·‖M̃‖)`, reads the same cell at `5.61e-7` — within a
+    /// `|D|/(w̃·‖M̃‖)`, reads the same cell at `5.64e-7` — within a
     /// factor of two of `|d|` — and the `τ²/‖E‖` term that carried
     /// 96% of the cell's bound falls with it.
     ///
@@ -2661,29 +2655,11 @@ mod tests {
     /// only thing that differs between them is the expression under
     /// test.
     ///
-    /// **The sup CELL is `(21, 6)`, not `(21, 12)`, since
-    /// `insert_once_ring` took the convex insertion form.** The sup's
-    /// VALUE is unmoved to the four digits these rows pin — only the
-    /// cell that carries it moved, and it moved in ONE direction: `u`
-    /// stays at 21, `v` comes off the high end. That is what the change
-    /// does here. The decomposition inserts in ascending knot order per
-    /// direction, so the lerp form's compounding width collected at the
-    /// high end of each; with it gone, the cell that carries the sup is
-    /// decided by the residual rather than by where the fold's dust
-    /// piled up, and on this grid the residual's worst `v` is 6. `u` had
-    /// no reason to move: 21 is where the residual's worst `u` already
-    /// was. The componentwise readings on the new cell moved in the
-    /// third digit with it (`1.5798e-8`, `3.2219e-4`, `3.1059e-4` and a
-    /// ratio of `18.872` before).
-    ///
-    /// **On the cap grid the sup cell is `(21, 3)`**, again with every
-    /// pinned value unmoved: the insertion step is met with the hull of
-    /// its two sources, and this surface's weights are constant along
-    /// `v`, so each `v` step combines two equal weight enclosures and
-    /// returns that enclosure unchanged. The `v` fold adds the weight
-    /// channel no width (the `u` fold still does, so it is not exact),
-    /// and the cells along `v` at `u = 21` tie to the digits pinned
-    /// here — which one carries the sup is decided below them.
+    /// **On the cap grid the sup cell is one of a tie.** The cells
+    /// along `v` at `u = 21` agree to the digits pinned here (this
+    /// surface's weights are constant along `v`, so the `v` insertion
+    /// fold adds the weight channel no width), and which one carries
+    /// the sup is decided below them.
     #[test]
     fn the_sign_witness_floors_norm_e_where_the_components_straddle_zero() {
         let base = quarter_cylinder();
@@ -2711,7 +2687,7 @@ mod tests {
         let comp = Composite::build(&base, &fit, d).unwrap();
         let (su, sv, sup) = sup_cell(&comp, reg.floor, d, ELow::Witness);
         assert_eq!((su, sv), (21, 6));
-        assert!(near(sup, 1.7072e-5), "sup cell bound is {sup:e}");
+        assert!(near(sup, 1.7006e-5), "sup cell bound is {sup:e}");
         assert!(
             near(cert.hull_sup, sup),
             "the certificate carries another cell's bound"
@@ -2721,8 +2697,8 @@ mod tests {
             e_lo > d * 0.5 && e_lo < d * 2.0,
             "the floor on ‖E‖ reads {e_lo:e} where ‖E‖ ≈ {d:e}"
         );
-        assert!(near(e_lo, 5.6056e-7), "floor is {e_lo:e}");
-        assert!(near(dist, 6.1032e-6) && near(tau, 2.2152e-6) && near(t3, 8.7536e-6));
+        assert!(near(e_lo, 5.6395e-7), "floor is {e_lo:e}");
+        assert!(near(dist, 6.0900e-6) && near(tau, 2.2152e-6) && near(t3, 8.7009e-6));
 
         // The same cell read componentwise: the collapsed floor, and
         // the `τ²/‖E‖` term it inflates. `τ` is untouched — it divides
@@ -2737,7 +2713,7 @@ mod tests {
             "the componentwise reading's sup is not its τ²/‖E‖ term"
         );
         assert!(
-            near(sup_c / sup, 18.855),
+            near(sup_c / sup, 18.928),
             "the bound moved by {}",
             sup_c / sup
         );
@@ -2746,7 +2722,7 @@ mod tests {
         // over the one it replaces, and the row measures that rather
         // than resting on the argument.
         let worst = no_cell_loosens(&comp, reg.floor, d);
-        assert!(near(worst, 18.855), "the widest cell gain is {worst}");
+        assert!(near(worst, 18.928), "the widest cell gain is {worst}");
 
         // One round finer — the grid the `1e-9` request stops on at
         // the sample cap. The cells are small enough that the
@@ -2765,8 +2741,8 @@ mod tests {
         // absolute. Re-measured here rather than left to ride `near`'s
         // 5e-4: one number must not have two precisions, and under the
         // convex insertion form it moved (3.7544e-7 before).
-        assert!(near(sup5, 3.75359e-7), "cap-grid sup is {sup5:e}");
-        assert!(near(e_lo5, 8.30740e-7) && near(dist5, 1.22136e-7) && near(t35, 4.79839e-8));
+        assert!(near(sup5, 3.74718e-7), "cap-grid sup is {sup5:e}");
+        assert!(near(e_lo5, 8.39898e-7) && near(dist5, 1.21528e-7) && near(t35, 4.79507e-8));
         assert!(
             tau5 > dist5 && tau5 > t35,
             "τ = {tau5:e} no longer carries the cap grid's sup"
@@ -2776,69 +2752,223 @@ mod tests {
             near(e_mig5, 7.79946e-7),
             "componentwise floor is {e_mig5:e}"
         );
-        assert!(near(sup5_c, 3.79036e-7) && near(sup5_c / sup5, 1.00979));
+        assert!(near(sup5_c, 3.79036e-7) && near(sup5_c / sup5, 1.01152));
         let worst5 = no_cell_loosens(&comp5, reg.floor, d);
         assert!(worst5 >= 1.0, "the cap grid's widest cell gain is {worst5}");
     }
 
-    /// **The divisor of the `‖E‖` floor is certified from above.**
+    /// The bowed integral patch `topo`'s `Approx` fixture offsets.
+    fn bowed_patch() -> geom::NurbsSurface<f64> {
+        const BOW: f64 = 1.5e-2;
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let mut control = Vec::new();
+        for i in 0..3 {
+            for j in 0..3 {
+                let (u, v) = (f64::from(i) * 0.5, f64::from(j) * 0.5);
+                control.push(Point3::new(
+                    u,
+                    v,
+                    BOW * u * (1.0 - u) + (BOW * 2.0 / 3.0) * v * v,
+                ));
+            }
+        }
+        geom::NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap()
+    }
+
+    /// The rotation by `t` radians about `axis` (Rodrigues).
+    fn rotation(axis: [f64; 3], t: f64) -> impl Fn(Point3<f64>) -> Point3<f64> {
+        let n = axis.iter().map(|a| a * a).sum::<f64>().sqrt();
+        let [x, y, z] = axis.map(|a| a / n);
+        let (c, s, k) = (t.cos(), t.sin(), 1.0 - t.cos());
+        let m = [
+            [c + x * x * k, x * y * k - z * s, x * z * k + y * s],
+            [y * x * k + z * s, c + y * y * k, y * z * k - x * s],
+            [z * x * k - y * s, z * y * k + x * s, c + z * z * k],
+        ];
+        move |p: Point3<f64>| {
+            Point3::new(
+                m[0][0] * p.x + m[0][1] * p.y + m[0][2] * p.z,
+                m[1][0] * p.x + m[1][1] * p.y + m[1][2] * p.z,
+                m[2][0] * p.x + m[2][1] * p.y + m[2][2] * p.z,
+            )
+        }
+    }
+
+    /// **The certificate's vector upper bounds are frame-invariant to
+    /// rounding (D4 ¶2).** A bowed patch and an offset "fit" of it are
+    /// rotated rigidly, and every cell's `sup‖Y‖` and `sup‖M̃‖`, and the
+    /// regularity meter's chart speeds, are compared with the unrotated
+    /// frame's, each against its own largest value over the patch.
+    /// Read from the coefficient vectors' norms they move by rounding
+    /// alone (measured worst `5.6e-13`, on `‖Y‖`); a box of three
+    /// channel hulls folded into a norm reads up to `√3`× the vector's
+    /// reach depending on how it sits against the axes, and moves `‖Y‖`
+    /// by `8.7e-2` here.
     ///
-    /// [`Composite::e_floors`] divides `mig(D)` by `sup‖M̃‖·w̃` to get
-    /// a LOWER bound on `‖E‖`, so a divisor that is even slightly too
-    /// small makes the quotient too large and the certificate
-    /// unsound. The row reads the shipped [`Composite::m_tilde_sup`]
-    /// against interval arithmetic reading assembled independently here, on
-    /// every cell of the micron grid, and reds if the shipped one is
-    /// ever below it. One grid carries the claim — it is per-cell, so
-    /// 308 cells is 308 chances — and the fits here are seconds each.
-    ///
-    /// **What the row is guarding against is a specific regression**,
-    /// which is why it also counts the other spelling: an `f64` fold
-    /// of the same three endpoints — three round-to-nearest multiplies
-    /// and two adds, then one `next_up` — lands BELOW interval arithmetic
-    /// reading on almost every cell of every grid measured: 306 of
-    /// 308 here, 428 of 434 on the quarter cylinder's `d = 1e-5`
-    /// grid, 768 of 810 on the bumpy patch's. The counter is printed
-    /// rather than asserted: what it measures is the size of the
-    /// hazard, and what must hold is the assertion above it.
+    /// The fit is deliberately crude — the base lifted by `d` along
+    /// `z` — so that `Y` is a real vector, the normal's tilt times `d`,
+    /// rather than the rounding dust a good fit leaves in it.
     #[test]
-    fn the_normal_divisor_is_the_rings_reading_not_an_f64_fold() {
+    fn the_vector_upper_bounds_do_not_move_under_a_rotation() {
+        const DRIFT: f64 = 1e-10;
+        let splits = [0.25, 0.5, 0.75];
+        let base = bowed_patch()
+            .refine_knots_u(&splits)
+            .unwrap()
+            .refine_knots_v(&splits)
+            .unwrap();
+        let d = 0.05;
+        let fit = base.map_points(|p| Point3::new(p.x, p.y, p.z + d));
+        let reading = |base: &geom::NurbsSurface<f64>, fit: &geom::NurbsSurface<f64>| {
+            let comp = Composite::build(base, fit, d).unwrap();
+            let (nu, nv) = comp.x.cell_counts();
+            let cells: Vec<(usize, usize)> = (0..nu)
+                .flat_map(|su| (0..nv).map(move |sv| (su, sv)))
+                .collect();
+            let reg = crate::offset_meters::patch_regularity(
+                &crate::patch_bound::patch_cells(base).unwrap(),
+            );
+            [
+                cells
+                    .iter()
+                    .map(|&(su, sv)| comp.y_sup(su, sv))
+                    .collect::<Vec<_>>(),
+                cells
+                    .iter()
+                    .map(|&(su, sv)| comp.m_tilde_sup(su, sv))
+                    .collect(),
+                vec![reg.speed_u.get(), reg.speed_v.get()],
+            ]
+        };
+        let names = ["sup‖Y‖", "sup‖M̃‖", "the chart speeds"];
+        let at_rest = reading(&base, &fit);
+        assert_eq!(
+            at_rest[0].len(),
+            16,
+            "the refined bowed patch has 4×4 cells"
+        );
+        let mut worst = [0.0f64; 3];
+        for axis in [[1.0, 1.0, 1.0], [0.3, -0.4, 0.8]] {
+            for k in 1..=8 {
+                let t = 0.405 * f64::from(k);
+                let r = rotation(axis, t);
+                let moved = reading(&base.map_points(&r), &fit.map_points(&r));
+                for (q, (now, then)) in moved.iter().zip(&at_rest).enumerate() {
+                    assert_eq!(now.len(), then.len());
+                    let scale = then.iter().copied().fold(0.0f64, f64::max);
+                    for (a, b) in now.iter().zip(then) {
+                        let drift = (a - b).abs() / scale;
+                        assert!(
+                            drift.is_finite() && scale > 0.0,
+                            "{} at {axis:?}, {t}: {a:e} against {b:e}",
+                            names[q]
+                        );
+                        worst[q] = worst[q].max(drift);
+                    }
+                }
+            }
+        }
+        eprintln!(
+            "worst drift: sup‖Y‖ {:e}, sup‖M̃‖ {:e}, speeds {:e}",
+            worst[0], worst[1], worst[2]
+        );
+        for (q, w) in worst.iter().enumerate() {
+            assert!(
+                *w <= DRIFT,
+                "{} moved by {w:e} of its scale under a rotation",
+                names[q]
+            );
+        }
+    }
+
+    /// The weight function of a NURBS patch at `(u, v)`, read as the
+    /// `x` coordinate of the integral patch on the same knots whose
+    /// control points are `(w_ij, 0, 0)`.
+    fn weight_at(n: &geom::NurbsSurface<f64>, u: f64, v: f64) -> f64 {
+        let control = n
+            .weights()
+            .iter()
+            .map(|w| Point3::new(*w, 0.0, 0.0))
+            .collect();
+        let ones = vec![1.0; n.weights().len()];
+        geom::NurbsSurface::new(n.knots_u().clone(), n.knots_v().clone(), control, ones)
+            .unwrap()
+            .eval(u, v)
+            .x
+    }
+
+    /// **`sup‖M̃‖` and `sup‖Y‖` are certified from above, and never
+    /// looser than the box.**
+    ///
+    /// [`Composite::m_tilde_sup`] divides a LOWER bound on `‖E‖`
+    /// ([`Composite::e_floors`]) and [`Composite::y_sup`] is the `τ`
+    /// limb's numerator, so either reading short of the true sup makes
+    /// the certificate unsound. The row samples `M̃ = w³·(S_u × S_v)`
+    /// and `Y = w·w_fit·(S_fit − S) × M̃` on a grid inside every cell
+    /// and reds if either reading is below a sample (one part in 1e9
+    /// of slack for the sample's own `f64` evaluation). It also reds
+    /// if either reading exceeds the norm of the three channels' cell
+    /// hulls: every coefficient lies in that box, so the coefficient
+    /// norm can only be at or below it.
+    #[test]
+    fn the_normal_and_y_sups_bound_every_sample_and_never_exceed_the_box() {
+        const N: usize = 5;
         let band = Band::linear(Tol::witness()).unwrap();
         let (name, base, d, tol) = ("qc", quarter_cylinder(), 1e-6, 1e-3);
         let (fit, _) = super::fit_offset_at(&base, d, tol, band).unwrap();
         let comp = Composite::build(&base, &fit, d).unwrap();
         let (nu, nv) = comp.x.cell_counts();
-        let (mut fold_below, mut cells) = (0usize, 0usize);
+        let box_sup = |ch: &[geom_core::spline::compose::patch::PatchSpans; 3], su, sv| {
+            norm_sup(&[
+                ch[0].cell_hull(su, sv),
+                ch[1].cell_hull(su, sv),
+                ch[2].cell_hull(su, sv),
+            ])
+        };
+        let (mut cells, mut tighter, mut worst_m, mut worst_y) = (0usize, 0usize, 0.0f64, 0.0f64);
         for su in 0..nu {
             for sv in 0..nv {
-                let h = [
-                    comp.m_tilde[0].cell_hull(su, sv),
-                    comp.m_tilde[1].cell_hull(su, sv),
-                    comp.m_tilde[2].cell_hull(su, sv),
-                ];
-                let ring = norm_sup(&h);
-                if !ring.is_finite() || ring <= 0.0 {
-                    continue;
+                let (m_sup, y_sup) = (comp.m_tilde_sup(su, sv), comp.y_sup(su, sv));
+                assert!(
+                    m_sup.is_finite() && y_sup.is_finite(),
+                    "{name} cell ({su},{sv}): sup‖M̃‖ = {m_sup:e}, sup‖Y‖ = {y_sup:e}"
+                );
+                let (m_box, y_box) = (box_sup(&comp.m_tilde, su, sv), box_sup(&comp.y, su, sv));
+                assert!(
+                    m_sup <= m_box && y_sup <= y_box,
+                    "{name} cell ({su},{sv}): a coefficient-norm reading exceeds its box \
+                     (M̃ {m_sup:e} > {m_box:e} or Y {y_sup:e} > {y_box:e})"
+                );
+                if m_sup < m_box || y_sup < y_box {
+                    tighter += 1;
                 }
                 cells += 1;
-                let shipped = comp.m_tilde_sup(su, sv);
-                assert!(
-                    shipped >= ring,
-                    "{name} d={d:e} cell ({su},{sv}): the divisor {shipped:e} is below \
-                     interval arithmetic reading {ring:e} — it is not certified from above"
-                );
-                let fold =
-                    Interval::point(h[0].mag().powi(2) + h[1].mag().powi(2) + h[2].mag().powi(2))
-                        .sqrt()
-                        .mag();
-                if fold < ring {
-                    fold_below += 1;
+                let (ub, vb) = comp.cell_box(su, sv);
+                for a in 0..N {
+                    #[allow(clippy::cast_precision_loss)]
+                    let u = ub.0 + (ub.1 - ub.0) * (a as f64 + 0.5) / N as f64;
+                    for b in 0..N {
+                        #[allow(clippy::cast_precision_loss)]
+                        let v = vb.0 + (vb.1 - vb.0) * (b as f64 + 0.5) / N as f64;
+                        let jet = base.ders(u, v);
+                        let w = weight_at(&base, u, v);
+                        let m = jet.du.cross(jet.dv) * w.powi(3);
+                        let e = (fit.eval(u, v) - base.eval(u, v)) * (w * weight_at(&fit, u, v));
+                        let y = e.cross(m);
+                        worst_m = worst_m.max(m.norm() / m_sup);
+                        worst_y = worst_y.max(y.norm() / y_sup);
+                    }
                 }
             }
         }
+        assert!(cells > 0, "{name}: no cell");
+        assert!(
+            worst_m <= 1.0 + 1e-9 && worst_y <= 1.0 + 1e-9,
+            "{name}: a sample exceeds its certified sup — ‖M̃‖ by {worst_m}, ‖Y‖ by {worst_y}"
+        );
         eprintln!(
-            "{name} d={d:e}: {cells} cells, an f64 fold would sit below interval arithmetic \
-             reading on {fold_below} of them"
+            "{name} d={d:e}: {cells} cells, {tighter} tighter than the box; \
+             worst sample/sup ‖M̃‖ {worst_m:.4}, ‖Y‖ {worst_y:.4}"
         );
     }
 
