@@ -1720,6 +1720,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::NestingContradiction { hole: face },
         ),
         (
+            "EdgeJoin",
+            F::EdgeJoin {
+                side: topo::PlaneSide::Above,
+                refusal: join_refusal(),
+            },
+        ),
+        (
             "ResultInvalid",
             F::ResultInvalid {
                 side: topo::PlaneSide::Below,
@@ -4116,11 +4123,17 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
 /// tolerance, since `split_edge` refuses inside the same band.
 fn join_refused_offset() -> topo::ReplaceFaceError<f64> {
     topo::ReplaceFaceError::Join {
-        refusal: topo::JoinRefusal::Undecided(topo::JoinUndecided {
-            vertex: topo::VertexKey::default(),
-            reading: topo::JoinReading::Regularity(payloads::named("join_regular_point")),
-        }),
+        refusal: join_refusal(),
     }
+}
+
+/// The in-band join reading every door that ends with the join carries
+/// typed (`topo::JoinRefusal`).
+fn join_refusal() -> topo::JoinRefusal {
+    topo::JoinRefusal::Undecided(topo::JoinUndecided {
+        vertex: topo::VertexKey::default(),
+        reading: topo::JoinReading::Regularity(payloads::named("join_regular_point")),
+    })
 }
 
 /// Every `topo::ReplaceFaceError` arm but `Fit` ([`offset_fit_routes`]
