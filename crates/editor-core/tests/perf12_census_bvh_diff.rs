@@ -331,13 +331,14 @@ fn the_grazing_notch_keeps_the_candidate_the_exact_predicate_rejects() {
     );
 }
 
-/// The corpus heat sink with its fin count driven to `fins`.
+/// The corpus heat sink with its fin count driven to `fins`, and each
+/// fin placed.
 fn heatsink_at(fins: i64) -> ProfileDoc {
     let entry = documents()
         .into_iter()
         .find(|d| d.name == "heat_sink")
         .expect("the corpus carries the heat sink");
-    apply(
+    let driven = apply(
         &entry.doc,
         &DocEdit::DefineVar {
             var: VarName::from_static("fins").into(),
@@ -348,7 +349,8 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
         &editor_core::RefusingReach,
     )
     .expect("the fin count is a document parameter")
-    .doc
+    .doc;
+    crate::corpus::place_pattern_to(driven, fins)
 }
 
 #[test]

@@ -46,7 +46,15 @@ use editor_core::{
 /// **The rows admitted over the word budget at the 90th-percentile
 /// name, and the most words each may render**: a ratchet, so a row
 /// that grows fails and a row that shrinks lowers its number.
-const OVER_BUDGET: &[(&str, usize)] = &[];
+///
+/// Two rows, one word over, since INTENT stage 2 PR C: every placed
+/// body's names are held twice, by the body and by its world copy, so
+/// the 90th-percentile name is a longer one of the same corpus (37
+/// words in full). No name a document held before grew.
+const OVER_BUDGET: &[(&str, usize)] = &[
+    ("SelectRefusal::PairInBand", 76),
+    ("NodeErrorKind::CrossingUnverified", 76),
+];
 
 /// **The rows whose own prose states its recourse in words the standard
 /// does not read as one** ("aim away from the shared edge" is marked;
@@ -64,9 +72,15 @@ const UNMARKED_RECOURSE: &[&str] = &[
 /// full. A ratchet: a number that grows fails, one that shrinks lowers
 /// it. The total moves with a word said once more by every name of a
 /// kind, which the quantiles of a long tail need not.
+///
+/// Raised by INTENT stage 2 PR C (the product is the world): each
+/// corpus document places its bodies, and a copy's names are its
+/// body's under the placement, said "the world copy of …", four words
+/// over the body's own. The p99s rise by those four words and the
+/// totals by the copies' names; the p50s and the maxima held.
 const NAME_WORDS: [(&str, [usize; 4]); 2] = [
-    ("scoped faces", [16, 34, 38, 38_230]),
-    ("full", [19, 97, 181, 274_184]),
+    ("scoped faces", [16, 38, 38, 49_844]),
+    ("full", [19, 101, 181, 367_390]),
 ];
 
 /// **A digest of every word the corpus's names say** — each name a
@@ -87,7 +101,11 @@ const NAME_WORDS: [(&str, [usize; 4]); 2] = [
 /// it. On that tree the ids reorder an `Ends` list the same way they
 /// reorder a `Borders` one (mint order, not digest order), and move no
 /// other word.
-const SAID_DIGEST: u64 = 0x9e9d_e41c_ee2e_d3bf;
+///
+/// INTENT stage 2 PR C: the words that moved are the copies' names, new
+/// with the placements ("the world copy of …"), and the node tags of
+/// the placements; no name a document held before says another word.
+const SAID_DIGEST: u64 = 0x5504_789e_fe7d_1447;
 
 /// The tables an evaluation answers for a name it does not hold: a
 /// vanished name is in no table of the run that refuses it, and a
