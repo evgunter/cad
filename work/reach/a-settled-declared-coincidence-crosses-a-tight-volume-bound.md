@@ -7,7 +7,7 @@ opened: 2026-10-02
 priority: P2
 cost: H
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -135,3 +135,7 @@ arithmetic, and only an op whose intended result crosses may refuse,
 naming that bound. Whether it refuses is not pinned. Any design for
 this item has to read the bound at a resolution the representation
 supports, which on this fixture is coarser than the gap.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the residue comes from the door bridging a declared pair inside the band; under D10 in-band refuses and only Zero glues, so the class is redefined at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

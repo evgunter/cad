@@ -677,3 +677,13 @@ A triage of open PRs against D10 found FUSE's #3955 (contact records as cell pai
     - Which band? The sliver band.
     - Is the case a STEP import or broken geometry? A STEP import whose ε_in (1e-10 m) is finer than the run's ε, so ε_in snapping, once built, cannot resolve it.
   - **Rows:** fork-log row 88 is filled in. The step-3 unit is dispatched.
+- 2026-10-08 — Step 3 is split into four PRs, approved by the orchestrator. Each gets a dual review.
+  - **A:** the public join door, one boolean finishing function, the merge door and offset joining, and the dual gate taking a band.
+  - **B:** split and shell join.
+  - **C:** blend surgery joins (the 204 bodies).
+  - **D:** import joins, the tier-3 `JoinableVertexAtRest` arm and the sliver refusal. It lands last.
+  - **Naming, ruled as the 3881 step-4 rule applied.** A door's joined edge is named over the door's **input** cells, never over transient pieces:
+    - covering one input edge whole, it takes that edge's name;
+    - lying within one input edge, it is a piece of it;
+    - spanning several input edges, it is their flat set.
+  - **When the lane stops instead.** A joined edge with no reading in input cells stops as a naming fork.
