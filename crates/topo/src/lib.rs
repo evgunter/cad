@@ -296,6 +296,7 @@ pub mod test_support {
     // is the only suite that wants the literal, and it restates it on
     // purpose — a guard that reached for the constant the builder uses
     // would be comparing that constant against itself.
+    pub use crate::null::with_ring_root;
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
         StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_both_rules, brick,
@@ -309,11 +310,28 @@ pub mod test_support {
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {
         pub use crate::test_support_meeting::{
-            Hole, MEET, PLATE, Point, Pose, apex_pyramid, arch, at, bearing, corners,
-            corners_disjoint, cycles_of, ell, ell_and_wedges, four_wedges, inner_rows, leaned, mix,
-            nest, nest_polygon, notch, notch_rows, orders, posed_box, posed_boxes, posed_prism,
-            posed_pyramid, poses, shape, three_wedges, two_wedges, wedge, wedges_on_one_side,
+            Hole, MEET, PLATE, Point, Pose, apex_pyramid, arch, arch_cone, at, bearing,
+            branching_cone, comb, corners, corners_disjoint, cycles_of, ell, ell_and_wedges,
+            four_wedges, inner_rows, leaned, mix, nest, nest_polygon, notch, notch_rows, orders,
+            posed_box, posed_boxes, posed_prism, posed_pyramid, poses, shape, three_wedges,
+            two_wedges, wedge, wedges_on_one_side,
         };
+    }
+
+    /// **The merge without the join**, for a fixture that is
+    /// construction state on purpose: a body whose edges carry
+    /// station vertices a row exercises (a split rim, a stationed
+    /// wall), which the public door's join
+    /// ([`Body::merge_coplanar_faces`]) would take away.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::merge_coplanar_faces`].
+    pub fn merge_unjoined<T: crate::AtRestPolicy>(
+        body: &mut Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<crate::MergeCoplanarOutcome, crate::MergeCoplanarError> {
+        body.merge_coplanar_faces_unjoined(&[], tol)
     }
 
     /// `body` finished for a door that takes finished bodies (the
@@ -771,17 +789,18 @@ pub use boolean::{
     Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords,
     ContainError, Contradiction, CurveContact, DeclarationRead, DiscardRow, EdgeJoin,
     EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions, HeldEdge,
-    JoinReading, JoinUndecided, LeverArm, NeighbourOffset, NullEdgePairRecord, Operand,
-    OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact, PierceRingRecord,
-    PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, PointInSolidError,
-    RestZipFrontier, SectorRead, SectorRung, SelfCheck, Settling, ShellOrientation, SideCode,
-    SolidContainment, SolidFaces, SphereQuestion, SweepStrategy, SweepTrace, TorusConvention,
-    VeContact, VfContact, VoidContainment, VoidEvidence, VoidInsertError, VoidInserted, VvContact,
-    WallRung, boolean_op_with, boolean_reduce, boolean_reduce_declared, carrier_eq, contfp,
-    curved_face_containment, decision_words, face_carrier, flush_pair_relation, insert_void,
-    insert_voids, intersect, intersect_with, is_conventional_vertex, joinable_vertices,
-    lineage_root, oriented_plane_eq, point_in_solid, point_in_solid_faces, point_in_solid_of,
-    subtract, subtract_with, tangent_pair_relation, union, union_with,
+    JoinReading, JoinRefusal, JoinUndecided, LeverArm, NeighbourOffset, NullEdgePairRecord,
+    Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact,
+    PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
+    PointInSolidError, RestZipFrontier, SectorRead, SectorRung, SelfCheck, Settling,
+    ShellOrientation, SideCode, SolidContainment, SolidFaces, SphereQuestion, SweepStrategy,
+    SweepTrace, TorusConvention, VeContact, VfContact, VoidContainment, VoidEvidence,
+    VoidInsertError, VoidInserted, VvContact, WallRung, boolean_op_with, boolean_reduce,
+    boolean_reduce_declared, carrier_eq, contfp, curved_face_containment, decision_words,
+    face_carrier, flush_pair_relation, insert_void, insert_voids, intersect, intersect_with,
+    is_conventional_vertex, joinable_vertices, lineage_root, oriented_plane_eq, point_in_solid,
+    point_in_solid_faces, point_in_solid_of, subtract, subtract_with, tangent_pair_relation, union,
+    union_with,
 };
 pub use joint::{Deck, JointElement};
 pub use surgery::Surgery;
@@ -868,7 +887,9 @@ pub use query::{
     SurfaceKind, SurfaceKindSet,
 };
 pub use readback::{EdgeSide, EdgeSides, EulerCounts, EulerParityError, Pose, ReadbackError};
-pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
+pub use replace_face::{
+    OffsetOutcome, ReplaceFaceError, replace_face_offset, replace_faces_offset,
+};
 pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{
     HoleRim, RimNaming, RimShell, ShellError, ShellNaming, ShellRetired, Shelled, shell, shell_open,

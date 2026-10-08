@@ -76,6 +76,7 @@ pub mod pcurve;
 pub mod pcurve_cache;
 pub mod props;
 pub mod recourse;
+pub(crate) mod shape_operator;
 mod sphere_circle;
 pub mod ssi;
 pub mod tangent;

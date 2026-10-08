@@ -143,11 +143,6 @@ const ROSTER: &[Site] = &[
         ),
     },
     Site {
-        path: "crates/geom-brep/src/ssi.rs",
-        subject: "impl<T: geom_core::Bounds> TubeScale<T>",
-        why: HandedOff("Track Q's ssi ground; enumerated by S88 and not taken there"),
-    },
-    Site {
         path: "crates/geom-brep/src/ssi/certify.rs",
         subject: "composite_form",
         why: HandedOff("Track Q's; a private helper S88's census names"),

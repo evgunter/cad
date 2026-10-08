@@ -5097,8 +5097,9 @@ pub(crate) mod staleness_posture {
             (
                 "merge_coplanar_faces_declared",
                 Maintains,
-                "re-mints the staged result before it is adopted, whenever the operand \
-                 carried rows",
+                "calls `merge_coplanar_faces_staged`, which re-mints the staged result \
+                 before it is adopted, whenever the operand carried rows, and ends with \
+                 `join_edges`, which re-mints again where a join moved rows",
             ),
             (
                 "replace_faces_offset",
@@ -5188,6 +5189,12 @@ pub(crate) mod staleness_posture {
              own; `cyl_wall_sheet` is the door that runs the pass over what it grew",
             ),
             ("mvfs", Neither, "Euler operator"),
+            (
+                "merge_unjoined",
+                Maintains,
+                "test support: calls `merge_coplanar_faces_unjoined`, which re-mints the \
+                 staged result before it is adopted",
+            ),
             (
                 "mev_null",
                 Neither,
@@ -5637,10 +5644,10 @@ pub(crate) mod staleness_posture {
         // that needs a second oracle for "does this body call it",
         // which a source read does not have.
         assert!(
-            minting.iter().any(|n| n == "merge_coplanar_faces_declared"),
-            "`merge_coplanar_faces_declared` no longer reads as calling `mint_pcurves`. \
-             Either the door stopped re-minting — a finding, and its entry belongs below \
-             — or the source read lost the call.",
+            minting.iter().any(|n| n == "join_edges"),
+            "`join_edges` no longer reads as calling `mint_pcurves`. Either the door \
+             stopped re-minting the rows its kills moved — a finding, and its entry \
+             belongs above — or the source read lost the call.",
         );
         println!(
             "[pcurve posture] {} door(s): {} re-mint, {} declared",

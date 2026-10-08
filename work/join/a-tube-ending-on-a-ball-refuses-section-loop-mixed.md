@@ -2,12 +2,11 @@
 id: a-tube-ending-on-a-ball-refuses-section-loop-mixed
 kind: issue
 title: A tube whose end rim lies on a ball, unioned with it, passes the crossing layer and refuses Join(SectionLoopMixed)
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: H
 refs: [a-declared-rest-mate-does-not-license-its-rim-against-the-partner-wall]
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -37,3 +36,7 @@ edges, the class JOIN-1 is about.
 
 Measure the fixture on JOIN-1's germ loci. Its closed form is the tube's
 volume above the sphere plus the ball's.
+
+## Released from the D10 hold (2026-10-08)
+
+Nothing D10 changes gates this row, so it is open: an undeclared union; Join(SectionLoopMixed) is the join's role resolution on an in-face section loop, which the Zero-glue path keeps. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

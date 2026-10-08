@@ -29,7 +29,7 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::PcurveCertifyError;
-use geom_brep::ssi::{SsiCertificate, SsiError, SsiOperand, TubeScale, certify_rung3};
+use geom_brep::ssi::{SsiCertificate, SsiError, SsiOperand, certify_rung3};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Real, Vec3};
 
@@ -101,7 +101,7 @@ where
         None,
         &SsiOperand::Analytic(&plane),
         &SsiOperand::Analytic(&sphere),
-        TubeScale::uniform(arm),
+        arm,
         band,
     )
 }

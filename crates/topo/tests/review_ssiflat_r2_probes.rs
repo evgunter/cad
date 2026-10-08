@@ -14,7 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, NurbsCurve3, Surface};
-use geom_brep::ssi::{SsiCertificate, SsiError, SsiOperand, TubeScale, certify_rung3};
+use geom_brep::ssi::{SsiCertificate, SsiError, SsiOperand, certify_rung3};
 use geom_core::{Band, Point3, Real, Vec3};
 
 use crate::fixture::arc_chain;
@@ -92,7 +92,7 @@ where
         None,
         &SsiOperand::Analytic(&plane),
         &SsiOperand::Analytic(&sphere),
-        TubeScale::uniform(diameter(&carrier)),
+        diameter(&carrier),
         band,
     )
 }

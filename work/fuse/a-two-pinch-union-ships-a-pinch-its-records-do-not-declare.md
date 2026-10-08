@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P2
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -35,3 +35,7 @@ census. Whether it should is Ev's question on `[ev]` PR 3870.
 Find which touching goes unrecorded (the census names it) and record
 it where the door makes it, or refuse there. Gating tier 3′ at the door
 refuses all 16 until this lands.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: an unrecorded self-touch refused UndeclaredContact at tier 3′; at stage 4 that refusal becomes a finding and contacts are recorded at the one door. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

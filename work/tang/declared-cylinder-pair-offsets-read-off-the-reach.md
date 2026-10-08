@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-07
 priority: P2
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 refs: [cylinder-offsets-read-at-a-stored-origin-off-the-reach]
 ---
 
@@ -38,3 +38,7 @@ A-coordinate, and to first order the transfer error's axis term is
 `o_b` is.
 
 Found by `tang/cylinder-offsets-at-the-reach`'s sweep.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: chart_region_cyl_offset runs only on declared pairs (declared_pair_overlap reads Door 1's ContactVerdict); the declared-pair seats retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

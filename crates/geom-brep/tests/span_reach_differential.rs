@@ -20,7 +20,7 @@
 //!   segments) under the split lane's coplanarity row, the face's
 //!   normal against a plane tilted about a line through a corner,
 //!   levered at the face extent from that corner. The truth is the
-//!   farthest grid point's distance off the tilted plane.
+//!   sector's farthest point's distance off the tilted plane.
 //!
 //! Not a gate: it asserts nothing. Run it with
 //! `cargo nextest run -p geom-brep -E 'test(span_reach_differential)' --run-ignored only --no-capture --release`.
@@ -677,21 +677,27 @@ fn split_cyl_case(rng: &mut Rng, b: geom_core::Band, s: f64) -> Case {
 
 /// **A plane sector under the split lane's coplanarity row**: an annular
 /// sector tilted about a line through a corner, the row levered at the
-/// face extent from the corner, against the grid's farthest distance off
-/// the tilted plane.
+/// face extent from the corner, against the sector's farthest distance
+/// off the tilted plane ([`sector_offset`]). Radii and offsets reach
+/// 1e3 short of `1e12·ε`: past it a unit normal's own rounding, levered
+/// at the face's extent, is a tenth of ε, and no f64 reading of the
+/// tilt resolves the band.
 fn split_plane_case(rng: &mut Rng, b: geom_core::Band, s: f64) -> Case {
     let z = b.zero();
     let kk = b.escalate() / z;
-    let c = Point3::origin() + rng.unit() * 1e3;
+    let room = (1e12 * z).min(1e3);
+    let s = s.min(room);
+    let c = Point3::origin() + rng.unit() * room;
     let nf = rng.unit();
     let x = perp(nf, rng);
     let y = nf.cross(x);
     let r2 = s * rng.r(0.5, 2.0);
     let r1 = r2 * rng.r(0.0, 0.999);
     let dt = rng.log(1e-6, 3.0);
-    let face = sector(c, (x, y), (r1, r2), (rng.r(-3.0, 3.0), dt));
-    let base = face.corners[(rng.u() * 4.0) as usize % 4];
-    let reach = face.sampled_reach(base).max(1e-300);
+    let t0 = rng.r(-3.0, 3.0);
+    let face = sector(c, (x, y), (r1, r2), (t0, dt));
+    let corner = (rng.u() * 4.0) as usize % 4;
+    let reach = face.sampled_reach(face.corners[corner]).max(1e-300);
     let sin_t = if rng.u() < 0.15 {
         rng.r(0.0, 1.0)
     } else {
@@ -699,11 +705,21 @@ fn split_plane_case(rng: &mut Rng, b: geom_core::Band, s: f64) -> Case {
     };
     let hinge = perp(nf, rng);
     let nsp = nf * (1.0 - sin_t * sin_t).max(0.0).sqrt() + nf.cross(hinge) * sin_t;
-    let off = face
-        .grid
-        .iter()
-        .map(|p| (*p - base).dot(nsp).abs())
-        .fold(0.0_f64, f64::max);
+    plane_case(b, (&face, corner), (x, y, nf), ((r1, r2), (t0, dt)), nsp)
+}
+
+/// The coplanarity row on `face` (the [`sector`] of `(x, y)` with normal
+/// `nf`) at its corner `corner`, against the plane of normal `nsp`
+/// through that corner.
+fn plane_case(
+    b: geom_core::Band,
+    (face, corner): (&Face, usize),
+    (x, y, nf): (Vec3<f64>, Vec3<f64>, Vec3<f64>),
+    (radii, arc): ((f64, f64), (f64, f64)),
+    nsp: Vec3<f64>,
+) -> Case {
+    let base = face.corners[corner];
+    let reach = face.sampled_reach(base).max(1e-300);
     let read = |arm: f64| match decide(
         "split_sector_coplanar",
         Margin::levered(nf.cross(nsp).norm(), arm),
@@ -715,7 +731,7 @@ fn split_plane_case(rng: &mut Rng, b: geom_core::Band, s: f64) -> Case {
     };
     let (head_arm, main_arm) = (face.across(base, false), face.across(base, true));
     Case {
-        truth: classify(off, b),
+        truth: classify(sector_offset((x, y), nsp, radii, arc, corner), b),
         main: read(main_arm),
         head: read(head_arm),
         short: head_arm < reach - ulps(base, reach),
@@ -723,34 +739,142 @@ fn split_plane_case(rng: &mut Rng, b: geom_core::Band, s: f64) -> Case {
     }
 }
 
+/// The farthest point of the [`sector`] `ρ ∈ [r1, r2]`, `t ∈ [t0, t0 +
+/// dt]` of `(x, y)` off the plane of normal `n` through its corner `k`:
+/// `(p − k)·n̂ = A·(x·n̂) + B·(y·n̂)`, the two near-zero dots compensated
+/// ([`dot2`]) and no absolute coordinate rounded. The offset is linear
+/// in `p`, so its extremes are the corners and the arcs' stationary
+/// azimuths.
+fn sector_offset(
+    (x, y): (Vec3<f64>, Vec3<f64>),
+    n: Vec3<f64>,
+    (r1, r2): (f64, f64),
+    (t0, dt): (f64, f64),
+    k: usize,
+) -> f64 {
+    let (dx, dy) = (dot2(x, n) / n.norm(), dot2(y, n) / n.norm());
+    let corners = [(r1, t0), (r2, t0), (r2, t0 + dt), (r1, t0 + dt)];
+    let (rk, tk) = corners[k];
+    let off = |(rho, t): (f64, f64)| {
+        ((rho * t.cos() - rk * tk.cos()) * dx + (rho * t.sin() - rk * tk.sin()) * dy).abs()
+    };
+    let star = dy.atan2(dx);
+    let arcs = [r1, r2].into_iter().flat_map(|rho| {
+        (-2..=2)
+            .map(move |j| (rho, star + f64::from(j) * core::f64::consts::PI))
+            .filter(|(_, t)| (t0..=t0 + dt).contains(t))
+    });
+    corners.into_iter().chain(arcs).map(off).fold(0.0, f64::max)
+}
+
+/// `a·b` as if in twice the working precision (Ogita, Rump and Oishi's
+/// Dot2): each product's and each partial sum's rounding error is
+/// carried and added back.
+fn dot2(a: Vec3<f64>, b: Vec3<f64>) -> f64 {
+    let (mut s, mut c) = (0.0_f64, 0.0_f64);
+    for (u, v) in [(a.x, b.x), (a.y, b.y), (a.z, b.z)] {
+        let p = u * v;
+        let t = s + p;
+        let w = t - s;
+        c += (s - (t - w)) + (p - w) + u.mul_add(v, -p);
+        s = t;
+    }
+    s + c
+}
+
+/// The band the pinned counterexamples were drawn at: ε = 1e-12 and
+/// the run's K.
+#[allow(clippy::expect_used)]
+fn drawn_at() -> geom_core::Band {
+    geom_core::Band::linear_at(geom_core::Tol::witness(), 1e-12).expect("the 1e-12 band")
+}
+
+/// **Split #218 of `CAD_FUZZ_SEED=0x4a5a1477da7f8d8a` at ε = 1e-12**:
+/// a sector of radii 1216 to 1702, 0.83 rad, 1e3 off the origin, under
+/// a plane tilted 7.7e-16 about its corner. The span's lever (1253.136,
+/// the corner's reach) reads the tilt at 0.90·ε and serves coplanar
+/// where the whole turn's (2918) escalates. The sector's farthest point
+/// is 0.993·ε off the plane, so the serving is on its truth; the grid's
+/// rounded coordinates, up to 4e-13 off the face's own plane, read
+/// 1.19·ε, in the band.
+#[test]
+fn a_sector_a_thousand_off_the_origin_serves_coplanar_on_its_exact_offset() {
+    let b = drawn_at();
+    let c = Point3::new(218.1321838584607, -903.8348395007782, 368.1045140578166);
+    let x = Vec3::new(0.38137116318064646, 0.36602427219960004, 0.848871172826003);
+    let y = Vec3::new(
+        0.6865284265628431,
+        -0.7270852465399547,
+        0.005075803885127711,
+    );
+    let nf = Vec3::new(0.6190595733977365, 0.5808384254030431, -0.5285754138814308);
+    let nsp = Vec3::new(0.619059573397736, 0.5808384254030433, -0.5285754138814313);
+    let (radii, arc) = (
+        (1216.2714342402082, 1701.9398722104595),
+        (2.157531577593737, 0.8262122409773649),
+    );
+    let face = sector(c, (x, y), radii, arc);
+    let case = plane_case(b, (&face, 0), (x, y, nf), (radii, arc), nsp);
+    assert_eq!(
+        (case.truth, case.main, case.head, case.short),
+        ("Zero", "esc", "coplanar", false),
+        "split #218: (truth, main, head, head's lever short of the face)"
+    );
+}
+
 /// **The split's rows serve where main escalated only on their truth**,
 /// and never on a lever short of the face: a few hundred seeded samples
 /// of each split family (rim and oblique cylinder patches under rule
 /// (a), plane sectors under the coplanarity row), at scales 1e-3, 1 and
-/// 1e3 and 1e3 off the origin. The full families are
+/// 1e3 and 1e3 off the origin (the sectors' capped at `1e12·ε`). The
+/// full families are
 /// [`span_reach_differential`]'s.
 #[test]
 fn the_split_rows_serve_where_main_escalated_only_on_their_truth() {
-    let b = band();
     let mut g = fuzz::start("split_rows_served_where_main_escalated");
-    let mut rng = Rng(g.next_u64());
-    for i in 0..fuzz::scaled(300) {
+    split_rows(
+        band(),
+        &mut Rng(g.next_u64()),
+        fuzz::scaled(300),
+        &fuzz::replay(),
+    );
+}
+
+/// **The sectors stop at `1e12·ε`.** Split #164 of
+/// `CAD_FUZZ_SEED=0x344a6e7b2dc22080` at ε = 1e-12, before the cap, was
+/// a sector of radius 1e3, 1e3 off the origin, under a plane its
+/// normal's 8.7e-16 tilt levers at 0.999·ε exactly across the span's
+/// 1143 (0.975·ε as read), so it served coplanar; the sector itself is
+/// 1.10·ε off that plane, its rounded frame `x × y` 1.3e-16 off its
+/// normal. This replays that stream: `Rng(0x74eb695e87f1661e)` is the
+/// one the gated row draws from that seed.
+#[test]
+fn the_sectors_stop_where_the_tilt_outruns_a_unit_normal() {
+    let b = drawn_at();
+    split_rows(
+        b,
+        &mut Rng(0x74eb_695e_87f1_661e),
+        165,
+        "Rng(0x74eb695e87f1661e)",
+    );
+}
+
+fn split_rows(b: geom_core::Band, rng: &mut Rng, n: usize, replay: &str) {
+    for i in 0..n {
         let s = [1e-3, 1.0, 1e3][i % 3];
         for (family, case) in [
-            ("split_cyl", split_cyl_case(&mut rng, b, s)),
-            ("split", split_plane_case(&mut rng, b, s)),
+            ("split_cyl", split_cyl_case(rng, b, s)),
+            ("split", split_plane_case(rng, b, s)),
         ] {
             assert!(
                 !case.short,
-                "{family} #{i}: head's lever falls short of the face; {}",
-                fuzz::replay()
+                "{family} #{i}: head's lever falls short of the face; {replay}"
             );
             assert!(
                 !(case.main == "esc" && case.head != "esc" && case.against(case.head)),
-                "{family} #{i}: head serves {} where main escalated, against the truth {}; {}",
+                "{family} #{i}: head serves {} where main escalated, against the truth {}; {replay}",
                 case.head,
                 case.truth,
-                fuzz::replay()
             );
         }
     }

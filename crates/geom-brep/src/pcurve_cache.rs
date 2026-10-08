@@ -2660,7 +2660,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
         Some(image),
         &operand(mate)?,
         &operand(surface)?,
-        crate::ssi::TubeScale::uniform(arm),
+        arm,
         band,
     )
     .map_err(ssi_refusal)?;

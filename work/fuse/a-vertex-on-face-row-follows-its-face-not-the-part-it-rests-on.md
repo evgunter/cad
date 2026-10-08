@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-03
 priority: P1
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -48,3 +48,7 @@ that the surviving part of the face is the part the vertex rests on.
 Keep a vertex-on-face row exactly when the result's face around the
 vertex is the face the row names, and flip the pin to 3′ passing in
 all six ops.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: a lineage bug in the declared v-on-f rows of remap_contacts (Stale/UndeclaredContact); stage 4 retires those records and refusals. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

@@ -44,7 +44,7 @@ Which is it?
 - **The geometry's verdict.** The spline is the export's sagitta
   stand-in, so it lies off the true section between its samples.
 - **An artifact of the tube's scale.** `analytic_rung3` takes
-  `TubeScale::uniform(carrier_diameter(carrier))`: the widest rung is the
+  the tube's extent as `carrier_diameter(carrier)`: the widest rung is the
   control-net diameter, and the ladder bottomed out at 510 boxes.
 
 A margin of exactly `0.0` is suspicious either way. A fix owes one of

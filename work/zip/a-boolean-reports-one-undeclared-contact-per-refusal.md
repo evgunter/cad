@@ -6,7 +6,7 @@ status: parked
 opened: 2026-09-30
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -23,3 +23,7 @@ Owner: `crates/topo/src/boolean/` (TANG/ZIP).
 ## Parked on the D10 hold (2026-10-06)
 
 This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: UndeclaredCoincidence refusals retire at stage 4 and become unproven-coincidence findings, so the one-pair-per-refusal shape goes with them. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

@@ -292,7 +292,7 @@ fn r2a_a_face_named_twice_across_moves() {
     let before = topo::mass_properties(&body, tol).expect("props").volume;
     match topo::offset_planes_together(&mut body, &moves, band(), tol) {
         Err(e) => println!("[r2a] duplicate face: refused, {e}"),
-        Ok(()) => {
+        Ok(_) => {
             let tier3 = topo::validate_geometric(&body, tol);
             let vol = topo::mass_properties(&body, tol).map(|p| p.volume);
             println!(
