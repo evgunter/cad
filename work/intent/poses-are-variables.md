@@ -19,11 +19,16 @@ The migration keeps every datum's scalar ids, and geometry is bit-equal. It wait
 
 FORK-S3-1 was weighed with FORK-S3-6 as FORK-S3P (fork log row 95) and
 went to Ev in an `[ev]` PR; this unit builds on the answer
-provisionally. A free pose is a `Frame` holding nothing (no value, unit
-or distribution): the spec's `Seed` is that free arm, not a definition
-over nothing. Only a `Frame` may be free. A document is born with one
-free frame and may hold more; the world is the one undeletable free
-frame, read only by a placement's mates. A definition whose reads reach
-two free frames refuses at the door, as an operation does. `InFrame` of
-kind `Frame` and `Offset` stay two spellings (coordinates versus a rigid
-chain); that is this unit's call, not Ev's.
+provisionally. After Ev's comment ("frames only enter at placement, so
+there's no need to specifically have blank ones"), no pose is free.
+A part's construction is written in the document's own coordinates,
+which no variable stands for: a datum is coordinates over scalar
+variables in them (`InFrame` reads a frame only when it is relative to
+one), so the migration of absolute datums is none. There is no `Seed`, no
+free `Frame` and no `OfCopy`. A pose of a copy is a `FaceFrame` over the
+copy's `Body` variable, or `BodyFrame { body }`, the body's construction
+coordinates as a `Frame` pose (today's `FrameBase::Part`). The world is
+one undeletable frame defined in the document's coordinates, read only by
+placements' mates and export. A space is a set of copies; reads that
+reach copies lie in one space. `InFrame` of kind `Frame` and `Offset` stay
+two spellings, and that is this unit's call.

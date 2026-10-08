@@ -1795,8 +1795,6 @@ pub fn shell_error_tag(err: &ShellError<f64>) -> &'static str {
         ShellError::Thickness { .. } => "thickness",
         ShellError::NoSolid => "no_solid",
         ShellError::Roles { .. } => "roles",
-        ShellError::Pieces { .. } => "pieces",
-        ShellError::OperandOuterShells { .. } => "operand_outer_shells",
         ShellError::Partition { .. } => "partition",
         ShellError::WallClearance { .. } => "wall_clearance",
         ShellError::ChartSenseMixed { .. } => "chart_sense_mixed",

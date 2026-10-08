@@ -928,7 +928,7 @@ scalar-type parameter and we need ~five quantities, not the SI lattice.
 **A stored value always names its notation.** Units erase at the
 accessor doors because the kernel wants them gone. One consumer wants
 them kept: a document records what a person *wrote*, so it can be read
-back that way. Every free scalar's value (D10) therefore
+back that way. Every free continuous variable's value (D10) therefore
 carries a display unit — a row of `quantity::UNITS`, presentation metadata excluded from
 expression identity, keys and evaluation — and that unit is **not
 optional**: the table carries a dimensionless row (`ONE`, empty symbol,
@@ -1221,18 +1221,19 @@ intent.
 variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
 sense) and the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`),
-of which a `Frame` may be free and every kind may be defined; the shapes (`Body`, `Bodies`,
+which are only defined: by coordinates over scalar variables, in the
+document's own coordinates or in a frame the definition reads, by a
+construction over other poses, by a face or the body of a `Body`
+variable, or as an output of an operation; the shapes (`Body`, `Bodies`,
 an ordered list of bodies whose length is a `Count`, and `Profile`),
 which only an operation defines; and the selections of a shape
-(`Face`, `Edge`, and their sets `Faces`, `Edges`). A scalar or discrete
-variable is **free** — a value, its written unit (D6) and optionally a
-distribution — or **defined**, by an `Expr` over other variables, by a
-selection of a `Body` variable, or as an output of an operation. A
-`Frame` may be free, holding nothing: it is a space's own frame, the
-one its poses are written in. Every other pose is defined, and its
-numbers are scalar variables of its definition. A dimensioned literal stands nowhere, neither in a slot
-nor inside a formula: the only constants are dimensionless rationals and
-rational fractions of a turn, which are the shape of a formula rather
+(`Face`, `Edge`, and their sets `Faces`, `Edges`). A variable is
+**free** — a value, its written unit (D6) and optionally a distribution
+— or **defined**, by an `Expr` over other variables, by a selection of a
+`Body` variable, or as an output of an operation. A dimensioned literal stands nowhere, neither in a slot
+nor inside a formula: the only constants are dimensionless rationals,
+rational fractions of a turn, and zero, which is the same in every unit
+and so stands at any dimension; each is the shape of a formula rather
 than a dimension. Typing a value in the GUI mints a free variable and
 offers an existing variable of equal value; declining the offer is what
 makes the two distinct. A variable without a name is read by exactly
@@ -1273,30 +1274,32 @@ definition reading one, is read only by an assertion. A construction
 reads what was written.
 
 **Spaces and placement.** A part has no location: its construction is
-written on a free frame and has coordinates in no other. A **space** is
-a set of members — free frames and copies — related to one another; a
-document is born with one free frame and may hold more, and a
-definition's or an operation's reads lie in one space, else it
-refuses. A
+written in coordinates of its own, which no variable stands for and no
+relation reaches. A **space** is a set of copies related to one
+another; a definition's or an operation's reads that reach copies lie
+in one space, else it refuses. A
 **placement** is the bundle of mates that pins one copy of a part
 relative to others: two placements of a part are two copies, and a mate
 added to a pinned copy refuses as an overconstraint, decided by
 subgroup algebra (A11 (1)) without measuring. A mate places and never
-checks. The **world** is the one undeletable free frame: a pose
-reaching it is read only by a placement's mates, it is never a member,
-and export alone composes into it. Nothing computes in the frame of a
-space. An operation computes in the construction frame of its first
-operand as the author lists it (the free frame a construction is
-written on, or, for a copy, its body's), and every other operand is
-mapped into it by the poses the bundles between them compose; the walk
-stops at a copy and never passes into its source or into what its
-bundle reads. Operands on one free frame therefore compute in it with
-nothing chosen; where operands are copies of different parts, the
-order the author wrote is the choice, said rather than hidden. The
-frame is a function of the reads, so an edit that leaves an
-operation's reads alone moves none of its bits (D9). A check over a
-space, the at-rest census, is defined order-free: each pair's verdict
-is the same in either member's frame, or the sliver band refuses.
+checks. The **world** is one undeletable frame, defined in the
+document's coordinates, that copies may be related to like a part; only
+a placement's mates and export read it, and construction never does.
+An operation computes in a frame that is a function of what it reads
+and of nothing else, chosen so its arithmetic is well conditioned near
+the geometry it builds, and never in the world's; the frame is keyed
+with its inputs, so an edit that leaves an operation's reads alone
+moves none of its bits (D9). The frame is not part of the operation's
+meaning: the body up to that rigid map, its names and every verdict
+outside the sliver band are the same in any frame, and a minted
+reference direction is a function of the inputs, not of the axes.
+Absent a better-conditioned choice, a construction computes in the
+document's coordinates and an operation over copies in the construction
+coordinates of its first operand as the author lists it; a choice
+informed by the operands' values may replace that, with the author's
+order as its tie-break. A check over a space,
+the at-rest census, is defined order-free: each pair's verdict is the
+same in either member's frame, or the sliver band refuses.
 
 **Coincidence.** Whether two cells coincide is a margined verdict like
 any other (Q1): a margin decided Zero glues them, a definite one keeps
@@ -1353,16 +1356,26 @@ operand's description for a merged face, and refuses what falls in the
 sliver band.
 
 **Assertions.** `Assert { measure, relation, bound }` (`≤`, `≥`, `=`,
-the bound a variable) checks and never places. At rest, contact
-between copies is an `unproven-coincidence` finding unless it is
-structural (a mate-placed face is), and interference is a finding of
-its own. Nothing at rest refuses: a pair the census has no lane for
-is a finding too, saying it could not look, and no outcome of the
-census is silence. A finding is
-quiet exactly when an assertion on the same measure at the same site has
-a bound the observation meets and that does not straddle zero: a
-contact finding under an assertion that the gap is zero, an
-interference finding under a bound on one side of zero.
+the bound a variable) checks and never places. At rest the census
+examines the copies of each space pairwise, and nothing it finds
+refuses. Contact between copies is an `unproven-coincidence` finding
+unless it is structural (a mate-placed face is); an overlap of their
+material is an interference finding; and a pair the census has no lane
+for is a finding too, saying it could not look, so no outcome of the
+census is silence. A contact or interference finding observes the sign
+of the gap (CONTACT-DESIGN C5) between two copies: a contact is `g = 0`
+at two cells, an interference `g < 0` over one connected overlap of
+their material. Holding assertions quiet a finding when they say the
+same: each reads a `Gap`'s output directly, over an opposed pair of
+faces of the two copies, and admits only values of the finding's sign
+(`= 0` for a contact; `≤ b` or `= b` with `b` negative for an
+interference). A contact is quiet when such an assertion's two faces
+are the two cells the census found coincident; an interference, when
+the assertion's two faces bound the overlap and every face bounding it
+lies between the carriers of an asserted pair. An assertion speaks for
+nothing else, so a new contact or overlap anywhere else is loud until
+something says otherwise, and an overlap the kernel cannot bound is
+loud and nothing quiets it.
 
 D10 governs where a companion clause disagrees, and these retire as
 the program that builds it reaches them: the declared-contact seats

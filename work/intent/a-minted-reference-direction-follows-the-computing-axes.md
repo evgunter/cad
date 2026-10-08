@@ -23,3 +23,8 @@ author's stated first operand, so the dependence is said rather than
 hidden. The deeper fix is for each such carrier to derive its reference
 from its inputs: a cap from the path frame, a section from the cutting
 plane's reference. The frame then moves only rounding.
+
+After Ev's principle on #4324 (the computing frame is chosen for
+numerical behaviour and caching), this is required, not optional. Once
+the frame is a free numerical choice, nothing semantic may depend on it.
+

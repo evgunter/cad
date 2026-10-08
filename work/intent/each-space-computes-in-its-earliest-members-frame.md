@@ -19,15 +19,20 @@ Product digests move into computing-frame coordinates, and STEP bytes move by ro
 
 FORK-S3-6 was weighed with FORK-S3-1 as FORK-S3P (fork log row 95) and
 went to Ev in an `[ev]` PR; this unit builds on the answer
-provisionally, and it changes the unit: nothing computes in the frame of
-a space. After Ev's principle on #4323 (do not hide
-arbitrariness), each operation computes in its first operand's
-construction frame as the author lists it, never by mint order. Operands
-on one free frame compute in it with nothing chosen. The walk stops at a
-copy. The at-rest census is defined order-free: each pair's verdict is
-the same in either member's frame, or the band refuses, and a test pins
-that both agree. The frame is a function of the reads and is keyed in the
-memo with them. A new mate relating two spaces moves no computed bit,
-only the world map export composes. Spec tests 15–17 need
-restating (a copy's body digest equals its source's; a re-mint, not a
-reorder).
+provisionally, and it changes the unit. Ev's principle: "use whatever
+frame makes things behave well numerically, and hopefully it doesn't
+break caching". An operation computes in a frame that is a function of
+its reads alone (so it is keyed with them), chosen for conditioning, and
+never the world's. The frame is not part of the meaning: the body up to
+the rigid map, names, and verdicts outside the sliver band agree in any
+two frames, which is the invariant this unit's test pins (compute in two
+frames and compare). The mechanism to build first: constructions in the
+document's coordinates, and an operation over copies in its first listed
+operand's construction coordinates. A value-informed refinement is
+allowed: re-centre on the operands' bounds, snapped to a power-of-two
+grid at their scale, with the author's order as tie-break, measured on
+the far-from-origin rows such as
+`a-far-meeting-point-fails-membership-by-its-own-rounding`. This unit
+needs `a-minted-reference-direction-follows-the-computing-axes` first (or
+with it), since that is what makes the frame free of meaning. The at-rest
+census is defined order-free.
