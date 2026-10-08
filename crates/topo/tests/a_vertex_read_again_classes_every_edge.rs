@@ -214,6 +214,10 @@ struct Tally {
     doubled: usize,
     /// The first wrong or missing row, to name in a failure.
     first: Option<String>,
+    rv_near: usize,
+    rv_far: usize,
+    rv_body_wrong: usize,
+    rv_first: Option<String>,
 }
 
 /// Every op on `(x, y)` in both orders, tallied: each edge at `MEET` of
@@ -226,13 +230,16 @@ fn check(
     tally: &mut Tally,
 ) {
     let meet = at(pose.at(MEET));
-    for (what, (a, ag), (b, bg), r) in [
-        ("x − y", x, y, subtract(x.0, y.0, t())),
-        ("y − x", y, x, subtract(y.0, x.0, t())),
-        ("x ∪ y", x, y, union(x.0, y.0, t())),
-        ("y ∪ x", y, x, union(y.0, x.0, t())),
-        ("x ∩ y", x, y, intersect(x.0, y.0, t())),
-        ("y ∩ x", y, x, intersect(y.0, x.0, t())),
+    let less: fn(bool, bool) -> bool = |a, b| a && !b;
+    let or: fn(bool, bool) -> bool = |a, b| a || b;
+    let and: fn(bool, bool) -> bool = |a, b| a && b;
+    for (what, (a, ag), (b, bg), r, keep) in [
+        ("x − y", x, y, subtract(x.0, y.0, t()), less),
+        ("y − x", y, x, subtract(y.0, x.0, t()), less),
+        ("x ∪ y", x, y, union(x.0, y.0, t()), or),
+        ("y ∪ x", y, x, union(y.0, x.0, t()), or),
+        ("x ∩ y", x, y, intersect(x.0, y.0, t()), and),
+        ("y ∩ x", y, x, intersect(y.0, x.0, t()), and),
     ] {
         let what = format!("{label}, {}, {what}", pose.label);
         let r = match r {
@@ -247,6 +254,36 @@ fn check(
         };
         tally.built += 1;
         assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
+        if let Ok(path) = std::env::var("RV_DUMP") {
+            use std::io::Write as _;
+            let mut rows: Vec<String> = r
+                .naming
+                .edge_classes
+                .iter()
+                .map(|row| {
+                    let own = if row.operand == Operand::A { a } else { b };
+                    let p = readback::vertex_point(own, row.vertex).ok();
+                    let here = p.map(|p| at(p) == meet);
+                    let far = (|| {
+                        let edge = own.get_edge(row.edge)?;
+                        let plus = own.get_half_edge(edge.he_plus)?;
+                        let fv = if row.starts { own.get_half_edge(plus.next)?.start } else { plus.start };
+                        let q = readback::vertex_point(own, fv).ok()?;
+                        let other = if row.operand == Operand::A { bg } else { ag };
+                        Some(format!("{:?}", other.side(local(pose, q - p?))))
+                    })();
+                    format!("{row:?} @meet={here:?} germ={far:?}")
+                })
+                .collect();
+            rows.sort();
+            let mut f = std::fs::OpenOptions::new().create(true).append(true).open(path).unwrap();
+            for row in rows {
+                writeln!(f, "{what}\t{row}").unwrap();
+            }
+        }
+        if std::env::var("RV_BODY").is_ok() {
+            rv_body_check(&what, &r.body, (a, ag), (b, bg), keep, pose, tally);
+        }
         for (op, own, other) in [(Operand::A, a, bg), (Operand::B, b, ag)] {
             for (v, _) in own.vertices() {
                 let p = readback::vertex_point(own, v).unwrap();
@@ -301,6 +338,101 @@ fn check(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+
+/// rv4289: the winding number of `body` about `q`, from its planar
+/// faces' cycles (fan triangles, signed solid angles), independent of
+/// `point_in_solid`.
+fn rv_winding(body: &AtRestBody<f64>, q: Vec3<f64>) -> f64 {
+    let mut total = 0.0;
+    for (_, f) in body.faces() {
+        for cyc in common::meeting::cycles_of(body, f) {
+            let pts: Vec<Vec3<f64>> = cyc
+                .iter()
+                .map(|&he| {
+                    let p = body.half_edge_start_point(he).unwrap();
+                    Vec3::new(p.x, p.y, p.z) - q
+                })
+                .collect();
+            for i in 1..pts.len().saturating_sub(1) {
+                let (a, b, c) = (pts[0], pts[i], pts[i + 1]);
+                let (la, lb, lc) = (a.norm(), b.norm(), c.norm());
+                let num = a.dot(b.cross(c));
+                let den = la * lb * lc + a.dot(b) * lc + a.dot(c) * lb + b.dot(c) * la;
+                total += 2.0 * num.atan2(den);
+            }
+        }
+    }
+    total / (4.0 * std::f64::consts::PI)
+}
+
+fn rv_in(body: &AtRestBody<f64>, q: Vec3<f64>) -> Option<bool> {
+    let w = rv_winding(body, q).abs();
+    if (w - w.round()).abs() > 1e-6 {
+        return None;
+    }
+    Some(w.round() as i64 % 2 == 1)
+}
+
+fn rv_body_check(
+    what: &str,
+    r: &AtRestBody<f64>,
+    (a, ag): (&AtRestBody<f64>, &G),
+    (b, bg): (&AtRestBody<f64>, &G),
+    keep: fn(bool, bool) -> bool,
+    pose: &Pose,
+    tally: &mut Tally,
+) {
+    // near MEET, against the germs; the fin's short chord needs a small radius
+    let n = 96;
+    for k in 0..n {
+        let z = 1.0 - (2.0 * f64::from(k) + 1.0) / f64::from(n);
+        let (si, co) = (2.399_963 * f64::from(k)).sin_cos();
+        let rr = z.mul_add(-z, 1.0).sqrt();
+        let d = [rr * co, rr * si, z];
+        let (sa, sb) = (ag.side(d), bg.side(d));
+        if sa == SideCode::On || sb == SideCode::On {
+            continue;
+        }
+        let want = keep(sa == SideCode::In, sb == SideCode::In);
+        for rad in [3e-4, 1e-2] {
+            let q = pose.at([0, 1, 2].map(|j| MEET[j] + rad * d[j]));
+            let q = Vec3::new(q.x, q.y, q.z);
+            if let Some(got) = rv_in(r, q) {
+                tally.rv_near += 1;
+                if got != want {
+                    tally.rv_body_wrong += 1;
+                    if tally.rv_first.is_none() {
+                        tally.rv_first = Some(format!("{what}: near MEET r={rad} d={d:?} got {got} want {want}"));
+                    }
+                }
+            }
+        }
+    }
+    // global, against the operands' own windings
+    let mut seed: u64 = 0x9e37_79b9_7f4a_7c15;
+    let mut rnd = || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed >> 11) as f64 / (1u64 << 53) as f64
+    };
+    for _ in 0..150 {
+        let l = [0, 1, 2].map(|j| MEET[j] - 1.6 + 3.2 * rnd() + if j == 2 { 0.0 } else { 0.0 });
+        let q = pose.at(l);
+        let q = Vec3::new(q.x, q.y, q.z);
+        let (Some(ia), Some(ib), Some(got)) = (rv_in(a, q), rv_in(b, q), rv_in(r, q)) else {
+            continue;
+        };
+        tally.rv_far += 1;
+        if got != (keep(ia, ib) ^ std::env::var("RV_SANITY").is_ok()) {
+            tally.rv_body_wrong += 1;
+            if tally.rv_first.is_none() {
+                tally.rv_first = Some(format!("{what}: global {l:?} got {got}"));
             }
         }
     }
@@ -784,10 +916,11 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         let tally = &tallies[label];
         rows += tally.rows;
         eprintln!(
-            "{label} | {} | {:?} | {} | {} | {} | {}",
-            tally.built, tally.refused, tally.rows, tally.wrong, tally.missing, tally.doubled
+            "{label} | {} | {:?} | {} | {} | {} | {} | rv near {} far {} body_wrong {} {:?}",
+            tally.built, tally.refused, tally.rows, tally.wrong, tally.missing, tally.doubled,
+            tally.rv_near, tally.rv_far, tally.rv_body_wrong, tally.rv_first
         );
-        if !tally.refused.is_empty() || tally.wrong + tally.missing + tally.doubled > 0 {
+        if !tally.refused.is_empty() || tally.wrong + tally.missing + tally.doubled + tally.rv_body_wrong > 0 {
             failures.push(format!("{label}: {tally:?}"));
         }
     }

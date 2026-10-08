@@ -5711,6 +5711,30 @@ mod touch_reread_rows {
                 [[third, third, third], [0.7, 0.2, 0.1], [1.2, -0.3, 0.1]],
                 0.6,
             ));
+            if std::env::var("RV_FIN_NAMES").is_ok() {
+                let sph = |az: f64, el: f64, l: f64| {
+                    let (sa, ca) = az.to_radians().sin_cos();
+                    let (se, ce) = el.to_radians().sin_cos();
+                    [l * ca * ce, l * sa * ce, l * se]
+                };
+                let ring = vec![
+                    sph(0.0, 0.0, 0.5),
+                    sph(0.5e-4, 2.0, 0.001),
+                    sph(1e-4, 0.0, 0.5),
+                    sph(120.0, -15.0, 0.5),
+                    sph(240.0, 10.0, 0.5),
+                ];
+                let fin = topo::test_support::meeting::posed_crown(&ring, [0.0, 0.3, -1.0], pose, t());
+                let fin_void = built(subtract(&block, &fin, t()));
+                for b in [10.0, 70.0, 130.0, 190.0, 250.0, 310.0] {
+                    for z in [0.3, -0.3, 0.05] {
+                        let pr = p(corners(b, z, 0.5));
+                        named += names("rv fin void", &pr, &fin_void, pose);
+                        named += names("rv fin", &pr, &fin, pose);
+                    }
+                }
+                continue;
+            }
             for (label, x, y) in [
                 ("the arches", &cone, &arches),
                 ("one standing pyramid", &cone, &one),
