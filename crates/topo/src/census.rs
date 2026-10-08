@@ -9954,10 +9954,7 @@ mod tests {
             let (lo, lo_at, hi, hi_at, mid) = got[0];
             assert!(close(lo, 0.3) && close(hi, 0.1), "{got:?}");
             assert!(
-                matches!(
-                    (lo_at, hi_at),
-                    (CutAt::Crossing(_), CutAt::Crossing(_))
-                ),
+                matches!((lo_at, hi_at), (CutAt::Crossing(_), CutAt::Crossing(_))),
                 "both bounds are crossings: {got:?}"
             );
             assert!(
@@ -9974,8 +9971,7 @@ mod tests {
         /// side (the cap's top and bottom): nothing.
         #[test]
         fn a_crossing_is_cut_where_both_ends_lie_definitely_across() {
-            let (body, face, edge) =
-                lap(&[(0.1, 0.2), (0.3, 0.2), (0.3, 0.42), (0.1, 0.42)]);
+            let (body, face, edge) = lap(&[(0.1, 0.2), (0.3, 0.2), (0.3, 0.42), (0.1, 0.42)]);
             let (cuts, errors) = crossings(&body, face, edge);
             let cuts = cuts.expect("decided");
             assert!(errors.is_empty(), "{errors:?}");
@@ -9987,13 +9983,8 @@ mod tests {
                     && cuts.iter().all(|c| matches!(c.1, CutAt::Crossing(_))),
                 "{cuts:?}"
             );
-            let (body, face, edge) = lap(&[
-                (0.1, 0.2),
-                (0.3, 0.2),
-                (0.3, 0.3),
-                (0.2, 0.42),
-                (0.1, 0.42),
-            ]);
+            let (body, face, edge) =
+                lap(&[(0.1, 0.2), (0.3, 0.2), (0.3, 0.3), (0.2, 0.42), (0.1, 0.42)]);
             let (cuts, errors) = crossings(&body, face, edge);
             let cuts = cuts.expect("decided");
             assert!(errors.is_empty(), "{errors:?}");
@@ -10019,10 +10010,7 @@ mod tests {
             ]);
             let (cuts, errors) = crossings(&body, face, edge);
             assert!(cuts.is_none(), "{cuts:?}");
-            assert!(
-                escalated(&errors).contains(&EF_CROSS_SIDE),
-                "{errors:?}"
-            );
+            assert!(escalated(&errors).contains(&EF_CROSS_SIDE), "{errors:?}");
         }
 
         /// `pm_census_ef_cross_span`, at the verdict it feeds — a cut.
@@ -10032,15 +10020,13 @@ mod tests {
         /// crossing in the band of the end escalates on the span row.
         #[test]
         fn a_crossing_is_cut_only_strictly_inside_the_span() {
-            let (body, face, edge) =
-                lap(&[(0.9, 0.2), (1.1, 0.2), (1.1, 0.42), (0.9, 0.42)]);
+            let (body, face, edge) = lap(&[(0.9, 0.2), (1.1, 0.2), (1.1, 0.42), (0.9, 0.42)]);
             let (cuts, errors) = crossings(&body, face, edge);
             assert!(
                 errors.is_empty() && cuts.as_ref().is_some_and(Vec::is_empty),
                 "at the end: {cuts:?} {errors:?}"
             );
-            let (body, face, edge) =
-                lap(&[(0.7, 0.2), (1.05, 0.2), (0.85, 0.35), (0.7, 0.35)]);
+            let (body, face, edge) = lap(&[(0.7, 0.2), (1.05, 0.2), (0.85, 0.35), (0.7, 0.35)]);
             let (cuts, errors) = crossings(&body, face, edge);
             let cuts = cuts.expect("decided");
             assert!(errors.is_empty(), "{errors:?}");
@@ -10052,10 +10038,7 @@ mod tests {
             let (body, face, edge) = lap(&[(x, 0.2), (1.1, 0.2), (1.1, 0.42), (x, 0.42)]);
             let (cuts, errors) = crossings(&body, face, edge);
             assert!(cuts.is_none(), "{cuts:?}");
-            assert!(
-                escalated(&errors).contains(&EF_CROSS_SPAN),
-                "{errors:?}"
-            );
+            assert!(escalated(&errors).contains(&EF_CROSS_SPAN), "{errors:?}");
         }
 
         /// `pm_census_ef_cross_screen`, at the verdict it feeds — a
