@@ -358,7 +358,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    such a coincidence, which share its point; the result carries
    machine-checkable contact records (the ON-set survivors, carried
    across seam-zip/merge mints by a descendant map, never re-derived),
-   each checked by the `unproven-coincidence` lint; (iii) a contact the
+   each citing the coincidence (D10) that backs it, which the
+   `unproven-coincidence` lint checks; (iii) a contact the
    census discovers that no record backs is never silently blessed:
    between copies at rest it is an `unproven-coincidence` finding
    (D10), and inside one op's result it is that op's defect, refused
@@ -1287,19 +1288,26 @@ any other (Q1): a margin decided Zero glues them, a definite one keeps
 them apart, and one in the sliver band between refuses. Structure
 decides something else: whether the coincidence holds across the
 family. Two cells are **structurally** one when they are the same
-construction of the same variables. Each construction states which of
-its inputs each output carrier is a function of (an extrude's end cap
-is `plane(frame, direction, depth)`, independent of the profile; a side
-wall is independent of where along the direction it sits), and carriers
-compare in a canonical form per kind: the frame modulo the kind's own
-symmetry (a plane forgets in-plane motion and folds a shift along its
-normal into its offset; an axis forgets slide and spin along itself;
-a projection of a construction reduces to what it was built from),
-with offsets summed as linear forms over the variables with exact
-rational coefficients and derived variables read as their formulas.
-Equality of canonical forms is an equivalence relation, so a chain of
-blocks each built on its neighbour's floor closes into a loop, and a
-brick laid across two of them sits on both, with nothing more said.
+construction of the same variables. Each output carrier is the
+function of its construction's inputs that the construction's own code
+computes, read by evaluating that code with every variable a symbol; no
+operation describes its outputs a second time (an extrude's end cap
+comes out as `plane(frame, direction, depth)` with no profile variable
+in it, and a side wall with no depth). A coincidence is structural when
+the kernel's own carrier-pair verdict, run on the two cells' symbolic
+carriers, or the margin that decided it, is zero as a polynomial in
+those symbols with exact rational coefficients: a theorem for every
+value at which the construction takes the decisions it took here
+(E12). The verdicts read each kind modulo its own symmetry (a plane
+forgets in-plane motion and folds a shift along its normal into its
+offset; an axis forgets slide and spin along itself), so that
+reduction is written once, and a projection of a construction reduces
+to what it was built from. Polynomial identity is an equivalence
+relation, so a chain of blocks each built on its neighbour's floor
+closes into a loop, and a brick laid across two of them sits on both,
+with nothing more said. A computed value never re-enters the
+evaluation as a constant; a numerical routine's output enters as one
+opaque symbol per call.
 Coaxiality is one `Axis` read twice, directly or as projections of
 one construction; tangency is constructed (a
 sketch may read another surface's trace in its plane and continue
@@ -1314,9 +1322,14 @@ at the current values of the variables: the f64 build glues it all the
 same, so no setting changes a built body, and the lint reports it with
 the edit that would make it one construction. The analysis lanes, which
 run over a parameter box, see such a coincidence as the point it is and
-escalate there. "Structurally" is decided at that door; today it is the
-canonical-form equality above, and a later rung — such as the symbolic
-tier's identities — is one addition there that may only prove more.
+escalate there. "Structurally" is decided at that door and nowhere
+else: the same construction read twice, then the identities above. A
+recorded coincidence names its cells as the reads they entered the
+deciding operation through and their names there, never by a stamp
+the kernel carries; a contact record a result carries cites the
+coincidence that backs it. A per-construction table of output forms is
+only ever a cache generated from the symbolic evaluation and checked
+against it, never written by hand.
 
 **Booleans.** A boolean's operands must already be in one space;
 otherwise it refuses. It glues what its verdicts decide Zero where an
@@ -1353,7 +1366,8 @@ the program that builds it reaches them: the declared-contact seats
 undeclared-contact and undeclared-tangency refusals, which become
 `unproven-coincidence` findings, with ASSEMBLY A5's hard error on an
 unattributed contact; DISCIPLINES DS2's identification grade; the axis
-declaration channel; `ParamSource`'s literal tokens; PARAM-LINT's
+declaration channel; `ParamSource`; NAMES N6's recipe-source stamps
+(`GeomSource`, with `AxisSource`); PARAM-LINT's
 declared-distinct record; the profiles' stored tangent-joint flags;
 ASSEMBLY A3, A10's sink rule, A11 (2)'s gauges and offsets, A11 (4)'s
 declaring mates and A12's reading edges; and A5's at-rest gate

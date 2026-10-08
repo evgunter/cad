@@ -6,7 +6,6 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-needs_ev: true
 blocked_on: [the-product-is-an-explicit-list, measure-is-an-operation, select-defines-face-and-edge-variables]
 ---
 
