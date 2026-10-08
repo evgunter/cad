@@ -1815,6 +1815,7 @@ fn attribute(
         | ValidationError::PlanarBoundaryResidual { .. }
         | ValidationError::PlanarBoundaryEscalated { .. }
         | ValidationError::SliverDihedral { .. }
+        | ValidationError::NoDihedralArm { .. }
         | ValidationError::TransverseNotIntrinsic { .. }
         | ValidationError::TangentNotIntrinsic { .. }
         // The material-wedge arm's refusal is a finding about an EDGE
