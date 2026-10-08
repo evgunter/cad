@@ -717,3 +717,226 @@ fn an_off_chart_spline_refuses_by_incidence() {
     );
     let _ = Tol::witness();
 }
+
+/// Review probe (PR 4304): a net row whose last piece's branch centre is
+/// turned a whole period (each piece's own sector still holds, since a
+/// whole-turn rotation is exact) must refuse on the branch check.
+#[test]
+fn probe_4304_whole_turn_branch() {
+    let b = band();
+    let cyl = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let Curve3::Nurbs(n) = arc(Point3::origin(), Vec3::unit_x(), Vec3::unit_y(), 1.0, 0.3, 2.0)
+    else {
+        unreachable!()
+    };
+    let carrier = Curve3::Nurbs(Arc::new(n.refine_knots(&[0.5]).unwrap()));
+    let image = project(&carrier, None, &cyl, b).expect("on the cylinder");
+    let pieces = image.azimuth.len();
+    eprintln!("pieces {pieces}, azimuth {:?}", image.azimuth);
+    let mut turned = image.clone();
+    *turned.azimuth.last_mut().unwrap() += 4;
+    let lane = crate::FittedLane::<f64>::certified();
+    let res = PcurveCache::certify_projected(turned.clone(), 0.0, 1.0, &carrier, &cyl, b, Some(lane));
+    let p = Pcurve::Projected(Box::new(turned));
+    let jump = (p.eval(0.5 + 1e-9).x - p.eval(0.5 - 1e-9).x).abs();
+    eprintln!("turned: {:?}; u jump across the break {jump}", res.as_ref().map(|c| c.certificate().envelope));
+    assert!(res.is_err(), "a whole-turn branch jump certified (u jump {jump})");
+}
+
+/// Review probe (PR 4304): random cubic nets near each chart, each
+/// control point pushed off at random; the certified (Interval) envelope
+/// must dominate the densely sampled displacement.
+#[test]
+fn probe_4304_adversarial_dominance() {
+    let mut s = fuzz::start("probe_4304_adv");
+    let b = band();
+    let lane = crate::FittedLane::<Interval>::certified();
+    let (mut tried, mut certified, mut worst_ratio) = (0, 0, 0.0f64);
+    for _ in 0..fuzz::scaled(400) {
+        for chart in CURVED {
+            let surf = surface(chart, &mut s);
+            let base = on_chart(&surf, &mut s);
+            let (t0, t1) = domain(&base);
+            // Sample 4 points of the on-chart carrier, push each off.
+            let push = 10f64.powf(s.range(-9.0, -3.0));
+            let ctl: Vec<Point3<f64>> = (0..4)
+                .map(|i| {
+                    let t = t0 + (t1 - t0) * f64::from(i) / 3.0;
+                    base.eval(t) + unit(&mut s) * (push * s.range(0.0, 1.0))
+                })
+                .collect();
+            let w = vec![1.0, s.range(0.7, 1.4), s.range(0.7, 1.4), 1.0];
+            let c = Curve3::Nurbs(Arc::new(
+                NurbsCurve3::new(
+                    KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap(),
+                    ctl,
+                    w,
+                )
+                .unwrap(),
+            ));
+            let Ok(image64) = project(&c, None, &surf, b) else { continue };
+            let sup = sampled(&Pcurve::Projected(Box::new(image64)), &c, &surf, 0.0, 1.0);
+            let dense = (0..=4000)
+                .map(|i| {
+                    let t = f64::from(i) / 4000.0;
+                    let q = Pcurve::Projected(Box::new(project(&c, None, &surf, b).unwrap())).eval(t);
+                    surf.eval(q.x, q.y).distance(c.eval(t))
+                })
+                .fold(sup, f64::max);
+            tried += 1;
+            let (ci, si) = (lift(&c), surf.map_scalar(Interval::from_f64));
+            let Ok(image) = project(&ci, None, &si, b) else { continue };
+            let p = Pcurve::Projected(Box::new(image.clone()));
+            let boxed = p.chart_box(Interval::from_f64(0.0), Interval::from_f64(1.0));
+            let Ok(terms) = projected_envelope(
+                &image,
+                Interval::from_f64(0.0),
+                Interval::from_f64(1.0),
+                &boxed,
+                &ci,
+                &si,
+                b,
+                Some(lane),
+            ) else {
+                continue;
+            };
+            let env = terms.total().hi();
+            certified += 1;
+            if dense / env > 0.9 { eprintln!("TIGHT {chart:?} push {push:e} ratio {} env {env:e} terms {:?}", dense/env, terms.0.iter().map(|x| x.hi()).collect::<Vec<_>>()); }
+            worst_ratio = worst_ratio.max(dense / env);
+            assert!(
+                env >= dense,
+                "{chart:?} push {push:e}: envelope {env:e} under sampled {dense:e} — {}; {c:?} on {surf:?}",
+                fuzz::replay()
+            );
+        }
+    }
+    eprintln!("tried {tried}, enveloped {certified}, worst sampled/envelope {worst_ratio}");
+}
+
+/// Review probe (PR 4304): near-apex / near-pole / inner-torus pushes.
+#[test]
+fn probe_4304_corners() {
+    let mut s = fuzz::start("probe_4304_corners");
+    let b = band();
+    let lane = crate::FittedLane::<Interval>::certified();
+    let (mut tried, mut env_n, mut worst) = (0, 0, 0.0f64);
+    let mut refusals = std::collections::BTreeMap::<String, usize>::new();
+    for _ in 0..fuzz::scaled(600) {
+        let which = s.below(3);
+        let delta = 10f64.powf(s.range(-6.0, -1.0));
+        let (surf, base): (Surface<f64>, Curve3<f64>) = match which {
+            0 => {
+                let ha = s.range(0.2, 1.3);
+                let cone = Surface::Cone { apex: Point3::origin(), axis: Vec3::unit_z(), half_angle: ha, u_ref: Vec3::unit_x() };
+                let sign = if s.below(2) == 0 { 1.0 } else { -1.0 };
+                // A rim circle of slant delta on nappe `sign`.
+                let a = s.range(0.0, TAU);
+                (cone, arc(Point3::new(0.0, 0.0, sign * delta * ha.cos()), Vec3::unit_x(), Vec3::unit_y(), delta * ha.sin(), a, s.range(0.3, 2.0)))
+            }
+            1 => {
+                let sph = Surface::Sphere { center: Point3::origin(), radius: 1.0, axis: Vec3::unit_z(), u_ref: Vec3::unit_x() };
+                // A small circle around a point delta from the pole, tilted.
+                let tilt = s.range(0.0, 0.5);
+                let n = Vec3::new(tilt.sin(), 0.0, tilt.cos());
+                let r = delta.min(0.5);
+                let e1 = Vec3::new(tilt.cos(), 0.0, -tilt.sin());
+                let d = (1.0 - r * r).sqrt();
+                (sph, arc(Point3::origin() + n * d, e1, n.cross(e1), r, s.range(0.0, TAU), s.range(0.3, 2.0)))
+            }
+            _ => {
+                let (rr, r) = (1.0, s.range(0.2, 0.9));
+                let tor = Surface::Torus { center: Point3::origin(), axis: Vec3::unit_z(), major_radius: rr, minor_radius: r, u_ref: Vec3::unit_x() };
+                // Inner-side parallel or a meridian arc around v = pi.
+                if s.below(2) == 0 {
+                    let v = PI + s.range(-0.5, 0.5);
+                    (tor, arc(Point3::new(0.0, 0.0, r * v.sin()), Vec3::unit_x(), Vec3::unit_y(), rr + r * v.cos(), s.range(0.0, TAU), s.range(0.3, 2.0)))
+                } else {
+                    let rad = Vec3::new(1.0, 0.0, 0.0);
+                    (tor, arc(Point3::origin() + rad * rr, rad, Vec3::unit_z(), r, PI - 1.0 + s.range(-0.3, 0.3), s.range(0.3, 2.0)))
+                }
+            }
+        };
+        let push = delta * 10f64.powf(s.range(-10.0, -4.0)).min(1e-9 / delta.max(1e-300) * delta);
+        let Curve3::Nurbs(n) = &base else { unreachable!() };
+        let ctl: Vec<Point3<f64>> = n.control().iter().map(|&p| p + unit(&mut s) * (push * s.range(0.0, 1.0))).collect();
+        let c = Curve3::Nurbs(Arc::new(NurbsCurve3::new(n.knots().clone(), ctl, n.weights().to_vec()).unwrap()));
+        let Ok(image64) = project(&c, None, &surf, b) else { *refusals.entry("project64".into()).or_default() += 1; continue };
+        let p64 = Pcurve::Projected(Box::new(image64));
+        let dense = (0..=4000)
+            .map(|i| {
+                let t = f64::from(i) / 4000.0;
+                let q = p64.eval(t);
+                surf.eval(q.x, q.y).distance(c.eval(t))
+            })
+            .fold(0.0, f64::max);
+        tried += 1;
+        let (ci, si) = (lift(&c), surf.map_scalar(Interval::from_f64));
+        let image = match project(&ci, None, &si, b) { Ok(i) => i, Err(e) => { *refusals.entry(format!("{e:?}").chars().take(60).collect()).or_default() += 1; continue } };
+        let p = Pcurve::Projected(Box::new(image.clone()));
+        let (i0, i1) = (Interval::from_f64(0.0), Interval::from_f64(1.0));
+        match PcurveCache::certify_projected(image, i0, i1, &ci, &si, b, Some(lane)) {
+            Ok(cache) => {
+                let env = cache.certificate().envelope.hi();
+                env_n += 1;
+                worst = worst.max(dense / env);
+                assert!(env >= dense, "which {which} delta {delta:e}: envelope {env:e} under {dense:e} — {}", fuzz::replay());
+                let _ = p;
+            }
+            Err(e) => { *refusals.entry(format!("{e:?}").chars().take(60).collect()).or_default() += 1; }
+        }
+    }
+    eprintln!("tried {tried}, certified {env_n}, worst {worst}; refusals {refusals:?}");
+}
+
+/// Review probe (PR 4304): an edge over a sub-interval of a net whose
+/// far part passes over the sphere's pole.
+#[test]
+fn probe_4304_far_pole() {
+    let b = band();
+    let sph = Surface::Sphere { center: Point3::origin(), radius: 1.0, axis: Vec3::unit_z(), u_ref: Vec3::unit_x() };
+    // A meridian-plane great circle, tilted 1e-3 so it is general:
+    // two rational arcs joined, the second passing near the pole.
+    let tilt = 0.0_f64;
+    let n = Vec3::new(0.0, tilt.cos(), tilt.sin());
+    let e1 = Vec3::new(1.0, 0.0, 0.0);
+    let e2 = n.cross(e1);
+    let Curve3::Nurbs(a) = arc(Point3::origin(), e1, e2, 1.0, -1.0, 2.0) else { unreachable!() };
+    // Domain [0,1]; angle -1..1 around e1 (x axis): far from the pole at
+    // the start, approaching the pole (angle pi/2) only past t ~ 1.
+    let carrier = Curve3::Nurbs(Arc::new(a.as_ref().clone()));
+    let full = super::super::chart_pcurve_over(&carrier, 0.0, 1.0, &sph, b);
+    let part = super::super::chart_pcurve_over(&carrier, 0.0, 0.3, &sph, b);
+    eprintln!("full arc: {:?}", full.as_ref().map(|_| "ok").map_err(|e| format!("{e:?}")));
+    eprintln!("sub-interval: {:?}", part.as_ref().map(|_| "ok").map_err(|e| format!("{e:?}")));
+    let Curve3::Nurbs(c) = arc(Point3::origin(), e1, e2, 1.0, 0.6, 2.0) else { unreachable!() };
+    let carrier = Curve3::Nurbs(c);
+    let full = super::super::chart_pcurve_over(&carrier, 0.0, 1.0, &sph, b);
+    let part = super::super::chart_pcurve_over(&carrier, 0.0, 0.2, &sph, b);
+    eprintln!("through-pole full: {:?}", full.as_ref().map(|_| "ok").map_err(|e| format!("{e:?}").chars().take(90).collect::<String>()));
+    eprintln!("through-pole, edge on [0, 0.2] (angle 0.6..1.0, pole at 1.5708): {:?}", part.as_ref().map(|_| "ok").map_err(|e| format!("{e:?}").chars().take(90).collect::<String>()));
+}
+
+/// Review probe (PR 4304): a whole piece within the band of the pole.
+#[test]
+fn probe_4304_refine_blowup() {
+    let b = band();
+    eprintln!("band zero {:e}", b.zero());
+    let sph = Surface::Sphere { center: Point3::origin(), radius: 1.0, axis: Vec3::unit_z(), u_ref: Vec3::unit_x() };
+    for r in [1e-6, 1e-8, 1e-9, 3e-10, 1e-10, 1e-12] {
+        let tilt = 0.5 * r;
+        let n = Vec3::new(tilt.sin(), 0.0, tilt.cos());
+        let d = (1.0 - r * r).sqrt();
+        // A small circle centred near (not at) the pole, so the circle's
+        // axis is tilted and it is general.
+        let c = Curve3::Circle { center: Point3::origin() + n * d, axis: n, radius: r, u_ref: Vec3::new(tilt.cos(), 0.0, -tilt.sin()) };
+        let t = std::time::Instant::now();
+        let res = project(&c, Some((0.0, 1.0)), &sph, b);
+        eprintln!("r {r:e}: {:?} in {:?}", res.as_ref().map(|i| i.azimuth.len()).map_err(|e| format!("{e:?}").chars().take(70).collect::<String>()), t.elapsed());
+    }
+}

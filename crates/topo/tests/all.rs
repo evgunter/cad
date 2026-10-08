@@ -165,6 +165,8 @@ mod m5_pr8_bvh_diff;
 mod m5_s1_rest_zip;
 #[path = "m6_2_fitted_at_rest.rs"]
 mod m6_2_fitted_at_rest;
+#[path = "probe_4304_plane_limb.rs"]
+mod probe_4304_plane_limb;
 #[path = "m6_3_chart_completion.rs"]
 mod m6_3_chart_completion;
 #[path = "m9_1_contact_vocabulary.rs"]
