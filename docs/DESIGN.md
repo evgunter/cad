@@ -1278,20 +1278,26 @@ reads what was written.
 
 **Spaces and placement.** A part has no location, and no coordinates
 are anyone's: raw coordinates are never compared with one another. A
-construction that reads no frame is built in coordinates of its own,
-which no variable stands for and nothing reads; it, the world, and a
-copy whose bundle is empty are the **roots**. A **space** is a root and
-everything that reaches it by reads, where a copy stands for its
-placement's targets and never for its source. An operation or
-definition whose reads reach two roots refuses, and only a placement
-relates two roots. A
+document has one **base**, its one construction that reads no frame,
+built in coordinates of its own that no variable stands for and nothing
+reads; every other construction reads a frame off existing geometry.
+**Spaces are kinds**, decided from the recipe: a `Body` is in the
+base's space; a copy placed, transitively, against the world is of the
+product's kind; a copy whose bundle pins fewer degrees of freedom than
+it has is loose, of its own kind with everything pinned to it, solved
+among itself, read at a pose by nothing outside it, and drawn from
+display state no logic reads. A placement's copy takes the kind of its
+targets, and an instance of a part enters a document only as a
+placement. Only a mate reads across kinds, so relating two raw
+coordinate systems cannot be written: a read across two spaces is a
+kind mismatch at the door, and a kernel bug anywhere else. A
 **placement** is the bundle of mates that pins one copy of a part
 relative to others: two placements of a part are two copies, and a mate
 added to a pinned copy refuses as an overconstraint, decided by
 subgroup algebra (A11 (1)) without measuring. A mate places and never
 checks. The **world** is one undeletable node that copies may be
-related to like a part; only a placement's mates and export read it,
-and construction never does. An operation computes in a frame that is
+related to like a part; it defines no pose variable, so only a
+placement's mates and export read it, and construction never does. An operation computes in a frame that is
 a function of what it reads and of nothing else, chosen so its
 arithmetic is well conditioned near the geometry it builds, and never
 in the world's; the frame is keyed with its inputs, so an edit that
@@ -1300,7 +1306,7 @@ frame is no part of the operation's meaning: the body up to that rigid
 map, its names and every verdict outside the sliver band are the same
 in any frame, and a minted reference direction is a function of the
 inputs, not of the axes. Where conditioning does not decide, a
-construction computes in its root's coordinates and an operation over
+construction computes in the base's coordinates and an operation over
 copies in its first operand's as the author lists it. A check over a
 space, the at-rest census, is defined order-free: each pair's verdict
 is the same in either member's frame, or the sliver band refuses.

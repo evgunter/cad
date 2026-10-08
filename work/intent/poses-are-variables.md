@@ -22,13 +22,18 @@ PR 4324), and this unit builds on that answer. No pose is free and none
 is defined from nothing: there is no `Seed`, no free `Frame`, no
 `BodyFrame` and no "document coordinates". A `Profile` is 2-D shape with
 no frame; a construction reads it through a frame it supplies, or
-through none, and one that reads none is a root, built in coordinates of
-its own that nothing reads. Every other pose is read off geometry
+through none, and the one that reads none is the document's base
+(`Doc.base`, one per document), built in coordinates of its own that
+nothing reads; every other construction's frame slot is required. Every other pose is read off geometry
 (`FaceFrame` over a `Face` variable, a carrier's axis or centre), is
 coordinates over scalar variables `InFrame` a frame it reads, is a
 construction over poses, is a pose of a copy (`OfCopy`), or is an
-operation's output (a revolve's axis, the world's frame). A definition
-or operation whose reads reach two roots refuses. Migration: a
+operation's output (a revolve's axis). The world defines no pose
+variable: only a bundle mate reads it. Spaces are kinds decided from the
+recipe (the base's `Body`, the product's, a loose copy's), a placement's
+copy taking its targets' kind, so a read across two spaces is a kind
+mismatch at the door and an evaluator assert elsewhere, never a
+refusal an author can reach. Migration: a
 document's first profile datum folds into its body's own coordinates,
 and every later absolute datum is rewritten `InFrame` over a face frame
 of that body, its bits moving by one composition, which the migration

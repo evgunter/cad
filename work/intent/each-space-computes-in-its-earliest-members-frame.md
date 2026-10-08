@@ -26,7 +26,7 @@ conditioning, and never the world's. The frame is not part of the
 meaning: the body up to the rigid map, names, and verdicts outside the
 sliver band agree in any two frames, which is the invariant this unit's
 test pins (compute in two frames and compare). Where conditioning does
-not decide, a construction computes in its root's own coordinates and
+not decide, a construction computes in the base's own coordinates and
 an operation over copies in its first listed operand's. A
 value-informed refinement is allowed: re-centre on the operands' bounds,
 snapped to a power-of-two grid at their scale, with the author's order
