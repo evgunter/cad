@@ -1650,3 +1650,79 @@ fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
         );
     }
 }
+
+/// **A met piece's uncertified sector bound escalates** (behaviour, on
+/// the lane's own hull). The hull of a spline on the torus; each
+/// piece's azimuth and tube bounds decide; either made NaN — what the
+/// hull lane reads for a bracket that does not certify — escalates the
+/// sector check rather than passing it.
+#[test]
+fn an_uncertified_sector_bound_escalates() {
+    use super::super::projected::hull_sector;
+    let b = band();
+    let lane = crate::FittedLane::<f64>::certified();
+    let (torus, c) = parallel(Chart::Torus, 0.0);
+    let image = project(&c, None, &torus, b).unwrap();
+    let FramedCarrier::Net(net) = &image.carrier else {
+        unreachable!("a spline carrier")
+    };
+    let twin = super::super::orthonormal_chart(&torus);
+    let hull = lane.projected_hull(&image, net, &twin).unwrap();
+    for (k, piece) in hull.pieces.iter().enumerate() {
+        hull_sector(piece, k, &image.chart, b).expect("the clean hull's sectors hold");
+    }
+    for poison in [
+        |p: &mut super::super::projected::PieceHull| p.x_lo = f64::NAN,
+        |p: &mut super::super::projected::PieceHull| p.tube_lo = f64::NAN,
+    ] {
+        let mut piece = hull.pieces[0];
+        poison(&mut piece);
+        let got = hull_sector(&piece, 0, &image.chart, b);
+        assert!(
+            matches!(
+                got,
+                Err(PcurveCertifyError::Escalated {
+                    check: PcurveCheck::Sector,
+                    ..
+                })
+            ),
+            "{got:?}"
+        );
+    }
+}
+
+/// **The hull lane reads an uncertified bracket as one that escalates**
+/// (behaviour, through the lane, at the `f64` lane's scalar). The torus
+/// spline's stored net with one control's coordinate poison, which the
+/// lane's crossing into certification arithmetic refuses: the piece it
+/// lies on escalates its sector check at the scalar, rather than reading
+/// a box whose min and max dropped the refusal, or a bound standing in
+/// for it, as clearing the sector.
+#[test]
+fn the_hull_lane_reads_an_uncertified_control_as_escalating() {
+    use super::super::projected::hull_sector;
+    let b = band();
+    let lane = crate::FittedLane::<f64>::certified();
+    let (torus, c) = parallel(Chart::Torus, 0.0);
+    let mut image = project(&c, None, &torus, b).unwrap();
+    let FramedCarrier::Net(net) = &image.carrier else {
+        unreachable!("a spline carrier")
+    };
+    let mut control = net.control().to_vec();
+    control[1].x = f64::NAN;
+    let corrupt = NurbsCurve3::new(net.knots().clone(), control, net.weights().to_vec()).unwrap();
+    image.carrier = FramedCarrier::Net(Arc::new(corrupt.clone()));
+    let twin = super::super::orthonormal_chart(&torus);
+    let hull = lane.projected_hull(&image, &corrupt, &twin).unwrap();
+    let got = hull_sector(&hull.pieces[0], 0, &image.chart, b);
+    assert!(
+        matches!(
+            got,
+            Err(PcurveCertifyError::Escalated {
+                check: PcurveCheck::Sector,
+                ..
+            })
+        ),
+        "{got:?}"
+    );
+}

@@ -356,40 +356,30 @@ fn an_edges_limbs_read_only_its_own_interval_of_the_carrier() {
     );
 }
 
-/// **The tube reads the edge's own interval.** The Steinmetz arc whose
-/// whole carrier passes the crossing of the two branches refuses on the
-/// crossing's verdict (`TubeStraddles`); an edge over the stretch
-/// before the crossing never reads it. That stretch does not certify
-/// either: the tube's one-arc check reads an invalid margin on every
-/// Steinmetz stretch, the crossing's or not
-/// (`work/pcert/the-tube-reads-an-invalid-margin-on-a-steinmetz-branch-clear-of-its-crossing.md`).
+/// **A rational carrier's tube reads its whole net.** The Steinmetz arc
+/// is rational with unequal weights, and no piece of it has `f64`
+/// weights at an enclosure scalar, so the tube reads the whole carrier
+/// (`edge_nurbs`'s `edge_piece`): an edge over a stretch clear of the
+/// crossing still reads it, and refuses on the crossing's verdict —
+/// sound, conservative, and filed
+/// (`work/pcert/the-tube-reads-a-rational-carriers-whole-net.md`).
 #[test]
-fn the_tube_reads_only_the_edges_own_interval_of_the_carrier() {
+fn a_rational_carriers_tube_reads_its_whole_net() {
     let carrier = steinmetz_arc(0.4, 0.3);
     let (s1, s2) = (
         cylinder_about(Vec3::unit_y(), Vec3::unit_x()),
         cylinder_about(Vec3::unit_x(), Vec3::unit_y()),
     );
-    let whole = certify_over(&carrier, (0.0, 1.0), s1.clone(), s2.clone());
-    assert!(
-        matches!(
-            whole,
-            Err(CertifyError::AnalyticRung3(
-                AnalyticRung3Refusal::TubeStraddles { .. }
-            ))
-        ),
-        "{whole:?}"
-    );
-    for stretch in [(0.0, 0.3), (0.7, 1.0)] {
-        let cut = certify_over(&carrier, stretch, s1.clone(), s2.clone());
+    for stretch in [(0.0, 1.0), (0.0, 0.3), (0.7, 1.0)] {
+        let got = certify_over(&carrier, stretch, s1.clone(), s2.clone());
         assert!(
-            !matches!(
-                cut,
+            matches!(
+                got,
                 Err(CertifyError::AnalyticRung3(
                     AnalyticRung3Refusal::TubeStraddles { .. }
                 ))
             ),
-            "{stretch:?} holds no crossing: {cut:?}"
+            "{stretch:?}: {got:?}"
         );
     }
 }

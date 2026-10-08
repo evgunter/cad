@@ -137,6 +137,7 @@ pub struct CurveCertData<'a> {
     kv: &'a KnotVector,
     weights: &'a [f64],
     coords: &'a [Vec<Interval>],
+    extra: &'a [f64],
 }
 
 // `!(w > 0)` is deliberate (NaN-catching): see `algebra::check_weights`.
@@ -188,7 +189,22 @@ impl<'a> CurveCertData<'a> {
             kv,
             weights,
             coords,
+            extra: &[],
         })
+    }
+
+    /// The same data with `extra` break parameters: every channel is
+    /// Bézier-decomposed with each `extra` value strictly inside the
+    /// domain inserted to full multiplicity, in the ring (the convex
+    /// form, [`super::algebra::CurvePlan::apply_certified`]'s docs), so
+    /// every composite built from it has a break there and its span
+    /// bounds read the finer pieces. The represented curve is the same
+    /// one: no control point or weight is re-rounded, as a refinement
+    /// of the net through an `f64` plan would re-round them. Values
+    /// outside the open domain or on a knot are filtered, not errors.
+    #[must_use]
+    pub fn with_breaks(self, extra: &'a [f64]) -> Self {
+        Self { extra, ..self }
     }
 
     /// The number of coordinate channels.
@@ -199,7 +215,7 @@ impl<'a> CurveCertData<'a> {
     /// The weight channel `W_i = w_i`, Bézier-decomposed.
     fn weight_channel(&self) -> BernsteinSpans {
         let coeffs: Vec<Interval> = self.weights.iter().map(|w| Interval::point(*w)).collect();
-        to_bezier_spans(self.kv, &coeffs)
+        to_bezier_spans_extra(self.kv, &coeffs, self.extra)
     }
 
     /// The unshifted weighted channel `w_i·x_d,i`, Bézier-decomposed.
@@ -210,7 +226,7 @@ impl<'a> CurveCertData<'a> {
             .zip(self.weights.iter())
             .map(|(x, w)| Interval::point(*w) * *x)
             .collect();
-        to_bezier_spans(self.kv, &coeffs)
+        to_bezier_spans_extra(self.kv, &coeffs, self.extra)
     }
 
     /// The shifted weighted channel `w_i·(x_d,i − shift)` (module docs
@@ -223,7 +239,7 @@ impl<'a> CurveCertData<'a> {
             .zip(self.weights.iter())
             .map(|(x, w)| Interval::point(*w) * (*x - s))
             .collect();
-        to_bezier_spans(self.kv, &coeffs)
+        to_bezier_spans_extra(self.kv, &coeffs, self.extra)
     }
 }
 
@@ -367,12 +383,8 @@ fn insert_once_ring(
 
 /// Bézier-decomposes one scalar channel: knot insertion to full
 /// interior multiplicity (structure from `kv`, coefficients in the
-/// ring), then the per-span coefficient rows read off by chunks.
-fn to_bezier_spans(kv: &KnotVector, coeffs: &[Interval]) -> BernsteinSpans {
-    to_bezier_spans_extra(kv, coeffs, &[])
-}
-
-/// [`to_bezier_spans`] with **extra break parameters** injected: each
+/// ring), then the per-span coefficient rows read off by chunks — with
+/// **extra break parameters** injected: each
 /// `extra` value strictly inside the domain and not already a knot is
 /// inserted to full multiplicity, so two channels decomposed with each
 /// other's knots as extras land on one shared break list (the tensor

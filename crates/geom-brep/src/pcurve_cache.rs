@@ -2466,9 +2466,10 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             major: cross(major),
         },
     };
+    let lifted_net = Arc::new(lift(net)?);
     let lifted = ProjectedImage {
         chart,
-        carrier: FramedCarrier::Net(Arc::new(lift(net)?)),
+        carrier: FramedCarrier::Net(Arc::clone(&lifted_net)),
         breaks: image.breaks.clone(),
         azimuth: image.azimuth.clone(),
         tube: image.tube.clone(),
@@ -2481,8 +2482,34 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     // for one that does not. A piece or span the edge's interval meets
     // refuses on it (`projected::net_incidence`, the sector check); one
     // outside the interval is not the edge's.
-    let lower = |v: geom_core::Interval| if v.is_certified() { v.lo() } else { f64::NAN };
-    let upper = |v: geom_core::Interval| if v.is_certified() { v.hi() } else { f64::NAN };
+    //
+    // A box's min and max over brackets read their endpoints, and a
+    // bracket that does not certify carries ordinary ones: the box would
+    // read as certified. So a piece or part reads NaN for its bounds
+    // whenever a control whose support meets it does not certify (`ok`
+    // false), through the same two reads.
+    let lower = |v: geom_core::Interval, ok: bool| {
+        if ok && v.is_certified() {
+            v.lo()
+        } else {
+            f64::NAN
+        }
+    };
+    let upper = |v: geom_core::Interval, ok: bool| {
+        if ok && v.is_certified() {
+            v.hi()
+        } else {
+            f64::NAN
+        }
+    };
+    let uncertified = |n: &NurbsCurve3<geom_core::Interval>, (a, b): (f64, f64)| {
+        let (knots, p) = (n.knots().knots(), n.knots().degree());
+        n.control().iter().enumerate().any(|(i, c)| {
+            knots[i] < b
+                && knots[i + p + 1] > a
+                && !(c.x.is_certified() && c.y.is_certified() && c.z.is_certified())
+        })
+    };
     let knots = image.breaks.knots();
     let pieces = (0..image.pieces())
         .map(|k| {
@@ -2492,12 +2519,13 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                 geom_core::Interval::from_bounds(a, a),
                 geom_core::Interval::from_bounds(b, b),
             );
+            let ok = !uncertified(&lifted_net, (a, b));
             let tube_lo = match lifted.chart {
-                ProjectedChart::Torus { major } => lower(lifted.tube_box(k, &fb, major).0.0),
+                ProjectedChart::Torus { major } => lower(lifted.tube_box(k, &fb, major).0.0, ok),
                 _ => f64::INFINITY,
             };
             PieceHull {
-                x_lo: lower(fb.x.0),
+                x_lo: lower(fb.x.0, ok),
                 tube_lo,
             }
         })
@@ -2530,22 +2558,26 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             return Err(PcurveCertifyError::UnsupportedChart { chart: twin.kind() });
         }
     };
-    // The composite of the net as it stands, and of the net with each
-    // knot span cut into equal parts by knot insertion: the Bernstein
-    // hull over a part is tighter than over the whole span (its excess
-    // falls as the part's square), but the insertion's own rounding
-    // widens a bracketed net. Each part reads the smaller of its own
-    // bound and its span's, both bounds on `|f|` over the part. Its
-    // floors are read off the part's own controls.
-    let composite_of = |n: &NurbsCurve3<geom_core::Interval>| {
-        let coords = n.certified_coords();
-        let data = CurveCertData::new(n.knots(), n.weights(), &coords)
-            .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
-        let composite = canonical_composite(&data, &form)
+    // The composite of the net, and the same composite with each knot
+    // span cut into equal parts: the Bernstein hull over a part is
+    // tighter than over the whole span (its excess falls as the part's
+    // square). The parts are cut in the composite's own ring
+    // (`CurveCertData::with_breaks`), not by refining the net through an
+    // `f64` plan, which would re-round its controls and weights into a
+    // neighbouring curve's. Each part reads the smaller of its own bound
+    // and its span's, both bounds on `|f|` over the part; its floors are
+    // read off its own controls (`projected::piece_controls`, whose
+    // ratios are formed in the scalar).
+    let twin_net = lift(twin_net)?;
+    let coords = twin_net.certified_coords();
+    let data = CurveCertData::new(twin_net.knots(), twin_net.weights(), &coords)
+        .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
+    let composite_of = |data: &CurveCertData<'_>| {
+        let composite = canonical_composite(data, &form)
             .map_err(|_| refuse("the canonical composite refused the re-derived net"))?;
         Ok::<_, PcurveCertifyError>((composite.num.breaks().to_vec(), composite.span_sup_bounds()))
     };
-    let (whole_breaks, whole_sup) = composite_of(&lift(twin_net)?)?;
+    let (whole_breaks, whole_sup) = composite_of(&data)?;
     let runs: Vec<f64> = twin_net.knots().knot_runs().map(|(k, _)| k).collect();
     let cuts: Vec<f64> = runs
         .windows(2)
@@ -2557,12 +2589,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             })
         })
         .collect();
-    let twin_net = lift(
-        &twin_net
-            .refine_knots(&cuts)
-            .map_err(|_| refuse("the re-derived net would not take its incidence cuts"))?,
-    )?;
-    let (breaks, part_sup) = composite_of(&twin_net)?;
+    let (breaks, part_sup) = composite_of(&data.clone().with_breaks(&cuts))?;
     // A bound the composite could not certify is NaN, which `f64::min`
     // passes over while the other is certified, and which its consumer
     // refuses (`projected::net_incidence`) when neither is.
@@ -2584,11 +2611,12 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
             } else {
                 boxed
             };
+            let ok = !uncertified(&twin_net, range);
             SpanHull {
                 range,
-                f_sup: part.min(whole),
-                rho_lo: lower(rho),
-                z: (lower(z.0), upper(z.1)),
+                f_sup: if ok { part.min(whole) } else { f64::NAN },
+                rho_lo: lower(rho, ok),
+                z: (lower(z.0, ok), upper(z.1, ok)),
             }
         })
         .collect();

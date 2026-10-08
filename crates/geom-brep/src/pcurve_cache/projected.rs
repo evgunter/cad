@@ -68,8 +68,10 @@
 //! carrier's distance from the chart: the chart's implicit form `f`
 //! composed along `ξ̂` (`geom_core::spline::compose::canonical_composite`
 //! for a net, `sphere_circle::off_sphere_sup` for a circle), converted to
-//! metres per knot span of the twin net, refined to `INCIDENCE_CUTS`
-//! parts a span. The conversion divides `|f|` by a lower bound on
+//! metres per part of the twin net's knot spans, each cut into
+//! `INCIDENCE_CUTS` parts in the composite's own ring
+//! (`CurveCertData::with_breaks`; the net itself is never refined
+//! through an `f64` plan, which would re-round it). The conversion divides `|f|` by a lower bound on
 //! `|∇f|` along the segment from the point to its nearest point on the
 //! chart, so each is tight to first order: `|f|` on the plane;
 //! `D = |f| / (R + max(ρ_min, R − |f|/R))` on the cylinder and the same
@@ -79,8 +81,9 @@
 //! (`SectorRefused { channel: Lever }`); and on the torus
 //! `|f| / ((r + max(0, r − D₁))·((ρ_min + R)² − r²))` with
 //! `D₁ = |f| / (r·((ρ_min + R)² − r²))`. `ρ_min` and `(σz)_min` are
-//! read off the span's refined parts (`part_floors`: each part's box
-//! nearest point maxed with its chord-support bound). The composite
+//! read off each part's own controls (`piece_controls`, ratios in the
+//! scalar; `part_floors`: the box's nearest point maxed with the
+//! chord-support bound where its divisor certifies). The composite
 //! takes no root; `ρ_min` takes one square root of a scalar bound, in
 //! the scalar's outward-rounded arithmetic. **Fidelity** is the
 //! stored net's distance from `ξ̂` (`max |qᵢ − q̂ᵢ|`, the partition of
@@ -722,8 +725,9 @@ impl<T: SpanLocate> ProjectedImage<T> {
 }
 
 /// How many equal parts the fitted door cuts each knot span of a net
-/// into before composing the chart's implicit form along it
-/// (`pcurve_cache::projected_hull_lane`): the incidence is read per part.
+/// into, in the composite's ring, when composing the chart's implicit
+/// form along it (`pcurve_cache::projected_hull_lane`): the incidence
+/// is read per part.
 pub(crate) const INCIDENCE_CUTS: usize = 8;
 
 /// How many equal parts [`ProjectedImage::sweep_box`] cuts a piece into.
@@ -1254,6 +1258,22 @@ fn holds<T: Decide>(
     .map(drop)
 }
 
+/// Piece `k`'s sector condition off the hull: its azimuth channel, and
+/// on a torus its tube channel, each decided positive. A bound the hull
+/// could not certify is NaN, which escalates.
+pub(super) fn hull_sector<T: Decide>(
+    piece: &PieceHull,
+    k: usize,
+    chart: &ProjectedChart<T>,
+    band: Band,
+) -> Result<(), PcurveCertifyError> {
+    holds(T::from_f64(piece.x_lo), band, k, SectorChannel::Azimuth)?;
+    if matches!(chart, ProjectedChart::Torus { .. }) {
+        holds(T::from_f64(piece.tube_lo), band, k, SectorChannel::Tube)?;
+    }
+    Ok(())
+}
+
 /// The distance of an angle from the nearest point of `shift + τℤ`.
 fn off_period<T: Real>(angle: T, shift: T) -> T {
     (angle - shift).reduce_periodic_centred(T::tau()).abs()
@@ -1396,8 +1416,11 @@ fn net_fidelity<T: Real>(net: &NurbsCurve3<T>, twin_net: &NurbsCurve3<T>) -> T {
 }
 
 /// **A spline carrier's distance from an analytic surface**, certified
-/// over its whole knot domain: limb 2 of C2 for an analytic operand of
-/// a rung-3 edge ([`crate::analytic_rung3`]). The net is written in the
+/// over the parts of its net the edge's `window` overlaps (a part the
+/// window ends inside is read whole, the conservative side): limb 2 of
+/// C2 for an analytic operand of a rung-3 edge
+/// ([`crate::analytic_rung3`]). The net is read as stored, never cut or
+/// refined through an `f64` plan. The net is written in the
 /// frame of the surface's orthonormal twin, which is the same point set
 /// (orthonormalising a frame moves no point of the implicit surface),
 /// and its incidence is [`net_incidence`] over one piece per knot span;
@@ -1409,6 +1432,7 @@ fn net_fidelity<T: Real>(net: &NurbsCurve3<T>, twin_net: &NurbsCurve3<T>) -> T {
 /// an analytic chart; the fitted door's refusal of the composite.
 pub(crate) fn net_offset_sup<T: Decide>(
     net: &NurbsCurve3<T>,
+    window: (T, T),
     surface: &Surface<T>,
     band: Band,
     lane: crate::FittedLane<T>,
@@ -1446,16 +1470,7 @@ pub(crate) fn net_offset_sup<T: Decide>(
     };
     let d = net_fidelity(stored, &twin_net);
     let hull = lane.projected_hull(&image, &twin_net, &twin)?;
-    let (d0, d1) = net.domain();
-    net_incidence(
-        &hull,
-        (T::from_f64(d0), T::from_f64(d1)),
-        &image.chart,
-        &twin,
-        d,
-        band,
-    )
-    .map(|(incidence, _)| incidence)
+    net_incidence(&hull, window, &image.chart, &twin, d, band).map(|(incidence, _)| incidence)
 }
 
 /// Check 4 of a projected row (module docs): the envelope's terms, with
@@ -1536,11 +1551,7 @@ pub(super) fn projected_envelope<T: Decide>(
             let lane = lane.ok_or(PcurveCertifyError::FittedLaneUnsupported { scalar: T::NAME })?;
             let hull = lane.projected_hull(image, &twin_net, &twin)?;
             for &k in &met {
-                let piece = &hull.pieces[k];
-                holds(T::from_f64(piece.x_lo), band, k, SectorChannel::Azimuth)?;
-                if matches!(image.chart, ProjectedChart::Torus { .. }) {
-                    holds(T::from_f64(piece.tube_lo), band, k, SectorChannel::Tube)?;
-                }
+                hull_sector::<T>(&hull.pieces[k], k, &image.chart, band)?;
             }
             let (incidence, rho_floor) =
                 net_incidence(&hull, (t0, t1), &image.chart, &twin, d, band)?;

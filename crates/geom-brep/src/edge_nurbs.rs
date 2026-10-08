@@ -653,12 +653,12 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     }
     let (t0, t1) = params;
     let piece = edge_piece(carrier, t0.lo().min(t1.lo()), t0.hi().max(t1.hi()))?;
-    let carrier = &piece;
     let lane = crate::FittedLane::<T>::certified();
     for operand in [s1, s2] {
         let kind = operand.kind();
-        let offset = crate::pcurve_cache::projected::net_offset_sup(carrier, operand, band, lane)
-            .map_err(|e| AnalyticRung3Refusal::of_offset(kind, e))?;
+        let offset =
+            crate::pcurve_cache::projected::net_offset_sup(carrier, params, operand, band, lane)
+                .map_err(|e| AnalyticRung3Refusal::of_offset(kind, e))?;
         match crate::dihedral::decide("ssi_hull_sup", geom_core::Margin::of(offset), band) {
             Ok(geom_core::Sign::Zero) => {}
             Ok(geom_core::Sign::Positive | geom_core::Sign::Negative) => {
@@ -678,16 +678,16 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         }
     }
     crate::ssi::certify::certify_branch(
-        carrier,
+        &piece,
         crate::ssi::certify::Lane::AtRest {
             a: &SsiOperand::Analytic(s1),
             b: &SsiOperand::Analytic(s2),
             pcurve_b: None,
         },
         // The tube's extent, from the object being certified: the
-        // carrier's control-net diameter (a closed carrier's chord says
+        // piece's control-net diameter (a closed carrier's chord says
         // nothing about its size).
-        crate::pcurve_cache::carrier_diameter(carrier),
+        crate::pcurve_cache::carrier_diameter(&piece),
         band,
         crate::ssi::certify::Limbs::Tube,
         &mut Vec::new(),
@@ -696,11 +696,23 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     .map_err(AnalyticRung3Refusal::of_tube)
 }
 
-/// The carrier cut to `[lo, hi]` — the edge's interval from its lower
-/// end's infimum to its upper end's supremum — clamped to the knot
-/// domain (a poison end reads as the domain's, the wider cut). Knot
-/// insertion is evaluation-invariant, so the piece is the carrier over
-/// that span.
+/// The piece of the carrier the tube reads: the carrier over `[lo, hi]`
+/// — the edge's interval from its lower end's infimum to its upper
+/// end's supremum — clamped to the knot domain (a poison end reads as
+/// the domain's, the wider piece).
+///
+/// **What holds at each scalar.** A carrier whose weights are all one
+/// value `c` is polynomial, and so is its piece: the piece's weights are
+/// `c` exactly, and its controls — the blossoms of each knot span's
+/// stretch, joined at full multiplicity — are formed with ratios in the
+/// scalar ([`crate::pcurve_cache::projected::piece_controls`]), so at an
+/// enclosure scalar each encloses the true piece's control. A carrier
+/// with unequal weights has no piece whose weights are `f64` at an
+/// enclosure scalar (an `f64` insertion plan would re-round them into a
+/// neighbouring curve's), so the tube reads the whole carrier: sound,
+/// since the chain around the piece is a stretch of the whole carrier's
+/// chain, and conservative, since geometry past the edge's ends can
+/// refuse it (`work/pcert/the-tube-reads-a-rational-carriers-whole-net.md`).
 fn edge_piece<T: Real>(
     carrier: &NurbsCurve3<T>,
     lo: f64,
@@ -714,20 +726,41 @@ fn edge_piece<T: Real>(
             "the edge's interval is empty on the carrier's domain",
         ));
     }
-    let mut piece = carrier.clone();
-    if b < d1 {
-        piece = piece
-            .split_at(b)
-            .map_err(|_| refuse("the carrier would not cut at the edge's upper end"))?
-            .0;
+    let weights = carrier.weights();
+    let constant = weights.iter().all(|w| w.to_bits() == weights[0].to_bits());
+    if (a <= d0 && b >= d1) || !constant {
+        return Ok(carrier.clone());
     }
-    if a > d0 {
-        piece = piece
-            .split_at(a)
-            .map_err(|_| refuse("the carrier would not cut at the edge's lower end"))?
-            .1;
+    let kv = carrier.knots();
+    let p = kv.degree();
+    // The stretch's breaks: its ends and every interior knot strictly
+    // between them.
+    let mut breaks = vec![a];
+    breaks.extend(kv.knot_runs().map(|(k, _)| k).filter(|&k| k > a && k < b));
+    breaks.push(b);
+    let mut knots = vec![a; p + 1];
+    let mut control: Vec<Point3<T>> = Vec::new();
+    for (i, w) in breaks.windows(2).enumerate() {
+        let segment = crate::pcurve_cache::projected::piece_controls(carrier, w[0], w[1]);
+        // Neighbouring segments share their joining control; each
+        // segment's own encloses it, and the earlier one is kept.
+        let skip = usize::from(i > 0);
+        control.extend(
+            segment
+                .iter()
+                .skip(skip)
+                .map(|(v, _)| Point3::origin() + *v),
+        );
+        let last = i + 2 == breaks.len();
+        knots.extend(std::iter::repeat_n(w[1], if last { p + 1 } else { p }));
     }
-    Ok(piece)
+    let n = control.len();
+    KnotVector::clamped(knots, p)
+        .ok()
+        .and_then(|kv| NurbsCurve3::new(kv, control, vec![weights[0]; n]).ok())
+        .ok_or(refuse(
+            "the carrier's piece over the edge's interval is malformed",
+        ))
 }
 
 /// [`analytic_rung3`]'s typed refusal — the analytic pair's own
@@ -1390,5 +1423,151 @@ mod tests {
         assert_eq!(below.control_count(), 17);
         let out = localized(&wall(deg2(&[0.5]), below));
         assert_eq!(out.knots_v().control_count(), 17 + 15);
+    }
+
+    /// An exact rational: `n / d`, `d > 0`, for the oracle below.
+    #[derive(Clone, Debug)]
+    struct Q {
+        n: num_bigint::BigInt,
+        d: num_bigint::BigInt,
+    }
+
+    impl Q {
+        /// The exact value of a finite `f64` (`m · 2^e`).
+        fn of(x: f64) -> Self {
+            use num_bigint::BigInt;
+            let bits = x.to_bits();
+            let sign: i64 = if bits >> 63 == 1 { -1 } else { 1 };
+            let exp = i32::try_from((bits >> 52) & 0x7ff).unwrap();
+            let frac = i64::try_from(bits & ((1 << 52) - 1)).unwrap();
+            let (m, e) = if exp == 0 {
+                (frac, -1074)
+            } else {
+                (frac | (1 << 52), exp - 1075)
+            };
+            let m = BigInt::from(sign * m);
+            if e >= 0 {
+                Self {
+                    n: m << usize::try_from(e).unwrap(),
+                    d: BigInt::from(1),
+                }
+            } else {
+                Self {
+                    n: m,
+                    d: BigInt::from(1) << usize::try_from(-e).unwrap(),
+                }
+            }
+        }
+        fn add(&self, o: &Self) -> Self {
+            Self {
+                n: &self.n * &o.d + &o.n * &self.d,
+                d: &self.d * &o.d,
+            }
+        }
+        fn sub(&self, o: &Self) -> Self {
+            Self {
+                n: &self.n * &o.d - &o.n * &self.d,
+                d: &self.d * &o.d,
+            }
+        }
+        fn mul(&self, o: &Self) -> Self {
+            Self {
+                n: &self.n * &o.n,
+                d: &self.d * &o.d,
+            }
+        }
+        fn div(&self, o: &Self) -> Self {
+            let (n, d) = (&self.n * &o.d, &self.d * &o.n);
+            if d.sign() == num_bigint::Sign::Minus {
+                Self { n: -n, d: -d }
+            } else {
+                Self { n, d }
+            }
+        }
+        /// `lo ≤ self ≤ hi`, exactly.
+        fn within(&self, lo: f64, hi: f64) -> bool {
+            let (lo, hi) = (Self::of(lo), Self::of(hi));
+            &lo.n * &self.d <= &self.n * &lo.d && &self.n * &hi.d <= &hi.n * &self.d
+        }
+    }
+
+    /// The exact controls of a polynomial B-spline's restriction to
+    /// `[a, b]` inside one knot span: the blossoms `B(a^{p−m}, b^m)` by
+    /// de Boor's recursion in exact rationals.
+    fn exact_piece(knots: &[f64], p: usize, ctl: &[[f64; 3]], a: f64, b: f64) -> Vec<[Q; 3]> {
+        let mid = 0.5 * (a + b);
+        let j = (p..knots.len() - p - 1)
+            .rfind(|&j| knots[j] <= mid)
+            .unwrap();
+        (0..=p)
+            .map(|m| {
+                let mut d: Vec<[Q; 3]> = (0..=p).map(|i| ctl[j - p + i].map(Q::of)).collect();
+                for r in 1..=p {
+                    let u = Q::of(if r <= p - m { a } else { b });
+                    for i in (r..=p).rev() {
+                        let lo = Q::of(knots[j - p + i]);
+                        let hi = Q::of(knots[j + 1 + i - r]);
+                        let alpha = u.sub(&lo).div(&hi.sub(&lo));
+                        let beta = Q::of(1.0).sub(&alpha);
+                        let prev = d[i - 1].clone();
+                        d[i] = [0, 1, 2].map(|k| prev[k].mul(&beta).add(&d[i][k].mul(&alpha)));
+                    }
+                }
+                d[p].clone()
+            })
+            .collect()
+    }
+
+    /// **The tube's piece encloses the true piece at the enclosure
+    /// scalar** (`edge_piece`). A polynomial carrier with non-dyadic knots,
+    /// controls and a non-unit constant weight, cut to a non-dyadic
+    /// interval: at `Interval` every control of the piece contains the
+    /// exact rational control of the true restriction, and the piece's
+    /// weights are the carrier's weight exactly. The same cut through an
+    /// `f64` insertion plan (`split_at`) misses the exact controls, which
+    /// is what this row tells apart.
+    #[test]
+    fn the_tubes_piece_encloses_the_exact_restriction_at_interval() {
+        use geom_core::{Bounds, Interval};
+        let p = 2;
+        let knots = vec![0.0, 0.0, 0.0, 0.3, 0.7, 1.0, 1.0, 1.0];
+        let ctl = [
+            [0.1, 0.2, 0.3],
+            [1.1, 0.7, -0.3],
+            [1.9, -0.6, 0.4],
+            [2.7, 0.3, 1.3],
+            [3.1, 1.7, 0.1],
+        ];
+        let w = 1.3;
+        let carrier = NurbsCurve3::new(
+            KnotVector::clamped(knots.clone(), p).unwrap(),
+            ctl.iter().map(|c| Point3::new(c[0], c[1], c[2])).collect(),
+            vec![w; ctl.len()],
+        )
+        .unwrap()
+        .map_scalar(Interval::from_f64);
+        let (a, b) = (0.1, 0.55);
+        let piece = edge_piece(&carrier, a, b).unwrap();
+        assert_eq!(piece.domain(), (a, b));
+        assert!(piece.weights().iter().all(|&x| x.to_bits() == w.to_bits()));
+        let exact: Vec<[Q; 3]> = exact_piece(&knots, p, &ctl, a, 0.3)
+            .into_iter()
+            .chain(exact_piece(&knots, p, &ctl, 0.3, b).into_iter().skip(1))
+            .collect();
+        let encloses = |c: &[Point3<Interval>]| {
+            c.len() == exact.len()
+                && c.iter().zip(&exact).all(|(got, want)| {
+                    [got.x, got.y, got.z]
+                        .iter()
+                        .zip(want)
+                        .all(|(g, q)| q.within(g.lo(), g.hi()))
+                })
+        };
+        assert!(encloses(piece.control()), "{:?}", piece.control());
+        let planned = carrier.split_at(b).unwrap().0.split_at(a).unwrap().1;
+        assert!(
+            !encloses(planned.control()),
+            "an f64 insertion plan misses the exact restriction"
+        );
     }
 }
