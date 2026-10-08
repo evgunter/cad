@@ -220,9 +220,24 @@ torus/cone tests at each. The mutants were re-run there:
 The normalisation mutant patches the area code that no longer exists,
 so its result (killed, above) stands at `59eeeebb2` only.
 
-## Verification
+## Verification (local; hosted CI is the verification of record)
 
-See the battery table in the hand-back for the final commit.
+Every check ran on `50b91138a`. The commit after it changes only this
+file.
+
+| check | result |
+|---|---|
+| `topo`, default ε / 1e-6 / 1e-12 | 2618 passed at each |
+| `sweep`, default ε / 1e-6 | 2469 passed at each |
+| `sweep`, 1e-12 | 2468 passed, 1 failed: `parallel_cylinder_join::a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings`, red on `origin/main` `d00100e82` with the identical margin and already filed as `work/tint/tipped-rod-join-escalates-at-1e-12` |
+| `editor-core`, all (slow set included) | 2910 passed |
+| `test-utils` | 89 passed |
+| Python suite (maturin wheel, unittest) | 950 OK |
+| `cargo fmt --all --check` | clean |
+| clippy `--workspace --exclude viewer --all-targets --all-features` | clean |
+| clippy `pncad-py --features python` | clean |
+| `scripts/gates/*.sh` + `payload-rung-sweep.py --check` | pass |
+| `work.py lint` | ok |
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
