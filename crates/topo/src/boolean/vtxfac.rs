@@ -1703,6 +1703,30 @@ mod tests {
         }
     }
 
+    /// PROBE (review 2): a germ decided apart from germ 0 at its own
+    /// arm, but in the zero band at a third germ's shorter arm, is
+    /// placed by its sense inside `strut_order` (`Sign::Zero` arm).
+    #[test]
+    fn probe_review2_a_shorter_third_arm_reads_a_decided_germ_as_zero() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let n = Vec3::new(0.0, 0.0, 1.0);
+        let at = |deg: f64, arm: f64| (germ_at(deg).0, arm);
+        let d = 2e-8f64.to_degrees();
+        // Truth clockwise from germ 0: 120°, then 360° - d.
+        let a = germ_order(&[at(0.0, 1.0), at(120.0, 0.01), at(360.0 - d, 1.0)], n, band);
+        let b = germ_order(&[at(0.0, 1.0), at(360.0 - d, 1.0), at(120.0, 0.01)], n, band);
+        // Control: all arms 1.
+        let c = germ_order(&[at(0.0, 1.0), at(120.0, 1.0), at(360.0 - d, 1.0)], n, band);
+        eprintln!("PROBE short-arm-third: a={a:?} b={b:?} control={c:?}");
+        assert_eq!(c.as_ref().ok(), Some(&vec![0, 1, 2]), "control");
+        for (what, r, truth) in [("a", a, vec![0, 1, 2]), ("b", b, vec![0, 2, 1])] {
+            match r {
+                Ok(o) => assert_eq!(o, truth, "{what}: placed by fiat, not refused"),
+                Err(e) => eprintln!("{what}: refused {e:?}"),
+            }
+        }
+    }
+
     /// **A bisector run minted after the other run hangs its strut in
     /// its own corner.** The L-prism's reflex corner pierces a cube's
     /// face in two Out runs, one of them the reflex sector's bisector

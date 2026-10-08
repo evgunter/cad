@@ -836,6 +836,150 @@ mod tests {
         }
     }
 
+    /// Every non-crossing perfect matching of `0..m` (`m` even).
+    fn nc_matchings(m: usize) -> Vec<Vec<usize>> {
+        fn go(lo: usize, hi: usize, cur: &mut Vec<usize>, out: &mut Vec<Vec<(usize, usize)>>, acc: &mut Vec<(usize, usize)>) {
+            if lo >= hi {
+                out.push(acc.clone());
+                return;
+            }
+            let _ = cur;
+            // pair lo with j, j - lo odd; recurse inside and after
+            let mut j = lo + 1;
+            while j < hi {
+                let mut inner = Vec::new();
+                go(lo + 1, j, &mut Vec::new(), &mut inner, &mut Vec::new());
+                let mut outer = Vec::new();
+                go(j + 1, hi, &mut Vec::new(), &mut outer, &mut Vec::new());
+                for a in &inner {
+                    for b in &outer {
+                        let mut v = acc.clone();
+                        v.push((lo, j));
+                        v.extend(a);
+                        v.extend(b);
+                        out.push(v);
+                    }
+                }
+                j += 2;
+            }
+        }
+        let mut out = Vec::new();
+        go(0, m, &mut Vec::new(), &mut out, &mut Vec::new());
+        out.into_iter()
+            .map(|pairs| {
+                let mut mate = vec![0; m];
+                for (a, b) in pairs {
+                    mate[a] = b;
+                    mate[b] = a;
+                }
+                mate
+            })
+            .collect()
+    }
+
+    /// PROBE (review 2): every closed meander to k = 7 (enumerated as
+    /// pairs of non-crossing matchings, not permutations): the tree is
+    /// the dual tree; its Euler tour from every root is a rotation of
+    /// the germ order; facings alternate by depth parity; meander
+    /// counts are OEIS A005315.
+    #[test]
+    fn probe_review2_meanders_to_k7() {
+        let known = [0usize, 1, 2, 8, 42, 262, 1828, 13820];
+        for k in 2..=7usize {
+            let m = 2 * k;
+            let ms = nc_matchings(m);
+            let (mut meanders, mut stars) = (0, 0);
+            for above in &ms {
+                for below in &ms {
+                    // Walk the cycle from position 0 via above first.
+                    let mut order = vec![usize::MAX; m];
+                    let (mut p, mut g) = (0usize, 0usize);
+                    let mut ok = true;
+                    loop {
+                        if order[p] != usize::MAX {
+                            ok = false;
+                            break;
+                        }
+                        order[p] = g;
+                        g += 1;
+                        p = if g % 2 == 1 { above[p] } else { below[p] };
+                        if g == m {
+                            ok = p == 0;
+                            break;
+                        }
+                    }
+                    if !ok || order.iter().any(|&x| x == usize::MAX) {
+                        continue;
+                    }
+                    meanders += 1;
+                    let tree = ring_tree(&order, None).unwrap_or_else(|| panic!("{order:?}"));
+                    let mut sorted = tree.clone();
+                    sorted.sort_by_key(|s| s.run);
+                    assert_eq!(sorted, dual_tree(&order), "k={k} {order:?}");
+                    if tree.iter().all(|s| s.parent.is_none()) {
+                        stars += 1;
+                    }
+                    let mut roots_seen = Vec::new();
+                    for root in 0..=k {
+                        let t = ring_tree(&order, Some(root)).unwrap_or_else(|| panic!("{order:?} root {root}"));
+                        // depth parity
+                        let depth = |run: usize| {
+                            let mut d = 0;
+                            let mut r = run;
+                            while let Some(p) = t.iter().find(|s| s.run == r).unwrap().parent {
+                                d += 1;
+                                r = p;
+                            }
+                            d
+                        };
+                        let root_face = t[0].plus_faces_start;
+                        for s in &t {
+                            assert_eq!(
+                                s.plus_faces_start,
+                                root_face ^ (depth(s.run) % 2 == 1),
+                                "k={k} {order:?} root {root}: parity"
+                            );
+                        }
+                        // Euler tour
+                        fn tour(t: &[RingStrut], parent: Option<usize>, out: &mut Vec<usize>) {
+                            for s in t.iter().filter(|s| s.parent == parent) {
+                                let (open, close) = if s.plus_faces_start {
+                                    (2 * s.run, 2 * s.run + 1)
+                                } else {
+                                    (2 * s.run + 1, 2 * s.run)
+                                };
+                                out.push(open);
+                                tour(t, Some(s.run), out);
+                                out.push(close);
+                            }
+                        }
+                        let mut seq = Vec::new();
+                        tour(&t, None, &mut seq);
+                        let rot = (0..m).any(|r| (0..m).all(|i| seq[i] == order[(r + i) % m]));
+                        assert!(rot, "k={k} {order:?} root {root}: tour {seq:?}");
+                        let shape: Vec<_> = {
+                            let mut v: Vec<_> = t.iter().map(|s| (s.run, s.parent)).collect();
+                            v.sort();
+                            v
+                        };
+                        assert!(!roots_seen.contains(&shape), "k={k} {order:?}: two roots one tree");
+                        roots_seen.push(shape);
+                        // mint order: the tour's opening order is the mint order
+                        let opens: Vec<usize> = seq.iter().copied().filter(|&g| {
+                            let s = t.iter().find(|s| s.run == g / 2).unwrap();
+                            (g % 2 == 0) == s.plus_faces_start
+                        }).map(|g| g / 2).collect();
+                        assert_eq!(opens, t.iter().map(|s| s.run).collect::<Vec<_>>(), "pre-order");
+                    }
+                    assert_eq!(ring_tree(&order, Some(k + 1)), None);
+                }
+            }
+            eprintln!("PROBE k={k}: {meanders} meanders, {stars} stars");
+            assert_eq!(meanders, known[k], "k={k} meander count");
+            assert_eq!(stars, 2, "k={k}");
+        }
+    }
+
     /// A null strut (`he1 == he2`) on a cube vertex: the new vertex on
     /// the old one's point, F9 attribute recorded per side, tier 1
     /// accepts, tier 2 refuses by name, and the scaffolding is killable

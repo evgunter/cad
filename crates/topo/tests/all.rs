@@ -364,6 +364,10 @@ mod cleave_mint_doors;
 mod door_backstop_settled_residue;
 #[path = "holes_meeting_at_a_vertex.rs"]
 mod holes_meeting_at_a_vertex;
+#[path = "review2_bit_identity.rs"]
+mod review2_bit_identity;
+#[path = "review2_oracle.rs"]
+mod review2_oracle;
 #[path = "pierce_strut_at_a_pinch.rs"]
 mod pierce_strut_at_a_pinch;
 #[path = "review_cleave_mint_doors.rs"]
