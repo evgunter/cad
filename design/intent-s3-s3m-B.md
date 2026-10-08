@@ -192,16 +192,13 @@ error.
   - "…an instance of a part defines the part's product, one `Bodies` whose members are named by the part's
     placements, and the part's world as a `Frame`, both in one space of the instance's own; possibly none: an
     assertion defines none, and a mate is a clause of a placement, not an operation."
-- D10 Operations, replacing "A world placement is an operation reading one `Body` and defining its copy":
-  - "A placement is an operation reading one shape (`Body` or `Bodies`) and a bundle of mates, and defining the copy,
+- D10 Operations, replacing "A world placement is an operation reading one `Body` and defining its copy": "A placement is an operation reading one shape (`Body` or `Bodies`) and a bundle of mates, and defining the copy,
     of the shape's kind. The product is every copy whose space is the world's."
 - D10 Spaces, replacing "the bundle of mates that pins one copy of a part relative to others":
   - "the bundle of mates that pins one copy of a shape: each mate equates, modulo its kind's symmetry, a pose of the
     shape's space with a pose of the space the copy is placed into; a pose of another copy is read as that copy
     carries it."
   - The world becomes "one undeletable valueless frame that only a mate's target side and export read".
-- A10:
-  - "A world placement (`PlaceInWorld`) is an operation reading one `Body` and defining its copy as an output"
-    becomes "A placement (`Place`) reads one shape and defines its copy; the product is the copies in the world's
-    space, in placement order".
-  - "the copies the document's world placements define" becomes "every copy in the world's space".
+- A10: "A world placement (`PlaceInWorld`) is an operation reading one `Body` and defining its copy as an output" →
+  "A placement (`Place`) reads one shape and defines its copy"; "the copies the document's world placements define" →
+  "every copy in the world's space, in placement order".
