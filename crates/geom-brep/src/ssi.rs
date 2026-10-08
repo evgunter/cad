@@ -1762,7 +1762,7 @@ impl DomainField {
 /// [`SsiError::TraceUnresolved`]'s ending. A short branch with a length
 /// is given the fit's samples by halving, so what is left is a touch or
 /// a branch along the slab, which is the slab's, the caller's box
-/// (`work/ssi/ssi-r3-slab-is-not-geometry.md`).
+/// (`work/ssiedge/ssi-r3-slab-is-not-geometry.md`).
 pub(crate) const TRACE_UNRESOLVED_RECOURSE: &str =
     "Recourse: name a slab that holds the intersection clear of its faces";
 

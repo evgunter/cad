@@ -10,7 +10,7 @@ cost: M
 
 
 Found by the operand-gate pose lane
-(`work/reach/boolean-operand-gate-separates-only-along-world-axes.md`)
+(`boolean-operand-gate-separates-only-along-world-axes` (REACH, closed by PR 4122))
 sweeping `topo/src` for box overlaps read as a verdict. Unmeasured:
 read off the code; no fixture has been built for it.
 

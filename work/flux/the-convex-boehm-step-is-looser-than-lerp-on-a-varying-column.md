@@ -7,7 +7,7 @@ opened: 2026-10-01
 priority: P3
 cost: M
 design: true
-refs: [3524, 3737, pxn-ratio-ceiling-reds-main-at-default-and-1e-6]
+refs: [3524, 3737]
 ---
 
 

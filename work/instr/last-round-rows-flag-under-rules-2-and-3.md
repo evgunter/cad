@@ -11,7 +11,7 @@ cost: M
 
 Found by the REACH lane `reach/lily-leaf-1e12`. Until that lane, the nightly
 `k-lint (dev-probe)` row never reached its lint step: `scripts/k_probe_sweep.sh`
-panicked in its 1e-12 demo pass (`work/reach/lily-leaf-b-mass-exhausts-the-quadrature-budget-at-eps-1e-12.md`).
+panicked in its 1e-12 demo pass (`lily-leaf-b-mass-exhausts-the-quadrature-budget-at-eps-1e-12` (REACH, closed by PR 3976)).
 With the sweep exiting 0, `tools/k-lint` over the three fresh CSVs exits 2.
 Most of its flags already have rows (`work/chart/chart-bound-outer-span-decides-a-poisoned-margin.md`,
 `work/germ/circle-torus-root-slack-crowds-the-zero-band-at-1e-12.md`,

@@ -11,7 +11,7 @@ blocked_on: [intent-stage4-is-built]
 
 
 Found by the REACH lane that closed
-`work/reach/full-turn-bore-rest-mate-does-not-union.md`, measured on
+`full-turn-bore-rest-mate-does-not-union` (REACH, closed by PR 3814), measured on
 `reach/fullturn-bore-mate`.
 
 ## Fixture
