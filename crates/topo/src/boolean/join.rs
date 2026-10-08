@@ -3644,7 +3644,7 @@ mod frame_dispatch_tests {
 
     /// **On the declared-tangency path head serves nothing main does
     /// not.** Rim patches of walls of radius 1e-3, 1 and 1e3 (axes at
-    /// random, 1e3 off the origin; arcs of 1e-6 to 3 rad, heights to ten
+    /// random, 1e3 off the origin; both capped at `1e12·ε`; arcs of 1e-6 to 3 rad, heights to ten
     /// radii) cut by a plane through a corner, tilted off a radial (or off
     /// its normal, through the axis) by a tilt near the band. Head's
     /// reading through chord_join's [`crate::chord_join::wall_section`] at
@@ -3675,20 +3675,25 @@ mod frame_dispatch_tests {
             Err(_) => "refused",
         };
         for _ in 0..fuzz::scaled(2000) {
-            let r = [1e-3, 1.0, 1e3][g.below(3)];
+            // Radii and offsets of up to 1e3, short of where ε leaves no room
+            // for the fixture to certify a rim on a random axis.
+            let room = (1e12 * eps).min(1e3);
+            let r = [1e-3_f64, 1.0, 1e3][g.below(3)].min(room);
             let axis = unit(&mut g);
             let seam = {
                 let v = unit(&mut g);
                 (v - axis * v.dot(axis)).normalize()
             };
             let frame = crate::test_support_fixtures::CylFrame {
-                origin: Point3::origin() + unit(&mut g) * 1e3,
+                origin: Point3::origin() + unit(&mut g) * room,
                 axis,
                 radius: r,
                 u_ref: seam,
             };
-            let du = log(&mut g, 1e-6_f64.max(1e4 * eps / r), 3.0);
-            let h = log(&mut g, 1e-6_f64.max(1e4 * eps / r), 10.0) * r;
+            // Arcs and heights at least `1e4·ε` long, where the band allows.
+            let floor = |hi: f64| (1e4 * eps / r).max(1e-6).min(0.1 * hi);
+            let du = log(&mut g, floor(3.0), 3.0);
+            let h = log(&mut g, floor(10.0), 10.0) * r;
             let mut body = crate::Body::<f64>::new();
             let (face, _) = crate::test_support_fixtures::cyl_wall_sheet_keyed(
                 &mut body,
