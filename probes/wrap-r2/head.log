@@ -1,0 +1,372 @@
+
+running 6 tests
+R2 F1v tangent-at-vertex AuB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1v tangent-at-vertex BuA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1v tangent-at-vertex AnB | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1v tangent-at-vertex BnA | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1v tangent-at-vertex A-B | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1v tangent-at-vertex B-A | ERR Join(SingleSiteSectionLoop { count: 1 }) | mesh=-
+R2 F1 flat c=(0.0, 0.0) az=0 z=0.3 AuB | OK SOUND t2=true t3p=true cert=true operand=true v=517.340707511 want=517.340707511 | mesh=ok
+R2 F1 flat c=(0.0, 0.0) az=0 z=0.3 BuA | OK SOUND t2=true t3p=true cert=true operand=true v=517.340707511 want=517.340707511 | mesh=ok
+R2 F1 flat c=(0.0, 0.0) az=0 z=0.3 AnB | OK SOUND t2=true t3p=true cert=true operand=true v=0.942477796 want=0.942477796 | mesh=ok
+R2 F1 flat c=(0.0, 0.0) az=0 z=0.3 BnA | OK SOUND t2=true t3p=true cert=true operand=true v=0.942477796 want=0.942477796 | mesh=ok
+R2 F1 flat c=(0.0, 0.0) az=0 z=0.3 A-B | OK SOUND t2=true t3p=true cert=true operand=true v=5.340707511 want=5.340707511 | mesh=ok
+R2 F1 flat c=(0.0, 0.0) az=0 z=0.3 B-A | OK SOUND t2=true t3p=true cert=true operand=true v=511.057522204 want=511.057522204 | mesh=ok
+R2 F1 flat c=(0.7, -0.4) az=2 z=1.7 AuB | OK SOUND t2=true t3p=true cert=true operand=true v=512.942477796 want=512.942477796 | mesh=ok
+R2 F1v through-vertex k=0.3 AuB | OK BAD t2=true t3p=true cert=true operand=false v=516.709069318 want=516.709069319 | mesh=ok
+R2 F1 flat c=(0.7, -0.4) az=2 z=1.7 BuA | OK SOUND t2=true t3p=true cert=true operand=true v=512.942477796 want=512.942477796 | mesh=ok
+R2 F1 flat c=(0.7, -0.4) az=2 z=1.7 AnB | OK SOUND t2=true t3p=true cert=true operand=true v=5.340707511 want=5.340707511 | mesh=ok
+R2 F1 flat c=(0.7, -0.4) az=2 z=1.7 BnA | OK SOUND t2=true t3p=true cert=true operand=true v=5.340707511 want=5.340707511 | mesh=ok
+R2 F1 flat c=(0.7, -0.4) az=2 z=1.7 A-B | OK SOUND t2=true t3p=true cert=true operand=true v=0.942477796 want=0.942477796 | mesh=ok
+R2 F1 flat c=(0.7, -0.4) az=2 z=1.7 B-A | OK SOUND t2=true t3p=true cert=true operand=true v=506.659292489 want=506.659292489 | mesh=ok
+R2 F1 flat c=(-1.1, 0.9) az=4 z=1 AuB | OK SOUND t2=true t3p=true cert=true operand=true v=515.141592654 want=515.141592654 | mesh=ok
+R2 F1v through-vertex k=0.3 BuA | OK BAD t2=true t3p=true cert=true operand=false v=516.709069318 want=516.709069319 | mesh=ok
+R2 F1 flat c=(-1.1, 0.9) az=4 z=1 BuA | OK SOUND t2=true t3p=true cert=true operand=true v=515.141592654 want=515.141592654 | mesh=ok
+R2 F1 flat c=(-1.1, 0.9) az=4 z=1 AnB | OK SOUND t2=true t3p=true cert=true operand=true v=3.141592654 want=3.141592654 | mesh=ok
+R2 F1 flat c=(-1.1, 0.9) az=4 z=1 BnA | OK SOUND t2=true t3p=true cert=true operand=true v=3.141592654 want=3.141592654 | mesh=ok
+R2 F1 flat c=(-1.1, 0.9) az=4 z=1 A-B | OK SOUND t2=true t3p=true cert=true operand=true v=3.141592654 want=3.141592654 | mesh=ok
+R2 F1v through-vertex k=0.3 AnB | OK BAD t2=true t3p=true cert=true operand=false v=1.574115989 want=1.574115988 | mesh=ok
+R2 F1 flat c=(-1.1, 0.9) az=4 z=1 B-A | OK SOUND t2=true t3p=true cert=true operand=true v=508.858407346 want=508.858407346 | mesh=ok
+R2 F1 tilt-x 0.05deg AuB | OK BAD t2=true t3p=true cert=true operand=false v=515.141592654 want=515.141592654 | mesh=ok
+R2 F1v through-vertex k=0.3 BnA | OK BAD t2=true t3p=true cert=true operand=false v=1.574115989 want=1.574115988 | mesh=ok
+R2 F1 tilt-x 0.05deg BuA | OK BAD t2=true t3p=true cert=true operand=false v=515.141592654 want=515.141592654 | mesh=ok
+R2 F1 tilt-x 0.05deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F1 tilt-x 0.05deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F1v through-vertex k=0.3 A-B | OK BAD t2=true t3p=true cert=true operand=false v=4.709069318 want=4.709069319 | mesh=ok
+R2 F1 tilt-x 0.05deg A-B | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F1 tilt-x 0.05deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=508.858407346 want=508.858407346 | mesh=ok
+R2 F1v through-vertex k=0.3 B-A | OK BAD t2=true t3p=true cert=true operand=false v=510.425884011 want=510.425884012 | mesh=ok
+R2 F1v through-vertex k=0.8 AuB | ERR VolumeUnmeasured { operand: None, source: Face { face: FaceKey(6v1), source: Escalated { cause: Indeterminate  | mesh=-
+R2 F1 tilt-x 1deg AuB | OK BAD t2=true t3p=true cert=true operand=false v=515.141592654 want=515.141592654 | mesh=ok
+R2 F1 tilt-x 1deg BuA | OK BAD t2=true t3p=true cert=true operand=false v=515.141592654 want=515.141592654 | mesh=ok
+R2 F1v through-vertex k=0.8 BuA | OK BAD t2=true t3p=true cert=true operand=false v=516.610247785 want=516.610247786 | mesh=ok
+R2 F1 tilt-x 1deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F1v through-vertex k=0.8 AnB | OK BAD t2=true t3p=true cert=true operand=false v=1.672937522 want=1.672937521 | mesh=ok
+R2 F1 tilt-x 1deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F1v through-vertex k=0.8 BnA | OK BAD t2=true t3p=true cert=true operand=false v=1.672937522 want=1.672937521 | mesh=ok
+R2 F1v through-vertex k=0.8 A-B | ERR VolumeUnmeasured { operand: None, source: Face { face: FaceKey(6v1), source: Escalated { cause: Indeterminate  | mesh=-
+R2 F1 tilt-x 1deg A-B | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F1 tilt-x 1deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=508.858407346 want=508.858407346 | mesh=ok
+R2 F1v through-vertex k=0.8 B-A | OK BAD t2=true t3p=true cert=true operand=false v=510.327062478 want=510.327062479 | mesh=ok
+test wrap_r2_probes::r2_f1v_planes_through_the_wrap_edges_end_vertex ... ok
+R2 F2 tube r=[0.3,0.5] y=[0,1] AuB | OK SOUND t2=true t3p=true cert=true operand=true v=9.502654825 want=9.502654825 | mesh=ok
+R2 F2 tube r=[0.3,0.5] y=[0,1] BuA | OK SOUND t2=true t3p=true cert=true operand=true v=9.502654825 want=9.502654825 | mesh=ok
+R2 F1 tilt-x 10deg AuB | OK BAD t2=true t3p=true cert=true operand=false v=515.141592654 want=515.141592654 | mesh=ok
+R2 F2 tube r=[0.3,0.5] y=[0,1] AnB | OK SOUND t2=true t3p=true cert=true operand=true v=0.502654825 want=0.502654825 | mesh=ok
+R2 F2 tube r=[0.3,0.5] y=[0,1] BnA | OK SOUND t2=true t3p=true cert=true operand=true v=0.502654825 want=0.502654825 | mesh=ok
+R2 F2 tube r=[0.3,0.5] y=[0,1] A-B | OK SOUND t2=true t3p=true cert=true operand=true v=0.502654825 want=0.502654825 | mesh=ok
+R2 F1 tilt-x 10deg BuA | OK BAD t2=true t3p=true cert=true operand=false v=515.141592654 want=515.141592654 | mesh=ok
+R2 F2 tube r=[0.3,0.5] y=[0,1] B-A | OK BAD t2=true t3p=false cert=true operand=true v=8.497345175 want=8.497345175 | mesh=ok
+R2 F2 tube r=[0.3,0.5] y=[-0.2,0.3] AuB | OK SOUND t2=true t3p=true cert=true operand=true v=5.253982237 want=5.253982237 | mesh=ok
+R2 F1 tilt-x 10deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F2 tube r=[0.3,0.5] y=[-0.2,0.3] BuA | OK SOUND t2=true t3p=true cert=true operand=true v=5.253982237 want=5.253982237 | mesh=ok
+R2 F2 tube r=[0.3,0.5] y=[-0.2,0.3] AnB | OK SOUND t2=true t3p=true cert=true operand=true v=0.251327412 want=0.251327412 | mesh=ok
+R2 F2 tube r=[0.3,0.5] y=[-0.2,0.3] BnA | OK SOUND t2=true t3p=true cert=true operand=true v=0.251327412 want=0.251327412 | mesh=ok
+R2 F1 tilt-x 10deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F2 tube r=[0.3,0.5] y=[-0.2,0.3] A-B | OK SOUND t2=true t3p=true cert=true operand=true v=0.753982237 want=0.753982237 | mesh=ok
+R2 F2 tube r=[0.3,0.5] y=[-0.2,0.3] B-A | OK BAD t2=true t3p=false cert=true operand=true v=4.248672588 want=4.248672588 | mesh=ok
+R2 F2 tube r=[0.05,0.1] y=[0,1] AuB | OK SOUND t2=true t3p=true cert=true operand=true v=9.023561945 want=9.023561945 | mesh=ok
+R2 F1 tilt-x 10deg A-B | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F2 tube r=[0.05,0.1] y=[0,1] BuA | OK SOUND t2=true t3p=true cert=true operand=true v=9.023561945 want=9.023561945 | mesh=ok
+R2 F2 tube r=[0.05,0.1] y=[0,1] AnB | OK SOUND t2=true t3p=true cert=true operand=true v=0.023561945 want=0.023561945 | mesh=ok
+R2 F2 tube r=[0.05,0.1] y=[0,1] BnA | OK SOUND t2=true t3p=true cert=true operand=true v=0.023561945 want=0.023561945 | mesh=ok
+R2 F2 tube r=[0.05,0.1] y=[0,1] A-B | OK SOUND t2=true t3p=true cert=true operand=true v=0.023561945 want=0.023561945 | mesh=ok
+R2 F1 tilt-x 10deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=508.858407346 want=508.858407346 | mesh=ok
+R2 F2 tube r=[0.05,0.1] y=[0,1] B-A | OK BAD t2=true t3p=false cert=true operand=true v=8.976438055 want=8.976438055 | mesh=ok
+R2 F2 tube r=[0.05,0.1] y=[-0.2,0.3] AuB | OK SOUND t2=true t3p=true cert=true operand=true v=4.535342917 want=4.535342917 | mesh=ok
+R2 F2 tube r=[0.05,0.1] y=[-0.2,0.3] BuA | OK SOUND t2=true t3p=true cert=true operand=true v=4.535342917 want=4.535342917 | mesh=ok
+R2 F1 tilt-x 30deg AuB | OK BAD t2=true t3p=true cert=true operand=false v=515.141592654 want=515.141592654 | mesh=ok
+R2 F2 tube r=[0.05,0.1] y=[-0.2,0.3] AnB | OK SOUND t2=true t3p=true cert=true operand=true v=0.011780972 want=0.011780972 | mesh=ok
+R2 F2 tube r=[0.05,0.1] y=[-0.2,0.3] BnA | OK SOUND t2=true t3p=true cert=true operand=true v=0.011780972 want=0.011780972 | mesh=ok
+R2 F2 tube r=[0.05,0.1] y=[-0.2,0.3] A-B | OK SOUND t2=true t3p=true cert=true operand=true v=0.035342917 want=0.035342917 | mesh=ok
+R2 F2 tube r=[0.05,0.1] y=[-0.2,0.3] B-A | OK BAD t2=true t3p=false cert=true operand=true v=4.488219028 want=4.488219028 | mesh=ok
+R2 F1 tilt-x 30deg BuA | OK BAD t2=true t3p=true cert=true operand=false v=515.141592654 want=515.141592654 | mesh=ok
+R2 F2 tube r=[0.9,1.2] y=[0,1] AuB | OK SOUND t2=true t3p=true cert=true operand=true v=10.979203372 want=10.979203372 | mesh=ok
+R2 F2 tube r=[0.9,1.2] y=[0,1] BuA | OK SOUND t2=true t3p=true cert=true operand=true v=10.979203372 want=10.979203372 | mesh=ok
+R2 F1 tilt-x 30deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F2 tube r=[0.9,1.2] y=[0,1] AnB | OK SOUND t2=true t3p=true cert=true operand=true v=1.979203372 want=1.979203372 | mesh=ok
+R2 F2 tube r=[0.9,1.2] y=[0,1] BnA | OK SOUND t2=true t3p=true cert=true operand=true v=1.979203372 want=1.979203372 | mesh=ok
+R2 F2 tube r=[0.9,1.2] y=[0,1] A-B | OK SOUND t2=true t3p=true cert=true operand=true v=1.979203372 want=1.979203372 | mesh=ok
+R2 F1 tilt-x 30deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F2 tube r=[0.9,1.2] y=[0,1] B-A | OK BAD t2=true t3p=false cert=true operand=true v=7.020796628 want=7.020796628 | mesh=ok
+R2 F2 tube r=[0.9,1.2] y=[-0.2,0.3] AuB | OK SOUND t2=true t3p=true cert=true operand=true v=7.468805058 want=7.468805058 | mesh=ok
+R2 F2 tube r=[0.9,1.2] y=[-0.2,0.3] BuA | OK SOUND t2=true t3p=true cert=true operand=true v=7.468805058 want=7.468805058 | mesh=ok
+R2 F2 tube r=[0.9,1.2] y=[-0.2,0.3] AnB | OK SOUND t2=true t3p=true cert=true operand=true v=0.989601686 want=0.989601686 | mesh=ok
+R2 F1 tilt-x 30deg A-B | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F2 tube r=[0.9,1.2] y=[-0.2,0.3] BnA | OK SOUND t2=true t3p=true cert=true operand=true v=0.989601686 want=0.989601686 | mesh=ok
+R2 F2 tube r=[0.9,1.2] y=[-0.2,0.3] A-B | OK SOUND t2=true t3p=true cert=true operand=true v=2.968805058 want=2.968805058 | mesh=ok
+R2 F2 tube r=[0.9,1.2] y=[-0.2,0.3] B-A | OK BAD t2=true t3p=false cert=true operand=true v=3.510398314 want=3.510398314 | mesh=ok
+R2 F1 tilt-x 30deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=508.858407346 want=508.858407346 | mesh=ok
+R2 F2 tube r=[0.45,0.5] y=[0,1] AuB | OK SOUND t2=true t3p=true cert=true operand=true v=9.149225651 want=9.149225651 | mesh=ok
+R2 F2 tube r=[0.45,0.5] y=[0,1] BuA | OK SOUND t2=true t3p=true cert=true operand=true v=9.149225651 want=9.149225651 | mesh=ok
+R2 F2 tube r=[0.45,0.5] y=[0,1] AnB | OK SOUND t2=true t3p=true cert=true operand=true v=0.149225651 want=0.149225651 | mesh=ok
+R2 F2 tube r=[0.45,0.5] y=[0,1] BnA | OK SOUND t2=true t3p=true cert=true operand=true v=0.149225651 want=0.149225651 | mesh=ok
+R2 F2 tube r=[0.45,0.5] y=[0,1] A-B | OK SOUND t2=true t3p=true cert=true operand=true v=0.149225651 want=0.149225651 | mesh=ok
+R2 F1 tilt-x 44deg AuB | OK BAD t2=true t3p=true cert=true operand=false v=515.141592654 want=515.141592654 | mesh=ok
+R2 F2 tube r=[0.45,0.5] y=[0,1] B-A | OK BAD t2=true t3p=false cert=true operand=true v=8.850774349 want=8.850774349 | mesh=ok
+R2 F2 tube r=[0.45,0.5] y=[-0.2,0.3] AuB | OK SOUND t2=true t3p=true cert=true operand=true v=4.723838477 want=4.723838477 | mesh=ok
+R2 F1 tilt-x 44deg BuA | OK BAD t2=true t3p=true cert=true operand=false v=515.141592654 want=515.141592654 | mesh=ok
+R2 F2 tube r=[0.45,0.5] y=[-0.2,0.3] BuA | OK SOUND t2=true t3p=true cert=true operand=true v=4.723838477 want=4.723838477 | mesh=ok
+R2 F2 tube r=[0.45,0.5] y=[-0.2,0.3] AnB | OK SOUND t2=true t3p=true cert=true operand=true v=0.074612826 want=0.074612826 | mesh=ok
+R2 F2 tube r=[0.45,0.5] y=[-0.2,0.3] BnA | OK SOUND t2=true t3p=true cert=true operand=true v=0.074612826 want=0.074612826 | mesh=ok
+R2 F2 tube r=[0.45,0.5] y=[-0.2,0.3] A-B | OK SOUND t2=true t3p=true cert=true operand=true v=0.223838477 want=0.223838477 | mesh=ok
+R2 F1 tilt-x 44deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F2 tube r=[0.45,0.5] y=[-0.2,0.3] B-A | OK BAD t2=true t3p=false cert=true operand=true v=4.425387174 want=4.425387174 | mesh=ok
+R2 F2 tube off-centre AuB | OK SOUND t2=true t3p=true cert=true operand=true v=9.502654825 want=9.502654825 | mesh=ok
+R2 F1 tilt-x 44deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F2 tube off-centre BuA | OK SOUND t2=true t3p=true cert=true operand=true v=9.502654825 want=9.502654825 | mesh=ok
+R2 F2 tube off-centre AnB | OK SOUND t2=true t3p=true cert=true operand=true v=0.502654825 want=0.502654825 | mesh=ok
+R2 F2 tube off-centre BnA | OK SOUND t2=true t3p=true cert=true operand=true v=0.502654825 want=0.502654825 | mesh=ok
+R2 F2 tube off-centre A-B | OK SOUND t2=true t3p=true cert=true operand=true v=0.502654825 want=0.502654825 | mesh=ok
+R2 F1 tilt-x 44deg A-B | OK BAD t2=true t3p=true cert=true operand=false v=3.141592654 want=3.141592654 | mesh=ok
+R2 F2 tube off-centre B-A | OK BAD t2=true t3p=false cert=true operand=true v=8.497345175 want=8.497345175 | mesh=ok
+R2 F2 tube slab-turned-z 3deg AuB | OK BAD t2=true t3p=true cert=true operand=false v=9.501965008 want=9.501965008 | mesh=ok
+R2 F1 tilt-x 44deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=508.858407346 want=508.858407346 | mesh=ok
+R2 F1 tilt-y 0.5deg AuB | OK BAD t2=true t3p=true cert=true operand=false v=515.169008913 want=515.169008917 | mesh=ok
+R2 F2 tube slab-turned-z 3deg BuA | OK BAD t2=true t3p=true cert=true operand=false v=9.501965008 want=9.501965008 | mesh=ok
+R2 F1 tilt-y 0.5deg BuA | OK BAD t2=true t3p=true cert=true operand=false v=515.169008913 want=515.169008917 | mesh=ok
+R2 F2 tube slab-turned-z 3deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=0.503344641 want=0.503344641 | mesh=ok
+R2 F1 tilt-y 0.5deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=3.169008921 want=3.169008917 | mesh=ok
+R2 F1 tilt-y 0.5deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=3.169008921 want=3.169008917 | mesh=ok
+R2 F2 tube slab-turned-z 3deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=0.503344641 want=0.503344641 | mesh=ok
+R2 F1 tilt-y 0.5deg A-B | OK BAD t2=true t3p=true cert=true operand=false v=3.169008913 want=3.169008917 | mesh=ok
+R2 F1 tilt-y 0.5deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=508.830991079 want=508.830991083 | mesh=ok
+R2 F2 tube slab-turned-z 3deg A-B | OK BAD t2=true t3p=true cert=true operand=false v=0.501965008 want=0.501965008 | mesh=ok
+R2 F1 tilt-y 30deg AuB | OK BAD t2=true t3p=true cert=true operand=false v=516.955392017 want=516.955392018 | mesh=ok
+R2 F2 tube slab-turned-z 3deg B-A | OK BAD t2=true t3p=false cert=true operand=false v=8.496655359 want=8.496655359 | mesh=ok
+R2 F1 tilt-y 30deg BuA | OK BAD t2=true t3p=true cert=true operand=false v=516.955392017 want=516.955392018 | mesh=ok
+R2 F2 tube slab-turned-z 15deg AuB | OK BAD t2=true t3p=true cert=true operand=false v=9.484923082 want=9.484923082 | mesh=ok
+R2 F1 tilt-y 30deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=4.955392018 want=4.955392018 | mesh=ok
+R2 F2 tube slab-turned-z 15deg BuA | OK BAD t2=true t3p=true cert=true operand=false v=9.484923082 want=9.484923082 | mesh=ok
+R2 F1 tilt-y 30deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=4.955392018 want=4.955392018 | mesh=ok
+R2 F2 tube slab-turned-z 15deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=0.520386567 want=0.520386567 | mesh=ok
+R2 F1 tilt-y 30deg A-B | OK BAD t2=true t3p=true cert=true operand=false v=4.955392017 want=4.955392018 | mesh=ok
+R2 F2 tube slab-turned-z 15deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=0.520386567 want=0.520386567 | mesh=ok
+R2 F1 tilt-y 30deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=507.044607982 want=507.044607982 | mesh=ok
+R2 F2 tube slab-turned-z 15deg A-B | OK BAD t2=true t3p=true cert=true operand=false v=0.484923082 want=0.484923082 | mesh=ok
+R2 F1 tilt-y 60deg AuB | OK BAD t2=true t3p=true cert=true operand=false v=520.582990744 want=520.582990746 | mesh=ok
+R2 F2 tube slab-turned-z 15deg B-A | OK BAD t2=true t3p=false cert=true operand=false v=8.479613433 want=8.479613433 | mesh=ok
+R2 F1 tilt-y 60deg BuA | OK BAD t2=true t3p=true cert=true operand=false v=520.582990744 want=520.582990746 | mesh=ok
+R2 F2 tube slab-turned-x 3deg AuB | OK BAD t2=true t3p=true cert=true operand=false v=9.501965008 want=9.501965008 | mesh=ok
+R2 F1 tilt-y 60deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=8.582990748 want=8.582990746 | mesh=ok
+R2 F2 tube slab-turned-x 3deg BuA | OK BAD t2=true t3p=true cert=true operand=false v=9.501965008 want=9.501965008 | mesh=ok
+R2 F1 tilt-y 60deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=8.582990748 want=8.582990746 | mesh=ok
+R2 F2 tube slab-turned-x 3deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=0.503344641 want=0.503344641 | mesh=ok
+R2 F2 tube slab-turned-x 3deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=0.503344641 want=0.503344641 | mesh=ok
+R2 F1 tilt-y 60deg A-B | OK BAD t2=true t3p=true cert=true operand=false v=8.582990744 want=8.582990746 | mesh=ok
+R2 F2 tube slab-turned-x 3deg A-B | OK BAD t2=true t3p=true cert=true operand=false v=0.501965008 want=0.501965008 | mesh=ok
+R2 F1 tilt-y 60deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=503.417009252 want=503.417009254 | mesh=ok
+R2 F1 tilt-y 80deg AuB | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | mesh=-
+R2 F1 tilt-y 80deg BuA | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(8 | mesh=-
+R2 F2 tube slab-turned-x 3deg B-A | OK BAD t2=true t3p=false cert=true operand=false v=8.496655359 want=8.496655359 | mesh=ok
+R2 F1 tilt-y 80deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=12.760227138 want=20.958449955 | mesh=ok
+R2 F2 tube slab-turned-x 15deg AuB | OK BAD t2=true t3p=true cert=true operand=false v=9.484923082 want=9.484923082 | mesh=ok
+R2 F1 tilt-y 80deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=12.760227138 want=20.958449955 | mesh=ok
+R2 F1 tilt-y 80deg A-B | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | mesh=-
+R2 F2 tube slab-turned-x 15deg BuA | OK BAD t2=true t3p=true cert=true operand=false v=9.484923082 want=9.484923082 | mesh=ok
+R2 F1 tilt-y 80deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=499.239772862 want=491.041550045 | mesh=ok
+R2 F2 tube slab-turned-x 15deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=0.520386567 want=0.520386567 | mesh=ok
+R2 F1 tilt-y 85deg AuB | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | mesh=-
+R2 F1 tilt-y 85deg BuA | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(8 | mesh=-
+R2 F2 tube slab-turned-x 15deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=0.520386567 want=0.520386567 | mesh=ok
+R2 F1 tilt-y 85deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=12.614372110 want=39.050160998 | mesh=ok
+R2 F1 tilt-y 85deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=12.614372110 want=39.050160998 | mesh=ok
+R2 F1 tilt-y 85deg A-B | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | mesh=-
+R2 F2 tube slab-turned-x 15deg A-B | OK BAD t2=true t3p=true cert=true operand=false v=0.484923082 want=0.484923082 | mesh=ok
+R2 F1 tilt-y 85deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=499.385627890 want=472.949839002 | mesh=ok
+R2 F1 tilt-y 88deg AuB | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | mesh=-
+R2 F1 tilt-y 88deg BuA | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(8 | mesh=-
+R2 F2 tube slab-turned-x 15deg B-A | OK BAD t2=true t3p=false cert=true operand=false v=8.479613433 want=8.479613433 | mesh=ok
+test wrap_r2_probes::r2_f2_tubes_under_boxes ... ok
+R2 F1 tilt-y 88deg AnB | OK BAD t2=true t3p=true cert=true operand=false v=12.574030375 want=93.105035594 | mesh=ok
+R2 F3 holes in+out AuB | OK SOUND t2=true t3p=true cert=true operand=true v=40.394302724 want=40.394302724 | mesh=ok
+R2 F3 holes in+out BuA | OK SOUND t2=true t3p=true cert=true operand=true v=40.394302724 want=40.394302724 | mesh=ok
+R2 F3 holes in+out AnB | OK SOUND t2=true t3p=true cert=true operand=true v=1.535453409 want=1.535453409 | mesh=ok
+R2 F3 holes in+out BnA | OK SOUND t2=true t3p=true cert=true operand=true v=1.535453409 want=1.535453409 | mesh=ok
+R2 F1 tilt-y 88deg BnA | OK BAD t2=true t3p=true cert=true operand=false v=12.574030375 want=93.105035594 | mesh=ok
+R2 F1 tilt-y 88deg A-B | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | mesh=-
+R2 F3 holes in+out A-B | OK SOUND t2=true t3p=true cert=true operand=true v=34.111117417 want=34.111117417 | mesh=ok
+R2 F3 holes in+out B-A | OK SOUND t2=true t3p=true cert=true operand=true v=4.747731898 want=4.747731898 | mesh=ok
+R2 F3 hole centred AuB | OK SOUND t2=true t3p=true cert=true operand=true v=40.461061568 want=40.461061568 | mesh=ok
+R2 F3 hole centred BuA | OK SOUND t2=true t3p=true cert=true operand=true v=40.461061568 want=40.461061568 | mesh=ok
+R2 F1 tilt-y 88deg B-A | OK BAD t2=true t3p=true cert=true operand=false v=499.425969625 want=418.894964406 | mesh=ok
+R2 F3 hole centred AnB | OK SOUND t2=true t3p=true cert=true operand=true v=1.319468915 want=1.319468915 | mesh=ok
+R2 F3 hole centred BnA | OK SOUND t2=true t3p=true cert=true operand=true v=1.319468915 want=1.319468915 | mesh=ok
+R2 F3 hole centred A-B | OK SOUND t2=true t3p=true cert=true operand=true v=34.177876261 want=34.177876261 | mesh=ok
+R2 F3 hole centred B-A | OK SOUND t2=true t3p=true cert=true operand=true v=4.963716393 want=4.963716393 | mesh=ok
+R2 F1 axis0 tilt15 r=0.37 AuB | OK BAD t2=true t3p=true cert=true operand=false v=512.472723082 want=512.472723082 | mesh=ok
+R2 F3 boss inside AuB | OK SOUND t2=true t3p=true cert=true operand=true v=40.712388980 want=40.712388980 | mesh=ok
+R2 F3 boss inside BuA | OK SOUND t2=true t3p=true cert=true operand=true v=40.712388980 want=40.712388980 | mesh=ok
+R2 F3 boss inside AnB | OK SOUND t2=true t3p=true cert=true operand=true v=1.606139244 want=1.606139244 | mesh=ok
+R2 F1 axis0 tilt15 r=0.37 BuA | OK BAD t2=true t3p=true cert=true operand=false v=512.472723082 want=512.472723082 | mesh=ok
+R2 F3 boss inside BnA | OK SOUND t2=true t3p=true cert=true operand=true v=1.606139244 want=1.606139244 | mesh=ok
+R2 F3 boss inside A-B | OK SOUND t2=true t3p=true cert=true operand=true v=34.429203673 want=34.429203673 | mesh=ok
+R2 F3 boss inside B-A | OK SOUND t2=true t3p=true cert=true operand=true v=4.677046063 want=4.677046063 | mesh=ok
+R2 F1 axis0 tilt15 r=0.37 AnB | OK BAD t2=true t3p=true cert=true operand=false v=0.472723082 want=0.472723082 | mesh=ok
+R2 F3 annulus ao=0 ai=0 AuB | OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 | mesh=ok
+R2 F3 annulus ao=0 ai=0 BuA | OK SOUND t2=true t3p=true cert=true operand=true v=39.534291735 want=39.534291735 | mesh=ok
+R2 F3 annulus ao=0 ai=0 AnB | OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 | mesh=ok
+R2 F1 axis0 tilt15 r=0.37 BnA | OK BAD t2=true t3p=true cert=true operand=false v=0.472723082 want=0.472723082 | mesh=ok
+R2 F3 annulus ao=0 ai=0 BnA | OK SOUND t2=true t3p=true cert=true operand=true v=1.178097245 want=1.178097245 | mesh=ok
+R2 F3 annulus ao=0 ai=0 A-B | OK SOUND t2=true t3p=true cert=true operand=true v=34.821902755 want=34.821902755 | mesh=ok
+R2 F3 annulus ao=0 ai=0 B-A | OK SOUND t2=true t3p=true cert=true operand=true v=3.534291735 want=3.534291735 | mesh=ok
+R2 F3 annulus ao=0 ai=3.141592653589793 AuB | ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) | mesh=-
+R2 F3 annulus ao=0 ai=3.141592653589793 BuA | ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) | mesh=-
+R2 F3 annulus ao=0 ai=3.141592653589793 AnB | ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) | mesh=-
+R2 F3 annulus ao=0 ai=3.141592653589793 BnA | ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) | mesh=-
+R2 F3 annulus ao=0 ai=3.141592653589793 A-B | ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) | mesh=-
+R2 F1 axis0 tilt15 r=0.37 A-B | OK BAD t2=true t3p=true cert=true operand=false v=0.472723082 want=0.472723082 | mesh=ok
+R2 F3 annulus ao=0 ai=3.141592653589793 B-A | ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) | mesh=-
+R2 F3 annulus ao=1 ai=4 AuB | ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) | mesh=-
+R2 F3 annulus ao=1 ai=4 BuA | ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) | mesh=-
+R2 F3 annulus ao=1 ai=4 AnB | ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) | mesh=-
+R2 F3 annulus ao=1 ai=4 BnA | ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) | mesh=-
+R2 F3 annulus ao=1 ai=4 A-B | ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) | mesh=-
+R2 F3 annulus ao=1 ai=4 B-A | ERR Join(SectionLoopUndecided { face: FaceKey(9v3) }) | mesh=-
+test wrap_r2_probes::r2_f3_rings_in_the_pierced_face ... ok
+R2 F4a torus y>=0.2 az=0.00 AuB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=0.2 az=0.00 BuA | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=0.2 az=0.00 AnB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=0.2 az=0.00 BnA | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=0.2 az=0.00 A-B | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=0.2 az=0.00 B-A | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=-0.1 az=0.00 AuB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=-0.1 az=0.00 BuA | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=-0.1 az=0.00 AnB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=-0.1 az=0.00 BnA | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=-0.1 az=0.00 A-B | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=-0.1 az=0.00 B-A | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=0.2 az=1.57 AuB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=0.2 az=1.57 BuA | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=0.2 az=1.57 AnB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F1 axis0 tilt15 r=0.37 B-A | OK BAD t2=true t3p=true cert=true operand=false v=511.527276918 want=511.527276918 | mesh=ok
+R2 F4a torus y>=0.2 az=1.57 BnA | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4a torus y>=0.2 az=1.57 A-B | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Torus, b_face: FaceKey(3v1), b_kind: Plane } | mesh=-
+R2 F4a torus y>=0.2 az=1.57 B-A | ERR GermFrameUnsupported { a_face: FaceKey(3v1), a_kind: Plane, b_face: FaceKey(2v1), b_kind: Torus } | mesh=-
+R2 F4b in-face conic AuB | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F4b in-face conic BuA | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F4b in-face conic AnB | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F4b in-face conic BnA | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F4b in-face conic A-B | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F4b in-face conic B-A | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F4c cap in face (touch) AuB | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (touch) BuA | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (touch) AnB | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (touch) BnA | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (touch) A-B | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (touch) B-A | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (flush top) AuB | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (flush top) BuA | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (flush top) AnB | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (flush top) BnA | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (flush top) A-B | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+R2 F4c cap in face (flush top) B-A | ERR UndeclaredCoincidence { diag: Indeterminate { margin: MarginDiag(Value(0.0, None)), terminal_sliver: false, ba | mesh=-
+test wrap_r2_probes::r2_f4_gate_probes ... ok
+R2 F5 cone-tube cyl-az=0 AuB | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F5 cone-tube cyl-az=0 BuA | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F5 cone-tube cyl-az=0 AnB | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F5 cone-tube cyl-az=0 BnA | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F5 cone-tube cyl-az=0 A-B | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F5 cone-tube cyl-az=0 B-A | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F5 cone-tube cyl-az=1.3 AuB | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F5 cone-tube cyl-az=1.3 BuA | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F5 cone-tube cyl-az=1.3 AnB | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F5 cone-tube cyl-az=1.3 BnA | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F5 cone-tube cyl-az=1.3 A-B | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F5 cone-tube cyl-az=1.3 B-A | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F5 cone-tube cyl-az=-0.000001 AuB | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: A, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F5 cone-tube cyl-az=-0.000001 BuA | ERR CurvedPairUnsupported { op: None, site: OperandGate, operand: B, face: FaceKey(5v1), kind: Cone, other_face: F | mesh=-
+R2 F5 cone-tube cyl-az=-0.000001 AnB | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F5 cone-tube cyl-az=-0.000001 BnA | ERR CurvedPairUnsupported { op: Some(Intersect), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, o | mesh=-
+R2 F5 cone-tube cyl-az=-0.000001 A-B | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: A, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F5 cone-tube cyl-az=-0.000001 B-A | ERR CurvedPairUnsupported { op: Some(Subtract), site: RevertRoster, operand: B, face: FaceKey(5v1), kind: Cone, ot | mesh=-
+R2 F5 ball cyl-az=0 AuB | ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(2v1), b_kind: Cylinder } | mesh=-
+R2 F5 ball cyl-az=0 BuA | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Cylinder, b_face: FaceKey(1v1), b_kind: Sphere } | mesh=-
+R2 F5 ball cyl-az=0 AnB | ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(2v1), b_kind: Cylinder } | mesh=-
+R2 F5 ball cyl-az=0 BnA | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Cylinder, b_face: FaceKey(1v1), b_kind: Sphere } | mesh=-
+R2 F5 ball cyl-az=0 A-B | ERR GermFrameUnsupported { a_face: FaceKey(1v1), a_kind: Sphere, b_face: FaceKey(2v1), b_kind: Cylinder } | mesh=-
+R2 F5 ball cyl-az=0 B-A | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Cylinder, b_face: FaceKey(1v1), b_kind: Sphere } | mesh=-
+R2 F5 ball cyl-az=1.3 AuB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Sphere, b_face: FaceKey(2v1), b_kind: Cylinder } | mesh=-
+R2 F5 ball cyl-az=1.3 BuA | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere } | mesh=-
+R2 F5 ball cyl-az=1.3 AnB | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Sphere, b_face: FaceKey(2v1), b_kind: Cylinder } | mesh=-
+R2 F5 ball cyl-az=1.3 BnA | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere } | mesh=-
+R2 F5 ball cyl-az=1.3 A-B | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Sphere, b_face: FaceKey(2v1), b_kind: Cylinder } | mesh=-
+R2 F5 ball cyl-az=1.3 B-A | ERR GermFrameUnsupported { a_face: FaceKey(2v1), a_kind: Cylinder, b_face: FaceKey(2v1), b_kind: Sphere } | mesh=-
+test wrap_r2_probes::r2_f5_curved_partners ... ok
+R2 F1 axis0 tilt60 r=0.37 AuB | OK BAD t2=true t3p=true cert=true operand=false v=512.705707173 want=512.705707172 | mesh=ok
+R2 F1 axis0 tilt60 r=0.37 BuA | OK BAD t2=true t3p=true cert=true operand=false v=512.705707173 want=512.705707172 | mesh=ok
+R2 F1 axis0 tilt60 r=0.37 AnB | OK BAD t2=true t3p=true cert=true operand=false v=0.705707170 want=0.705707172 | mesh=ok
+R2 F1 axis0 tilt60 r=0.37 BnA | OK BAD t2=true t3p=true cert=true operand=false v=0.705707170 want=0.705707172 | mesh=ok
+R2 F1 axis0 tilt60 r=0.37 A-B | OK BAD t2=true t3p=true cert=true operand=false v=0.705707173 want=0.705707172 | mesh=ok
+R2 F1 axis0 tilt60 r=0.37 B-A | OK BAD t2=true t3p=true cert=true operand=false v=511.294292830 want=511.294292828 | mesh=ok
+R2 F1 axis45 tilt15 r=0.57 AuB | OK BAD t2=true t3p=true cert=true operand=false v=513.176596553 want=513.176596553 | mesh=ok
+R2 F1 axis45 tilt15 r=0.57 BuA | OK BAD t2=true t3p=true cert=true operand=false v=513.176596553 want=513.176596553 | mesh=ok
+R2 F1 axis45 tilt15 r=0.57 AnB | OK BAD t2=true t3p=true cert=true operand=false v=1.176596553 want=1.176596553 | mesh=ok
+R2 F1 axis45 tilt15 r=0.57 BnA | OK BAD t2=true t3p=true cert=true operand=false v=1.176596553 want=1.176596553 | mesh=ok
+R2 F1 axis45 tilt15 r=0.57 A-B | OK BAD t2=true t3p=true cert=true operand=false v=1.176596553 want=1.176596553 | mesh=ok
+R2 F1 axis45 tilt15 r=0.57 B-A | OK BAD t2=true t3p=true cert=true operand=false v=510.823403447 want=510.823403447 | mesh=ok
+R2 F1 axis45 tilt60 r=0.57 AuB | OK BAD t2=true t3p=true cert=true operand=false v=514.028412290 want=514.028412290 | mesh=ok
+R2 F1 axis45 tilt60 r=0.57 BuA | OK BAD t2=true t3p=true cert=true operand=false v=514.028412290 want=514.028412290 | mesh=ok
+R2 F1 axis45 tilt60 r=0.57 AnB | OK BAD t2=true t3p=true cert=true operand=false v=2.028412290 want=2.028412290 | mesh=ok
+R2 F1 axis45 tilt60 r=0.57 BnA | OK BAD t2=true t3p=true cert=true operand=false v=2.028412290 want=2.028412290 | mesh=ok
+R2 F1 axis45 tilt60 r=0.57 A-B | OK BAD t2=true t3p=true cert=true operand=false v=2.028412290 want=2.028412290 | mesh=ok
+R2 F1 axis45 tilt60 r=0.57 B-A | OK BAD t2=true t3p=true cert=true operand=false v=509.971587710 want=509.971587710 | mesh=ok
+R2 F1 axis90 tilt15 r=0.77 AuB | OK BAD t2=true t3p=true cert=true operand=false v=514.246953924 want=514.246953927 | mesh=ok
+R2 F1 axis90 tilt15 r=0.77 BuA | OK BAD t2=true t3p=true cert=true operand=false v=514.246953924 want=514.246953927 | mesh=ok
+R2 F1 axis90 tilt15 r=0.77 AnB | OK BAD t2=true t3p=true cert=true operand=false v=2.246953929 want=2.246953927 | mesh=ok
+R2 F1 axis90 tilt15 r=0.77 BnA | OK BAD t2=true t3p=true cert=true operand=false v=2.246953929 want=2.246953927 | mesh=ok
+R2 F1 axis90 tilt15 r=0.77 A-B | OK BAD t2=true t3p=true cert=true operand=false v=2.246953924 want=2.246953927 | mesh=ok
+R2 F1 axis90 tilt15 r=0.77 B-A | OK BAD t2=true t3p=true cert=true operand=false v=509.753046071 want=509.753046073 | mesh=ok
+R2 F1 axis90 tilt60 r=0.77 AuB | OK BAD t2=true t3p=true cert=true operand=false v=516.346828079 want=516.346828080 | mesh=ok
+R2 F1 axis90 tilt60 r=0.77 BuA | OK BAD t2=true t3p=true cert=true operand=false v=516.346828079 want=516.346828080 | mesh=ok
+R2 F1 axis90 tilt60 r=0.77 AnB | OK BAD t2=true t3p=true cert=true operand=false v=4.346828081 want=4.346828080 | mesh=ok
+R2 F1 axis90 tilt60 r=0.77 BnA | OK BAD t2=true t3p=true cert=true operand=false v=4.346828081 want=4.346828080 | mesh=ok
+R2 F1 axis90 tilt60 r=0.77 A-B | OK BAD t2=true t3p=true cert=true operand=false v=4.346828079 want=4.346828080 | mesh=ok
+R2 F1 axis90 tilt60 r=0.77 B-A | OK BAD t2=true t3p=true cert=true operand=false v=507.653171919 want=507.653171920 | mesh=ok
+R2 F1 axis135 tilt15 r=0.97 AuB | OK BAD t2=true t3p=true cert=true operand=false v=515.724200990 want=515.724200990 | mesh=ok
+R2 F1 axis135 tilt15 r=0.97 BuA | OK BAD t2=true t3p=true cert=true operand=false v=515.724200990 want=515.724200990 | mesh=ok
+R2 F1 axis135 tilt15 r=0.97 AnB | OK BAD t2=true t3p=true cert=true operand=false v=3.724200991 want=3.724200990 | mesh=ok
+R2 F1 axis135 tilt15 r=0.97 BnA | OK BAD t2=true t3p=true cert=true operand=false v=3.724200991 want=3.724200990 | mesh=ok
+R2 F1 axis135 tilt15 r=0.97 A-B | OK BAD t2=true t3p=true cert=true operand=false v=3.724200990 want=3.724200990 | mesh=ok
+R2 F1 axis135 tilt15 r=0.97 B-A | OK BAD t2=true t3p=true cert=true operand=false v=508.275799009 want=508.275799010 | mesh=ok
+R2 F1 axis135 tilt60 r=0.97 AuB | OK BAD t2=true t3p=true cert=true operand=false v=519.922141647 want=519.922141649 | mesh=ok
+R2 F1 axis135 tilt60 r=0.97 BuA | OK BAD t2=true t3p=true cert=true operand=false v=519.922141647 want=519.922141649 | mesh=ok
+R2 F1 axis135 tilt60 r=0.97 AnB | OK BAD t2=true t3p=true cert=true operand=false v=7.922141652 want=7.922141649 | mesh=ok
+R2 F1 axis135 tilt60 r=0.97 BnA | OK BAD t2=true t3p=true cert=true operand=false v=7.922141652 want=7.922141649 | mesh=ok
+R2 F1 axis135 tilt60 r=0.97 A-B | OK BAD t2=true t3p=true cert=true operand=false v=7.922141647 want=7.922141649 | mesh=ok
+R2 F1 axis135 tilt60 r=0.97 B-A | OK BAD t2=true t3p=true cert=true operand=false v=504.077858348 want=504.077858351 | mesh=ok
+R2 F1 axis200 tilt15 r=1.17 AuB | OK BAD t2=true t3p=true cert=true operand=false v=517.648743529 want=517.648743529 | mesh=ok
+R2 F1 axis200 tilt15 r=1.17 BuA | OK BAD t2=true t3p=true cert=true operand=false v=517.648743529 want=517.648743529 | mesh=ok
+R2 F1 axis200 tilt15 r=1.17 AnB | OK BAD t2=true t3p=true cert=true operand=false v=5.648743530 want=5.648743529 | mesh=ok
+R2 F1 axis200 tilt15 r=1.17 BnA | OK BAD t2=true t3p=true cert=true operand=false v=5.648743530 want=5.648743529 | mesh=ok
+R2 F1 axis200 tilt15 r=1.17 A-B | OK BAD t2=true t3p=true cert=true operand=false v=5.648743529 want=5.648743529 | mesh=ok
+R2 F1 axis200 tilt15 r=1.17 B-A | OK BAD t2=true t3p=true cert=true operand=false v=506.351256470 want=506.351256471 | mesh=ok
+R2 F1 axis200 tilt60 r=1.17 AuB | OK BAD t2=true t3p=true cert=true operand=false v=525.015540105 want=525.015540107 | mesh=ok
+R2 F1 axis200 tilt60 r=1.17 BuA | OK BAD t2=true t3p=true cert=true operand=false v=525.015540105 want=525.015540107 | mesh=ok
+R2 F1 axis200 tilt60 r=1.17 AnB | OK BAD t2=true t3p=true cert=true operand=false v=13.015540109 want=13.015540107 | mesh=ok
+R2 F1 axis200 tilt60 r=1.17 BnA | OK BAD t2=true t3p=true cert=true operand=false v=13.015540109 want=13.015540107 | mesh=ok
+R2 F1 axis200 tilt60 r=1.17 A-B | OK BAD t2=true t3p=true cert=true operand=false v=13.015540105 want=13.015540107 | mesh=ok
+R2 F1 axis200 tilt60 r=1.17 B-A | OK BAD t2=true t3p=true cert=true operand=false v=498.984459891 want=498.984459893 | mesh=ok
+R2 F1 near-end c=0.01 AuB | OK BAD t2=true t3p=true cert=true operand=false v=516.680973054 want=516.680973054 | mesh=ok
+R2 F1 near-end c=0.01 BuA | OK BAD t2=true t3p=true cert=true operand=false v=516.680973054 want=516.680973054 | mesh=ok
+R2 F1 near-end c=0.01 AnB | OK BAD t2=true t3p=true cert=true operand=false v=1.602212254 want=1.602212253 | mesh=ok
+R2 F1 near-end c=0.01 BnA | OK BAD t2=true t3p=true cert=true operand=false v=1.602212254 want=1.602212253 | mesh=ok
+R2 F1 near-end c=0.01 A-B | OK BAD t2=true t3p=true cert=true operand=false v=4.680973054 want=4.680973054 | mesh=ok
+R2 F1 near-end c=0.01 B-A | OK BAD t2=true t3p=true cert=true operand=false v=510.397787746 want=510.397787747 | mesh=ok
+R2 F1 near-end c=0.0001 AuB | OK BAD t2=true t3p=true cert=true operand=false v=516.712074821 want=516.712074821 | mesh=ok
+R2 F1 near-end c=0.0001 BuA | OK BAD t2=true t3p=true cert=true operand=false v=516.712074821 want=516.712074821 | mesh=ok
+R2 F1 near-end c=0.0001 AnB | OK BAD t2=true t3p=true cert=true operand=false v=1.571110486 want=1.571110486 | mesh=ok
+R2 F1 near-end c=0.0001 BnA | OK BAD t2=true t3p=true cert=true operand=false v=1.571110486 want=1.571110486 | mesh=ok
+R2 F1 near-end c=0.0001 A-B | OK BAD t2=true t3p=true cert=true operand=false v=4.712074821 want=4.712074821 | mesh=ok
+R2 F1 near-end c=0.0001 B-A | OK BAD t2=true t3p=true cert=true operand=false v=510.428889514 want=510.428889514 | mesh=ok
+R2 F1 near-end c=0.000001 AuB | OK BAD t2=true t3p=true cert=true operand=false v=516.712385838 want=516.712385839 | mesh=ok
+R2 F1 near-end c=0.000001 BuA | OK BAD t2=true t3p=true cert=true operand=false v=516.712385838 want=516.712385839 | mesh=ok
+R2 F1 near-end c=0.000001 AnB | OK BAD t2=true t3p=true cert=true operand=false v=1.570799469 want=1.570799468 | mesh=ok
+R2 F1 near-end c=0.000001 BnA | OK BAD t2=true t3p=true cert=true operand=false v=1.570799469 want=1.570799468 | mesh=ok
+R2 F1 near-end c=0.000001 A-B | OK BAD t2=true t3p=true cert=true operand=false v=4.712385838 want=4.712385839 | mesh=ok
+R2 F1 near-end c=0.000001 B-A | OK BAD t2=true t3p=true cert=true operand=false v=510.429200531 want=510.429200532 | mesh=ok
+test wrap_r2_probes::r2_f1_planes_across_a_one_segment_cylinder ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 2525 filtered out; finished in 3.62s
+
+EXIT 0

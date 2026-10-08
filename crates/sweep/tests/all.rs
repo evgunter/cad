@@ -1017,3 +1017,6 @@ mod rest_zip_admission;
 mod pole_ball_shells;
 #[path = "shell_curved_mouth.rs"]
 mod shell_curved_mouth;
+
+#[path = "wrap_r2_probes.rs"]
+mod wrap_r2_probes;
