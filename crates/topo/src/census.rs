@@ -1949,7 +1949,7 @@ const EF_CROSS_REACH: &str = "pm_census_ef_cross_reach";
 /// `span` and `straddle` are read there.
 const EF_CROSS_ROWS: crate::splitting::containment::BoundaryRows =
     crate::splitting::containment::BoundaryRows {
-        line: &crate::ray_parity::ParityRows {
+        line: &crate::ray_walk::ParityRows {
             segment: "pm_census_ef_cross_segment",
             boundary: "pm_census_ef_cross_boundary",
             side: EF_CROSS_SIDE,
@@ -1961,6 +1961,12 @@ const EF_CROSS_ROWS: crate::splitting::containment::BoundaryRows =
             end: "pm_census_ef_cross_arc_end",
             trim: "pm_census_ef_cross_arc_trim",
             straddle: "pm_census_ef_cross_arc_straddle",
+        },
+        spiric: crate::splitting::spiric_arc::SpiricRows {
+            end: "pm_census_ef_cross_spiric_end",
+            clear: "pm_census_ef_cross_spiric_clear",
+            on: "pm_census_ef_cross_spiric_on",
+            leaf: "pm_census_ef_cross_spiric_leaf",
         },
     };
 
@@ -2061,13 +2067,13 @@ fn ef_overlap_cells<T: Decide>(
 ///   vertex on it, which the vertex cuts take on their own row.
 /// - **A circle or ellipse arc** crosses at the roots of its carrier
 ///   against the plane through `e`'s line normal to the face
-///   (`conic_plane_crossing_roots` — the splitting lane's root-based
+///   (`plane_crossing_lane` — the splitting lane's root-based
 ///   reading, its graze and interiority rows in metres); a root at an
 ///   arc's end is its vertex, the vertex cuts' again.
 /// - **A spiric or spline arc** has no crossing row: the pair's lane
 ///   runs only where `e` definitely clears the ball the arc lies in,
 ///   and otherwise refuses the face typed
-///   ([`ContainError::ArcLoopUnsupported`], the point-in-face door's
+///   ([`ContainError::Uncrossable`], the point-in-face door's
 ///   refusal for the same inventory fact).
 ///
 /// A crossing is a cut where it lies strictly inside `e`'s span
@@ -2079,8 +2085,8 @@ fn boundary_crossings<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Vec<Cut<T>>> {
-    use crate::splitting::containment::{LoopEdge, carrier_loop};
-    use crate::splitting::{ConicPlaneMeet, conic_plane_crossing_roots};
+    use crate::splitting::containment::{LoopEdge, Uncrossable, UncrossableCarrier, carrier_loop};
+    use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane, plane_crossing_lane};
     let refuse = |cause: ContainError, errors: &mut Vec<ValidationError>| {
         errors.push(ValidationError::CensusUnsupported {
             subject: CensusSubject::Entity(EntityId::Face(f.key)),
@@ -2091,7 +2097,7 @@ fn boundary_crossings<T: Decide>(
         errors.push(ValidationError::CensusEscalated { cause });
     };
     let Some(face) = body.get_face(f.key) else {
-        refuse(ContainError::Corrupt, errors);
+        refuse(ContainError::StaleFace(f.key), errors);
         return None;
     };
     let m = f.normal.cross(e.dir).normalize();
@@ -2114,6 +2120,22 @@ fn boundary_crossings<T: Decide>(
         }
         Some(())
     };
+    // An arc with no crossing row: the lane runs only where the edge
+    // definitely clears the ball the arc lies in.
+    let reach_clear =
+        |center: Point3<T>, reach: T, errors: &mut Vec<ValidationError>| -> Result<(), bool> {
+            let w = center - e.p0;
+            let foot = w.dot(e.dir).max(T::zero()).min(e.len);
+            let clear = (w - e.dir * foot).norm() - reach;
+            match decide(EF_CROSS_REACH, Margin::of(clear), band) {
+                Ok(Sign::Positive) => Ok(()),
+                Ok(Sign::Zero | Sign::Negative) => Err(true),
+                Err(cause) => {
+                    escalate(cause, errors);
+                    Err(false)
+                }
+            }
+        };
     for lk in face_loops(face) {
         let lp = match carrier_loop(body, lk, EF_CROSS_ROWS, band) {
             Ok(lp) => lp,
@@ -2128,6 +2150,23 @@ fn boundary_crossings<T: Decide>(
         let n = lp.verts.len();
         for (i, edge) in lp.edges.iter().enumerate() {
             let key = lp.keys[i];
+            let clears =
+                |center, reach, carrier, errors: &mut Vec<ValidationError>| match reach_clear(
+                    center, reach, errors,
+                ) {
+                    Ok(()) => Some(()),
+                    Err(within) => {
+                        if within {
+                            let at = Uncrossable {
+                                r#loop: lk,
+                                edge: key,
+                                carrier,
+                            };
+                            refuse(ContainError::Uncrossable(at), errors);
+                        }
+                        None
+                    }
+                };
             match *edge {
                 LoopEdge::Chord => {
                     let (a, b) = (lp.verts[i], lp.verts[(i + 1) % n]);
@@ -2172,46 +2211,41 @@ fn boundary_crossings<T: Decide>(
                         .and_then(|edge| body.get_curve_geom(edge.curve))
                         .and_then(CurveGeom::certified)
                     else {
-                        refuse(ContainError::Corrupt, errors);
+                        refuse(ContainError::LoopUnreadable(lk), errors);
                         return None;
                     };
                     let (t0, t1) = curve.params();
-                    match conic_plane_crossing_roots(curve.carrier(), t0, t1, e.p0, m, band) {
-                        Ok(ConicPlaneMeet::Miss) => {}
-                        Ok(ConicPlaneMeet::Roots(Ok(roots))) => {
+                    match plane_crossing_lane(curve.carrier(), t0, t1, e.p0, m, band) {
+                        PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => {}
+                        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => {
                             for t in roots {
                                 cut_at(curve.carrier().eval(t), CutAt::ConicCrossing, errors)?;
                             }
                         }
-                        Ok(ConicPlaneMeet::Roots(Err(cause))) => {
-                            escalate(cause, errors);
+                        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(fault))) => {
+                            escalate(fault.diag(), errors);
                             return None;
                         }
                         // An arc of a planar face lies in the face's
                         // plane, which the cut plane is normal to: a
                         // parallel reading is an arc off its face.
-                        Ok(ConicPlaneMeet::Parallel { .. }) | Err(()) => {
-                            refuse(ContainError::Corrupt, errors);
+                        PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { .. })
+                        | PlaneCrossingLane::Line
+                        | PlaneCrossingLane::Unlaned => {
+                            refuse(ContainError::LoopUnreadable(lk), errors);
                             return None;
                         }
                     }
                 }
-                LoopEdge::Unrowed { center, reach } => {
-                    let w = center - e.p0;
-                    let foot = w.dot(e.dir).max(T::zero()).min(e.len);
-                    let clear = (w - e.dir * foot).norm() - reach;
-                    match decide(EF_CROSS_REACH, Margin::of(clear), band) {
-                        Ok(Sign::Positive) => {}
-                        Ok(Sign::Zero | Sign::Negative) => {
-                            refuse(ContainError::ArcLoopUnsupported { r#loop: lk }, errors);
-                            return None;
-                        }
-                        Err(cause) => {
-                            escalate(cause, errors);
-                            return None;
-                        }
-                    }
+                LoopEdge::Spiric(ref k) => {
+                    let (center, reach) = k.ball();
+                    clears(center, reach, UncrossableCarrier::Spiric, errors)?;
                 }
+                LoopEdge::Unrowed {
+                    center,
+                    reach,
+                    carrier,
+                } => clears(center, reach, carrier, errors)?,
             }
         }
     }
@@ -9880,7 +9914,7 @@ mod tests {
                 tol,
             );
             let mut body = post.body;
-            crate::instance::graft_disjoint(&mut body, &shelf.body, tol).unwrap();
+            crate::instance::graft_disjoint(&mut body, &shelf.body).unwrap();
             let geo = snapshot(&body);
             let edge = geo
                 .edges
@@ -10074,7 +10108,7 @@ mod tests {
             let tol = Tol::witness();
             let mut body = half_disc_cap_and_far_cube();
             let cube = cube_at(Vec3::new(0.5, 0.5, 0.0), tol);
-            crate::instance::graft_disjoint(&mut body, &cube, tol).unwrap();
+            crate::instance::graft_disjoint(&mut body, &cube).unwrap();
             let geo = snapshot(&body);
             let disc = geo
                 .faces
@@ -10115,7 +10149,6 @@ mod tests {
         #[test]
         fn the_touch_analysis_reads_every_cell_of_an_edge_in_a_face() {
             let band = band();
-            let tol = Tol::witness();
             let (w, phi) = (0.02, 12.0 * band.zero());
             let mut read_past_the_first = false;
             for upright_at_start in [true, false] {
@@ -10168,7 +10201,7 @@ mod tests {
                 mapped_prism(&mut part, &plate, (0.0, 0.03), |x, y, z| {
                     Point3::new(x, y, z - phi * y)
                 });
-                crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
+                crate::instance::graft_disjoint(&mut body, &part).unwrap();
                 let geo = snapshot(&body);
                 let e = geo
                     .edges
@@ -10253,9 +10286,12 @@ mod tests {
                 matches!(
                     errors.as_slice(),
                     [ValidationError::CensusUnsupported {
-                        cause: CensusUnsupportedCause::Containment(
-                            ContainError::ArcLoopUnsupported { .. }
-                        ),
+                        cause: CensusUnsupportedCause::Containment(ContainError::Uncrossable(
+                            crate::splitting::containment::Uncrossable {
+                                carrier: crate::splitting::containment::UncrossableCarrier::Spiric,
+                                ..
+                            }
+                        )),
                         ..
                     }]
                 ),
@@ -10263,7 +10299,7 @@ mod tests {
             );
             let mut far = spiric_cap(2.0, 1.0, 0.5, (-FRAC_PI_2, FRAC_PI_2));
             let cube = cube_at(Vec3::new(0.5, 10.0, -0.5), tol);
-            crate::instance::graft_disjoint(&mut far, &cube, tol).unwrap();
+            crate::instance::graft_disjoint(&mut far, &cube).unwrap();
             let (cap, edge) = in_plane(&far, 10.0);
             let (cuts, errors) = crossings(&far, cap, edge);
             assert!(

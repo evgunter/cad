@@ -128,6 +128,12 @@ impl<T: Decide> SpiricArc<T> {
         [self.point(self.span.0), self.point(self.span.1)]
     }
 
+    /// A ball the whole arc lies in, `(center, reach)`.
+    pub(crate) fn ball(&self) -> (Point3<T>, T) {
+        let b = self.bounds(&self.root());
+        (b.center, b.reach)
+    }
+
     /// The whole arc as one piece.
     fn root(&self) -> Piece<T> {
         let (va, vb) = self.span;

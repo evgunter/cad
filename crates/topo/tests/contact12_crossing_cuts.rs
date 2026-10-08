@@ -31,7 +31,7 @@ fn lap_seat() -> (Body<f64>, FaceKey, FaceKey) {
         tol,
     );
     let mut body = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, tol).unwrap();
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     (body, post.top_face, keys.face(shelf.bottom_face).unwrap())
 }
 
