@@ -791,7 +791,11 @@ pub fn import_step(
             let mut joined = std::collections::BTreeSet::new();
             for (index, instance) in model.instances.iter().enumerate() {
                 let spec = &solids[instance.solid];
-                let (one, joins) = assemble::build_one_solid(spec, tol)?;
+                let (one, joins) = assemble::build_one_solid(
+                    spec,
+                    tol,
+                    geom_core::FileCoincidence::new(eps_in, tol),
+                )?;
                 if joined.insert(instance.solid) {
                     normalizations.extend(joins);
                 }

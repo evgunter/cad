@@ -304,7 +304,6 @@ fn assert_refuses_single_column(name: &str, body: &Body<f64>, kind: SurfaceKind,
 /// doors and any caller that meshes without validating reach this.
 #[test]
 fn a_rim_free_loop_on_a_chart_with_no_pole_refuses_single_column() {
-    let tol = Tol::witness();
     for (name, body, kind) in [
         (
             "torus bounded by one meridian circle",
@@ -331,7 +330,6 @@ fn a_rim_free_loop_on_a_chart_with_no_pole_refuses_single_column() {
 /// said "no rim and no pole" would not close.
 #[test]
 fn a_rim_free_loop_that_turns_at_a_pole_along_its_own_edge_refuses_single_column() {
-    let tol = Tol::witness();
     for (name, body, kind) in [
         ("one-seam sphere", one_seam_sphere(), SurfaceKind::Sphere),
         ("one-seam cone", one_seam_cone(), SurfaceKind::Cone),

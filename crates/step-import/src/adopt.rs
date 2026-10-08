@@ -45,7 +45,7 @@ use geom::Curve3;
 use geom::{Surface, SurfaceData};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
 use geom_core::spline::SplineError;
-use geom_core::{Affine3, Point2, Point3};
+use geom_core::{Affine3, FileCoincidence, Point2, Point3};
 use topo::{Body, FaceKey, FaceSurface, LoopKey};
 
 use crate::assemble::Assembled;
@@ -60,11 +60,12 @@ pub(crate) fn finish(
     solid: &SolidSpec,
     asm: &Assembled,
     tol: Tol,
+    file: FileCoincidence,
 ) -> Result<Vec<FaceKey>, StepImportError> {
-    let face_keys = designate_faces(body, solid, asm)?;
-    rotate_loop_firsts(body, solid, asm, tol)?;
-    attach_surfaces(body, solid, &face_keys)?;
-    adopt_edges(body, solid, asm, tol)?;
+    let face_keys = designate_faces(body, solid, asm, file)?;
+    rotate_loop_firsts(body, solid, asm, tol, file)?;
+    attach_surfaces(body, solid, &face_keys, file)?;
+    adopt_edges(body, solid, asm, tol, file)?;
     Ok(face_keys)
 }
 
@@ -103,10 +104,12 @@ fn designate_faces(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     asm: &Assembled,
+    file: FileCoincidence,
 ) -> Result<Vec<FaceKey>, StepImportError> {
     let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
         source: source.from_driver(),
+        file,
     };
     // Normalize: promote every ring-designated realized loop.
     for l in 0..asm.target.loops.len() {
@@ -187,10 +190,12 @@ fn rotate_loop_firsts(
     solid: &SolidSpec,
     asm: &Assembled,
     tol: Tol,
+    file: FileCoincidence,
 ) -> Result<(), StepImportError> {
     let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
         source: source.from_driver(),
+        file,
     };
     for seq in &asm.target.loops {
         let t = asm.use_he[seq[0]];
@@ -303,10 +308,12 @@ fn attach_surfaces(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     face_keys: &[FaceKey],
+    file: FileCoincidence,
 ) -> Result<(), StepImportError> {
     let op_err = |source: topo::EulerOpError| StepImportError::Assembly {
         id: solid.id,
         source: source.from_driver(),
+        file,
     };
     let mut seen: std::collections::BTreeMap<Vec<u64>, topo::SurfaceKey> =
         std::collections::BTreeMap::new();
@@ -334,6 +341,7 @@ fn adopt_edges(
     solid: &SolidSpec,
     asm: &Assembled,
     tol: Tol,
+    file: FileCoincidence,
 ) -> Result<(), StepImportError> {
     for (&edge_id, spec) in &solid.edges {
         let (fwd, rev) = asm
@@ -649,6 +657,7 @@ fn adopt_edges(
             return Err(StepImportError::Adoption {
                 id: edge_id,
                 attempts,
+                file,
             });
         }
     }
