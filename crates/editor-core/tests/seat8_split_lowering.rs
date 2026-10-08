@@ -190,13 +190,20 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// `kitchen_sink` alone, whose formulas hold written quantities that
 /// now mint variables of their own, so its ids moved. No outcome or
 /// point moved (the id-free fence held).
+///
+/// RE-BLESSED for INTENT stage 2 PR C (the product is the world):
+/// each document now places its bodies, and every placement is a node
+/// with a value and a name table of its own, so the evaluation this
+/// digest walks holds those copies. What each document delivers did
+/// not move: `intent_s2_c_world`'s migration check holds each product
+/// to its pre-C digest.
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
         ("cut_cylinder", 0x7529_6a8e_c3e6_0cddu64),
-        ("part_select", 0x25c8_ddb5_0aac_db05),
-        ("kitchen_sink", 0x4019_ed56_6ca7_caaa),
+        ("part_select", 0xda66_1a19_604c_225b),
+        ("kitchen_sink", 0x820a_88cc_7ad2_8b85),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()

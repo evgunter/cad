@@ -218,12 +218,19 @@ fn both_blends_evaluate_in_one_document() {
 /// and this digest feeds ids. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched.
+///
+/// RE-BLESSED for INTENT stage 2 PR C (the product is the world):
+/// each document now places its bodies, and every placement is a node
+/// with a value and a name table of its own, so the evaluation this
+/// digest walks holds those copies. What each document delivers did
+/// not move: `intent_s2_c_world`'s migration check holds each product
+/// to its pre-C digest.
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("die_fillet", 0x6790_b30d_d17a_db55u64),
-        ("die_chamfer", 0x91bc_b713_0776_021b),
+        ("die_fillet", 0x9731_a116_3192_9004u64),
+        ("die_chamfer", 0xf28f_7e37_99cc_cf24),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -337,13 +344,20 @@ fn a_boolean_document_round_trips_byte_identical() {
 /// and this digest feeds ids. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched.
+///
+/// RE-BLESSED for INTENT stage 2 PR C (the product is the world):
+/// each document now places its bodies, and every placement is a node
+/// with a value and a name table of its own, so the evaluation this
+/// digest walks holds those copies. What each document delivers did
+/// not move: `intent_s2_c_world`'s migration check holds each product
+/// to its pre-C digest.
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("crossing_slots", 0x3b7f_42f6_0941_084cu64),
-        ("heat_sink", 0x10bf_1419_bf99_a52e),
-        ("kiss_carry", 0x1833_03c8_9582_0f8b),
+        ("crossing_slots", 0x7ead_2978_b53e_81abu64),
+        ("heat_sink", 0x88d8_f97f_eb30_fdc0),
+        ("kiss_carry", 0xb2ae_f590_cd31_8bf1),
     ] {
         let doc = corpus::documents()
             .into_iter()
