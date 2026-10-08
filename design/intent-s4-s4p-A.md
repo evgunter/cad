@@ -53,7 +53,7 @@ The alternatives:
 
 `E` extrudes a box of height `h`. `T` translates `E` by `h` along the extrude direction. `U` is the union of `E` and `T`, which glues E's top cap to T's bottom cap.
 - **The row.** `U` records one row: `SameOpposite`, with cells `(read A, E/Cap(Top))` and `(read B, E/Cap(Bottom))`.
-- **The walk.** Cell A reaches `plane(f, d, h)`. Cell B passes through `T`, so its form is `plane(f, d, 0)` shifted by `h` along the normal. The kernel of the plane's symmetry folds that shift into the offset, giving `plane(f, d, h)`. The two forms are equal, so the row is **proven**.
+- **The walk.** Cell A reaches `plane(f, d, h)`. Cell B passes through `T`, so its form is `plane(f, d, 0)` shifted by `h` along the normal. The plane's symmetry folds that shift into the offset, giving `plane(f, d, h)`. The two forms are equal, so the row is **proven**. This holds once unit H lands; before it, C keeps `T`'s placement as an opaque atom, and the row is unproven.
 - **Contacts.** `U` has no contact record, because the caps are interior and removed.
 - **What the name alone gives.** If `T` translated by `h' = 10 mm` while `h = 10 mm`, the names are the same as before, but the row is unproven with residual `h − h'`. Name-only provenance would have proven it, wrongly.
 
