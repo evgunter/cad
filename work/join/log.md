@@ -1205,6 +1205,13 @@ Signed (JOIN orchestrator).
 
 Signed (JOIN orchestrator).
 
+## 2026-10-08: Ev ruled on readout 3
+
+- **Ev's ruling (PR 4283).** Continue the protocol unchanged.
+  - The next M-tier miss owes a short FYI readout.
+  - The next full readout comes at twenty M-tier units or at two more M-tier misses.
+- **Where it is recorded.** Rule 9 of `docs/DUAL-REVIEW-PROTOCOL.md`, and a dated note in `docs/DUAL-REVIEW-LOG.md`.
+- **Tracker.** PR 4283 is closed unmerged (rule 10). `the-dual-review-streams-third-readout-is-owed` keeps `needs_ev` until Ev signs off the rule-9 wording.
 ## 2026-10-08: the strut-side unit landed
 
 - **PR 4294 merged** (orchestrator read, single review; CI green after a base merge cleared a network failure in `corrupt input`).
