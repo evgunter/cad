@@ -125,6 +125,9 @@
 //! edge a point its caller's pass placed off it.
 
 use geom_core::k_stats::{Magnitude, decide_magnitude};
+use geom_brep::recourse::{
+    LeverOnly, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
+};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
@@ -158,6 +161,136 @@ pub enum LoopContainment {
     OnBoundary,
 }
 
+/// **The question the planar loop walk escalated on** (D4 ¶1 (i)): the
+/// closed type [`PointInLoopError::Escalated`] carries, so its ending is an
+/// exhaustive match over the decision rather than a lookup by predicate
+/// name ([`Self::ending`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LoopDecision {
+    /// Whether the point stands on the loop's boundary — a vertex, an
+    /// edge, an arc or an arc's end — or clear of it. Its margins are
+    /// lengths: the point's distance from each, and a straight edge's own
+    /// length where the edge is short enough to read as a point. Every
+    /// definite reading answers.
+    Boundary,
+    /// Where one ray of the walk's fixed schedule meets the boundary: a
+    /// corner's offset from the ray's line, a crossing's advance along
+    /// it, how far the ray's direction lies in the loop's plane, its
+    /// clearance from an edge it cannot cross. The point is already
+    /// clear of the boundary here; the margin is a fact about the
+    /// kernel's choice of ray, not a size the user chose.
+    Ray,
+    /// Whether an arc stays short of a full turn: its gap to one. On an
+    /// elliptic edge a gap of zero is a whole ellipse, which passes, and
+    /// the walk escalates only on an arc over-wound by less than the band,
+    /// or on its two bounds straddling the band; on a scaffold conic a
+    /// positive gap passes.
+    ArcSpan,
+    /// Whether the loop and the point lie in the plane the caller handed
+    /// [`point_in_loop`] (its preconditions, certified): a residual, which
+    /// passes only at zero.
+    Plane,
+}
+
+impl LoopDecision {
+    /// Every decision, for the rows that sample them.
+    pub const ALL: [Self; 4] = [Self::Boundary, Self::Ray, Self::ArcSpan, Self::Plane];
+
+    /// The decision's geometry lever, after "Recourse: " — the one source
+    /// every rendering of it reads.
+    #[must_use]
+    pub const fn lever(self) -> &'static str {
+        match self {
+            Self::Boundary => "move the point exactly onto the boundary or clearly off it",
+            Self::Ray => "nudge the point so no boundary corner lines up with it",
+            Self::ArcSpan => "move the geometry so this arc stays clearly short of a full turn",
+            Self::Plane => "ask about a point and a loop that lie exactly in the plane given",
+        }
+    }
+
+    /// The one ending an escalation of this decision carries, read at
+    /// `reading` (D4 ¶1 (i)), from the shared table: the point's place is
+    /// a size the user may intend, and every definite reading of it
+    /// answers; an arc's gap to a full turn passes at zero and above; a
+    /// ray's margin is no size the user chose, and the plane is a
+    /// residual, so each ends in its lever alone.
+    #[must_use]
+    pub fn ending(self, escalation: Escalation, diag: &Indeterminate, reading: Reading) -> String {
+        let arm = escalation.arm(diag);
+        let sized = |size, passes| SizedDecision {
+            lever: self.lever(),
+            size,
+            passes,
+            stored: StoredDefinite::Lever,
+            at_zero: None,
+        };
+        match self {
+            Self::Boundary => sized("length", SizedPass::AnySign).recourse(arm, reading),
+            Self::ArcSpan => sized("arc", SizedPass::NonNegative).recourse(arm, reading),
+            Self::Ray | Self::Plane => LeverOnly {
+                lever: self.lever(),
+            }
+            .recourse(arm),
+        }
+    }
+}
+
+/// **How an escalation's refused reading stands**, as the site that
+/// raised it knows it: the one thing the carried [`Indeterminate`] cannot
+/// say, since a site with no margin to carry still names its row there
+/// (`crate::invalid_margin`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Escalation {
+    /// The carried margin is the reading: in the band, or unreadable.
+    Margin,
+    /// Two sound bounds on the one quantity straddle the band, so no
+    /// margin states the reading; the carried diagnostic names the site.
+    Straddle,
+    /// The site's own row decided definitely, and the site still cannot
+    /// answer on it; the carried diagnostic names the row.
+    Decided,
+}
+
+impl Escalation {
+    /// The refused arm the shared table reads this escalation as.
+    #[must_use]
+    pub fn arm(self, diag: &Indeterminate) -> RefusedArm<'_> {
+        match self {
+            Self::Margin => RefusedArm::Undecided(diag),
+            Self::Straddle => RefusedArm::Straddle,
+            Self::Decided => RefusedArm::SignCertain,
+        }
+    }
+}
+
+/// An escalation a boundary reading raises, and how its reading stands.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct ReadEscalation {
+    /// How the reading stands.
+    pub(crate) escalation: Escalation,
+    /// The diagnostic (named predicate inside).
+    pub(crate) diag: Indeterminate,
+}
+
+impl From<Indeterminate> for ReadEscalation {
+    fn from(diag: Indeterminate) -> Self {
+        Self {
+            escalation: Escalation::Margin,
+            diag,
+        }
+    }
+}
+
+impl ReadEscalation {
+    /// Two bounds of one quantity straddling the band, named by `row`.
+    fn straddle(band: Band, row: &'static str) -> Self {
+        Self {
+            escalation: Escalation::Straddle,
+            diag: crate::invalid_margin::invalid(band, row),
+        }
+    }
+}
+
 /// Typed failure of [`point_in_loop`].
 #[derive(Clone, Debug, PartialEq)]
 // The variant roster the sample-coverage row reads (test builds only).
@@ -167,10 +300,14 @@ pub enum LoopContainment {
     strum_discriminants(name(PointInLoopErrorKind), vis(pub(crate)), derive(strum::EnumIter))
 )]
 pub enum PointInLoopError {
-    /// A predicate escalated (in-band margin).
+    /// A predicate escalated.
     Escalated {
         /// The loop being tested.
         r#loop: LoopKey,
+        /// The question it escalated on.
+        decision: LoopDecision,
+        /// How its refused reading stands.
+        escalation: Escalation,
         /// The escalation diagnostics (named predicate inside).
         diag: Indeterminate,
     },
@@ -292,12 +429,17 @@ impl core::fmt::Display for Uncrossable {
 impl core::fmt::Display for PointInLoopError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Escalated { diag, .. } => {
-                write!(
-                    f,
-                    "whether a point lies in a loop is too close to call: {diag}"
-                )
-            }
+            Self::Escalated {
+                decision,
+                escalation,
+                diag,
+                ..
+            } => write!(
+                f,
+                "cannot place a point in a loop: {}. {}",
+                diag.payload(),
+                decision.ending(*escalation, diag, Reading::Build)
+            ),
             Self::RayExhausted { .. } => write!(
                 f,
                 "whether a point lies in a loop is undecided: {}",
@@ -313,6 +455,30 @@ impl core::fmt::Display for PointInLoopError {
 }
 
 impl std::error::Error for PointInLoopError {}
+
+impl PointInLoopError {
+    /// An escalation of `decision` on `loop`, for a `map_err`.
+    fn on(
+        r#loop: LoopKey,
+        decision: LoopDecision,
+    ) -> impl Fn(ReadEscalation) -> Self + Copy {
+        move |ReadEscalation { escalation, diag }| Self::Escalated {
+            r#loop,
+            decision,
+            escalation,
+            diag,
+        }
+    }
+
+    /// An escalation of `decision` on `loop` on an in-band or
+    /// unreadable margin, for a `map_err`.
+    fn on_margin(
+        r#loop: LoopKey,
+        decision: LoopDecision,
+    ) -> impl Fn(Indeterminate) -> Self + Copy {
+        move |diag| Self::on(r#loop, decision)(diag.into())
+    }
+}
 
 /// The fixed schedule of space directions (module docs). 16 entries:
 /// three axes plus golden-angle-spread oblique members — for any unit
@@ -404,7 +570,7 @@ pub(crate) fn point_in_vertex_polygon<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<LoopContainment, PointInLoopError> {
-    let escalate = |diag| PointInLoopError::Escalated { r#loop, diag };
+    let escalate = PointInLoopError::on_margin(r#loop, LoopDecision::Boundary);
     let points = loop_points(body, r#loop)?;
 
     if ray_walk::on_boundary(&points, q, &ROWS, band).map_err(escalate)? {
@@ -422,7 +588,7 @@ fn polygon_walk<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<LoopContainment, PointInLoopError> {
-    let escalate = |diag| PointInLoopError::Escalated { r#loop, diag };
+    let escalate = PointInLoopError::on_margin(r#loop, LoopDecision::Ray);
     // The loop's own reach from q (evaluation-lane fold): the lever
     // arm for the probe-direction gate below. A degenerate loop
     // collapsed onto q gives a zero arm, every schedule member skips,
@@ -481,10 +647,10 @@ fn walk_schedule<T: Decide>(
                 // Within the band of the normal: no ray in the plane.
                 Ok(_) => return Err(RayFault::Unread),
                 Err(diag) => {
-                    return Err(RayFault::InBand(PointInLoopError::Escalated {
+                    return Err(RayFault::InBand(PointInLoopError::on_margin(
                         r#loop,
-                        diag,
-                    }));
+                        LoopDecision::Ray,
+                    )(diag)));
                 }
             }
             let d = d_raw.normalize();
@@ -609,8 +775,10 @@ pub(crate) enum ConicArcError {
     /// The window winds definitely past a period: no edge at all.
     WoundPastPeriod,
     /// An ellipse's overlap past a period is neither definitely within
-    /// the band nor definitely past it ([`ConicArc::of`]'s span rule).
-    Escalated(Indeterminate),
+    /// the band nor definitely past it ([`ConicArc::of`]'s span rule): in
+    /// band on the smaller lever, or its two levers' readings straddling
+    /// the band.
+    Escalated(ReadEscalation),
 }
 
 /// Where a point sits against one conic edge.
@@ -702,8 +870,8 @@ impl<T: Decide> ConicArc<T> {
             && let Ok(Sign::Negative) = decide(rows.span, Margin::levered(gap, speed), band)
         {
             return Err(ConicArcError::Escalated(match low {
-                Err(diag) => diag,
-                _ => crate::invalid_margin::invalid(band, rows.straddle),
+                Err(diag) => diag.into(),
+                _ => ReadEscalation::straddle(band, rows.straddle),
             }));
         }
         let (s0, c0) = t0.sin_cos();
@@ -804,7 +972,7 @@ impl<T: Decide> ConicArc<T> {
         q: Point3<T>,
         rows: ConicRows,
         band: Band,
-    ) -> Result<ConicHit, Indeterminate> {
+    ) -> Result<ConicHit, ReadEscalation> {
         let (x, y) = self.unit(q);
         let axial = (q - self.center).dot(self.axis);
         let (ends, apex, anti) = self.trim_points();
@@ -822,7 +990,7 @@ impl<T: Decide> ConicArc<T> {
                     return if self.clear_of_arc(q, (x / rho, y / rho), self.lever, rows, band) {
                         Ok(ConicHit::Off)
                     } else {
-                        Err(diag)
+                        Err(diag.into())
                     };
                 }
             }
@@ -877,14 +1045,12 @@ impl<T: Decide> ConicArc<T> {
         // (`tests::an_ellipse_tighter_than_the_band_straddles_it`).
         let undecided = match (decide_magnitude(rows.on, Margin::of(upper), band), far) {
             (Ok(Magnitude::Zero), _) => None,
-            (_, Err(diag)) | (Err(diag), _) => Some(diag),
+            (_, Err(diag)) | (Err(diag), _) => Some(ReadEscalation::from(diag)),
             // The lower bound within the zero band, the upper definitely
             // beyond it: the two straddle the whole band, which only an
             // ellipse bending tighter than the band resolves (`b²/a`
             // within a few `ε`) allows.
-            (Ok(Magnitude::Positive), _) => {
-                Some(crate::invalid_margin::invalid(band, rows.straddle))
-            }
+            (Ok(Magnitude::Positive), _) => Some(ReadEscalation::straddle(band, rows.straddle)),
         };
         // Undecided against the conic, as a circle's in-band miss: off
         // the edge only where the foot is definitely past its ends.
@@ -905,7 +1071,7 @@ impl<T: Decide> ConicArc<T> {
         }
         // Past the end check, each is `Positive` or escalated.
         for end in at {
-            end?;
+            end.map_err(ReadEscalation::from)?;
         }
         let side = arc_trim_margin(Self::lift(foot), ends[0], apex, anti);
         Ok(
@@ -1136,7 +1302,7 @@ impl<T: Decide> LoopEdge<T> {
         q: Point3<T>,
         rows: BoundaryRows,
         band: Band,
-    ) -> Result<EdgeContact, Indeterminate> {
+    ) -> Result<EdgeContact, ReadEscalation> {
         Ok(match self {
             Self::Chord => {
                 if ray_walk::on_segment(a, b, q, rows.line, band)? {
@@ -1289,7 +1455,9 @@ pub(crate) fn carrier_loop<T: Decide>(
             Ok(Some(k)) if curve.description().is_scaffold() => match k.span_turn {
                 Ok(Sign::Positive) => edges.push(LoopEdge::Conic(k)),
                 Ok(_) => return Err(corrupt()),
-                Err(diag) => return Err(PointInLoopError::Escalated { r#loop, diag }),
+                Err(diag) => {
+                    return Err(PointInLoopError::on_margin(r#loop, LoopDecision::ArcSpan)(diag));
+                }
             },
             Ok(Some(k)) => edges.push(LoopEdge::Conic(k)),
             Ok(None) => edges.push(match (curve.carrier(), ball) {
@@ -1329,8 +1497,8 @@ pub(crate) fn carrier_loop<T: Decide>(
                 }
             }),
             Err(ConicArcError::WoundPastPeriod) => return Err(corrupt()),
-            Err(ConicArcError::Escalated(diag)) => {
-                return Err(PointInLoopError::Escalated { r#loop, diag });
+            Err(ConicArcError::Escalated(e)) => {
+                return Err(PointInLoopError::on(r#loop, LoopDecision::ArcSpan)(e));
             }
         }
     }
@@ -1642,7 +1810,7 @@ fn certify_plane<T: Decide>(
     band: Band,
 ) -> Result<(), PointInLoopError> {
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
-    let escalate = |diag| PointInLoopError::Escalated { r#loop, diag };
+    let escalate = PointInLoopError::on_margin(r#loop, LoopDecision::Plane);
     let off_plane = |cause| PointInLoopError::OffPlane(OffPlane { r#loop, cause });
     let LoopBoundary::Cycle { first } = body.get_loop(r#loop).ok_or_else(corrupt)?.boundary else {
         return Err(corrupt());
@@ -1739,7 +1907,8 @@ fn carrier_walk<T: Decide>(
     band: Band,
     boundary: Boundary,
 ) -> Result<WalkSide, PointInLoopError> {
-    let escalate = |diag| PointInLoopError::Escalated { r#loop, diag };
+    let on_boundary = PointInLoopError::on(r#loop, LoopDecision::Boundary);
+    let escalate = PointInLoopError::on_margin(r#loop, LoopDecision::Ray);
     let (verts, edges) = (&lp.verts, &lp.edges);
     // The loop's reach from `q`: the schedule gate's lever.
     let extent = extent_from(r#loop, q, verts, &lp.balls)?;
@@ -1774,7 +1943,7 @@ fn carrier_walk<T: Decide>(
         }
         match edge
             .contact((verts[i], verts[(i + 1) % n]), q, WALK_ROWS, band)
-            .map_err(escalate)?
+            .map_err(on_boundary)?
         {
             EdgeContact::Unread if matches!(edge, LoopEdge::Spiric(_)) => {
                 return Err(PointInLoopError::Uncrossable(Uncrossable {
@@ -1795,10 +1964,10 @@ fn carrier_walk<T: Decide>(
                 // and then the point is in the band of this edge, which
                 // is an escalation, never a panic.
                 Boundary::Decided => {
-                    return Err(escalate(crate::invalid_margin::invalid(
+                    return Err(on_boundary(ReadEscalation::from(crate::invalid_margin::invalid(
                         band,
                         "point_in_arc_loop_boundary_disagreement",
-                    )));
+                    ))));
                 }
             },
         }

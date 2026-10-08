@@ -303,8 +303,15 @@ fn ball_off_face<T: Decide + Bounds>(
             | ContainError::RayExhausted
             | ContainError::Uncrossable(_),
         ) => Ok(false),
-        Err(ContainError::Escalated(diag)) => Err(BooleanError::Escalated {
-            decision: BooleanDecision::Containment,
+        Err(ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        }) => Err(BooleanError::Escalated {
+            decision: BooleanDecision::Containment {
+                decision,
+                escalation,
+            },
             diag,
         }),
         Err(ContainError::StaleFace(face)) => super::contain::driver_face_stale(face),

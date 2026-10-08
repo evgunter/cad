@@ -111,7 +111,7 @@ const ROOT_ROWS: FirstHarmonicRows = FirstHarmonicRows {
     coaxial: "bool_sphere_region_roots_coaxial",
     extreme: "bool_sphere_region_roots_extreme",
     root_slack: "bool_sphere_region_roots_slack",
-    decision: BooleanDecision::Containment,
+    decision: BooleanDecision::CONTAINMENT_UNNAMED,
 };
 
 /// The boundary reading's rows (module docs).
@@ -312,12 +312,12 @@ impl<T: Decide> SphereFaceRegion<T> {
             };
             let k = match ConicArc::of(&circle, (arc.t0, arc.t1), BOUNDARY, band) {
                 Ok(Some(k)) => k,
-                Err(ConicArcError::Escalated(diag)) => return Err(RegionRefusal::Escalated(diag)),
+                Err(ConicArcError::Escalated(e)) => return Err(RegionRefusal::Escalated(e.diag)),
                 Ok(None) | Err(ConicArcError::WoundPastPeriod) => {
                     return Err(RegionRefusal::WoundPastPeriod);
                 }
             };
-            match k.hit(p, BOUNDARY, band).map_err(RegionRefusal::Escalated)? {
+            match k.hit(p, BOUNDARY, band).map_err(|e| RegionRefusal::Escalated(e.diag))? {
                 ConicHit::On | ConicHit::End => return Ok(None),
                 ConicHit::Off | ConicHit::Carrier => {}
             }

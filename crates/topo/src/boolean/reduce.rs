@@ -3400,7 +3400,7 @@ fn wall_crossing<T: Decide + Bounds>(
             Err(ReplaceFaceError::NappeStraddles { .. }) => None,
             Err(ReplaceFaceError::Escalated { source }) => {
                 return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::Containment,
+                    decision: BooleanDecision::CONTAINMENT_UNNAMED,
                     diag: source,
                 });
             }
@@ -3485,9 +3485,16 @@ fn wall_crossing<T: Decide + Bounds>(
             // still land in the face, so the loop continues.
             Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => crossed_elsewhere = true,
             Ok(CurvedPlacement::Trim(Some(at))) => return Ok(SpanVerdict::Pierce { t, p, at }),
-            Err(super::contain::ContainError::Escalated(diag)) => {
+            Err(super::contain::ContainError::Escalated {
+                decision,
+                escalation,
+                diag,
+            }) => {
                 return Err(BooleanError::Escalated {
-                    decision: BooleanDecision::Containment,
+                    decision: BooleanDecision::Containment {
+                        decision,
+                        escalation,
+                    },
                     diag,
                 });
             }
@@ -3964,8 +3971,15 @@ fn vertex_on_curved_face_at<T: Decide + crate::props::AtRestPolicy>(
 /// is carried whole with the face it read.
 pub(super) fn esc(e: ContainError, operand: Operand, face: FaceKey) -> BooleanError {
     match e {
-        ContainError::Escalated(diag) => BooleanError::Escalated {
-            decision: BooleanDecision::Containment,
+        ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        } => BooleanError::Escalated {
+            decision: BooleanDecision::Containment {
+                decision,
+                escalation,
+            },
             diag,
         },
         ContainError::Uncrossable(cause) => {
