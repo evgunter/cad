@@ -8,6 +8,7 @@ priority: P0
 cost: M
 blocked_on: [a-placement-is-the-bundle-of-mates]
 refs: [intent-stage3-is-built]
+needs_ev: true
 ---
 
 INTENT stage 3, PR E. Spec: `docs/INTENT-STAGE3-SPEC.md` §6.
@@ -15,3 +16,15 @@ INTENT stage 3, PR E. Spec: `docs/INTENT-STAGE3-SPEC.md` §6.
 Each space computes in the frame of its earliest member, a seed or a copy in document order, never the world (FORK-S3-6, D9). `SolvedPoses::world_of(space)` is the one door that composes the world's map: export and the viewer's display read it, and a grep gate holds that nothing else does.
 
 Product digests move into computing-frame coordinates, and STEP bytes move by rounding. Test 15 checks that each moved digest moved by its world map alone. An edit to the world mate moves no body bit.
+
+FORK-S3-6 was weighed with FORK-S3-1 as FORK-S3P (fork log row 95) and
+went to Ev in an `[ev]` PR; this unit builds on the answer
+provisionally, and it changes the unit: nothing computes in the frame of
+a space. Each operation computes in the frame of the earliest member (a
+free frame other than the world, or a copy), by mint order, that its
+reads reach; the walk stops at a copy and never passes into its source
+or into what its bundle reads. The frame is a function of the reads and
+is keyed in the memo with them. A new mate relating two spaces moves no
+computed bit, only the world map export composes. Spec tests 15–17 need
+restating (a copy's body digest equals its source's; a re-mint, not a
+reorder).

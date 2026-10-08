@@ -927,7 +927,7 @@ scalar-type parameter and we need ~five quantities, not the SI lattice.
 **A stored value always names its notation.** Units erase at the
 accessor doors because the kernel wants them gone. One consumer wants
 them kept: a document records what a person *wrote*, so it can be read
-back that way. Every free continuous variable's value (D10) therefore
+back that way. Every free scalar's value (D10) therefore
 carries a display unit — a row of `quantity::UNITS`, presentation metadata excluded from
 expression identity, keys and evaluation — and that unit is **not
 optional**: the table carries a dimensionless row (`ONE`, empty symbol,
@@ -1220,13 +1220,16 @@ intent.
 variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
 sense) and the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`),
-which may be free or defined; the shapes (`Body`, `Bodies`,
+of which a `Frame` may be free and every kind may be defined; the shapes (`Body`, `Bodies`,
 an ordered list of bodies whose length is a `Count`, and `Profile`),
 which only an operation defines; and the selections of a shape
-(`Face`, `Edge`, and their sets `Faces`, `Edges`). A variable is
-**free** — a value, its written unit (D6) and optionally a distribution
-— or **defined**, by an `Expr` over other variables, by a selection of a
-`Body` variable, or as an output of an operation. A dimensioned literal stands nowhere, neither in a slot
+(`Face`, `Edge`, and their sets `Faces`, `Edges`). A scalar or discrete
+variable is **free** — a value, its written unit (D6) and optionally a
+distribution — or **defined**, by an `Expr` over other variables, by a
+selection of a `Body` variable, or as an output of an operation. A
+`Frame` may be free, holding nothing: it is a space's own frame, the
+one its poses are written in. Every other pose is defined, and its
+numbers are scalar variables of its definition. A dimensioned literal stands nowhere, neither in a slot
 nor inside a formula: the only constants are dimensionless rationals and
 rational fractions of a turn, which are the shape of a formula rather
 than a dimension. Typing a value in the GUI mints a free variable and
@@ -1268,18 +1271,24 @@ rather than of what was written; an observed variable, and any
 definition reading one, is read only by an assertion. A construction
 reads what was written.
 
-**Spaces and placement.** A part has no location. A **space** is a set
-of copies related to one another; a part is born in its own space. A
+**Spaces and placement.** A part has no location: its construction is
+written on a free frame and has coordinates in no other. A **space** is
+a set of members — free frames and copies — related to one another; a
+document is born with one free frame and may hold more, and a
+definition's or an operation's reads lie in one space, else it
+refuses. A
 **placement** is the bundle of mates that pins one copy of a part
 relative to others: two placements of a part are two copies, and a mate
 added to a pinned copy refuses as an overconstraint, decided by
 subgroup algebra (A11 (1)) without measuring. A mate places and never
-checks. The **world** is one undeletable frame that copies may be
-related to like a part; export reads its coordinates and nothing else
-does. Construction never reads the world; a document builds in a frame
-of its own. The kernel computes each space in the frame of its earliest
-member, chosen from the recipe and never from values or from the world,
-so an unrelated edit moves no bit (D9).
+checks. The **world** is the one undeletable free frame: a pose
+reaching it is read only by a placement's mates, it is never a member,
+and export alone composes into it. Nothing computes in the frame of a
+space: each operation computes in the frame of the earliest member, by
+mint order, that its reads reach, where the walk stops at a copy and
+never passes into its source or into what its bundle reads. The frame
+is a function of the reads, so an edit that leaves an operation's reads
+alone moves none of its bits (D9).
 
 **Coincidence.** Whether two cells coincide is a margined verdict like
 any other (Q1): a margin decided Zero glues them, a definite one keeps
