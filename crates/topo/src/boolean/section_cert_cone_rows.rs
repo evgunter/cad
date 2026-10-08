@@ -741,3 +741,26 @@ fn a_witness_off_a_plane_carrier_has_no_verdict() {
     assert_eq!(at(p(0.2, 0.3, 0.5)), IN);
     assert_eq!(at(p(0.2, 0.3, 0.51)), None);
 }
+
+/// **A plane a hair off axis-normal, on a tilted axis, is witnessed on
+/// both carriers.** The plane's normal leans `1e-7` rad off the cone's
+/// axis, which stands off every coordinate: the meridian the witness's
+/// generator is taken in is the normal's part square to the axis,
+/// `1e-7` long. Read as `n − a(a·n)`, its rounding along the axis
+/// (`ε`) turns into a `1e-9`-rad lean of the generator off the cone,
+/// and the witness, `10 m` out, lands `1e-8 m` off the cone's carrier.
+/// The mutant is that naive projection: red.
+#[test]
+fn a_nearly_axis_normal_plane_on_a_tilted_axis_is_witnessed_on_both_carriers() {
+    let axis = v(0.3, -0.5, 0.81).normalize();
+    let (b1, _) = axis.orthonormal_basis();
+    let apex = p(4.0, -3.0, 7.0);
+    let cone = cone_about(apex, axis, 0.7);
+    for lean in [1e-7, 3e-6] {
+        let n = (axis * lean.cos() + b1 * lean.sin()).normalize();
+        let pl = plane(apex + axis * 10.0, n);
+        let s = both(&cone, &pl);
+        assert_eq!(shape(&s), shape_of(1, true, true, false, false), "{lean}");
+        on_both(witness(&s), &cone, &pl);
+    }
+}
