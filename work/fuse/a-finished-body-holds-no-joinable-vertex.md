@@ -2,10 +2,10 @@
 id: a-finished-body-holds-no-joinable-vertex
 kind: unit
 title: Step 3 of the 3881 ruling: no joinable vertex at rest, checked at tier 3 by the join's predicate; every finisher, import included, ends with the join
-status: open
+status: dispatched
 opened: 2026-10-07
 pr: 4251
-branch: fuse/ev-where-maximal-edges-is-checked
+branch: fuse/tier2-no-joinable
 priority: P1
 cost: H
 refs: [a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made, curved-joinable-vertices-are-left-unjoined, 4233]

@@ -170,7 +170,7 @@ fn r2_per_chart_door_on_a_mirror_nappe_cone() {
             let mut work = body.clone();
             let got = topo::replace_faces_offset(&mut work, &faces, signed, tol);
             match (&got, crate::common::cone_nappe::rim_refusal_gap(&got)) {
-                (Ok(()), _) => panic!(
+                (Ok(_), _) => panic!(
                     "[r2] per-chart {what} d={signed}: BUILT — the caps' gate stopped standing \
                      in front of the cone chart, which is the measurement this row carries"
                 ),

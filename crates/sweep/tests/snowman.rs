@@ -1660,3 +1660,43 @@ fn a_plane_through_a_caps_conventional_vertex_cuts_as_elsewhere() {
     }
     assert!(seen.windows(2).all(|w| w[0] == w[1]), "one body: {seen:?}");
 }
+
+/// **A closed join through the door leaves a conventional vertex**
+/// (`Body::join_edges`, `docs/DESIGN.md`, maximal edges). The lens ∩
+/// bricks cap's circle is one closed edge whose one vertex is
+/// conventional; split at its middle, it is two arcs between two
+/// vertices of valence 2. The join door makes it one closed edge
+/// again: one join, whose survivor it reports as conventional, and the
+/// body at tier 3 with no joinable vertex left.
+#[test]
+fn a_closed_join_through_the_door_leaves_a_conventional_vertex() {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let lens = run(BooleanOp::Intersect, &ball(R1, 0.0), &ball(R2, D));
+    let bricks = run(
+        BooleanOp::Union,
+        &brick_toward(dir(68.0, 130.0), 0.985, 0.2, 0.3),
+        &brick_toward(dir(68.0, 50.0), 0.985, 0.2, 0.3),
+    );
+    let mut caps = run(BooleanOp::Intersect, &lens, &bricks).into_body();
+    let circle = caps
+        .vertices()
+        .find(|&(v, _)| topo::is_conventional_vertex(&caps, v))
+        .map(|(_, d)| caps.get_half_edge(d.emanating.unwrap()).unwrap().edge)
+        .expect("a cap circle's conventional vertex");
+    let (t0, t1) = caps
+        .get_curve_geom(caps.get_edge(circle).unwrap().curve)
+        .and_then(topo::CurveGeom::certified)
+        .unwrap()
+        .params();
+    let counts = (caps.vertices().count(), caps.edges().count());
+    caps.split_edge(circle, 0.5 * (t0 + t1), tol).unwrap();
+    assert_eq!(topo::joinable_vertices(&caps, band).unwrap().len(), 2);
+    let joins = caps.join_edges(band, tol).unwrap();
+    assert_eq!(joins.len(), 1, "one join closes the circle");
+    let survivor = joins[0].conventional.expect("the survivor is conventional");
+    assert!(topo::is_conventional_vertex(&caps, survivor));
+    assert_eq!((caps.vertices().count(), caps.edges().count()), counts);
+    assert!(topo::joinable_vertices(&caps, band).unwrap().is_empty());
+    topo::validate_geometric(&caps, tol).unwrap();
+}
