@@ -144,7 +144,7 @@
 use geom_core::Bounds;
 use geom_core::interval::Interval;
 use geom_core::interval::certification::Certification;
-use geom_core::interval::{div_down, max_bound, norm_sq, norm_sup};
+use geom_core::interval::{div_down, max_bound, min_bound, norm_sq, norm_sup};
 use geom_core::{Band, Indeterminate, Margin, SupSpeed};
 
 use crate::dihedral::decide_reported;
@@ -433,7 +433,8 @@ pub struct CellNormal {
     /// area) — the regularity floor. Exactly `0.0` when neither
     /// assembly could separate the cell's normal from zero.
     pub floor: f64,
-    /// Certified UPPER bound on `‖m‖` over the cell, same units.
+    /// Certified UPPER bound on `‖m‖` over the cell, same units; NaN
+    /// when the cell's enclosures refused.
     pub sup: f64,
 }
 
@@ -515,6 +516,8 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     CellNormal {
         m,
         floor: if floor > c { floor } else { c },
+        // Each side is a sound sup or NaN (refused): the join keeps
+        // whichever answered, and is NaN only when neither did.
         sup: norm_sup(&m).min(gram_sup),
     }
 }
@@ -528,7 +531,7 @@ pub struct PatchRegularity {
     /// unit and the module docs' one spelling of it.
     pub floor: f64,
     /// `sup ‖S_u × S_v‖` from above, in [`PatchRegularity::floor`]'s
-    /// units.
+    /// units; NaN when any cell's [`CellNormal::sup`] is.
     pub sup: f64,
     /// `sup ‖S_u‖` (m per unit parameter) — a [`SupSpeed`] by
     /// signature: every consumer of it meters an overshoot (the
@@ -741,9 +744,7 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     // the end.** Both divisions above are by `A`, which is not proven
     // away from zero on a cell whose normal barely separated, and a
     // refused quotient carries real endpoints: `k_hi.is_finite()`
-    // would pass on one. Worse, the joins below are `f64::min`/`max`,
-    // which DROP a NaN operand — so one assembly's refusal would be
-    // covered by the other assembly's number.
+    // would pass on one.
     if !h.is_certified() || !k.is_certified() {
         return None;
     }
@@ -767,10 +768,10 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     if !w11.is_certified() || !w12.is_certified() || !w21.is_certified() || !w22.is_certified() {
         return None;
     }
-    let b_hi = (w11.hi() + w12.mag()).max(w22.hi() + w21.mag());
-    let b_lo = (w11.lo() - w12.mag()).min(w22.lo() - w21.mag());
+    let b_hi = max_bound(w11.hi() + w12.mag(), w22.hi() + w21.mag());
+    let b_lo = min_bound(w11.lo() - w12.mag(), w22.lo() - w21.mag());
     // Both assemblies are sound, so the tighter end of each wins.
-    let (k_hi, k_lo) = (a_hi.min(b_hi), a_lo.max(b_lo));
+    let (k_hi, k_lo) = (min_bound(a_hi, b_hi), max_bound(a_lo, b_lo));
     if !k_hi.is_finite() || !k_lo.is_finite() {
         return None;
     }
