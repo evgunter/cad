@@ -225,11 +225,20 @@ fn offset_square_prism() -> topo::Body<f64> {
 ///   NURBS side through the boundary-column iso image.
 ///
 /// **The ε posture is the honest one, not a gap.** This seam's
-/// certified between-samples sup is ~6.2e-12 m, so the first-class
-/// import holds at ε_in = 1e-9 (default) and 1e-6, and at the 1e-12
-/// matrix row the SAME geometry refuses TYPED during ADOPTION,
+/// certified between-samples sup is ~3.55e-14 m, so the first-class
+/// import holds at ε_in = 1e-9 (default), 1e-6 and 1e-12, and below
+/// ε_in = 1e-13 the SAME geometry refuses TYPED during ADOPTION,
 /// carrying that number in its payload. Both cells are pinned; neither
 /// is widened.
+///
+/// **The boundary moved from 1e-9 to 1e-13 when `insert_once_ring` took
+/// the convex insertion form** (the sup was ~6.2e-12 m, 178x wider):
+/// the sup is assembled over a Bézier decomposition, and the lerp form
+/// multiplied each coefficient's own dust up once per insertion. So the
+/// 1e-12 matrix row now takes the first-class cell where it took the
+/// refusal; the refusal cell is measured at ε_in = 1e-14 and no row the
+/// gate or the nightly runs reaches it, which is filed rather than
+/// absorbed.
 #[test]
 fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     let native = offset_square_prism();
@@ -286,7 +295,7 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
     match import_step(&foreign, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
             assert!(
-                eps >= 1e-9,
+                eps >= 1e-13,
                 "the seam's certified sup does not fit inside an ε_in finer than its own \
                  rounding — a first-class import there would be a widened gate"
             );
@@ -331,17 +340,19 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
             );
         }
         // The ε-fine cell, pinned as a REFUSAL with its own number:
-        // this seam's certified between-samples sup is ~6.2e-12 m, so
-        // at ε_in = 1e-12 the carrier refuses during ADOPTION and never
-        // reaches the pcurve stage. Measured, not widened.
+        // this seam's certified between-samples sup is ~3.55e-14 m, so
+        // below ε_in = 1e-13 the carrier refuses during ADOPTION and
+        // never reaches the pcurve stage. Measured, not widened. (It was
+        // ~6.2e-12 m and refused at 1e-12, before `insert_once_ring`
+        // took the convex insertion form.)
         Err(refusal) => {
             assert!(
-                eps < 1e-9,
+                eps < 1e-13,
                 "the only refusing cell is the ε-fine one: {refusal:?}"
             );
             let shown = format!("{refusal:?}");
             assert!(
-                shown.contains("PlaneNurbsCertificate") && shown.contains("ssi_hull_sup_chart"),
+                shown.contains("PlaneNurbsHull") && shown.contains("ssi_hull_sup_chart"),
                 "the ε-fine refusal is the envelope's own measured bound: {shown}"
             );
             println!("M8-4 integral twin @ eps={eps:e}: adoption refuses — {shown}");
@@ -363,28 +374,27 @@ fn the_integral_mixed_body_imports_first_class_with_a_charted_seam() {
 /// certificate that would restore the cylinder track is banked).
 ///
 /// That is what puts the UNPERTURBED body on the intrinsic rung: the
-/// three exactly-planar walls promote, the arc wall stays NURBS, and
-/// the wall–wall seam whose carrier was minted as a promoted PLANE
-/// wall's boundary column (bits differing from the arc wall's own
-/// column by the arc endpoint's rounding) has no bitwise `IsoCurve`
-/// match. The file's carrier is adopted as EVIDENCE and certified
-/// against both operands instead (declare-and-check, Ev's #264
-/// ruling) — a certificate, not a widened bitwise match.
+/// three exactly-planar walls promote and the arc wall stays NURBS.
+/// Both arc-wall seams carry the wall's boundary columns in their
+/// bits: the skin's `segment_curve` places the first column at the
+/// vertex the section stores and the last at `eval(1)`, the start
+/// turned through the stored sweep, never at a point re-derived from a
+/// radius. `eval(1)` is the stored end vertex bit for bit in THIS
+/// fixture, not on every chord, so here each seam's carrier IS the
+/// wall's boundary column and the bitwise `IsoCurve` rung answers. Declare-and-check is not reached on this body; the planted
+/// falsifier below forces it by moving the file's carrier off the
+/// column.
 ///
 /// The RATIONAL wall completes the picture the integral twin starts:
 /// its arc rims chart through the rational-quadratic iso image and its
-/// seam through the boundary-column one, so the whole mixed body
+/// seams through the boundary-column one, so the whole mixed body
 /// imports first-class — rational patch flux and all.
 ///
-/// **The flip is ε-dependent, and that is the honest answer, not a
-/// gap.** This seam's certified between-samples sup is ~6.3e-12 m —
-/// the two columns agree only to the arc endpoint's rounding and the
-/// first-order envelope cannot say better. So the body imports at ε_in
-/// = 1e-9 (default) and 1e-6, and at the 1e-12 matrix row the SAME
-/// geometry refuses TYPED during adoption, carrying that 6.3e-12 in
-/// the payload. A bound too loose at ε refuses with its number, never
-/// through a widened gate. Every posture is pinned below, including
-/// the fixed schedule's own quadrature-budget frontier.
+/// **First-class at every ε row, ε-fine included.** No envelope sits
+/// between the seam and its chart, so nothing here has a bound for ε
+/// to undercut. Two postures remain and both are pinned: at a coarse
+/// ε_in the straight corner carriers also promote to LINE (#388), and
+/// the fixed schedule's quadrature-budget frontier.
 #[test]
 fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
     let native = straight_arc_prism();
@@ -397,66 +407,32 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
     let eps = geom_core::Tol::witness().get().eps;
 
     match import_step(&text, &ImportOptions::default(), Tol::witness()) {
-        // **First-class, end to end.** The three exactly-planar walls
-        // promote, the arc wall stays NURBS under the honest envelope,
-        // every face charts, and the seam posture is the band's own:
-        // at 1e-9 the seam certifies through the declare-and-check
-        // plane × NURBS rung; at a coarser ε_in the straight corner
+        // **First-class, end to end, at every ε.** The three
+        // exactly-planar walls promote, the arc wall stays NURBS under
+        // the honest envelope, every face charts, and both arc-wall
+        // seams take the bitwise `IsoCurve` rung: no seam is left for
+        // declare-and-check. At a coarser ε_in the straight corner
         // carriers additionally promote to LINE (#388 — their Greville
-        // map fold is ~1.3e-7 at unit scale, between the two bands)
-        // and both arc-wall seams adopt through the banded wall-column
-        // candidate instead, charting through the seam-class Line
-        // limb. Both postures pinned below.
+        // map fold is ~1.3e-7 at unit scale, between the two bands);
+        // the seams chart the same way either side of it.
         Ok(StepImport::Solid {
             body,
             curve_promotions,
             ..
         }) => {
-            assert!(
-                eps >= 1e-9,
-                "the seam's certified sup is ~6.3e-12 m — a first-class import at a \
-                 finer ε_in would be a widened gate"
-            );
             topo::validate_geometric(&body, Tol::witness())
                 .expect("first-class at rest: the rational wall's flux reaches its target");
+            let seams = plane_nurbs_seams(&body);
+            assert!(
+                seams.is_empty(),
+                "both seams are the arc wall's own columns, bit for bit; the \
+                 declare-and-check rung has no takers: {seams:?}"
+            );
             let line_promotions: Vec<_> = curve_promotions
                 .iter()
                 .filter(|p| p.kind == step_import::PromotedCurveKind::Line)
                 .collect();
-            let seams = plane_nurbs_seams(&body);
-            if line_promotions.is_empty() {
-                assert_eq!(
-                    seams.len(),
-                    1,
-                    "exactly the arc wall's seam takes the declare-and-check rung: {seams:?}"
-                );
-                let (curve, _, wall) = &seams[0];
-                let stored: Vec<topo::Pcurve<f64>> = body
-                    .edges()
-                    .filter(|(_, e)| e.curve == *curve)
-                    .flat_map(|(_, e)| [e.he_plus, e.he_minus])
-                    .filter_map(|he| body.pcurve(he).map(|c| c.pcurve().clone()))
-                    .collect();
-                assert_eq!(
-                    stored.len(),
-                    1,
-                    "the NURBS wall charts the seam; the plane derives on demand: {stored:?}"
-                );
-                let topo::Pcurve::IsoLine { p0, pl } = stored[0] else {
-                    panic!("a seam's chart image is the wall's boundary iso line: {stored:?}");
-                };
-                assert_eq!(pl.x, 0.0, "a seam image holds u constant: {pl:?}");
-                let (du0, du1) = wall.knots_u().domain();
-                assert!(
-                    p0.x == du0 || p0.x == du1,
-                    "on the chart's OWN boundary column: u = {} of [{du0}, {du1}]",
-                    p0.x
-                );
-                println!(
-                    "M8-4 seam #130 @ eps={eps:e}: first-class; seam charted at u = {}",
-                    p0.x
-                );
-            } else {
+            if !line_promotions.is_empty() {
                 assert_eq!(
                     line_promotions.len(),
                     4,
@@ -469,78 +445,41 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                         p.residual
                     );
                 }
+            }
+            let wall = body
+                .surfaces()
+                .find_map(|(_, s)| match s {
+                    geom::Surface::Nurbs(n) if !n.is_placeholder() => Some((**n).clone()),
+                    _ => None,
+                })
+                .expect("the arc wall stays NURBS at every band");
+            let (du0, du1) = wall.knots_u().domain();
+            let images: Vec<_> = body
+                .edges()
+                .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+                .filter_map(|he| body.pcurve(he).map(|c| c.pcurve().clone()))
+                .filter_map(|p| match p {
+                    topo::Pcurve::IsoLine { p0, pl } if pl.x == 0.0 => Some(p0),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(
+                images.len(),
+                2,
+                "both seams chart as u-constant iso lines: {images:?}"
+            );
+            for p0 in &images {
                 assert!(
-                    seams.is_empty(),
-                    "the promoted seams hold wall-column candidates; the declare-and-check \
-                     rung has no takers: {seams:?}"
-                );
-                let wall = body
-                    .surfaces()
-                    .find_map(|(_, s)| match s {
-                        geom::Surface::Nurbs(n) if !n.is_placeholder() => Some((**n).clone()),
-                        _ => None,
-                    })
-                    .expect("the arc wall stays NURBS at every band");
-                let (du0, du1) = wall.knots_u().domain();
-                let images: Vec<_> = body
-                    .edges()
-                    .flat_map(|(_, e)| [e.he_plus, e.he_minus])
-                    .filter_map(|he| body.pcurve(he).map(|c| c.pcurve().clone()))
-                    .filter_map(|p| match p {
-                        topo::Pcurve::IsoLine { p0, pl } if pl.x == 0.0 => Some(p0),
-                        _ => None,
-                    })
-                    .collect();
-                assert_eq!(
-                    images.len(),
-                    2,
-                    "both promoted seams chart as u-constant iso lines: {images:?}"
-                );
-                for p0 in &images {
-                    assert!(
-                        p0.x == du0 || p0.x == du1,
-                        "on the chart's OWN boundary columns: u = {} of [{du0}, {du1}]",
-                        p0.x
-                    );
-                }
-                println!(
-                    "M8-4 seams @ eps={eps:e}: promoted LINE corners; both seams charted \
-                     on their boundary columns"
+                    p0.x == du0 || p0.x == du1,
+                    "on the chart's OWN boundary columns: u = {} of [{du0}, {du1}]",
+                    p0.x
                 );
             }
-        }
-        // The ε-fine posture, UNCHANGED by the gate: at 1e-12 the
-        // envelope's own slack refuses during adoption, so the body
-        // never reaches the at-rest pass at all.
-        Err(StepImportError::Adoption { id, attempts }) => {
-            assert!(
-                eps < 1e-9,
-                "adoption itself only refuses at the ε-fine row: {attempts:?}"
+            println!(
+                "M8-4 seams @ eps={eps:e}: {} LINE corners; both seams charted on their \
+                 boundary columns",
+                line_promotions.len()
             );
-            assert_eq!(id, 130, "the seam, named");
-            let bound = attempts.iter().find_map(|a| match a.refusal {
-                topo::EulerOpError::Certification {
-                    error:
-                        geom_brep::CertifyError::Escalated {
-                            check: geom_brep::CertCheck::PlaneNurbsCertificate,
-                            cause,
-                            ..
-                        },
-                } => match cause.margin.diagnostic_f64_for_error_text() {
-                    geom_core::ErrorTextReading::Value(v) => Some(v),
-                    _ => None,
-                },
-                _ => None,
-            });
-            let Some(bound) = bound else {
-                panic!("the refusal must carry the lane's measured bound: {attempts:?}");
-            };
-            assert!(
-                bound > eps,
-                "the refusal's own number explains it: the certified sup {bound:e} m \
-                 does not fit inside ε_in {eps:e}"
-            );
-            println!("M7-8 seam #130 @ eps={eps:e}: adoption refuses, certified sup {bound:e} m");
         }
         // The FIXED SCHEDULE's honest frontier (M8-3, D9): where the
         // seam certifies but the rational wall's flux cannot reach
@@ -566,7 +505,7 @@ fn the_mixed_arc_prism_imports_first_class_over_the_intersection_pcurve_arm() {
                 !shown.contains("Adoption") && !shown.contains("PlaneNurbs"),
                 "the seam-orphan class is RETIRED: no adoption refusal survives here: {shown}"
             );
-            println!("M7-8 seam #130 @ eps={eps:e}: seam certifies; volume at the budget");
+            println!("M7-8 arc prism @ eps={eps:e}: seams charted; volume at the budget");
         }
         other => panic!("no other posture is pinned for this fixture: {other:?}"),
     }
@@ -671,8 +610,11 @@ fn plane_nurbs_seams(
 }
 
 // The seam's own certified NUMBERS are pinned where they are measured
-// rather than re-derived here: the ε-fine branches above assert this
-// seam's certified sup (6.3156e-12 m) from the refusal payload, and
+// rather than re-derived here. What the ε-fine branches above assert
+// about the payload is only that its number EXPLAINS the refusal
+// (`sup > eps`) — not the number itself, which would be a second copy
+// of a measured quantity. Its value at the finest row measured is
+// 3.5528237131349995e-14 m, and
 // geom-brep's `m7_8_plane_nurbs_edge` rows measure the same
 // quarter-cylinder-meets-plane geometry at the lane and at the door.
 // What the rows above add is the CONSEQUENCE — the certified seam

@@ -34,11 +34,13 @@
 
 use crate::corpus;
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use corpus::{body_of, die_chamfer, eval, failures};
 use editor_core::{
     CancelToken, EvalOptions, EvalOutcome, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SlotId, StableName, evaluate,
+    RecipeNodeId, SlotId, StableName, evaluate,
 };
 use geom_core::Tol;
 
@@ -123,15 +125,15 @@ fn the_chamfer_removes_more_than_the_fillet_of_the_same_size() {
 #[test]
 fn the_chamfer_door_sorts_and_dedups_its_selection() {
     let a = fixture::ename(
-        RecipeNodeId(1),
-        editor_core::RoleSeg::Lateral(fixture::leg(0)),
+        RecipeNodeId::new(0, 1),
+        editor_core::RoleSeg::Lateral(fixture::leg(0).into()),
     );
     let b = fixture::ename(
-        RecipeNodeId(1),
-        editor_core::RoleSeg::Lateral(fixture::leg(1)),
+        RecipeNodeId::new(0, 1),
+        editor_core::RoleSeg::Lateral(fixture::leg(1).into()),
     );
-    let node: Node<ProfileProgram> = Node::chamfer(
-        RecipeNodeId(1),
+    let node: AuthoredNode = Node::chamfer(
+        RecipeNodeId::new(0, 1),
         fixture::len(0.1),
         vec![b.clone(), a.clone(), b.clone()],
     );
@@ -148,7 +150,7 @@ fn the_chamfer_door_sorts_and_dedups_its_selection() {
 /// fillet's name for a different quantity.
 #[test]
 fn the_distance_slot_is_named_and_dimensioned_for_the_setback() {
-    let node: Node<ProfileProgram> = Node::chamfer(RecipeNodeId(1), fixture::len(0.1), Vec::new());
+    let node: AuthoredNode = Node::chamfer(RecipeNodeId::new(0, 1), fixture::len(0.1), Vec::new());
     assert_eq!(node.slots(), vec![SlotId::ChamferDistance]);
     assert_eq!(
         SlotId::ChamferDistance.dimension(),
@@ -166,14 +168,14 @@ fn the_distance_slot_is_named_and_dimensioned_for_the_setback() {
 #[test]
 fn the_selection_is_payload_names() {
     let a = fixture::ename(
-        RecipeNodeId(1),
-        editor_core::RoleSeg::Lateral(fixture::leg(0)),
+        RecipeNodeId::new(0, 1),
+        editor_core::RoleSeg::Lateral(fixture::leg(0).into()),
     );
-    let node: Node<ProfileProgram> =
-        Node::chamfer(RecipeNodeId(1), fixture::len(0.1), vec![a.clone()]);
+    let node: AuthoredNode =
+        Node::chamfer(RecipeNodeId::new(0, 1), fixture::len(0.1), vec![a.clone()]);
     let names: Vec<&StableName> = node.payload_names();
     assert_eq!(names, vec![&a]);
-    assert_eq!(node.named_nodes(), vec![RecipeNodeId(1)]);
+    assert_eq!(node.named_nodes(), vec![RecipeNodeId::new(0, 1)]);
 }
 
 /// **An empty selection refuses, naming the chamfer.** A blend of
@@ -194,6 +196,7 @@ fn an_empty_selection_refuses_as_a_chamfer() {
         Node::Extrude {
             profile,
             distance: fixture::len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, ch) = fixture::insert(doc, Node::chamfer(cube, fixture::len(0.1), Vec::new()));

@@ -37,7 +37,7 @@ use profile::test_support::bulge_loop;
 use geom::NurbsCurve3;
 use geom::curves::fit::interpolate_columns;
 use geom_core::{Affine3, Point2, Point3};
-use sweep::skin::{LoftGeometry, Section, loft_geometry, sweep_geometry};
+use sweep::skin::{LoftGeometry, Section, loft_geometry, loft_parameters, sweep_geometry};
 use sweep::test_support::{
     ELBOW_H, ELBOW_R, ELBOW_STATIONS, ELBOW_V_DEGREE, PRISM_Z, elbow_path, elbow_section,
     loft_prism_sections, stacked_at,
@@ -56,6 +56,13 @@ use geom_core::Tol;
 /// weights, no arc anywhere).
 fn square(h: f64) -> Section {
     quad([(-h, -h), (h, -h), (h, h), (-h, h)])
+}
+
+/// A loft's walls at the loft's own parameters (v-degree 2), as
+/// `loft_body` builds them.
+fn lofted_geometry(sections: &[Section], places: &[Affine3<f64>]) -> LoftGeometry {
+    let params = loft_parameters(sections, places, 2, Tol::witness()).expect("parameters");
+    loft_geometry(sections, places, 2, &params, Tol::witness()).expect("geometry")
 }
 
 /// Every weight of every wall, bit-exactly `1.0` — the kernel's own
@@ -119,13 +126,10 @@ fn homogeneous_lane(
 /// lane never manufactures the weight column.
 #[test]
 fn the_homogeneous_lane_still_drifts_where_the_shipped_lane_does_not() {
-    let g = loft_geometry(
+    let g = lofted_geometry(
         &[square(1.0), square(1.0), square(1.0)],
         &stacked_at(&[0.0, 1.0, 3.0]),
-        2,
-        Tol::witness(),
-    )
-    .expect("geometry");
+    );
     let (_, old_w) = homogeneous_lane(&g.sections[0][0], 2, &g.section_params);
     assert!(
         old_w.iter().any(|w| *w != 1.0),
@@ -143,13 +147,7 @@ fn the_homogeneous_lane_still_drifts_where_the_shipped_lane_does_not() {
 /// compared byte-for-byte by the golden-file suite.)
 #[test]
 fn the_uniform_loft_is_bitwise_unchanged() {
-    let g = loft_geometry(
-        &loft_prism_sections(),
-        &stacked_at(&PRISM_Z),
-        2,
-        Tol::witness(),
-    )
-    .expect("geometry");
+    let g = lofted_geometry(&loft_prism_sections(), &stacked_at(&PRISM_Z));
     for (l, loop_walls) in g.walls.iter().enumerate() {
         for (j, wall) in loop_walls.iter().enumerate() {
             let (old_c, old_w) = homogeneous_lane(&g.sections[l][j], 2, &g.section_params);
@@ -207,7 +205,7 @@ fn nonuniform_prism_loft_body_matches_the_derived_volume() {
 fn nonuniform_trapezoid_loft_body_is_tier3_valid() {
     let places = stacked_at(&[0.0, 1.0, 3.0]);
     walls_are_integral(
-        &loft_geometry(&loft_prism_sections(), &places, 2, Tol::witness()).expect("geometry"),
+        &lofted_geometry(&loft_prism_sections(), &places),
         "non-uniform trapezoid loft",
     );
     let lofted =

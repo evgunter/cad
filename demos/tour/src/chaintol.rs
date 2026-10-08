@@ -35,23 +35,19 @@
 //! |---|---|---|---|---|
 //! | 1–4 | `Interval` | refuses | `transform_rigid_col0_unit` | <0.01 s |
 //! | 1 | `Sym<Interval>` | **CERTIFIES** | — | 0.16 s |
-//! | 2 | `Sym<Interval>` | refuses | `dihedral_wedge`, margin poisoned | 0.31 s |
-//! | 3 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.47 s |
-//! | 4 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.73 s |
+//! | 2 | `Sym<Interval>` | refuses | `dihedral_wedge`: no tangent plane | 0.31 s |
+//! | 3 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.51 s |
+//! | 4 | `Sym<Interval>` | refuses | `dihedral_arm`, `[0, 7.34e-3]` | 0.64 s |
 //!
 //! **That column is the first refusal at the WHOLE study, which is a
-//! different question from what bounds the certifiable box.** The two
-//! were conflated here until SYM-14's review measured them apart.
+//! different question from what bounds the certifiable box.**
 //! Evaluation order decides which refusal is reported first, and at
 //! the whole study the `dihedral_arm` straddle happens to come first
-//! at three and four links. Just above the WALL — at `1.02×` and
-//! `1.10×` of each link count's certifiable fraction, default ε and
-//! `1e-6` alike — the first refusal is `dihedral_wedge` with a
-//! POISONED margin, on `EdgeKey(1v1)` at sample 4, at two, three and
-//! four links (nodes 14, 21, 30). **The wedge is what bounds the box**
-//! (`work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`);
-//! the arm's straddle is a second, ε-independent refusal that is first
-//! only over the whole study
+//! at three and four links. Just above the WALL the first refusal is
+//! the wedge on `EdgeKey(1v1)` at sample 4 at two, three and four links
+//! (nodes 14, 21, 30): **the wedge is what bounds the box**, as the
+//! next section says. The arm's straddle is a second, ε-independent
+//! refusal that is first only over the whole study
 //! (`work/sym/a-chain-of-three-joints-straddles-dihedral-arm`).
 //!
 //! **The plain interval lane does not carry a widened rotation angle
@@ -82,18 +78,39 @@
 //! doubles with it, to `3.81°`. The invariant across LINK COUNTS is
 //! real; the angle was not the invariant.
 //!
-//! **The mechanism is a hypothesis, not a measurement.** What is
-//! measured is the coincidence: the wall sits where the tip's
-//! certified box reaches half the pin radius, at every link count and
-//! at both radii tried. The reading that would explain it — the
-//! wedge's margin poisoning once the positional box reaches the pin's
-//! own cylinder gradient — comes from the review and has NOT been
-//! checked against the margin's own inputs here; it is written down as
-//! the first thing to look at, on
-//! `work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`,
-//! and not as the reason. The one-link row is outside the pattern and
-//! says why: it is capped by the study itself (`f = 1` at `0.450` of
-//! the radius), the wall lying beyond it.
+//! **What sets the wall: this paragraph is the mechanism's one home.**
+//! The wall's edge is the tip pin's cap circle, a plane × cylinder
+//! `Intersection` the outer joint's transform re-certifies. Its point
+//! and its cylinder's axis are mapped and enclosed APART, each carrying
+//! the tip's lateral half-width `δ` across the chain, so the radial
+//! vector `p − origin` the cylinder's gradient is built from is enclosed
+//! `r ± 2δ` wide. Two things follow, from two different causes:
+//!
+//! - **The poison, at `2δ = r`.** The gradient's enclosure reaches zero,
+//!   no tangent plane is defined over the box, and the wedge refuses
+//!   with "the surfaces' tangent planes at sample 4 are undefined". The
+//!   box where that happens does not move with ε. It is set by the
+//!   transform enclosing the two images apart
+//!   (`work/shell/transform-rigid-recertifies-images-enclosed-apart`),
+//!   and at the default ε it is the wall, so the tip's certified box is
+//!   half the pin radius.
+//! - **The straddle, before it.** `sin θ = ‖n1 × n2‖/(‖n1‖·‖n2‖)`
+//!   carries the gradient's magnitude in both its numerator and its
+//!   denominator, so its enclosure's lower end falls toward zero as
+//!   `2δ` approaches `r`, although the true value over these boxes is
+//!   one. The box stops certifying where that lower end drops under
+//!   `K·ε`, which is why the fraction moves with ε. That width is the
+//!   formula's
+//!   (`work/props/interval-sin-theta-as-cross-over-norms-loses-the-shared-magnitude`).
+//!
+//! The enclosures, the model, and the fractions and first refusals at
+//! three ε are on
+//! `work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`
+//! ("What Phase 1 found"). `geom_brep`'s
+//! `a_cylinder_gradient_reaching_zero_leaves_no_tangent_plane` is the
+//! poison on one plane and one cylinder. The one-link row is outside
+//! the pattern and says why: it is capped by the study itself (`f = 1`
+//! at `0.450` of the radius), the wall lying beyond it.
 //!
 //! At that box the drive certifies the whole box in ONE leaf — it
 //! splits nothing, because nothing refuses — and **the four-link tip's
@@ -115,7 +132,8 @@ use pncad::document::{
 use pncad::geom_core::{Bounds, Interval, Sym, SymBudget, SymCounts, SymRules, Tol};
 
 use crate::chain::{
-    CERTIFIABLE_FRACTION_BY_LINKS, Chain, JOINT_SIGMA, LINK_LENGTH, LINKS, POSITION_BOUND, chain,
+    CERTIFIABLE_FRACTION_BY_LINKS, CERTIFIED_PIN_BOX, Chain, JOINT_SIGMA, LINK_LENGTH, LINKS,
+    POSITION_BOUND, chain, study,
 };
 
 /// Metres to millimetres, for every printed number.
@@ -159,9 +177,11 @@ fn failures<T: pncad::geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
     ev.order
         .iter()
         .filter_map(|id| match ev.result(*id) {
-            Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+            // The payload's `Debug` carries the predicate key; the
+            // user-facing sentence no longer names it.
+            Some(NodeResult::Failed(e)) => Some(format!("node {} — {} [{:?}]", id, e.kind, e.kind)),
             Some(NodeResult::Poisoned { through }) => {
-                Some(format!("node {} poisoned through {}", id.0, through.0))
+                Some(format!("node {} poisoned through node {}", id, through))
             }
             _ => None,
         })
@@ -196,7 +216,8 @@ struct Row {
     certifies: bool,
     /// How many nodes failed or were poisoned.
     refused: usize,
-    /// The first refusal, verbatim — it names the predicate.
+    /// The first refusal: its sentence, then its payload, which names
+    /// the predicate.
     first: Option<String>,
     /// Wall-clock of the one leaf.
     cost: std::time::Duration,
@@ -266,6 +287,15 @@ fn print_row(r: &Row) {
 }
 
 /// The tour's certified chain cell.
+///
+/// **It asserts what its table and header claim, not only prints
+/// them** ([`assert_row`], the drive's verdicts, and at the default ε
+/// the published box and pin enclosures), so `demo-tour certified`'s
+/// exit 0 in `tests/eps_regression.rs` carries those findings and no
+/// unit row re-computes them. The rows below are the MEASUREMENTS the
+/// narration only reads back — the bisection behind
+/// [`CERTIFIABLE_FRACTION_BY_LINKS`], the wall just past it, and the
+/// tip ratio at every link count.
 pub fn narration(tol: Tol) {
     println!(
         "   the study: {LINKS} links, each joint an independent normal at σ = {JOINT_SIGMA} rad, \
@@ -280,12 +310,13 @@ pub fn narration(tol: Tol) {
 
     let mut rows = Vec::new();
     for links in 1..=LINKS {
-        let built: Chain = chain(links, JOINT_SIGMA, POSITION_BOUND, tol);
+        let built: Chain = study(links, tol);
         for row in [
             interval_leaf(links, &built.doc),
             sym_leaf(links, &built.doc),
         ] {
             print_row(&row);
+            assert_row(&row);
             rows.push((links, row));
         }
     }
@@ -326,12 +357,9 @@ pub fn narration(tol: Tol) {
     }
 
     // **Whether that box still certifies HERE.** The fraction moves
-    // with ε — MEASURED, `1.083e-1` at ε = 1e-6 against `1.110e-1` at
-    // the default — and WHY it moves is not established: the refusal
-    // at the wall is the wedge's poisoned margin, which is not a
-    // quantity the band classifies
-    // (`work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`).
-    // So the cell asks rather than reasoning: it declares the
+    // with ε — MEASURED, `1.083e-1` at ε = 1e-6 against `1.110e-1`
+    // at the default — for the reason the module header's "What sets
+    // the wall" gives. So the cell asks rather than reasoning: it declares the
     // frontier instead of assuming its own published number
     // (`demos/tour/tests/eps_regression.rs` on a declared frontier),
     // and one leaf is what it costs to know.
@@ -342,6 +370,14 @@ pub fn narration(tol: Tol) {
         tol,
     );
     if !sym_leaf(LINKS, &narrow.doc).certifies {
+        // At the default ε the published box IS this run's box, so a
+        // refusal there is the finding moving, not the frontier.
+        assert!(
+            !crate::tolerance::at_the_ci_row(tol),
+            "the published {LINKS}-link box ({} of the study) is the default ε's \
+             measurement, and at the default ε it no longer certifies",
+            crate::chain::CERTIFIABLE_FRACTION
+        );
         println!(
             "   the published box does NOT certify at this run's ε — it is the default ε's \
              number, and the box moves with ε (1.083e-1 at 1e-6, measured). No enclosure is \
@@ -360,6 +396,15 @@ pub fn narration(tol: Tol) {
     let boxes = certified_pin_boxes(LINKS, crate::chain::CERTIFIABLE_FRACTION, tol);
     for (k, (dx, dy)) in boxes.iter().enumerate() {
         println!("     pin {}: {:.5} mm × {:.5} mm", k + 1, dx * MM, dy * MM);
+    }
+    // **The published per-pin enclosures are these, at the default ε.**
+    // [`CERTIFIED_PIN_BOX`] is drawn to scale by the density sheet as
+    // the certified half of the picture, so a number that drifted from
+    // what the tier encloses would be a box on the sheet that no leaf
+    // ever certified. Pinned at the default ε only: the box itself
+    // moves with ε.
+    if crate::tolerance::at_the_ci_row(tol) {
+        assert_pin_boxes_are_published(&boxes);
     }
     // …and WHAT that tip half-width is: half the pin radius, which is
     // the invariant the four fractions are four spellings of. Printed
@@ -380,6 +425,106 @@ pub fn narration(tol: Tol) {
     // lane reach the FOUR-link tip's assertion at any box. It does, at
     // that one — so the drive is run there and the verdict printed.
     drive_and_report(LINKS, crate::chain::CERTIFIABLE_FRACTION, tol);
+}
+
+/// **What the table claims, asserted per row** — the cell panics when
+/// the kernel stops doing what it narrates.
+///
+/// The plain interval lane refuses at EVERY link count, at the FIRST
+/// transform, on the rigid map's own isometry check: an interval
+/// `cos`/`sin` makes `cos² + sin²` a bracket around 1 rather than 1,
+/// and the column-unit predicate is what notices. The symbolic tier
+/// discharges that identity, so the ONE-link chain certifies whole over
+/// the study a user actually has — and the wall MOVES rather than going
+/// away: from two links on it is a transversality margin during the
+/// mapped edge's re-certification, not the isometry. The table names
+/// WHICH predicate per link count, so that is what is asserted, not
+/// merely that some dihedral refused: the two are different predicates
+/// with different answers, and the header once said the wrong one.
+fn assert_row(row: &Row) {
+    let links = row.links;
+    let first = || {
+        row.first
+            .as_deref()
+            .expect("a refusing row names its first refusal")
+    };
+    match (row.lane, links) {
+        (Lane::Interval, _) => {
+            assert!(
+                !row.certifies,
+                "the header says a widened rotation angle does not survive the plain \
+                 interval lane at any link count; {links} link(s) certified"
+            );
+            assert!(
+                first().contains("transform_rigid_col0_unit"),
+                "the header names `transform_rigid_col0_unit` as the plain lane's wall; at \
+                 {links} link(s) the first refusal was: {}",
+                first()
+            );
+        }
+        (Lane::Symbolic, 1) => {
+            assert!(
+                row.certifies,
+                "the header says the symbolic tier carries the one-link chain over the \
+                 whole study; it refused at: {:?}",
+                row.first
+            );
+            assert!(
+                row.counts.symbolic_zero > 0,
+                "the tier is what carries it, so the leaf discharged identities: {:?}",
+                row.counts
+            );
+        }
+        (Lane::Symbolic, _) => {
+            let predicate = if links == 2 {
+                "dihedral_wedge"
+            } else {
+                "dihedral_arm"
+            };
+            assert!(
+                !row.certifies,
+                "the header says the symbolic tier stops at two links over the whole \
+                 study; {links} link(s) certified"
+            );
+            assert!(
+                !first().contains("transform_rigid_col0_unit"),
+                "the header says the isometry wall is GONE on the symbolic lane; at \
+                 {links} link(s) it was still the first refusal: {}",
+                first()
+            );
+            // The predicate's exact name, as the refusal's diagnostics
+            // spell it: `dihedral_arm` is a prefix of `dihedral_arm_wedge`,
+            // so a substring would read either as the other.
+            assert!(
+                first().contains(&format!("predicate: Some(\"{predicate}\")")),
+                "the table says the first refusal at {links} link(s) over the whole study \
+                 is `{predicate}`; it was: {}",
+                first()
+            );
+        }
+    }
+}
+
+/// [`CERTIFIED_PIN_BOX`] against the measured enclosures, within 2%,
+/// with the whole array in the message in the literal's own shape so a
+/// re-baseline is a paste rather than five readings.
+fn assert_pin_boxes_are_published(measured: &[(f64, f64)]) {
+    assert_eq!(measured.len(), CERTIFIED_PIN_BOX.len());
+    let literal: String = measured
+        .iter()
+        .map(|(x, y)| format!("    ({x:e}, {y:e}),\n"))
+        .collect();
+    let drifted = measured
+        .iter()
+        .zip(CERTIFIED_PIN_BOX)
+        .any(|((mx, my), (px, py))| {
+            (mx - px).abs() > 0.02 * px.max(1e-9) || (my - py).abs() > 0.02 * py.max(1e-9)
+        });
+    assert!(
+        !drifted,
+        "chain::CERTIFIED_PIN_BOX is {CERTIFIED_PIN_BOX:?}; the certified leaf \
+         encloses\n[\n{literal}];\nre-baseline the constant and say in the PR what moved."
+    );
 }
 
 /// The drive over a chain's analyzed box at a stated fraction of the
@@ -415,6 +560,15 @@ fn drive_and_report(links: usize, fraction: f64, tol: Tol) {
                 }
             }
             let leaves = verdict.certified().len();
+            // The tip assertion is what a CI row would gate on, and
+            // the cell says it HOLDS, certified, wherever the drive
+            // reaches it.
+            assert!(
+                leaves > 0 && holds == leaves,
+                "the header says the drive at {links} link(s) over {fraction} of the study \
+                 certifies and the tip assertion HOLDS on every certified leaf: {leaves} \
+                 certified, {holds} hold, {violated} violated, {undecided} undecided"
+            );
             println!(
                 "   the drive at {links} link{} over {} of the study, leaf budget {} \
                  ({:.1} s): {leaves} certified leaf/leaves{} — the tip assertion HOLDS on \
@@ -436,9 +590,7 @@ fn drive_and_report(links: usize, fraction: f64, tol: Tol) {
             );
         }
         Err(refusal) => {
-            println!(
-                "   the drive at {links} links over {fraction} of the study refused: {refusal}"
-            )
+            panic!("the drive at {links} link(s) over {fraction} of the study refused: {refusal}")
         }
     }
 }
@@ -495,21 +647,18 @@ fn certifiable_fraction(links: usize, tol: Tol) -> f64 {
     // (`the_wall_is_the_wedge_not_the_arm`). What is ASSUMED is
     // monotonicity BELOW the answer — that no narrower box refuses.
     //
-    // That assumption used to be argued here from the shape of the
-    // refusal: a narrower box is a sub-box, so an enclosure that
-    // straddles a band stops straddling and cannot come back. **The
-    // argument does not survive the measurement.** The refusal at the
-    // wall is the wedge's POISONED margin — a NaN, which is not
-    // classified against a band at all — so nothing in the straddle
-    // argument transfers to it, and nothing here establishes that a
-    // poison cannot reappear at a narrower width. Why the boundary
-    // moves with ε at all is unestablished for the same reason
-    // (`work/sym/a-chain-of-two-or-more-joints-poisons-its-transversality-margin`).
+    // That assumption cannot be argued from the shape of the refusal at
+    // the default ε. The refusal at the wall is the wedge's POISONED
+    // margin (the module header's "What sets the wall") — a NaN, which
+    // is not classified against a band at all — so a straddle argument
+    // (a sub-box's enclosure lies inside the wider box's) does not
+    // transfer to it, and nothing here establishes that a poison
+    // cannot reappear at a narrower width.
     //
-    // So the assumption is carried as an assumption, with the check
-    // that would catch it RUN rather than described: the fractions
-    // row re-certifies each answer at 1/2 and 1/4 of its width, so a
-    // poison returning anywhere in that range reds. Outside it the
+    // So the assumption is carried as an assumption, and the guard is
+    // the half and quarter rows: the fractions row re-certifies each
+    // answer at 1/2 and 1/4 of its width, so a refusal returning
+    // anywhere in that range reds. Outside it the
     // claim the constants actually carry is the executed one —
     // certifies at this width, refuses 2% above.
     let mut lo = lo;
@@ -585,116 +734,6 @@ fn certified_pin_boxes(links: usize, fraction: f64, tol: Tol) -> Vec<(f64, f64)>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chain::CERTIFIED_PIN_BOX;
-
-    /// **The cell's own row, so it EXECUTES on hosted CI.**
-    ///
-    /// The narration runs in `demo-tour certified`, which asserts
-    /// nothing. This row is what puts the cell inside
-    /// `ci.yml`'s `demos tour suite` step, and it asserts the
-    /// findings the header claims rather than merely running the code.
-    #[test]
-    fn the_certified_table_says_what_the_header_says() {
-        let tol = Tol::witness();
-
-        // The plain interval lane refuses at EVERY link count, at the
-        // FIRST transform, on the rigid map's own isometry check: an
-        // interval `cos`/`sin` makes `cos² + sin²` a bracket around 1
-        // rather than 1, and the column-unit predicate is what notices.
-        for links in 1..=LINKS {
-            let built = chain(links, JOINT_SIGMA, POSITION_BOUND, tol);
-            let row = interval_leaf(links, &built.doc);
-            assert!(
-                !row.certifies,
-                "the header says a widened rotation angle does not survive the plain \
-                 interval lane at any link count; {links} link(s) certified"
-            );
-            let first = row.first.expect("a refusing row names its first refusal");
-            assert!(
-                first.contains("transform_rigid_col0_unit"),
-                "the header names `transform_rigid_col0_unit` as the plain lane's wall; \
-                 at {links} link(s) the first refusal was: {first}"
-            );
-        }
-
-        // The symbolic tier discharges that identity — the ONE-link
-        // chain certifies whole, over the study a user actually has.
-        let one = chain(1, JOINT_SIGMA, POSITION_BOUND, tol);
-        let row = sym_leaf(1, &one.doc);
-        assert!(
-            row.certifies,
-            "the header says the symbolic tier carries the one-link chain over the whole \
-             study; it refused at: {:?}",
-            row.first
-        );
-        assert!(
-            row.counts.symbolic_zero > 0,
-            "the tier is what carries it, so the leaf discharged identities: {:?}",
-            row.counts
-        );
-
-        // …and the wall MOVES rather than going away: from two links on
-        // it is a transversality margin during the mapped edge's
-        // re-certification, not the isometry. The table names WHICH
-        // predicate per link count, so this asserts that and not
-        // merely that some dihedral refused — the two are different
-        // predicates with different answers, and the header used to
-        // say the wrong one.
-        for (links, predicate) in [
-            (2usize, "dihedral_wedge"),
-            (3, "dihedral_arm"),
-            (4, "dihedral_arm"),
-        ] {
-            let built = chain(links, JOINT_SIGMA, POSITION_BOUND, tol);
-            let row = sym_leaf(links, &built.doc);
-            assert!(
-                !row.certifies,
-                "the header says the symbolic tier stops at two links over the whole \
-                 study; {links} link(s) certified"
-            );
-            let first = row.first.expect("a refusing row names its first refusal");
-            assert!(
-                !first.contains("transform_rigid_col0_unit"),
-                "the header says the isometry wall is GONE on the symbolic lane; at \
-                 {links} link(s) it was still the first refusal: {first}"
-            );
-            assert!(
-                first.contains(predicate),
-                "the table says the first refusal at {links} link(s) over the whole study \
-                 is `{predicate}`; it was: {first}"
-            );
-        }
-
-        // The one-link chain's drive reaches the TIP ASSERTION, which
-        // is the thing a CI row would gate on and the one place this
-        // document's certified lane gets all the way there.
-        let analyzed = analyzed_box(&one.doc, &AnalysisPolicy::default());
-        let config = DriveConfig {
-            max_leaves: 64,
-            ..DriveConfig::default()
-        };
-        let verdict = drive(&one.doc, &analyzed, &config, tol).expect("the nominal builds");
-        assert!(
-            !verdict.certified().is_empty(),
-            "the header says the one-link drive certifies: {:?}",
-            verdict.receipt()
-        );
-        let holds = verdict
-            .certified()
-            .iter()
-            .filter(|leaf| {
-                assertion_at(&one.doc, one.assertion, &leaf.box_, verdict.symbolic(), tol)
-                    .and_then(|v| v.holds())
-                    == Some(true)
-            })
-            .count();
-        assert_eq!(
-            holds,
-            verdict.certified().len(),
-            "the header says the tip assertion HOLDS on every certified leaf of the \
-             one-link chain"
-        );
-    }
 
     /// **What BOUNDS the certifiable box is `dihedral_wedge`.**
     ///
@@ -719,97 +758,17 @@ mod tests {
                 );
                 let first = row.first.expect("a refusing row names its first refusal");
                 assert!(
-                    first.contains("dihedral_wedge"),
+                    first.contains("predicate: Some(\"dihedral_wedge\")"),
                     "the header says the WALL is `dihedral_wedge`; at {links} links, \
                      {over}× the fraction, the first refusal was: {first}"
                 );
                 assert!(
-                    first.contains("margin is invalid"),
-                    "the header says the wall's margin is POISONED, not straddling; at \
-                     {links} links, {over}× the fraction: {first}"
+                    first.contains("tangent planes at sample") && first.contains("Invalid"),
+                    "the header says the wall's margin is POISONED (no tangent plane is \
+                     defined), not straddling; at {links} links, {over}× the fraction: {first}"
                 );
             }
         }
-    }
-
-    /// **The certified lane reaches the FOUR-link tip's assertion.**
-    ///
-    /// This is the question
-    /// `work/sym/a-widened-rotation-angle-is-unmeasured-on-the-certified-lane`
-    /// asks, and the answer is yes at the box
-    /// [`crate::chain::CERTIFIABLE_FRACTION`] names — which is what
-    /// makes the sheet's certified half a real enclosure rather than a
-    /// caption about one.
-    #[test]
-    fn the_four_link_tip_assertion_is_certified_over_the_certifiable_box() {
-        let tol = Tol::witness();
-        let narrow = chain(
-            LINKS,
-            JOINT_SIGMA * crate::chain::CERTIFIABLE_FRACTION,
-            POSITION_BOUND,
-            tol,
-        );
-        let analyzed = analyzed_box(&narrow.doc, &AnalysisPolicy::default());
-        let config = DriveConfig {
-            max_leaves: 64,
-            ..DriveConfig::default()
-        };
-        let verdict = drive(&narrow.doc, &analyzed, &config, tol).expect("the nominal builds");
-        assert!(
-            !verdict.certified().is_empty(),
-            "the header says the {LINKS}-link chain certifies over that box: {:?}",
-            verdict.receipt()
-        );
-        let holds = verdict
-            .certified()
-            .iter()
-            .filter(|leaf| {
-                assertion_at(
-                    &narrow.doc,
-                    narrow.assertion,
-                    &leaf.box_,
-                    verdict.symbolic(),
-                    tol,
-                )
-                .and_then(|v| v.holds())
-                    == Some(true)
-            })
-            .count();
-        assert_eq!(
-            holds,
-            verdict.certified().len(),
-            "the header says the tip assertion HOLDS, certified, on every leaf of that box"
-        );
-    }
-
-    /// **The published per-pin enclosures are the measured ones.**
-    ///
-    /// [`CERTIFIED_PIN_BOX`] is drawn to scale by the density sheet as
-    /// the certified half of the picture, so a number that drifted
-    /// from what the tier actually encloses would be a box on the
-    /// sheet that no leaf ever certified.
-    #[test]
-    fn the_published_certified_pin_boxes_are_the_measured_ones() {
-        let measured =
-            certified_pin_boxes(LINKS, crate::chain::CERTIFIABLE_FRACTION, Tol::witness());
-        assert_eq!(measured.len(), CERTIFIED_PIN_BOX.len());
-        // The whole array, in the message and in the literal's own
-        // shape: a re-baseline is a paste rather than five readings.
-        let literal: String = measured
-            .iter()
-            .map(|(x, y)| format!("    ({x:e}, {y:e}),\n"))
-            .collect();
-        let drifted = measured
-            .iter()
-            .zip(CERTIFIED_PIN_BOX)
-            .any(|((mx, my), (px, py))| {
-                (mx - px).abs() > 0.02 * px.max(1e-9) || (my - py).abs() > 0.02 * py.max(1e-9)
-            });
-        assert!(
-            !drifted,
-            "chain::CERTIFIED_PIN_BOX is {CERTIFIED_PIN_BOX:?}; the certified leaf \
-             encloses\n[\n{literal}];\nre-baseline the constant and say in the PR what moved."
-        );
     }
 
     /// **The tip's certified box is half the PIN RADIUS**, at every
@@ -858,9 +817,8 @@ mod tests {
     ///
     /// The whole table is at the AMBIENT ε — `ci.yml` runs this row at
     /// the default — because the fractions move with ε: `1.110e-1` at
-    /// the default against `1.083e-1` at `1e-6`, measured. What makes
-    /// them move is not established; the wall's refusal is a poisoned
-    /// margin, which is not a quantity a band classifies.
+    /// the default against `1.083e-1` at `1e-6`, measured, for the
+    /// reason the module header's "What sets the wall" gives.
     ///
     /// It also runs the check the bisection's monotonicity assumption
     /// owes (see `certifiable_fraction`): each answer is re-certified
@@ -872,9 +830,8 @@ mod tests {
         let tol = Tol::witness();
         let measured: Vec<f64> = (1..=LINKS).map(|n| certifiable_fraction(n, tol)).collect();
         // The check the bisection's monotonicity assumption owes: a
-        // narrower box must still certify. The wall is a POISONED
-        // margin, so nothing argues it cannot come back — this is
-        // where it would be seen if it did.
+        // narrower box must still certify. A refusal other than the
+        // wall's would be seen here if one came back narrower.
         for (i, f) in measured.iter().enumerate() {
             let links = i + 1;
             for half in [0.5, 0.25] {

@@ -8,6 +8,7 @@
 use crate::shared::tol::band;
 use core::num::NonZeroUsize;
 use geom_brep::props::quad::nurbs_patch_face;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use geom_core::{Interval, Tol};
 

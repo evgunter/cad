@@ -394,7 +394,7 @@ fn a_meridian_carrier_within_the_classify_slack_measures_and_past_it_escalates()
         leaned_meridian(theta, past, 1, 0),
     ];
     match curved_face(&sphere::<f64>(), &edges, true, band) {
-        Err(PropsError::Escalated { cause }) => assert_eq!(
+        Err(PropsError::Escalated { cause, .. }) => assert_eq!(
             cause.predicate,
             Some("props_circle_axis_class"),
             "the lean escalates at the rim/meridian classify"

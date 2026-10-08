@@ -26,9 +26,9 @@ whose ground it lands on).
 
 The file carries **five** `#[test]` rows:
 
-- `d18_split_edge_refuses_a_dangling_prev_of_he_minus`
-- `d18_split_edge_still_refuses_a_dangling_next_of_he_plus`
-- `d18_kef_refuses_a_dangling_prev_of_he`
+- `d18_split_edge_panics_at_a_dangling_prev_of_he_minus`
+- `d18_split_edge_panics_at_a_dangling_next_of_he_plus`
+- `d18_kef_panics_at_a_dangling_prev_of_he`
 - `d18_torn_body_fixture_leaves_every_prev_live`
 - `d18_no_unreachable_message_can_impersonate_the_postcondition`
 

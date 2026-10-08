@@ -37,3 +37,13 @@ on; difficulty S–M.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to WIRE (the names lane is WIRE's territory) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Since (2026-09-30, PR 3241)
+
+`Borders` (N2 as ruled on #3454) retired `Qualifier::SideOf`, the
+`name_frag_side_of` predicate and the shadow-exec rung this row
+describes, with `FlipSource` and `bool7_shadow_exec`'s rows; the
+group-size rung this row led to stands, now pinned in
+`crates/editor-core/tests/resolve_piece_ladder.rs`. A face piece's
+vanish whose walls changed is read by the border delta
+(`resolve::border_delta`).

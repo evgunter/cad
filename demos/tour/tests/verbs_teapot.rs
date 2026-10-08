@@ -92,20 +92,22 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pncad::authoring::{p2, validated};
+use pncad::document::ExtrudeSide;
 use pncad::geom::Surface;
 use pncad::geom_core::{Point2, Tol, Vec2};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 #[path = "common/census.rs"]
 mod census;
 use census::{genus, rings};
+use pncad::topo::AtRestBody;
 use pncad::topo::{Body, ReplaceFaceError, ShellError};
 
 /// Every fixture's mouth plane.
 const TOP: f64 = 8.0 / 64.0;
 
-fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
+fn revolved(lp: ConstructedLoop<f64>, tol: Tol) -> Body<f64> {
     revolve(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("the meridian validates"),
         RevolveAxis {
@@ -119,10 +121,13 @@ fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
     .body
 }
 
-fn extruded(lp: ProfileLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
+fn extruded(lp: ConstructedLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     extrude(
         &validated(SketchPlane::xy(), vec![lp], tol).expect("the footprint validates"),
-        Extrusion::Distance(h),
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
         tol,
     )
     .expect("the footprint extrudes")
@@ -372,12 +377,9 @@ fn triangular_prism(tol: Tol) -> Body<f64> {
 fn scaffold_descriptions(body: &Body<f64>) -> usize {
     body.edges()
         .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(pncad::topo::CurveGeom::certified)
-                    .map(pncad::topo::EdgeCurve::description),
-                Some(&pncad::topo::EdgeDescription::Scaffold(_))
-            )
+            body.get_curve_geom(e.curve)
+                .and_then(pncad::topo::CurveGeom::certified)
+                .is_some_and(|c| c.description().is_scaffold())
         })
         .count()
 }
@@ -452,15 +454,23 @@ fn the_not_a_rigid_translation_door_is_unreachable_at_rest() {
     // The tangent one refuses at the CORNER; the non-tangent one
     // hollows. Same surfaces, same authoring route, and the angle
     // between them is the whole difference.
-    let e = pncad::topo::shell(&bullet(tol), 1.0 / 128.0, tol)
-        .expect_err("a tangent junction has no transversal corner to solve");
+    let e = pncad::topo::shell(
+        &AtRestBody::validate(bullet(tol), tol).expect("a finished operand"),
+        1.0 / 128.0,
+        tol,
+    )
+    .expect_err("a tangent junction has no transversal corner to solve");
     assert_eq!(
         offset_refusal(&e),
         "TogetherAxialCorner",
         "the tangent bullet refuses at the corner it is about, not at a carrier lane"
     );
-    pncad::topo::shell(&lifted_dome(tol), 1.0 / 128.0, tol)
-        .expect("the non-tangent dome's junction is transversal, so it hollows");
+    pncad::topo::shell(
+        &AtRestBody::validate(lifted_dome(tol), tol).expect("a finished operand"),
+        1.0 / 128.0,
+        tol,
+    )
+    .expect("the non-tangent dome's junction is transversal, so it hollows");
 }
 
 /// The offset door's own refusal, as a two-word class name plus what
@@ -611,8 +621,12 @@ fn the_hollow_now_survives_every_axial_junction() {
             t,
         ),
     ] {
-        pncad::topo::shell(&body, thickness, tol)
-            .unwrap_or_else(|e| panic!("{what} hollows, got {e}"));
+        pncad::topo::shell(
+            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            thickness,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{what} hollows, got {e}"));
     }
 
     // ONE row is left on the refusing side, and it is written as one
@@ -625,8 +639,12 @@ fn the_hollow_now_survives_every_axial_junction() {
     // a carrier lane at all — it refuses at the corner's own
     // transversality meter.
     let what = "a hemisphere TANGENT to its cylinder";
-    let e = pncad::topo::shell(&bullet(tol), t, tol)
-        .expect_err("this junction is not square, so the hollow must refuse");
+    let e = pncad::topo::shell(
+        &AtRestBody::validate(bullet(tol), tol).expect("a finished operand"),
+        t,
+        tol,
+    )
+    .expect_err("this junction is not square, so the hollow must refuse");
     assert_eq!(
         offset_refusal(&e),
         "TogetherAxialCorner",
@@ -652,9 +670,14 @@ fn the_opened_rim_is_right_on_a_box() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(top.len(), 1, "an extrusion's cap is ONE face");
-    let cup = pncad::topo::shell_open(&body, 0.02, &top, tol)
-        .expect("a box opens at its top")
-        .body;
+    let cup = pncad::topo::shell_open(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        0.02,
+        &top,
+        tol,
+    )
+    .expect("a box opens at its top")
+    .body;
     assert_eq!(
         (rings(&cup), genus(&cup)),
         (1, 0),
@@ -692,6 +715,11 @@ fn the_opened_rim_is_right_on_a_box() {
 /// face's outer loop — and `verbs_shell::a_ring_standing_on_its_outer_
 /// loop_refuses_at_tier_3` builds the old body through the same public
 /// doors to show that net firing.
+///
+/// Since BAND's "one wall per run" a full revolve no longer cuts a
+/// planar cap at its seam at all, so every case here now arrives as a
+/// one-face chart; the seam-removal arm stays for any chart that does
+/// carry one.
 #[test]
 fn the_opened_rim_is_an_annulus_on_every_revolve() {
     let tol = Tol::witness();
@@ -725,26 +753,38 @@ fn the_opened_rim_is_an_annulus_on_every_revolve() {
         let chart = plane_chart_at(&body, TOP);
         assert_eq!(
             chart.len(),
-            2,
-            "{what}: a full revolve's cap is two half-discs"
+            1,
+            "{what}: a full revolve sweeps its planar cap whole"
         );
-        let cup = pncad::topo::shell_open(&body, t, &chart, tol)
-            .unwrap_or_else(|e| panic!("{what}: the opened arm must build the rim, got {e}"))
-            .body;
+        let cup = pncad::topo::shell_open(
+            &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+            t,
+            &chart,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{what}: the opened arm must build the rim, got {e}"))
+        .body;
         assert_eq!(
             pncad::topo::validate_geometric(&cup, tol),
             Ok(()),
             "{what}: tier 3, which now also carries the ring-vs-outer invariant"
         );
+        // Rings counted ON THE MOUTH PLANE: the stepped meridian's
+        // latitude annuli are swept whole, so they carry rings of their
+        // own elsewhere on the body.
+        let mouth_rings: usize = plane_chart_at(&cup, TOP)
+            .iter()
+            .map(|&k| cup.get_face(k).map_or(0, |f| f.rings.len()))
+            .sum();
         assert_eq!(
-            (rings(&cup), genus(&cup)),
+            (mouth_rings, genus(&cup)),
             (1, 0),
             "{what}: ONE rim annulus with one ring, and a cup is genus 0"
         );
         assert_eq!(
             plane_chart_at(&cup, TOP).len(),
             1,
-            "{what}: the two half-discs became one rim face"
+            "{what}: the rim is one face"
         );
         for delta in [1e-2, 1e-3, 2e-4] {
             pncad::mesh::tessellate(&cup, delta, tol)
@@ -819,7 +859,7 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<pncad::topo::FaceKey> {
 ///
 /// This row's fixture is the one that falsified the first reading of
 /// the class: a revolved TUBE's meridian is a closed off-axis loop, so
-/// it closes its own seam and the mouth chart is exactly ONE face,
+/// the full revolve builds its mouth whole and the chart is exactly ONE face,
 /// with no axis apex anywhere on the body — and the rim was wrong here
 /// too, in a different shape (genus 2, one ring, untessellatable).
 ///
@@ -828,11 +868,10 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<pncad::topo::FaceKey> {
 /// built: the counterpart's hole is promoted to its own rim face
 /// before the glue (`mfkrh`) and takes the designated face's matching
 /// hole with it after (`ring_move`). Both are existing doors; the
-/// surgery gained no new machinery. What the operand contributed was
-/// the seam again, in its other form — the annulus arrives SLIT along
-/// a radial edge its own loop walks twice — and `kemr` retires that
-/// before the glue for the same reason `kef`/`kev` retire the axis
-/// apex above.
+/// surgery gained no new machinery. The annulus arrives with its bore
+/// already a ring; an annulus that arrives SLIT along a radial edge its
+/// own loop walks twice has that edge retired by `kemr` before the
+/// glue, for the same reason `kef`/`kev` retire the axis apex above.
 ///
 /// (`verbs_teapot_r2_probes::r2_revolved_tube_separates_seam_from_axis`
 /// and `r2_annular_mouth_anatomy` are where the wrong shape was first
@@ -858,12 +897,17 @@ fn the_annular_mouth_opens_to_two_disjoint_rims() {
     assert_eq!(
         chart.len(),
         1,
-        "a closed OFF-AXIS meridian closes its own seam, so this cap is ONE face — \
+        "a full revolve builds an OFF-AXIS annular cap whole, so this cap is ONE face — \
          which is the whole point of the row"
     );
-    let cup = pncad::topo::shell_open(&body, t, &chart, tol)
-        .expect("the annular mouth opens")
-        .body;
+    let cup = pncad::topo::shell_open(
+        &AtRestBody::validate(body.clone(), tol).expect("a finished operand"),
+        t,
+        &chart,
+        tol,
+    )
+    .expect("the annular mouth opens")
+    .body;
     assert_eq!(
         pncad::topo::validate_geometric(&cup, tol),
         Ok(()),
@@ -871,8 +915,9 @@ fn the_annular_mouth_opens_to_two_disjoint_rims() {
     );
     assert_eq!(
         (rings(&cup), genus(&cup)),
-        (2, 1),
-        "TWO rim annuli, one ring each; the bore runs through, so the cup is genus 1"
+        (4, 1),
+        "TWO rim annuli and the two floor annuli, one ring each; the bore runs through, \
+         so the cup is genus 1"
     );
     assert_eq!(
         plane_chart_at(&cup, h).len(),

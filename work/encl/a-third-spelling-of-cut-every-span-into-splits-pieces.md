@@ -26,7 +26,7 @@ written three times:
 * `geom_brep::props::quad`'s `knot_aligned_cuts` — the near-twin that
   doc names, with its own sliver guard;
 * and, since TESS-2, `geom_core::spline::algebra`'s test module, twice
-  (`the_ring_applier_stays_in_step_and_near_the_described_hull` and
+  (`the_ring_applier_stays_in_step_with_the_point_applier` and
   `the_convex_form_bulges_by_the_ratios_own_rounding`) plus
   `geom_core::spline::net`'s test module once, because `geom-core` is
   BELOW `geom-brep` and cannot call the shipped spelling at all.

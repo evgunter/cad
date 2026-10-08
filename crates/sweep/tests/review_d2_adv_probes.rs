@@ -68,12 +68,12 @@ test_utils::gated_to![
 
 use core::f64::consts::PI;
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::{BlendError, fillet_edges};
-use sweep::test_support::cube;
+use sweep::test_support::{cube, finished};
 use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::fuzz::{self, Rng};
 use test_utils::vacuity::Exposure;
@@ -121,29 +121,26 @@ fn ball_top(r: f64, c: Vec3<f64>) -> Body<f64> {
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
-    let out = boolean_op_with(
-        BooleanOp::Subtract,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        Tol::witness(),
-    )
-    .ok()?;
-    Some(out.body()?.body.clone())
+    realized_or_none(BooleanOp::Subtract, a, b)
 }
 
 fn union(a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
+    realized_or_none(BooleanOp::Union, a, b)
+}
+
+/// `op` on the finished `a` and `b`, or `None` where it refuses or
+/// leaves nothing.
+fn realized_or_none(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Option<Body<f64>> {
     let out = boolean_op_with(
-        BooleanOp::Union,
-        a,
-        b,
+        op,
+        &finished("operand A", a.clone(), Tol::witness()),
+        &finished("operand B", b.clone(), Tol::witness()),
         &BooleanDeclarations::none(),
         SweepStrategy::Realized,
         Tol::witness(),
     )
     .ok()?;
-    Some(out.body()?.body.clone())
+    Some(out.body()?.body.clone().into_body())
 }
 
 /// The corpus: bodies whose provenance is deliberately varied —
@@ -188,7 +185,12 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
             .map(|(k, _)| k)
             .filter(|k| b.get_edge(*k).is_some())
             .collect();
-        if let Ok(f) = fillet_edges(&b, &box_edges, 0.12, Tol::witness()) {
+        if let Ok(f) = fillet_edges(
+            &sweep::test_support::at_rest(&b, Tol::witness()),
+            &box_edges,
+            0.12,
+            Tol::witness(),
+        ) {
             out.push(("die_one_pip_blended", f.body));
         }
         if let Some(b2) = subtract(&b, &pip(0.25, 0.25, 0.09, 0.05)) {
@@ -221,17 +223,11 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
     // door's own destination after it has been written into twice —
     // the shape the PR's row-1 refutation is about.
     let mut dst = c.clone();
-    if topo::instance::graft_disjoint_all(&mut dst, &cube(0.5, Tol::witness()), Tol::witness())
-        .is_ok()
-    {
+    if topo::instance::graft_disjoint_all(&mut dst, &cube(0.5, Tol::witness())).is_ok() {
         out.push(("grafted_two_solid", dst.clone()));
         let mut again = dst.clone();
-        if topo::instance::graft_disjoint_all(
-            &mut again,
-            &ball_at(0.3, Vec3::new(9.0, 0.0, 0.0)),
-            Tol::witness(),
-        )
-        .is_ok()
+        if topo::instance::graft_disjoint_all(&mut again, &ball_at(0.3, Vec3::new(9.0, 0.0, 0.0)))
+            .is_ok()
         {
             out.push(("grafted_three_solid", again));
         }
@@ -385,6 +381,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::ChainNotConnected { .. } => "ChainNotConnected",
         BlendError::RadiusHeadroom { .. } => "RadiusHeadroom",
         BlendError::FaceClearanceUncertified { .. } => "FaceClearanceUncertified",
+        BlendError::FaceClearance { .. } => "FaceClearance",
         BlendError::TangentialEdge { .. } => "TangentialEdge",
         BlendError::SpineIrregular { .. } => "SpineIrregular",
         BlendError::ChainNotG1 { .. } => "ChainNotG1",
@@ -395,11 +392,12 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::Escalated { .. } => "Escalated",
         BlendError::RepeatedEdge { .. } => "RepeatedEdge(row 1)",
         BlendError::NonpositiveSize { .. } => "NonpositiveSize(row 1)",
-        BlendError::UnsupportedBody { .. } => "UnsupportedBody(row 2)",
         BlendError::UnsupportedChain { .. } => "UnsupportedChain(row 2)",
         BlendError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
         BlendError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
         BlendError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
+        BlendError::ScaffoldingOperand { .. } => "ScaffoldingOperand(row 1)",
+        BlendError::InsideOutOperand { .. } => "InsideOutOperand(row 1)",
         BlendError::SurgeryInvariant { .. } => "SurgeryInvariant(row 4)",
         BlendError::RingClearance { .. } => "RingClearance",
         BlendError::Certify { .. } => "Certify",
@@ -446,9 +444,14 @@ fn d2_no_input_reaches_a_panic() {
                 // is the only outcome-level proof available from outside
                 // the door, and it is what the floor below counts.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    fillet_edges(body, &req, r, Tol::witness())
-                        .map(|f| f.band_faces.len())
-                        .unwrap_or(0)
+                    fillet_edges(
+                        &sweep::test_support::at_rest(body, Tol::witness()),
+                        &req,
+                        r,
+                        Tol::witness(),
+                    )
+                    .map(|f| f.band_faces.len())
+                    .unwrap_or(0)
                 }));
                 match outcome {
                     Err(_) => fired.push(format!(
@@ -514,7 +517,14 @@ fn d2_reached_variants() {
     for (_, body) in corpus() {
         for req in requests(&body, &mut rng, effort()) {
             for r in RADII {
-                match fillet_edges(&body, &req, r, Tol::witness()).map_err(|r| r.error) {
+                match fillet_edges(
+                    &sweep::test_support::at_rest(&body, Tol::witness()),
+                    &req,
+                    r,
+                    Tol::witness(),
+                )
+                .map_err(|r| r.error)
+                {
                     Ok(_) => ok += 1,
                     Err(e) => {
                         let c = class(&e);
@@ -542,58 +552,57 @@ fn d2_reached_variants() {
 /// resumable*, so a caller who discards the `Err` hands `fillet_edges`
 /// a tier-1-invalid body with no kernel bug in the trace.
 ///
-/// Every such site sits BELOW `blend_surgery`'s entry gate
-/// (`solids != 1 || shells != 1` — `blend_surgery`'s entry gate in
-/// `blend/surgery.rs`). This row pins
-/// the arithmetic that decides whether the witness can get there in
-/// the scenario the refutation describes — *a caller keeps the body it
-/// already had*: a graft ADDS a solid (`graft_disjoint_all_keyed`
-/// mints one empty destination solid per source solid before any
-/// fallible step) or a shell (`graft_disjoint_all_onto_keyed`), so a
-/// destination that already held a solid never presents as one solid
-/// with one shell afterwards, spent or whole, and the door refuses
-/// `UnsupportedBody` above all 46 sites.
+/// The surgery reads only the shells the request's chains lie in
+/// (`blend_surgery`'s `chain_shell`), so what a graft adds beside a
+/// shell is never read when that shell is blended. This row pins the
+/// whole graft's side of that: the destination's own cube, requested
+/// whole, carves inside its shell and the grafted cube rides through.
 ///
-/// It does NOT close the question: a graft into an EMPTY destination
-/// that failed mid-transplant would leave one solid and one shell and
-/// would pass the gate. No such failure is reachable today —
-/// `graft_disjoint_all` runs `Bridge::RemapKeys`, which returns before
-/// the `GraftRecertify` its own docs name (`combine.rs:357`), and every
-/// remaining `JoinDesync` path needs an already-corrupt source — but
-/// that is a fact about today's `combine`, not a fact this row pins.
+/// It does NOT close the question for a spent graft: the shell a
+/// failed transplant left half-built is not read either, but the
+/// door's debug postcondition (`topo::validate_closed`) reads the whole
+/// body. No such failure is reachable today — `graft_disjoint_all` runs
+/// `Bridge::RemapKeys`, which returns before the `GraftRecertify` its
+/// own docs name (`combine.rs:357`), and every remaining `JoinDesync`
+/// path needs an already-corrupt source — but that is a fact about
+/// today's `combine`, not a fact this row pins.
 #[test]
-fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
+fn d2_a_grafted_destination_blends_inside_its_own_shell() {
     let base = cube(1.0, Tol::witness());
     let edges: Vec<EdgeKey> = base.edges().map(|(k, _)| k).collect();
-    // The whole-body fillet succeeds before the graft: the request is
-    // inside the front door, so any refusal below is the graft's doing
-    // and not the request's.
-    assert!(
-        fillet_edges(&base, &edges, 0.12, Tol::witness()).is_ok(),
-        "the control request must pass, or this row proves nothing"
-    );
-
     let mut dst = base.clone();
-    topo::instance::graft_disjoint_all(&mut dst, &cube(0.5, Tol::witness()), Tol::witness())
-        .expect("a disjoint graft");
-    assert!(
-        dst.solids().count() > 1 || dst.shells().count() > 1,
-        "a graft that added nothing countable cannot be the witness the \
-         refutation needs"
-    );
+    // The grafted cube stands clear of the destination: one at the
+    // origin would lie inside it, where the destination's bands reach.
+    let apart = topo::transform_rigid(
+        &cube(0.5, Tol::witness()),
+        &Affine3::translation(Vec3::new(3.0, 0.0, 0.0)),
+        Tol::witness(),
+    )
+    .expect("a translation is rigid");
+    topo::instance::graft_disjoint_all(&mut dst, &apart).expect("a disjoint graft");
+    assert_eq!(dst.shells().count(), 2, "the graft added a shell");
     let after: Vec<EdgeKey> = edges
         .iter()
         .copied()
         .filter(|k| dst.get_edge(*k).is_some())
         .collect();
-    match fillet_edges(&dst, &after, 0.12, Tol::witness()).map_err(|r| r.error) {
-        Err(BlendError::UnsupportedBody { solids, shells }) => {
-            println!(
-                "d2_a_grafted_destination_is_stopped_at_the_entry_gate: \
-                 {solids} solid(s), {shells} shell(s) — refused at `blend_surgery`'s entry gate, \
-                 above every `BodyNotIntact` site"
-            );
-        }
-        other => panic!("a grafted destination must be refused at the entry gate, got {other:?}"),
-    }
+    assert_eq!(after, edges, "the graft keeps the destination's own keys");
+    let mut base_shells: Vec<_> = base.shells().map(|(k, _)| k).collect();
+    base_shells.sort_unstable();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&dst, Tol::witness()),
+        &after,
+        0.12,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|r| panic!("the destination's cube fillets inside its shell: {r}"));
+    assert_eq!(
+        out.shells, base_shells,
+        "only the destination's shell is carved"
+    );
+    assert_eq!(
+        out.body.shells().count(),
+        2,
+        "the grafted shell rides through"
+    );
 }

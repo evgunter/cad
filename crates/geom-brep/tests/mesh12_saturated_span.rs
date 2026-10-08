@@ -99,7 +99,7 @@ fn is_forward_refusal<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> bool {
 fn is_winding_escalation<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> bool {
     matches!(
         r,
-        Err(PropsError::Escalated { cause }) if cause.predicate == Some(NAME)
+        Err(PropsError::Escalated { cause, .. }) if cause.predicate == Some(NAME)
     )
 }
 
@@ -326,7 +326,7 @@ enum Disp {
 fn disp<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> Disp {
     match r {
         Ok(_) => Disp::Admit,
-        Err(PropsError::Escalated { cause }) if cause.predicate == Some(NAME) => Disp::Escalate,
+        Err(PropsError::Escalated { cause, .. }) if cause.predicate == Some(NAME) => Disp::Escalate,
         Err(PropsError::NotIsoRectangle { what }) if *what == NAME => Disp::Refuse,
         Err(e) => Disp::Other(format!("{e:?}")),
     }

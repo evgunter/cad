@@ -256,3 +256,65 @@ form that does not rot.
 **The gate this strengthens is still the weak one** (shape 1): assert
 that a cited `work/` path resolves. All four paths above were simply
 absent, and CI said nothing across two sweeps and a re-home.
+
+## EDIT's closed rows (added 2026-10-02, at EDIT's exit)
+
+EDIT closed on 2026-10-02 (`docs/doc-ledger/edit-leaves-the-tracker.md`). Citations of its live rows were rewritten to their new homes in PLACE, RECIPE and DOCTAIL. Citations of its CLOSED rows now dangle. Each is recoverable at `88369343b`:
+
+| citing file | cited row |
+| --- | --- |
+| ~~`crates/editor-core/src/edit.rs`, `src/roots.rs`, `tests/dm7_delete_strands.rs`~~ (cleared 2026-10-02: the citing prose went with `Maintenance::OrphanedDeclare`, RECIPE `declared-pairs-are-a-booleans-own-payload`) | `an-orphaned-declare-joins-the-product-root-set` |
+| `crates/editor-core/src/persist/check.rs` | `three-door-predicates-are-hand-copied-not-shared` |
+| `crates/editor-core/src/resolve/pick.rs`, `crates/viewer/tests/pick3_acceptance.rs` | `pick-closed-acceptance-loses-a-graze-to-rounding` |
+| `crates/editor-core/tests/edit_doc_param_unit.rs` | `doc-param-distribution-edit-has-no-door` |
+| `crates/editor-core/tests/load_door_payload_param_ref.rs` | `load-door-does-not-check-payload-expression-param-refs` |
+| `crates/viewer/src/session/refuse.rs` | `no-door-refuses-a-blank-parameter-name` |
+| `crates/viewer/tests/index_memo.rs` | `pick-a-wide-but-informative-barycentric-wins-over-the-transversal-neighbour` |
+| `docs/DESIGN-FORK-LOG.md` | `part-root-failure-nests-a-whole-refusal-past-the-budget` |
+| `docs/MODEL-AB-LOG.md` | `work/edit/plan.md`, `work/edit/program.md` |
+
+Other programs' rows and logs also cite closed EDIT rows. They are history, not shipped prose, and are not listed.
+
+`docs/AUTH-9-SPEC.md`'s row left this table on 2026-10-02: the spec was pruned at AUTHOR's close, so the citing file is gone.
+
+## AUTHOR's closed rows (added 2026-10-02, at AUTHOR's exit)
+
+AUTHOR closed on 2026-10-02 (`docs/doc-ledger/author-leaves-the-tracker.md`). Citations of its live rows were rewritten to their new homes in DOORS and AUTHTAIL. The two code comments that named a closed AUTHOR row as a residue's carrier now name AUTHTAIL's `drawing-on-a-picked-face-is-a-two-form-trip`. One shipped-doc citation of a closed row is left dangling. It is recoverable at `29b8874a1`:
+
+| citing file | cited row |
+| --- | --- |
+| `docs/DESIGN-FORK-LOG.md` (row 22) | `a-negative-extrude-distance-probes-as-valid` |
+
+
+## GATHER's closed look-through row (fixed 2026-10-06, `emit/union-order-row-remeasured`)
+
+GATHER closed on 2026-09-29 (68e8072a6) and deleted
+`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`,
+the row that built the `ConsumedByFold` refusal. Two test comments still
+named it as the owner of that refusal. Both now name
+`union-refuses-in-some-member-orders-and-publishes-in-others`, which owns
+the order-dependent refusal and is parked on D10:
+
+| citing file | was | now |
+| --- | --- | --- |
+| `crates/editor-core/tests/emit_union_rim_piece_ranks.rs` (`an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where_b_covers_it`'s doc) | `member-space-look-through-…` | the union row |
+| `crates/editor-core/tests/wire_legal_union_refusals.rs` (`Seen::Split`) | `work/gather/member-space-look-through-…` | `work/emit/union-refuses-…` |
+
+`rg 'member-space-look-through' crates/ docs/` finds no other shipped
+citation; `docs/DUAL-REVIEW-LOG.md` row DR-10 names it as the reviewed
+unit's history, not as an owner.
+
+A second pass on the directory rather than the id
+(`rg 'work/gather/' crates/ docs/ scripts/ tools/ demos/`) finds three
+more shipped citations of closed GATHER rows. They are left here, on
+other programs' paths. Each is recoverable at the SHA
+`docs/doc-ledger/gather-leaves-the-tracker.md` names:
+
+| citing file | cited row |
+| --- | --- |
+| `crates/editor-core/tests/m10_2_measure.rs` | `product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares` |
+| `crates/sweep/tests/wedge_end_doors.rs` (module doc) | `every-op-that-can-mint-a-wedge-end-refuses-an-undeclared-one` |
+| `crates/step-import/src/lib.rs` | `product-gate-says-verbatim-then-states-the-difference` |
+
+`docs/DESIGN-FORK-LOG.md` rows 3 and 6 cite GATHER rows as the log's
+history and are not listed.

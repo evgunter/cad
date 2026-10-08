@@ -69,32 +69,33 @@ fn r1_half_angle_enclosure_table() {
 fn r1_zero_axis_poison_at_zero_angle_both_lanes() {
     // f64 lane, angle exactly 0.
     let bad = Affine3::rotation_about_axis(Point3::new(1.0f64, 2.0, 3.0), Vec3::zero(), 0.0);
-    for c in [bad.linear.c0, bad.linear.c1, bad.linear.c2] {
+    for c in bad.linear.cols() {
         assert!(c.x.is_nan() && c.y.is_nan() && c.z.is_nan());
     }
     assert!(
         bad.translation.x.is_nan() && bad.translation.y.is_nan() && bad.translation.z.is_nan(),
         "f64 zero-axis poison does not reach the translation at angle = 0"
     );
-    // Interval lane, angle = [0, 0]: the poison manifests as ENTIRE
-    // intervals (measured: identical under the retired spelling), not
-    // NaI — the contract is "useless, visibly", preserved by the fix.
+    // Interval lane, angle = [0, 0]: the zero axis's norm is the exact
+    // root `[0, 0]`, so normalizing it divides by an exact zero and the
+    // poison is the evaluation scalar's own (NaI or empty), as the f64
+    // lane's is NaN.
     let badi = Affine3::rotation_about_axis(
         Point3::new(iv(1.0), iv(2.0), iv(3.0)),
         Vec3::new(Interval::zero(), Interval::zero(), Interval::zero()),
         Interval::zero(),
     );
-    for e in [badi.translation.x, badi.translation.y, badi.translation.z] {
+    for e in badi.translation.to_array() {
         assert!(
-            e.lo() == f64::NEG_INFINITY && e.hi() == f64::INFINITY,
-            "Interval zero-axis translation at angle 0 is not entire: [{:e}, {:e}]",
+            e.is_poison(),
+            "Interval zero-axis translation at angle 0 is not poison: [{:e}, {:e}]",
             e.lo(),
             e.hi()
         );
     }
     // The operator itself, directly.
     let op = Mat3::identity_minus_rotation_about(Vec3::new(0.0f64, 0.0, 0.0), 0.0);
-    for c in [op.c0, op.c1, op.c2] {
+    for c in op.cols() {
         assert!(c.x.is_nan() && c.y.is_nan() && c.z.is_nan());
     }
 }
@@ -112,7 +113,9 @@ fn r1_retired_guard_red_paths() {
     let anchor = Point3::new(wide(1.0), wide(2.0), wide(-3.0));
     let q = anchor - Point3::origin();
     // Path (b): a poisoned R (zero axis) makes the guard's width NaN,
-    // and NaN >= 1.9·width(anchor) is false — the guard reds.
+    // and NaN >= 1.9·width(anchor) is false — the guard reds. The zero
+    // axis's norm is the exact root `[0, 0]`, so R is NaI or empty
+    // rather than entire.
     let linear = Mat3::rotation_about(
         Vec3::new(Interval::zero(), Interval::zero(), Interval::zero()),
         Interval::zero(),
@@ -120,14 +123,9 @@ fn r1_retired_guard_red_paths() {
     let retired = q - linear * q;
     let w = width(retired.x);
     println!("poisoned retired width: {w:e}");
-    // MEASURED REALITY (a finding, not the hoped-for red path): a
-    // poisoned R yields entire intervals, width = +inf, and inf >= 1.9w
-    // PASSES — so a poison regression does NOT red the guard. Its only
-    // red path is the enclosure arithmetic learning cancellation.
-    assert!(
-        w >= 1.9 * width(anchor.x),
-        "unexpected: the guard would red under a poisoned R after all"
-    );
+    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+    let reds = !(w >= 1.9 * width(anchor.x));
+    assert!(reds, "a poisoned R no longer reds the guard: width {w:e}");
     // Sanity: on the healthy fixture the retired spelling pays >= 2w
     // for any correlation-blind backend — measured, not assumed.
     let ok = Mat3::rotation_about(

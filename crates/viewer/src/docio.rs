@@ -25,12 +25,14 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
 
 use pncad::document::{
-    Doc, DocRef, PartResolver, PersistError, ProfileDoc, ProfileProgram, ResolveFailure, load, save,
+    Doc, DocRef, PartResolver, PersistError, ProfileDoc, ProfileProgram, Recourse, ResolveFailure,
+    Staged, load, save,
 };
 use pncad::geom_core::Tol;
-use pncad::workspace::Workspace;
+use pncad::workspace::{Scan, Workspace};
 
 use crate::history::{History, ReplayError};
 
@@ -41,9 +43,9 @@ use crate::history::{History, ReplayError};
 /// documents sit beside the assembly that pins them, so the store a
 /// session consults is exactly the directory of the file it opened —
 /// never a remembered directory from a previous document, never a
-/// search path. A session with no backing file carries no resolver at
-/// all, and its instantiate nodes refuse with the shipped no-resolver
-/// semantics.
+/// search path. A session with no backing file resolves through
+/// [`NoFile`], which refuses every reference stating the viewer's way
+/// through: save the document beside its parts.
 ///
 /// **The scan happens at RESOLUTION time, not at open.** Opening a
 /// document must not fail because an unrelated sibling file is
@@ -51,9 +53,8 @@ use crate::history::{History, ReplayError};
 /// required to be a healthy store until something actually resolves
 /// through it. When a resolution IS attempted and the scan refuses
 /// (unreadable header, duplicate id), that refusal arrives typed at
-/// the instantiate node, carrying the workspace's own message naming
-/// the offending files — the tree badge GUI-3 built is where it
-/// renders.
+/// the instantiate node, carrying the store's sentence naming the
+/// offending files — the tree badge GUI-3 built is where it renders.
 #[derive(Debug)]
 pub struct DirResolver {
     dir: PathBuf,
@@ -82,7 +83,7 @@ impl DirResolver {
     /// # Errors
     ///
     /// The scan's own refusal — [`pncad::workspace::WorkspaceError::Io`],
-    /// `Header`, `DuplicateId` — which every caller surfaces verbatim.
+    /// `Header`, `DuplicateId` — which every caller surfaces typed.
     pub fn workspace(&self) -> Result<Workspace, pncad::workspace::WorkspaceError> {
         Workspace::open(&self.dir)
     }
@@ -90,13 +91,41 @@ impl DirResolver {
 
 impl PartResolver for DirResolver {
     fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        // The scan's refusal is the store's, verbatim; the fault
+        // The scan's refusal is the store's sentence, without its stage
+        // word as the store's own resolution carries it; the fault
         // classification is `Unresolved` because the reference itself
         // was never reached.
         let workspace = self
             .workspace()
-            .map_err(|error| ResolveFailure::unresolved(error.to_string()))?;
-        PartResolver::resolve(&workspace, doc_ref, tol)
+            .map_err(|error| ResolveFailure::unresolved(error.sentence().to_string()))?;
+        workspace
+            .resolve(doc_ref, tol)
+            .map_err(|error| error.resolve_failure(Scan::PerResolution))
+    }
+}
+
+/// **The resolver of a session with no backing file.** No directory
+/// holds its parts, so every reference refuses; saving the document
+/// beside its parts gives the session a [`DirResolver`] over them.
+#[derive(Debug)]
+pub struct NoFile;
+
+impl NoFile {
+    /// The one `NoFile` seam every session shares. The evaluation's
+    /// memo is keyed by its seam's identity, and this seam answers
+    /// every reference the same way, so one identity serves all.
+    pub fn seam() -> Arc<dyn PartResolver> {
+        static SEAM: OnceLock<Arc<dyn PartResolver>> = OnceLock::new();
+        Arc::clone(SEAM.get_or_init(|| Arc::new(NoFile)))
+    }
+}
+
+impl PartResolver for NoFile {
+    fn resolve(&self, _: &DocRef, _: Tol) -> Result<ProfileDoc, ResolveFailure> {
+        Err(ResolveFailure::unresolved(format!(
+            "this document has no file, so no directory holds its parts. {}",
+            Recourse("save it beside its parts")
+        )))
     }
 }
 
@@ -114,10 +143,11 @@ pub enum DocIoError {
         message: String,
     },
     /// The document layer refused the bytes (or refused to produce
-    /// them).
-    Persist(PersistError),
-    /// The saved log did not replay through `apply`.
-    Replay(ReplayError),
+    /// them). Boxed so the refusal stays a small `Err`.
+    Persist(Box<PersistError>),
+    /// The saved log did not replay through `apply`; boxed as `Persist`
+    /// is.
+    Replay(Box<ReplayError>),
 }
 
 impl core::fmt::Display for DocIoError {
@@ -147,8 +177,9 @@ pub fn open(path: &Path, tol: Tol) -> Result<History, DocIoError> {
     let text = std::fs::read_to_string(path).map_err(|e| DocIoError::Read {
         message: e.to_string(),
     })?;
-    let loaded = load(&text, tol).map_err(DocIoError::Persist)?;
-    History::replayed(loaded.snapshot, &loaded.edits, tol).map_err(DocIoError::Replay)
+    let loaded = load(&text, tol).map_err(|e| DocIoError::Persist(Box::new(e)))?;
+    History::replayed(loaded.snapshot, &loaded.edits, tol)
+        .map_err(|e| DocIoError::Replay(Box::new(e)))
 }
 
 /// Write the history's current path: its root snapshot and the edits
@@ -166,7 +197,8 @@ pub fn open(path: &Path, tol: Tol) -> Result<History, DocIoError> {
 /// the filesystem.
 pub fn save_path(path: &Path, history: &History, tol: Tol) -> Result<(), DocIoError> {
     let root: &Doc<ProfileProgram> = history.entry(history.root()).doc();
-    let text = save(root, &history.path_edits(), tol).map_err(DocIoError::Persist)?;
+    let text =
+        save(root, &history.path_edits(), tol).map_err(|e| DocIoError::Persist(Box::new(e)))?;
     std::fs::write(path, text).map_err(|e| DocIoError::Write {
         message: e.to_string(),
     })

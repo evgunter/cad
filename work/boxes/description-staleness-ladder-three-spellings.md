@@ -33,3 +33,32 @@ S-BOOL: two of the three spellings are in `crates/topo/src/splitting/*` and `cra
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Evidence from PR 3580 (TOPO, 2026-09-30)
+
+`crates/topo/src/attach.rs` now reads adjacency coherence through one
+private `Named::adjacent_to`, over both the spec
+(`EdgeDescriptionSpec`) and the stored description (`EdgeDescription`),
+for `set_edge_curve`'s check and the re-chart doors'
+(`set_face_surface`'s stranding refusal and
+`set_face_surfaces_describing`). That folds the attach layer's own
+copy into one, and it is a candidate home for the ladder: it already
+takes the faces' surfaces as parameters, so a door asking about a state
+it has not written yet can ask it. `validate.rs`'s tier-3 reader and
+`splitting/finish.rs`'s keep-vs-restate arm still spell it by hand.
+
+## Evidence from CLEAVE (branch cleave/smooth-arms)
+
+`splitting/finish.rs`'s keep-vs-restate arm now chooses the kind
+through `geom_brep::must_carry_over_edge`, the same rule the boolean
+arm asks. It keeps an existing description only when that description
+is of the demanded kind and names the current pair. So a coherent
+chart on a jet-determinate seam is now re-minted intrinsic, and a
+`TangentIntersection` on an under-determined one is restated. The
+adjacency half of the ladder is still spelled by hand at both sites,
+and the sites still differ:
+
+- On a jet-determinate edge, the boolean re-mints even a coherent
+  `TangentIntersection`, while the split keeps it.
+- On an under-determined edge, the boolean keeps a coherent
+  `TangentIntersection`, while the split restates it.

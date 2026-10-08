@@ -10,18 +10,20 @@
 //! piece of the rim instead. The merged edge lies along a member's rim,
 //! and the published table names the point from the finished body
 //! (`emit_union::cite_member_edges`): that rim, crossed by the slab's
-//! wall.
+//! wall, with the sense the fold step that minted the point read there.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
 
 use crate::corpus::body_of;
-use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, member_face, run};
+use crate::docm7_union_declare::{
+    block, declared_union_classed, failure, flush_pairs, member_face, run,
+};
 use crate::fixture::{ename, fname, member_entity, table, vertex_of, wall};
 
 use editor_core::{
-    CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg,
-    SitedRef, StableName,
+    BooleanCoincidence, CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc,
+    RecipeNodeId, RoleSeg, Sense, SitedRef, StableName,
 };
 use geom_core::Tol;
 
@@ -89,47 +91,67 @@ fn fixture(g_z: (f64, f64), with_h: bool) -> Fixture {
     Fixture { doc, a, b, g, h }
 }
 
-/// The fixture's declarations: `a` and `b` flush, and, with `h`, `h`'s
-/// x = 1.0 wall resting on `a`'s x = 1 wall. `b` covers that contact,
-/// and it is a contact of the pair all the same (DM4).
-fn declared(f: &Fixture) -> Vec<(SitedRef, SitedRef)> {
-    let mut pairs = flush_pairs(&f.doc, (f.a, f.a), (f.b, f.b));
+/// The fixture's declarations: `a` and `b` flush (continuations), and,
+/// with `h`, `h`'s x = 1.0 wall resting on `a`'s x = 1 wall (a `Rest`).
+/// `b` covers that contact, and it is a contact of the pair all the
+/// same (DM4).
+fn declared(f: &Fixture) -> Vec<((SitedRef, SitedRef), BooleanCoincidence)> {
+    let mut pairs: Vec<_> = flush_pairs(&f.doc, (f.a, f.a), (f.b, f.b))
+        .into_iter()
+        .map(|p| (p, BooleanCoincidence::Continuation))
+        .collect();
     pairs.extend(f.h.map(|h| {
         (
-            SitedRef::new(f.a, fname(f.a, wall(&f.doc, f.a, 1))),
-            SitedRef::new(h, fname(h, wall(&f.doc, h, 3))),
+            (
+                SitedRef::new(f.a, fname(f.a, wall(&f.doc, f.a, 1))),
+                SitedRef::new(h, fname(h, wall(&f.doc, h, 3))),
+            ),
+            BooleanCoincidence::REST,
         )
     }));
     pairs
 }
 
 /// The name every fused order gives the point where `g`'s `x = 0.3`
-/// wall crosses `a`'s `cap` / `y = 1` rim: that rim and that wall, in
-/// name order.
+/// wall crosses `a`'s `cap` / `y = 1` rim: that rim crossed by that
+/// wall, with the rim's sense. `g` lies on the `+x` side of the wall,
+/// so the rim enters it there where `a` stores it running `+x`, and
+/// leaves it where `a` stores it running `-x`.
 fn crossing(
+    ev: &editor_core::Evaluation<f64>,
     doc: &ProfileDoc,
     union: RecipeNodeId,
     a: RecipeNodeId,
     g: RecipeNodeId,
     cap: CapEnd,
 ) -> StableName {
-    let rim = member_entity(
-        union,
+    let rim_of_a = ename(
         a,
-        ename(
-            a,
-            RoleSeg::RimEdge(cap, crate::fixture::piece(doc, a, 0, 2)),
-        ),
-        EntityKind::Edge,
+        RoleSeg::RimEdge(cap, crate::fixture::piece(doc, a, 0, 2).into()),
     );
+    let a_body = body_of(ev, a);
+    let editor_core::Entry::Unique(r) = table(ev, a).lookup(&rim_of_a).expect("a's rim") else {
+        panic!("a's rim is one edge");
+    };
+    let editor_core::EntityKey::Edge(e) = r.key else {
+        panic!("a's rim names an edge");
+    };
+    let [v0, v1] = crate::fixture::ends(a_body, e);
+    let x = |v| crate::fixture::point(a_body, v).x;
+    let sense = if x(v1) > x(v0) {
+        Sense::Enters
+    } else {
+        Sense::Leaves
+    };
+    let rim = member_entity(union, a, rim_of_a, EntityKind::Edge);
     let g_x0 = member_face(union, g, fname(g, wall(doc, g, 3)));
-    let (lo, hi) = if rim < g_x0 { (rim, g_x0) } else { (g_x0, rim) };
     StableName {
         kind: EntityKind::Vertex,
         node: union,
-        path: vec![RoleSeg::Seam {
-            a: lo.into(),
-            b: hi.into(),
+        path: vec![RoleSeg::Crossing {
+            edge: rim.into(),
+            face: g_x0.into(),
+            sense,
         }],
     }
 }
@@ -143,7 +165,7 @@ fn point_of(ev: &editor_core::Evaluation<f64>, union: RecipeNodeId, name: &Stabl
         .and_then(|vd| body.get_point(vd.point))
         .copied()
         .expect("the crossing has a point");
-    [p.x, p.y, p.z]
+    p.to_array()
 }
 
 /// **The row's fixture, `[b, g, a, h]`, fuses, and the point where `g`
@@ -162,7 +184,7 @@ fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
     let pairs = declared(&f);
     let Fixture { doc, a, b, g, h } = f;
     let h = h.unwrap();
-    let (docx, union, _) = declared_union(doc, &[b, g, a, h], pairs);
+    let (docx, union) = declared_union_classed(doc, &[b, g, a, h], pairs);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let v = volume(body_of(&ev, union));
@@ -170,7 +192,7 @@ fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
     // a, and h adds the same less its share inside b.
     assert!((v - (1.5 + 2.0 * (0.9 - 0.05))).abs() < 1e-9, "volume {v}");
     assert_eq!(junctions(table(&ev, union)), BTreeSet::new());
-    let p = point_of(&ev, union, &crossing(&docx, union, a, g, CapEnd::End));
+    let p = point_of(&ev, union, &crossing(&ev, &docx, union, a, g, CapEnd::End));
     assert!(
         (p[0] - 0.3).abs() < 1e-12 && (p[1] - 1.0).abs() < 1e-12 && (p[2] - 1.0).abs() < 1e-12,
         "the crossing sits where g's wall meets the rim, not at {p:?}"
@@ -225,7 +247,7 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
                 .collect()
         };
         for order in permutations(&members) {
-            let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
+            let (docx, union) = declared_union_classed(doc.clone(), &order, pairs.clone());
             let ev = run(&docx);
             match failure(&ev, union) {
                 None => {
@@ -234,7 +256,7 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
                         BTreeSet::new(),
                         "{label} {order:?}"
                     );
-                    let p = point_of(&ev, union, &crossing(&docx, union, a, g, cap));
+                    let p = point_of(&ev, union, &crossing(&ev, &docx, union, a, g, cap));
                     assert!(
                         (p[0] - 0.3).abs() < 1e-12
                             && (p[1] - 1.0).abs() < 1e-12

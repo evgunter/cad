@@ -14,7 +14,8 @@
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
-use crate::fixture::{edge_of, member_entity, table};
+use crate::emit_shared_rim_several::is_rim_piece;
+use crate::fixture::{edge_of, table};
 
 use editor_core::{
     CapEnd, EntityKind, NamingError, NodeErrorKind, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
@@ -64,27 +65,25 @@ fn document(rest: &[Bx]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     (doc, ids)
 }
 
-/// **The chord is `a`'s top/far-wall rim edge, ranked along it**, in
-/// `[b, c, a]` and `[c, b, a]` — each order pinned by name and by the
-/// span the name answers to, so two orders wrong the same way cannot
-/// agree their way past it — and the two orders publish one name set,
-/// which covers every other entity of the body. On main both refused
-/// `Emission("seam edge between two merged faces (unsupported)")`.
+/// **The chord is `a`'s top/far-wall rim edge**, in `[b, c, a]` and
+/// `[c, b, a]` — each order pinned by name and by the span the name
+/// answers to, so two orders wrong the same way cannot agree their way
+/// past it — and the two orders publish one name set, which covers
+/// every other entity of the body.
 #[test]
 fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
     let (doc, ids) = document(&[CORNER]);
     let (a, b, c) = (ids[0], ids[1], ids[2]);
     let mut name_sets = Vec::new();
     for order in [[b, c, a], [c, b, a]] {
-        let (docx, union, _) =
-            declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
+        let (docx, union) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
             "{order:?}: {:?}",
             failure(&ev, union)
         );
-        assert_rim_pieces(&doc, &ev, union, a, &order);
+        assert_rim_pieces(&doc, &ev, union, (a, b), &order);
         name_sets.push(
             table(&ev, union)
                 .iter()
@@ -98,33 +97,30 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
     );
 }
 
-/// `a`'s rim between its top cap and its y = 1 wall publishes two
-/// pieces, x = 0.4..0.5 and x = 0.0..0.3 at y = z = 1: cells 1 and 3 of
-/// the four the body's vertices cut it into along −x (1.0, 0.5, 0.4, 0.3,
-/// 0.0). Cell 0 is `b`'s in these orders, and cell 2 is inside `c`.
+/// `a`'s rim between its top cap and its y = 1 wall publishes one
+/// piece at y = z = 1, x = 0.0..0.3, named by its ends: x = 0.3..0.4 is
+/// inside `c`, and x = 0.4..1.5 runs along `a`'s rim and on along
+/// `b`'s, one edge named for the set of the two (`emit_union::Flush`),
+/// which holds the rest of the rim, so the lone piece is not the rim
+/// whole (N3).
 fn assert_rim_pieces(
     doc: &editor_core::ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
     union: RecipeNodeId,
-    a: RecipeNodeId,
+    (a, b): (RecipeNodeId, RecipeNodeId),
     order: &[RecipeNodeId],
 ) {
-    let rim = StableName {
+    let rim = |m: RecipeNodeId| StableName {
         kind: EntityKind::Edge,
-        node: a,
+        node: m,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(doc, a, 0, 2),
+            crate::fixture::piece(doc, m, 0, 2).into(),
         )],
-    };
-    let piece = |rank| {
-        let mut n = member_entity(union, a, rim.clone(), EntityKind::Edge);
-        n.path
-            .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 4 }));
-        n
     };
     let t = table(ev, union);
     let body = body_of(ev, union);
+    let micro = |x: f64| (x * 1e6).round() as i64;
     let span = |n: &StableName| {
         let e = edge_of(t, "the rim piece", n);
         let edge = body.get_edge(e).unwrap();
@@ -138,14 +134,39 @@ fn assert_rim_pieces(
             p.x
         };
         let (x0, x1) = (x(edge.he_plus), x(edge.he_minus));
-        (x0.min(x1), x0.max(x1))
+        (micro(x0.min(x1)), micro(x0.max(x1)))
     };
-    let spans = [span(&piece(1)), span(&piece(3))];
-    let near =
-        |(p, q): (f64, f64), (r, s): (f64, f64)| (p - r).abs() < 1e-12 && (q - s).abs() < 1e-12;
+    let pieces: Vec<StableName> = t
+        .iter()
+        .filter(|(n, _)| is_rim_piece(n, a, &rim(a)))
+        .map(|(n, _)| n.clone())
+        .collect();
+    let whole = crate::fixture::member_entity(union, a, rim(a), EntityKind::Edge);
+    let [piece] = pieces.as_slice() else {
+        panic!("{order:?}: a's rim stands alone once: {pieces:?}");
+    };
     assert!(
-        near(spans[0], (0.4, 0.5)) && near(spans[1], (0.0, 0.3)),
-        "{order:?}: cells 1 and 3 of a's rim, got {spans:?}"
+        matches!(
+            piece.path.last(),
+            Some(RoleSeg::Fragment(Qualifier::Ends(_)))
+        ),
+        "{order:?}: the piece is named by its ends: {piece:?}"
+    );
+    assert_eq!(span(piece), (0, micro(0.3)), "{order:?}: a's rim");
+    let mut set = vec![
+        whole,
+        crate::fixture::member_entity(union, b, rim(b), EntityKind::Edge),
+    ];
+    set.sort();
+    let joined = StableName {
+        kind: EntityKind::Edge,
+        node: union,
+        path: vec![RoleSeg::Merged(set)],
+    };
+    assert_eq!(
+        span(&joined),
+        (micro(0.4), micro(1.5)),
+        "{order:?}: the set-named edge"
     );
 }
 
@@ -169,7 +190,7 @@ fn no_order_of_the_rows_documents_refuses_with_an_emission() {
         let (doc, ids) = document(&rest);
         let (a, b) = (ids[0], ids[1]);
         for order in permutations(&ids) {
-            let (docx, union, _) =
+            let (docx, union) =
                 declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
             let ev = run(&docx);
             if let Some(e) = failure(&ev, union) {

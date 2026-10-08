@@ -39,7 +39,7 @@ fn certify_with_offset(offset: f64) -> Result<EdgeCurve<f64>, CertifyError> {
     };
     let (t0, t1) = (0.0, 2.0);
     let mid_i = (CERT_SAMPLES - 1) / 2;
-    let mid_t = t0 + (t1 - t0) * (f64::from(mid_i) / f64::from(CERT_SAMPLES - 1));
+    let mid_t = geom_brep::sample_param(t0, t1, mid_i);
     let true_mid = carrier.eval(mid_t);
     // The witness stays ON both planes exactly (offset along the
     // line): only the mid-parameter pin carries the offset — the

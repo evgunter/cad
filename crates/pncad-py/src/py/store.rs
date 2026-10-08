@@ -472,8 +472,8 @@ impl Workspace {
     /// store has never seen is legal and normal — a document being
     /// authored has no file yet.
     ///
-    /// Pure: nothing is applied and nothing is written. The caller
-    /// applies the whole list or none of it.
+    /// Pure: nothing is applied and nothing is written. The edits are
+    /// `update_references`', one per site and independent of each other.
     ///
     /// Raises `WorkspaceError`, typed. The store's own arms fire when
     /// the id is unknown or its file will not load; the elaboration's

@@ -66,10 +66,7 @@ fn random_curve(
 }
 
 fn sup3(a: geom_core::Vec3<f64>, b: geom_core::Vec3<f64>) -> f64 {
-    (a.x - b.x)
-        .abs()
-        .max((a.y - b.y).abs())
-        .max((a.z - b.z).abs())
+    (a - b).norm_inf()
 }
 
 /// Constant-lift a curve's control points to Dual64 (structure shared).
@@ -83,10 +80,7 @@ fn lift_dual(c: &NurbsCurve3<f64>) -> NurbsCurve3<Dual64> {
 }
 
 fn supp(a: Point3<f64>, b: Point3<f64>) -> f64 {
-    (a.x - b.x)
-        .abs()
-        .max((a.y - b.y).abs())
-        .max((a.z - b.z).abs())
+    (a - b).norm_inf()
 }
 
 /// A degree-2 curve with a genuine C0 kink: interior knot 0.5 at

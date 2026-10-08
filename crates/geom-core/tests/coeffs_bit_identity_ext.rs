@@ -18,6 +18,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use geom_core::{CertifiedBounds, Interval};
 

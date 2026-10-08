@@ -1,0 +1,79 @@
+---
+id: declared-pairs-are-a-booleans-own-payload
+kind: issue
+title: A boolean's and a union's declared contact pairs become the node's own payload, settable on a live node (Ev, #3587, A2)
+status: closed
+opened: 2026-10-01
+priority: P1
+cost: H
+branch: recipe/declared-pairs-payload
+pr: 3902
+closed: 2026-10-03
+---
+
+
+**Ruled by Ev on #3587 (2026-10-01): A2.** The decision record is in `work/doors/a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added.md`, its "Declaring a contact on a live boolean" and "Ruled" sections. The designers' reports are on #3587. Fork-log row 24.
+
+## Why
+
+The viewer's boolean door evaluates every boolean synchronously before recording it (AUTH-9), so that a refusing union can be offered a declaration before it is committed. It has to, because a committed boolean cannot be given a declaration afterwards: no edit rewires a live node's `declare` input (DM6). That costs a double evaluation, a blocked frame, and a whole-document evaluation right after an open. It also leaves every boolean made flush by a later edit with no recourse but cascade-delete and re-add, which is the common case once anything sits on a boolean's face.
+
+A declaration is a parameter, not an operand. It carries no material and mints no names, and its sites must be the consumer's operands. So it can live on the node. The `Declare` node has no other use (checked for Ev): its value is read only through `declared_pairs`.
+
+## What to build
+
+- **Node shape.** `Node::Boolean { op, a, b, declare: Vec<DeclaredPair> }` and `Node::Union { members, declare: Vec<DeclaredPair> }`, where an empty list means undeclared. This changes DM4's ratified shape, as ruled. `Node::Declare` goes.
+- **Edit.** A whole-list edit shaped like `SetMembers`, e.g. `SetDeclare { node, pairs }`, with nothing inferred. It is settable on a live node. With no edge, DM6 needs no exception.
+- **What becomes unrepresentable:** `DeclareInputNotDeclare`, the persistence check's `DeclareInput`, `Maintenance::OrphanedDeclare`, the "an orphaned `Declare` joins the root set" quirk, and `refactor`'s `Declare` remap. The last one becomes the payload's own remap.
+- **Persistence:** a schema bump.
+- **Python:** `Node.declare(findings)`, `Doc.declare`/`Doc.declare_all` and `Node.boolean(..., declare=)` change shape (`docs/guide/north-star-audit.md` G19). `names::declare_node` builds a pair list, not a node.
+- **The kernel's recourse.** `UndeclaredContactFinding::recourse` ("declare the candidate pair … and wire it into the Boolean's declare input") must name the new edit.
+
+## Not in this unit
+
+- The viewer half: AUTHOR's `the-boolean-door-evaluates-its-boolean-twice` and `a-union-that-becomes-flush-later-…`, both blocked on this row. They cover the plain commit, the row control and the end of the door judge.
+- The kernel reporting every undeclared pair at once: ZIP's `a-boolean-reports-one-undeclared-contact-per-refusal`.
+
+## Ground
+
+EDIT: `node.rs`, `edit.rs`, persistence, `refactor.rs`. Also WIRE (`eval/wire.rs` `declared_pairs` and `wire_boolean`/`wire_union`) and LIB (`pncad-py`).
+
+Filed by the AUTHOR orchestrator on Ev's ruling.
+
+## Also reached by: a count edit on a `PlacedUnion` (SHOW, 2026-10-02)
+
+A structural count edit makes a boolean newly flush without touching
+the boolean. `demos/tour/src/heatsink.rs` (`flush_fins`, narrated live):
+fins sketched on the base top, `find_flush_candidates(base, group)`
+reports five `Rest`/`SameOpposite` pairs (base `Cap(End)` against
+`Instance { i, of: fin Cap(Start) }`), `declare_node` stores them, and
+the union against the five-shell group builds at the closed-form
+volume of base + 5 fins. `SetStructuralParam` to 7 then refuses the
+union `UndeclaredContact` on `Instance(5)` (and says nothing of
+`Instance(6)`: ZIP's `a-boolean-reports-one-undeclared-contact-per-refusal`).
+That refusal is correct and stays so after this row lands. Declaring up
+front for nine fins is no way round: at five, the `Instance(5..8)`
+pairs refuse `DeclareResolve { Vanished }`.
+
+The door that exists today is delete-and-re-add (`work/doors/a-union-that-becomes-flush-later-can-only-be-deleted-and-re-added.md`):
+delete the union and its `Declare`, detect again (seven pairs), insert
+a new `Declare` and a new union. Measured in the scene: it builds at
+the closed-form volume of 7 fins. It costs four edits per count step
+and re-mints the union's id, and the scene's subject is one edit
+recomputing only what is downstream of it, so the scene keeps its fins
+sunk 1/16 into the base. With this row the flush edit becomes two
+edits — the count, then the re-detected pairs set on the live union —
+and the scene can be re-authored flush (`Seat::Flush`) with the recompute
+story counting both.
+
+## Built (2026-10-02, PR 3902)
+
+Landed as ruled:
+- **Payload and edit.** `Node::Boolean`/`Node::Union` carry `declare: Vec<DeclaredPair>`, and `DocEdit::SetDeclare { node, pairs }` sets it on a live node (whole list, empty clears; `SetDeclareOnNonDeclaring` for any other kind).
+- **Deleted.** `Node::Declare`, `DeclareInputNotDeclare`, `SnapshotError::DeclareInput`, `Maintenance::OrphanedDeclare` and the orphan root-set note, the declarations value family, and `refactor`'s Declare arm (now the payload's own remap).
+- **Recourse.** The kernel recourse names `SetDeclare`.
+- **Python.** `declare=` takes findings, `Doc.declare`/`declare_all` act on a live node, `DocEdit.set_declare` is new, and `Node.declare` is gone.
+- **Persistence.** The format has no schema version (`persist/mod.rs`), so the "bump" is the re-save of every checked-in document.
+- **Tour.** `heatsink` `flush_fins` measures the two-edit door: the count edit, then `declare_all` on the live union.
+
+Net −1160 lines. What remains is the viewer half, DOORS' two rows, which this unblocks.

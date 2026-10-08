@@ -17,3 +17,16 @@ At `f64` that is the margin. At `Interval` it labels the enclosure's lower end w
 
 - **Fix shape:** take the reading from the decision itself. `k_stats::decide_reported` returns the `Decided` whose `margin` is the lane's own view, so the escalation can echo that and drop the bracket read.
 - **Knock-on:** the site then leaves `scripts/gates/reporting-margin-door.sh`'s mint list.
+
+## Its words (TOPO, the fix pass of PR 3506)
+
+PR 3506 gave `geom_core::IndeterminatePayload` an arm for a margin at or
+inside the zero band ("margin m lies within the zero band (±z)"), so
+`definite_diag`'s `Ok(Sign::Zero)` echo (`chart_region_area`,
+`chart_region_cyl_band_area`, `chart_region_cross_order`) now renders
+that, where before it claimed the margin "lies inside the ambiguity band
+(z, e)", false for a margin the band decided zero. Its
+`Ok(Sign::Negative)` echo still renders "lies inside the ambiguity
+band": a margin below `−e`, which that band does not hold. Carrying the
+`Decided` (the fix shape above) lets the escalation say which verdict
+the conservative deduction could not certify.

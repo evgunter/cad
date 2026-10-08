@@ -15,6 +15,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::approx::band;
 use geom_core::{Point2, Tol};
@@ -219,8 +220,8 @@ fn r1_fixture_volumes_and_convexities_are_the_bodys() {
 /// closed form.
 fn carve(body: &Body<f64>, arcs: &[EdgeKey], signed: f64, what: &str) {
     let v0 = mass_properties(body, tol()).unwrap().volume;
-    let out =
-        fillet_edges(body, arcs, RHO, tol()).unwrap_or_else(|e| panic!("{what}: carves, got {e}"));
+    let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), arcs, RHO, tol())
+        .unwrap_or_else(|e| panic!("{what}: carves, got {e}"));
     assert_eq!(out.band_faces.len(), 1, "{what}: one band");
     validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("{what}: tier 3, got {e:?}"));
     let p1 = mass_properties(&out.body, tol()).unwrap();
@@ -288,8 +289,13 @@ fn r1_both_rims_of_a_three_arc_cylinder_walk_into_two_closed_chains_and_carve() 
     }
     assert_pairing_is_the_bodys(&body, &inter, &chains, "both rims");
     let v0 = mass_properties(&body, tol()).unwrap().volume;
-    let out = fillet_edges(&body, &inter, RHO, tol())
-        .unwrap_or_else(|e| panic!("both rims carve, got {e}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &inter,
+        RHO,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("both rims carve, got {e}"));
     assert_eq!(out.band_faces.len(), 2);
     validate_geometric(&out.body, tol()).unwrap();
     let v1 = mass_properties(&out.body, tol()).unwrap().volume;
@@ -322,7 +328,16 @@ fn extruded(vs: Vec<(Point2<f64>, f64)>, h: f64) -> Body<f64> {
     )
     .validate(tol())
     .unwrap();
-    extrude(&pf, Extrusion::Distance(h), tol()).unwrap().body
+    extrude(
+        &pf,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .unwrap()
+    .body
 }
 
 /// A stadium: two lines and two semicircles, CCW.
@@ -377,7 +392,12 @@ fn r1_mixed_line_and_arc_closed_rims_pair_by_the_bodys_incidence() {
         // (measured: `UnsupportedChain`, "a closed chain's blend is not
         // a torus") — and NOT as `ChainNotG1`: the pairing judged every
         // line-into-arc junction between the two links that meet there.
-        match fillet_edges(&body, &rim, RHO, tol()) {
+        match fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &rim,
+            RHO,
+            tol(),
+        ) {
             Err(BlendRefusal {
                 error: BlendError::UnsupportedChain { .. },
                 ..
@@ -389,58 +409,67 @@ fn r1_mixed_line_and_arc_closed_rims_pair_by_the_bodys_incidence() {
     }
 }
 
-/// **`rim_of` refuses every extruded multi-arc rim** (the filed
-/// finding, reproduced): the two- and three-arc discs' rim arcs are
-/// stored on carriers whose centre or radius differ in bits, so the
-/// bit-exact door answers `NotOneRim` from every seed — and
-/// `circle_arcs_at_z` is what the unit's fixtures have to select by.
+/// **`rim_of` names every extruded multi-arc rim whole, from every
+/// seed** — the two- and three-arc discs whose arcs `extrude` stores
+/// on circles that differ in their low bits. The door reads the arcs'
+/// shared surface keys and vertices, so those bits do not enter: every
+/// arc at the station answers the rim, as a rotation of the first
+/// seed's answer.
 #[test]
-fn r1_rim_of_refuses_the_extruded_two_and_three_arc_rims_on_carrier_bits() {
+fn r1_rim_of_names_the_extruded_two_and_three_arc_rims_from_every_seed() {
     for n in [2, 3] {
         let body = disc_of_arcs(n, R, 1.0, tol());
-        let arcs = circle_arcs_at_z(&body, 1.0);
-        assert_eq!(arcs.len(), n);
-        let carrier = |e: EdgeKey| {
-            let ed = body.get_edge(e).unwrap();
-            match body
-                .get_curve_geom(ed.curve)
-                .unwrap()
-                .certified()
-                .unwrap()
-                .carrier()
-            {
-                geom::Curve3::Circle {
-                    center,
-                    radius,
-                    axis,
-                    ..
-                } => (*center, *radius, *axis),
-                other => panic!("an arc, got {other:?}"),
-            }
+        let mut arcs: Vec<EdgeKey> = body
+            .edges()
+            .filter(|(_, e)| {
+                matches!(
+                    body.get_curve_geom(e.curve)
+                        .and_then(|g| g.certified())
+                        .map(|c| c.carrier()),
+                    Some(geom::Curve3::Circle { center, .. }) if (center.z - 1.0).abs() < 1e-9
+                )
+            })
+            .map(|(k, _)| k)
+            .collect();
+        assert_eq!(arcs.len(), n, "{n}-arc disc: {n} arcs by authoring");
+        // Not vacuous: a door that compared carriers would split this rim.
+        let bits = |e: EdgeKey| match body
+            .get_curve_geom(body.get_edge(e).unwrap().curve)
+            .unwrap()
+            .certified()
+            .unwrap()
+            .carrier()
+        {
+            geom::Curve3::Circle { center, radius, .. } => [
+                center.x.to_bits(),
+                center.y.to_bits(),
+                center.z.to_bits(),
+                radius.to_bits(),
+            ],
+            other => panic!("an arc, got {other:?}"),
         };
-        let (c0, r0, a0) = carrier(arcs[0]);
-        let mut all_same_bits = true;
-        for &e in &arcs[1..] {
-            let (c, r, a) = carrier(e);
-            let same = c.x.to_bits() == c0.x.to_bits()
-                && c.y.to_bits() == c0.y.to_bits()
-                && c.z.to_bits() == c0.z.to_bits()
-                && r.to_bits() == r0.to_bits()
-                && a.x.to_bits() == a0.x.to_bits()
-                && a.y.to_bits() == a0.y.to_bits()
-                && a.z.to_bits() == a0.z.to_bits();
-            all_same_bits &= same;
-        }
         assert!(
-            !all_same_bits,
+            arcs.iter().any(|&e| bits(e) != bits(arcs[0])),
             "{n}-arc disc: the arcs' stored circles differ in bits"
         );
-        for &e in &arcs {
-            match topo::query::rim_of(&body, e) {
-                Err(topo::query::RimError::NotOneRim { .. }) => {}
-                other => panic!("{n}-arc disc: rim_of from {e:?} refuses NotOneRim, got {other:?}"),
-            }
+        let first = topo::query::rim_of(&body, arcs[0])
+            .unwrap_or_else(|e| panic!("{n}-arc disc: one rim, got {e}"));
+        for &seed in &arcs {
+            let from_seed = topo::query::rim_of(&body, seed)
+                .unwrap_or_else(|e| panic!("{n}-arc disc: from {seed:?}, got {e}"));
+            assert_eq!(from_seed[0], seed, "{n}-arc disc: the seed comes first");
+            assert!(
+                (0..n).any(|k| (0..n).all(|i| first[(i + k) % n] == from_seed[i])),
+                "{n}-arc disc: from {seed:?} {from_seed:?} is a rotation of {first:?}"
+            );
         }
+        let mut answered = first.clone();
+        answered.sort();
+        arcs.sort();
+        assert_eq!(
+            answered, arcs,
+            "{n}-arc disc: the rim is every arc at the station"
+        );
     }
 }
 
@@ -496,7 +525,12 @@ fn r1_an_open_chain_with_tangent_junctions_pairs_by_incidence_and_refuses_at_a_r
             ChainClosure::Open { head, tail } => [head, tail],
             ChainClosure::Closed => unreachable!(),
         };
-        match fillet_edges(&body, &open, RHO, tol()) {
+        match fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &open,
+            RHO,
+            tol(),
+        ) {
             Err(BlendRefusal {
                 error: BlendError::UnsupportedCorner { vertex, .. },
                 ..

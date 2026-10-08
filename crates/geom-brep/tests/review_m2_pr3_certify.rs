@@ -20,7 +20,7 @@ use geom_brep::{
     CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
     MappedCurve, NewellError, SketchSegment, classify_dihedral, newell_plane,
 };
-use geom_core::{Affine3, Point2, Point3, Vec3};
+use geom_core::{Affine3, Arc2, Point2, Point3, Vec3};
 
 // =====================================================================
 // Target 1 — certification aliasing: is the 9-sample schedule enough?
@@ -48,12 +48,16 @@ use geom_core::{Affine3, Point2, Point3, Vec3};
 /// winding within the period.
 #[test]
 fn fixed_winding_aliased_arc_interval_refused() {
-    let bulge = (PI / 8.0).tan(); // quarter arc, CCW, unit circle
+    // The quarter arc, counterclockwise, on the unit circle.
     let desc = MappedCurve::PlacedSegment {
         segment: SketchSegment::Arc {
             a: Point2::new(1.0, 0.0),
             b: Point2::new(0.0, 1.0),
-            bulge,
+            arc: Arc2 {
+                centre: Point2::new(0.0, 0.0),
+                radius: 1.0,
+                sweep: FRAC_PI_2,
+            },
         },
         place: Affine3::identity(),
     };
@@ -119,12 +123,15 @@ fn fixed_winding_aliased_full_period_refused() {
 /// schedule only aliases at 8k·tau).
 #[test]
 fn survives_wrong_carriers_are_rejected() {
-    let bulge = (PI / 8.0).tan();
     let arc = MappedCurve::PlacedSegment {
         segment: SketchSegment::Arc {
             a: Point2::new(1.0, 0.0),
             b: Point2::new(0.0, 1.0),
-            bulge,
+            arc: Arc2 {
+                centre: Point2::new(0.0, 0.0),
+                radius: 1.0,
+                sweep: FRAC_PI_2,
+            },
         },
         place: Affine3::identity(),
     };
@@ -455,10 +462,14 @@ fn fixed_sub_epsilon_cone_arm_escalates() {
     let p = at(3.0 * eps());
     assert!(classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).is_err());
     // Collapsed arm: now an honest escalation naming the arm gate —
-    // never a definite classification.
+    // never a definite classification. It quotes the wedge the arm
+    // meters (PR 3513's fifth fix pass), under that reading's own name.
     let p = at(0.5 * eps());
     let err = classify_dihedral(&cone, &plane_through(p), p, 1.0, band()).unwrap_err();
-    assert_eq!(err.predicate, Some("dihedral_arm"));
+    assert_eq!(
+        (err.rung, err.diag.predicate),
+        (geom_brep::LeverRung::Arm, Some("dihedral_arm_wedge"))
+    );
 }
 
 /// (c) FIXED (was `finding_sub_epsilon_chord_true_corner_reads_smooth`):
@@ -481,10 +492,20 @@ fn fixed_sub_epsilon_extent_true_corner_escalates() {
         normal: Vec3::unit_x(),
         u_ref: Vec3::unit_y(),
     };
+    // The arm gate escalates, quoting the wedge it meters where that is
+    // nonzero, and its own decided zero where the arm is exactly zero.
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.5 * eps(), band()).unwrap_err();
-    assert_eq!(err.predicate, Some("dihedral_arm"), "sub-eps extent");
+    assert_eq!(
+        (err.rung, err.diag.predicate),
+        (geom_brep::LeverRung::Arm, Some("dihedral_arm_wedge")),
+        "sub-eps extent"
+    );
     let err = classify_dihedral(&floor, &wall, Point3::origin(), 0.0, band()).unwrap_err();
-    assert_eq!(err.predicate, Some("dihedral_arm"), "zero extent");
+    assert_eq!(
+        (err.rung, err.diag.predicate),
+        (geom_brep::LeverRung::Arm, Some("dihedral_arm")),
+        "zero extent"
+    );
 }
 
 /// (c) SURVIVES: huge edges on tiny features — the curvature arm caps
@@ -749,8 +770,8 @@ mod interval_lane {
     /// FIXED (was
     /// `finding_interval_winding_alias_refused_only_by_the_poison`):
     /// the interval lane used to refuse the 9-revolution alias only via
-    /// the blanket norm-sqrt-clamp poison (every inexact distance
-    /// enclosure degraded to Trv). With the poison fixed (B1: tight
+    /// the blanket norm-sqrt-clamp refusal (every inexact distance
+    /// enclosure degraded to Trv). With that refusal fixed (B1: tight
     /// per-component squares in `norm_squared`), the alias must STILL
     /// be refused — and now it is, by DETECTION: the circle winding
     /// bound classifies `(tau − 9·tau)·r` definitely negative through
@@ -781,7 +802,7 @@ mod interval_lane {
         assert_eq!(
             err,
             CertifyError::WindingExceeded,
-            "the fixed lane must refuse the alias by detection, not poison"
+            "the fixed lane must refuse the alias by detection, not by a blanket Trv refusal"
         );
     }
 
@@ -794,7 +815,7 @@ mod interval_lane {
     /// enclosure straddles zero, and `norm`'s old `sqrt(dot(v, v))`
     /// squared the straddle through plain interval `Mul` (negative
     /// lo), so the sqrt clamped, degraded the decoration to Trv, and
-    /// every decision downstream read poison. The fix: `norm_squared`
+    /// every decision downstream was refused. The fix: `norm_squared`
     /// sums tight per-component squares (`powi(2)` — the interval
     /// backend's dedicated integer power),
     /// whose enclosures are `[0, hi]` with decoration preserved, so

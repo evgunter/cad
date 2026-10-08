@@ -2,12 +2,15 @@
 id: kevs-fan-merge-needs-a-re-describing-kill-door
 kind: issue
 title: kev's fan merge re-bases carriers and no precondition can refuse it: the kill needs a re-describing door
-status: open
+status: closed
 opened: 2026-09-14
 parent: S93
 refs: [S93]
 priority: P1
 cost: H
+pr: 3161
+branch: topo/kev-describing-door
+closed: 2026-09-29
 ---
 
 ## What
@@ -500,3 +503,47 @@ orchestrator closes it at merge.
 Branch `topo/kev-describing-door`. PR title: "TOPO: kev refuses a merge
 that would strand a carrier; kev_describing takes the
 re-descriptions". Do not close the item; the dual runs at review.
+
+## The ruling as built (TOPO orchestrator, 2026-09-29)
+
+Ruling (c) says plain `kev(he)` refuses "where any merged carrier
+would go stale". As built, **plain `kev` refuses every fan merge that
+holds a certified member**. That includes a merge that moves no point
+(the exact inverse of a certified `mev`) and one whose carriers stay
+within band. A merge that moves nothing, or stays in band, goes
+through `kev_describing(he, &[], tol)`.
+
+This is the ruling's only honest reading under Ev's other standing
+rulings, not a new decision:
+- the kill family is keys-only (this ruling);
+- a door that decides against ε names its `tol` (D4 ¶1,
+  `scripts/gates/witness-not-ambient.sh`);
+- the exact "nothing moved" question is not asked
+  (`the-re-basing-gate-refuses-m7-8-where-nothing-moves`, PR 3156).
+
+A keys-only kill therefore has no band with which to tell "would go
+stale" from "stays true". Both reviews of PR 3161 measured the
+narrowing: every production fan kill now names its band through the
+describing door.
+
+## Closed (2026-09-29, PR 3161)
+
+Two doors, as ruled and built:
+- `kev(he)` is keys-only and refuses typed (`MergeRebasesCarriers`,
+  naming every certified member).
+- `kev_describing(he, &[(EdgeKey, EdgeCurveSpec<T>)], tol)` certifies
+  each listed re-description at the endpoints the merge gives it,
+  gates the unlisted members under `tol`, and writes topology and
+  descriptions together.
+- Both refuse typed on a torn orbit (the dual's MAJOR, closed at its
+  root in `kev_plan`).
+- `kev_merged_members` is the read door callers build their
+  re-descriptions from.
+- The blend's closure kills, the generator and the pipeline kills take
+  the describing door. `S93` closes with this unit.
+
+Residues filed:
+- `work/issues/arc-of-circle-scaffold-residual-straddles-the-1e-12-band`;
+- `work/topo/mev-fan-plan-trusts-the-orbits-start-vertices`;
+- `work/topo/the-re-basing-gates-staleness-and-both-halves-arms-have-no-door-left-to-feed-them`
+  (corrected).

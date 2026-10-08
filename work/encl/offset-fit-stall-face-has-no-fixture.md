@@ -79,12 +79,24 @@ the shipped constants, no scripted seam needed:
 
 The rise is the Bézier decomposition's insertion width
 (`work/props/f64-refinement-inside-an-enclosure-has-five-more-sites.md`,
-its `insert_once_ring` row). Under the convex form that row proposes,
-the same wall certifies at 1e-14 on round 3, so **this fixture
-disappears if that fix lands**. A row built on it would need
-re-grounding then, which argues for the scripted-bound seam named above
-if the stall's loop ordering is to be pinned durably.
+its `insert_once_ring` row).
 
-`bowed()` at `d = 0.05` also stalls, but only with the round budget
-raised past the shipped 6 (round 7, 2.49e-9), so it is not a
-shipped-door fixture.
+**That fix has since landed (PROPS, PR 3524), and both fixtures above
+are gone.** Under the convex form the `theta = 0.3` wall at
+`d = ±5e-10` certifies at 1e-14 on round 3 (7.9933e-15), exactly as
+predicted, so `RefinementStalled` is no longer reachable through the
+shipped constants at that request, and the kernel-door variant at
+`CAD_TOLERANCE_EPS=1e-14` certifies with it.
+`the_second_non_improving_round_is_the_stalls_face` was re-hunted to
+`theta = 0.6`, `d = ±5.6234132519034906e-11` (round 5) and
+`1.333521432163324e-10` (the budget's last round) — a shipped-door
+fixture again, and one that will move the next time the assembly
+narrows. **That is this row's point restated by events**: a stall
+fixture grounded in the enclosure's own width is grounded in a quantity
+other programs tighten, which is the argument for the scripted-bound
+seam named above if the loop's ordering is to be pinned durably.
+
+`bowed()` at `d = 0.05` also stalled, but only with the round budget
+raised past the shipped 6 (round 7, 2.49e-9), so it was never a
+shipped-door fixture; under the convex form it certifies at 1e-12 on
+round 9 with the budget raised.

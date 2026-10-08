@@ -50,11 +50,12 @@ use geom_core::Point3;
 
 use crate::body::Body;
 use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
-use crate::euler::{EulerOpError, MefSite, MevCreated, MevSite, MvfsCreated};
+use crate::euler::{BadArgument, EulerOpError, MefSite, MevCreated, MevSite, MvfsCreated};
 use crate::euler_ring::MekrSite;
-use crate::fixtures::deep_snapshot;
+use crate::fixtures::{deep_rows, deep_snapshot};
 use crate::iso::{canonical_form, isomorphic};
 use crate::readback::euler_counts;
+use crate::review_d18::{PanicCapture, ROW_FOUR};
 use crate::seqgen;
 use crate::test_support_fixtures::declined_cube;
 use crate::validate::validate;
@@ -67,7 +68,7 @@ fn p(x: f64) -> Point3<f64> {
 /// mvfs + mev(Lone): the segment body.
 fn segment(tol: Tol) -> (Body<f64>, MvfsCreated, MevCreated) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -84,7 +85,7 @@ fn segment(tol: Tol) -> (Body<f64>, MvfsCreated, MevCreated) {
 /// [a+, b+, c+, d+, e+], asymmetric (all tips at distinct coords).
 fn five_spoke_star(tol: Tol) -> (Body<f64>, MvfsCreated, [MevCreated; 5]) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let a = body
         .mev_line(
             MevSite::Lone {
@@ -126,10 +127,11 @@ fn mk_kill_roundtrip_every_mev_site_case() {
     let tol = Tol::witness();
     // Lone (segment): DEEP identity — the pre-state had emanating None
     // and an Empty loop, which the segment kill restores exactly, and
-    // the balanced pair leaves survivor keys untouched.
+    // the balanced pair leaves survivor keys untouched. Row for row:
+    // the pair consumes the key slots it minted.
     let mut b3 = Body::<f64>::new();
-    let seed3 = b3.mvfs(p(0.0)).unwrap();
-    let deep3 = deep_snapshot(&b3);
+    let seed3 = b3.mvfs(p(0.0), true).unwrap();
+    let deep3 = deep_rows(&b3);
     let created = b3
         .mev_line(
             MevSite::Lone {
@@ -140,7 +142,7 @@ fn mk_kill_roundtrip_every_mev_site_case() {
         )
         .unwrap();
     b3.kev(created.he_plus).unwrap();
-    assert_eq!(deep_snapshot(&b3), deep3, "Lone mev∘kev deep identity");
+    assert_eq!(deep_rows(&b3), deep3, "Lone mev∘kev deep identity");
 
     // Fan strut (he1 == he2): canonical identity.
     let (mut body, _seed, [a, _b, _c, _d, _e]) = five_spoke_star(tol);
@@ -267,10 +269,10 @@ fn mk_kill_roundtrip_every_mef_site_case() {
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(canonical_form(&body), before, "circular mef∘kef");
 
-    // Lone (self-loop pair at the lone vertex).
+    // Lone (self-loop pair at the lone vertex), row for row.
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
-    let before = deep_snapshot(&body);
+    let seed = body.mvfs(p(0.0), true).unwrap();
+    let before = deep_rows(&body);
     let circ = body
         .mef_chord(
             MefSite::Lone {
@@ -281,7 +283,7 @@ fn mk_kill_roundtrip_every_mef_site_case() {
         .unwrap();
     body.kef(circ.he_minus).unwrap();
     assert_eq!(validate(&body), Ok(()));
-    assert_eq!(deep_snapshot(&body), before, "Lone mef∘kef deep identity");
+    assert_eq!(deep_rows(&body), before, "Lone mef∘kef deep identity");
 
     // Ring-loop split: mef with both chords in a RING loop; the new
     // face's outer is he1's side; kef(he_minus) undoes it.
@@ -527,7 +529,7 @@ fn some_single_op_reaches(
     let rings: Vec<LoopKey> = body.faces().flat_map(|(_, f)| f.rings.clone()).collect();
     for ring in rings {
         let mut probe = body.clone();
-        if probe.mfkrh_plug(ring).is_ok() {
+        if probe.mfkrh_plug(ring, true).is_ok() {
             candidates.push(probe);
         }
     }
@@ -542,7 +544,7 @@ fn some_single_op_reaches(
     }
     for &c in coords {
         let mut probe = body.clone();
-        if probe.mvfs(c).is_ok() {
+        if probe.mvfs(c, true).is_ok() {
             candidates.push(probe);
         }
     }
@@ -654,9 +656,19 @@ fn kev_mirror_has_no_single_op_remake() {
         )
         .unwrap();
     // seg.vertex carries fan [seg−, strut+]; strut.he_minus starts at
-    // the valence-1 tip and points at it — the mirror kill.
+    // the valence-1 tip and points at it — the mirror kill. `seg` would
+    // keep a chord to the dying vertex's point, so the kill re-describes
+    // it as the chord it runs along after the merge.
     let before = canonical_form(&body);
-    body.kev(strut.he_minus).unwrap();
+    body.kev_describing(
+        strut.he_minus,
+        &[(
+            seg.edge,
+            geom_brep::EdgeCurveSpec::line_between(p(0.0), p(2.0)),
+        )],
+        tol,
+    )
+    .unwrap();
     assert_eq!(validate(&body), Ok(()));
     let coords = [p(0.0), p(1.0), p(2.0)];
     assert!(
@@ -798,7 +810,7 @@ fn mfkrh_on_a_planted_ring_disconnects_the_shell_not_negative_genus() {
 
     // Promote the planted (non-handle) ring: the naive per-body genus
     // 2h = 2s − (v − e + f − r) goes NEGATIVE...
-    body.mfkrh_plug(kill.ring).unwrap();
+    body.mfkrh_plug(kill.ring, true).unwrap();
     assert_eq!(validate(&body), Ok(()), "tier-1 accepts the result");
     let counts = euler_counts(&body);
     assert_eq!(counts.genus(), Ok(-1), "naive derived h = -1 (the finding)");
@@ -851,7 +863,7 @@ fn component_formula_holds_on_reference_bodies() {
 /// a chain of n−1 mevs, close with one mef.
 fn ngon_pillow(pts: &[Point3<f64>], tol: Tol) -> Body<f64> {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pts[0]).unwrap();
+    let seed = body.mvfs(pts[0], true).unwrap();
     let first = body
         .mev_line(
             MevSite::Lone {
@@ -936,7 +948,7 @@ fn hexagon_pillow_with_fully_degenerate_coordinates_is_stable() {
     let p7 = Point3::new(7.0, 7.0, 7.0);
     let degenerate_pillow = || {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(p7).unwrap();
+        let seed = body.mvfs(p7, true).unwrap();
         let circle = || geom_brep::EdgeCurveSpec::self_loop_circle_at(p7);
         let first = body
             .mev(
@@ -978,7 +990,7 @@ fn hexagon_pillow_with_fully_degenerate_coordinates_is_stable() {
     // The sugar path refuses the same degenerate build, typed (the
     // fail-loud half of the revision).
     let mut refused = Body::<f64>::new();
-    let seed = refused.mvfs(p7).unwrap();
+    let seed = refused.mvfs(p7, true).unwrap();
     assert!(matches!(
         refused.mev_line(
             MevSite::Lone {
@@ -1003,8 +1015,8 @@ fn oracle_solid_order_false_negative_is_real_and_documented() {
     // structure), but the oracle compares positionally.
     let build = |first: f64, second: f64| {
         let mut body = Body::<f64>::new();
-        body.mvfs(p(first)).unwrap();
-        body.mvfs(p(second)).unwrap();
+        body.mvfs(p(first), true).unwrap();
+        body.mvfs(p(second), true).unwrap();
         body
     };
     let ab = build(0.0, 1.0);
@@ -1100,7 +1112,7 @@ fn failing_kill_calls_consume_no_keys_between_kills() {
             .unwrap();
         if with_failures {
             assert!(body.kef(HalfEdgeKey::default()).is_err()); // stale
-            assert!(body.mfkrh_plug(LoopKey::default()).is_err()); // stale
+            assert!(body.mfkrh_plug(LoopKey::default(), true).is_err()); // stale
         }
         let strut = body
             .mev_line(
@@ -1114,7 +1126,7 @@ fn failing_kill_calls_consume_no_keys_between_kills() {
             .unwrap();
         body.kev(strut.he_plus).unwrap();
         if with_failures {
-            assert!(body.mfkrh_plug(seed.r#loop).is_err()); // outer, RingIsOuter
+            assert!(body.mfkrh_plug(seed.r#loop, true).is_err()); // outer, RingIsOuter
             assert!(body.kvfs(seed.solid).is_err());
         }
         let cut = body
@@ -1142,9 +1154,9 @@ fn failing_kill_calls_consume_no_keys_between_kills() {
 fn kvfs_slot_recycling_is_generation_safe() {
     let _tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let first = body.mvfs(p(0.0)).unwrap();
+    let first = body.mvfs(p(0.0), true).unwrap();
     body.kvfs(first.solid).unwrap();
-    let second = body.mvfs(p(1.0)).unwrap();
+    let second = body.mvfs(p(1.0), true).unwrap();
     // Recycled slots, bumped generations: every old key is dead and
     // DISTINCT from the new one.
     assert_ne!(first.solid, second.solid);
@@ -1159,15 +1171,17 @@ fn kvfs_slot_recycling_is_generation_safe() {
     // Ops fed the stale keys give typed errors, not aliasing.
     assert_eq!(
         body.kvfs(first.solid).unwrap_err(),
-        EulerOpError::StaleKey {
+        EulerOpError::Argument(BadArgument::Stale {
+            role: "solid",
             key: EntityId::Solid(first.solid)
-        }
+        })
     );
     assert_eq!(
-        body.mfkrh_plug(first.r#loop).unwrap_err(),
-        EulerOpError::StaleKey {
+        body.mfkrh_plug(first.r#loop, true).unwrap_err(),
+        EulerOpError::Argument(BadArgument::Stale {
+            role: "ring",
             key: EntityId::Loop(first.r#loop)
-        }
+        })
     );
     // And the recycled solid still works.
     body.kvfs(second.solid).unwrap();
@@ -1175,11 +1189,13 @@ fn kvfs_slot_recycling_is_generation_safe() {
 }
 
 // =====================================================================
-// 8. kef's UnclaimedHalfEdge (the kev-only shipped test's sibling).
+// 8. kef on an edge that does not claim its half (the kev-only shipped
+//    test's sibling).
 // =====================================================================
 
 #[test]
-fn kef_rejects_a_corrupt_edge_bijection() {
+#[should_panic(expected = "does not claim it in either slot: on a tier-1-valid body")]
+fn kef_panics_on_a_corrupt_edge_bijection() {
     let tol = Tol::witness();
     let (mut body, _seed, seg) = segment(tol);
     let split = body
@@ -1194,36 +1210,64 @@ fn kef_rejects_a_corrupt_edge_bijection() {
     // Corrupt: seg.edge no longer claims seg.he_plus.
     body.get_edge_mut(seg.edge).unwrap().he_plus = split.he_plus;
     body.get_edge_mut(seg.edge).unwrap().he_minus = split.he_minus;
-    let err = body.kef(seg.he_plus).unwrap_err();
-    assert_eq!(
-        err,
-        EulerOpError::UnclaimedHalfEdge {
-            he: seg.he_plus,
-            edge: seg.edge,
-        }
-    );
+    let _ = body.kef(seg.he_plus);
 }
 
 // =====================================================================
-// 9. Release-mode garbage-in. The surviving half of the contract is
-//    "never a hang; every traversal is bounded" (D9's footnote as
-//    amended by the D2 addendum, which retired the garbage-out half).
-//    These rows also run in debug, where the errors are
-//    precondition-caught, on every code-tier run. The release side is the
-//    `corrupt input (release profile)` job in .github/workflows/ci.yml,
-//    which runs on every code-tier run too and is the ONLY lane that runs
-//    it: that job pins `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"`,
-//    and nothing else in the tree does.
+// 9. Release-mode garbage-in. The contract is "never a hang; every
+//    traversal is bounded" (D9's footnote as amended by the D2
+//    addendum, which retired the garbage-out half), and a torn body
+//    ends each call in a typed refusal of its own or a panic naming the
+//    tier-1 premise it broke (D2 row 4), never an unannounced panic.
+//    These rows also run in debug on every code-tier run. The release
+//    side is the `corrupt input (release profile)` job in
+//    .github/workflows/ci.yml, which runs on every code-tier run too and
+//    is the ONLY lane that runs it: that job pins
+//    `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"`, and nothing else
+//    in the tree does.
 // =====================================================================
 
+/// Asserts that `op`'s outcome on a clone of the torn `body` is one the
+/// contract allows: `Ok`, a typed refusal that is not an argument's
+/// (every key the probes pass was read out of the body), or a panic
+/// naming a row-4 premise that fired before `op` wrote (the clone is
+/// still `snapshot`, `body`'s [`deep_snapshot`]). `may_succeed` false
+/// also rules out `Ok`.
+fn assert_torn_outcome<R>(
+    capture: &PanicCapture,
+    (body, snapshot): (&Body<f64>, &[String]),
+    label: &str,
+    may_succeed: bool,
+    op: impl FnOnce(&mut Body<f64>) -> Result<R, EulerOpError>,
+) {
+    let mut trial = body.clone();
+    match capture.run(|| op(&mut trial)) {
+        Ok(Ok(_)) => assert!(may_succeed, "{label}: returned Ok on the torn chain"),
+        Ok(Err(err)) => assert!(
+            !matches!(err, EulerOpError::Argument(_)),
+            "{label}: refused a key read out of the body as an argument: {err}"
+        ),
+        Err(report) => {
+            assert!(
+                report.contains(ROW_FOUR),
+                "{label}: panicked without naming a row-4 premise: {report}"
+            );
+            assert!(
+                deep_snapshot(&trial) == snapshot,
+                "{label}: panicked naming a row-4 premise after writing to the body: {report}"
+            );
+        }
+    }
+}
+
 #[test]
-fn kill_ops_survive_torn_bodies_without_panicking() {
+fn kill_ops_on_torn_bodies_panic_only_naming_a_premise() {
     let tol = Tol::witness();
     use crate::entity::{HalfEdge, Vertex};
     // A big strut chain, then tear next/prev links and edge bijections
     // at scale; hammer all four ops on every half-edge/solid/loop.
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -1252,7 +1296,7 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let foreign = {
         let mut other = Body::<f64>::new();
-        let s = other.mvfs(p(0.0)).unwrap();
+        let s = other.mvfs(p(0.0), true).unwrap();
         let sg = other
             .mev_line(MevSite::Lone { r#loop: s.r#loop }, p(1.0), tol)
             .unwrap();
@@ -1283,17 +1327,36 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
     body.points.remove(vpoint);
     let _ = stray;
     let started = std::time::Instant::now();
+    // The kills' subject here is their shared plan phase: this tear
+    // leaves no kill a well-formed site, so each door stops (a torn
+    // orbit or mate pair panics, a self-loop refuses typed) before its
+    // own gate and never reaches the mutation. `review_d18`'s hammer is
+    // the row that drives the mutation phase on a tear it survives.
+    let capture = PanicCapture::install();
+    let snapshot = deep_snapshot(&body);
+    let torn = (&body, snapshot.as_slice());
     for &he in &halves {
-        let _ = body.clone().kev(he);
-        let _ = body.clone().kef(he);
+        assert_torn_outcome(&capture, torn, &format!("kev({he:?})"), false, |b| {
+            b.kev(he)
+        });
+        assert_torn_outcome(
+            &capture,
+            torn,
+            &format!("kev_describing({he:?})"),
+            false,
+            |b| b.kev_describing(he, &[], tol),
+        );
+        assert_torn_outcome(&capture, torn, &format!("kef({he:?})"), true, |b| b.kef(he));
     }
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
     for s in solids {
-        let _ = body.clone().kvfs(s);
+        assert_torn_outcome(&capture, torn, &format!("kvfs({s:?})"), true, |b| b.kvfs(s));
     }
     let loops: Vec<_> = body.loops().map(|(k, _)| k).collect();
     for l in loops {
-        let _ = body.clone().mfkrh_plug(l);
+        assert_torn_outcome(&capture, torn, &format!("mfkrh_plug({l:?})"), true, |b| {
+            b.mfkrh_plug(l, true)
+        });
     }
     assert!(
         started.elapsed() < std::time::Duration::from_secs(30),
@@ -1316,7 +1379,7 @@ fn kill_ops_survive_torn_bodies_without_panicking() {
 #[test]
 fn seqgen_generates_every_op_kind_and_every_site_shape() {
     let tol = Tol::witness();
-    use crate::seqgen::{OpChoice, apply, choose_op};
+    use crate::seqgen::{Door, OpChoice, apply, choose_op, shell_components};
     use std::collections::BTreeSet;
     use test_utils::fuzz;
     let expected: BTreeSet<&'static str> = [
@@ -1337,15 +1400,21 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
         "mekr_empty_target",
         "mekr_both_empty",
         "kfmrh",
+        "kfmrh_minting",
         "kfmrh_fuse",
+        "kfmrh_fuse_minting",
         "mfkrh",
+        "mfkrh_minting",
         "movefac",
+        "movefac_three_or_more",
         "ring_move",
+        "ring_move_minting",
         "split_edge",
         "split_edge_strut",
         "split_edge_self_loop",
         "kev",
         "kef",
+        "kef_minting",
         "kvfs",
     ]
     .into_iter()
@@ -1417,14 +1486,28 @@ fn seqgen_generates_every_op_kind_and_every_site_shape() {
                 OpChoice::Mekr(MekrSite::EmptyRing { .. }) => "mekr_empty_ring",
                 OpChoice::Mekr(MekrSite::EmptyTarget { .. }) => "mekr_empty_target",
                 OpChoice::Mekr(MekrSite::BothEmpty { .. }) => "mekr_both_empty",
-                OpChoice::Kfmrh(..) => "kfmrh",
-                OpChoice::KfmrhFuse(..) => "kfmrh_fuse",
-                OpChoice::Mfkrh(_) => "mfkrh",
-                OpChoice::Movefac(_) => "movefac",
+                OpChoice::Kfmrh(.., Door::KeysOnly) => "kfmrh",
+                OpChoice::Kfmrh(.., Door::Minting) => "kfmrh_minting",
+                OpChoice::KfmrhFuse(.., Door::KeysOnly) => "kfmrh_fuse",
+                OpChoice::KfmrhFuse(.., Door::Minting) => "kfmrh_fuse_minting",
+                OpChoice::Mfkrh(_, Door::KeysOnly) => "mfkrh",
+                OpChoice::Mfkrh(_, Door::Minting) => "mfkrh_minting",
+                // Split by component count: a shell of three or more
+                // is the site that drives `movefac`'s minting loop
+                // past its first shell.
+                OpChoice::Movefac(shell) => {
+                    if shell_components(&body, shell) > 2 {
+                        "movefac_three_or_more"
+                    } else {
+                        "movefac"
+                    }
+                }
                 OpChoice::Kev(_) => "kev",
-                OpChoice::Kef(_) => "kef",
+                OpChoice::Kef(_, Door::KeysOnly) => "kef",
+                OpChoice::Kef(_, Door::Minting) => "kef_minting",
                 OpChoice::Kvfs(_) => "kvfs",
-                OpChoice::RingMove(..) => "ring_move",
+                OpChoice::RingMove(.., Door::KeysOnly) => "ring_move",
+                OpChoice::RingMove(.., Door::Minting) => "ring_move_minting",
                 // Split by SITE SHAPE, like the other multi-shape ops:
                 // "split_edge fired at least once" is not the claim the
                 // fuzz row exists to support — `split.rs`'s surgery
@@ -1581,8 +1664,34 @@ fn same_face_bridge_edge_kef_refuses_and_kev_kills() {
     assert!(matches!(err, EulerOpError::SameFace { .. }));
     assert_eq!(deep_snapshot(&body), before);
     // kev (the error text's advice): endpoints are distinct cube
-    // corners, so it kills the edge (and the far vertex, fan merged).
-    body.kev(bridge).unwrap();
+    // corners, so the kill is well-formed — but the far corner's two
+    // other edges would merge onto the near one keeping chords to the
+    // far corner, so the keys-only kill refuses, naming both, and the
+    // describing kill, handed the chords they run along after the
+    // merge, kills the edge (and the far vertex, fan merged).
+    let before = deep_snapshot(&body);
+    let err = body.kev(bridge).map(|_| ()).unwrap_err();
+    let EulerOpError::MergeRebasesCarriers { edges } = err else {
+        panic!("{err:?}")
+    };
+    assert_eq!(edges.len(), 2, "a cube corner's two other edges");
+    assert_eq!(deep_snapshot(&body), before);
+    let members = body.kev_merged_members(bridge).unwrap();
+    assert_eq!(
+        members.iter().map(|m| m.edge).collect::<Vec<_>>(),
+        edges,
+        "the read door names the members the refusal names, in its order"
+    );
+    let chords: Vec<_> = members
+        .iter()
+        .map(|m| {
+            (
+                m.edge,
+                geom_brep::EdgeCurveSpec::line_between(m.start, m.end),
+            )
+        })
+        .collect();
+    body.kev_describing(bridge, &chords, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
 }
 
@@ -1594,7 +1703,7 @@ fn same_face_self_loop_bridge_has_no_direct_killer_but_mfkrh_frees_it() {
     // outer and a ring of ONE face. kev: SelfLoopEdge. kef: SameFace.
     // kemr: NotSameLoop. mfkrh(ring) re-splits, then kef works.
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let circ = body
         .mef_chord(
             MefSite::Lone {
@@ -1618,7 +1727,7 @@ fn same_face_self_loop_bridge_has_no_direct_killer_but_mfkrh_frees_it() {
         EulerOpError::NotSameLoop { .. }
     ));
     // Escape hatch: promote the ring back to a face, then kef.
-    let promoted = body.mfkrh_plug(circ.r#loop).unwrap();
+    let promoted = body.mfkrh_plug(circ.r#loop, true).unwrap();
     let _ = promoted;
     body.kef(circ.he_minus).unwrap();
     assert_eq!(validate(&body), Ok(()));

@@ -2,12 +2,14 @@
 id: surface-field-walks-and-source-theorem-checks-have-no-one-home
 kind: issue
 title: four field-by-field surface walks and four checks of 'same source => same bits', with no shared spelling
-status: open
+status: closed
 opened: 2026-09-29
 priority: P1
 cost: M
-design: true
 refs: [set-surface-source-stamps-a-recipe-without-checking-the-descriptions-agree, three-spellings-of-one-chart-answer-the-same-question-differently]
+branch: origin/one-surface-walk
+closed: 2026-09-29
+pr: 3429
 ---
 
 
@@ -51,3 +53,18 @@ as assertion-side only — the four checks become one assertion home
 plus the readers that need a verdict (chart-region's bracketed read).
 The field-walk half is unchanged: one walk parameterised by its
 comparator.
+
+## Closed (2026-09-29, PR 3429)
+
+One walk: `Surface::data()` returns `SurfaceData { Analytic(AnalyticData),
+Nurbs(&Arc), Approx(&Arc) }`, the analytic fields destructured without
+`..` in one place (`crates/geom/src/surfaces.rs`), and every reader is a
+fold — the debug bit witnesses (`source.rs`), chart-region's bracketed
+read, `validate::poisoned_datums`, the mesh memo key and step-import's
+dedup signature (both byte streams proven identical). The drifted
+`plane_bits_witness` (it skipped `u_ref`) is deleted. Rows go red when
+any reader skips a scalar (topo and mesh). Theorem checks: the stamp
+door is the one assertion home; the merge door and `plane_eq` rung 1
+keep theirs because they compare pairs the stamp door never sees
+(grafted stamps; mirrored and cross-body planes) — a disclosed, argued
+departure from this row's "one assertion home", accepted.

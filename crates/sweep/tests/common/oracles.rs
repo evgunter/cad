@@ -1,5 +1,5 @@
-//! **Closed-form volumes the blend, chamfer and shell suites meter
-//! against** — derived here from the geometry, never from the kernel,
+//! **Closed-form volumes the blend, chamfer, shell and sphere suites
+//! meter against** — derived here from the geometry, never from the kernel,
 //! so a carve and its expectation cannot be wrong together.
 //!
 //! **The rule for what belongs here, and it is checkable by reading:**
@@ -119,13 +119,224 @@ pub fn box_volume(w: f64, d: f64, h: f64) -> f64 {
     w * d * h
 }
 
-/// **The oracle's `σ` for a ball-side bit**: `+1` where the ball rests
-/// behind the chart normal (`SupportTrace`'s `side` is `true`), `−1`
+/// **The oracle's `σ` for a ball side**: `+1` where the ball rests
+/// behind the chart normal (`SupportTrace`'s `side` is `Inner`), `−1`
 /// where it rests in front — the sign the rolling-ball closed forms
 /// the blend suites re-derive are written in. A test-side scalar by
 /// design: the kernel spells the same selection as a conditional
 /// negation and never mints this number, so a suite that wants the
 /// textbook `R ∓ σr` form derives `σ` here and nowhere else.
-pub fn sigma(side: bool) -> f64 {
-    if side { 1.0 } else { -1.0 }
+pub fn sigma(side: geom_brep::SurfaceSide) -> f64 {
+    match side {
+        geom_brep::SurfaceSide::Inner => 1.0,
+        geom_brep::SurfaceSide::Outer => -1.0,
+    }
+}
+
+/// The area of a closed CCW loop of `(x, y, bulge)` vertices, each
+/// bulge the edge leaving its vertex (`tan(θ/4)`, positive bowing out
+/// of a CCW loop): the chord polygon's shoelace plus each arc's
+/// circular segment `R²(θ − sin θ)/2`.
+pub fn bulge_loop_area(verts: &[(f64, f64, f64)]) -> f64 {
+    let n = verts.len();
+    (0..n)
+        .map(|i| {
+            let ((x0, y0, b), (x1, y1, _)) = (verts[i], verts[(i + 1) % n]);
+            let shoelace = (x0 * y1 - x1 * y0) / 2.0;
+            if b == 0.0 {
+                return shoelace;
+            }
+            let theta = 4.0 * b.atan();
+            let chord = (x1 - x0).hypot(y1 - y0);
+            let r = chord / (2.0 * (theta / 2.0).sin());
+            shoelace + r * r * (theta - theta.sin()) / 2.0
+        })
+        .sum()
+}
+
+/// A CONVEX CCW loop of lines and outward arcs (each under a half
+/// turn), eroded inward by `t`: every line moves `t` along its inward
+/// normal, every arc keeps its centre and loses `t` of radius, and
+/// each vertex is the meeting of its two moved edges nearest the old
+/// vertex. The erosion of an extruded convex profile is the cavity a
+/// hollow cuts in it, so with [`bulge_loop_area`] it gives a shelled
+/// prism's closed form.
+pub fn eroded_bulge_loop(verts: &[(f64, f64, f64)], t: f64) -> Vec<(f64, f64, f64)> {
+    #[derive(Clone, Copy)]
+    enum Moved {
+        Line { p: (f64, f64), d: (f64, f64) },
+        Arc { c: (f64, f64), r: f64 },
+    }
+    let n = verts.len();
+    let moved: Vec<Moved> = (0..n)
+        .map(|i| {
+            let ((x0, y0, b), (x1, y1, _)) = (verts[i], verts[(i + 1) % n]);
+            let len = (x1 - x0).hypot(y1 - y0);
+            let (dx, dy) = ((x1 - x0) / len, (y1 - y0) / len);
+            let inward = (-dy, dx);
+            if b == 0.0 {
+                Moved::Line {
+                    p: (x0 + inward.0 * t, y0 + inward.1 * t),
+                    d: (dx, dy),
+                }
+            } else {
+                let theta = 4.0 * b.atan();
+                let r = len / (2.0 * (theta / 2.0).sin());
+                let back = r * (theta / 2.0).cos();
+                let mid = ((x0 + x1) / 2.0, (y0 + y1) / 2.0);
+                Moved::Arc {
+                    c: (mid.0 + inward.0 * back, mid.1 + inward.1 * back),
+                    r: r - t,
+                }
+            }
+        })
+        .collect();
+    let meet = |a: Moved, b: Moved, near: (f64, f64)| -> (f64, f64) {
+        let line_circle = |p: (f64, f64), d: (f64, f64), c: (f64, f64), r: f64| {
+            let w = (p.0 - c.0, p.1 - c.1);
+            let bq = w.0 * d.0 + w.1 * d.1;
+            let disc = (bq * bq - (w.0 * w.0 + w.1 * w.1 - r * r)).sqrt();
+            let pts = [-bq + disc, -bq - disc].map(|s| (p.0 + d.0 * s, p.1 + d.1 * s));
+            let far = |q: (f64, f64)| (q.0 - near.0).hypot(q.1 - near.1);
+            if far(pts[0]) <= far(pts[1]) {
+                pts[0]
+            } else {
+                pts[1]
+            }
+        };
+        match (a, b) {
+            (Moved::Line { p: p0, d: d0 }, Moved::Line { p: p1, d: d1 }) => {
+                let det = d0.0 * d1.1 - d0.1 * d1.0;
+                let s = ((p1.0 - p0.0) * d1.1 - (p1.1 - p0.1) * d1.0) / det;
+                (p0.0 + d0.0 * s, p0.1 + d0.1 * s)
+            }
+            (Moved::Line { p, d }, Moved::Arc { c, r })
+            | (Moved::Arc { c, r }, Moved::Line { p, d }) => line_circle(p, d, c, r),
+            (Moved::Arc { .. }, Moved::Arc { .. }) => {
+                panic!("two adjacent arcs are not in this oracle")
+            }
+        }
+    };
+    let pts: Vec<(f64, f64)> = (0..n)
+        .map(|i| meet(moved[(i + n - 1) % n], moved[i], (verts[i].0, verts[i].1)))
+        .collect();
+    (0..n)
+        .map(|i| {
+            let (a, b) = (pts[i], pts[(i + 1) % n]);
+            let bulge = match moved[i] {
+                Moved::Line { .. } => 0.0,
+                Moved::Arc { r, .. } => {
+                    let theta = 2.0 * ((a.0 - b.0).hypot(a.1 - b.1) / (2.0 * r)).asin();
+                    (theta / 4.0).tan()
+                }
+            };
+            (a.0, a.1, bulge)
+        })
+        .collect()
+}
+
+/// The volume of a spherical cap of height `h` on a sphere of radius
+/// `r`.
+pub fn cap_volume(r: f64, h: f64) -> f64 {
+    PI * h.powi(2) * (3.0 * r - h) / 3.0
+}
+
+/// The lens two balls `r1`, `r2` at centre distance `d` share.
+pub fn lens_volume(r1: f64, r2: f64, d: f64) -> f64 {
+    let x = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (2.0 * d);
+    cap_volume(r1, r1 - x) + cap_volume(r2, r2 - (d - x))
+}
+
+/// The area of the disc of radius `rho` at the origin left of `x` and
+/// below `y`: `∫ (clamp(y, −s, s) + s) dX` over `X < x`, `s = √(ρ² − X²)`,
+/// in closed form on the pieces where the clamp is fixed.
+fn quadrant(rho: f64, x: f64, y: f64) -> f64 {
+    let s = |t: f64| (rho * rho - t * t).max(0.0).sqrt();
+    // `∫_{−ρ}^{t} s`.
+    let arc = |t: f64| {
+        let t = t.clamp(-rho, rho);
+        0.5 * (t * s(t) + rho * rho * (t / rho).asin()) + 0.25 * PI * rho * rho
+    };
+    let x = x.clamp(-rho, rho);
+    let a = s(y);
+    // Inside `|X| < a` the clamp is `y`; outside it is `s` (above the
+    // chord) or `−s` (below it).
+    let inner = |lo: f64, hi: f64| {
+        let (lo, hi) = (lo.max(-a), hi.min(a));
+        if hi > lo {
+            y * (hi - lo) + arc(hi) - arc(lo)
+        } else {
+            0.0
+        }
+    };
+    let outer = |lo: f64, hi: f64| {
+        if y < 0.0 {
+            return 0.0;
+        }
+        let mut total = 0.0;
+        for (p, q) in [(-rho, -a), (a, rho)] {
+            let (p, q) = (p.max(lo), q.min(hi));
+            if q > p {
+                total += 2.0 * (arc(q) - arc(p));
+            }
+        }
+        total
+    };
+    inner(-rho, x) + outer(-rho, x)
+}
+
+/// The area of the disc of radius `rho` centred `(cx, cy)` inside the
+/// rectangle `[x0, x1] × [y0, y1]`.
+fn disc_in_rect(rho: f64, (cx, cy): (f64, f64), (x0, x1): (f64, f64), (y0, y1): (f64, f64)) -> f64 {
+    let f = |x: f64, y: f64| quadrant(rho, x - cx, y - cy);
+    f(x1, y1) - f(x0, y1) - f(x1, y0) + f(x0, y0)
+}
+
+/// Adaptive Simpson on `[a, b]`.
+fn simpson(f: &dyn Fn(f64) -> f64, a: f64, b: f64) -> f64 {
+    /// One panel `(a, b)`, its end and middle values, and its estimate.
+    fn step(
+        f: &dyn Fn(f64) -> f64,
+        (a, b): (f64, f64),
+        (fa, fm, fb): (f64, f64, f64),
+        whole: f64,
+        depth: u32,
+    ) -> f64 {
+        let (m, h) = (0.5 * (a + b), b - a);
+        let (flm, frm) = (f(0.5 * (a + m)), f(0.5 * (m + b)));
+        let left = h / 12.0 * (fa + 4.0 * flm + fm);
+        let right = h / 12.0 * (fm + 4.0 * frm + fb);
+        if depth == 0 || (left + right - whole).abs() <= 1e-15 {
+            return left + right + (left + right - whole) / 15.0;
+        }
+        step(f, (a, m), (fa, flm, fm), left, depth - 1)
+            + step(f, (m, b), (fm, frm, fb), right, depth - 1)
+    }
+    let (fa, fm, fb) = (f(a), f(0.5 * (a + b)), f(b));
+    step(
+        f,
+        (a, b),
+        (fa, fm, fb),
+        (b - a) / 6.0 * (fa + 4.0 * fm + fb),
+        40,
+    )
+}
+
+/// The volume the ball `(r, c)` shares with the box `b`: the stack of
+/// its slices' disc-in-rectangle areas over height.
+pub fn ball_in_box(r: f64, c: (f64, f64, f64), b: [(f64, f64); 3]) -> f64 {
+    let (lo, hi) = ((c.2 - r).max(b[2].0), (c.2 + r).min(b[2].1));
+    if hi <= lo {
+        return 0.0;
+    }
+    let area = |z: f64| {
+        let rho = (r * r - (z - c.2).powi(2)).max(0.0).sqrt();
+        disc_in_rect(rho, (c.0, c.1), b[0], b[1])
+    };
+    simpson(&area, lo, hi)
+}
+
+/// The volume of a ball of radius `r`.
+pub fn ball_volume(r: f64) -> f64 {
+    4.0 / 3.0 * PI * r.powi(3)
 }

@@ -14,8 +14,8 @@
 use crate::shared::surf::table;
 use geom::{Curve3, Surface};
 use geom_brep::{
-    CertCheck, CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
-    PcurveCache, PcurveCertifyError, PcurveCheck, chart_pcurve, implicit_residual,
+    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache,
+    PcurveCertifyError, PcurveCheck, chart_pcurve, implicit_residual,
 };
 use geom_core::{Band, Point3, Vec3};
 
@@ -40,15 +40,6 @@ const ROW_EPS: f64 = 1.0e-9;
 /// other.
 fn band() -> Band {
     Band::new(ROW_EPS, 10.0 * ROW_EPS).expect("the rows' own band")
-}
-
-fn window() -> ChartWindow<f64> {
-    ChartWindow {
-        u_min: -100.0,
-        u_max: 100.0,
-        v_min: -100.0,
-        v_max: 100.0,
-    }
 }
 
 /// A cone seam ruling displaced `d` metres along the surface's own
@@ -103,7 +94,7 @@ fn a_cone_edge_inside_the_legacy_band_now_escalates() {
 
     let err = EdgeCurve::certify(
         EdgeCurveSpec {
-            description: EdgeDescriptionSpec::seam(keys[0]),
+            description: EdgeDescriptionSpec::wrap(keys[0]),
             carrier,
             param_start: t0,
             param_end: t1,
@@ -153,7 +144,7 @@ fn the_cache_lane_already_imposed_the_collapsed_meter() {
     let d = 0.98 * ROW_EPS;
     let (cone, carrier, t0, t1) = cone_seam(alpha, d);
     let pcurve = chart_pcurve(&carrier, &cone, band()).expect("the cone ruling mints");
-    let err = PcurveCache::certify(pcurve, t0, t1, &carrier, &cone, window(), band()).expect_err(
+    let err = PcurveCache::certify(pcurve, t0, t1, &carrier, &cone, band()).expect_err(
         "the cache lane must already refuse the geometry the description lane now \
              refuses — if it certifies, the collapse is imposing a NEW rule and the \
              re-baseline argument is wrong",
@@ -235,7 +226,7 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let cert = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::seam(keys[0]),
+                description: EdgeDescriptionSpec::wrap(keys[0]),
                 carrier,
                 param_start: t0,
                 param_end: t1,
@@ -263,13 +254,14 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
 /// feature instead of a wrong locus).
 #[test]
 fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
-    let cone = Surface::Cone {
-        apex: Point3::origin(),
+    // A sphere chart images circles only; no ellipse lies on a sphere.
+    let sphere = Surface::Sphere {
+        center: Point3::origin(),
+        radius: 1.0,
         axis: Vec3::unit_z(),
-        half_angle: 0.5,
         u_ref: Vec3::unit_x(),
     };
-    let (keys, lookup) = table(vec![cone]);
+    let (keys, lookup) = table(vec![sphere]);
     let carrier = Curve3::Ellipse {
         center: Point3::new(0.0, 0.0, 1.0),
         axis: Vec3::unit_z(),
@@ -280,7 +272,7 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
     let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
     let err = EdgeCurve::certify(
         EdgeCurveSpec {
-            description: EdgeDescriptionSpec::seam(keys[0]),
+            description: EdgeDescriptionSpec::wrap(keys[0]),
             carrier,
             param_start: 0.0,
             param_end: 1.0,
@@ -290,12 +282,12 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
         &lookup,
         band(),
     )
-    .expect_err("an ellipse is not a locus of any cone chart image");
+    .expect_err("an ellipse is not a locus of any sphere chart image");
     assert_eq!(
         err,
         CertifyError::ChartImageUnavailable {
-            chart: "cone",
-            carrier: "ellipse",
+            chart: geom::SurfaceKind::Sphere,
+            carrier: geom::CurveKind::Ellipse,
         },
         "the refusal must name the (chart, carrier) pair it could not state"
     );
@@ -343,7 +335,7 @@ mod at_intervals {
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let certified = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::seam(keys[0]),
+                description: EdgeDescriptionSpec::wrap(keys[0]),
                 carrier,
                 param_start: t0,
                 param_end: t1,
@@ -399,7 +391,7 @@ mod at_intervals {
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let certified = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeDescriptionSpec::seam(keys[0]),
+                description: EdgeDescriptionSpec::wrap(keys[0]),
                 carrier,
                 param_start: t0,
                 param_end: t1,

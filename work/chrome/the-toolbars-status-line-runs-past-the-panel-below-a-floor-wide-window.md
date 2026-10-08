@@ -2,10 +2,13 @@
 id: the-toolbars-status-line-runs-past-the-panel-below-a-floor-wide-window
 kind: issue
 title: viewer: in a window narrower than the message floor, the toolbar's status line is drawn past the panel's right edge
-status: open
+status: closed
 opened: 2026-09-22
 priority: P2
 cost: E
+closed: 2026-09-29
+branch: chrome/status-line
+pr: 3447
 refs: [wrapping-at-a-region-with-no-floor-produces-a-four-character-ribbon]
 ---
 
@@ -57,3 +60,19 @@ provenance and not by width. A fix to this row has to decide it too:
 wrap it as a message, bound it by characters with the whole name on
 hover, or give it its own line. Recorded here rather than fixed,
 because `app.rs` was in another CHROME lane's diff.
+
+## Closed 2026-09-29 (`chrome/status-line`)
+
+The status line now has a row of its own under the controls: a
+horizontal scroll area bounded to the panel's width, so below the floor
+it scrolls rather than running past the panel. The document's name is
+truncated at the panel's edge, with the whole name on hover. The same
+move fixes an overrun above the floor that this row did not have: at a
+360-point window the old line began after a separator and ran 17 points
+past. `app::tests`'
+`the_toolbars_status_line_is_drawn_inside_the_panel_at_every_width`
+(120 to 640 points), `below_the_floor_the_toolbars_status_line_scrolls_to_the_rest`
+and `a_long_document_name_is_truncated_inside_the_panel` hold it. The
+controls row's own overruns (the theme picker, and the canceled line
+below the floor) are
+`the-toolbars-controls-run-past-the-panel-below-a-phone-wide-window`.

@@ -77,7 +77,7 @@ fn overhang_seat() -> (Body<f64>, FaceKey, FaceKey, FaceKey) {
         Tol::witness(),
     );
     let mut body = post.body;
-    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
+    let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body).unwrap();
     let shelf_bottom = keys.face(shelf.bottom_face).unwrap();
     let shelf_top = keys.face(shelf.top_face).unwrap();
     (body, post.top_face, shelf_bottom, shelf_top)

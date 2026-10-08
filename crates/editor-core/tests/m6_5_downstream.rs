@@ -36,12 +36,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Node, NodeResult, ProfileDoc,
-    ProfileProgram, RecipeNodeId, RoleSeg, StableName, ValuePayload, apply, evaluate,
+    RecipeNodeId, RoleSeg, StableName, ValuePayload, apply, evaluate,
 };
 use fixture::{len, prism_edges};
 use geom_core::Tol;
@@ -56,10 +58,13 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     )
 }
 
-fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn insert(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let a = apply(
         doc,
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
@@ -89,6 +94,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -181,7 +187,7 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
                 node: cube,
                 path: vec![RoleSeg::RimEdge(
                     CapEnd::End,
-                    crate::fixture::piece(&doc, cube, 0, 0),
+                    crate::fixture::piece(&doc, cube, 0, 0).into(),
                 )],
             }
             .into(),
@@ -296,7 +302,7 @@ fn a_boolean_over_a_filleted_body_composes_downstream_of_the_fillet() {
             op: BooleanOp::Union,
             a: blank,
             b: far,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = eval(&doc);
@@ -316,7 +322,7 @@ fn a_boolean_over_a_filleted_body_composes_downstream_of_the_fillet() {
 }
 
 /// **The reference survives a rebuild.** A parameter edit upstream of
-/// the fillet recomputes its whole cone; the downstream `Declare`
+/// the fillet recomputes its whole cone; the downstream reference
 /// still resolves, because the fillet's names are a function of the
 /// extrude's names and those did not move.
 #[test]
@@ -337,6 +343,7 @@ fn the_downstream_reference_survives_an_upstream_bump() {
             node: cube,
             slot: editor_core::SlotId::Distance,
             expr: len(1.25),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -401,6 +408,7 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
             node: cube,
             slot: editor_core::SlotId::Distance,
             expr: len(1.25),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -436,5 +444,5 @@ fn all_edges_of_a_nameless_node_is_empty() {
     // A profile node has no output body and so an empty table.
     assert!(editor_core::all_edges(&ev, p).is_empty());
     // A node that is not in the evaluation at all: also empty.
-    assert!(editor_core::all_edges(&ev, RecipeNodeId(999)).is_empty());
+    assert!(editor_core::all_edges(&ev, RecipeNodeId::new(0, 999)).is_empty());
 }

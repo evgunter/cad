@@ -17,6 +17,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use crate::fixture;
@@ -24,8 +25,8 @@ use crate::fixture;
 use editor_core::analysis::{BoxAxis, ParamBox};
 
 use editor_core::{
-    CancelToken, Datum, Dimension, DirectionRefusal, DocEdit, DocParam, EvalOptions, Expr,
-    FramePlacement, Node, ParamName, ProfileDoc, RecipeNodeId, ValuePayload, evaluate,
+    CancelToken, Datum, Dimension, DirectionRefusal, DocEdit, EvalOptions, Formula, FramePlacement,
+    FreeVar, Node, ProfileDoc, RecipeNodeId, ValuePayload, VarName, evaluate,
 };
 use geom_core::{OrthoFrame, Tol};
 
@@ -52,7 +53,10 @@ fn carried(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Option<Fram
 fn unreadable(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> DirectionRefusal {
     match carried(ev, node) {
         Some(FramePlacement::Unreadable(r)) => r,
-        other => panic!("node {} carries {other:?}, not a refusal", node.0),
+        other => panic!(
+            "node {} carries {other:?}, not a refusal",
+            test_utils::refusal::tag(node.0.digest())
+        ),
     }
 }
 
@@ -63,19 +67,15 @@ fn authored(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> profile::S
         Some(FramePlacement::Authored(p)) => p,
         other => panic!(
             "node {} carries {other:?}, not an authored placement",
-            node.0
+            test_utils::refusal::tag(node.0.digest())
         ),
     }
 }
 
 /// Every component of a placement, as raw bits — the comparison an
 /// approximate one would let through.
-fn bits(p: &profile::SketchPlane<f64>) -> Vec<u64> {
-    let a = &p.placement;
-    [a.linear.c0, a.linear.c1, a.linear.c2, a.translation]
-        .iter()
-        .flat_map(|v| [v.x.to_bits(), v.y.to_bits(), v.z.to_bits()])
-        .collect()
+fn bits(p: &profile::SketchPlane<f64>) -> [u64; 12] {
+    p.placement.components().map(f64::to_bits)
 }
 
 fn assert_same_plane(
@@ -89,25 +89,28 @@ fn assert_same_plane(
 /// The world points of a node's body, sorted by bits.
 fn point_bits(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Vec<(u64, u64, u64)> {
     let Some(ValuePayload::Body(b)) = ev.value(node).map(|v| &v.payload) else {
-        panic!("node {} has no body", node.0)
+        panic!(
+            "node {} has no body",
+            test_utils::refusal::tag(node.0.digest())
+        )
     };
     let mut out: Vec<(u64, u64, u64)> = b
-        .vertices()
-        .filter_map(|(_, v)| b.get_point(v.point))
+        .vertex_points()
+        .map(|(_, p)| p)
         .map(|p| (p.x.to_bits(), p.y.to_bits(), p.z.to_bits()))
         .collect();
     out.sort_unstable();
     out
 }
 
-fn p() -> ParamName {
-    ParamName::new("lift")
+fn p() -> VarName {
+    VarName::from_static("lift")
 }
 
 /// The parameter row 7 drives a frame's x axis LENGTH with — a
 /// `Scalar`, because a direction's components are not lengths.
-fn span() -> ParamName {
-    ParamName::new("span")
+fn span() -> VarName {
+    VarName::from_static("span")
 }
 
 /// A one-axis degenerate box `name ∈ nominal + [offset, offset]`:
@@ -115,7 +118,7 @@ fn span() -> ParamName {
 /// exact amount. `BoxAxis::Varying` need not contain zero — a leaf of
 /// the subdivision generally sits off the nominal — which is what
 /// makes "nominal" and "lane" two different points at one scalar.
-fn boxed_at(name: ParamName, offset: f64) -> Option<std::sync::Arc<ParamBox>> {
+fn boxed_at(name: editor_core::VarId, offset: f64) -> Option<std::sync::Arc<ParamBox>> {
     let mut axes = BTreeMap::new();
     axes.insert(
         name,
@@ -134,9 +137,9 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
     let doc = ProfileDoc::empty_derived("wire_frame_placement_carry", Tol::witness());
     let doc = doc
         .apply(
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: p(),
-                value: DocParam::continuous(Dimension::Length, lift),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, lift)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -152,7 +155,7 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
             origin: [
                 fixture::len(2.0),
                 fixture::len(-3.0),
-                Expr::param(p(), Dimension::Length),
+                Formula::named(p(), Dimension::Length),
             ],
             u: [0.0, 1.0, 0.0].map(fixture::scl),
             v: [0.0, 0.0, 1.0].map(fixture::scl),
@@ -171,6 +174,7 @@ fn shared_frame_doc(lift: f64) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], 
         Node::Extrude {
             profile: first,
             distance: fixture::len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, frame, [first, second], extrude)
@@ -282,6 +286,7 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
         Node::Extrude {
             profile: base,
             distance: fixture::len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, derived) = fixture::insert(
@@ -304,6 +309,7 @@ fn a_derived_frame_carries_no_placement_and_its_profile_still_builds() {
         Node::Extrude {
             profile: boss,
             distance: fixture::len(0.5),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = eval(&doc, None);
@@ -386,7 +392,7 @@ fn the_frames_axes_are_decided_once_per_frame_not_once_per_profile() {
             axis_decisions(&ev_four, profile),
             0,
             "profile {} reads the frame's placement and decides no axis",
-            profile.0
+            test_utils::refusal::tag(profile.0.digest())
         );
     }
 }
@@ -444,7 +450,7 @@ fn an_authored_frames_profile_places_at_the_nominal_not_at_the_boxed_lane() {
         None,
         &CancelToken::new(),
         &EvalOptions {
-            param_box: boxed_at(p(), 5.0),
+            param_box: boxed_at(doc.var_named(p().as_str()).expect("declared"), 5.0),
             ..EvalOptions::default()
         },
         Tol::witness(),
@@ -471,9 +477,9 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
     let doc = ProfileDoc::empty_derived("wire_frame_placement_carry_r7", Tol::witness());
     let doc = doc
         .apply(
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: span(),
-                value: DocParam::continuous(Dimension::Scalar, 0.0),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, 0.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -485,7 +491,7 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
         Node::Datum(Datum::Frame {
             origin: [0.0, 0.0, 0.0].map(fixture::len),
             u: [
-                Expr::param(span(), Dimension::Scalar),
+                Formula::named(span(), Dimension::Scalar),
                 fixture::scl(0.0),
                 fixture::scl(0.0),
             ],
@@ -502,7 +508,7 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
         None,
         &CancelToken::new(),
         &EvalOptions {
-            param_box: boxed_at(span(), 1.0),
+            param_box: boxed_at(doc.var_named(span().as_str()).expect("declared"), 1.0),
             ..EvalOptions::default()
         },
         Tol::witness(),
@@ -544,8 +550,13 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
         .kind
         .to_string();
     assert!(
-        shown.contains(&format!("datum frame node {}", frame.0))
-            && shown.contains(&format!("profile node {}", profile.0)),
+        shown.contains(&format!(
+            "datum frame node {}",
+            test_utils::refusal::tag(frame.0.digest())
+        )) && shown.contains(&format!(
+            "profile node {}",
+            test_utils::refusal::tag(profile.0.digest())
+        )),
         "the sentence the user reads names both nodes by id: {shown}"
     );
     // The ids come BEFORE the fact: three of the four facts end in a
@@ -553,7 +564,10 @@ fn a_frame_unreadable_at_the_nominal_refuses_its_profile_and_nothing_else() {
     // characters, so a locator at the tail is one nobody reads.
     let at = |needle: &str| shown.find(needle).expect(needle);
     assert!(
-        at(&format!("datum frame node {}", frame.0)) < at("zero length"),
+        at(&format!(
+            "datum frame node {}",
+            test_utils::refusal::tag(frame.0.digest())
+        )) < at("zero length"),
         "the locator trails the fact it qualifies: {shown}"
     );
     assert!(
@@ -583,9 +597,9 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
     let doc = ProfileDoc::empty_derived("wire_frame_placement_carry_r8", Tol::witness());
     let doc = doc
         .apply(
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: span(),
-                value: DocParam::continuous(Dimension::Scalar, 0.0),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, 0.0)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -599,7 +613,7 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
             u: [1.0, 0.0, 0.0].map(fixture::scl),
             v: [
                 fixture::scl(1.0),
-                Expr::param(span(), Dimension::Scalar),
+                Formula::named(span(), Dimension::Scalar),
                 fixture::scl(0.0),
             ],
         }),
@@ -613,7 +627,7 @@ fn the_carried_role_names_the_axis_that_refused_not_a_fixed_one() {
         None,
         &CancelToken::new(),
         &EvalOptions {
-            param_box: boxed_at(span(), 1.0),
+            param_box: boxed_at(doc.var_named(span().as_str()).expect("declared"), 1.0),
             ..EvalOptions::default()
         },
         Tol::witness(),

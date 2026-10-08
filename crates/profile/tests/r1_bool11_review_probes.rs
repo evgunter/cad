@@ -229,7 +229,7 @@ fn r1_the_closer_mints_nothing_and_leaves_no_degenerate_segment() {
         let d = (b - a).norm_squared().sqrt();
         assert!(d > 1e-9, "segment {i} is degenerate: {d:e}");
     }
-    Profile::new(SketchPlane::xy(), vec![lowered])
+    Profile::new(SketchPlane::xy(), vec![lowered.into_loop()])
         .validate(t)
         .expect("the closed square passes the data gate");
 }
@@ -399,7 +399,7 @@ fn r1_try_close(ring: &[Point2<f64>], t: Tol) -> bool {
         Ok(c) => c,
         Err(_) => return false,
     };
-    Profile::new(SketchPlane::xy(), vec![closed.loop_])
+    Profile::new(SketchPlane::xy(), vec![closed.loop_.into_loop()])
         .validate(t)
         .is_ok()
 }
@@ -542,7 +542,7 @@ fn r1_in_band_misses_accumulate_along_a_declared_run() {
     );
     assert!(last.y > 10.0 * eps, "drift accumulated: {:e}", last.y);
     // And the data gate still takes it: nothing downstream sees the bow.
-    let gate = Profile::new(SketchPlane::xy(), vec![lowered]).validate(t);
+    let gate = Profile::new(SketchPlane::xy(), vec![lowered.into_loop()]).validate(t);
     match &gate {
         Ok(_) => println!("R1: the data gate ACCEPTS the bowed run"),
         Err(e) => println!("R1: the data gate on the bowed run -> {e}"),

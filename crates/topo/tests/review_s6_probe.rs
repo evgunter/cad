@@ -8,7 +8,7 @@
 
 use crate::common;
 
-use common::{brick, prism_z};
+use common::{brick, finished, prism_z};
 use geom_core::COINCIDENCE_RECOURSE;
 use geom_core::Tol;
 use topo::{
@@ -49,8 +49,16 @@ fn assert_unified(msg: &str, recourse: &str) {
 #[test]
 fn probe_boolean_coincidence_pair_e2e() {
     // Exactly-on: b sits flush on a (shared plane z = 1), undeclared.
-    let a = brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((0.5, 1.5), (0.5, 1.5), (1.0, 2.0), Tol::witness());
+    let a = finished(
+        "operand A",
+        brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "operand B",
+        brick::<f64>((0.5, 1.5), (0.5, 1.5), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness())
         .expect_err("undeclared flush contact must refuse");
     let msg = err.to_string();
@@ -64,13 +72,28 @@ fn probe_boolean_coincidence_pair_e2e() {
     // In-band: corner gap of 3 eps (inside the sliver band).
     let eps = geom_core::Tol::witness().get().eps;
     let g = 1.0 + 3.0 * eps;
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0), Tol::witness());
+    let a = finished(
+        "operand A",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "operand B",
+        brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness())
         .expect_err("in-band gap must escalate");
     let msg = err.to_string();
     eprintln!("[probe] boolean in-band:\n  {msg}\n");
-    assert_unified(&msg, COINCIDENCE_RECOURSE);
+    // The sweep asks a corner's side of the other brick's face before
+    // any declaration is read, so its refusal names the geometry and
+    // the tolerance, and no declaration a pair of faces could carry.
+    assert_unified(
+        &msg,
+        "Recourse: move the parts so they clearly meet or clearly stand apart there",
+    );
+    assert!(!msg.contains("declare the coincidence"), "{msg}");
     assert!(
         msg.contains("ambiguity band") || msg.contains("cannot be classified"),
         "margin payload must survive: {msg}"

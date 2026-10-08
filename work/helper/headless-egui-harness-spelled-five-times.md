@@ -115,3 +115,17 @@ placed at whole pixels. It is spelled `const SLACK: f32 = 1.0` in
 `pane::features::tests` so that module does not spell a third, and again
 in `app::tests`. That makes two spellings. Whichever home takes the
 harness should take `SLACK` beside `landed` and `landed_in`.
+
+## Evidence: `app::tests` drives the real toolbar twice (`chrome/status-line`, 2026-09-29)
+
+`crates/viewer/src/app.rs`'s tests hold two headless drives of the same
+`ViewerApp::toolbar_ui`. `toolbar_driven` (behind `toolbar_drawn`,
+`toolbar_with` and `canceled_line`) runs at a caller-given window width,
+takes per-frame events, and reads back a `Row` (panel, occupied width,
+a sentence's rows and clip, the status separator, the floor). `Toolbar`
+(the disabled-hover rows) runs at a fixed 1600-point width with a time
+base and `tooltip_delay` zeroed, and reads back `painted_text`. Each
+repeats the `Panel::top` + `run_ui` + `textures_delta.clear()`. Merging
+them is not a drive-by: the width, the clock and the style tweak are
+three knobs one of them would have to grow. The shape walker is shared:
+`pane::headless::landed_in` now answers each run's clip rect too.

@@ -1,15 +1,13 @@
 //! **A tilted rod entering the half donut's cap and poking a lens out
 //! of the inner equator.** No event lies on the lens's rim, so the
 //! crossings the rod makes through the cap are the only ones the join
-//! sees, and the body it builds drops the lens. The section certificate
-//! has no arm for a torus against an oblique cylinder and refuses those
-//! pairs on reach. It is raised on the built body ahead of the volume
-//! backstop, so every op names that pair rather than the backstop's
-//! refusal (which the closed-form lane raises here for the rod wall's
-//! ellipse-arc trim).
+//! sees, and the body it builds drops the lens. That body is valid at
+//! tier 3 and passes the volume backstop, so the section certificate is
+//! what refuses it: it has no arm for a torus against an oblique
+//! cylinder, and refuses those pairs on reach.
 //!
 //! Other spins of the same rod, and steeper tilts, refuse earlier, in
-//! the reduction, before any section is read.
+//! the join, before any body is built.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -17,21 +15,23 @@ use crate::common::germ_pair;
 use crate::revolve_common::{self, axis_y, validated};
 
 use core::f64::consts::FRAC_PI_2;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Affine3, Point3, Tol, Vec3};
+use sweep::test_support::finished;
 use sweep::{Revolution, revolve};
-use topo::{Body, BooleanError, BooleanOp as Op, BooleanResult, FaceKey};
+use topo::{AtRestBody, Body, BooleanError, BooleanOp as Op, BooleanResult, FaceKey};
 
-fn half_donut() -> Body<f64> {
+fn half_donut() -> AtRestBody<f64> {
     let vp = validated(vec![revolve_common::donut_profile()]);
-    revolve(
+    let half = revolve(
         &vp,
         axis_y(),
         Revolution::Partial(core::f64::consts::PI),
         Tol::witness(),
     )
     .expect("the half donut revolves")
-    .body
+    .body;
+    finished("the half donut", half, Tol::witness())
 }
 
 /// The rod's axis direction at tilt `beta` about `y`.
@@ -42,11 +42,13 @@ fn dir(beta: f64) -> Vec3<f64> {
 /// The rod: radius 0.15, its axis from `(1.8, 0, 0)` along [`dir`] over
 /// `t ∈ [−0.3, 1.4]`, spun `spin` about its own axis (which moves only
 /// its seam).
-fn rod(beta: f64, spin: f64) -> Body<f64> {
+fn rod(beta: f64, spin: f64) -> AtRestBody<f64> {
     let c = germ_pair::spin(&germ_pair::cyl(0.15, 0.85), Vec3::unit_z(), spin);
     let c = germ_pair::spin(&c, Vec3::unit_y(), beta);
     let centre = Vec3::new(1.8, 0.0, 0.0) + dir(beta) * 0.55;
-    topo::transform_rigid(&c, &Affine3::translation(centre), Tol::witness()).expect("the rod moves")
+    let moved = topo::transform_rigid(&c, &Affine3::translation(centre), Tol::witness())
+        .expect("the rod moves");
+    finished("the rod", moved, Tol::witness())
 }
 
 fn in_solid(b: &Body<f64>, q: Point3<f64>) -> Option<bool> {
@@ -59,9 +61,7 @@ fn in_solid(b: &Body<f64>, q: Point3<f64>) -> Option<bool> {
 }
 
 fn kind_of(b: &Body<f64>, f: FaceKey) -> Option<SurfaceKind> {
-    b.get_face(f)
-        .and_then(|face| b.get_surface(face.surface))
-        .map(SurfaceKind::of)
+    topo::query::face_surface_kind(b, f)
 }
 
 type Run = (
@@ -73,7 +73,7 @@ type Run = (
 
 /// Every op, in both operand orders of ∖ and ∩; the flag says whether
 /// the rod is operand A.
-fn every_op(h: &Body<f64>, c: &Body<f64>) -> [Run; 5] {
+fn every_op(h: &AtRestBody<f64>, c: &AtRestBody<f64>) -> [Run; 5] {
     let t = Tol::witness();
     [
         (Op::Union, false, "h ∪ c", topo::union(h, c, t)),
@@ -93,21 +93,18 @@ fn outcome(r: &Result<BooleanResult<f64>, BooleanError>) -> String {
 
 /// **The poses that reach the section certificate refuse every op
 /// there**, on a torus × rod-wall pair, in both operand orders of ∖ and
-/// ∩: the item's pose (tilt 0.5, spin π/2) and both spins at two
+/// ∩: the item's pose (tilt 0.5, spin π/2) and every spin at two
 /// shallower tilts. Every torus × rod-wall pair reads `Err(Reach)`,
-/// never a certified loop. Red against the certificate raised after
-/// the volume backstop, and against a reach refusal waved through:
-/// either lets the op reach the backstop's `ClassificationInvariant`.
+/// never a certified loop. Red against a reach refusal waved through:
+/// every op then answers a `Seamed` body valid at tier 3 that the
+/// volume backstop passes, and at the item's pose that body is wrong
+/// (∪ drops the lens, `c ∖ h` keeps only the stub above the cap).
 #[test]
 fn the_tilted_rod_refuses_every_op_at_the_certificate_on_reach() {
     let h = half_donut();
-    for (beta, spin) in [
-        (0.5, FRAC_PI_2),
-        (0.3, 0.0),
-        (0.3, FRAC_PI_2),
-        (0.4, 0.0),
-        (0.4, FRAC_PI_2),
-    ] {
+    let spins = [0.0, 0.5, 1.0, FRAC_PI_2, 2.5];
+    let poses = spins.iter().flat_map(|&s| [(0.3, s), (0.4, s)]);
+    for (beta, spin) in std::iter::once((0.5, FRAC_PI_2)).chain(poses) {
         let c = rod(beta, spin);
         let pose = format!("β {beta}, spin {spin:.4}");
         for (op, rod_first, what, r) in every_op(&h, &c) {
@@ -151,11 +148,12 @@ fn the_tilted_rod_refuses_every_op_at_the_certificate_on_reach() {
     }
 }
 
-/// **The other spins, and the steeper tilts, refuse in the reduction**
-/// with `CurvedSectorSideUnsupported`, on every op, before any body is
-/// built or any section read.
+/// **The other spins, and the steeper tilts, refuse in the join**
+/// with `GermFrameUnsupported` (a torus germ against the rod's wall or
+/// its end cap that no frame arm reads), on every op, before any body is
+/// built.
 #[test]
-fn other_spins_and_steeper_tilts_refuse_in_the_reduction() {
+fn other_spins_and_steeper_tilts_refuse_in_the_join() {
     let h = half_donut();
     for (beta, spin) in [
         (0.5, 0.0),
@@ -170,7 +168,7 @@ fn other_spins_and_steeper_tilts_refuse_in_the_reduction() {
         let c = rod(beta, spin);
         for (_, _, what, r) in every_op(&h, &c) {
             assert!(
-                matches!(r, Err(BooleanError::CurvedSectorSideUnsupported { .. })),
+                matches!(r, Err(BooleanError::GermFrameUnsupported { .. })),
                 "{what} at β {beta}, spin {spin}: {}",
                 outcome(&r)
             );

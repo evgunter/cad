@@ -1,6 +1,7 @@
 //! Deterministic scheduling of the recipe DAG (spec D2): the
-//! evaluation `order` is a pure function of the DAG — Kahn's algorithm
-//! with a min-heap of ready nodes, tiebreak `RecipeNodeId` ascending.
+//! evaluation `order` is a pure function of the document — Kahn's
+//! algorithm with a min-heap of ready nodes, ties broken by id, which
+//! is the order the nodes were inserted in ([`Doc::ids`]).
 //! The parallel path (spec D6) additionally groups nodes into
 //! longest-path LEVELS: every node's inputs live in strictly earlier
 //! levels, so a level's nodes are pairwise independent and may run as
@@ -18,13 +19,13 @@ use crate::node::RecipeNodeId;
 /// `apply`, which only ever inserts back-references, but the evaluator
 /// refuses them TYPED rather than trusting the door).
 pub(crate) struct Schedule {
-    /// Topological order, Kahn min-id (spec D2's documented tiebreak).
+    /// Topological order, ties to the lesser id: the node inserted first.
     pub order: Vec<RecipeNodeId>,
     /// Longest-path levels; concatenated they are ALSO a topological
-    /// order (level ascending, id ascending within a level).
+    /// order (level ascending, id order within a level).
     pub levels: Vec<Vec<RecipeNodeId>>,
-    /// Nodes Kahn never released (in-cycle or downstream of one), id
-    /// ascending.
+    /// Nodes Kahn never released (in-cycle or downstream of one), in id
+    /// order.
     pub unschedulable: Vec<RecipeNodeId>,
 }
 
@@ -34,10 +35,7 @@ pub(crate) fn schedule<P: crate::ProfilePayload>(doc: &Doc<P>) -> Schedule {
     // no edge and the node fails later at operand lookup.
     let mut indegree: BTreeMap<RecipeNodeId, usize> = BTreeMap::new();
     let mut dependents: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
-    for &id in doc.order() {
-        let Some(node) = doc.node(id) else {
-            continue; // doc.order() lists live nodes; defensive skip
-        };
+    for (&id, node) in &doc.nodes {
         let live_inputs: Vec<RecipeNodeId> = node
             .inputs()
             .into_iter()
@@ -86,16 +84,11 @@ pub(crate) fn schedule<P: crate::ProfilePayload>(doc: &Doc<P>) -> Schedule {
         .collect();
 
     let mut levels: Vec<Vec<RecipeNodeId>> = Vec::new();
-    for &id in doc.order() {
-        if let Some(&lvl) = level.get(&id) {
-            if levels.len() <= lvl {
-                levels.resize_with(lvl + 1, Vec::new);
-            }
-            levels[lvl].push(id);
+    for (&id, &lvl) in &level {
+        if levels.len() <= lvl {
+            levels.resize_with(lvl + 1, Vec::new);
         }
-    }
-    for lv in &mut levels {
-        lv.sort_unstable();
+        levels[lvl].push(id);
     }
 
     Schedule {

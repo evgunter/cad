@@ -162,12 +162,13 @@ use topo::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
 use topo::{Body, MetredBound, MetredRect, chart_boundary};
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
-use crate::doc::{Doc, ParamName};
+use crate::doc::Doc;
 use crate::drive::{CertifiedLeaf, MeasureAccounting, ParamBoxVerdict, lane_opts, sliver};
-use crate::eval::{CancelToken, EvalOptions, Evaluation, NodeResult, evaluate};
+use crate::eval::{CancelToken, EvalOptions, Evaluation, NodeStanding, evaluate};
 use crate::names::{EntityKey, Entry, StableName};
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
+use crate::var::VarId;
 
 /// The funnel site name of the clearance comparison — the separation
 /// enclosure between two domain cells minus the requested clearance,
@@ -330,7 +331,7 @@ impl Default for ClearanceConfig {
 /// promise the implementor keeps, not one this module enforces.
 pub trait MonotoneOracle {
     /// The sign of `∂d/∂p` over the whole leaf, or `None`.
-    fn monotone_in(&self, param: &ParamName) -> Option<Sign>;
+    fn monotone_in(&self, param: VarId) -> Option<Sign>;
 }
 
 /// The oracle that certifies nothing: E9's state, and the shipped
@@ -339,7 +340,7 @@ pub trait MonotoneOracle {
 pub struct NoTangents;
 
 impl MonotoneOracle for NoTangents {
-    fn monotone_in(&self, _param: &ParamName) -> Option<Sign> {
+    fn monotone_in(&self, _param: VarId) -> Option<Sign> {
         None
     }
 }
@@ -363,6 +364,13 @@ pub struct ClearanceQuery<'a> {
     /// The monotonicity seam. [`NoTangents`] forfeits every pruning,
     /// which is the state every verdict is defined against.
     pub oracle: &'a dyn MonotoneOracle,
+    /// The seam a document's instantiated parts resolve through, as
+    /// an evaluation over options carrying it would
+    /// ([`EvalOptions::resolver`]); `None` for a document that
+    /// instantiates none. An assembly's mates solve over the leaf's box
+    /// at its scalar (`ASSEMBLY.md` A11 (5)), so a face frame's pose
+    /// encloses over the box like any other geometry.
+    pub resolver: Option<&'a Arc<dyn crate::part::PartResolver>>,
 }
 
 impl ClearanceQuery<'_> {
@@ -374,6 +382,7 @@ impl ClearanceQuery<'_> {
             tol,
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
+            resolver: None,
         }
     }
 
@@ -384,6 +393,19 @@ impl ClearanceQuery<'_> {
             tol,
             config: ClearanceConfig::default(),
             oracle: &NoTangents,
+            resolver: None,
+        }
+    }
+}
+
+impl<'a> ClearanceQuery<'a> {
+    /// The same question over a document whose parts resolve through
+    /// `resolver` ([`ClearanceQuery::resolver`]).
+    #[must_use]
+    pub fn resolved_by(self, resolver: &'a Arc<dyn crate::part::PartResolver>) -> Self {
+        Self {
+            resolver: Some(resolver),
+            ..self
         }
     }
 }
@@ -489,9 +511,10 @@ pub struct Violation {
 /// on.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ParamWitness {
-    /// Per parameter, the OFFSET from the document's nominal (the
-    /// analysis lane's own currency — [`crate::analysis::AnalyzedParam`]).
-    pub offsets: BTreeMap<ParamName, f64>,
+    /// Per variable, the OFFSET from the document's nominal (the
+    /// analysis lane's own currency — [`crate::analysis::AnalyzedParam`]),
+    /// in the document's declaration order.
+    pub offsets: Vec<(VarId, f64)>,
 }
 
 /// A concrete pair of surface points, at `f64`, with the distance the
@@ -507,9 +530,9 @@ pub struct ParamWitness {
 pub struct GeometryWitness {
     /// The first face.
     pub a: FaceKey,
-    /// Its carrier parameters, IN THE CHART `a_chart_axis` names —
-    /// which for a planar face is the engine's own re-chart, not the
-    /// stored one.
+    /// Its carrier parameters, in the face's STORED chart — the one
+    /// the carrier's own `u_ref` names, which a consumer rebuilds by
+    /// reading the face's surface.
     ///
     /// On a periodic carrier `u` is an azimuth **on the walk's own
     /// branch**, a real number and never folded into `[0, τ)`: a face
@@ -517,19 +540,12 @@ pub struct GeometryWitness {
     /// negative, and a witness there reports a negative `u`. Fold it
     /// and it names a different point of the same surface.
     pub a_uv: (f64, f64),
-    /// Which world axis the planar re-chart crossed the normal with, so
-    /// a consumer can rebuild the same chart
-    /// ([`chart_frame`]) and evaluate at `a_uv`. `None` for a carrier
-    /// that kept its stored chart.
-    pub a_chart_axis: Option<usize>,
     /// The point there.
     pub a_point: Point3<f64>,
     /// The second face.
     pub b: FaceKey,
-    /// Its carrier parameters, in `b_chart_axis`'s chart.
+    /// Its carrier parameters, in the second face's stored chart.
     pub b_uv: (f64, f64),
-    /// The second face's chart axis, as `a_chart_axis`.
-    pub b_chart_axis: Option<usize>,
     /// The point there.
     pub b_point: Point3<f64>,
     /// The distance between the two points, at `f64`.
@@ -653,18 +669,28 @@ pub enum ClearanceRefusal {
 impl ClearanceRefusal {
     /// The refusal's own payload, rendered for the goldening form — the
     /// half `name` drops, so two runs that refuse for the same CLASS on
-    /// different evidence do not serialize alike.
+    /// different evidence do not serialize alike. A machine channel: a
+    /// node id prints in full ([`SelectionRefusal::payload`]).
     pub fn payload(&self) -> String {
         match self {
             Self::Sliver { predicate } => (*predicate).to_owned(),
             Self::Budget(k) => format!("{k:?}"),
             Self::Unsupported { carrier, face } => format!("{carrier} {face:?}"),
-            Self::Selection(r) => format!("{r}"),
+            Self::Selection(r) => r.payload(),
             Self::WitnessUnverified { what } => what.clone(),
             Self::PoisonEnclosure { a, b } => format!("{a:?}/{b:?}"),
             Self::NothingCertified { refused_leaves } => format!("refused_leaves={refused_leaves}"),
             Self::NotADistance { c } => format!("{:016x}", c.to_bits()),
             Self::EmptyScope | Self::ToleranceHasNoBand | Self::NoAdmittedPair => String::new(),
+        }
+    }
+
+    /// The payload a sentence quotes: [`Self::payload`], but a
+    /// selection's refusal in words, its nodes said by `by`.
+    pub(crate) fn said_payload(&self, by: crate::spoken::Speaker<'_>) -> String {
+        match self {
+            Self::Selection(r) => crate::spoken::Said(r, by).to_string(),
+            _ => self.payload(),
         }
     }
 
@@ -714,10 +740,10 @@ pub enum CellBudget {
 #[derive(Debug, Clone, PartialEq)]
 pub enum SelectionRefusal {
     /// The node did not build in the leaf's replay.
-    NodeDidNotBuild {
-        /// The node.
-        node: RecipeNodeId,
-    },
+    NodeDidNotBuild(
+        /// The node's standing in that replay.
+        NodeStanding,
+    ),
     /// The node's payload carries no body at that index.
     NoSuchBody {
         /// The node.
@@ -728,36 +754,109 @@ pub enum SelectionRefusal {
     /// A name in the scope does not resolve uniquely in the node's own
     /// table.
     Unresolved {
-        /// The name, rendered.
-        name: String,
+        /// The name.
+        name: Box<StableName>,
     },
     /// A name resolves, but not to a face of the selected body.
     NotAFace {
-        /// The name, rendered.
-        name: String,
+        /// The name.
+        name: Box<StableName>,
+    },
+    /// The two selections live in different spaces (A9, A11 (2)): one
+    /// is in an unplaced group's own space, and nothing outside an
+    /// unplaced group is compared with it.
+    AcrossSpaces {
+        /// The unplaced group, by its root.
+        group: RecipeNodeId,
+        /// Why nothing places it.
+        cause: crate::mate::Unplaced,
     },
 }
 
-impl core::fmt::Display for SelectionRefusal {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+// Memoized inside `NodeErrorKind::MeasureClearanceRefused`, so it holds
+// ids, said by the speaker of the frame that hands it out.
+impl crate::spoken::Say for SelectionRefusal {
+    fn say(
+        &self,
+        f: &mut core::fmt::Formatter<'_>,
+        by: crate::spoken::Speaker<'_>,
+    ) -> core::fmt::Result {
         match self {
-            Self::NodeDidNotBuild { node } => write!(
+            Self::NodeDidNotBuild(standing) => write!(
                 f,
-                "node {} did not build in this leaf's replay, so it has no faces to \
-                 measure a clearance between",
-                node.0
+                "the selection has no faces to measure a clearance between in this leaf's \
+                 replay: {}",
+                crate::spoken::Said(standing, by)
             ),
-            Self::NoSuchBody { node, index } => write!(
-                f,
-                "node {}'s value carries no body at index {index}",
-                node.0
-            ),
+            Self::NoSuchBody { node, index } => {
+                write!(
+                    f,
+                    "{}'s value carries no body at index {index}",
+                    by.node(*node)
+                )
+            }
             Self::Unresolved { name } => write!(
                 f,
-                "{name} does not resolve to a unique entity in the selected node's name table"
+                "{} does not resolve to a unique entity in the selected node's name table",
+                by.name(name)
             ),
-            Self::NotAFace { name } => {
-                write!(f, "{name} resolves, but not to a face of the selected body")
+            Self::NotAFace { name } => write!(
+                f,
+                "{} resolves, but not to a face of the selected body",
+                by.name(name)
+            ),
+            Self::AcrossSpaces { group, cause } => write!(
+                f,
+                "the two selections live in different spaces — one is in the own space of the \
+                 group rooted at {}, unplaced because {}, and nothing outside an \
+                 unplaced group is compared with it. {}",
+                by.node(*group),
+                crate::spoken::Said(cause, by),
+                crate::sentence::Recourse(crate::mate::UNPLACED_RECOURSE)
+            ),
+        }
+    }
+}
+
+/// The refusal where no document is at hand: each node by its tag.
+impl core::fmt::Display for SelectionRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
+    }
+}
+
+impl SelectionRefusal {
+    /// **The refusal for the goldening form**: its class word and its
+    /// fields, each node id in full ([`RecipeNodeId::full`]) — a machine
+    /// channel, where two ids must never print alike.
+    pub fn payload(&self) -> String {
+        match self {
+            Self::NodeDidNotBuild(standing) => {
+                let (word, node, through) = match *standing {
+                    NodeStanding::NotEvaluated { node } => ("not_evaluated", node, None),
+                    NodeStanding::NotInDocument { node } => ("not_in_document", node, None),
+                    NodeStanding::Failed { node } => ("failed", node, None),
+                    NodeStanding::Poisoned { node, through } => ("poisoned", node, Some(through)),
+                };
+                let mut out = format!("node_did_not_build {word} node={}", node.full());
+                if let Some(through) = through {
+                    out.push_str(&format!(" through={}", through.full()));
+                }
+                out
+            }
+            Self::NoSuchBody { node, index } => {
+                format!("no_such_body node={} index={index}", node.full())
+            }
+            Self::Unresolved { name } => format!("unresolved {name:?}"),
+            Self::NotAFace { name } => format!("not_a_face {name:?}"),
+            Self::AcrossSpaces { group, cause } => {
+                let cause = match cause {
+                    crate::mate::Unplaced::NoOffset => cause.word().to_owned(),
+                    crate::mate::Unplaced::DeadGauge { gauge } => {
+                        format!("{}={}", cause.word(), gauge.full())
+                    }
+                };
+                format!("across_spaces group={} {cause}", group.full())
             }
         }
     }
@@ -1004,22 +1103,10 @@ impl ClearanceReport {
                         p.z.to_bits()
                     )
                 };
-                let _ = writeln!(
-                    s,
-                    "witness a uv={} chart={:?} at={}",
-                    uv(g.a_uv),
-                    g.a_chart_axis,
-                    pt(g.a_point)
-                );
-                let _ = writeln!(
-                    s,
-                    "witness b uv={} chart={:?} at={}",
-                    uv(g.b_uv),
-                    g.b_chart_axis,
-                    pt(g.b_point)
-                );
+                let _ = writeln!(s, "witness a uv={} at={}", uv(g.a_uv), pt(g.a_point));
+                let _ = writeln!(s, "witness b uv={} at={}", uv(g.b_uv), pt(g.b_point));
                 for (name, offset) in &v.param.offsets {
-                    let _ = writeln!(s, "witness param {} {:016x}", name.0, offset.to_bits());
+                    let _ = writeln!(s, "witness param {} {:016x}", name.full(), offset.to_bits());
                 }
             }
             ClearanceVerdict::Refused(r) => {
@@ -1036,11 +1123,8 @@ impl ClearanceReport {
             render(self.widths.narrowest),
             self.widths.deepest
         );
-        let _ = writeln!(
-            s,
-            "windows tightened={} loose={}",
-            self.windows.0, self.windows.1
-        );
+        let (tightened, loose) = self.windows;
+        let _ = writeln!(s, "windows tightened={tightened} loose={loose}");
         s
     }
 
@@ -1074,11 +1158,16 @@ impl ClearanceReport {
                     g.distance, g.a, g.b
                 );
                 for (name, offset) in &v.param.offsets {
-                    let _ = writeln!(s, "    at {} = nominal {offset:+}", name.0);
+                    let _ = writeln!(s, "    at variable {name} = nominal {offset:+}");
                 }
             }
             ClearanceVerdict::Refused(r) => {
-                let _ = writeln!(s, "REFUSED ({}): {}", r.name(), r.payload());
+                let _ = writeln!(
+                    s,
+                    "REFUSED ({}): {}",
+                    r.name(),
+                    r.said_payload(crate::spoken::Speaker::TAG)
+                );
             }
         }
         let r = self.receipt;
@@ -1088,11 +1177,11 @@ impl ClearanceReport {
              {} violated, {} refused, {} split, {} abandoned",
             r.candidates, r.discharged, r.outside, r.violated, r.refused, r.splits, r.abandoned
         );
+        let (tightened, loose) = self.windows;
         let _ = writeln!(
             s,
-            "  {} of {} carrier window(s) tightened to the face's chart boundary",
-            self.windows.0,
-            self.windows.0 + self.windows.1
+            "  {tightened} of {} carrier window(s) tightened to the face's chart boundary",
+            tightened + loose
         );
         let w = self.widths;
         let _ = writeln!(
@@ -1198,10 +1287,16 @@ pub fn clearance_with(
     };
     let opts = EvalOptions {
         param_box: Some(Arc::new(queried.clone())),
+        resolver: query.resolver.cloned(),
         ..lane_opts()
     };
     let ev: Evaluation<Interval> = evaluate(doc, None, &CancelToken::new(), &opts, query.tol);
 
+    if let Some((group, cause)) = ev.across_spaces(a.at, b.at) {
+        return ClearanceReport::refused(ClearanceRefusal::Selection(
+            SelectionRefusal::AcrossSpaces { group, cause },
+        ));
+    }
     let windows_a = match windows_of(&ev, a, Some(band)) {
         Ok(w) => w,
         Err(r) => return ClearanceReport::refused(r),
@@ -1224,6 +1319,7 @@ pub fn clearance_with(
         band,
         config: query.config,
         deepest: 0,
+        resolver: query.resolver.cloned(),
     };
     sweep.run(doc, &queried, &windows_a, &windows_b, same_body, query.tol)
 }
@@ -1724,7 +1820,8 @@ pub fn min_separation(
     // every drive over a `min_clearance` document its certified leaves:
     // this door is called from inside an evaluation, so MINTING the
     // description records the boundary walk's own funnel rows
-    // (`pcurve_loop_closure`, `_height`, `_continuity`, `_pole_joint`)
+    // (`pcurve_loop_branch`, `_pole_joint`, and on a spline chart
+    // `_continuity`)
     // in the leaf's census, while the `f64` witness build never walks
     // at all — `MinClearanceLane for f64` answers `None` — so the two
     // builds differ `0 -> N` on every box and the leaf refuses
@@ -2064,12 +2161,12 @@ fn combine(acc: ClearanceVerdict, next: ClearanceVerdict) -> ClearanceVerdict {
 /// else about the query changes — which is the whole content of "an
 /// accelerator only".
 fn facet_restrict(box_: &ParamBox, oracle: &dyn MonotoneOracle) -> ParamBox {
-    ParamBox::from_axes(
+    ParamBox::from_axes_in(
         box_.axes()
             .iter()
             .map(|(name, axis)| {
                 let (lo, hi) = axis.span();
-                let collapsed = match (axis, oracle.monotone_in(name)) {
+                let collapsed = match (axis, oracle.monotone_in(*name)) {
                     (BoxAxis::Varying { .. }, Some(Sign::Positive | Sign::Zero)) => {
                         Some(BoxAxis::Varying { lo, hi: lo })
                     }
@@ -2078,9 +2175,10 @@ fn facet_restrict(box_: &ParamBox, oracle: &dyn MonotoneOracle) -> ParamBox {
                     }
                     _ => None,
                 };
-                (name.clone(), collapsed.unwrap_or(*axis))
+                (*name, collapsed.unwrap_or(*axis))
             })
             .collect(),
+        box_.order(),
     )
 }
 
@@ -2100,11 +2198,6 @@ struct Window {
     at: RecipeNodeId,
     body: u32,
     face: FaceKey,
-    /// Which world axis the planar re-chart crossed the normal with
-    /// ([`in_plane_axis`]), so the `f64` witness rebuild can name the
-    /// same chart. `None` for every non-planar carrier, which keeps its
-    /// stored chart.
-    chart_axis: Option<usize>,
     surface: Surface<Interval>,
     u: (f64, f64),
     v: (f64, f64),
@@ -2239,9 +2332,9 @@ fn windows_of(
     band: Option<Band>,
 ) -> Result<Vec<Window>, ClearanceRefusal> {
     let refuse = ClearanceRefusal::Selection;
-    let Some(NodeResult::Ok(value)) = ev.nodes.get(&sel.at) else {
-        return Err(refuse(SelectionRefusal::NodeDidNotBuild { node: sel.at }));
-    };
+    let value = ev
+        .usable(sel.at)
+        .map_err(|standing| refuse(SelectionRefusal::NodeDidNotBuild(standing)))?;
     let body = crate::names::interrogate::output_body(&value.payload, sel.body).map_err(|_| {
         refuse(SelectionRefusal::NoSuchBody {
             node: sel.at,
@@ -2255,13 +2348,13 @@ fn windows_of(
         FaceScope::Named(names) => {
             let mut out = Vec::new();
             for name in names {
-                let rendered = || format!("{name:?}");
+                let named = || Box::new(name.clone());
                 let Some(Entry::Unique(ent)) = value.name_table.lookup(name) else {
-                    return Err(refuse(SelectionRefusal::Unresolved { name: rendered() }));
+                    return Err(refuse(SelectionRefusal::Unresolved { name: named() }));
                 };
                 match ent.key {
                     EntityKey::Face(k) if ent.body == sel.body => out.push(k),
-                    _ => return Err(refuse(SelectionRefusal::NotAFace { name: rendered() })),
+                    _ => return Err(refuse(SelectionRefusal::NotAFace { name: named() })),
                 }
             }
             out.sort_unstable();
@@ -2364,20 +2457,12 @@ fn window_of(
         let d = (extent - origin).dot(dir);
         (d.lo(), d.hi())
     };
-    let mut chart_axis = None;
+    // The STORED chart, for every carrier kind. A plane's stored
+    // `u_ref` comes from the axis-order orthonormal basis, which
+    // refines at the equator, so there is nothing here to re-chart
+    // around; `refines` below is still the door that refuses a chart
+    // subdivision cannot narrow, whatever made it wide.
     let charted = match surface {
-        Surface::Plane { origin, normal, .. } => {
-            let axis = in_plane_axis(*normal);
-            let Some(u_ref) = chart_frame(*normal, axis) else {
-                return unsupported("a plane whose interval normal admits no certified frame");
-            };
-            chart_axis = Some(axis);
-            Surface::Plane {
-                origin: *origin,
-                normal: *normal,
-                u_ref,
-            }
-        }
         Surface::Nurbs(_) => return unsupported("a free-form face"),
         Surface::Approx(_) => return unsupported("an approximated face"),
         other => other.clone(),
@@ -2462,7 +2547,6 @@ fn window_of(
         at,
         body: index,
         face,
-        chart_axis,
         surface: charted,
         u,
         v,
@@ -2544,65 +2628,6 @@ fn cut_root(
     };
     Some((u, v))
 }
-
-/// **A certified in-plane direction, minted here rather than read off
-/// the stored chart.**
-///
-/// The stored `u_ref` of a plane comes from the branchless orthonormal
-/// basis, whose first step is `copysign(1, n.z)` — and at the interval
-/// scalar a normal with `n.z` enclosing zero (every vertical wall of an
-/// extruded prism) takes that function's zero-containing arm, so
-/// `u_ref` comes back as a SIGN-HULLED enclosure. A chart on such a
-/// frame does not refine: halving its `u` leaves the evaluated
-/// enclosure exactly where it was, because the frame vector itself
-/// spans both signs. Filed as
-/// `work/issues/interval-orthonormal-basis-sign-hull.md`.
-///
-/// Re-charting is sound and is not a repair of the stored surface: a
-/// plane's LOCUS does not depend on which orthonormal in-plane frame
-/// names its points, and this module's window and enclosure are both
-/// computed in whichever frame it returns. The stored surface is not
-/// touched.
-///
-/// The axis is chosen by the widest cross product under `total_cmp` —
-/// a chart choice, never a semantic one, in the same spirit as the
-/// spatial index's split-axis rule: every choice yields a sound
-/// superset, and the choice is a function of the enclosure's own bits,
-/// so it is deterministic (D9). `None` when no candidate normalizes to
-/// a certified direction.
-pub fn in_plane_axis<T: Bounds>(normal: Vec3<T>) -> usize {
-    let mut best = (f64::NEG_INFINITY, 0usize);
-    for k in 0..3 {
-        let lo = normal.cross(unit_axis::<T>(k)).norm().lo();
-        if lo.total_cmp(&best.0) == core::cmp::Ordering::Greater {
-            best = (lo, k);
-        }
-    }
-    best.1
-}
-
-/// The `k`-th world axis at the caller's scalar.
-///
-/// The bound is SOLE `Bounds` at both callers (`Bounds: Real` carries
-/// the arithmetic), which is the form the bounds gate is written for.
-fn unit_axis<T: Real>(k: usize) -> Vec3<T> {
-    let (zero, one) = (T::zero(), T::one());
-    match k {
-        0 => Vec3::new(one, zero, zero),
-        1 => Vec3::new(zero, one, zero),
-        _ => Vec3::new(zero, zero, one),
-    }
-}
-
-/// The re-chart's `u_ref`: the normal crossed with [`in_plane_axis`]'s
-/// choice, normalized. `None` when that does not come out finite, which
-/// is the honest answer for a normal nothing can frame.
-pub fn chart_frame<T: Bounds>(normal: Vec3<T>, axis: usize) -> Option<Vec3<T>> {
-    let u = normal.cross(unit_axis::<T>(axis)).normalize();
-    let finite = |x: T| x.lo().is_finite() && x.hi().is_finite();
-    (finite(u.x) && finite(u.y) && finite(u.z)).then_some(u)
-}
-
 /// Whether halving the window on either axis actually narrows the
 /// carrier's enclosure — the door that turns a chart the subdivision
 /// could not refine into a typed refusal rather than a budget burn.
@@ -2751,6 +2776,9 @@ struct Sweep {
     band: Band,
     config: ClearanceConfig,
     deepest: u32,
+    /// The query's part resolver, which the `f64` witness rebuild
+    /// resolves the same parts through.
+    resolver: Option<Arc<dyn crate::part::PartResolver>>,
 }
 
 impl Sweep {
@@ -2930,6 +2958,7 @@ impl Sweep {
                             (x, pair.a, y, pair.b),
                             self.bound,
                             self.band,
+                            self.resolver.as_ref(),
                             tol,
                         ) {
                             Ok(w) => {
@@ -2975,6 +3004,7 @@ impl Sweep {
                                 (x, pair.a, y, pair.b),
                                 self.bound,
                                 self.band,
+                                self.resolver.as_ref(),
                                 tol,
                             )
                         {
@@ -3181,9 +3211,9 @@ fn split(pair: CellPair, x: &Window, y: &Window) -> Option<(CellPair, CellPair)>
 fn witness_point(leaf: &ParamBox) -> ParamWitness {
     ParamWitness {
         offsets: leaf
-            .axes()
+            .order()
             .iter()
-            .map(|(name, axis)| (name.clone(), axis.midpoint()))
+            .filter_map(|&name| Some((name, leaf.get(name)?.midpoint())))
             .collect(),
     }
 }
@@ -3220,41 +3250,40 @@ fn verify_witness(
     at: (&Window, Cell, &Window, Cell),
     bound: ClearanceBound,
     band: Band,
+    resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<GeometryWitness, String> {
     let (x, ca, y, cb) = at;
-    let mid: BTreeMap<ParamName, BoxAxis> = leaf
+    let mid: BTreeMap<VarId, BoxAxis> = leaf
         .axes()
         .iter()
-        .map(|(n, a)| {
+        .map(|(&n, a)| {
             let m = a.midpoint();
-            (n.clone(), BoxAxis::Varying { lo: m, hi: m })
+            (n, BoxAxis::Varying { lo: m, hi: m })
         })
         .collect();
     let opts = EvalOptions {
-        param_box: Some(Arc::new(ParamBox::from_axes(mid))),
+        param_box: Some(Arc::new(ParamBox::from_axes_in(mid, leaf.order()))),
+        resolver: resolver.cloned(),
         ..lane_opts()
     };
     let ev: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
-    // The SAME chart the interval pass subdivided in, rebuilt at `f64`
-    // from the axis that pass chose: a witness's `(u, v)` are
-    // coordinates in that chart, and reading them in the stored one
-    // would name a different point.
+    // The SAME chart the interval pass subdivided in: the stored one.
+    // A witness's `(u, v)` are coordinates in that chart, and the `f64`
+    // replay of the same node mints the same frame, so reading them
+    // needs nothing carried across from the interval pass.
+    for w in [x, y] {
+        if let Err(standing) = ev.usable(w.at) {
+            return Err(format!(
+                "the f64 rebuild has no value for a face of the violating pair: {standing}"
+            ));
+        }
+    }
     let surface_at = |w: &Window| -> Option<Surface<f64>> {
-        let NodeResult::Ok(value) = ev.nodes.get(&w.at)? else {
-            return None;
-        };
+        let value = ev.value(w.at)?;
         let body = crate::names::interrogate::output_body(&value.payload, w.body).ok()?;
         let f = body.get_face(w.face)?;
-        let stored = body.get_surface(f.surface)?;
-        match (stored, w.chart_axis) {
-            (Surface::Plane { origin, normal, .. }, Some(axis)) => Some(Surface::Plane {
-                origin: *origin,
-                normal: *normal,
-                u_ref: chart_frame(*normal, axis)?,
-            }),
-            _ => Some(stored.clone()),
-        }
+        Some(body.get_surface(f.surface)?.clone())
     };
     let (Some(sa), Some(sb)) = (surface_at(x), surface_at(y)) else {
         return Err(
@@ -3351,11 +3380,9 @@ fn verify_witness(
     Ok(GeometryWitness {
         a: x.face,
         a_uv,
-        a_chart_axis: x.chart_axis,
         a_point: pa,
         b: y.face,
         b_uv,
-        b_chart_axis: y.chart_axis,
         b_point: pb,
         distance: d,
     })

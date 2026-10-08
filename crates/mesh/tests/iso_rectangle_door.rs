@@ -300,9 +300,11 @@ fn a_split_seam_donut_meshes_and_measures_as_the_unsplit_donut() {
 /// `mass_properties` says so bitwise on both patterns. The premise is
 /// ENFORCED, not assumed: a child restated through `set_edge_curve`
 /// with its interval shifted by a period on its own carrier (every
-/// piece still certifies) no longer meets its sibling, and every
-/// consumer refuses `props_meridian_pieces_meet` — this row reds if
-/// the fold ever admits it.
+/// piece still certifies) no longer meets its sibling, and the shape
+/// door refuses `props_meridian_pieces_meet` — this row reds if the
+/// fold ever admits it. `mass_properties` needs no fold: the torus's
+/// chart Green form reads each piece's own span, so the shifted child
+/// — the identical arc — measures as the donut.
 #[test]
 fn split_children_partition_the_parent_edges_own_parametrisation() {
     let tol = Tol::witness();
@@ -383,17 +385,20 @@ fn split_children_partition_the_parent_edges_own_parametrisation() {
         let meet = PropsError::NotIsoRectangle {
             what: "props_meridian_pieces_meet",
         };
-        let got = topo::mass_properties(&shifted, tol).map(|m| m.volume);
+        let got = topo::mass_properties(&shifted, tol)
+            .unwrap_or_else(|e| panic!("{fracs:?}: the shifted child measures: {e:?}"))
+            .volume;
+        let want = f64::from_bits(v0);
         assert!(
-            matches!(&got, Err(topo::MassPropsError::Face { source, .. }) if *source == meet),
-            "{fracs:?}: the shifted child no longer meets its sibling: {got:?}"
+            (got - want).abs() <= 1e-12 * want,
+            "{fracs:?}: the shifted child is the identical arc: {got} vs {want}"
         );
         assert!(
             matches!(
                 mesh::tessellate(&shifted, 0.1, tol),
                 Err(TessellateError::UnsupportedCurvedShape { source, .. }) if source == meet
             ),
-            "{fracs:?}: tessellate refuses by the same name"
+            "{fracs:?}: tessellate refuses at the shape door"
         );
     }
 }

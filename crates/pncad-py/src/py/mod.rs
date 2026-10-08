@@ -17,6 +17,7 @@ mod readback;
 mod refactor;
 mod resolve;
 mod select;
+mod step;
 mod store;
 mod value;
 
@@ -51,7 +52,10 @@ pyo3::create_exception!(
      `key`, `expected` and `found` (the dimension the door required \
      and the one it was offered), `kind`, `from_kind`, `to_kind`, \
      `count`, `first`, `again`, `value`, `offered`, `determinant`, \
-     `path`, `value_path` and `pin`.\n\n\
+     `index` (which of a node's placement frames: a transform's step \
+     or an explicit rule's listed placement), `side` (the mate side \
+     whose frame offset holds that step), `path`, `value_path` and \
+     `pin`.\n\n\
      ONE ATTRIBUTE PER CONCEPT. Where two arms name one concept \
      differently the concept's clearest word wins — `expected`/ \
      `found` carry `declared`/`referenced` and `measured`/`bound` \
@@ -111,7 +115,7 @@ pyo3::create_exception!(
      DOOR names rather than one type name: `LiteralError` from \
      literal construction, from the measurement constructors and from \
      the recorded-program lift; `ParseError` with `variant == \
-     \"dimension\"` from `Doc.parse_expr`; `EditError` from \
+     \"dimension\"` from `Doc.parse_formula`; `EditError` from \
      `Doc.apply`; and `PersistError` with `variant == \"dimension\"` \
      from `load`. Six doors, four classes — the roster with each \
      one's attribute is on `ErrorClass::DIMENSION_DOORS` in \
@@ -155,7 +159,7 @@ pyo3::create_exception!(
     pncad,
     ParseError,
     PncadError,
-    "`Doc.parse_expr` could not read the source as an expression. \
+    "`Doc.parse_formula` could not read the source as an expression. \
      Carries `variant`, the stable tag of the refusing arm, and \
      `pos`, the byte offset in the source — which for a parser is \
      the recourse, since it says WHERE to edit.\n\n\
@@ -311,7 +315,7 @@ pyo3::create_exception!(
     "The mate solve could not place an instance. Carries `variant`, \
      the stable tag of the refusing arm, and `fault` — the \
      `MateFault` VALUE, which carries the arm's payload.\n\n\
-     The solve itself is TOTAL and never raises: a refusing cluster \
+     The solve itself is TOTAL and never raises: a refusing group \
      must not fail an unrelated one, so `solve_document` records the \
      fault per node and `SolvedPoses.fault` hands back the same value \
      this exception carries. This class is raised only where an \
@@ -347,6 +351,9 @@ pyo3::create_exception!(
     "The whole-document gather refused. Carries `variant`, the stable \
      tag of the refusing arm, plus `node`, `through` and `name` \
      (`None` where the arm does not carry them).\n\n\
+     Its message names each node as the evaluation's own document \
+     holds it (kind, label and tag): the document the gather was taken \
+     of. `node` and `through` carry the full ids.\n\n\
      A product is all of the roots or none of them — there are no \
      partial products."
 );
@@ -356,8 +363,8 @@ pyo3::create_exception!(
     PncadError,
     "The `split` refactoring refused. Carries `variant`, the stable \
      tag of the refusing arm, plus its payload as attributes \
-     (`node`, `consumer`, `input`, `gauge`, `instance`, `param`, \
-     `name`, `id`), `None` where inapplicable."
+     (`node`, `consumer`, `input`, `root`, `instance`, `param`, \
+     `name`, `id`, `gauge`), `None` where inapplicable."
 );
 pyo3::create_exception!(
     pncad,
@@ -366,7 +373,8 @@ pyo3::create_exception!(
     "The `inline` refactoring refused. Carries `variant`, the stable \
      tag of the refusing arm, plus its payload as attributes \
      (`node`, `by`, `name`, `param`, `key`, `root`, `host_epsilon`, \
-     `part_epsilon`), `None` where inapplicable.\n\n\
+     `part_epsilon`, `host_root`, `part_root`, `part_gauges`), `None` \
+     where inapplicable.\n\n\
      Inline crosses the SAME document seam evaluation does, so a \
      reference that will not resolve refuses under the seam's own \
      tags — `part_pin_mismatch`, `part_epsilon_seam`, \
@@ -400,11 +408,8 @@ pyo3::create_exception!(
      (`no_such_name`, `ambiguous`, `wrong_kind`, `whole_body`, the \
      node ladder); the GEOMETRY half reads the carrier and arrives \
      under its own tags, not a wrapper tag (`dangling_entity`, \
-     `dangling_geometry`, `no_canonical_frame`, `no_carrier`).\n\n\
-     The two dangling tags stay apart because they are different \
-     facts about the model: `dangling_entity` is a stale or foreign \
-     handle, `dangling_geometry` is a live entity naming geometry \
-     the body itself no longer has.\n\n\
+     `no_canonical_frame`, `no_carrier`). `dangling_entity` is a \
+     stale or foreign handle.\n\n\
      `ambiguous` is the one to read twice: a tie is a naming success \
      and a referencing failure, and the door refuses rather than \
      picking a candidate. `Evaluation.denotation` is how a caller \
@@ -438,7 +443,10 @@ pyo3::create_exception!(
      are one answer, with the hull of their intervals.\n\n\
      `NodePick.patch_names` answers with instances of this class IN A \
      SLOT rather than raising: one naming-emission bug must not cost a \
-     consumer the names of every other patch it is drawing."
+     consumer the names of every other patch it is drawing. It and \
+     `boundary_names` RAISE this class for a refusal of the whole \
+     call — the pairing, or the standing — under the same words; their \
+     message says a name lookup refused, because no hit test ran."
 );
 pyo3::create_exception!(
     pncad,
@@ -454,8 +462,8 @@ pyo3::create_exception!(
      node that draws nothing today (an annihilated boolean, an empty \
      split side) draws again after an edit.\n\n\
      Two arms FORWARD rather than wrap. The standing ladder arrives \
-     under `HitTestError`'s own tags, because it IS that refusal; a \
-     tessellation refusal arrives under the tessellator's own tag and \
+     under the tags `HitTestError` answers with, because it is the \
+     same standing; a tessellation refusal arrives under the tessellator's own tag and \
      prose. What a forwarded arm does not bring is the inner refusal's \
      extra ATTRIBUTES — a tessellation refusal's `value`, `bound`, \
      `requested` and `note` stay on `TessellateError`, where \
@@ -475,7 +483,8 @@ pyo3::create_exception!(
     "The advisory-check registry could not RUN. Carries `variant`, the \
      stable tag of the refusing arm (`root_without_value`, `band`, \
      `product_unavailable`), and `node` — the root without a value, \
-     `None` on the other arms.\n\n\
+     `None` on the other arms. Its message names each node as the \
+     evaluation's own document holds it, the gather's included.\n\n\
      NOT a finding. A check that ran and disagreed is a value in the \
      report; this class means nothing was checked."
 );
@@ -606,6 +615,20 @@ pyo3::create_exception!(
      neither is a box."
 );
 
+pyo3::create_exception!(
+    pncad,
+    StepHandleError,
+    PncadError,
+    "An authored step handle that does not bind in the profile it was \
+     read against. Carries `variant` (the stable tag), `loop_` and \
+     `index` (the address, `None` where the arm has none) and `role` \
+     (the role asked for, `None` where the arm has none).\n\n\
+     `handle_off_program`: the stated loop has no step with the \
+     handle's index and shape — a handle is valid for the program it \
+     was authored for, and across `set_program` a step is held by its \
+     `StepId`. `role_not_drawn`: the step's verb never draws that role."
+);
+
 /// Raise the exception class [`ErrorClass`] names, with `fields`
 /// attached as instance attributes.
 ///
@@ -679,6 +702,25 @@ pub(crate) fn typed_err(
     raise_typed(py, class, message, fields)
 }
 
+/// **A node's standing as the `node` and `through` attributes** every
+/// door that carries one sets: `through` is `None` unless the node is
+/// poisoned. An attribute whose construction fails degrades to `None`
+/// rather than replacing the refusal the caller asked about.
+pub(crate) fn standing_fields(
+    py: Python<'_>,
+    standing: pncad::document::NodeStanding,
+) -> [Py<PyAny>; 2] {
+    let node = |n| {
+        Py::new(py, doc::NodeId(n))
+            .map(|v| v.into_any())
+            .unwrap_or_else(|_| py.None())
+    };
+    [
+        node(standing.node()),
+        standing.through().map_or_else(|| py.None(), node),
+    ]
+}
+
 /// The class table and the attribute loop.
 ///
 /// Split out from [`typed_err`] when a second raising door existed. It
@@ -729,6 +771,7 @@ fn raise_typed(
         ErrorClass::MeasureUnavailableAt => MeasureUnavailableAt::new_err(message),
         ErrorClass::AnalysisPolicy => AnalysisPolicyError::new_err(message),
         ErrorClass::Mc => McRefusal::new_err(message),
+        ErrorClass::StepHandle => StepHandleError::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -835,7 +878,8 @@ fn class_discriminant(class: ErrorClass) -> Option<ClassDiscriminant> {
         | ErrorClass::MeasureNode
         | ErrorClass::MeasureUnavailableAt
         | ErrorClass::AnalysisPolicy
-        | ErrorClass::Mc => None,
+        | ErrorClass::Mc
+        | ErrorClass::StepHandle => None,
     }
 }
 
@@ -905,9 +949,11 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?;
     m.add("AnalysisPolicyError", py.get_type::<AnalysisPolicyError>())?;
     m.add("McRefusal", py.get_type::<McRefusal>())?;
+    m.add("StepHandleError", py.get_type::<StepHandleError>())?;
 
     quantity::register(m)?;
     path::register(m)?;
+    step::register(m)?;
     place::register(m)?;
     doc::register(m)?;
     expr::register(m)?;

@@ -30,7 +30,7 @@ import inspect
 import unittest
 
 import pncad
-from pncad import Doc, Expr, Node, SurfaceKind, evaluate, m
+from pncad import Doc, Formula, Node, SurfaceKind, evaluate, m
 
 
 def enum_mirrors():
@@ -81,10 +81,11 @@ def enum_mirrors():
 #: source — stay true. That is the roster's blind spot, stated so its
 #: silence is not read as coverage.
 UNHASHABLE = {
-    "Expr": "by design: equality is an IEEE comparison of the literals "
+    "Formula": "by design: equality is an IEEE comparison of the literals "
     "inside, so `0.0` and `-0.0` are equal trees whose bits are not "
     "(stated on the stub)",
-    "MeasureExpr": "by design: `Expr`'s reason, for `Expr`'s trees",
+    "Expr": "by design: `Formula`'s reason, for the stored tree",
+    "MeasureExpr": "by design: `Formula`'s reason, for `Formula`'s trees",
     "Length": "by design: the Rust newtype derives `PartialEq` and "
     "`PartialOrd` and no `Hash`, and this class mirrors its derives — "
     "a magnitude is not a key. The authored record that keys is "
@@ -104,7 +105,7 @@ UNHASHABLE = {
     "CheckEvidence": "by design: `editor_core::CheckEvidence` derives "
     "`PartialEq` and no `Hash`, and this class mirrors its derives. It "
     "is the payload of a finding and carries `f64` measurements, so a "
-    "hash would have to answer the float question `Expr` answered "
+    "hash would have to answer the float question `Formula` answered "
     "before it could exist at all",
     "CheckFinding": "by design: `editor_core::CheckFinding` derives "
     "`PartialEq` and no `Hash`, and this class mirrors its derives. "
@@ -124,12 +125,12 @@ UNHASHABLE = {
     "Distribution": "by design: `editor_core::Distribution` derives "
     "`PartialEq` and no `Hash`, and this class mirrors its derives. An "
     "offset band is a magnitude with a dimension, not a key; the "
-    "authored record that keys is `DocParam`, which folds `-0.0` "
+    "authored record that keys is `FreeVar`, which folds `-0.0` "
     "through the kernel's own `fold_signed_zeros` and hashes",
-    "DocParamValue": "by design: `editor_core::DocParamValue` derives "
+    "FreeValue": "by design: `editor_core::FreeValue` derives "
     "`PartialEq` and no `Hash`, and this class mirrors its derives. It "
     "is a parameter's magnitude — `Length`'s reason, one rung up; "
-    "`DocParam`, the authored declaration, is the row that keys",
+    "`FreeVar`, the authored declaration, is the row that keys",
     "FaceCensus": "by design: `step_import::FaceCensus` derives "
     "`PartialEq` and `Eq` and no `Hash`, and this class mirrors its "
     "derives. Three counts read like a key, but the kernel reports a "
@@ -146,7 +147,7 @@ UNHASHABLE = {
     "MateFrame": "by design: `editor_core::MateFrame` derives "
     "`PartialEq` and no `Hash`, and this class mirrors its derives. A "
     "frame is a pose datum the solver consumes, not a key it tallies "
-    "by; and it bottoms out in `f64`, so a hash would owe `Expr`'s "
+    "by; and it bottoms out in `f64`, so a hash would owe `Formula`'s "
     "float answer",
     "MatePrimitive": "by design: `editor_core::MatePrimitive` derives "
     "`PartialEq` and no `Hash`, and this class mirrors its derives. "
@@ -161,6 +162,10 @@ UNHASHABLE = {
     "row of empirical statistics is a magnitude five times over, and a "
     "row nothing could sample carries `NaN`, which equals nothing at "
     "all",
+    "Placement": "by design: `editor_core::Placement` derives "
+    "`PartialEq` and no `Hash`, and this class mirrors its derives — "
+    "`Frame`'s reason, one level out: a literal step bottoms out in "
+    "`f64`",
     "SketchPlane": "by design: `profile::SketchPlane<f64>` spells `==` "
     "as `bit_eq` and derives no `Hash`, and this class mirrors it. The "
     "comparison is bit-for-bit on both sides — `-0.0` and `0.0` are "
@@ -232,15 +237,15 @@ class TestEveryMirrorIsAKey(unittest.TestCase):
         square = doc.insert(
             Node.polygon(
                 [
-                    (Expr.length_in(0, m), Expr.length_in(0, m)),
-                    (Expr.length_in(1, m), Expr.length_in(0, m)),
-                    (Expr.length_in(1, m), Expr.length_in(1, m)),
-                    (Expr.length_in(0, m), Expr.length_in(1, m)),
+                    (Formula.length_in(0, m), Formula.length_in(0, m)),
+                    (Formula.length_in(1, m), Formula.length_in(0, m)),
+                    (Formula.length_in(1, m), Formula.length_in(1, m)),
+                    (Formula.length_in(0, m), Formula.length_in(1, m)),
                 ],
                 plane=doc.sketch_frame(),
             )
         )
-        plate = doc.insert(Node.extrude(square, Expr.length_in(1, m)))
+        plate = doc.insert(Node.extrude(square, Formula.length_in(1, m)))
         ev = evaluate(doc)
         tally = {}
         for face in ev.all_faces(plate):

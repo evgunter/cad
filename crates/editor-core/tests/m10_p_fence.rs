@@ -54,6 +54,22 @@
 //! off the hosted `interval` lane, which is the only place this
 //! workspace builds that backend.
 //!
+//! **EVERY NUMBER MOVED WHEN EACH CONSTRUCTION BEGAN STORING THE ARC
+//! IT BUILDS** (`store-constructed-carriers`), the id-free one too, and
+//! only through point and fixture bits: every node's outcome in the
+//! stream, at `f64` and at `Interval`, is the one main produced, diffed
+//! line for line (on the tree before the id-free row existed). The circles store their authored centre and radius, the
+//! fillet arcs their own centre, and the fixture's `Center` arcs the
+//! authored centre, so the carriers the bodies' points are computed on
+//! moved in the last bits. The `Interval` number moved once more, alone,
+//! when the arc-carrier fillet's sweep took the one quarter-tangent
+//! spelling (`sugar::quarter_tan_about`): the fixture's fillet sweeps
+//! enclose differently, and the `f64` bits do not move.
+//!
+//! **The stream hashes each node's id and walks the nodes in id
+//! order**, so a change to how the mint draws ids moves all three
+//! numbers with no point moving.
+//!
 //! THE INTERVAL NUMBER MOVED ONCE FOR THE AZIMUTH CONSOLIDATION, and
 //! the `f64` one did not. Point parameter recovery on a periodic
 //! carrier used to be spelled three times, two of them SELECTING a `2π`
@@ -151,6 +167,45 @@
 //! re-checked: the exact mass pins, the realized-vs-idealized bit
 //! equality, the curved and cert corpora, and the persistence round
 //! trip all hold.
+//!
+//! RE-BLESSED FOR DECLARED PAIRS AS A BOOLEAN'S OWN PAYLOAD, a
+//! structural move: a boolean's or union's declared pairs stopped
+//! being a separate node, so every declaring document lost its
+//! declaration nodes' outcomes from the stream and every node minted
+//! after one was renumbered. The geometric evidence the paragraph below
+//! names (`exact_mass_pins_hold`, the corpus transform digests, which
+//! held bit for bit on every transform that kept its id) is unchanged.
+//!
+//! RE-BLESSED FOR THE VARIABLE TABLE, a structural move the removal
+//! procedure below cannot measure either: declaring a variable now
+//! mints its id on the document's chain, so in every document that
+//! declares one (`die`, `heat_sink`, `heat_sink_fins`, `kitchen_sink`,
+//! `measured_web`, `part_select`, `plate_param`) every node minted
+//! after the declare was renumbered, and this digest feeds `id.0`. No
+//! document was added or removed. The geometric evidence the sketch
+//! frame's paragraph names — `exact_mass_pins_hold`, the corpus
+//! transform digests (which held their word on every document that
+//! declares nothing), the persistence round trip — held across the
+//! change without being touched.
+//!
+//! RE-BLESSED FOR SLOTS THAT HOLD A VARIABLE (INTENT-LITERALS PR C),
+//! all three rows, a structural move of the same kind: every slot of
+//! every node now holds the id of the variable it reads, a typed value
+//! minting an anonymous one on the document's chain, so every node is
+//! minted from other bytes and renumbered, and this digest feeds `id.0`.
+//! No document was added or removed and no outcome or point moved:
+//! [`the_corpus_geometry_is_bit_identical_with_ids_masked`], which
+//! masks every id, held its number across the change untouched.
+//!
+//! RE-BLESSED FOR AN `Expr` THAT HOLDS NO FLOAT (INTENT-LITERALS PR D),
+//! all three rows, for ids alone: a written quantity inside a formula
+//! mints an anonymous variable of its own, so `kitchen_sink`, the one
+//! document whose formulas hold one, mints other ids
+//! (`lib_g16_corpus_name_digests` moved on that row alone). No outcome or point moved: the id-free
+//! row held, and an id-free dump of every outcome and point at `f64`
+//! AND at `Interval`, taken on PR C's head and on this one, is
+//! byte-identical — no constant the corpus's geometry reads is
+//! non-dyadic, so no enclosure widened.
 //!
 //! RE-BLESSED ONCE FOR THE SKETCH FRAME, and this one could NOT be
 //! measured by the removal procedure below — which is why it is written
@@ -409,6 +464,28 @@
 //! change, differs in those four documents' arena order and nowhere
 //! else. The `interval` row moved for the same reason and was read off
 //! the hosted `interval` lane.
+//!
+//! RE-BLESSED, ALL THREE ROWS, WHEN AN OP'S COPIES OF ONE VERTEX CAME
+//! TO SHARE ITS POINT (D1 tier 3′). `mev_null` no longer mints a point
+//! for the copy, so later points land in other arena slots and the
+//! ARENA-order stream moved. The POINT SETS did not: a scratch dump of
+//! every corpus body's sorted vertex positions and its vertex, edge,
+//! face and point counts is identical before and after the change.
+//!
+//! RE-DERIVED, INTERVAL ROW ONLY, WHEN A BOOLEAN MATCH'S CHORDS CAME TO
+//! SHARE ONE CURVE (`chord_join::SegmentCurve`): a segment's second
+//! chord is its first chord's curve run back (θ ↦ −θ about the flipped
+//! axis) rather than a second arc selection from its own run. Measured
+//! by a scratch dump of every node's outcome and every point's interval
+//! bits, the merged tree with and without the change:
+//!
+//! - **f64 lane: unmoved**; the `f64` digest was not re-derived.
+//! - **Interval lane: every node outcome identical; 5 coordinates of
+//!   5 points moved, all in `die_composed` and `die_composed_tour`, and
+//!   every one got WIDER**, by 2.5× to 3.25× (4 to 25 ulps wide where
+//!   they were 4 to 8), endpoints moving at most 9 ulps. Each still
+//!   holds its value. The dump does not say which read of the
+//!   reversed carrier the widening enters through.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -463,7 +540,8 @@ pub(crate) enum Seen<'a, T: geom_core::Real> {
         j: usize,
         x: T,
         y: T,
-        bulge: T,
+        /// The leaving segment's stored sweep; zero for a line.
+        sweep: T,
     },
     /// Fixture program `i` refused at this scalar.
     FixtureRefused(usize),
@@ -472,13 +550,13 @@ pub(crate) enum Seen<'a, T: geom_core::Real> {
     /// Node `id` of document `doc` and its outcome.
     Node {
         doc: &'a str,
-        id: u64,
+        id: editor_core::MintId,
         outcome: Outcome,
     },
     /// Point `i` of the body node `id` carries, in arena order.
     Point {
         doc: &'a str,
-        id: u64,
+        id: editor_core::MintId,
         i: usize,
         key: topo::PointKey,
         p: &'a geom_core::Point3<T>,
@@ -487,7 +565,7 @@ pub(crate) enum Seen<'a, T: geom_core::Real> {
 
 /// A node's outcome as the fence observes it.
 pub(crate) enum Outcome {
-    Poisoned { through: u64 },
+    Poisoned { through: editor_core::MintId },
     Failed,
     Ok { kind: &'static str },
 }
@@ -572,19 +650,21 @@ where
             d.text("ok");
             d.u64(vertices as u64);
         }
-        Seen::FixtureVertex { x, y, bulge, .. } => {
+        Seen::FixtureVertex { x, y, sweep, .. } => {
             scalar(&mut d, x);
             scalar(&mut d, y);
-            scalar(&mut d, bulge);
+            scalar(&mut d, sweep);
         }
         Seen::FixtureRefused(_) => d.text("refused"),
         Seen::Document(name) => d.text(name),
         Seen::Node { id, outcome, .. } => {
-            d.u64(id);
+            d.u64(u64::from(id.ordinal()));
+            d.u64(id.digest());
             match outcome {
                 Outcome::Poisoned { through } => {
                     d.text("poisoned");
-                    d.u64(through);
+                    d.u64(u64::from(through.ordinal()));
+                    d.u64(through.digest());
                 }
                 Outcome::Failed => d.text("failed"),
                 Outcome::Ok { kind } => d.text(kind),
@@ -661,17 +741,22 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(seen: &mut impl FnMut(Seen<'_, T>)
             .collect();
         match profile::replay(&steps, Tol::witness()) {
             Ok(lp) => {
+                let lp = lp.as_loop();
                 seen(Seen::FixtureLoop {
                     i,
                     vertices: lp.vertices().len(),
                 });
-                for (j, (v, &bulge)) in lp.vertices().iter().zip(lp.bulges()).enumerate() {
+                for (j, (v, s)) in lp.vertices().iter().zip(lp.segments()).enumerate() {
+                    let sweep = match s {
+                        profile::Segment::Line => T::zero(),
+                        profile::Segment::Arc(arc) => arc.sweep,
+                    };
                     seen(Seen::FixtureVertex {
                         i,
                         j,
                         x: v.x,
                         y: v.y,
-                        bulge,
+                        sweep,
                     });
                 }
             }
@@ -683,7 +768,7 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(seen: &mut impl FnMut(Seen<'_, T>)
 }
 
 fn f64_bits(d: &mut Digest, p: &geom_core::Point3<f64>) {
-    for c in [p.x, p.y, p.z] {
+    for c in p.to_array() {
         d.u64(c.to_bits());
     }
 }
@@ -696,7 +781,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x1d88_8859_88d9_dd79, 0x2657_da95_5bf0_b3b5),
+        (0xd736_3d97_c842_9686, 0x185b_8bc1_cb63_d70a),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -709,7 +794,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     use geom_core::{Bounds, Interval};
     let got = corpus_digest::<Interval, _, _>(
         |d, p| {
-            for c in [p.x, p.y, p.z] {
+            for c in p.to_array() {
                 d.u64(c.lo().to_bits());
                 d.u64(c.hi().to_bits());
             }
@@ -722,7 +807,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x74fc_91e2_8365_51d5, 0xa1ee_304e_4eba_df89),
+        (0xdbe4_c34e_c69a_4315, 0x37d3_0061_eb74_c449),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -734,7 +819,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     use geom_core::Probe;
     let got = corpus_digest::<Probe, _, _>(
         |d, p| {
-            for c in [p.x, p.y, p.z] {
+            for c in p.to_array() {
                 d.u64(c.0.to_bits());
             }
         },
@@ -746,7 +831,86 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x1d88_8859_88d9_dd79, 0x2657_da95_5bf0_b3b5),
+        (0xd736_3d97_c842_9686, 0x185b_8bc1_cb63_d70a),
         "the corpus's Probe evaluation moved"
+    );
+}
+
+/// **The corpus's geometry, with every id masked**: per document, each
+/// node's outcome and its points' bits, the nodes sorted by what they
+/// hold rather than by id. Every other digest in this file feeds
+/// `id.0`, so a change to how ids are minted moves it with no point
+/// moving; this one moves only when an outcome or a point does.
+///
+/// It is the guard INTENT-VARS-1 PR 3's "geometry did not move" claim
+/// rested on: readers moved from names to ids, every id moved with the
+/// preimages, and this number — taken on main before the change and on
+/// the branch after it — did not.
+fn id_free_corpus_digest() -> (u64, u64) {
+    type Nodes = std::collections::BTreeMap<editor_core::MintId, (String, Vec<[u64; 3]>)>;
+    let mut docs: Vec<(String, Nodes)> = Vec::new();
+    let mut fixture = Digest::new();
+    walk::<f64>(|seen| match seen {
+        Seen::Fixture(i) => fixture.u64(i as u64),
+        Seen::FixtureLoop { vertices, .. } => fixture.u64(vertices as u64),
+        Seen::FixtureVertex { x, y, sweep, .. } => {
+            for c in [x, y, sweep] {
+                fixture.u64(c.to_bits());
+            }
+        }
+        Seen::FixtureRefused(_) => fixture.text("refused"),
+        Seen::Document(name) => docs.push((name.to_owned(), Nodes::new())),
+        Seen::Node { id, outcome, .. } => {
+            let outcome = match outcome {
+                Outcome::Poisoned { .. } => "poisoned",
+                Outcome::Failed => "failed",
+                Outcome::Ok { kind } => kind,
+            };
+            docs.last_mut()
+                .expect("a node is walked inside a document")
+                .1
+                .insert(id, (outcome.to_owned(), Vec::new()));
+        }
+        Seen::Point { id, p, .. } => docs
+            .last_mut()
+            .and_then(|(_, nodes)| nodes.get_mut(&id))
+            .expect("a point is walked under its node")
+            .1
+            .push(p.to_array().map(f64::to_bits)),
+    });
+    let mut d = Digest::new();
+    d.u64(fixture.lo);
+    d.u64(fixture.hi);
+    for (name, nodes) in docs {
+        d.text(&name);
+        let mut held: Vec<(String, Vec<[u64; 3]>)> = nodes
+            .into_values()
+            .map(|(outcome, mut points)| {
+                points.sort_unstable();
+                (outcome, points)
+            })
+            .collect();
+        held.sort();
+        for (outcome, points) in held {
+            d.text(&outcome);
+            d.u64(points.len() as u64);
+            for c in points.into_iter().flatten() {
+                d.u64(c);
+            }
+        }
+    }
+    (d.lo, d.hi)
+}
+
+/// **The fence with ids masked, at `f64`** ([`id_free_corpus_digest`]).
+#[test]
+fn the_corpus_geometry_is_bit_identical_with_ids_masked() {
+    let got = id_free_corpus_digest();
+    println!("m10-p fence id-free: {got:016x?}");
+    assert_eq!(
+        got,
+        (0x556a_eaf5_b2dc_3e4a, 0x3361_8bf1_bd5d_d21e),
+        "an outcome or a point of the corpus moved — every other row here also \
+         moves with ids, and this one does not"
     );
 }

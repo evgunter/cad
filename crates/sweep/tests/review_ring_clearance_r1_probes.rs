@@ -1,8 +1,9 @@
 //! **BLEND-6 review probes (lane r1).** What the unit's own rows do not
 //! reach: the material side of the boss's dome rim read off the BODY
 //! (a stored sense bit and the dome's own station, not an argument); a
-//! convex corner ARC of a mixed outer cycle, where the ladder walk's
-//! `max(external, containment)` clears on its EXTERNAL term; and an
+//! convex corner ARC of a mixed outer cycle, which the support-boundary
+//! walk clears over the arc's own window although its full circle
+//! would not contain the trim; and an
 //! off-axis ring — a BORE the extrude door mints, no boolean — that
 //! puts the exact containment backstop at the front door with a
 //! NEGATIVE `fillet3_ring_clearance` reading for each of the two new
@@ -21,10 +22,12 @@
 use geom::Surface;
 use geom_core::{Point2, Sign, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
-    ball_poled_y, ball_poled_z, bored_cylinder, boss, prism, revolved_about_y, rim_arcs_at, z_rim,
+    ball_poled_y, ball_poled_z, bored_cylinder, boss, finished, prism, realized, revolved_about_y,
+    rim_arcs_at, z_rim,
 };
 use sweep::{Extrusion, Revolution, extrude};
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
@@ -43,19 +46,7 @@ fn repaired(up: bool) -> Body<f64> {
 
 /// `a ∖ b` through the public boolean door.
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
-    boolean_op_with(
-        BooleanOp::Subtract,
-        a,
-        b,
-        &BooleanDeclarations::none(),
-        SweepStrategy::Realized,
-        tol(),
-    )
-    .expect("the subtraction runs")
-    .body()
-    .expect("the subtraction leaves a body")
-    .body
-    .clone()
+    realized(BooleanOp::Subtract, a, b, tol())
 }
 
 /// The two faces of an edge.
@@ -133,8 +124,8 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
         );
         // The dome's pole: the one vertex on the axis away from the rim's plane.
         let pole_y = body
-            .vertices()
-            .map(|(_, v)| *body.get_point(v.point).unwrap())
+            .vertex_points()
+            .map(|(_, p)| p)
             .find(|p| p.x.abs() < 1e-12 && p.z.abs() < 1e-12 && (p.y - 1.0).abs() > 0.1)
             .expect("the pole vertex")
             .y;
@@ -144,7 +135,13 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
             "{name}: the boss's dome rim is concave, the dimple's convex"
         );
         let before = mass_properties(&body, tol()).unwrap().volume;
-        let out = fillet_edges(&body, &arcs, 0.1, tol()).expect("carves");
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &arcs,
+            0.1,
+            tol(),
+        )
+        .expect("carves");
         validate_geometric(&out.body, tol()).expect("tier-3 valid");
         let band = out.band_faces[0];
         assert_eq!(
@@ -187,31 +184,42 @@ fn dimpled_plate(rho: f64, a: f64, cx: f64, cy: f64) -> Body<f64> {
     let pf = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .expect("the rounded rectangle validates with its joints declared");
-    let plate = extrude(&pf, Extrusion::Distance(0.4), tol())
-        .expect("the plate extrudes")
-        .body;
+    let plate = extrude(
+        &pf,
+        Extrusion::Distance {
+            depth: 0.4,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the plate extrudes")
+    .body;
     subtract(&plate, &ball_poled_z(a, Vec3::new(cx, cy, 0.4), tol()))
 }
 
 /// **A LADDER rim inside a MIXED outer cycle clears its convex corner
-/// arcs on the EXTERNAL term.** The plate's top face has an outer cycle
+/// arcs over their own windows.** The plate's top face has an outer cycle
 /// of four lines and four quarter-circle arcs of radius `rho = 0.3`
 /// centred at `(±0.7, ±0.7)`; the dimple ring at `(0.3, 0)` is a ladder
 /// rim whose widened trim circle (`si = √(a² + 2ar) ≈ 0.178`) is `0.806`
 /// from the nearest corner centre. That corner arc's FULL circle
 /// encloses nothing of the trim circle, so the containment term
 /// `rho − (d + si)` is negative on it and only the external term
-/// `d − si − rho ≈ +0.33` clears — the head carves. Metering the arc on
-/// the containment term alone refuses this body (measured: it is the
-/// one row in the tree that reds under that mutant).
+/// `d − si − rho ≈ +0.33` clears — the head carves. Metering the arc's
+/// full circle on the containment term refuses this body.
 #[test]
 fn r1_a_convex_corner_arc_of_a_mixed_outer_cycle_takes_the_external_term() {
     let body = dimpled_plate(0.3, 0.15, 0.3, 0.0);
     validate_geometric(&body, tol()).expect("the dimpled plate is tier-3 valid");
     let arcs = z_rim(&body, 0.15, 0.4, true);
     let before = mass_properties(&body, tol()).unwrap().volume;
-    let out = fillet_edges(&body, &arcs, 0.03, tol())
-        .unwrap_or_else(|e| panic!("the ladder rim beside a convex corner arc carves, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &arcs,
+        0.03,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the ladder rim beside a convex corner arc carves, got {e:?}"));
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(out.band_faces.len(), 1);
     let after = mass_properties(&out.body, tol()).unwrap();
@@ -241,9 +249,14 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_
     validate_geometric(&body, tol()).expect("the bored cylinder is tier-3 valid");
     let arcs = z_rim(&body, 1.0, 1.0, false);
     assert_eq!(arcs.len(), 2, "the top rim is two arcs");
-    let err = fillet_edges(&body, &arcs, 0.1, tol())
-        .expect_err("a ring reaching into the excised strip refuses")
-        .error;
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &arcs,
+        0.1,
+        tol(),
+    )
+    .expect_err("a ring reaching into the excised strip refuses")
+    .error;
     let (predicate, sign, read) = refusal(err);
     assert_eq!(
         predicate, "fillet3_ring_clearance",
@@ -256,7 +269,13 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_
     );
     let wide = bored_cylinder(0.14, 0.75, phi, tol());
     let arcs = z_rim(&wide, 1.0, 1.0, false);
-    let out = fillet_edges(&wide, &arcs, 0.1, tol()).expect("a contained off-axis ring carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&wide, tol()),
+        &arcs,
+        0.1,
+        tol(),
+    )
+    .expect("a contained off-axis ring carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(mass_properties(&out.body, tol()).unwrap().volume_pad, 0.0);
 }
@@ -267,11 +286,10 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_annulus_backstop_at_the_front_
 /// radius `si = a + r = 0.19` (the ball rests in the material at depth
 /// `r`, touching the bore wall), so the containment margin against the
 /// outer boundary at radius 1 is `1 − (d + 0.19)`: `−0.01` at
-/// `d = 0.82`. The external term on the same pair is `≈ −0.37`, so the
-/// circle arm's `max` IS the containment reading — the negative side
-/// of that `max` the unit's own rows never reach. Sampled gap ≈ `0.095`
-/// against a setback of `0.03`: the screen passes. The carving side at
-/// `d = 0.80` carves. Reds under the circle arm's external-only mutant.
+/// `d = 0.82`; the support-boundary walk reads it as the boundary
+/// arcs' nearest approach to the trim centre, `1 − d`, less the trim
+/// radius (the external term on the same pair is `≈ −0.37`). Sampled gap ≈ `0.095` against a setback of `0.03`: the
+/// screen passes. The carving side at `d = 0.80` carves.
 #[test]
 fn r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_door() {
     let phi = 11.25f64.to_radians();
@@ -281,7 +299,7 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_d
     validate_geometric(&body, tol()).expect("the bored cylinder is tier-3 valid");
     let arcs = z_rim(&body, a, 1.0, true);
     assert_eq!(arcs.len(), 2, "the bore's top rim is two arcs");
-    let err = fillet_edges(&body, &arcs, r, tol())
+    let err = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
         .expect_err("a trim circle crossing its host's circular boundary refuses")
         .error;
     let (predicate, sign, read) = refusal(err);
@@ -297,7 +315,8 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_d
     );
     let wide = bored_cylinder(a, 0.80, phi, tol());
     let arcs = z_rim(&wide, a, 1.0, true);
-    let out = fillet_edges(&wide, &arcs, r, tol()).expect("a contained trim circle carves");
+    let out = fillet_edges(&sweep::test_support::at_rest(&wide, tol()), &arcs, r, tol())
+        .expect("a contained trim circle carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
     assert_eq!(mass_properties(&out.body, tol()).unwrap().volume_pad, 0.0);
 }
@@ -324,8 +343,8 @@ fn r1_diag_cylinder_pierces() {
     let try_cut = |name: &str, a: &Body<f64>, ball: Body<f64>| {
         let r = boolean_op_with(
             BooleanOp::Subtract,
-            a,
-            &ball,
+            &finished(name, a.clone(), tol()),
+            &finished(name, ball, tol()),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
             tol(),
@@ -451,9 +470,14 @@ fn r1_print_the_coaxial_refusal_readings() {
     ] {
         let arcs = rim_arcs_at(body, rim.0, rim.1);
         let (p, s, v) = refusal(
-            fillet_edges(body, &arcs, 0.1, tol())
-                .expect_err("refuses")
-                .error,
+            fillet_edges(
+                &sweep::test_support::at_rest(body, tol()),
+                &arcs,
+                0.1,
+                tol(),
+            )
+            .expect_err("refuses")
+            .error,
         );
         println!("[r1] {name}: {p} {s:?} {v:?} bits={:#018x}", v.to_bits());
     }
@@ -497,28 +521,76 @@ mod recorded {
     }
 
     /// **`fillet3_ring_clearance` decisions per carve on the boss's
-    /// three rims**: base rim (hostless, ring-free host) 0; top outer
-    /// rim (hostless annulus, one ring) 1; dome rim (ladder, no other
-    /// ring, a two-arc circular outer cycle) 2 — one per ring per
-    /// touched host plus one per outer-cycle edge of a ladder rim's
-    /// host, and `circle_margins` mints no sample of its own.
+    /// three rims**: one per cycle the carve does not replace whole —
+    /// its outer cycle and each ring — of each distinct host AND mate
+    /// support (`support_boundary_clearance`), at that cycle's least
+    /// margin. The boss's
+    /// wall is two half-cylinder faces and each of its circles two
+    /// half arcs, so:
+    ///
+    /// - base rim: no ring; the base disc's outer cycle is the rim
+    ///   itself; each wall half carries its top arc, `1 − 0.1` above
+    ///   the trim — two readings of `0.9`;
+    /// - top outer rim (a hostless annulus): the dome rim is the host's
+    ///   ring, `0.4` inside the trim circle of radius `0.9`; each wall
+    ///   half carries its bottom arc at `0.9` — three readings;
+    /// - dome rim (a ladder): the host's outer cycle is the two halves
+    ///   of the outer rim, one reading; the dome's own edges all meet
+    ///   the rim. The dome is a sphere of radius `0.5` centred on the
+    ///   top plane, so the concave rim's ball sits `0.1` above the plane
+    ///   and `0.6` from that centre: the trim radius is `√(0.6² − 0.1²)
+    ///   = √0.35`, the reading `1 − √0.35`.
+    ///
+    /// All three rims are
+    /// read before the assertion, so a red names every rim that moved.
     #[test]
     fn r1_ring_clearance_decisions_per_carve() {
-        for (rim, want) in [((1.0, 0.0), 0usize), ((1.0, 1.0), 1), ((0.5, 1.0), 2)] {
-            let body = boss();
-            let arcs = rim_arcs_at(&body, rim.0, rim.1);
-            k_stats::start_recording();
-            fillet_edges(&body, &arcs, Probe(0.1), Tol::witness()).expect("carves");
-            let samples = k_stats::take_samples();
-            let rings = samples
-                .iter()
-                .filter(|s| s.predicate == "fillet3_ring_clearance")
-                .count();
-            println!(
-                "[r1] rim {rim:?}: {} samples, {rings} fillet3_ring_clearance",
-                samples.len()
-            );
-            assert_eq!(rings, want, "rim {rim:?}");
-        }
+        let readings: Vec<Vec<f64>> = [(1.0, 0.0), (1.0, 1.0), (0.5, 1.0)]
+            .into_iter()
+            .map(|rim| {
+                let body = boss();
+                let arcs = rim_arcs_at(&body, rim.0, rim.1);
+                k_stats::start_recording();
+                fillet_edges(
+                    &sweep::test_support::at_rest(&body, Tol::witness()),
+                    &arcs,
+                    Probe(0.1),
+                    Tol::witness(),
+                )
+                .expect("carves");
+                let mut margins: Vec<f64> = k_stats::take_samples()
+                    .iter()
+                    .filter(|s| s.predicate == "fillet3_ring_clearance")
+                    .map(|s| s.margin)
+                    .collect();
+                margins.sort_by(f64::total_cmp);
+                println!("[r1] rim {rim:?}: fillet3_ring_clearance margins {margins:?}");
+                margins
+            })
+            .collect();
+        let counts: Vec<usize> = readings.iter().map(Vec::len).collect();
+        assert_eq!(
+            counts,
+            [2, 3, 1],
+            "decisions per carve: base, top outer, dome rim"
+        );
+        let near =
+            |got: &[f64], want: &[f64]| got.iter().zip(want).all(|(g, w)| (g - w).abs() < 1e-12);
+        assert!(
+            near(&readings[0], &[0.9, 0.9]),
+            "base rim: each wall half's top arc, 0.9 above the trim: {:?}",
+            readings[0]
+        );
+        assert!(
+            near(&readings[1], &[0.4, 0.9, 0.9]),
+            "top outer rim: the dome-rim ring inside the trim, then each wall half's bottom arc: {:?}",
+            readings[1]
+        );
+        let dome = 1.0 - 0.35f64.sqrt();
+        assert!(
+            near(&readings[2], &[dome]),
+            "dome rim: the outer cycle's two halves, 1 − √0.35 off the trim: {:?}",
+            readings[2]
+        );
     }
 }

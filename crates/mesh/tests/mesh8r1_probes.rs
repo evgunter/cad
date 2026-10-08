@@ -143,15 +143,18 @@ fn pole_crossing_half_cap() -> Body<f64> {
     }
     let t_end = g.param_near(a, 0.0).unwrap();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
-            radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Sphere {
+                center: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e_rim = body
@@ -300,15 +303,18 @@ fn tilted_meridian_sliver(phi: f64) -> Body<f64> {
     }
     assert!(t0 > 0.0 && t0 < 1.5, "the short arc, got {t0}");
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(v0).unwrap();
+    let seed = body.mvfs(v0, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: 1.0,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: 1.0,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e01 = body

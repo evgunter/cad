@@ -17,14 +17,19 @@
 //!   pin "which version"; a document copied under a fresh id is
 //!   detectably the same content.
 //!
-//! Everything else is INCLUDED — nodes, order, params, recorded ε,
-//! witnesses, metadata, appearance, and every FUTURE `Doc` field,
+//! Everything else is INCLUDED — nodes, order, variables and their
+//! names, recorded ε, witnesses, metadata, appearance, and every FUTURE `Doc` field,
 //! automatically: the preimage is the document's own serde form with
 //! the `id` key removed, not a curated field list, so a grown field
 //! pins by default instead of relying on someone remembering to
 //! classify it (the amendment's silent-omission rationale). New
 //! exclusions are explicit carve-outs earned by a demonstrated
 //! problem, and they ride a schema seam.
+//!
+//! Not the mint's preimage (`crate::mint`): that hashes one minting
+//! edit's statement with display units erased (D6), to answer "which
+//! node" or "which step"; these bytes are the whole document, display
+//! units included, and answer "which version".
 //!
 //! Stated consequence (spec, honest): an appearance-only edit moves
 //! the pin — a consuming assembly sees an update whose
@@ -54,24 +59,20 @@ use geom_core::Tol;
 /// (unreachable short of a serde-impl bug; surfaced, not swallowed).
 pub fn canonical_bytes(doc: &ProfileDoc, tol: Tol) -> Result<Vec<u8>, PersistError> {
     check::validate_document(doc, &[], tol)?;
-    let mut value = serde_json::to_value(doc).map_err(|e| PersistError::Serialize {
-        message: e.to_string(),
+    // Written compact inside the writing door, so a stable name of any
+    // depth writes one level at a time (`names::nest`), then put in
+    // canonical order over a heap stack: the bytes serde_json writes
+    // for the same value read into a sorted `serde_json::Value`.
+    let json = crate::names::write_door(|| serde_json::to_string(doc)).map_err(|e| {
+        PersistError::Serialize {
+            message: e.to_string(),
+        }
     })?;
-    let Some(object) = value.as_object_mut() else {
-        return Err(PersistError::Serialize {
-            message: "canonical projection: the document did not serialize as an object".into(),
-        });
-    };
     // The ONE field carve-out (D-3 as amended): identity is not
     // content. The key is structurally present (`Doc::id` has no
     // skip attribute); its absence is a serde-impl bug, surfaced.
-    if object.remove("id").is_none() {
-        return Err(PersistError::Serialize {
-            message: "canonical projection: the document object carries no `id` key".into(),
-        });
-    }
-    let json = serde_json::to_string(&value).map_err(|e| PersistError::Serialize {
-        message: e.to_string(),
+    let json = super::jsontext::canonical(&json).map_err(|why| PersistError::Serialize {
+        message: format!("canonical projection: {why}"),
     })?;
     Ok(json.into_bytes())
 }

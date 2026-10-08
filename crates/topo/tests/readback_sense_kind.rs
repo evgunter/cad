@@ -31,13 +31,12 @@ use crate::common;
 
 use geom::Curve3;
 use geom::NurbsCurve3;
+use geom::SurfaceKind;
+use geom_brep::OutwardNormal;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-use geom_brep::{OutwardNormal, SurfaceKind};
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Tol, Vec3};
-use topo::readback::{
-    DanglingRef, ReadbackError, edge_carrier_kind, edge_pose, face_carrier_kind, face_pose,
-};
+use topo::readback::{ReadbackError, edge_carrier_kind, edge_pose, face_carrier_kind, face_pose};
 use topo::{
     Body, CurveKind, EdgeKey, EntityId, FaceKey, FaceSurface, MevSite, NewVertexSide, Surface,
     query,
@@ -47,10 +46,16 @@ use topo::{
 fn seed_face(surface: Surface<f64>) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
     let seed = body
-        .mvfs(Point3::new(0.0, 0.0, 0.0))
+        .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("mvfs has no preconditions");
-    body.set_face_surface(seed.face, FaceSurface::New(surface))
-        .expect("a live face takes a surface");
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface,
+            sense: true,
+        },
+    )
+    .expect("a live face takes a surface");
     (body, seed.face)
 }
 
@@ -140,7 +145,7 @@ fn face_carrier_kind_refuses_dangling_and_nothing_else() {
     assert_eq!(
         face_carrier_kind(&empty, face),
         Err(ReadbackError::Dangling {
-            what: DanglingRef::Entity(EntityId::Face(face)),
+            what: EntityId::Face(face),
         })
     );
     assert_eq!(face_carrier_kind(&body, face), Ok(SurfaceKind::Plane));
@@ -149,7 +154,7 @@ fn face_carrier_kind_refuses_dangling_and_nothing_else() {
     // report.
     let mut bare = Body::<f64>::new();
     let seed = bare
-        .mvfs(Point3::new(0.0, 0.0, 0.0))
+        .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("mvfs has no preconditions");
     assert!(matches!(
         face_pose(&bare, seed.face),
@@ -167,7 +172,7 @@ fn face_carrier_kind_refuses_dangling_and_nothing_else() {
 fn line_edge() -> (Body<f64>, EdgeKey) {
     let mut body = Body::<f64>::new();
     let seed = body
-        .mvfs(Point3::new(0.0, 0.0, 0.0))
+        .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("mvfs has no preconditions");
     let seg = body
         .mev_line(
@@ -208,16 +213,19 @@ fn conic_edge(carrier: Curve3<f64>) -> (Body<f64>, EdgeKey) {
     let half = core::f64::consts::PI;
     let mut body = Body::<f64>::new();
     let seed = body
-        .mvfs(carrier.eval(0.0))
+        .mvfs(carrier.eval(0.0), true)
         .expect("mvfs has no preconditions");
     let plane = body
         .set_face_surface(
             seed.face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    normal: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .expect("a live face takes a surface");
     let made = body
@@ -336,7 +344,7 @@ fn edge_carrier_kind_refuses_dangling_and_no_carrier_and_nothing_else() {
     let (body, edge) = line_edge();
     let empty = Body::<f64>::new();
     let stale = ReadbackError::Dangling {
-        what: DanglingRef::Entity(EntityId::Edge(edge)),
+        what: EntityId::Edge(edge),
     };
     assert_eq!(edge_carrier_kind(&empty, edge), Err(stale));
     assert_eq!(
@@ -347,7 +355,7 @@ fn edge_carrier_kind_refuses_dangling_and_no_carrier_and_nothing_else() {
 
     let mut scaffold = Body::<f64>::new();
     let seed = scaffold
-        .mvfs(Point3::new(0.0, 0.0, 0.0))
+        .mvfs(Point3::new(0.0, 0.0, 0.0), true)
         .expect("mvfs has no preconditions");
     let null = scaffold
         .mev_null(

@@ -138,7 +138,7 @@
 //! win; sharing an abstraction would cost a layer.
 
 use crate::linalg::{Affine3, Mat3, OrthoFrame, Point3, UnitVec3, UnitVec3Error, Vec3};
-use crate::predicate::{Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate};
+use crate::predicate::{Band, BandError, Decide, Indeterminate, NO_DECLARATION_RECOURSE};
 
 use crate::tolerance::Tol;
 
@@ -201,6 +201,23 @@ impl FrameInput {
             FrameInput::RollReference => "roll reference",
             FrameInput::ReferenceLadder => "reference ladder (world +Z, then world +X)",
             FrameInput::MirrorNormal => "mirror plane normal",
+        }
+    }
+
+    /// The decision an in-band refusal about this input left open, in
+    /// words.
+    fn subject(self) -> &'static str {
+        match self {
+            FrameInput::Aim => "whether the frame's aim (target − eye) has any length",
+            FrameInput::Tangent => "whether the frame's path tangent has any length",
+            FrameInput::RollReference => {
+                "whether the frame's roll reference has any length off the aim line"
+            }
+            FrameInput::ReferenceLadder => {
+                "whether either rung of the frame's reference ladder (world +Z, then world +X) \
+                 is off the tangent line"
+            }
+            FrameInput::MirrorNormal => "whether the frame's mirror plane normal has any length",
         }
     }
 }
@@ -324,16 +341,26 @@ pub enum FrameError {
 impl core::fmt::Display for FrameError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            // No frame door takes a declaration, and the mate's
+            // declares a contact class, not a direction's length: the
+            // recourse is the levers every door here has.
             FrameError::Degenerate {
                 input,
-                indeterminate,
-            } => {
-                write!(f, "the frame's {} is degenerate", input.name())?;
-                if let Some(i) = indeterminate {
-                    write!(f, " ({})", i.payload())?;
-                }
-                write!(f, ". Recourse: {COINCIDENCE_RECOURSE}")
-            }
+                indeterminate: None,
+            } => write!(
+                f,
+                "the frame's {} is degenerate. Recourse: {NO_DECLARATION_RECOURSE}",
+                input.name()
+            ),
+            FrameError::Degenerate {
+                input,
+                indeterminate: Some(i),
+            } => write!(
+                f,
+                "{} is undecided: {}. Recourse: {NO_DECLARATION_RECOURSE}",
+                input.subject(),
+                i.payload()
+            ),
             FrameError::NonFiniteLength { input } => write!(
                 f,
                 "the frame's {} has no finite length (a component overflows the norm or \
@@ -1208,9 +1235,9 @@ mod tests {
 
     #[test]
     fn refusals_name_the_input_and_carry_the_recourse() {
-        // The two-tolerance message shape: what was degenerate, plus
-        // the shared recourse sentence (pinned by `contains`, never a
-        // full-string pin).
+        // What was degenerate, plus the levers a frame door has — no
+        // frame door takes a declaration, so the coincidence recourse
+        // is absent (pinned by `contains`, never a full-string pin).
         for (e, needle) in [
             (
                 point_at(
@@ -1235,8 +1262,38 @@ mod tests {
         ] {
             let s = e.to_string();
             assert!(s.contains(needle), "{s}");
-            assert!(s.contains(COINCIDENCE_RECOURSE), "{s}");
+            assert!(s.contains(NO_DECLARATION_RECOURSE), "{s}");
+            assert!(!s.contains("declare"), "{s}");
         }
+        // The in-band arm: the decision in words, the classifier's
+        // payload, the same levers.
+        let band = Band::linear(Tol::witness()).unwrap();
+        let in_band = 0.5 * (band.zero() + band.escalate());
+        let e = point_at(
+            Point3::origin(),
+            Point3::new(in_band, 0.0, 0.0),
+            Vec3::<f64>::unit_z(),
+            Tol::witness(),
+        )
+        .unwrap_err();
+        assert!(
+            matches!(
+                e,
+                FrameError::Degenerate {
+                    input: FrameInput::Aim,
+                    indeterminate: Some(_),
+                }
+            ),
+            "{e:?}"
+        );
+        let s = e.to_string();
+        assert!(
+            s.contains("whether the frame's aim (target − eye) has any length is undecided: "),
+            "{s}"
+        );
+        assert!(s.contains("ambiguity band"), "{s}");
+        assert!(s.contains(NO_DECLARATION_RECOURSE), "{s}");
+        assert!(!s.contains("declare"), "{s}");
     }
 
     /// **The overflow end, at each of the four normalizing sites.** A
@@ -1303,6 +1360,6 @@ mod tests {
         assert!(s.contains("path tangent"), "{s}");
         assert!(s.contains("no finite length"), "{s}");
         assert!(s.contains(crate::predicate::RANGE_RECOURSE), "{s}");
-        assert!(!s.contains(COINCIDENCE_RECOURSE), "{s}");
+        assert!(!s.contains(crate::predicate::COINCIDENCE_RECOURSE), "{s}");
     }
 }

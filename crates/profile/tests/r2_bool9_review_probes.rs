@@ -44,9 +44,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::rounded_rect;
-use geom_core::{Point2, Real, Tol};
+use geom_core::{Arc2, Point2, Real, Tol};
 use profile::{
-    Fidelity, LiftOutcome, Open, ProfileLoop, RawLoop, Start, lift_checked,
+    Fidelity, LiftOutcome, Open, ProfileLoop, RawLoop, Segment, Start, lift_checked,
     test_support::bulge_loop,
 };
 
@@ -69,34 +69,42 @@ fn awkward() -> ProfileLoop<f64> {
 // 1. The materialization door against the walks it replaced
 // ------------------------------------------------------------------
 
-/// `crates/sweep/src/loft.rs::end_profile`'s retired walk, verbatim.
+/// `crates/sweep/src/loft.rs::end_profile`'s retired walk, carried
+/// onto the stored segments: it re-lowered each segment from the bulge
+/// the loop kept, and with that bulge retired the walk that is left is
+/// every stored field through `from_f64`, positions through
+/// `Point2::map`.
 fn loft_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    bulge_loop::<T>(
-        lp.vertices()
-            .iter()
-            .zip(lp.bulges())
-            .map(|(v, &b)| (v.map(T::from_f64), T::from_f64(b)))
-            .collect(),
-    )
+    <ProfileLoop<T> as RawLoop<T>>::new(lp.vertices().iter().zip(lp.segments()).map(
+        |(v, segment)| {
+            let segment = match *segment {
+                Segment::Line => Segment::Line,
+                Segment::Arc(arc) => Segment::Arc(arc.map(T::from_f64)),
+            };
+            (v.map(T::from_f64), segment)
+        },
+    ))
     .with_tangent_joints(lp.tangent_joints().to_vec())
 }
 
 /// `crates/editor-core/src/eval/anchor.rs::embed_profile`'s retired
-/// walk, verbatim — note it spelled the position crossing out
-/// coordinate by coordinate rather than through `Point2::map`.
+/// walk, carried the same way — note it spelled the position crossing
+/// out coordinate by coordinate rather than through `Point2::map`, and
+/// so does this one, the arc's fields likewise.
 fn anchor_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    bulge_loop::<T>(
-        lp.vertices()
-            .iter()
-            .zip(lp.bulges())
-            .map(|(vx, &b)| {
-                (
-                    Point2::new(T::from_f64(vx.x), T::from_f64(vx.y)),
-                    T::from_f64(b),
-                )
-            })
-            .collect(),
-    )
+    <ProfileLoop<T> as RawLoop<T>>::new(lp.vertices().iter().zip(lp.segments()).map(
+        |(vx, segment)| {
+            let segment = match *segment {
+                Segment::Line => Segment::Line,
+                Segment::Arc(arc) => Segment::Arc(Arc2 {
+                    centre: Point2::new(T::from_f64(arc.centre.x), T::from_f64(arc.centre.y)),
+                    radius: T::from_f64(arc.radius),
+                    sweep: T::from_f64(arc.sweep),
+                }),
+            };
+            (Point2::new(T::from_f64(vx.x), T::from_f64(vx.y)), segment)
+        },
+    ))
     .with_tangent_joints(lp.tangent_joints().to_vec())
 }
 
@@ -106,9 +114,9 @@ fn same_bits(a: &ProfileLoop<f64>, b: &ProfileLoop<f64>, what: &str) {
         assert_eq!(x.x.to_bits(), y.x.to_bits(), "{what}: v{i}.x");
         assert_eq!(x.y.to_bits(), y.y.to_bits(), "{what}: v{i}.y");
         assert_eq!(
-            a.bulges()[i].to_bits(),
-            b.bulges()[i].to_bits(),
-            "{what}: v{i}.bulge"
+            format!("{:?}", a.segments()[i]),
+            format!("{:?}", b.segments()[i]),
+            "{what}: segment {i}"
         );
     }
     assert_eq!(a.tangent_joints(), b.tangent_joints(), "{what}: joints");
@@ -168,17 +176,21 @@ fn r2_embed_is_both_retired_walks_at_the_interval_scalar() {
             assert_eq!(v.x.hi().to_bits(), w.x.hi().to_bits(), "{name} v{i}.x.hi");
             assert_eq!(v.y.lo().to_bits(), w.y.lo().to_bits(), "{name} v{i}.y.lo");
             assert_eq!(v.y.hi().to_bits(), w.y.hi().to_bits(), "{name} v{i}.y.hi");
-            let (vb, wb) = (door.bulges()[i], other.bulges()[i]);
-            assert_eq!(vb.lo().to_bits(), wb.lo().to_bits(), "{name} v{i}.b.lo");
-            assert_eq!(vb.hi().to_bits(), wb.hi().to_bits(), "{name} v{i}.b.hi");
+            assert_eq!(
+                format!("{:?}", door.segments()[i]),
+                format!("{:?}", other.segments()[i]),
+                "{name} segment {i}"
+            );
         }
         // And the crossing is exact: every interval is a point.
         assert_eq!(v.x.lo().to_bits(), v.x.hi().to_bits(), "v{i}.x is thin");
-        assert_eq!(
-            door.bulges()[i].lo().to_bits(),
-            door.bulges()[i].hi().to_bits(),
-            "v{i}.b is thin"
-        );
+        if let Segment::Arc(arc) = door.segments()[i] {
+            assert_eq!(
+                arc.sweep.lo().to_bits(),
+                arc.sweep.hi().to_bits(),
+                "segment {i}'s sweep is thin"
+            );
+        }
     }
     assert_eq!(door.tangent_joints(), loft.tangent_joints());
     assert_eq!(door.tangent_joints(), anchor.tangent_joints());
