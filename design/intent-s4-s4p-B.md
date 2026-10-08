@@ -61,9 +61,8 @@ enum of places a Zero verdict glues, merges or makes pieces touch.
   "every coincidence the kernel infers from values … is recorded" as a type rather than a
   review item.
 - *Rows are stable.* A decision's cells are the operands' cells, which the operands' tables
-  resolve directly (the boolean emitter already chases grafted keys back to B's keys for
-  `FromB`). Only `Born` subjects follow the op's own descendant map, as names do. The
-  spec's "re-keyed through every graft" applies to records, not rows.
+  resolve directly (the boolean emitter already chases grafted keys back for `FromB`); only
+  `Born` subjects follow the op's descendant map. "Re-keyed through every graft" is records'.
 - *The finding, the assertion and the recourse share a currency*: selections, and the
   minting node a selection already identifies.
 
@@ -134,11 +133,10 @@ E list plus the grep of readers: `plane_eq`, `carrier_eq`, `merge_faces`, `reduc
 
 ## For the orchestrator
 
-- **Contamination, declared.** A grep for `FORK-S4` over the spec returned §14's option lists
-  and recommendations for S4-1 and S4-3 (lines 571–594) before I could avoid them. I formed
-  the view from the code first and the above differs from §14 on S4-3 (not one type; two
-  linked) and sharpens S4-1 (the cell is a selection, provenance is a DAG walk, and
-  `ParamSource`/`AxisSource` retire with `GeomSource`). Weigh accordingly.
+- **Contamination, declared.** A grep for `FORK-S4` returned §14's S4-1/S4-3 option lists
+  (lines 571–594) before I could avoid them. The view above was formed from the code; it
+  differs from §14 on S4-3 (two linked types, not one) and sharpens S4-1 (the cell is a
+  selection, provenance a DAG walk, `ParamSource`/`AxisSource` retire too). Weigh accordingly.
 - **Unverified.** No unit-B branch exists on origin (only `intent/stage4-spec`), so I
   designed against the spec text. The clone is shallow, so `git log -S` for N6/C3/D1 returned
   grafts; provenance is from the companion table (#74; #178, #965).
