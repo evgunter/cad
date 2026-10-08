@@ -106,7 +106,20 @@ fn chase_split_edge_to_table<T: Decide>(
     table: &NameTable,
     e: EdgeKey,
 ) -> Result<EdgeKey, NamingError> {
-    let bound: usize = sides.iter().map(|s| s.body.edges().count()).sum();
+    chase_split_lineage(sides, table, &BTreeMap::new(), e)
+}
+
+/// [`chase_split_edge_to_table`] through `lineage` too: the split
+/// records an edge its join killed with the edge it was split from
+/// (`SplitNaming::joined_lineage`), since the kill took the birth
+/// record the halves would otherwise hold.
+fn chase_split_lineage<T: Decide>(
+    sides: &[Side<'_, T>],
+    table: &NameTable,
+    lineage: &BTreeMap<EdgeKey, EdgeKey>,
+    e: EdgeKey,
+) -> Result<EdgeKey, NamingError> {
+    let bound: usize = sides.iter().map(|s| s.body.edges().count()).sum::<usize>() + lineage.len();
     let mut root = e;
     for _ in 0..=bound {
         if table.name_of(&ent(0, EntityKey::Edge(root))).is_some() {
@@ -118,8 +131,8 @@ fn chase_split_edge_to_table<T: Decide>(
             held.all(|other| Some(other) == record),
             "split halves disagree on edge {root:?}'s birth record"
         );
-        match record {
-            Some(Provenance::SplitEdge { edge }) => root = *edge,
+        match (record, lineage.get(&root)) {
+            (Some(Provenance::SplitEdge { edge }), _) | (None, Some(edge)) => root = *edge,
             _ => return Ok(root),
         }
     }
@@ -274,6 +287,126 @@ pub(super) fn chord_faces<T: geom_core::Real>(
 /// `OnToolVertex`. The edges are grouped by their parent first, the
 /// vertices named from those parents, and then several pieces of one
 /// parent qualified by their ends ([`name_edge_pieces`]).
+/// How a split names an edge its closing join made, read off the join
+/// records (`SplitNaming::edge_joins`) by the input cells the edge's
+/// cover lies along (`topo::join_covers`, each covered edge chased to
+/// its operand root through `SplitNaming::joined_lineage`).
+#[derive(Clone)]
+enum Joined {
+    /// The cover lies along exactly one operand edge, and no other live
+    /// edge of either side descends from it: the edge IS that operand
+    /// edge, cut and joined back whole, and takes its own name.
+    Whole(Upstream),
+    /// The cover lies along several whole operand edges: the `Merged`
+    /// set of their names.
+    Set { name: StableName, tied: bool },
+}
+
+/// The joined edges of both sides whose covers lie along whole operand
+/// edges, with their names ([`Joined`]). An edge left out takes the
+/// pass it would take unjoined:
+/// - its cover lies along section chords alone, so it is a chord of
+///   the operand face it crosses, as every chord is (`SectionEdge`);
+/// - its cover lies along part of ONE operand edge whose other pieces
+///   live on, so it is a piece of that edge (`SplitFragment`).
+///
+/// # Errors
+///
+/// [`NamingError::Emission`] where a cover has no input-cell reading:
+/// a section chord joined to a piece of an operand edge, or pieces of
+/// several operand edges not one of which it holds whole. No `ci` row
+/// reaches either (`work/fuse/a-finished-body-holds-no-joinable-vertex.md`,
+/// PR B); each is the ruling's stop case, refused rather than named.
+fn split_joined_readings<T: Decide>(
+    node: RecipeNodeId,
+    sides: &[Side<'_, T>],
+    naming: &SplitNaming,
+    root_of: &BTreeMap<EdgeKey, EdgeKey>,
+    target_node: RecipeNodeId,
+    target_table: &NameTable,
+) -> Result<BTreeMap<EdgeKey, Joined>, NamingError> {
+    let bug = |what| NamingError::Emission { what };
+    let lineage: BTreeMap<EdgeKey, EdgeKey> = naming.joined_lineage.iter().copied().collect();
+    // Keys are unique across the two halves (restrictions of one
+    // arena), and each side's joins keep their order, so one chase
+    // over both sides' rows is each side's.
+    let joins: Vec<topo::EdgeJoin> = naming.edge_joins.iter().map(|&(_, j)| j).collect();
+    // Each record states the half it was made on: the edge it leaves
+    // lives there (the mirrored run's records are flipped to say so).
+    for &(side, j) in &naming.edge_joins {
+        let half = match side {
+            PlaneSide::Above => SplitHalf::Above,
+            PlaneSide::Below => SplitHalf::Below,
+            PlaneSide::On => return Err(bug("a split join's record names no half")),
+        };
+        let left = topo::joined_edge(&joins, j.kept);
+        if !sides
+            .iter()
+            .any(|sb| sb.half == half && sb.body.get_edge(left).is_some())
+        {
+            return Err(bug("a split join's record names a half its edge is not on"));
+        }
+    }
+    let named = |k: EdgeKey| target_table.name_of(&ent(0, EntityKey::Edge(k))).is_some();
+    let mut out = BTreeMap::new();
+    for (kept, cover) in topo::join_covers(&joins) {
+        if !sides.iter().any(|sb| sb.body.get_edge(kept).is_some()) {
+            return Err(bug("a split join's kept edge is in neither half"));
+        }
+        let mut roots = BTreeSet::new();
+        let mut chords = 0usize;
+        for &c in &cover {
+            let root = chase_split_lineage(sides, target_table, &lineage, c)?;
+            if named(root) {
+                roots.insert(root);
+            } else {
+                chords += 1;
+            }
+        }
+        if roots.is_empty() {
+            continue; // chords alone: the chord pass names it
+        }
+        if chords > 0 {
+            return Err(bug(
+                "a split joined a section chord to an operand edge's piece, which no input \
+                 cell reads",
+            ));
+        }
+        // Whole: no other live edge of either side descends from the root.
+        let whole = |r: EdgeKey| root_of.iter().all(|(&e, &er)| er != r || e == kept);
+        match roots.into_iter().collect::<Vec<_>>().as_slice() {
+            [r] if whole(*r) => {
+                let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(*r)))?;
+                out.insert(kept, Joined::Whole(up));
+            }
+            [_] => {} // a piece: the fragment pass names it
+            several if several.iter().all(|&r| whole(r)) => {
+                let mut tied = false;
+                let mut names = Vec::with_capacity(several.len());
+                for &r in several {
+                    let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(r)))?;
+                    tied |= up.tied;
+                    names.push((*up.name).clone());
+                }
+                out.insert(
+                    kept,
+                    Joined::Set {
+                        name: merged::edge_set(node, names),
+                        tied,
+                    },
+                );
+            }
+            _ => {
+                return Err(bug(
+                    "a split joined pieces of several operand edges, holding none of them \
+                     whole, which no input cell reads",
+                ));
+            }
+        }
+    }
+    Ok(out)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn name_split_edges_vertices<T: Decide>(
     node: RecipeNodeId,
@@ -293,25 +426,32 @@ fn name_split_edges_vertices<T: Decide>(
         naming.vertex_pairs.iter().copied().collect();
     // (side, base) → (from a tie, the side's edges under it).
     let mut edge_groups: BTreeMap<(usize, StableName), (bool, Vec<EdgeKey>)> = BTreeMap::new();
-    // A divided parent is collected across BOTH sides first: a
-    // kept-key first child looks like an intact operand edge in ITS
-    // side alone.
-    let mut divided_edges: BTreeSet<EdgeKey> = BTreeSet::new();
+    // Every live edge's operand root, once, on both sides.
+    let mut root_of: BTreeMap<EdgeKey, EdgeKey> = BTreeMap::new();
     for sb in sides {
         for (e, _) in sb.body.edges() {
-            // FRESH children only: an edge the target table already
-            // names is the target's own entity, not a product of THIS
-            // split.
-            if target_table.name_of(&ent(0, EntityKey::Edge(e))).is_none()
-                && matches!(
-                    sb.body.edge_provenance_of(e),
-                    Some(Provenance::SplitEdge { .. })
-                )
-            {
-                divided_edges.insert(chase_split_edge_to_table(sides, target_table, e)?);
-            }
+            root_of.insert(e, chase_split_edge_to_table(sides, target_table, e)?);
         }
     }
+    // A divided parent is collected across BOTH sides first: a
+    // kept-key first child looks like an intact operand edge in ITS
+    // side alone. FRESH children only: an edge the target table already
+    // names is the target's own entity, not a product of THIS split.
+    let divided_edges: BTreeSet<EdgeKey> = sides
+        .iter()
+        .flat_map(|sb| sb.body.edges().map(|(e, _)| e))
+        .filter(|&e| {
+            target_table.name_of(&ent(0, EntityKey::Edge(e))).is_none()
+                && sides.iter().any(|sb| {
+                    matches!(
+                        sb.body.edge_provenance_of(e),
+                        Some(Provenance::SplitEdge { .. })
+                    )
+                })
+        })
+        .map(|e| root_of[&e])
+        .collect();
+    let joined = split_joined_readings(node, sides, naming, &root_of, target_node, target_table)?;
     for (slot, s) in sides.iter().enumerate() {
         let body = s.body;
         let chord_faces = chord_faces(body, &naming.sections, section_keys)?;
@@ -321,6 +461,16 @@ fn name_split_edges_vertices<T: Decide>(
         // `SectionEdge{side, face}` spells alike: pieces of one parent,
         // told apart by their ends like any other (N2).
         for (&e, &other) in &chord_faces {
+            if joined.contains_key(&e) {
+                // An operand edge lying in the cut plane bounds a section
+                // face as a chord does; joined, it is named by the
+                // operand edges its cover lies along, below. Reaching
+                // this takes a vertex on the plane between two collinear
+                // operand edges in it whose every off-plane edge fell to
+                // the other half; no `ci` row builds one, and the records
+                // decide the reading whatever `chord_faces` holds.
+                continue;
+            }
             let root = chase(frag_rows, other)?;
             if section_keys.contains(&root) {
                 return Err(bug("section chord adjacent to a section face"));
@@ -343,10 +493,23 @@ fn name_split_edges_vertices<T: Decide>(
         let mut pieces_of: BTreeMap<EdgeKey, Vec<EdgeKey>> = BTreeMap::new();
         // Remaining edges: pass-through or crossing-cut fragments.
         for (e, _) in body.edges() {
+            match joined.get(&e) {
+                // A joined edge whose cover lies along whole operand
+                // edges: the one's own name, or the set of them.
+                Some(Joined::Whole(up)) => {
+                    tie.carry(up.clone(), ent(s.ix, EntityKey::Edge(e)))?;
+                    continue;
+                }
+                Some(Joined::Set { name, tied }) => {
+                    put(t, tie, *tied, name.clone(), ent(s.ix, EntityKey::Edge(e)))?;
+                    continue;
+                }
+                None => {}
+            }
             if chord_faces.contains_key(&e) {
                 continue;
             }
-            let root = chase_split_edge_to_table(sides, target_table, e)?;
+            let root = root_of[&e];
             pieces_of.entry(root).or_default().push(e);
             if target_table.name_of(&ent(0, EntityKey::Edge(e))).is_some()
                 && !divided_edges.contains(&root)
