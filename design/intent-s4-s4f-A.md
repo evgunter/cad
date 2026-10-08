@@ -27,7 +27,6 @@ builders and its corpus witness are never built. `verbs::flow::ParamFlow` and th
 retire with `RadiusEvidence`. Confidence: **likely**.
 
 ### Premise check
-
 1. **The fork asks how a description is kept true to its code. That description need not
    exist.** The formula Ev's mitre answer wants ("a face's carrier defined as a formula
    over the node's inputs") is what the generic kernel already computes at `Sym`. A
@@ -48,17 +47,13 @@ retire with `RadiusEvidence`. Confidence: **likely**.
    (likely: the transcript gives the assistant's turns only in summary)
 
 ### What "states" then means
-
 A construction states what its outputs depend on by being generic code over the scalar.
 "Which of its inputs" is the set of symbols in the output's form: something observed,
-never declared. D10's two examples become tests:
-
-- an extrude's cap form contains no profile symbol;
-- the walls of two stacked extrudes over one profile reduce equal, because the base offset
-  `h·d` lies in the wall's plane and the plane's symmetry forgets it.
+never declared. D10's two examples become tests: an extrude's cap form contains no profile
+symbol, and the walls of two stacked extrudes over one profile reduce equal, because the
+base offset `h·d` lies in the wall's plane and the plane's symmetry forgets it.
 
 ### How it stays true
-
 The form is the code, so no verb needs its own guard. Two hazards remain:
 
 - **Value laundering would prove something false.** If a construction turns a computed
@@ -69,7 +64,6 @@ The form is the code, so no verb needs its own guard. Two hazards remain:
   1. re-value every variable of each corpus document at a random point;
   2. evaluate there the forms derived at the nominal point;
   3. check they equal the f64 build of the re-valued document.
-
   A laundered constant does not move with its variables, so the check fails. (likely)
 - **Numerical algorithms** (surface–surface intersection, fitting, the mate solve) give
   opaque forms and prove nothing, the sound direction (like the spec's `Opaque`). Their
@@ -81,18 +75,15 @@ Proofs are polynomial identities, so a refactor that keeps the mathematics keeps
 verdict.
 
 ### Cost at the door
-
 - **One `Sym` evaluation per document**, run up to the last deciding node and only when
   the lint is asked for. It is memoized by content key like any lane, so after an edit
   only the edited cone replays. The f64 build pays nothing.
-- Per row: two canonicalizations for rung 2; rung 3 reads a margin the replay already
-  computed.
+- Per row: two canonicalizations for rung 2; rung 3 reads a margin already computed.
 - Measured on the corpus and tour when it lands (the spec already measures box mitres).
   If too slow, the fallbacks in order are the memo, then the per-node theorem cache Ev
   allowed. (unsure: I found no whole-corpus timing of `Sym` through booleans)
 
 ### Worked example
-
 | Case | Rung 2 | Rung 3 |
 |---|---|---|
 | Blocks `h` and `h/2 + h/2`, stacked | both offsets normalize to `h`: proven | — |
@@ -100,14 +91,13 @@ verdict.
 | Box mitre | two carriers: no proof | `dot(d, cross(d,t))/‖…‖ ≡ 0`: proven |
 
 ### The options as final states
-
 - **A (recommended): forms derived from the code at `Sym`.**
   - One source of truth and no per-verb tables. `ParamFlow` and its census test retire.
   - Projections reduce for free: a face-frame datum is computed from its face's carrier.
   - Transforms built from slots compose as formulas; a solved mate pose stays opaque
     until stage 3 defines a placed copy's frame from its mates.
-  - Still possible: laundering, caught by the one test.
-  - Reversible: a cache can be added later without changing a verdict.
+  - Still possible: laundering, caught by the one test. Reversible: a cache can be added
+    later without changing a verdict.
 - **B: the spec's hand-written `CarrierFlow`, plus a witness.**
   - Cheap, needs no replay, and matches D10's "states" to the letter.
   - The witness checks the corpus's points, but a form claims every value. A form that
@@ -142,20 +132,17 @@ verdict.
 
 - **Spec deltas if A is taken.**
   - §1 and §4 lose `CarrierFlow`, the hand-built `LinForm`/`PoseForm` and the witness.
-  - Test 11 becomes the re-valuation test. Keep a mutant that launders `depth` through
-    `from_f64`.
-  - C and D share one replay, so they are better as one unit.
+  - Test 11 becomes the re-valuation test, keeping a mutant that launders `depth` through
+    `from_f64`. C and D share one replay, so they are better as one unit.
   - C's needs on stage 2 A/B/E probably shrink: whatever the evaluation reads is a symbol
     once its slot is a `VarId`. Unchecked against the frame reads in `wire.rs`.
   - Before stage 3, a slot-built `Transform` composes symbolically, so C's opaque
     placement atom may be unnecessary. H/FORK-S4-5 are unchanged in substance.
-- **Unchecked:**
-  - whole-document `Sym` cost through booleans (only the `m10_*` tests run it);
-  - whether the kernel's `Plane`/axis fields can be read at `Sym` without new accessors;
-  - the lane: `Sym` decides Zero only over a `CertifiedEnclosure`, so the lint runs
-    `Sym<Interval>` at point boxes;
-  - whether any carrier routine launders today. An audit of `from_f64(` applied to
-    computed values in `sweep` and `topo` is cheap.
-- **Provenance:** the 2026-10-03 transcripts are not in this shallow clone. Part 2 was
-  read through the GitHub contents API at `3d70e5de72`.
-- I filed no defects; I found none off the question.
+- **Unchecked:** whole-document `Sym` cost through booleans (only the `m10_*` tests run
+  it); whether the kernel's `Plane`/axis fields can be read at `Sym` without new
+  accessors; the lane (`Sym` decides Zero only over a `CertifiedEnclosure`, so the lint
+  runs `Sym<Interval>` at point boxes); whether any carrier routine launders today (an
+  audit of `from_f64(` on computed values in `sweep` and `topo` is cheap).
+- **Provenance:** the 2026-10-03 transcripts are not in this shallow clone; part 2 was read
+  through the GitHub contents API at `3d70e5de72`. I filed no defects; I found none off
+  the question.
