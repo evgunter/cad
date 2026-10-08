@@ -33,8 +33,7 @@
 //! zero residual would read definitely negative — and stops at the
 //! no-crossings fallback's section pass, on the coincident pair's
 //! tangency. The peg seated in its socket goes further: its union
-//! builds through the join, up to the band where its section loops'
-//! roles escalate.
+//! builds through the join.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -225,32 +224,15 @@ fn wall_declarations(
 /// additive (the parts only touch), one shell of four faces, six edges
 /// and four vertices, and a legal operand.
 ///
-/// At ε up to 2e-7 the chord join builds it (each strut's half beside
-/// a germ's locus edge faces it). From 3e-7 the join's role probe reads
-/// both section loops in band and refuses
-/// `Join(SectionLoopUndecided)`, the curved-face frontier
-/// (`work/join/peg-in-socket-union-refuses-join-desync-at-a-coarse-eps.md`):
-/// a band escalation, which stands.
+/// The chord join builds it at every ε (each strut's half beside a
+/// germ's locus edge faces it).
 fn peg_in_socket_union_holds(
     s: &AtRestBody<f64>,
     p: &AtRestBody<f64>,
     decls: &BooleanDeclarations,
 ) {
-    let r = topo::union_with(s, p, decls, Tol::witness());
-    if Tol::witness().eps() >= 3e-7 {
-        assert!(
-            matches!(
-                r,
-                Err(topo::BooleanError::Join(
-                    topo::SplitJoinError::SectionLoopUndecided { .. }
-                ))
-            ),
-            "the peg-in-socket union's section loops escalate at ε = {}: {r:?}",
-            Tol::witness().eps()
-        );
-        return;
-    }
-    let r = r.unwrap_or_else(|e| panic!("the peg-in-socket union builds: {e:?}"));
+    let r = topo::union_with(s, p, decls, Tol::witness())
+        .unwrap_or_else(|e| panic!("the peg-in-socket union builds: {e:?}"));
     let bb = r.body().expect("a union of two solids is not empty");
     assert_eq!(topo::validate_closed(&bb.body), Ok(()), "tier 2");
     assert_eq!(

@@ -287,7 +287,7 @@ fn split_collar() -> Body<f64> {
 /// seam azimuth every shaft span unions in both orders and at every
 /// pose. Off the seam, the circle's own vertex sits inside a shaft wall
 /// third
-/// ([`a_bore_split_on_its_own_carrier_unions_off_the_seam_where_the_shaft_ends_at_a_rim`]).
+/// ([`a_bore_split_on_its_own_carrier_unions_off_the_seam_at_every_span`]).
 #[test]
 fn a_bore_split_on_its_own_carrier_unions_at_the_seam_azimuth() {
     unions_at(&split_collar(), 0.0, "split bore");
