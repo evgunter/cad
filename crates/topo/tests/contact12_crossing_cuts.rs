@@ -59,10 +59,9 @@ fn overlaps_on(errors: &[ValidationError], face: FaceKey) -> Vec<String> {
 /// Bare, the seat reports each resting stretch at a point inside the
 /// face it rests in: the shelf edge on the cap between the cap's two
 /// sides (`x = 0.2`), the cap's lower edge on the underside, and each
-/// cap side edge on the shelf's underside
-/// from its lower corner up to the shelf edge (`y = 0.25`) — never a
-/// stretch's far part outside the face, and none missed because the
-/// edge's own midpoint lies outside.
+/// cap side edge on the underside from its lower corner up to the shelf
+/// edge (`y = 0.25`) — never a stretch's far part outside the face, and
+/// none missed because the edge's own midpoint lies outside.
 #[test]
 fn the_bare_lap_seat_reports_each_stretch_inside_its_face() {
     let (body, cap, underside) = lap_seat();
