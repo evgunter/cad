@@ -313,7 +313,7 @@ fn the_authoring_door_refuses_but_define_var_does_not() {
         &DocEdit::SetParam {
             node: s.profile,
             slot: radius_slot,
-            expr: len(0.0),
+            value: len(0.0).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -339,7 +339,7 @@ fn the_authoring_door_refuses_but_define_var_does_not() {
         &DocEdit::SetParam {
             node: s.profile,
             slot: radius_slot,
-            expr: len(0.3),
+            value: len(0.3).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),

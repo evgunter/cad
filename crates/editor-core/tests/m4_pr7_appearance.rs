@@ -468,7 +468,7 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
         DocEdit::SetParam {
             node: ext,
             slot: editor_core::SlotId::Distance,
-            expr: len(0.0),
+            value: len(0.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -485,7 +485,7 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
         DocEdit::SetParam {
             node: ext,
             slot: editor_core::SlotId::Distance,
-            expr: len(1.0),
+            value: len(1.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -531,7 +531,7 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
         DocEdit::SetParam {
             node: a,
             slot: editor_core::SlotId::Distance,
-            expr: len(0.0),
+            value: len(0.0).into(),
             fresh: Vec::new(),
         },
     );

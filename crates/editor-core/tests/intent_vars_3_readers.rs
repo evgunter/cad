@@ -449,7 +449,7 @@ fn the_door_lowers_names_before_it_mints() {
         DocEdit::SetParam {
             node: blend,
             slot: SlotId::Radius,
-            expr: named("nowhere"),
+            value: named("nowhere").into(),
             fresh: Vec::new(),
         },
     ) {
@@ -475,7 +475,7 @@ fn the_door_lowers_names_before_it_mints() {
         DocEdit::SetParam {
             node: blend,
             slot: SlotId::Radius,
-            expr: named("a"),
+            value: named("a").into(),
             fresh: Vec::new(),
         },
     ) {
@@ -483,14 +483,14 @@ fn the_door_lowers_names_before_it_mints() {
             var,
             node,
             slot,
-            declared,
-            referenced,
+            found: declared,
+            expected: editor_core::SlotKind::Is(referenced),
         }) => {
             assert_eq!(var.id(), id(&with_angle, "a"));
             assert_eq!((node.id(), slot), (blend, SlotId::Radius));
             assert_eq!(
                 (declared, referenced),
-                (editor_core::VarKind::Angle, Dimension::Length)
+                (editor_core::VarKind::Angle, editor_core::VarKind::Length)
             );
         }
         other => panic!("a name of the wrong kind refuses at the slot, got {other:?}"),
@@ -499,7 +499,7 @@ fn the_door_lowers_names_before_it_mints() {
     // A log holding authored names replays to the same ids.
     let mut log = vec![DocEdit::DeclareVar {
         name: n("w"),
-        def: VarDecl::Free(FreeVar::continuous(Dimension::Length, R)),
+        def: VarDecl::Free(FreeVar::continuous(editor_core::Dimension::Length, R)),
     }];
     let mut recorded = ProfileDoc::empty(DocumentId::derive("intent-vars-3-log"), Tol::witness());
     recorded = step(&recorded, log[0].clone()).doc;
@@ -599,7 +599,7 @@ fn an_anonymous_variable_lives_as_long_as_its_readers() {
         DocEdit::SetParam {
             node: blend,
             slot: SlotId::Radius,
-            expr: len(R),
+            value: len(R).into(),
             fresh: Vec::new(),
         },
     );
@@ -1598,7 +1598,7 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
             DocEdit::SetParam {
                 node: extrude,
                 slot: SlotId::Distance,
-                expr: Formula::var(var, Dimension::Length),
+                value: Formula::var(var, Dimension::Length).into(),
                 fresh: Vec::new(),
             },
         ) {
@@ -1677,7 +1677,7 @@ fn a_respoken_refusal_says_the_variables_new_name() {
         DocEdit::SetParam {
             node: blend,
             slot: SlotId::Radius,
-            expr: Formula::var(id(&doc, "ang_old"), Dimension::Length),
+            value: Formula::var(id(&doc, "ang_old"), Dimension::Length).into(),
             fresh: Vec::new(),
         },
     )

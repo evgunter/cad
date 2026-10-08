@@ -106,7 +106,7 @@ fn respelled(doc: &ProfileDoc, arg: StepArg, expr: Formula) -> ProfileDoc {
         &DocEdit::SetParam {
             node: profile(doc),
             slot: *slot,
-            expr,
+            value: expr.into(),
             fresh: Vec::new(),
         },
         Tol::witness(),

@@ -115,7 +115,7 @@ fn expr_path_survives_edits_to_other_expressions() {
             &TEdit::SetParam {
                 node: datum,
                 slot: SlotId::Origin(editor_core::Axis3::X),
-                expr: len(0.042),
+                value: len(0.042).into(),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -314,7 +314,7 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
             &TEdit::SetParam {
                 node: extrude,
                 slot: SlotId::Distance,
-                expr: scl(1.0),
+                value: scl(1.0).into(),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -325,7 +325,7 @@ fn structural_and_continuous_edit_arms_are_disjoint() {
         err,
         EditError::SlotDimensionMismatch {
             slot: SlotId::Distance,
-            expected: Dimension::Length,
+            expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
             found: Dimension::Scalar,
         }
     );

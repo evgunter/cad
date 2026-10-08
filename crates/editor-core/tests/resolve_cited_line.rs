@@ -91,7 +91,7 @@ fn slide(doc: &ProfileDoc, node: RecipeNodeId, axis: Axis3, by: f64) -> ProfileD
         DocEdit::SetParam {
             node,
             slot: SlotId::Translation(axis),
-            expr: len(by),
+            value: len(by).into(),
             fresh: Vec::new(),
         },
     )

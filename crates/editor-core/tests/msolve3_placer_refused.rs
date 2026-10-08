@@ -451,7 +451,7 @@ fn a1_two_faults_on_one_placer_pick_the_same_winner() {
 /// door.
 #[test]
 fn a1_a_circular_rule_over_a_non_axis_is_refused_at_the_door() {
-    use editor_core::{EditError, OperandKind, OperandSlot, VarKind};
+    use editor_core::{EditError, OperandSlot, SlotKind, VarKind};
     let (doc, body) = block("msolve3-circular");
     let (doc, plane) = insert(
         doc,
@@ -494,10 +494,10 @@ fn a1_a_circular_rule_over_a_non_axis_is_refused_at_the_door() {
         assert!(
             matches!(
                 &refusal,
-                EditError::OperandVarKind {
-                    slot: OperandSlot::Axis,
+                EditError::SlotVarKind {
+                    slot: editor_core::SlotId::Operand(OperandSlot::Axis),
                     found: f,
-                    expected: OperandKind::Is(VarKind::Axis),
+                    expected: SlotKind::Is(VarKind::Axis),
                     ..
                 } if *f == found
             ),

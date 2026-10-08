@@ -187,13 +187,13 @@ fn a_replayed_history_is_the_files_log_step_for_step() {
         DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: common::len(0.02),
+            value: common::len(0.02).into(),
             fresh: Vec::new(),
         },
         DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: common::len(0.03),
+            value: common::len(0.03).into(),
             fresh: Vec::new(),
         },
     ];

@@ -431,9 +431,9 @@ fn read_refusal(
         ) => SnapshotError::SlotVarKind {
             node,
             slot,
-            var: snapshot.spoken_var(var),
-            declared,
-            referenced,
+            var: Box::new(snapshot.spoken_var(var)),
+            found: declared,
+            expected: crate::SlotKind::Is(VarKind::from(referenced)),
         },
         (
             ReadAddress::Payload,
@@ -685,7 +685,7 @@ fn first_definition_cycle(snapshot: &ProfileDoc) -> Option<SnapshotError> {
 fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId, VarReadFault)> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
         node.rows().into_iter().find_map(|(slot, &var)| {
-            let reader = Expr::var(var, slot.dimension());
+            let reader = Expr::var(var, slot.expr_dimension());
             Some((id, slot, refused_read(snapshot, &reader)?))
         })
     })
@@ -694,7 +694,7 @@ fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId,
 /// **The first operand read this door refuses**, in document order and
 /// within a node in field order: a read of a variable the mint log
 /// does not hold, a live read of a kind its seat does not admit
-/// ([`crate::OperandKind::admits`], the edit doors' rule), or a part
+/// ([`crate::SlotKind::admits`], the edit doors' rule), or a part
 /// projection over a split reading the other half. A placer's read
 /// keeping its output's shape is [`Walk::OutputSignature`]'s.
 fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
@@ -716,9 +716,9 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
             }
             let held = snapshot.var(var)?;
             if !slot.kind().admits(held) {
-                return Some(SnapshotError::OperandVarKind {
+                return Some(SnapshotError::SlotVarKind {
                     node: snapshot.spoken(id),
-                    slot,
+                    slot: SlotId::Operand(slot),
                     var: Box::new(snapshot.spoken_var(var)),
                     found: held.kind(),
                     expected: slot.kind(),
@@ -958,8 +958,6 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::SetProgram { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::DeleteNode { .. }
-        // An operand is a read: ids, never a float.
-        | DocEdit::SetOperand { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
         // A side is one of two words.
@@ -1097,21 +1095,6 @@ pub enum SnapshotError {
         slot: crate::OperandSlot,
         /// The read.
         var: SpokenVar,
-    },
-    /// An operand reads a live variable of a kind its seat does not
-    /// admit — the edit doors' [`crate::EditError::OperandVarKind`], by
-    /// the same rule ([`crate::OperandKind::admits`]).
-    OperandVarKind {
-        /// The reading node.
-        node: SpokenNode,
-        /// The operand.
-        slot: crate::OperandSlot,
-        /// The read, boxed so the refusal stays a small `Err`.
-        var: Box<SpokenVar>,
-        /// The variable's kind.
-        found: crate::VarKind,
-        /// What the seat admits.
-        expected: crate::OperandKind,
     },
     /// A part projection over a split reads the split's other half —
     /// the edit doors' [`crate::EditError::PartHalfPort`].
@@ -1278,21 +1261,25 @@ pub enum SnapshotError {
         /// The id it reads.
         var: VarId,
     },
-    /// A node whose SLOT expression reads a live variable at another
-    /// dimension than its kind. The edit door refuses it through the
-    /// same predicate (`Doc::var_read_faults`), so a file carrying one
-    /// is data the edit doors could not have produced.
+    /// A node's slot reads a live variable of a kind it does not
+    /// admit: a SLOT expression reads one at another dimension than its
+    /// kind, or an operand reads one its field does not take. The edit
+    /// doors refuse both through the same predicates
+    /// (`Doc::var_read_faults`, [`crate::SlotKind::admits`]), so a file
+    /// carrying one is data the edit doors could not have produced.
     SlotVarKind {
         /// The offending node.
         node: SpokenNode,
-        /// The slot whose expression reads it.
+        /// The slot that reads it.
         slot: SlotId,
-        /// The variable it reads.
-        var: SpokenVar,
-        /// The dimension the variable's kind reads at.
-        declared: VarKind,
-        /// The dimension the expression reads it at.
-        referenced: crate::expr::Dimension,
+        /// The variable it reads, boxed so the refusal stays a small
+        /// `Err`.
+        var: Box<SpokenVar>,
+        /// The variable's kind.
+        found: VarKind,
+        /// What the read there takes: for an expression, the kind of
+        /// the dimension it reads the variable at.
+        expected: crate::SlotKind,
     },
     /// A node whose PAYLOAD expression — a measured expression's value
     /// leaf or an assertion's bound, the expressions no slot addresses
@@ -1514,17 +1501,6 @@ impl core::fmt::Display for SnapshotError {
                  was a read. {}",
                 crate::sentence::Recourse(super::REGENERATE_RECOURSE)
             ),
-            Self::OperandVarKind {
-                node,
-                slot,
-                var,
-                found,
-                expected,
-            } => write!(
-                f,
-                "{node}'s {slot} reads {var}, which is {} {found}, where it takes {expected}",
-                crate::sentence::article(&found.to_string()),
-            ),
             Self::PartHalfPort { node, half, var } => {
                 write!(f, "{node} selects the {} half but reads {var}", half.name())
             }
@@ -1686,14 +1662,21 @@ impl core::fmt::Display for SnapshotError {
                 node,
                 slot,
                 var,
-                declared,
-                referenced,
-            } => write!(
-                f,
-                "{node}: slot {} reads {var} as {} {referenced}, and it is declared {declared}",
-                slot.label(),
-                referenced.article()
-            ),
+                found,
+                expected,
+            } => match expected {
+                crate::SlotKind::Is(kind) if let Some(referenced) = kind.dimension() => write!(
+                    f,
+                    "{node}: slot {} reads {var} as {} {referenced}, and it is declared {found}",
+                    slot.label(),
+                    referenced.article()
+                ),
+                _ => write!(
+                    f,
+                    "{node}'s {slot} reads {var}, which is {} {found}, where it takes {expected}",
+                    crate::sentence::article(&found.to_string()),
+                ),
+            },
             Self::PayloadVarKind {
                 node,
                 var,
@@ -1953,7 +1936,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     }
     // Every declared pair, by the rule its edit doors ask
     // (`node::declared_side_fault`), as far as a stored document can
-    // still be held to it: a re-point (`SetOperand`, `SetMembers`)
+    // still be held to it: a re-point (`SetParam` at an operand, `SetMembers`)
     // strands a site or a name it moved out of reach, and that loads.
     // What no edit leaves is a node declaring a name it mints itself.
     for (&id, node) in &doc.nodes {
@@ -2192,7 +2175,6 @@ mod tests {
             NameStepNotMinted,
             DeclaredNameNotUpstream,
             OperandUnminted,
-            OperandVarKind,
             PartHalfPort,
             ReadCycle,
             WitnessSite,
@@ -2244,14 +2226,19 @@ mod tests {
             | SnapshotError::NameOnMissingVar { .. }
             | SnapshotError::VarNameTwice { .. } => Walk::Vars,
             SnapshotError::OutputSignature { .. } => Walk::OutputSignature,
-            // Both read walks raise it; the slot walk runs first.
+            // An operand's kind is the operand walk's; the expression
+            // walks raise the rest, and the slot walk runs first.
+            SnapshotError::SlotVarKind {
+                slot: SlotId::Operand(_),
+                ..
+            } => Walk::OperandRead,
             SnapshotError::ReaderOfUnmintedVar { .. } | SnapshotError::SlotVarKind { .. } => {
                 Walk::SlotRead
             }
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
-            SnapshotError::OperandUnminted { .. }
-            | SnapshotError::OperandVarKind { .. }
-            | SnapshotError::PartHalfPort { .. } => Walk::OperandRead,
+            SnapshotError::OperandUnminted { .. } | SnapshotError::PartHalfPort { .. } => {
+                Walk::OperandRead
+            }
             SnapshotError::AnonymousVarUnread { .. } => Walk::AnonymousVar,
             SnapshotError::DefinitionReadsUnmintedVar { .. }
             | SnapshotError::DefinitionVarKind { .. } => Walk::DefinitionRead,
@@ -2339,12 +2326,12 @@ mod tests {
                 slot: crate::OperandSlot::Target,
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
             },
-            SnapshotError::OperandVarKind {
+            SnapshotError::SlotVarKind {
                 node: node(),
-                slot: crate::OperandSlot::Target,
+                slot: SlotId::Operand(crate::OperandSlot::Target),
                 var: Box::new(crate::SpokenVar::new(crate::VarId::new(0, 7), None)),
                 found: crate::VarKind::Profile,
-                expected: crate::OperandKind::Is(crate::VarKind::Body),
+                expected: crate::SlotKind::Is(crate::VarKind::Body),
             },
             SnapshotError::PartHalfPort {
                 node: node(),
@@ -2383,12 +2370,12 @@ mod tests {
             SnapshotError::SlotVarKind {
                 node: node(),
                 slot: SlotId::Distance,
-                var: crate::SpokenVar::new(
+                var: Box::new(crate::SpokenVar::new(
                     crate::VarId::new(0, 7),
                     Some(VarName::from_static("depth")),
-                ),
-                declared: crate::VarKind::Angle,
-                referenced: Dimension::Length,
+                )),
+                found: crate::VarKind::Angle,
+                expected: crate::SlotKind::Is(crate::VarKind::Length),
             },
             SnapshotError::PayloadVarKind {
                 node: node(),

@@ -715,8 +715,8 @@ fn program_structure_doors_refuse_typed_at_load() {
     match load(&mangled, Tol::witness()) {
         Err(PersistError::Snapshot(editor_core::SnapshotError::SlotVarKind {
             node,
-            declared: editor_core::VarKind::Angle,
-            referenced: editor_core::Dimension::Length,
+            found: editor_core::VarKind::Angle,
+            expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
             ..
         })) => assert_eq!(node.id(), circle),
         other => panic!("wrong-dimension role must refuse typed at load, got {other:?}"),
@@ -839,7 +839,7 @@ fn unreplayable_edit_log_refuses_at_save() {
     let orphan = DocEdit::SetParam {
         node: RecipeNodeId::new(0, 77),
         slot: editor_core::SlotId::Distance,
-        expr: len(1.0),
+        value: len(1.0).into(),
         fresh: Vec::new(),
     };
     assert!(matches!(

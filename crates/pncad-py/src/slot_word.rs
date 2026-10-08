@@ -19,20 +19,22 @@
 //! reads the forward map whole and this file is checked against the
 //! inventory that guard pins.
 //!
-//! # The three words with no reading
+//! # The words with no reading
 //!
-//! `profile` names one expression inside a profile PROGRAM, and its
+//! `program` names one expression inside a profile PROGRAM, and its
 //! address is completed by two integers and an argument role that the
 //! word does not carry; `placement_step` names one expression of a
 //! transform's placement past its first step, completed by a step
 //! index; `mate_frame_step` names one expression of a mate side's frame
-//! offset, completed by the side, a step index and a component. There
-//! is nothing to answer with, so each answers nothing —
+//! offset, completed by the side, a step index and a component; a
+//! loft's `section` and a union's `member` name one entry of a list,
+//! completed by its position. There is nothing to answer with, so each
+//! answers nothing —
 //! the same stop the forward map makes one level out, where the word
 //! says which kind of slot it is and the rest of the address is in the
 //! refusal's prose.
 
-use pncad::document::{Axis3, SlotId};
+use pncad::document::{Axis3, OperandSlot, SlotId};
 
 /// The [`SlotId`] a stable slot word names, or `None` for a word
 /// outside the alphabet.
@@ -85,6 +87,21 @@ pub fn slot_from_word(word: &str) -> Option<SlotId> {
         "instance" => SlotId::Instance,
         "v_degree" => SlotId::VDegree,
         "stations" => SlotId::Stations,
+        // The operands, by their field's word (D10: an operand is a
+        // slot written through the same door).
+        "profile" => SlotId::Operand(OperandSlot::Profile),
+        "path" => SlotId::Operand(OperandSlot::Path),
+        "axis" => SlotId::Operand(OperandSlot::Axis),
+        "frame" => SlotId::Operand(OperandSlot::Frame),
+        "target" => SlotId::Operand(OperandSlot::Target),
+        "tool" => SlotId::Operand(OperandSlot::Tool),
+        "a" => SlotId::Operand(OperandSlot::A),
+        "b" => SlotId::Operand(OperandSlot::B),
+        "input" => SlotId::Operand(OperandSlot::Input),
+        "of" => SlotId::Operand(OperandSlot::Of),
+        "measure" => SlotId::Operand(OperandSlot::Measure),
+        "plane" => SlotId::Operand(OperandSlot::Plane),
+        "at" => SlotId::Operand(OperandSlot::At),
         _ => return None,
     };
     Some(slot)

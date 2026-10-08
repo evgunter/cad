@@ -708,7 +708,7 @@ fn r1_e2e_consumer_drive_at_dual64() {
         &DocEdit::SetParam {
             node: tool,
             slot: SlotId::Origin(editor_core::Axis3::Z),
-            expr: len(0.6875),
+            value: len(0.6875).into(),
             fresh: Vec::new(),
         },
         tol,

@@ -695,7 +695,7 @@ impl Refusal {
         match current {
             Some(value) => format!(
                 "driven by {over} (currently {}) — edit the expression?",
-                props::computed_text(slot.dimension(), value.as_f64(), notation)
+                props::computed_text(slot.expr_dimension(), value.as_f64(), notation)
             ),
             None => format!("driven by {over} — edit the expression?"),
         }

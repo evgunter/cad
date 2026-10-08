@@ -810,7 +810,7 @@ fn wire_doors_refuse_typed() {
     assert!(
         matches!(
             refusal,
-            editor_core::EditError::OperandVarKind {
+            editor_core::EditError::SlotVarKind {
                 found: editor_core::VarKind::Bodies,
                 ..
             }
@@ -854,7 +854,7 @@ fn wire_doors_refuse_typed() {
     assert!(
         matches!(
             refusal,
-            editor_core::EditError::OperandVarKind {
+            editor_core::EditError::SlotVarKind {
                 found: editor_core::VarKind::Axis,
                 ..
             }
@@ -969,7 +969,7 @@ fn interval_memo_reuses_and_invalidates_like_f64() {
         DocEdit::SetParam {
             node: extrude_id,
             slot: SlotId::Distance,
-            expr: len(1.75),
+            value: len(1.75).into(),
             fresh: Vec::new(),
         },
     );
@@ -996,7 +996,7 @@ fn edit_back_restores_bit_identical_bodies() {
         DocEdit::SetParam {
             node: d.pz_transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(1.25),
+            value: len(1.25).into(),
             fresh: Vec::new(),
         },
     );
@@ -1013,7 +1013,7 @@ fn edit_back_restores_bit_identical_bodies() {
         DocEdit::SetParam {
             node: d.pz_transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(1.0),
+            value: len(1.0).into(),
             fresh: Vec::new(),
         },
     );

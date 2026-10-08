@@ -277,7 +277,7 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
         &DocEdit::SetParam {
             node: shell,
             slot: SlotId::ShellThickness,
-            expr: fixture::len(cup::T_BUMPED),
+            value: fixture::len(cup::T_BUMPED).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -562,7 +562,7 @@ fn the_shell_door_keeps_designation_order_and_drops_repeats() {
     assert_eq!(node.slots(), vec![SlotId::ShellThickness]);
     assert_eq!(
         SlotId::ShellThickness.dimension(),
-        editor_core::Dimension::Length
+        Some(editor_core::Dimension::Length)
     );
     assert_eq!(SlotId::ShellThickness.label(), "shell thickness");
     assert!(!SlotId::ShellThickness.is_structural());

@@ -306,14 +306,15 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
             &editor_core::DocEdit::SetParam {
                 node: d.pz_extrude,
                 slot: SlotId::Distance,
-                expr: editor_core::Formula::div(
+                value: editor_core::Formula::div(
                     editor_core::Formula::named(
                         editor_core::VarName::from_static("pip_depth"),
                         editor_core::Dimension::Length,
                     ),
                     fixture::scl(0.0),
                 )
-                .unwrap(),
+                .unwrap()
+                .into(),
                 fresh: Vec::new(),
             },
             Tol::witness(),

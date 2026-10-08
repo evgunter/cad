@@ -701,7 +701,7 @@ fn the_memo_never_serves_a_stale_token() {
         DocEdit::SetParam {
             node: a,
             slot: SlotId::Radius,
-            expr: len(R),
+            value: len(R).into(),
             fresh: Vec::new(),
         },
     );
@@ -768,7 +768,7 @@ fn a_memo_served_body_compares_correctly_with_a_re_run_sibling() {
         DocEdit::SetParam {
             node: blends[0],
             slot: SlotId::Radius,
-            expr: Formula::add(param("r"), param("t")).unwrap(),
+            value: Formula::add(param("r"), param("t")).unwrap().into(),
             fresh: Vec::new(),
         },
     );

@@ -235,7 +235,7 @@ let refused = apply(&doc, &DocEdit::InsertNode {
     node: Box::new(Node::Extrude { profile: body.into(), distance: len(1.0), side: ExtrudeSide::Along }),
     fresh: Vec::new(),
 }, tol, &pncad::document::RefusingReach);
-assert!(matches!(refused, Err(EditError::OperandVarKind { .. })));
+assert!(matches!(refused, Err(EditError::SlotVarKind { .. })));
 assert_eq!(doc.len(), 3, "the refused edit changed nothing");
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```

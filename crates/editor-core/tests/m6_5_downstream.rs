@@ -342,7 +342,7 @@ fn the_downstream_reference_survives_an_upstream_bump() {
         &DocEdit::SetParam {
             node: cube,
             slot: editor_core::SlotId::Distance,
-            expr: len(1.25),
+            value: len(1.25).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -407,7 +407,7 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
         &DocEdit::SetParam {
             node: cube,
             slot: editor_core::SlotId::Distance,
-            expr: len(1.25),
+            value: len(1.25).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),

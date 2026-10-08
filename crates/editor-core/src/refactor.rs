@@ -1712,11 +1712,9 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::StepIdsRefused { .. }
             | EditError::TooFewMembers { .. }
             | EditError::OperandUnresolved { .. }
-            | EditError::OperandVarKind { .. }
             | EditError::AmbiguousOutput { .. }
             | EditError::DefinesNothing { .. }
             | EditError::PartHalfPort { .. }
-            | EditError::UnknownOperand { .. }
             | EditError::UnknownSlot { .. }
             | EditError::SlotDimensionMismatch { .. }
             | EditError::StructuralSlotNeedsStructuralEdit { .. }
@@ -3232,7 +3230,7 @@ pub fn split(
             RemapMiss::Read { slot, var } => SplitError::PartEdit {
                 error: Box::new(EditError::OperandUnresolved {
                     node: doc.spoken(old),
-                    slot,
+                    slot: crate::SlotId::Operand(slot),
                     read: crate::Operand::Var(var),
                 }),
             },
@@ -3956,7 +3954,7 @@ pub fn inline(
             RemapMiss::Read { slot, var } => InlineError::Edit {
                 error: Box::new(EditError::OperandUnresolved {
                     node: part.spoken(old),
-                    slot,
+                    slot: crate::SlotId::Operand(slot),
                     read: crate::Operand::Var(var),
                 }),
             },

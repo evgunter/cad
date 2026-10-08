@@ -314,11 +314,15 @@ fn a_pattern_of_a_split_port_is_the_pattern_of_its_half() {
             select: editor_core::PartSelect::SplitHalf(editor_core::SplitHalf::Above),
         },
     );
-    let (doc, by_port) = insert(doc, pattern(editor_core::Operand::Output { node: sp, port: 0 }));
+    let (doc, by_port) = insert(
+        doc,
+        pattern(editor_core::Operand::Output { node: sp, port: 0 }),
+    );
     let (doc, by_part) = insert(doc, pattern(half.into()));
     let ev = run(&doc);
     let (port, part) = (
-        ev.value(by_port).unwrap_or_else(|| panic!("{:?}", ev.nodes.get(&by_port))),
+        ev.value(by_port)
+            .unwrap_or_else(|| panic!("{:?}", ev.nodes.get(&by_port))),
         ev.value(by_part).expect("the part spelling patterns"),
     );
     // Each pattern mints its own copies' names; read the port

@@ -122,7 +122,7 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
         bump: DocEdit::SetParam {
             node: vessel,
             slot: SlotId::ShellThickness,
-            expr: len(WALL_BUMPED),
+            value: len(WALL_BUMPED).into(),
             fresh: Vec::new(),
         },
         bump_root: vessel,

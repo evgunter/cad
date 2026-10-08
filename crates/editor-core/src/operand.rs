@@ -1,13 +1,15 @@
 //! **An operand is a read** (D10, "reading is the only dependency"):
 //! every operand field of a node holds the [`VarId`] of the variable it
 //! reads — an operation's output ([`crate::VarDef::Output`]) — and is
-//! addressed by the field it is ([`OperandSlot`]), typed by the kinds
-//! the field admits ([`OperandKind`]).
+//! addressed by the field it is ([`OperandSlot`], one arm of
+//! [`crate::SlotId`]), typed by the kinds the field admits
+//! ([`SlotKind`]).
 //!
 //! What a caller writes is an [`Operand`]: a node, which is sugar for
 //! that node's output in the seat (`Operand::Node`), a port spelled out,
-//! or a variable by id or by name. The edit door lowers it to the id
-//! the document stores.
+//! or a variable by id or by name. The slot door
+//! ([`crate::DocEdit::SetParam`] with a [`crate::SlotValue::Read`])
+//! lowers it to the id the document stores.
 
 use crate::doc::VarName;
 use crate::node::RecipeNodeId;
@@ -72,8 +74,8 @@ impl core::fmt::Display for Operand {
 }
 
 /// **An operand field's address** (spec Q7: named by field, never by
-/// position), the operand half of a node's slot vocabulary beside
-/// [`crate::SlotId`].
+/// position): the operand half of a node's slot vocabulary, addressed
+/// as [`crate::SlotId::Operand`].
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -136,17 +138,17 @@ impl OperandSlot {
 
     /// The kinds this field admits.
     #[must_use]
-    pub fn kind(self) -> OperandKind {
+    pub fn kind(self) -> SlotKind {
         match self {
-            Self::Profile | Self::Section(_) | Self::Path => OperandKind::Is(VarKind::Profile),
-            Self::Axis => OperandKind::Is(VarKind::Axis),
-            Self::Frame | Self::Plane => OperandKind::Is(VarKind::Frame),
-            Self::Tool => OperandKind::Is(VarKind::Plane),
+            Self::Profile | Self::Section(_) | Self::Path => SlotKind::Is(VarKind::Profile),
+            Self::Axis => SlotKind::Is(VarKind::Axis),
+            Self::Frame | Self::Plane => SlotKind::Is(VarKind::Frame),
+            Self::Tool => SlotKind::Is(VarKind::Plane),
             Self::Target | Self::A | Self::B | Self::Member(_) | Self::At => {
-                OperandKind::Is(VarKind::Body)
+                SlotKind::Is(VarKind::Body)
             }
-            Self::Input | Self::Of => OperandKind::Placeable,
-            Self::Measure => OperandKind::Measured,
+            Self::Input | Self::Of => SlotKind::Placeable,
+            Self::Measure => SlotKind::Measured,
         }
     }
 }
@@ -157,20 +159,29 @@ impl core::fmt::Display for OperandSlot {
     }
 }
 
-/// **The kinds an operand field admits.** A seat holds its own kind;
-/// a placer places one body or a list of them, and an assertion bounds
-/// a measured scalar.
+/// **The kinds a slot admits** ([`crate::SlotId::kind`], total over
+/// every slot): what a read in the slot may read, and what an
+/// expression in a scalar slot lowers to a read of.
+///
+/// A scalar slot and an operand seat that holds one kind are
+/// [`SlotKind::Is`]. Two operand seats admit a set of kinds:
+/// [`SlotKind::Placeable`] is exactly `{Body, Bodies}` (a placer places
+/// one body or a list of them), and [`SlotKind::Measured`] is the
+/// scalar kinds — those with a [`VarKind::dimension`] — of a variable a
+/// measure defines (an operation's output), which is what an assertion
+/// bounds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
-pub enum OperandKind {
-    /// Exactly this kind.
+pub enum SlotKind {
+    /// Exactly this kind: a seat's own, or a scalar slot's dimension.
     Is(VarKind),
-    /// A `Body` or a `Bodies`.
+    /// `Body` or `Bodies`.
     Placeable,
-    /// A scalar an operation defines: a measure's value.
+    /// A scalar kind, of a variable an operation defines: a measure's
+    /// value.
     Measured,
 }
 
-impl OperandKind {
+impl SlotKind {
     /// Whether `var` may sit here: its kind, and for a measured seat
     /// that an operation defines it.
     #[must_use]
@@ -184,7 +195,7 @@ impl OperandKind {
     }
 }
 
-impl core::fmt::Display for OperandKind {
+impl core::fmt::Display for SlotKind {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Is(kind) => write!(f, "{} {kind}", crate::sentence::article(&kind.to_string())),

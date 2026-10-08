@@ -90,7 +90,7 @@ impl Standings {
             DocEdit::SetParam {
                 node: failed,
                 slot: SlotId::Distance,
-                expr: len(0.0),
+                value: len(0.0).into(),
                 fresh: Vec::new(),
             },
         );

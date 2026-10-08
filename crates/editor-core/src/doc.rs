@@ -1895,7 +1895,7 @@ impl<P> Doc<P> {
             .vars
             .get(&var)
             .and_then(|v| v.kind().dimension())
-            .unwrap_or(slot.dimension());
+            .unwrap_or_else(|| slot.expr_dimension());
         Some(self.written(&Expr::var(var, dim)))
     }
 

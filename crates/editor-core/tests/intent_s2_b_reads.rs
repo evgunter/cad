@@ -9,8 +9,8 @@
 use crate::fixture::{self, insert, len, on_frame_keeping, scl, xform};
 use crate::wire::up_to_ids;
 use editor_core::{
-    DocEdit, EditError, Maintenance, Node, NodeErrorKind, Operand, OperandKind, OperandSlot,
-    PatternKind, ProfileDoc, RecipeNodeId, Took, VarKind, apply, load, save,
+    Dimension, DocEdit, EditError, Maintenance, Node, NodeErrorKind, Operand, OperandSlot,
+    PatternKind, ProfileDoc, RecipeNodeId, SlotId, SlotKind, Took, VarKind, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -95,10 +95,10 @@ fn a_read_of_the_wrong_kind_refuses_at_the_door() {
     assert!(
         matches!(
             &refusal,
-            EditError::OperandVarKind {
-                slot: OperandSlot::A,
+            EditError::SlotVarKind {
+                slot: SlotId::Operand(OperandSlot::A),
                 found: VarKind::Profile,
-                expected: OperandKind::Is(VarKind::Body),
+                expected: SlotKind::Is(VarKind::Body),
                 var,
                 ..
             } if var.id() == read
@@ -257,7 +257,12 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
     let doc = ProfileDoc::empty_derived("s2b-slot-door", Tol::witness());
     let (doc, pa, a) = block(doc, 0.0);
     let (doc, pb, b) = block(doc, 3.0);
-    let set = |node, slot, read: Operand| DocEdit::SetOperand { node, slot, read };
+    let set = |node, slot, read: Operand| DocEdit::SetParam {
+        node,
+        slot: SlotId::Operand(slot),
+        value: read.into(),
+        fresh: Vec::new(),
+    };
 
     // A re-point at the same kind is an ordinary write.
     let moved = applied(&doc, set(a, OperandSlot::Profile, pb.into()));
@@ -274,8 +279,8 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
     assert!(
         matches!(
             refused(&doc, set(a, OperandSlot::Profile, b.into())),
-            EditError::OperandVarKind {
-                slot: OperandSlot::Profile,
+            EditError::SlotVarKind {
+                slot: SlotId::Operand(OperandSlot::Profile),
                 found: VarKind::Body,
                 ..
             }
@@ -285,8 +290,8 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
     assert!(
         matches!(
             refused(&doc, set(a, OperandSlot::Target, pa.into())),
-            EditError::UnknownOperand {
-                slot: OperandSlot::Target,
+            EditError::UnknownSlot {
+                slot: SlotId::Operand(OperandSlot::Target),
                 ..
             }
         ),
@@ -335,7 +340,7 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
     assert!(
         matches!(
             refused(&doc, set(moved, OperandSlot::Input, pattern.into())),
-            EditError::OperandVarKind {
+            EditError::SlotVarKind {
                 found: VarKind::Bodies,
                 ..
             }
@@ -345,13 +350,134 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
     applied(&doc, set(moved, OperandSlot::Input, b.into()));
 }
 
+/// **One door, the slot typed by kind** (Q1 ruled): the door that
+/// writes an expression writes an operand, and each slot says by its
+/// kind what it takes. A formula at an operand refuses as an expression
+/// of the wrong kind; a read at a scalar slot is the formula of the one
+/// variable it reads, held to every rule a formula is; a read mints
+/// nothing, so a fresh table beside it is unread.
+#[test]
+fn the_slot_door_takes_a_formula_or_a_read_by_the_slots_kind() {
+    let doc = ProfileDoc::empty_derived("s2b-one-door", Tol::witness());
+    let (doc, profile, extrude) = block(doc, 0.0);
+    assert_eq!(
+        SlotId::Operand(OperandSlot::Profile).kind(),
+        SlotKind::Is(VarKind::Profile)
+    );
+    assert_eq!(SlotId::Operand(OperandSlot::Profile).dimension(), None);
+    assert_eq!(SlotId::Distance.kind(), SlotKind::Is(VarKind::Length));
+    assert_eq!(
+        SlotId::Operand(OperandSlot::Input).kind(),
+        SlotKind::Placeable
+    );
+
+    let formula_at_operand = DocEdit::SetParam {
+        node: extrude,
+        slot: SlotId::Operand(OperandSlot::Profile),
+        value: len(1.0).into(),
+        fresh: Vec::new(),
+    };
+    assert_eq!(
+        refused(&doc, formula_at_operand.clone()),
+        EditError::SlotDimensionMismatch {
+            slot: SlotId::Operand(OperandSlot::Profile),
+            expected: SlotKind::Is(VarKind::Profile),
+            found: Dimension::Length,
+        },
+    );
+    assert!(
+        refused(&doc, formula_at_operand)
+            .to_string()
+            .contains("reads a profile, not a length expression"),
+    );
+
+    // A named length read at the distance is that variable, by id: the
+    // same slot a formula naming it writes.
+    let declared = applied(
+        &doc,
+        DocEdit::DeclareVar {
+            name: editor_core::VarName::new("depth").expect("a name"),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                Dimension::Length,
+                2.0,
+            )),
+        },
+    )
+    .doc;
+    let depth = declared.var_named("depth").expect("declared");
+    let by_read = applied(
+        &declared,
+        DocEdit::SetParam {
+            node: extrude,
+            slot: SlotId::Distance,
+            value: Operand::Var(depth).into(),
+            fresh: Vec::new(),
+        },
+    )
+    .doc;
+    let by_formula = applied(
+        &declared,
+        DocEdit::SetParam {
+            node: extrude,
+            slot: SlotId::Distance,
+            value: editor_core::Formula::var(depth, Dimension::Length).into(),
+            fresh: Vec::new(),
+        },
+    )
+    .doc;
+    assert_eq!(by_read.slot(extrude, SlotId::Distance), Some(depth));
+    assert_eq!(
+        save(&by_read, &[], Tol::witness()).expect("saves"),
+        save(&by_formula, &[], Tol::witness()).expect("saves"),
+        "a read at a scalar slot is the formula of its one variable"
+    );
+
+    // A body read at the distance refuses by kind, at the slot.
+    match refused(
+        &doc,
+        DocEdit::SetParam {
+            node: extrude,
+            slot: SlotId::Distance,
+            value: Operand::Node(extrude).into(),
+            fresh: Vec::new(),
+        },
+    ) {
+        EditError::SlotVarKind {
+            slot: SlotId::Distance,
+            found: VarKind::Body,
+            expected: SlotKind::Is(VarKind::Length),
+            ..
+        } => {}
+        other => panic!("a body at a length slot refuses by kind, got {other:?}"),
+    }
+
+    // A read mints nothing for a fresh entry to name.
+    assert!(matches!(
+        refused(
+            &doc,
+            DocEdit::SetParam {
+                node: extrude,
+                slot: SlotId::Operand(OperandSlot::Profile),
+                value: Operand::Node(profile).into(),
+                fresh: vec![editor_core::VarDecl::Free(
+                    editor_core::FreeVar::continuous(Dimension::Length, 1.0)
+                )],
+            },
+        ),
+        EditError::FreshUnread { index: 0 }
+    ));
+}
+
 /// **A read of a split's port is that half** (FORK-1, Q2 ruled): a
 /// boolean over the split's first port builds, and is the same boolean
 /// over `Part { SplitHalf::Above }` of that split, bit for bit and name
 /// for name, up to the boolean's own id.
 #[test]
 fn a_split_port_read_is_its_half() {
-    let (doc, _, block) = block(ProfileDoc::empty_derived("s2b-split-port", Tol::witness()), 0.0);
+    let (doc, _, block) = block(
+        ProfileDoc::empty_derived("s2b-split-port", Tol::witness()),
+        0.0,
+    );
     let (doc, plane) = insert(
         doc,
         Node::Datum(editor_core::Datum::Plane {
@@ -359,7 +485,13 @@ fn a_split_port_read_is_its_half() {
             normal: [scl(0.0), scl(0.0), scl(1.0)],
         }),
     );
-    let (doc, split) = insert(doc, Node::Split { target: block.into(), tool: plane.into() });
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: block.into(),
+            tool: plane.into(),
+        },
+    );
     let (doc, _, other) = block_at(doc, 0.3);
     let (doc, part) = insert(
         doc,
@@ -374,24 +506,28 @@ fn a_split_port_read_is_its_half() {
         b: other.into(),
         declare: Vec::new(),
     };
-    let (doc, by_port) = insert(doc, boolean(Operand::Output { node: split, port: 0 }));
+    let (doc, by_port) = insert(
+        doc,
+        boolean(Operand::Output {
+            node: split,
+            port: 0,
+        }),
+    );
     let (doc, by_part) = insert(doc, boolean(part.into()));
     let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
     let (port, part) = (
-        ev.value(by_port).unwrap_or_else(|| panic!("{:?}", ev.node_error(by_port))),
+        ev.value(by_port)
+            .unwrap_or_else(|| panic!("{:?}", ev.node_error(by_port))),
         ev.value(by_part).expect("the part spelling builds"),
     );
     // Each boolean stamps its own id on what it mints; read the port
     // spelling's as the part spelling's, and the two are one.
     let as_part = |text: String| {
-        text.replace(
-            &format!("{:?}", by_port.0),
-            &format!("{:?}", by_part.0),
-        )
-        .replace(
-            &by_port.0.digest().to_string(),
-            &by_part.0.digest().to_string(),
-        )
+        text.replace(&format!("{:?}", by_port.0), &format!("{:?}", by_part.0))
+            .replace(
+                &by_port.0.digest().to_string(),
+                &by_part.0.digest().to_string(),
+            )
     };
     assert_eq!(
         as_part(format!("{:?}", port.payload)),

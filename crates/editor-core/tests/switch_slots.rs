@@ -93,7 +93,7 @@ fn profile_nodes_enumerate_program_slots() {
         assert!(!s.is_structural(), "no StepArg is structural (§4c)");
         assert!(node.expr(s).is_some(), "slots() is expr()'s domain");
     }
-    assert_eq!(radius_slot().dimension(), Dimension::Length);
+    assert_eq!(radius_slot().dimension(), Some(Dimension::Length));
 }
 
 /// The continuous-edit path: `SetParam` on a program slot re-evaluates
@@ -106,7 +106,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
             &DocEdit::SetParam {
                 node: doc.ids()[1],
                 slot: radius_slot(),
-                expr: len(0.75),
+                value: len(0.75).into(),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -151,7 +151,7 @@ fn set_expression_and_expr_at_route_into_programs() {
             &DocEdit::SetParam {
                 node: doc.ids()[1],
                 slot: radius_slot(),
-                expr: sum,
+                value: sum.into(),
                 fresh: Vec::new(),
             },
             Tol::witness(),
@@ -201,14 +201,14 @@ fn program_slots_refuse_wrong_dimensions() {
         &DocEdit::SetParam {
             node: doc.ids()[1],
             slot: radius_slot(),
-            expr: ang(0.5),
+            value: ang(0.5).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotDimensionMismatch {
-            expected: Dimension::Length,
+            expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
             found: Dimension::Angle,
             ..
         }) => {}
@@ -227,7 +227,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
         &DocEdit::SetParam {
             node: doc.ids()[1],
             slot: radius_slot(),
-            expr: len(0.0),
+            value: len(0.0).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -365,7 +365,7 @@ fn insert_node_checks_program_dimensions() {
         &editor_core::RefusingReach,
     ) {
         Err(EditError::SlotDimensionMismatch {
-            expected: Dimension::Length,
+            expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
             found: Dimension::Angle,
             ..
         }) => {}
@@ -490,7 +490,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
             Some(authored),
             "{arrival:?} addresses the arrival spec's argument"
         );
-        assert_eq!(fused.dimension(), replacement.dim());
+        assert_eq!(fused.dimension(), Some(replacement.dim()));
 
         // The write half — the path `SetParam` takes once a node is in
         // hand — reaches the arrival argument and leaves the incoming
@@ -870,7 +870,7 @@ fn every_node_kinds_slots_are_all_readable() {
                 )
             };
             assert_eq!(
-                expr.dim(),
+                Some(expr.dim()),
                 slot.dimension(),
                 "{node:?}'s {} carries another dimension than the address fixes",
                 slot.label()

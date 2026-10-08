@@ -507,7 +507,7 @@ fn row5b_root_neutral_edits_keep_the_product_order_stable() {
         DocEdit::SetParam {
             node: a,
             slot: editor_core::SlotId::Distance,
-            expr: len(2.0),
+            value: len(2.0).into(),
             fresh: Vec::new(),
         },
     );

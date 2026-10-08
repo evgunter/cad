@@ -404,7 +404,7 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
         DocEdit::SetParam {
             node: a,
             slot: SlotId::Distance,
-            expr: len(0.0),
+            value: len(0.0).into(),
             fresh: Vec::new(),
         },
     );

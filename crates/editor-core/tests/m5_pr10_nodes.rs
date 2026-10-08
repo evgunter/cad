@@ -76,7 +76,7 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
 #[test]
 fn the_new_slots_are_structural_counts() {
     for slot in [SlotId::VDegree, SlotId::Stations] {
-        assert_eq!(slot.dimension(), Dimension::Count, "{slot:?}");
+        assert_eq!(slot.dimension(), Some(Dimension::Count), "{slot:?}");
         assert!(slot.is_structural(), "{slot:?}");
     }
 }
@@ -342,8 +342,8 @@ fn a_non_profile_input_refuses_typed() {
     assert!(
         matches!(
             &refusal,
-            editor_core::EditError::OperandVarKind {
-                slot: editor_core::OperandSlot::Section(1),
+            editor_core::EditError::SlotVarKind {
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Section(1)),
                 found: editor_core::VarKind::Point,
                 ..
             }

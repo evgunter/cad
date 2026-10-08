@@ -442,7 +442,7 @@ fn the_rolled_names_are_one_set_at_two_radii() {
             &DocEdit::SetParam {
                 node: rolled,
                 slot: pncad::document::SlotId::Radius,
-                expr: len(roll),
+                value: len(roll).into(),
                 fresh: Vec::new(),
             },
             tol,

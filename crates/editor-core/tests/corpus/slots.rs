@@ -122,7 +122,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: slot1,
             slot: SlotId::Distance,
-            expr: len(1.25),
+            value: len(1.25).into(),
             fresh: Vec::new(),
         },
         bump_root: slot1,

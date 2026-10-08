@@ -937,7 +937,7 @@ fn axis_datum<P>(
 /// own reading of the pattern is not masked by an input it refuses;
 /// the datums, the transforms and the pattern are written straight
 /// into the map, because the states some rows need — a read of the
-/// wrong kind — are ones the doors refuse (`OperandVarKind` at `apply`
+/// wrong kind — are ones the doors refuse (`SlotVarKind` at `apply`
 /// and at `load`), and a hand-built document is what the spec
 /// sanctions for it.
 #[cfg(test)]
@@ -1407,7 +1407,7 @@ mod tests {
     /// refusal on both roads** — a datum is not placeable, so the
     /// transform fails with `WrongOperand` in the placer's own words
     /// and the pattern is poisoned through it. The doors refuse this
-    /// shape by kind (`OperandVarKind`), so the rows build it by hand;
+    /// shape by kind (`SlotVarKind`), so the rows build it by hand;
     /// the derivation seats it where the evaluation does by inheriting
     /// the classifier's seat rather than reading the operand's family
     /// for itself.

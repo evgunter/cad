@@ -149,7 +149,7 @@ fn two_param_web() -> ProfileDoc {
         DocEdit::SetParam {
             node: plate,
             slot: editor_core::SlotId::Distance,
-            expr: param("depth"),
+            value: param("depth").into(),
             fresh: Vec::new(),
         },
     );
