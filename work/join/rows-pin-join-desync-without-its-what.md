@@ -2,11 +2,13 @@
 id: rows-pin-join-desync-without-its-what
 kind: issue
 title: rows pin JoinDesync, an invariant-break variant, as an expected outcome without its what, so any new desync passes them
-status: open
+status: closed
 opened: 2026-10-03
 priority: P3
 cost: E
 branch: join/strut-side-one-rule
+pr: 4294
+closed: 2026-10-08
 ---
 
 ## Finding
