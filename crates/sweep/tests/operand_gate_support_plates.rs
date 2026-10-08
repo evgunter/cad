@@ -32,7 +32,7 @@
 //! whose support falls on a cut) at `δ = 0` or `δ = −ε`, the two gaps
 //! inside the band, may build the point touch it records: `∪` an
 //! `Assembly` whose contacts hold the touch, `∩` empty
-//! (`work/reach/a-plate-touching-a-cut-torus-at-its-cap-rim-builds-an-assembly.md`).
+//! (`work/tally/a-plate-touching-a-cut-torus-at-its-cap-rim-builds-an-assembly.md`).
 //! The rim's graze root is its extremum, the support itself, so `−ε`
 //! reads as `0` does. An excluded `∪` that records no contact is still
 //! wrong, and every excluded result is still sampled.

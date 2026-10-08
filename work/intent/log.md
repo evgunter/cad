@@ -598,3 +598,26 @@ The three rows are filed parked.
 | `tang/a-turned-hemisphere-keeps-the-crossing-layers-door` | `d10-one-way-to-say-intent-is-unbuilt` | — (open) | the cell is reduce::lying_on's certificates against a partner seam ruling, crossing-layer geometry the Zero path keeps (check first whether it already builds; its sibling closed by PR 4148) |
 | `topo/boolean-unreadable-norm-ends-as-a-kernel-defect` | `d10-one-way-to-say-intent-is-unbuilt` | — (open) | a NaN plane normal is operand poison routed PlaneRung::Norm → SelfCheck::Normals (refusal_routes.rs); the plane ladder and poison endings survive D10, no declaration involved |
 | `zip/tangent-lever-row-escalates-containment-at-eps-1e-6` | `d10-one-way-to-say-intent-is-unbuilt` | — (open) | red on main; the escalation is reduce's contfp ON ladder (contain.rs), which runs before the zip and survives stage 4's Zero glue |
+
+## 2026-10-08 — stage 3 sliced (`docs/INTENT-STAGE3-SPEC.md`)
+
+A spec lane sized stage 3 (spaces and placement) at main `044b5eb2e`, written against stage 2's final shapes. Stage 3 lands in six PRs, each green, in this order:
+
+- A `poses-are-variables` (H): pose definitions over a space's seed; the `Datum` node retires.
+- B `a-mate-relates-two-poses` (H): a mate equates two poses; `MatePrimitive`, `MateFrame` and the riders retire.
+- C `a-placement-is-the-bundle-of-mates` (H): `Place { body, mates }` and the world frame; gauges, offsets, `PlaceInWorld` and the spanning tree retire.
+- D `transform-retires-into-a-placement` (M).
+- E `each-space-computes-in-its-earliest-members-frame` (M): the only unit that moves f64 digests, on purpose.
+- F `a-mate-on-a-pinned-copy-refuses` (M): waits on stage 4's retirement of A5's hard error as well as on C.
+
+Six forks are open for designer pairs: FORK-S3-1 (what a free pose is), S3-2 (what a placement is), S3-3 (what a mate reads), S3-4 (what overconstraint means), S3-5 (what placing an instance copies), S3-6 (what a space's member is). `intent-stage3-is-built` parks on the six units, and spec §11 says which unit releases each of the 13 re-homed rows.
+## 2026-10-08 — stage 4 sliced (`docs/INTENT-STAGE4-SPEC.md`)
+
+A spec lane sized stage 4 (the coincidence door) at main `044b5eb2e9`. Nine PRs, each green:
+
+- A `the-join-builds-what-the-rest-zip-builds` (H) and B `coincidences-are-recorded-at-one-door` (H) need nothing from stage 2 or 3 and are dispatchable now.
+- D `the-door-s-third-rung-is-the-symbolic-tier` (M), E `booleans-glue-on-zero` (H) and G `tangent-joints-are-derived` (M) need only A and B. F `declared-pairs-retire` (M) follows E.
+- C `carriers-compare-in-canonical-form` (H) needs stage 2 B and E.
+- H `placed-carriers-compare-through-their-frames` (H) and I `mates-declare-no-contact` (M) need stage 3.
+
+Every one of the 67 rows parked on `intent-stage4-is-built` is released by A, B, C, E, F or G (spec §12), so none waits on stage 3. The umbrella now parks on all nine units; the spec recommends re-pointing each row at its unit. Five forks are open for designer pairs: FORK-S4-1 (provenance from names, N6), FORK-S4-2 (a stated `CarrierFlow`), FORK-S4-3 (the record is `ContactRecords`), FORK-S4-4 (DM4's pairwise judgement), FORK-S4-5 (a mate-placed face, with stage 3).

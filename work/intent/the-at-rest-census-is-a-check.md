@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
-blocked_on: [an-assertion-relates-by-equality, interference-at-rest-is-a-finding, value-decided-coincidences-have-no-recording-door, mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion]
+blocked_on: [an-assertion-relates-by-equality, interference-at-rest-is-a-finding, value-decided-coincidences-have-no-recording-door, a-mate-on-a-pinned-copy-refuses]
 ---
 
 
@@ -35,8 +35,28 @@ It waits on stages 3 and 4 as well as A and B:
 
 The `blocked_on` names
 `value-decided-coincidences-have-no-recording-door` (stage 4's door) and
+`a-mate-on-a-pinned-copy-refuses` (stage 3's F, the unit that closes
 `mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-an-assertion`
-(stage 3) as the stage-level triggers that exist today. Re-point them to
-stage 3's and stage 4's last units when those are filed.
+and A11 (4)'s declaring mates). Re-point the stage-4 trigger to stage 4's
+last unit it needs.
 
 Design forks open: FORK-S5-4 and FORK-S5-5 (spec §11).
+
+FORK-S5-4 and S5-5 were weighed as one fork (FORK-S5C, fork log row
+91) and went to Ev in an `[ev]` PR; this unit builds on the answer
+provisionally. Nothing at rest refuses, and the registry's
+`enforce_checks` is the one refusing door, at a caller's `Error`. An
+at-rest contact the door cannot prove structural is a finding of the
+`unproven-coincidence` lint, not of `AtRest`. `AtRest` reports
+interference and could-not-look, and defaults to Warn. `Separation` and
+`assemble` retire. When this unit lands, A5's opening and *Interference.*
+paragraphs become: "**A5 — The at-rest check.** Per space, the census
+examines every pair of copies the boxes cannot prove apart, and decides
+each one apart, in contact, overlapping or undecided. A contact is
+recorded at the coincidence door; unless it is structural, the
+`unproven-coincidence` lint reports it. An overlap is an `AtRest`
+interference finding, localised to the faces bounding it, or loud and
+unquietable when the intersection refuses. An undecided pair is an
+`AtRest` could-not-look finding. Each finding is quiet under D10's rule
+or loud. Nothing refuses: a caller that wants a gate runs
+`enforce_checks` at `Error`."

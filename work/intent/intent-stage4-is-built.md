@@ -2,10 +2,11 @@
 id: intent-stage4-is-built
 kind: issue
 title: INTENT stage 4 (the coincidence door) is built: canonical carrier forms, one recording door, the unproven-coincidence lint, booleans glue on Zero, declared pairs and the undeclared refusals retire
-status: open
+status: parked
 opened: 2026-10-08
 priority: P0
 cost: H
+blocked_on: [the-join-builds-what-the-rest-zip-builds, coincidences-are-recorded-at-one-door, carriers-compare-in-canonical-form, the-door-s-third-rung-is-the-symbolic-tier, booleans-glue-on-zero, declared-pairs-retire, tangent-joints-are-derived, placed-carriers-compare-through-their-frames, mates-declare-no-contact]
 ---
 
 

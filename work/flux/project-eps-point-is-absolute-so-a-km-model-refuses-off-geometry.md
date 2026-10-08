@@ -9,7 +9,7 @@ cost: M
 ---
 
 
-(SSI measurement lane, from `work/ssi/plane-nurbs-certificate-bound-does-not-refine-with-eps.md`,
+(SSI measurement lane, from `work/ssiedge/plane-nurbs-certificate-bound-does-not-refine-with-eps.md`,
 2026-10-01. Measured.)
 
 `crates/geom/src/projection_policy.rs`'s `PROJECT_EPS_POINT` = 1e-13 m

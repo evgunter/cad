@@ -380,6 +380,15 @@ deliberate" — the sliver lint's own confirmation sentence from I1,
 made data), carried with provenance like any declaration and with a
 staleness direction (a waiver whose finding no longer exists is
 flagged for cleanup — the `StaleContactDeclaration` shape, at warn).
+An assertion is the other declarable exception: one whose holding
+verdict meets the finding's observation on its own stratum (D10's
+quieting rule) is stated in the document by the person, and its
+staleness is its own verdict (a `Gap = 0` whose faces separate is
+`Violated`, loud by itself). A quiet finding is listed with what
+quiets it. A finding outside what the document can yet say (a pair the
+census could not look at, an overlap the kernel could not intersect, a
+carrier pair no signed `Gap` covers) stays loud and refuses at
+`error`: a gate certifies, and cannot pass what it could not judge.
 A waiver is the check-side analogue of the parameter lint's
 declared-distinct arm: it records intent *about a finding* rather
 than making a geometric claim, so there is nothing to verify — only
