@@ -737,8 +737,11 @@ mod tests {
     /// does not share a bidegree, or a cell out of range, refuses.
     #[test]
     fn the_cell_norm_is_the_largest_coefficient_vectors_not_the_boxes() {
-        let (x, y) = (decomposed(2, 2, 1.0), decomposed(2, 2, -0.7));
-        let z = x.mul(&y).sub(&x.mul(&x));
+        // `y = 1 − x` peaks where `x` is least, so the two channels'
+        // extremes sit on different coefficients.
+        let x = decomposed(2, 2, 1.0);
+        let y = x.constant(Interval::point(1.0)).sub(&x);
+        let z = x.mul(&y);
         let (x, y) = (x.elevated(4, 4), y.elevated(4, 4));
         let (nu, nv) = z.cell_counts();
         let mut below_box = 0usize;

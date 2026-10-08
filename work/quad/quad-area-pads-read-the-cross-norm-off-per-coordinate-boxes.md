@@ -17,8 +17,9 @@ the rational lane's area cell (`g_hull: (ch[0].sqr() + ch[1].sqr() +
 ch[2].sqr()).sqrt() / wh.powi(3)`, with `ch = a.cross_num(&w, over…)`),
 `sup_g` over the trim box (`(cross[0].sqr() + …).sqrt()`), and the
 helpers around lines 2103, 4126, 4474, 4511 and 4944 (names drift; grep
-`.sqr() + .*.sqr() + .*.sqr()).sqrt()`). A box of one vector field
-reads between 1× and √3× its norm depending on how it sits against the
+`.sqr() + .*.sqr() + .*.sqr()).sqrt()`), and one L1 fold beside them,
+`p_bound = s_hull[0].mag() + s_hull[1].mag() + s_hull[2].mag()`.
+A box of one vector field reads between 1× and √3× its norm depending on how it sits against the
 axes, so a rigid map of a part moves its certified area and volume
 brackets' pads by up to that factor. DESIGN.md D4 ¶2 now says a
 certified upper bound on a vector-valued quantity is read from the

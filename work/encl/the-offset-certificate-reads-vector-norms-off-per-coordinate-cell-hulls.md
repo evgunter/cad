@@ -95,3 +95,8 @@ bounds (`a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12`,
 `a-rigid-map-can-still-refuse-a-sound-approx-face-at-its-edges-or-meters`).
 The pin is `the_vector_upper_bounds_do_not_move_under_a_rotation`
 (`offset_fit.rs`'s test module).
+
+`crates/topo/tests/rigid_map_near_eps_approx.rs` lost its witness with
+the fold (its one-cell round-0 face drifted about 2e-5 after, against
+a `1/512` margin) and now mints on round 2, where the remaining drift
+is up to `7.7e-4`, at a `1/4096` margin.
