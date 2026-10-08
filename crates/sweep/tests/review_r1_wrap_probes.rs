@@ -11,7 +11,7 @@ use core::f64::consts::{PI, TAU};
 
 use geom_core::{Affine3, Arc2, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
-use sweep::test_support::{ball_poled_z, brick, revolved_about_y};
+use sweep::test_support::{ball_poled, ball_poled_z, brick, revolved_about_y};
 use sweep::{ExtrudeSide, Extrusion, Revolution, extrude};
 use topo::{AtRestBody, Body, BooleanError, BooleanResult};
 
@@ -409,6 +409,93 @@ fn review_r1_wrap_probes() {
             moved(&cyl(0.0, 0.0, 1.0, -3.0, 6.0, 1), turn(z, deg)),
             ball_poled_z(2.0, Vec3::new(0.0, 0.0, 0.0), tol()),
             (6.0 * PI, ball_v, lens),
+        );
+    }
+    // ---- a cone wall: a box across it, and a coaxial tube through it ----
+    let tri = vec![(0.0, -0.5), (1.5, -0.5), (0.0, 1.5)];
+    let cone = revolved_about_y(
+        vec![p(0.0, -0.5, 0.0), p(1.5, -0.5, 0.0), p(0.0, 1.5, 0.0)],
+        Revolution::Full,
+        tol(),
+    );
+    let pv = |q: &[(f64, f64)]| TAU * moments(q).0.abs();
+    let slabp = [(0.0, 0.0), (5.0, 0.0), (5.0, 0.5), (0.0, 0.5)];
+    // the box y ∈ [0, 0.5], x, z ∈ ±3
+    every_op(
+        "P8 cone under a box",
+        cone.clone(),
+        brick((-3.0, 3.0), (0.0, 0.5), (-3.0, 3.0), tol()),
+        (pv(&tri), 18.0, pv(&clip_convex(&tri, &slabp))),
+    );
+    let ann = [(0.2, -1.0), (1.0, -1.0), (1.0, 2.0), (0.2, 2.0)];
+    let tubec = revolved_about_y(
+        ann.iter().map(|&(a, b)| p(a, b, 0.0)).collect(),
+        Revolution::Full,
+        tol(),
+    );
+    for deg in [0.0, 40.0] {
+        every_op(
+            &format!("P8 cone through a tube turned {deg}"),
+            moved(&cone, turn(y, deg)),
+            tubec.clone(),
+            (pv(&tri), pv(&ann), pv(&clip_convex(&tri, &ann))),
+        );
+    }
+    // ---- two balls meeting in a circle: seams aligned and turned apart ----
+    let lens2 = PI * (4.0 + 1.2) * 0.8 * 0.8 / 12.0;
+    for deg in [0.0, 90.0, 33.0] {
+        every_op(
+            &format!("P9 two balls, one turned {deg}"),
+            ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+            moved(&ball_poled_z(1.0, Vec3::new(0.0, 0.0, 1.2), tol()), turn(z, deg)),
+            (4.0 * PI / 3.0, 4.0 * PI / 3.0, lens2),
+        );
+    }
+    // a ball under a plane (builds on main, the PR says)
+    for h in [0.3, -0.55] {
+        let cap = PI * (1.0 - h) * (1.0 - h) * (2.0 + h) / 3.0;
+        every_op(
+            &format!("P9 ball above z={h}"),
+            ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+            brick((-3.0, 3.0), (-3.0, 3.0), (h, 3.0), tol()),
+            (4.0 * PI / 3.0, 36.0 * (3.0 - h), cap),
+        );
+    }
+    // ---- a sphere pair's radical circle: one ball poled across the other's axis ----
+    for (pole, pn) in [
+        (Vec3::new(1.0, 0.0, 0.0), "x"),
+        (Vec3::new(0.0, 1.0, 0.0), "y"),
+        (Vec3::new(-1.0, 0.0, 0.0), "-x"),
+        (Vec3::new(0.6, 0.8, 0.0), "xy"),
+    ] {
+        for deg in [0.0, 90.0, 180.0, 270.0, 45.0] {
+            every_op(
+                &format!("P11 ball poled {pn} over ball turned {deg}"),
+                moved(&ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol()), turn(z, deg)),
+                ball_poled(1.0, Vec3::new(0.0, 0.0, 1.2), pole, tol()),
+                (4.0 * PI / 3.0, 4.0 * PI / 3.0, lens2),
+            );
+        }
+    }
+    // ---- tangencies: a plane touching a ball, and a seam cylinder, at one point ----
+    for (name, at, deg) in [
+        ("ball +x", Point3::new(1.0, 0.0, 0.0), 90.0),
+        ("ball -x", Point3::new(-1.0, 0.0, 0.0), -90.0),
+    ] {
+        every_op(
+            &format!("P10 plane tangent to {name}"),
+            ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol()),
+            below(at, turn(y, deg)),
+            (4.0 * PI / 3.0, 512.0, 4.0 * PI / 3.0),
+        );
+    }
+    for deg in [0.0, 90.0, 180.0, 270.0] {
+        let ball = moved(&ball_poled_z(1.0, Vec3::new(0.0, 0.0, 0.0), tol()), turn(z, deg));
+        every_op(
+            &format!("P10 box touching ball turned {deg} at +x"),
+            ball,
+            brick((1.0, 3.0), (-3.0, 3.0), (-3.0, 3.0), tol()),
+            (4.0 * PI / 3.0, 72.0, 0.0),
         );
     }
     // ---- coincidences: must refuse (or build right), never wrong ----

@@ -131,6 +131,8 @@ mod one_door_for_coincident_sections;
 mod one_segment_loop;
 #[path = "review_r1_wrap_probes.rs"]
 mod review_r1_wrap_probes;
+#[path = "fan_end_review_probes_r1.rs"]
+mod fan_end_review_probes_r1;
 #[path = "operand_gate_pose.rs"]
 mod operand_gate_pose;
 #[path = "operand_gate_support_plates.rs"]
