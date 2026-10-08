@@ -236,15 +236,12 @@ S3P designer who proposed keeping it.
     whose members are its constructions and the copies pinned against their poses. Otherwise no boolean of a body
     and its displaced copies can be written. Flag this to S3P.
 - **21 pips as one node.** `Pattern` becomes the multi-copy form of `Place`.
-  - It reads one shape and a family of target poses: `Linear`, `Circular`, or an explicit `Vec<Frame>`.
-  - It defines a `Bodies` of copies, each pinned by one `Frame` mate from `BodyFrame(shape)` to its member of the
-    family.
+  - It reads one shape and a family of target poses (`Linear`, `Circular`, an explicit `Vec<Frame>`), and defines a
+    `Bodies` of copies, each pinned by one `Frame` mate from `BodyFrame(shape)` to its member of the family.
   - So a pattern also relates copies and never moves anything.
   - The die's frames (six `Explicit` in the file) become six `Frame` variables.
-- **`Transform`** retires, along with `wire_transform`, `placeable_operand` and the member walk through it.
-- **`PlacedFrom`** retires: every copy is an output of a `Place` or a `Pattern`, and names pass through as DM3 says.
-- **The pin** is the old chain written in the target pose's frame, so stage D's bit-equality holds by the same
-  `transform_rigid` call.
+- **`Transform`** (with `wire_transform`, `placeable_operand`, the walk through it) and **`PlacedFrom`** retire: every
+  copy is a `Place` or `Pattern` output; the chain moves into the pin, so stage D's `transform_rigid` call is unchanged.
 
 **3. Text, and (i)/(ii).**
 - **D10 Operations** gains: "Nothing moves a body: a body has no location, and a copy of it is placed. A copy is
