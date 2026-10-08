@@ -42,3 +42,25 @@ mapping: Opus=A Fable=B
   re-stated; iso row item lands (an exact row beats a fitted image).
 - A crossover on the door shape; split on the declared record (drop vs
   keep-and-restate; door reads sides vs description). Round 2 follows.
+
+## Round 2 (each shown the other's round-1 revision)
+
+- **A**: one door now (B's fewer-arms point: solving together needs only
+  (moved, moved) arms; one-at-a-time also needs every intermediate
+  (moved, held) arm). Declared record: moot for native bodies (extrude,
+  revolve, boolean file a declared Chart only on single-surface or
+  under-determined edges; loft is the one transverse case and goes to
+  `Intersection`); a leftover declared Chart between distinct surfaces
+  the move tilts refuses typed. Import unchecked.
+- **B**: door shape is sequencing, not a split; per-chart first, merge a
+  follow-up, with the constraint that the corner is a derived edge ∩
+  third surface, never a transported point. Concedes the drop rule to A
+  (a re-stated declaration is a false provenance claim; once
+  `Intersection`, the record is inert for tier 3). Same typed refusal for
+  the leftover case; names step-import's `MappedCurve` candidate as the
+  one possible producer.
+- Converged on the final state; the timing of the one-door merge crossed
+  again and both call it sequencing, so the orchestrator took it:
+  per-chart re-derivation now under B's corner constraint, the merge filed
+  as a follow-up. No ratified text moves; not put to Ev, so no fork-log
+  row.
