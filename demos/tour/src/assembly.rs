@@ -407,7 +407,7 @@ fn prism_part(
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![LoopProgram::polygon_expr([
                 [zero.clone(), zero.clone()],
                 [width.clone(), zero.clone()],
@@ -421,7 +421,7 @@ fn prism_part(
     insert(
         &mut doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: pe(length, &scope),
             side: ExtrudeSide::Along,
         },
@@ -537,7 +537,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
     let pattern = insert(
         &mut doc,
         Node::Pattern {
-            input: post_i,
+            input: post_i.into(),
             count: pe("2", &scope),
             kind: PatternKind::Linear {
                 direction: [pe("0.0", &scope), pe("1.0", &scope), pe("0.0", &scope)],

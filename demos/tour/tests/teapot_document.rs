@@ -134,7 +134,7 @@ fn sharp_lid_in(
     let axis = insert(
         &mut doc,
         Node::Datum(Datum::AxisInPlane {
-            plane,
+            plane: plane.into(),
             origin: [len(0.0), len(0.0)],
             direction: [scl(0.0), scl(1.0)],
         }),
@@ -143,7 +143,7 @@ fn sharp_lid_in(
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![lid_meridian(bore)],
             ids: Vec::new(),
         }),
@@ -152,8 +152,8 @@ fn sharp_lid_in(
     let lid = insert(
         &mut doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(TAU),
         },
         tol,
@@ -204,7 +204,7 @@ fn pieces_of(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, tol: Tol) -> ProfileP
     let Some(Node::Revolve { profile, .. }) = doc.node(lid) else {
         panic!("the lid is a revolve");
     };
-    let Some(Node::Profile(program)) = doc.node(*profile) else {
+    let Some(Node::Profile(program)) = doc.operation_of(*profile).and_then(|p| doc.node(p)) else {
         panic!("a revolve's operand is a profile");
     };
     program

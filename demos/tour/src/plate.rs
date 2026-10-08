@@ -216,7 +216,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     let plate_profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![
                 LoopProgram::polygon([
                     (-4.0e-3, -2.0e-3),
@@ -233,7 +233,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     let blank = insert(
         &mut doc,
         Node::Extrude {
-            profile: plate_profile,
+            profile: plate_profile.into(),
             distance: len(1.0e-3),
             side: ExtrudeSide::Along,
         },
@@ -244,7 +244,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         let profile = insert(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                plane: plane.into(),
                 loops: vec![LoopProgram::Circle {
                     centre: [centre, len(0.0)],
                     radius: param(radius),
@@ -256,7 +256,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
         insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0e-3),
                 side: ExtrudeSide::Along,
             },
@@ -294,8 +294,8 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
             doc,
             Node::Boolean {
                 op: BooleanOp::Subtract,
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 declare: declared_pairs(&found),
             },
             tol,
@@ -366,7 +366,7 @@ fn author(spacing_half_width: f64, radius_sigma: f64, bound: f64, cut: bool, tol
     let assertion = insert(
         &mut doc,
         Node::Assertion {
-            measure,
+            measure: measure.into(),
             bound: len(bound),
             dir: AssertionDir::AtLeast,
         },
