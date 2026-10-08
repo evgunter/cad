@@ -1199,36 +1199,6 @@ pub fn variable_label(doc: &Doc<ProfileProgram>, var: VarId) -> String {
         .unwrap_or_else(|| doc.spoken_var(var).to_string())
 }
 
-/// **The name the naming affordance proposes** for the variable `slot`
-/// reads: the slot's own word, snake-cased, and the first of `word`,
-/// `word_2`, `word_3`, … the document does not hold. Only a proposal:
-/// the kernel mints no name (VR2), and nothing is stored until the
-/// person commits it (`SessionOp::RenameVar`).
-pub fn proposed_name(doc: &Doc<ProfileProgram>, slot: SlotId) -> Option<VarName> {
-    let word: String = slot
-        .label()
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() {
-                c.to_ascii_lowercase()
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    (1..)
-        .map(|n| {
-            if n == 1 {
-                word.clone()
-            } else {
-                format!("{word}_{n}")
-            }
-        })
-        .take(1000)
-        .filter_map(|text| VarName::new(&text).ok())
-        .find(|name| doc.var_named(name.as_str()).is_none())
-}
-
 /// The `FreeVar` a dimension, a value and a NOTATION mint — the
 /// panel's CREATE-variable affordance, where a declaration really is
 /// being authored from parts. Moving an existing variable's value is

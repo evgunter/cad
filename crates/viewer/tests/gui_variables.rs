@@ -378,37 +378,23 @@ fn a_value_typed_at_a_shared_slot_makes_it_its_own() {
     );
 }
 
-/// **A name is proposed and stored only on commit** (VR2): the proposal
-/// is the slot's word, stepped past a name the document holds; the
-/// document holds no name until `RenameVar` lands, and naming moves no
-/// reader.
+/// **A name is stored only on commit, and naming moves no reader**
+/// (VR2): the kernel mints none, so the typed variable is unnamed until
+/// `RenameVar` lands.
 #[test]
-fn a_proposed_name_is_stored_only_when_committed() {
+fn a_name_is_stored_only_when_committed() {
     let (mut session, a, _b, _w, _k) = two_extrudes();
-    let doc = session.committed_doc();
-    let proposed = props::proposed_name(doc, SlotId::Distance).expect("a proposal");
-    assert_eq!(proposed.as_str(), "distance");
-    assert!(
-        doc.var_named("distance").is_none(),
-        "proposing stores nothing"
-    );
-
     let var = reads(&session, a);
+    assert!(session.committed_doc().var_name(var).is_none());
+    let name = VarName::from_static("depth");
     let named = session.perform(SessionOp::RenameVar {
         var,
-        name: Some(proposed.clone()),
+        name: Some(name.clone()),
     });
     assert!(named.refusal.is_none(), "{:?}", named.refusal);
     let doc = session.committed_doc();
-    assert_eq!(doc.var_name(var), Some(&proposed), "stored on commit");
+    assert_eq!(doc.var_name(var), Some(&name), "stored on commit");
     assert_eq!(reads(&session, a), var, "naming moves no reader");
-    assert_eq!(
-        props::proposed_name(session.committed_doc(), SlotId::Distance)
-            .expect("a proposal")
-            .as_str(),
-        "distance_2",
-        "the next proposal steps past the name now held"
-    );
 }
 
 /// A declared `d`, defined as `w * 2.0`.

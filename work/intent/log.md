@@ -255,14 +255,14 @@ These are mutation-checked: each guard was removed in turn and the named row wen
 | offer stands only while the slot reads the typed variable | `gui_variables::an_offer_stands_only_while_the_slot_reads_what_was_typed` |
 | typed text opens the offer | `gui_variables::typed_text_is_offered_and_a_formula_is_not` |
 | decline closes the offer | `gui_variables::declining_keeps_the_typed_variable_and_moves_no_document` |
-| proposal steps past held names | `gui_variables::a_proposed_name_is_stored_only_when_committed` |
+| a name is stored only on commit | `gui_variables::a_name_is_stored_only_when_committed` (was `a_proposed_name_is_stored_only_when_committed`; see Ev's ruling below) |
 | probe refuses a defined variable as defined | `gui_variables::the_range_probe_says_a_defined_variable_is_defined` |
 | exists-notice reads a defined variable | `gui_variables::the_exists_notice_reads_a_defined_variable_as_holding_its_name` |
 
 Panel rows (the `app` feature suite, the real pane, with clicks through to the session):
 - `properties_pane_tests::the_offer_is_drawn_and_its_button_makes_the_slot_read_the_variable`
 - `properties_pane_tests::keep_separate_declines_the_offer_and_moves_no_document`
-- `properties_pane_tests::a_name_is_proposed_in_the_pane_and_stored_on_commit`
+- `properties_pane_tests::the_naming_field_opens_empty_and_stores_only_on_commit` (was `a_name_is_proposed_in_the_pane_and_stored_on_commit`)
 
 Accepting is also covered by `gui_variables::accepting_an_offer_makes_the_slot_read_the_variable`.
 
@@ -333,6 +333,20 @@ row, `sym_9_the_drive_writes_the_ladders_receipt`, was cut by the
 run's own wall-clock limit and passed alone in 249 s); `work.py lint`
 ok. The editor-core change is two doc citations of the renamed
 `Refusal::NoSuchVariable`.
+
+### Ev's ruling on choice 7 (2026-10-08)
+
+Ev, on PR 4247: "there's no need to recommend a name now; `distance_1`
+as a naming scheme is uninspiring enough that i think it doesn't really
+beat requiring the user to type something". The **name…** field now
+opens empty, and `props::proposed_name` and its stepping are gone. The
+pane row `the_naming_field_opens_empty_and_stores_only_on_commit` pins
+that the field opens empty, that **Name** on an empty field names
+nothing, and that typed text stores nothing until it is committed.
+Choices 1–6, 8 and 9 stand as built. Ev's question about anonymous
+variables is open on the PR, and nothing here changes for it.
+
+Runs on this change: RUNS_CH7
 
 ## 2026-10-07 — FORK-6: split moves a variable with its readers (orchestrator's ruling)
 

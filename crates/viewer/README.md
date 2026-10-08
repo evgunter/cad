@@ -48,9 +48,8 @@ before. When other variables of the same kind hold the same value, the
 slot's row says `same value as` and names each one: click one to make
 the slot read it (one undoable edit; the two then move together), or
 **keep separate** to keep the typed value distinct. A slot whose
-variable has no name has a **name…** button that opens a field on a
-proposed name (the slot's own word); nothing is stored until you press
-**Name** or Enter.
+variable has no name has a **name…** button that opens an empty field;
+nothing is stored until you type a name and press **Name** or Enter.
 
 In the Properties panel, the document-variables list ends with an
 add-variable row (name + dimension + value, written in the working

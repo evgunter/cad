@@ -4030,12 +4030,13 @@ mod properties_pane_tests {
         );
     }
 
-    /// **The naming field opens on the proposal and stores nothing
-    /// until it is committed** (VR2): the proposal is the text the
-    /// field holds, the document holds no name while it is open, and
-    /// the commit is one `RenameVar` of the variable the slot reads.
+    /// **The naming field opens empty and stores nothing until a name
+    /// is committed** (VR2; Ev, PR 4247: no proposal): the field holds
+    /// no text, its commit is disabled while it names nothing, the
+    /// document holds no name while it is open, and the commit is one
+    /// `RenameVar` of the variable the slot reads.
     #[test]
-    fn a_name_is_proposed_in_the_pane_and_stored_on_commit() {
+    fn the_naming_field_opens_empty_and_stores_only_on_commit() {
         let mut pane = Driven::with(vec![SessionOp::Select(Selection::Node(extrude()))]);
         pane.quiet();
         let var = pane
@@ -4052,14 +4053,26 @@ mod properties_pane_tests {
                 node: extrude(),
                 slot: SlotId::Distance,
                 var,
-                text: "distance".to_owned(),
+                text: String::new(),
             }),
-            "the field opens on the proposal, for the variable the slot reads"
+            "the field opens empty, for the variable the slot reads"
         );
+        pane.quiet();
+        pane.click("Name");
+        assert!(
+            pane.app.session.committed_doc().var_name(var).is_none(),
+            "an empty field names nothing"
+        );
+        pane.app
+            .drafts
+            .name_draft
+            .as_mut()
+            .expect("the field is still open")
+            .text = "distance".to_owned();
         pane.quiet();
         assert!(
             pane.app.session.committed_doc().var_name(var).is_none(),
-            "a proposal stores nothing"
+            "typed text stores nothing until committed"
         );
         pane.click("Name");
         let doc = pane.app.session.committed_doc();
@@ -4121,10 +4134,7 @@ mod properties_pane_tests {
             .name_draft
             .as_mut()
             .expect("the field is open");
-        assert_eq!(
-            draft.text, "distance_2",
-            "the proposal steps past the held name"
-        );
+        assert!(draft.text.is_empty(), "the field opens empty");
         draft.text = "distance".to_owned();
         let var = draft.var;
         pane.click("Name");

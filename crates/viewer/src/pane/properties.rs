@@ -933,9 +933,9 @@ impl ViewerBehavior<'_> {
 
     /// The button that opens the naming field for the variable a slot
     /// reads — drawn only where that variable is unnamed, since a named
-    /// one is renamed at its own row. The field opens on the proposal
-    /// ([`props::proposed_name`]); the document holds no name until the
-    /// field is committed (VR2).
+    /// one is renamed at its own row. The field opens empty: nothing
+    /// proposes a name (Ev, PR 4247), and the document holds none until
+    /// the person types one and commits it (VR2).
     fn name_button(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow, label: &str) {
         let doc = self.session.committed_doc();
         let Some(var) = doc.slot(node, row.slot) else {
@@ -944,7 +944,6 @@ impl ViewerBehavior<'_> {
         if doc.var_name(var).is_some() || doc.var(var).is_none() {
             return;
         }
-        let proposal = props::proposed_name(doc, row.slot);
         if ui
             .add(egui::Button::new(label).small())
             .on_hover_text(NAME_HOVER)
@@ -954,13 +953,13 @@ impl ViewerBehavior<'_> {
                 node,
                 slot: row.slot,
                 var,
-                text: proposal.map(|name| name.to_string()).unwrap_or_default(),
+                text: String::new(),
             });
         }
     }
 
     /// **The naming field**, under the row whose button opened it: the
-    /// proposal as editable text, committed as one
+    /// person's text, committed as one
     /// [`SessionOp::RenameVar`] of the variable the field was opened
     /// for, on its button or Enter, abandoned on `cancel`. A text that
     /// is no name disables the commit and says why on hover, in the

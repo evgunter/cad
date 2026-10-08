@@ -29,7 +29,7 @@ slot and minted an anonymous variable for a typed value.
   gesture; declining is `SessionOp::DeclineOffer`, which moves no
   document.
 - **Naming** (VR2): a slot reading an unnamed variable has a **name…**
-  button whose field opens on `props::proposed_name`; the document holds
-  no name until **Name** or Enter commits one `RenameVar`.
+  button whose field opens empty (Ev, PR 4247: no proposal); the
+  document holds no name until **Name** or Enter commits one `RenameVar`.
 - With it, `viewer-param-vocabulary-names-a-variable` and
   `viewer-value-doors-read-a-defined-variable-as-absent`.

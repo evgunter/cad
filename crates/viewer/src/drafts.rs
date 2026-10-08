@@ -612,9 +612,9 @@ impl RowEdit {
 }
 
 /// **The naming field**: the slot it is drawn under, the variable it
-/// was opened for, and the text in it — seeded with the proposal
-/// ([`crate::props::proposed_name`]) and stored in the document only
-/// when the person commits it (VR2).
+/// was opened for, and the text in it — empty when it opens, since
+/// nothing proposes a name (Ev, PR 4247), and stored in the document
+/// only when the person commits it (VR2).
 ///
 /// **It names the variable it was opened for, never the slot's reader
 /// at commit.** The field stands only while the slot still reads that
