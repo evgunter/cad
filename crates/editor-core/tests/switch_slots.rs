@@ -631,7 +631,7 @@ fn datum_shapes() -> Vec<Datum<Formula>> {
 /// datums, a tube window open and closed, the three pattern kinds, a
 /// part selected two ways, and a placed union with and without its
 /// count.
-fn one_of_every_node_shape() -> Vec<ProfileNode> {
+pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
     let mut nodes: Vec<ProfileNode> = datum_shapes().into_iter().map(Node::Datum).collect();
     let window = || TubeWindow::Arc {
         t0: ang(0.0),

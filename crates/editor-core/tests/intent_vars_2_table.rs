@@ -493,9 +493,15 @@ fn every_lane_reads_the_declaration_order_not_the_digest_order() {
     );
     assert!(w < v, "and its ids sort with them");
     // The measure's own variable, the anonymous definition its value
-    // lowers to, is declared after the twins.
+    // lowers to, is declared after the twins, and every other variable
+    // is an operation's output.
     assert_eq!(doc.var_ids()[..2], [w, v]);
-    assert_eq!(doc.var_ids().len(), 3);
+    let declared = doc
+        .var_ids()
+        .into_iter()
+        .filter(|&id| doc.var(id).is_some_and(|var| var.def().output().is_none()))
+        .count();
+    assert_eq!(declared, 3);
     assert_eq!(
         doc.free_vars().map(|(id, _)| id).collect::<Vec<_>>(),
         vec![w, v]

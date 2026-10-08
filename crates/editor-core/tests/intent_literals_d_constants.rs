@@ -748,7 +748,7 @@ fn read_with_w(text: &str) -> (Formula, f64) {
     let parsed = parse_formula(text, &params).unwrap_or_else(|e| panic!("{text}: {e}"));
     let w = VarId::new(1, 1);
     let lowered = parsed
-        .lower(&|name| (name.as_str() == "w").then_some((w, Dimension::Length)))
+        .lower(&|name| (name.as_str() == "w").then_some((w, editor_core::VarKind::Length)))
         .unwrap();
     let mut env = VarEnv::<f64>::default();
     env.bindings.insert(

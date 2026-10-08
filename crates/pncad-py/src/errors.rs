@@ -99,6 +99,29 @@ pub const fn dimension_tag(dim: Dimension) -> &'static str {
     }
 }
 
+/// The lowercase tag a variable's kind is exposed to Python under: a
+/// scalar's is its dimension's ([`dimension_tag`]), and a pose's or a
+/// shape's is its own word.
+///
+/// Total over the kinds: adding one stops this function compiling.
+pub const fn var_kind_tag(kind: pncad::document::VarKind) -> &'static str {
+    use pncad::document::VarKind;
+    match kind {
+        VarKind::Length => dimension_tag(Dimension::Length),
+        VarKind::Angle => dimension_tag(Dimension::Angle),
+        VarKind::Scalar => dimension_tag(Dimension::Scalar),
+        VarKind::Count => dimension_tag(Dimension::Count),
+        VarKind::Point => "point",
+        VarKind::Direction => "direction",
+        VarKind::Axis => "axis",
+        VarKind::Plane => "plane",
+        VarKind::Frame => "frame",
+        VarKind::Body => "body",
+        VarKind::Bodies => "bodies",
+        VarKind::Profile => "profile",
+    }
+}
+
 /// The **capitalized** spelling of a [`Dimension`], which is what
 /// `Measurement.dimension` answers.
 ///

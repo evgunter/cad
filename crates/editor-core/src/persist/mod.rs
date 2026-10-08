@@ -24,7 +24,11 @@
 //! of growth follow from that one door. An OLDER document lacking
 //! vocabulary this build has since grown (a new node arm, a new
 //! optional field) never names it, so it loads — additive growth
-//! invalidates nothing. A NEWER document carrying a field this build
+//! invalidates nothing. Growth that adds a rule every document must
+//! meet is a break instead, and refuses at the structural walk that
+//! states the rule rather than at this door: a document written before
+//! each operation defined its outputs holds none of them, and refuses
+//! [`SnapshotError::OutputSignature`] with the same recourse. A NEWER document carrying a field this build
 //! lacks refuses **where the wire type owning the field carries
 //! `deny_unknown_fields`**: a stale reader must not silently drop
 //! data. The precondition is the ATTRIBUTE and not the field — a
@@ -165,7 +169,7 @@ use crate::sentence::{Labelled, Labels, Staged};
 use geom_core::Tol;
 
 pub use canon::{canonical_bytes, content_pin};
-pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
+pub use check::{NonFiniteSite, OutputFault, ProgramFault, SnapshotError};
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]

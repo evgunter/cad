@@ -48,7 +48,7 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// and with it every row this hashes. No outcome or point moved:
 /// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
 /// held untouched across the change.
-const DIAGNOSIS_DIGEST: u64 = 0x6170_e36a_1f31_a6db;
+const DIAGNOSIS_DIGEST: u64 = 0xbefc_353a_7967_857e;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

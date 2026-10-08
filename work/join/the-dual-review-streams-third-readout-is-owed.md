@@ -2,11 +2,11 @@
 id: the-dual-review-streams-third-readout-is-owed
 kind: ruling
 title: The dual review stream reached its third readout point at DR-104, the first M-tier miss (a holdout pair's tallied MAJOR whose other review raised none); Ev rules on what the stream does next
-status: open
+status: closed
 opened: 2026-10-07
 priority: P4
 pr: 4283
-needs_ev: true
+closed: 2026-10-08
 ---
 
 
@@ -19,4 +19,4 @@ DR-104 (JOIN, PR 4274) is that pair:
 
 A separate agent writes the readout blind, off-file, on the branch `analysis/dual-review/readout-3`. Duals continue until Ev rules.
 
-Ruled (Ev, PR 4283, 2026-10-08): continue the protocol unchanged. The next M-tier miss gets a short FYI readout. The next full readout comes at twenty M-tier units or at two more M-tier misses. The rule-9 wording waits for Ev's sign-off on its recording PR; the row closes when that PR merges.
+Ruled (Ev, PR 4283, 2026-10-08): continue the protocol unchanged. The next M-tier miss gets a short FYI readout. The next full readout comes at twenty M-tier units or at two more M-tier misses. Rule 9 is rewritten in place to say it, signed off by Ev on PR 4298.
