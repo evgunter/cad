@@ -1,9 +1,8 @@
 # Review r2: PR #4345, a plane across a one-face wall (JOIN)
 
-Frozen head `a92e7cbd`, base `f3755cd4`. Lane isolation held: I read no other review branch, session or PR comment.
-Everything ran in release, base and head in separate target dirs. Probes: `crates/sweep/tests/wrap_r2_probes.rs`
-(registered in `all.rs` on this branch only). Their output lines are in `probes/wrap-r2/`. Every build was read through
-`common::differential::outcome`, then tessellated and `check_mesh`ed.
+Head `a92e7cbd`, base `f3755cd4`; lane isolation held (no other review branch, session or PR comment read). Release
+builds, separate target dirs. Probes: `crates/sweep/tests/wrap_r2_probes.rs` (in `all.rs` on this branch only), lines
+in `probes/wrap-r2/`. Every build read through `differential::outcome`, then tessellated and `check_mesh`ed.
 
 **Verdict: APPROVE-WITH-FIXES.** MAJOR 0 · MINOR 5 · NOTE 6. No wrong body was found. Every failure below is a typed
 refusal, a test gap, or a defect that reproduces on base or on a two-arc control.
@@ -13,11 +12,9 @@ refusal, a test gap, or a defect that reproduces on base or on a two-arc control
 1. **Holds.** I re-derived three closed forms independently: the CLEAVE tube's overlap 0.16π; the near-end plane π(c+½),
    from the mean height c + m(1 − x̄) with x̄ = 0; and the beside-edge segment ¼·acos 0.8 − 0.12. Beyond the six
    witnesses I ran 70 poses × 6 ops:
-   - flat planes off-centre, with the wrap edge at azimuths 0, 2 and 4;
-   - tilts about x of 0.05°–44°;
+   - flat planes off-centre, wrap edge at azimuths 0, 2 and 4; tilts about x of 0.05°–44°;
    - tilts about y of 0.5°–88°. At 78°–88° the plane meets the wrap edge at 12°–2° (120-wide box, F1s);
-   - five tilt-axis azimuths, with r from 0.37 to 1.17;
-   - planes 1e-2, 1e-4 and 1e-6 above the end vertex;
+   - five tilt-axis azimuths, r from 0.37 to 1.17; planes 1e-2, 1e-4 and 1e-6 above the end vertex;
    - tubes r ∈ {[.3,.5], [.05,.1], [.9,1.2], [.45,.5]}, off-centre, under slabs turned 3° and 15° about x and z.
 
    Every op in both orders builds to its closed form within 1e-7, passes t2, t3′ and the certificate, and meshes
@@ -35,8 +32,7 @@ refusal, a test gap, or a defect that reproduces on base or on a two-arc control
    `CurvedPairUnsupported`, so `shared` and the both-sides-wrap arm are never reached (MINOR 2).
 3. **Holds by execution.** Every op in both orders is SOUND for:
    - plate holes inside the conic (0.3, 0.2) and outside it (2, 2);
-   - a hole at the conic's centre;
-   - a boss inside the conic;
+   - a hole at the conic's centre; a boss inside the conic;
    - two concentric aligned-seam one-site loops, the outer conic enclosing the inner pierce ring.
 
    The Euler steps check their own preconditions: `mfkrh`'s ring, and `kfmrh`'s `FaceHasRings` on the hole.
@@ -44,13 +40,12 @@ refusal, a test gap, or a defect that reproduces on base or on a two-arc control
    `place_pending`'s `RingHomingAmbiguous` (`l1 == l2`), which is typed. The face-sense argument
    (`chord_join.rs:3391-3396`) rests only on the tiers passing. The hole choice is pinned in one order only (MINOR 1).
 4. **Holds.** Base against head, timing stripped, lines sorted where threads interleave:
-   - `pinch_runs_battery`: 3 030 lines, 0 differ;
-   - `corner_pairs_battery`: 16 387 lines, 0 differ;
-   - `rc_wide_battery` shards 0, 41 and 83 of 84: 486 lines each, 0 differ;
+   - `pinch_runs_battery` 3 030 lines, `corner_pairs_battery` 16 387, `rc_wide_battery` shards 0, 41, 83 of 84 at 486
+     each: 0 differ;
    - **`pocket_ring_steep_ellipse`** (not run by the PR; curved pierces of a wall with rings): all rows, 4 404 lines,
      0 differ;
-   - `one_segment_loop`, `germ_coplanar_conic`, `review_cleave_wrongarc` and `m6_tube`: pass sets differ only by the
-     PR's rename and deletion; TALLY lines identical.
+   - `one_segment_loop`, `germ_coplanar_conic`, `review_cleave_wrongarc`, `m6_tube`: pass sets differ only by the PR's
+     rename and deletion.
 5. **Partly holds.**
    - **M3, the hole choice flipped:** all six witness tests go red, but only through their rows whose PLANAR operand is
      A (`Pcurves{LoopNotClosed}`). See MINOR 1.
@@ -101,10 +96,9 @@ checks t3′.
 chordal 2e-2 and 5e-3 with `tessellate` returning `Ok`. The operand and the two-arc result are clean. The **base split
 lane** gives the same edge ids, so this is a pre-existing tessellation defect, newly reachable from the boolean. No
 `work/tess/` row covers it; it should be filed.
-**NOTE 4.** The plane z = m(1−x) + 0.8y through the end vertex: ∪ and A−B refuse `VolumeUnmeasured`, the same on base.
-**NOTE 5.** Retracted: my first 80°+ rows used an 8-wide box whose sides reached the wall, and base mis-measured them
-identically. The F1s rows replace them.
-**NOTE 6.** The "0 lines moved" claim rests on `#[ignore]`d batteries with no register (Q6). Standing practice.
+**NOTE 4.** z = m(1−x) + 0.8y through the end vertex: ∪ and A−B refuse `VolumeUnmeasured`, the same on base.
+**NOTE 5.** Retracted: my first 80°+ rows had a box too narrow (its sides cut the wall); F1s replaces them.
+**NOTE 6.** "0 lines moved" rests on `#[ignore]`d batteries with no register (Q6); standing practice.
 
 ## Style (Q1–Q8 exercised; Q8 partial: `chord_join.rs`' header and its join, lone-ring, rehome and pending regions)
 
