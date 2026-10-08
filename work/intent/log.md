@@ -337,3 +337,10 @@ Split and VR9 each gain a descriptive line, landing with the lane's PR.
 - **F retires A5's minting lift.**
 - **A and E stay pending FORK-1 and FORK-3** (#4222).
 - The consuming-model audit's 14 hits are mapped in spec §11.
+
+## 2026-10-08 — FORK-1, FORK-1b and FORK-3 ruled (PR 4222)
+
+- **FORK-1:** approved as written (typed output ports; `Body`, `Bodies`, `Profile`; a split two bodies; an instance one `Body` per world placement).
+- **FORK-1b** (Ev's lattice comment; designer pair, three rounds, row 86): approved. Poses are frames up to their kind's symmetry, D10's five kinds, incidences constructed, a 2-D value lives in its node; the revolve defines `body` and `axis`; the tube reads a `Frame` from unit B (`tube-spine-reads-an-axis-origin`). Ev added that the mates' `Subgroup` should be shared: one type is a pose's symmetry and what a mate folds.
+- **FORK-3:** sets. Ev clarified that "the role played by edges is replaced by sharing variables" meant dependency-graph edges.
+- Unit A is unblocked (stage 1 finished with PR D, #4277).

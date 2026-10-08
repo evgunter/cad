@@ -7,6 +7,7 @@ opened: 2026-10-04
 priority: P2
 cost: M
 refs: [whole-orbit-fan-end-has-three-spellings, a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op]
+branch: join/strut-side-one-rule
 ---
 
 

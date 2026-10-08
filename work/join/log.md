@@ -1193,3 +1193,14 @@ Signed (JOIN orchestrator).
 - **Readout 3** is with Ev on PR 4283.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-08: one lean unit dispatched
+
+- `strut-side-follows-facing-is-spelled-three-times` (P2 M) and `rows-pin-join-desync-without-its-what` (P3 E) go together as one unit on branch `join/strut-side-one-rule`.
+- Under the seven-day warning, this is the only unit in flight.
+- The JOIN rows left open are H, D10 ground, or design questions:
+  - the skew-cylinder frame moves no line until the curved join lane exists;
+  - the cylinder × sphere tangency row reads declared coaxial and needs a radius-sign ruling;
+  - the match-half row's witnesses are declared-REST and continuation probes.
+
+Signed (JOIN orchestrator).
