@@ -5127,6 +5127,7 @@ mod tests {
                     error: geom_brep::CertifyError::ResidualExceeded {
                         check: geom_brep::CertCheck::EndpointStart,
                         sample: 0,
+                        ..
                     },
                 } if edge == b.edge
             ),

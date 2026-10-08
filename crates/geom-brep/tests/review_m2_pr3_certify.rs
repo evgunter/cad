@@ -333,12 +333,17 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
         s2,
         witness: Point3::new(0.0, -1.0, 0.0),
     };
-    assert_eq!(
-        EdgeCurve::certify(wrong_side, p0, p1, &lookup, band()).unwrap_err(),
-        CertifyError::ResidualExceeded {
-            check: CertCheck::WitnessMidpoint,
-            sample: 4
-        }
+    let refusal = EdgeCurve::certify(wrong_side, p0, p1, &lookup, band()).unwrap_err();
+    assert!(
+        matches!(
+            refusal,
+            CertifyError::ResidualExceeded {
+                check: CertCheck::WitnessMidpoint,
+                sample: 4,
+                ..
+            }
+        ),
+        "{refusal:?}"
     );
 }
 

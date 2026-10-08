@@ -83,6 +83,7 @@ use std::path::{Path, PathBuf};
 use Disposition::{EpsSensitive, Escalated, Pass, Refused, Wireframe};
 use geom_core::{Band, Tol};
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
+use test_utils::vacuity::Exposure;
 
 /// What a corpus file does at import, at every tolerance in the sweep.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -223,9 +224,9 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 ///   the NIST inch translator prints ~12 significant digits, so the
 ///   file does not state itself to 1e-12 m, and the adoption ladder
 ///   says so by name instead of certifying a carrier it cannot. The
-///   file declares ε_in ≈ 3.4e-5 m, past the run's band, so the miss
-///   may lie within it, and the refusal names setting ε to ε_in as a
-///   stopgap beside re-exporting more precisely (D4 ¶1).
+///   miss lies within the file's declared ε_in, so the refusal names
+///   setting ε to ε_in as a stopgap beside re-exporting more precisely
+///   (D4 ¶1).
 const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     // -- tests/fixtures/cert1-r1/nearpolar_*.step ---------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
@@ -330,7 +331,7 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
         "file",
         Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
     ),
-    (POLEBAND, 1e-6, "file", Refused(INTERVAL_ZERO_SPAN_STATED)),
+    (POLEBAND, 1e-6, "file", Refused(POLEBAND_ZERO_SPAN_STATED)),
     (POLEBAND, 1e-12, "file", Refused(TANGENT_SECOND_ORDER_ZERO)),
     // The ε-relative sibling's cells mirror the twins' one band down:
     // its 5.65e-12 m span escalates exactly where the band is 1e-12
@@ -339,19 +340,19 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
         POLEBAND12,
         1e-9,
         "file",
-        Refused(INTERVAL_ZERO_SPAN_UNSTATED),
+        Refused(INTERVAL_ZERO_SPAN_COINCIDENT),
     ),
     (
         POLEBAND12,
         1e-6,
         "file",
-        Refused(INTERVAL_ZERO_SPAN_UNSTATED),
+        Refused(INTERVAL_ZERO_SPAN_COINCIDENT),
     ),
     (
         POLEBAND12,
         1e-12,
         "file",
-        Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
+        Escalated(PARAM_SPAN_UNSTATED, PARAM_SPAN_ESCALATED.1),
     ),
     (
         POLEFRUSTUM,
@@ -363,7 +364,7 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
         POLEFRUSTUM,
         1e-6,
         "file",
-        Refused(INTERVAL_ZERO_SPAN_STATED),
+        Refused(POLEFRUSTUM_ZERO_SPAN_STATED),
     ),
     (
         POLEFRUSTUM,
@@ -392,31 +393,48 @@ const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
 /// interval by name — the span's Zero verdict, not a reversed one. The
 /// span is a real edge shorter than the tolerance, a band-decided arm
 /// like every sized decision's, and certification at adoption reads as
-/// at rest (D4 ¶1): the twins' span margins (5.65e-9 m and 1.8e-9 m)
-/// lie past their files' ε_in (1e-10 m), so the offer to tighten stands. A span
-/// of no length ends in the lever and a note instead, which the offer's
-/// words cannot match.
-const INTERVAL_ZERO_SPAN_STATED: &str = "the stored parameter interval spans no length at this \
+/// at rest (D4 ¶1): each twin's span lies past its file's ε_in
+/// (1e-10 m), so the offer to tighten stands, valued — the value is the
+/// span over K, so it pins the span. A span of no length ends in the
+/// lever and a note instead, which the offer's words cannot match.
+const POLEBAND_ZERO_SPAN_STATED: &str = "the stored parameter interval spans no length at this \
      tolerance — a degenerate zero-span interval, which the forward gate refuses. Recourse: move \
      the geometry so this edge is not vanishingly short, or, if this length is intended, tighten \
-     the tolerance below";
-/// The ε-relative sibling's coarse-band cells: its 5.65e-12 m span lies
-/// within the file's ε_in (1e-10 m), so the file does not state it, and
-/// the import door withholds the offer to keep it (D4 ¶1).
-const INTERVAL_ZERO_SPAN_UNSTATED: &str = "a degenerate zero-span interval, which the forward gate \
-     refuses. This length is below the file's declared coincidence distance ε_in = 1e-10 m, so the \
-     file does not state it. Recourse: move the geometry so this edge is not vanishingly short, or \
-     re-export the file with its uncertainty declared below";
+     the tolerance below 5.654866773844621e-10 m";
+/// [`POLEBAND_ZERO_SPAN_STATED`], for the frustum twin's shorter span.
+const POLEFRUSTUM_ZERO_SPAN_STATED: &str = "the stored parameter interval spans no length at \
+     this tolerance — a degenerate zero-span interval, which the forward gate refuses. Recourse: \
+     move the geometry so this edge is not vanishingly short, or, if this length is intended, \
+     tighten the tolerance below 1.799999999166981e-10 m";
+/// The ε-relative sibling's coarse-band cells: its span lies within the
+/// file's ε_in (1e-10 m) and reads as zero at the run's tolerance too,
+/// so the file states a zero-length edge, and the import door quotes no
+/// value (D4 ¶1): the lever, and the span's note on an edge of no
+/// length.
+const INTERVAL_ZERO_SPAN_COINCIDENT: &str = "a degenerate zero-span interval, which the forward \
+     gate refuses. The file and this run both read this length as zero, so the file states the \
+     coincidence. Recourse: move the geometry so this edge is not vanishingly short; an edge of \
+     no length";
+/// The ε-relative sibling at the fine band: its span escalates, and lies
+/// within the file's ε_in (1e-10 m), so the file does not state it. The
+/// import door names keeping it as two steps together (D4 ¶1): declare
+/// the file's uncertainty below the span, and tighten below the span
+/// over K. The values pin the span.
+const PARAM_SPAN_UNSTATED: &str = "This length is below the file's declared coincidence distance \
+     ε_in = 1e-10 m, so the file does not state it. Recourse: move the geometry so this edge is \
+     not vanishingly short, or, if this length is intended, re-export the file with its \
+     uncertainty declared below 5.65487109168879e-12 m and tighten the tolerance below \
+     5.65487109168879e-13 m";
 /// Their fine-band sub-reason: with the spans certified, adoption
 /// refuses the rim/sphere near-tangency — the second-order arm's own
 /// verdict, so a regression that moves the refusal to another door
 /// fails these cells. Band-decided, like the tangent-plane zero, and
-/// its ~1.6e-16 m margin lies within the files' ε_in: no offer keeps it.
+/// zero at both the file's ε_in and the run's tolerance: the import
+/// door quotes no value, and the decision has no note at zero.
 const TANGENT_SECOND_ORDER_ZERO: &str = "the faces agree to second order at sample 1, so they do \
-     not fix where the edge runs, which its description says they do. This curvature difference \
-     is below the file's declared coincidence distance ε_in = 1e-10 m, so the file does not state \
-     it. Recourse: move the geometry so the faces curve apart more clearly where they touch, or \
-     re-export the file with its uncertainty declared below";
+     not fix where the edge runs, which its description says they do. The file and this run both \
+     read this curvature difference as zero, so the file states the coincidence. Recourse: move \
+     the geometry so the faces curve apart more clearly where they touch";
 /// dm1's former coarse-band sub-reason: the convergence predicate
 /// declines to decide, by name. **No cell reaches it any more** — the
 /// gate stops on a definite SIGN before the round whose width lands in
@@ -446,28 +464,30 @@ const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 /// Coarse enough for the two walls to read as one: the Intersection
 /// transversality precondition fails, and the ladder says which. A zero
 /// verdict is band-decided — at a finer ambient band the coincidence
-/// predicates no longer fire here, and the file imports — but its
-/// ~2.7e-27 m margin lies within both ε_in overrides, so the import
-/// door offers no tolerance to keep it (D4 ¶1).
+/// predicates no longer fire here, and the file imports — but the angle
+/// reads as zero at both ε_in overrides and at the run's tolerance, so
+/// the import door quotes no value (D4 ¶1): its decision's lever alone,
+/// and the attempt ends there (the `;` before the next rung).
 const TANGENT_PLANES_COINCIDE: &str = "the faces meet tangentially at sample 1, where the edge's \
-     description says they cross. This angle is below the file's declared coincidence distance";
+     description says they cross. The file and this run both read this angle as zero, so the \
+     file states the coincidence. Recourse: move the geometry so the surfaces cross at a clearer \
+     angle;";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
 const PARAM_SPAN_ESCALATED: (&str, &str) = (
     "the stored interval's span (not a sampled check) escalated",
     "interval_span_forward",
 );
-/// The MAPPED-CURVE arm's definite miss, read at the import door: the
-/// file's ε_in (its inch uncertainty, 1.331353158630e-3 in) reaches
-/// past the run's band, so the miss may lie within it, and the ending
-/// names setting ε to ε_in as a stopgap (D4 ¶1) rather than a kernel
-/// defect or a damaged file.
+/// The MAPPED-CURVE arm's definite miss, read at the import door by its
+/// own value: it lies within the file's ε_in (its inch uncertainty,
+/// 1.331353158630e-3 in), so the ending names setting ε to ε_in as a
+/// stopgap (D4 ¶1) rather than a kernel defect or a damaged file.
 const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-endpoint residual \
      at sample 0 definitely exceeds the tolerance band (the cache does not represent the \
-     description, D4 ¶2). This miss lies beyond the tolerance and may lie within the file's \
-     declared coincidence distance ε_in = 3.3816370229201994e-5 m, to which alone the file's data \
-     claims to agree. Recourse: re-export the file more precisely, or, as a stopgap, set the \
-     tolerance to ε_in = 3.3816370229201994e-5 m;";
+     description, D4 ¶2). This miss lies beyond the tolerance and within the file's declared \
+     coincidence distance ε_in = 3.3816370229201994e-5 m, to which alone the file's data claims \
+     to agree. Recourse: re-export the file more precisely, or, as a stopgap, set the tolerance \
+     to ε_in = 3.3816370229201994e-5 m";
 
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
@@ -1003,6 +1023,7 @@ fn expected(rel: &str, row: Disposition, eps_tag: &str) -> Option<Disposition> {
 #[test]
 fn every_corpus_import_passes_the_shared_gate() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let mut exposure = Exposure::new("tier_gate's import-door reading");
     // File-major, so each file is read once and each file's own ε_in
     // sweep (see `eps_in_rows_for`) is visible at the loop head.
     for (rel, row) in CORPUS {
@@ -1048,7 +1069,7 @@ fn every_corpus_import_passes_the_shared_gate() {
                 (Ok(StepImport::Wireframe { .. }), Wireframe) => {}
                 (Err(e), Refused(fragment)) => {
                     let msg = e.to_string();
-                    assert_adoption_reading(&who, &e);
+                    assert_adoption_reading(&who, &e, &mut exposure);
                     assert!(
                         msg.contains(fragment),
                         "{who}: refused for a DIFFERENT reason than the table records \
@@ -1057,7 +1078,7 @@ fn every_corpus_import_passes_the_shared_gate() {
                 }
                 (Err(e), Escalated(fragment, predicate)) => {
                     let msg = e.to_string();
-                    assert_adoption_reading(&who, &e);
+                    assert_adoption_reading(&who, &e, &mut exposure);
                     assert!(
                         msg.contains(fragment),
                         "{who}: refused for a DIFFERENT reason than the table records \
@@ -1074,14 +1095,33 @@ fn every_corpus_import_passes_the_shared_gate() {
             }
         }
     }
+    // The guard's floor: on the pinned matrix the corpus reaches both an
+    // offer it checks and a reading that withholds one, so a guard that
+    // parsed nothing cannot pass. Off it, no refusal cell is read.
+    exposure.report();
+    if PINNED_AMBIENT.contains(&Tol::witness().get().eps) {
+        exposure.require_each(
+            &[OFFERS, WITHHELD],
+            1,
+            "the import door's guard read no offer, or no withheld one, across the corpus",
+        );
+    } else {
+        test_utils::vacuity::stood_down(
+            "ambient ε off the pinned matrix",
+            "the import door's guard floor: no refusal cell is read here",
+        );
+    }
 }
 
 /// A certification refusal at adoption reads as at rest (D4 ¶1): no
 /// ending blames the kernel alone, and no offer to tighten keeps a size
-/// within the file's declared coincidence distance ε_in — each offer's
-/// value is `|m|/K`, so the size it keeps, that value times K, lies
-/// past ε_in.
-fn assert_adoption_reading(who: &str, e: &StepImportError) {
+/// at or below the file's declared coincidence distance ε_in by
+/// tightening alone. Each offer's value is `|m|/K` at the margin's
+/// nearer end, so the size it keeps, that value times K, lies past
+/// ε_in — or the offer is the second of two steps, after declaring the
+/// file's uncertainty below that size. Counts each offer it parsed, and
+/// each reading that withheld one, into `exposure`.
+fn assert_adoption_reading(who: &str, e: &StepImportError, exposure: &mut Exposure) {
     let (StepImportError::Adoption { file, .. } | StepImportError::Assembly { file, .. }) = e
     else {
         return;
@@ -1093,20 +1133,41 @@ fn assert_adoption_reading(who: &str, e: &StepImportError) {
     );
     let band = Band::linear(Tol::witness()).expect("the run's band");
     let k = band.escalate() / band.zero();
-    for offer in msg.split("tighten the tolerance below ").skip(1) {
+    let pieces: Vec<&str> = msg.split("tighten the tolerance below ").collect();
+    for (before, offer) in pieces.iter().zip(&pieces[1..]) {
+        exposure.note(OFFERS);
         let below: f64 = offer
             .split_once(" m")
             .and_then(|(v, _)| v.parse().ok())
             .unwrap_or_else(|| panic!("{who}: an offer to tighten names no value: {msg}"));
+        if below * k > file.eps_in() {
+            continue;
+        }
+        let declared: Option<f64> = before
+            .strip_suffix(" m and ")
+            .and_then(|b| b.rsplit_once("uncertainty declared below "))
+            .and_then(|(_, v)| v.parse().ok());
         assert!(
-            below * k > file.eps_in(),
+            declared.is_some_and(|d| d <= file.eps_in() && (d / k - below).abs() <= below * 1e-9),
             "{who}: an adoption refusal offers to keep a size of {:e} m, within the file's \
-             ε_in = {:e} m: {msg}",
+             ε_in = {:e} m, without declaring the file's uncertainty below it: {msg}",
             below * k,
             file.eps_in()
         );
     }
+    exposure.add(
+        WITHHELD,
+        msg.matches("so the file does not state it").count()
+            + msg.matches("so the file states the coincidence").count(),
+    );
 }
+
+/// [`assert_adoption_reading`]'s tally: offers to tighten it parsed.
+const OFFERS: &str = "offers to tighten parsed";
+/// [`assert_adoption_reading`]'s tally: readings at the import door that
+/// withheld the offer, for a size the file does not state or a
+/// coincidence it does.
+const WITHHELD: &str = "readings that withheld the offer";
 
 /// The reader touches the kernel's at-rest validators at exactly TWO
 /// places (the #260 ask: make skipping them structurally hard). The

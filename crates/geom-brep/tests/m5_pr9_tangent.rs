@@ -558,12 +558,17 @@ fn a_small_angle_false_tangency_is_decided_at_the_parallelism_band_edge() {
         ),
         "a defect inside the band escalates at the parallelism check"
     );
-    assert_eq!(
-        certify_at(2.0 * escalate).unwrap_err(),
-        CertifyError::ResidualExceeded {
-            check: geom_brep::CertCheck::TangentParallel,
-            sample: 1,
-        }
+    let refusal = certify_at(2.0 * escalate).unwrap_err();
+    assert!(
+        matches!(
+            refusal,
+            CertifyError::ResidualExceeded {
+                check: geom_brep::CertCheck::TangentParallel,
+                sample: 1,
+                ..
+            }
+        ),
+        "{refusal:?}"
     );
 }
 
@@ -645,13 +650,18 @@ fn a_second_order_refusal_is_renamed_only_by_a_definite_defect_at_the_folded_arm
     );
 
     let definite = (1e3 * zero / length).asin();
-    assert_eq!(
-        certify_line_at(1.0, tangent_plane(), plane_through_line(1.0, definite)).unwrap_err(),
-        CertifyError::ResidualExceeded {
-            check: geom_brep::CertCheck::TangentParallel,
-            sample: 1,
-        },
-        "a definite first-order defect names the refusal"
+    let refusal =
+        certify_line_at(1.0, tangent_plane(), plane_through_line(1.0, definite)).unwrap_err();
+    assert!(
+        matches!(
+            refusal,
+            CertifyError::ResidualExceeded {
+                check: geom_brep::CertCheck::TangentParallel,
+                sample: 1,
+                ..
+            }
+        ),
+        "a definite first-order defect names the refusal: {refusal:?}"
     );
 
     let radius = zero;
@@ -774,12 +784,16 @@ fn a_renamed_refusal_leaves_no_second_order_escalation_on_the_log() {
     );
 
     let (out, recorded) = certify_line_at_interval(r, cylinder_of(r), plane_through_line(r, tilt));
-    assert_eq!(
-        out.err(),
-        Some(CertifyError::ResidualExceeded {
-            check: geom_brep::CertCheck::TangentParallel,
-            sample: 1,
-        })
+    assert!(
+        matches!(
+            out,
+            Err(CertifyError::ResidualExceeded {
+                check: geom_brep::CertCheck::TangentParallel,
+                sample: 1,
+                ..
+            })
+        ),
+        "{out:?}"
     );
     assert_eq!(
         escalated(&recorded),

@@ -348,7 +348,7 @@ impl PlaneNurbsRefusal {
     #[must_use]
     pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
         if let Self::TubeNotOneArc { cause, .. } = *self {
-            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, Reading::AtRest));
+            return Some(cause.ending_in_file(crate::ssi::OneArcDoor::AtRest, file));
         }
         self.decision()
             .map(|(check, arm)| recourse_in_file(check, arm, file))
@@ -947,6 +947,45 @@ mod tests {
                 assert!(!rendered.contains("searched region"), "{rendered}");
             }
         }
+    }
+
+    /// **Limb 3's at-rest refusal reads the file's ε_in at the import
+    /// door** (D4 ¶1): an undecided one-arc clearance at or below ε_in is
+    /// not offered a tolerance alone, and one past it is offered the
+    /// at-rest value. Red where `ending_in_file` reads the one-arc
+    /// decision at rest, which offers "tighten below 5e-10 m" for a
+    /// 5e-9 m clearance within the file's 1e-6 m.
+    #[test]
+    fn the_tube_not_one_arc_refusal_reads_eps_in_at_the_import_door() {
+        use crate::ssi::OneArcRefusal;
+        let band = geom_core::Band::new(1e-9, 1e-8).unwrap();
+        let refusal = |m| PlaneNurbsRefusal::TubeNotOneArc {
+            rungs: 20,
+            cause: OneArcRefusal::Undecided(Indeterminate {
+                margin: geom_core::MarginDiag::value(m),
+                band,
+                predicate: Some("ssi_tube_one_arc"),
+                terminal_sliver: false,
+            }),
+        };
+        let file = |eps_in| FileCoincidence::new(eps_in, geom_core::Tol::witness());
+        let within = refusal(5e-9).ending_in_file(file(1e-6)).unwrap();
+        assert!(
+            within.starts_with(
+                "This clearance is below the file's declared coincidence distance ε_in = 1e-6 \
+                 m, so the file does not state it. Recourse: store the edge's curve"
+            ) && within.ends_with(
+                ", or, if this clearance is intended, re-export the file with its uncertainty \
+                 declared below 5e-9 m and tighten the tolerance below 5e-10 m"
+            ),
+            "{within}"
+        );
+        let past = refusal(5e-9);
+        assert_eq!(
+            past.ending_in_file(file(1e-9)),
+            past.ending(Reading::AtRest),
+            "a clearance past ε_in reads as at rest"
+        );
     }
 
     /// The carrier interval the rows use: `0.3 + (0.9 − 0.3)` is an

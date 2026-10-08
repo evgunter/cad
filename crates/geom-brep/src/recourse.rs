@@ -12,8 +12,9 @@
 //! A decision with no size the user chose ([`Unsized`]) ends here too.
 
 use geom_core::{
-    Band, Decided, FileCoincidence, Indeterminate, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_RECOURSE,
-    KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, NOT_YET_ENDING, Sign, SizedWords,
+    Band, BandArm, Decided, FileCoincidence, Indeterminate, KERNEL_DEFECT_ENDING,
+    KERNEL_LIMIT_RECOURSE, KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, MissReading, MissSource,
+    NOT_YET_ENDING, Sign, SizedWords,
 };
 pub use geom_core::{SizedPass, UNREADABLE_MARGIN_NOTE};
 
@@ -107,21 +108,33 @@ impl Unsized {
     /// door (D4 ¶1): read at rest, except that a miss within the file's
     /// declared coincidence distance but beyond ε names setting ε to ε_in
     /// as a stopgap, beside re-exporting the file more precisely
-    /// ([`MarginDiag::miss_recourse_in_file`]; where the definite arm
-    /// carries no miss value, [`FileCoincidence::definite_miss_recourse`]).
-    /// A residual passes only at zero, so its refused margin is a miss.
+    /// ([`FileCoincidence::miss_recourse_in_file`]). A residual passes
+    /// only at zero, so its refused margin is a miss. The sign-certain
+    /// arm here is a refusal that carries no reading of its miss; one
+    /// that does ends through [`Unsized::definite_residual_in_file`].
     #[must_use]
     pub fn residual_in_file(self, arm: RefusedArm<'_>, file: FileCoincidence) -> String {
-        let at_rest = self.recourse(arm, Reading::AtRest);
-        match arm {
-            RefusedArm::Undecided(cause) => cause
-                .margin
-                .miss_recourse_in_file(cause.band, file, &at_rest),
-            RefusedArm::Zero(Classified { margin, band }) => {
-                margin.miss_recourse_in_file(band, file, &at_rest)
-            }
-            RefusedArm::SignCertain => file.definite_miss_recourse(&at_rest),
-        }
+        let miss = match arm {
+            RefusedArm::Undecided(cause) => MissReading::Banded(cause.margin, cause.band),
+            RefusedArm::Zero(Classified { margin, band }) => MissReading::Banded(margin, band),
+            RefusedArm::SignCertain => MissReading::DefiniteUnvalued,
+        };
+        self.miss_in_file(miss, arm, file)
+    }
+
+    /// [`Unsized::residual_in_file`] on the sign-certain arm of a refusal
+    /// that carries the reading `margin` of its definite miss.
+    #[must_use]
+    pub fn definite_residual_in_file(self, margin: MarginDiag, file: FileCoincidence) -> String {
+        self.miss_in_file(MissReading::Definite(margin), RefusedArm::SignCertain, file)
+    }
+
+    fn miss_in_file(self, miss: MissReading, arm: RefusedArm<'_>, file: FileCoincidence) -> String {
+        let source = match self {
+            Self::Defect => MissSource::File,
+            Self::LastResort => MissSource::Fit,
+        };
+        file.miss_recourse_in_file(miss, source, &self.recourse(arm, Reading::AtRest))
     }
 }
 
@@ -302,9 +315,10 @@ impl SizedDecision {
 
     /// The ending a refusal of this decision carries on `arm` at the
     /// import door (D4 ¶1): read at rest, except that a band-decided arm
-    /// whose size lies within the file's declared coincidence distance
-    /// offers no tolerance to keep it, and says the file does not state
-    /// it ([`MarginDiag::sized_recourse_in_file`]).
+    /// whose size the margin's nearer end puts at or below the file's
+    /// declared coincidence distance offers no tolerance to keep it alone
+    /// ([`MarginDiag::sized_recourse_in_file`]): an undecided size is one
+    /// the file does not state, and a zero one a coincidence it does.
     #[must_use]
     pub fn recourse_in_file(self, arm: RefusedArm<'_>, file: FileCoincidence) -> String {
         match arm {
@@ -312,13 +326,15 @@ impl SizedDecision {
             RefusedArm::Zero(Classified { margin, band }) => margin.sized_recourse_in_file(
                 band,
                 self.words(self.at_zero.map(|note| note.stored)),
+                BandArm::Zero,
                 file,
             ),
-            RefusedArm::Undecided(cause) => {
-                cause
-                    .margin
-                    .sized_recourse_in_file(cause.band, self.words(None), file)
-            }
+            RefusedArm::Undecided(cause) => cause.margin.sized_recourse_in_file(
+                cause.band,
+                self.words(None),
+                BandArm::Undecided,
+                file,
+            ),
             RefusedArm::SignCertain => self.recourse(arm, Reading::AtRest),
         }
     }
@@ -441,16 +457,23 @@ mod tests {
                                     "{decision:?} {reading:?} {margin}: {got}"
                                 );
                                 // At the import door no offer keeps a
-                                // size within the file's ε_in.
+                                // size at or below the file's ε_in by
+                                // tightening alone.
                                 let within = match margin.diagnostic_f64_for_error_text() {
                                     geom_core::ErrorTextReading::Value(m) => m.abs() <= 2e-9,
                                     geom_core::ErrorTextReading::Enclosure { lo, hi } => {
-                                        lo.abs().max(hi.abs()) <= 2e-9
+                                        lo <= 0.0 && hi >= 0.0 || lo.abs().min(hi.abs()) <= 2e-9
                                     }
                                     geom_core::ErrorTextReading::Invalid => true,
                                 };
                                 assert!(
-                                    reading.is_some() || !within || !got.contains("tighten"),
+                                    reading.is_some()
+                                        || !within
+                                        || !got.contains("tighten")
+                                        || got.contains(
+                                            "re-export the file with its uncertainty declared \
+                                             below"
+                                        ) && got.contains(" m and tighten the tolerance below "),
                                     "{decision:?} at the import door {margin}: {got}"
                                 );
                             }
@@ -512,22 +535,39 @@ mod tests {
             zero(MarginDiag::value(-0.0), Reading::AtRest),
             "Recourse: L; at rest"
         );
-        let in_file = |eps_in| {
-            decision.recourse_in_file(
+        let in_file = |arm: RefusedArm<'_>, eps_in| {
+            decision.recourse_in_file(arm, FileCoincidence::new(eps_in, geom_core::Tol::witness()))
+        };
+        let zero_in_file = |eps_in| {
+            in_file(
                 RefusedArm::Zero(Classified {
                     margin: MarginDiag::value(-5e-9),
                     band: band(),
                 }),
-                FileCoincidence::new(eps_in, geom_core::Tol::witness()),
+                eps_in,
             )
         };
         assert_eq!(
-            in_file(1e-8),
-            "This thickness is below the file's declared coincidence distance ε_in = 1e-8 m, so \
-             the file does not state it. Recourse: L, or re-export the file with its uncertainty \
-             declared below 5e-9 m",
-            "a size within ε_in is not offered a tolerance at the import door"
+            zero_in_file(1e-8),
+            "The file and this run both read this thickness as zero, so the file states the \
+             coincidence. Recourse: L; at rest",
+            "a zero within ε_in quotes no value at the import door"
         );
-        assert_eq!(in_file(1e-9), offer, "a size past ε_in reads as at rest");
+        assert_eq!(
+            in_file(
+                RefusedArm::Undecided(&cause(MarginDiag::value(-5e-9))),
+                1e-8
+            ),
+            "This thickness is below the file's declared coincidence distance ε_in = 1e-8 m, so \
+             the file does not state it. Recourse: L, or, if this thickness is intended, \
+             re-export the file with its uncertainty declared below 5e-9 m and tighten the \
+             tolerance below 5e-10 m",
+            "an undecided size within ε_in names both steps that keep it"
+        );
+        assert_eq!(
+            zero_in_file(1e-9),
+            offer,
+            "a size past ε_in reads as at rest"
+        );
     }
 }

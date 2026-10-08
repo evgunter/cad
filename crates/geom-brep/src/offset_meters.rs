@@ -1085,7 +1085,7 @@ mod tests {
     /// a band-decided arm whose margin a smaller tolerance passes (a
     /// zero verdict or an undecided margin, positive), never on a
     /// sign-certain arm, a margin on the refused side, at zero,
-    /// straddling zero, or poisoned — and never at adoption.
+    /// straddling zero, or poisoned.
     #[test]
     fn no_meter_ending_lowers_or_tightens_where_the_ruling_forbids() {
         let mut rows = Vec::new();

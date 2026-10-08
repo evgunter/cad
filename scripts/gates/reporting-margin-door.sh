@@ -33,13 +33,15 @@
 # `MarginDiag::sized_recourse` chooses its words from the number, so a
 # caller that asked it and searched the sentence for "tighten" would
 # read the margin's side through it. So do the import door's two
-# (D4 ¶1, as Ev ruled on `[ev]` PR 3380): `sized_recourse_in_file`
-# withholds the offer for a size within the file's ε_in, and
-# `miss_recourse_in_file` names the set-ε-to-ε_in stopgap for a miss
-# within it — a comparison against the margin that picks the words and
-# nothing else, so a caller searching either sentence would read
-# whether the margin lies within ε_in. Their production call sites are a
-# third list here: the sized-decision table that owns the endings.
+# (D4 ¶1, as Ev ruled on `[ev]` PR 3380):
+# `MarginDiag::sized_recourse_in_file` withholds the offer to tighten
+# alone for a size whose nearer end lies at or below the file's ε_in,
+# and `FileCoincidence::miss_recourse_in_file` names the set-ε-to-ε_in
+# stopgap for a miss within it — a comparison against the margin that
+# picks the words and nothing else, so a caller searching either
+# sentence would read whether the margin lies within ε_in. Their
+# production call sites are a third list here: the sized-decision table
+# that owns the endings.
 #
 # WHAT A LISTED SITE OWES, and the gate checks none of it — it checks
 # only the file and the count, so the list is where the argument lives:
@@ -66,6 +68,12 @@
 #   * rendering the reading as text — `Display`, `LowerExp`, or the
 #     derived `Debug` every payload carries — and parsing the text back
 #     is a door it cannot see, as obviously wrong as it is long;
+#   * a sentence asked through a public wrapper is invisible: a caller
+#     searching `geom_brep::certify::recourse_in_file`'s,
+#     `SizedDecision::recourse_in_file`'s or
+#     `topo::EulerOpError::render_in_file`'s text with `.contains(..)`
+#     reads the margin's side as surely as one asking the sentence here,
+#     under a name the list does not count;
 #   * EQUALITY AGAINST A COMPARAND IT DID NOT MINT is invisible: a site
 #     holding two readings the classifier minted — `sign_within(..)?`'s
 #     or `decide_reported(..)`'s `.margin`, an escalation's — can ask
@@ -104,7 +112,7 @@ MINT_RE='MarginDiag>?::(value|enclosure)([^A-Za-z0-9_]|$)'
 # definition home that asks the margin for a sized recourse sentence, or
 # for either of the import door's.
 SIZED_ALLOWLIST=(
-  'crates/geom-brep/src/recourse.rs 6 the sized-decision table: a sized decision ends its Zero and Undecided arms in the sentence at a build or at rest and in the import door one, and a residual ends the same two arms in the door miss sentence, each returned whole'
+  'crates/geom-brep/src/recourse.rs 5 the sized-decision table: a sized decision ends its Zero and Undecided arms in the sentence at a build or at rest and in the import door one, and a residual ends every arm in the one door miss sentence, each returned whole'
 )
 SIZED_RE='(sized_recourse|sized_recourse_in_file|miss_recourse_in_file)([^A-Za-z0-9_]|$)'
 
@@ -216,9 +224,14 @@ gate() {
     1) gate_error "$(gate_name): terminal_sliver: true written outside the classifier (this file's header says why). Whether subdivision is futile is the interval classifier's verdict, recorded when it mints the escalation; an escalation minted anywhere else carries false"
        exit 1 ;;
   esac
-  check_list sentence "$SIZED_RE" "${SIZED_ALLOWLIST[@]}" || rc=$?
+  local sentences
+  sentences=$(check_list sentence "$SIZED_RE" "${SIZED_ALLOWLIST[@]}") || rc=$?
+  [ -z "$sentences" ] || printf '%s\n' "$sentences"
   case $rc in
-    1) gate_error "$(gate_name): MarginDiag::sized_recourse asked outside the allowlisted sites (this file's header says what a site owes). Its sentence is chosen from the number, so reading it is reading the margin; end a sized decision through geom_brep::recourse::SizedDecision instead, or add the site here with its reason"
+    1) local fired
+       fired=$(printf '%s\n' "$sentences" | gate_grep -oE "$SIZED_RE" \
+         | sed -E 's/[^A-Za-z0-9_]$//' | sort -u | paste -sd, - | sed 's/,/, /g')
+       gate_error "$(gate_name): $fired asked outside the allowlisted sites (this file's header says what a site owes). Its sentence is chosen from the number, so reading it is reading the margin; end a sized decision through geom_brep::recourse::SizedDecision instead, or add the site here with its reason"
        exit 1 ;;
     2) gate_error "$(gate_name): an allowlisted sentence site's count moved. Move the pin in the change that carries the argument"
        exit 1 ;;
@@ -337,7 +350,14 @@ plant_mint_in_a_plain_mount() {
 # The import door's sentence used as an ε_in oracle, from the door.
 plant_in_file_oracle_outside() {
   mkdir -p "$1/crates/step-import/src"
-  printf 'fn f(d: MarginDiag, b: Band, e: FileCoincidence) -> bool { d.miss_recourse_in_file(b, e, "").contains("stopgap") }\n' \
+  printf 'fn f(d: MarginDiag, e: FileCoincidence) -> bool { e.miss_recourse_in_file(MissReading::Definite(d), MissSource::File, "").contains("stopgap") }\n' \
+    > "$1/crates/step-import/src/error.rs"
+}
+
+# The door's sized sentence used as an ε_in oracle.
+plant_sized_in_file_oracle_outside() {
+  mkdir -p "$1/crates/step-import/src"
+  printf 'fn f(d: MarginDiag, b: Band, w: SizedWords, a: BandArm, e: FileCoincidence) -> bool { d.sized_recourse_in_file(b, w, a, e).contains("re-export") }\n' \
     > "$1/crates/step-import/src/error.rs"
 }
 
@@ -368,8 +388,9 @@ gate_selftest() {
   gate_selftest_case "$minted" plant_path_mint_outside
   gate_selftest_case "$minted" plant_qualified_mint_outside
   gate_selftest_case "$minted" plant_mint_in_a_plain_mount
-  gate_selftest_case "MarginDiag::sized_recourse asked outside the allowlisted sites" plant_sentence_oracle_outside
-  gate_selftest_case "MarginDiag::sized_recourse asked outside the allowlisted sites" plant_in_file_oracle_outside
+  gate_selftest_case "sized_recourse asked outside the allowlisted sites" plant_sentence_oracle_outside
+  gate_selftest_case "miss_recourse_in_file asked outside the allowlisted sites" plant_in_file_oracle_outside
+  gate_selftest_case "sized_recourse_in_file asked outside the allowlisted sites" plant_sized_in_file_oracle_outside
   gate_selftest_case "terminal_sliver: true written outside the classifier" plant_forged_sliver
   gate_selftest_passes "the definition, the allowlisted calls and mints, a test module's, the poison constant and prose" gate_plant_clean
   gate_selftest_homes --narrowed --subject "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}"

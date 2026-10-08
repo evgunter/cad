@@ -231,10 +231,16 @@ fn tangent_cap_quarter<T: Decide>(r: f64, reversed: bool) -> Result<EdgeCurve<T>
 
 /// The refusal a right-angle crossing described as a tangency owes, in
 /// either order and at any scalar: its defect is first-order.
-const PARALLELISM_DEFECT: CertifyError = CertifyError::ResidualExceeded {
-    check: CertCheck::TangentParallel,
-    sample: 1,
-};
+fn is_parallelism_defect(refusal: Option<CertifyError>) -> bool {
+    matches!(
+        refusal,
+        Some(CertifyError::ResidualExceeded {
+            check: CertCheck::TangentParallel,
+            sample: 1,
+            ..
+        })
+    )
+}
 
 /// **A right-angle crossing described as a tangency is refused at the
 /// parallelism check** — D4 ¶1's `sin θ ≤ ε·|κ_rel|`, i.e. the margin
@@ -283,10 +289,10 @@ fn a_right_angle_crossing_described_as_a_tangency_is_refused() {
     .expect("the cap crossing is a certified transverse intersection");
 
     for reversed in [false, true] {
-        assert_eq!(
-            tangent_cap_quarter::<f64>(r, reversed).err(),
-            Some(PARALLELISM_DEFECT),
-            "a right-angle crossing is not a tangency (reversed: {reversed})"
+        let refusal = tangent_cap_quarter::<f64>(r, reversed).err();
+        assert!(
+            is_parallelism_defect(refusal),
+            "a right-angle crossing is not a tangency (reversed: {reversed}): {refusal:?}"
         );
     }
 }
@@ -318,10 +324,10 @@ fn a_right_angle_crossing_described_as_a_tangency_is_refused_at_interval() {
     );
 
     for reversed in [false, true] {
-        assert_eq!(
-            tangent_cap_quarter::<Interval>(r, reversed).err(),
-            Some(PARALLELISM_DEFECT),
-            "a right-angle crossing is not a tangency at Interval (reversed: {reversed})"
+        let refusal = tangent_cap_quarter::<Interval>(r, reversed).err();
+        assert!(
+            is_parallelism_defect(refusal),
+            "a right-angle crossing is not a tangency at Interval (reversed: {reversed}): {refusal:?}"
         );
     }
 }
