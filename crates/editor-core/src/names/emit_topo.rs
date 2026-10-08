@@ -5636,7 +5636,8 @@ mod touch_reread_rows {
     use crate::node::{RecipeNodeId, StepId};
     use geom_core::Tol;
     use topo::test_support::meeting::{
-        PLATE, Pose, apex_pyramid, bearing, corners, mix, nest, nest_polygon, posed_box, poses,
+        PLATE, Pose, apex_pyramid, bearing, corners, mix, near_flat, nest, nest_polygon, posed_box,
+        poses,
     };
     use topo::{AtRestBody, BooleanResult, intersect, subtract, union};
 
@@ -5816,6 +5817,35 @@ mod touch_reread_rows {
                 &apex_pyramid(&quad_void, pose, t()),
                 t(),
             ));
+            // A dart, whose apex is a reflex edge: on the plate, bare,
+            // and apart from the arch in one body, a pyramid in its cone.
+            let dart = |b: f64| {
+                apex_pyramid(
+                    &[
+                        bearing(b - 30.0, 0.45, 0.5),
+                        bearing(b, 0.6, 0.5),
+                        bearing(b + 30.0, 0.45, 0.5),
+                        bearing(b, 0.5, 0.5),
+                    ],
+                    pose,
+                    t(),
+                )
+            };
+            let dart_one = built(union(&plate, &dart(60.0), t()));
+            let arch_dart = built(union(&arch, &dart(230.0), t()));
+            let in_dart = p([
+                bearing(222.0, 0.4, 0.4),
+                bearing(238.0, 0.4, 0.4),
+                bearing(230.0, 0.448, 0.4),
+            ]);
+            // A near-flat quadrilateral void buried in the block, its
+            // apex a reflex edge, and an island in it.
+            let q = near_flat(-1e-3);
+            let flat_island = built(union(
+                &built(subtract(&block, &apex_pyramid(&q, pose, t()), t())),
+                &apex_pyramid(&nest_polygon(&q, 0.6), pose, t()),
+                t(),
+            ));
             let cone = p(corners(240.0, 0.7, 0.5));
             let over = p(corners(50.0, 0.7, 0.5));
             let over_180 = p(corners(170.0, 0.7, 0.5));
@@ -5878,6 +5908,23 @@ mod touch_reread_rows {
                     "over a quad void in a bare quad arch",
                     &over,
                     &bare_quad_hollow,
+                ),
+                ("beside a dart", &cone, &dart_one),
+                ("over a dart", &over, &dart_one),
+                (
+                    "inside a bare dart beside a bare arch",
+                    &in_dart,
+                    &arch_dart,
+                ),
+                (
+                    "near-flat quad void -1e-3 buried, island, hang",
+                    &hang,
+                    &flat_island,
+                ),
+                (
+                    "near-flat quad void -1e-3 buried, island, hang_over",
+                    &hang_over,
+                    &flat_island,
                 ),
             ] {
                 named += names(label, x, y, pose);
