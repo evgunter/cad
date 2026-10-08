@@ -2,8 +2,9 @@
 id: the-split-plane-row-serves-coplanar-against-the-truth-band-at-eps-1e-12
 kind: issue
 title: span_reach_differential's split rows serve coplanar where main escalated, against the truth band, at eps 1e-12 (seed 0x4a5a1477da7f8d8a)
-status: open
+status: closed
 opened: 2026-10-08
+closed: 2026-10-08
 priority: P0
 cost: M
 ---
@@ -38,3 +39,9 @@ Pin the seed's case as a deterministic row, then decide whether the
 split plane row's served verdict is wrong at that scale (a wrong
 answer, which makes this P0) or the truth band the row compares against
 is mis-scaled at 1e-12.
+
+## Closed
+
+PR 4305: the row's truth was the test's own and could not resolve
+ε 1e-12. The fix is an exact `sector_offset` and the Q6 room cap in the
+test; there is no production change.
