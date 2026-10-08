@@ -526,3 +526,83 @@ fn three_prisms_flush_along_one_line_refuse_undeclared_in_every_member_order() {
         }
     }
 }
+
+/// The faces of `body` at a vertex on the line.
+fn faces_on_the_line(body: &AtRestBody<f64>) -> Vec<topo::FaceKey> {
+    let mut out = Vec::new();
+    for (v, _) in body.vertices() {
+        let p = topo::readback::vertex_point(body, v).unwrap();
+        if (p.x - MEET[0]).hypot(p.y - MEET[1]) < 1e-9 {
+            for f in body.faces_of_vertex(v).unwrap() {
+                if !out.contains(&f) {
+                    out.push(f);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// **A declaration changes no verdict the contact line's route serves
+/// (D10)**: the last step of every member order of the 50° fixture,
+/// with each coincidence class declared on each pair of faces at the
+/// line, one pair at a time, builds the undeclared step's body or
+/// refuses typed. Every one refuses at the declaration door: no two
+/// faces there share a carrier, and a plane pair takes neither
+/// `Tangent` nor `Seam`.
+#[test]
+fn a_declaration_at_the_contact_line_serves_the_undeclared_body_or_refuses() {
+    use topo::{BooleanCoincidence, BooleanDeclarations, FacePairDeclaration, union_with};
+    let classes = [
+        BooleanCoincidence::REST,
+        BooleanCoincidence::TANGENT,
+        BooleanCoincidence::Continuation,
+        BooleanCoincidence::Seam,
+    ];
+    let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
+    let mut members = vec![finished("the plate", p, t())];
+    members.extend(three().iter().map(Prism::body));
+    let (mut served, mut refused) = (0, 0);
+    for order in orders(members.len()) {
+        let what = format!("member order {order:?}");
+        let acc = fold(&members, &order[..3])
+            .unwrap_or_else(|(k, e)| panic!("{what}: step {k} refused: {e:?}"))
+            .body;
+        let b = &members[order[3]];
+        let undeclared = match union(&acc, b, t()) {
+            Ok(BooleanResult::Body(r)) => shape(&r.body),
+            other => panic!("{what}: the undeclared last step: {other:?}"),
+        };
+        for fa in faces_on_the_line(&acc) {
+            for fb in faces_on_the_line(b) {
+                for class in classes {
+                    let decls = BooleanDeclarations {
+                        coincident_faces: vec![FacePairDeclaration::new(fa, fb, class)],
+                        ..BooleanDeclarations::none()
+                    };
+                    match union_with(&acc, b, &decls, t()) {
+                        Ok(BooleanResult::Body(r)) => {
+                            assert!(
+                                shape(&r.body) == undeclared,
+                                "{what}: {class:?} on {fa:?} × {fb:?} serves another body"
+                            );
+                            served += 1;
+                        }
+                        Ok(BooleanResult::Empty) => {
+                            panic!("{what}: {class:?} on {fa:?} × {fb:?} serves empty")
+                        }
+                        Err(
+                            BooleanError::ContactContradicted { .. }
+                            | BooleanError::ContinuationContradicted { .. }
+                            | BooleanError::UnsupportedDeclarationClass { .. },
+                        ) => refused += 1,
+                        Err(e) => panic!("{what}: {class:?} on {fa:?} × {fb:?} refused {e:?}"),
+                    }
+                }
+            }
+        }
+    }
+    // Measured: the door refuses all 2016, so no declaration reaches
+    // the contact line's route on this fixture.
+    assert_eq!((served, refused), (0, 2016), "served, refused at the door");
+}
