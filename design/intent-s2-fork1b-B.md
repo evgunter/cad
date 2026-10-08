@@ -184,3 +184,26 @@ What stands from round 1: a partial order, not a lattice; constructions as defin
 | The converged design | likely |
 | Unit A can merge | sure |
 | The names `Pivot` and `AxisInPlane` | unsure |
+
+## Round 3 — For Ev
+
+**I return to my round-1 form. Both designers now hold it.** (likely)
+
+**1. Does the other report's 2-D principle answer my reason for leaving? Yes.**
+- **The principle.** A 2-D value lives in the node that holds its frame and is never a variable. Its lift to a 3-D kind is how it leaves.
+- **What that removes.** There are then no 2-D kinds in `VarKind`. The revolve's line is four `Length`/`Scalar` slots on the node, which a profile edge can read too.
+- **That was my main round-2 reason, and it is gone.**
+- **My second reason is answered too.** Typed ports are FORK-1's shape, so `revolve.axis` is how sharing works anyway.
+
+**2. What does an `AxisInPlane` kind give that the port does not? Nothing I can defend.**
+- **The one thing it gives.** An in-plane line that exists before any revolve and is read by several of them.
+- **The same thing without it.** Construct the frame (`frame_on(A, p)`), sketch on it, and take the frame's x-axis. Each revolve's `axis` port is then structurally the same line.
+- **What the kind costs.** A check between two values, where D10 says to construct the coincidence.
+
+**3. The other report's carry for unit A: none of it refused, with one condition and one caveat.**
+- **Condition.** The tube's `frame: Frame` slot lands in unit B, not stage 3. Otherwise `Datum::Axis` defines an `Axis` while the tube reads its origin, which repeats the mistyping both reports flagged. With the slot in B, both axis datums define an honest `Axis`.
+- **Caveat.** The tube's doc says its door must not silently normalize `u_ref` ("a silent normalization would be exactly the invention this door exists to avoid"). Under a `Frame` slot, the frame's own door orthonormalizes `u_ref` instead, where every frame is decided.
+  - This is the right home, since `u_ref` is a roll reference and not a stored radius.
+  - It is still a behaviour change, so unit B's PR should state it, and the tube doc's paragraph should be rewritten in the same PR.
+
+**Text.** I take the other report's added sentence for D10 Variables as written: "A 2-D value lives in the node that holds its frame and is never a variable; its lift to a 3-D kind is how it leaves."
