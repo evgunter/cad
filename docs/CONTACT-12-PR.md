@@ -36,10 +36,11 @@ Nothing is skipped silently. A crossing that cannot be decided escalates
 straddling a crossing. With a cut at every place the boundary meets the
 edge, each cell lies inside or outside the face as a whole.
 
-**A crossing bound takes the crossing's own rung.** A cell bound at a
-straight-edge crossing is the pass-5 `EdgeEdgeCross` event, so
-`ef_bound_backed` asks `ee_cross_backed` for it. That is the rung that
-lane already reads, unchanged. A bound at a conic crossing has no rung,
+**A crossing bound takes the crossing's own backing.** A cell bound at
+a straight-edge crossing is the pass-5 `EdgeEdgeCross` event, so
+`ef_bound_backed` backs it as that lane does: with an op's edge-edge
+record (`Declared::ee_recorded`) or with `ee_cross_backed`. Neither is
+changed. A bound at a conic crossing has no rung,
 because no census lane examines a line × conic crossing as an event. That
 cell is an `UndeclaredContact`. The vertex arms of `ef_bound_backed` are
 untouched and stay grandfathered.
@@ -77,11 +78,43 @@ the site a rest.
 
 ## Rows
 
-ROWS_PLACEHOLDER
+Red is measured on the final code with the fix neutralised (a
+mutation per decide), and green on the final code.
+
+| Row | Red under | Green |
+|---|---|---|
+| `census::tests::crossing_cuts::a_boundary_crossing_away_from_any_vertex_bounds_the_cell`: the lap cap's one cell is bounded at two crossings, and the outside cells are not returned | crossing cuts dropped (`let _ = crossings`): no cell at all, because the edge's midpoint is outside the cap | ✓ |
+| `contact12_crossing_cuts::the_bare_lap_seat_reports_each_stretch_inside_its_face` (public door) | crossing cuts dropped: the shelf edge's overlap with the cap and the cap sides' overlaps with the underside are missed | ✓ |
+| `contact12_crossing_cuts::the_declared_lap_seat_certifies` | (control: green both ways) | ✓ |
+| `…::a_crossing_is_cut_where_both_ends_lie_definitely_across` (side row: across → cut; end on the line → none) | (pin of the arithmetic; no mutation above reds it) | ✓ |
+| `…::a_crossing_within_the_band_escalates` (side row in band) | side in band read as "no crossing" | ✓ |
+| `…::a_crossing_is_cut_only_strictly_inside_the_span` (span row: at the end, past it, in band) | span Zero taken as a cut | ✓ |
+| `…::a_boundary_edge_wholly_past_an_end_is_not_read` (screen row) | screen never skips: an in-band corner past the edge's end escalates | ✓ |
+| `…::a_conic_boundary_is_cut_at_its_roots` | conic arm skipped | ✓ |
+| `…::a_spiric_boundary_refuses_where_it_meets_the_edge_and_clears_elsewhere` (reach row) | spiric always cleared | ✓ |
+| `…::the_touch_analysis_reads_every_cell_of_an_edge_in_a_face` | first-cell-only read (and also crossing cuts dropped) | ✓ |
+| `sweep` `join1_r2_rand::r2_random_zprism_pairs`, `join_pierce_runs_sweep::the_sweep_subset_ships_no_bad_body` | crossing bound backed by the crossing rung alone, without the op's edge-edge record: a union whose edge rests in a face across an unsplit recorded crossing refuses `EdgeFaceOverlap` | ✓ |
+
 
 ## Rows that moved
 
-MOVED_PLACEHOLDER
+- `mate4a_ef_bound_rung::the_bare_straddle_seat_is_untouched`, re-baselined.
+  Two findings were added: each cap side edge rests under the shelf
+  from its lower corner up to the shelf edge, `EdgeFaceOverlap` at
+  `(0.6, 0.25, 0.5)` and `(0.3, 0.25, 0.5)`. These overlaps are real.
+  The old lane missed them because the edges' midpoints (`y = 0.31`)
+  lie outside the shelf. The shelf edge's own witness moved from `0.45`
+  to `0.44999999999999996`: it is now the midpoint of the cell between
+  the two crossings rather than of the whole edge. The row is red with
+  the crossing cuts dropped.
+- No declared rung moved. The declared straddle, overhang and lap seats
+  certify as before, and the anomaly pin
+  `r2_an_unrelated_declared_pair_backs_the_ef_bound` is unchanged and
+  green (the vertex arms are still grandfathered).
+- What the cuts change for declared rungs: a bound that used to sit at
+  the edge's far endpoint, backed by the grandfathered vertex arms, can
+  now sit at a crossing. There it is backed only as the crossing itself
+  is backed. A conic crossing has no backing, which is filed below.
 
 ## Sweep
 
@@ -108,7 +141,14 @@ placements only.
 
 ## Findings outside the fence
 
-FILED_PLACEHOLDER
+- `work/contact/census-edge-pass-reads-no-line-conic-crossing.md`:
+  pass 5 sees only line edges. A line crossing a coplanar conic boundary
+  arc is therefore no event of its own, and the overlap cell's bound
+  there has no rung.
+- Not filed (pre-existing and known): `parallel_cylinder_join::a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings`
+  is red at `1e-12`. It is a boolean crossing-insertion escalation that
+  is raised before the census runs, and it is tracked as
+  `work/tint/tipped-rod-join-escalates-at-1e-12.md`.
 
 ## Battery
 
