@@ -191,6 +191,8 @@ mod shallow_arc_extrude_grid_interval;
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
 mod shellfix1_r1_probes;
+#[path = "spheres_crossing_off_every_edge.rs"]
+mod spheres_crossing_off_every_edge;
 #[path = "spiric_faces_fuzz.rs"]
 mod spiric_faces_fuzz;
 #[path = "sym11_far_placement_rows.rs"]

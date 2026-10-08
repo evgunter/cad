@@ -303,19 +303,18 @@ fn certified_disjoint_and_contained_shells_keep_their_answers() {
     assert_eq!(cut.shells().count(), 2, "outer shell + reverted void");
 }
 
-/// Sphere-vs-sphere boundaries the scan cannot certify refuse TYPED.
-/// The section circle is exact and the germ frame names it; what is
-/// absent is the JOIN's arm for a curved×curved germ pair. The pair is
-/// offset VERTICALLY, so neither ball's seam edges enter the other's
-/// certified box — the poking-but-not-crossing shape again, this time
-/// between two spheres, which only the scan can see. That direction is
-/// not a depth choice: a seam great circle lies in the plane `z = c_z`
-/// with the ball's own radius, so a Z-offset seam is equidistant from
-/// the other centre all the way round and never crosses it. Every
-/// offset that DOES cross a seam pierces a curved face and stops a
-/// layer higher.
+/// **Two spheres crossing off both seams build through the scan.** The
+/// pair is offset VERTICALLY, so neither ball's seam edges enter the
+/// other's certified box — the poking-but-not-crossing shape again,
+/// this time between two spheres, which only the scan can see. That
+/// direction is not a depth choice: a seam great circle lies in the
+/// plane `z = c_z` with the ball's own radius, so a Z-offset seam is
+/// equidistant from the other centre all the way round and never
+/// crosses it. The scan cuts each face in along a meridian through the
+/// circle they cross in, and the re-entered pipeline joins it: the
+/// union is two balls less their lens, two caps of height 0.3.
 #[test]
-fn overlapping_sphere_pair_refuses_typed_at_the_scan() {
+fn overlapping_sphere_pair_builds_through_the_scan() {
     let b1 = finished(
         "the lower ball",
         ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness()),
@@ -326,10 +325,11 @@ fn overlapping_sphere_pair_refuses_typed_at_the_scan() {
         ball_poled_y(1.0, Vec3::new(2.0, 2.0, 1.9), Tol::witness()),
         Tol::witness(),
     );
-    let err = topo::union(&b1, &b2, Tol::witness()).expect_err("no sphere×sphere seam lane");
-    let BooleanError::SpheresMeet { .. } = err else {
-        panic!("expected the scan's typed refusal, got {err:?}");
-    };
+    let joined = topo::union(&b1, &b2, Tol::witness()).expect("the pair is cut in and joined");
+    let lens = 2.0 * PI * 0.3_f64.powi(2) * (3.0 - 0.3) / 3.0;
+    let want = 8.0 * PI / 3.0 - lens;
+    let v = vol(&joined.body().expect("a body").body);
+    assert!((v - want).abs() < slack(), "union volume {v}, want {want}");
 }
 
 /// **The scan's TRIMMED-GROUP arm, and where it actually bites.** A pip

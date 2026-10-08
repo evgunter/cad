@@ -2,11 +2,12 @@
 id: sphere-pair-meeting-inside-both-faces-refuses-spheres-meet
 kind: issue
 title: Two sphere faces meeting in a circle inside both, with no edge crossing, refuse SpheresMeet: the meridian cut serves only the plane arm
-status: open
+status: closed
 opened: 2026-10-05
 priority: P1
 cost: M
-refs: [trimmed-sphere-group-escaping-through-a-plane-face-refuses, interior-loop-cut-in]
+closed: 2026-10-08
+refs: [trimmed-sphere-group-escaping-through-a-plane-face-refuses, interior-loop-cut-in, a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet]
 ---
 
 
@@ -41,3 +42,16 @@ arm records the cut where it now refuses, for a trimmed group and for a
 closed one (a closed ball's escape circle also lies inside one
 half-band), and the rows are this pose under every op against the
 two-sphere lens closed form.
+
+## Closed (2026-10-08, JOIN `join/sphere-pair-whole-circle`)
+
+This row and JOIN's
+`a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet`
+are one defect. The sphere arm now records the cut where it refused,
+for a closed group as for a trimmed one, from each operand's side.
+This pose is pinned under every op in both orders against its closed
+form: `crates/sweep/tests/spheres_crossing_off_every_edge.rs`,
+`a_ball_crossing_both_faces_of_a_lens_builds`. The small ball crosses
+both of the lens's sphere faces in whole circles, not only the top
+face, so its own face is cut twice. That is why a single re-chart could
+not have served it.

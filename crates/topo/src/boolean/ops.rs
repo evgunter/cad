@@ -843,15 +843,19 @@ pub(super) fn through_the_join<T: Decide + Bounds + crate::props::AtRestPolicy>(
         //   whole-shell answer is sound — proceed.
         // - **escape** (a sphere definitely leaves the other solid
         //   through a plane face — the S12 finding's
-        //   poking-but-not-crossing shape): the operand is RE-CUT —
-        //   a closed group is rigidly re-charted about the escape
-        //   normal (a rotation about its own center: the same point
-        //   set, seams now transverse to the escape planes), a
-        //   trimmed group's face is cut along its chart's meridian
-        //   through the circle ([`SphereCutIn`]), and the pipeline
-        //   re-enters once; the ordinary crossing layer then finds the
-        //   section circles and the (Plane, Sphere) germ arm joins
-        //   them exactly.
+        //   poking-but-not-crossing shape — or two sphere faces cross
+        //   in a circle no edge reaches): the operand is RE-CUT —
+        //   a closed group escaping through a plane is rigidly
+        //   re-charted about the escape normal (a rotation about its
+        //   own center: the same point set, seams now transverse to
+        //   the escape planes), any other escaping face is cut along
+        //   its chart's meridian through the circle ([`SphereCutIn`]),
+        //   and the pipeline re-enters once; the ordinary crossing
+        //   layer then finds the section circles and the (Plane,
+        //   Sphere) or (Sphere, Sphere) germ arm joins them exactly.
+        //   Both faces of a crossing sphere pair are cut, so the
+        //   circle lands as chords on both and neither keeps it as a
+        //   ring.
         // - **uncertifiable** (NURBS re-gate, a trimmed group's circle
         //   the section certificate does not place inside one face,
         //   sphere faces meeting other than across a verified `Rest`,
@@ -3600,8 +3604,9 @@ struct Recuts<T: Real> {
     cut_in: Vec<SphereCutIn<T>>,
 }
 
-/// A sphere face of a TRIMMED group that a plane face's carrier cuts in
-/// a circle certified inside both faces with no event (the section
+/// A sphere face that a plane face's carrier (the face's group
+/// TRIMMED) or a sphere face's carrier (any group) cuts in a circle
+/// certified inside both faces with no event (the section
 /// certificate's R-loop). The face is cut along the meridian of its own
 /// sphere's chart through the circle's centre (through a point of the
 /// circle, `u_ref`'s, where the centre's direction is a pole of the
@@ -3621,13 +3626,14 @@ struct SphereCutIn<T: Real> {
     center: Point3<T>,
     /// Its radius.
     radius: T,
-    /// The section circle's center, on the plane.
+    /// The section circle's center.
     foot: Point3<T>,
     /// The section circle's radius.
     rho: T,
-    /// The plane's normal (the section circle's axis).
+    /// The section circle's axis.
     normal: Vec3<T>,
-    /// The plane's reference direction, which places `q`.
+    /// A unit direction across the circle, which places a point of it
+    /// where `foot` lies on the chart's polar axis.
     u_ref: Vec3<T>,
 }
 
@@ -3682,7 +3688,9 @@ fn extent_scan_refusal(e: ContainError, sphere_is: Operand, face: FaceKey) -> Bo
 ///   pairs it can meet are enumerable exactly, and an escape through a
 ///   plane face is repairable by a re-chart. Two spheres whose carriers
 ///   cross or touch, and a sphere touching a plane's carrier, are asked
-///   whether their FACES meet ([`sphere_faces_apart`]).
+///   whether their FACES meet ([`sphere_faces_apart`]); a crossing
+///   circle inside both faces is an escape of each sphere through the
+///   other, and both faces are cut in.
 /// - **Torus, cylinder and cone**: no closed-group extent exists, so
 ///   their pairs are certified per pair by the section certificate
 ///   ([`section_extent_pass`]), which runs after this scan. A sphere's
@@ -3739,7 +3747,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                 center,
                 radius,
                 axis,
-                ..
+                u_ref: x_u_ref,
             } = x.face_surface_linked(face, fd)
             else {
                 continue;
@@ -3763,6 +3771,7 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             let group = closed_sphere_group(x, face, &charts);
             let ball_box = boxes::centred_box(center, radius, pad);
             let mut escape_normals: Vec<Vec3<T>> = Vec::new();
+            let cut_before = cut_ins.len();
             for (y_row, (yf, _)) in y_rows.iter().zip(y.faces()) {
                 if y_row.face != yf {
                     return Err(BooleanError::ClassificationInvariant {
@@ -3965,7 +3974,10 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                 // certified out of one face of each pair
                                 // leaves the two boundaries disjoint. A
                                 // circle certified inside both faces is
-                                // spheres that meet off every edge; any
+                                // an escape off every edge: the face of
+                                // this sphere holding it is cut in
+                                // ([`sphere_pair_cut`]), as the other
+                                // pass cuts the other's; any
                                 // other refusal of the certificate is
                                 // its own reason, raised as the pass
                                 // raises it. A touch (a decided zero)
@@ -3989,14 +4001,14 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
                                         }
                                         continue;
                                     }
-                                    Some(verdict @ Refused::Negative { .. }) => match faces() {
+                                    Some(Refused::Negative { .. }) => match faces() {
                                         None => {}
-                                        Some((_, SectionRefusal::Loop)) => {
-                                            return Err(BooleanError::SpheresMeet {
-                                                operand: x_is,
-                                                face,
-                                                verdict,
-                                            });
+                                        Some((holder, SectionRefusal::Loop)) => {
+                                            cut_ins.push(sphere_pair_cut(
+                                                (x_is, holder),
+                                                (center, radius, x_u_ref),
+                                                (c2, r2, d),
+                                            ));
                                         }
                                         Some((_, refusal)) => {
                                             return Err(BooleanError::FallbackExtentUnsupported {
@@ -4062,19 +4074,27 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
             if let (Some((&align, rest)), Some(representative)) =
                 (escape_normals.split_first(), group)
             {
-                // ONE alignment per group (M5 S13 fix pass, review
-                // MAJOR): the re-chart makes every section polar only
-                // when ALL of this group's escape planes share a
-                // normal direction. A group poking two NON-PARALLEL
-                // faces would re-chart for the first and leave the
-                // second cap's join to a tilted-section refusal that
-                // the re-entered crossing layer may never reach — the
-                // reviewer's witness answered 16 + cap_top, tier-3
-                // valid, silently short one cap. Refused typed here
-                // instead (metered at the group's own radius);
-                // antiparallel normals are the SAME direction (the
-                // finding row's top+bottom pair) and pass. Multi-chart
-                // re-cutting stays banked as an extension.
+                // The re-chart grafts the group back under new keys, so
+                // a cut-in naming one of its faces would name nothing.
+                if cut_ins.len() > cut_before {
+                    return Err(BooleanError::FallbackExtentUnsupported {
+                        operand: x_is,
+                        face,
+                        what: "one sphere group escapes through a plane face and crosses \
+                               a sphere face off every edge — the re-chart the plane \
+                               asks for would rename the face the sphere's cut names",
+                    });
+                }
+                // ONE alignment per group: the re-chart makes every
+                // section polar only when ALL of this group's escape
+                // planes share a normal direction. A group poking two
+                // NON-PARALLEL faces would re-chart for the first and
+                // leave the second cap's join to a tilted-section
+                // refusal the re-entered crossing layer may never reach,
+                // and the result could come out valid and short a cap,
+                // so it refuses typed (metered at the group's own
+                // radius). Antiparallel normals are the SAME direction
+                // and pass.
                 for &n in rest {
                     match decide(
                         "bool_sphere_escape_parallel",
@@ -4112,6 +4132,39 @@ fn sphere_extent_scan<T: Decide + Bounds + crate::props::AtRestPolicy>(
         rechart: out,
         cut_in: cut_ins,
     })
+}
+
+/// **The cut a sphere pair's crossing asks of `holder`**, the face of
+/// `operand`'s sphere (`center`, `radius`, its chart's `u_ref`) that
+/// holds the circle the sphere crosses the other in (its centre `c2`,
+/// radius `r2`, at centre distance `d`). The circle is the radical
+/// plane's: its centre `foot` on the centre line, its radius, its axis
+/// the unit centre line toward the other sphere. The cut's `u_ref` is
+/// `axis × u_ref`, unit where [`apply_cut_ins`] reads it (the centre
+/// line along the chart's pole).
+///
+/// Both operands' cuts run through the circle's centre, so where the
+/// two charts' axes are parallel they lie in one plane and each meets
+/// the circle where the other does: the re-entered crossing layer
+/// reads each cut crossing the other's face on its boundary.
+fn sphere_pair_cut<T: Real>(
+    (operand, holder): (Operand, FaceKey),
+    (center, radius, u_ref): (Point3<T>, T, Vec3<T>),
+    (c2, r2, d): (Point3<T>, T, T),
+) -> SphereCutIn<T> {
+    let normal = (c2 - center) / d;
+    let s = (d.powi(2) + radius.powi(2) - r2.powi(2)) / (d + d);
+    let rho = ((radius - s) * (radius + s)).sqrt();
+    SphereCutIn {
+        operand,
+        face: holder,
+        center,
+        radius,
+        foot: center + normal * s,
+        rho,
+        normal,
+        u_ref: normal.cross(u_ref),
+    }
 }
 
 /// **What a section circle wholly inside a plane face asks of the sphere

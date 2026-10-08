@@ -885,9 +885,9 @@ pub enum SphereQuestion {
     /// inside the larger (`bool_sphere_sphere_nested`): a positive
     /// clearance passes, and so do a negative one and a decided zero
     /// whose two spheres' faces the section certificate certifies apart.
-    /// A crossing whose circle lies inside both faces, and a decided
-    /// zero touching on both faces, refuse (`BooleanError::SpheresMeet`
-    /// is its decided refusal).
+    /// A crossing whose circle lies inside both faces cuts both faces
+    /// in, and a decided zero touching on both faces refuses
+    /// (`BooleanError::SpheresMeet` is its decided refusal).
     Nested,
     /// Whether the plane faces one sphere pokes through are parallel
     /// (`bool_sphere_escape_parallel`): only a zero passes (a single

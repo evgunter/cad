@@ -62,3 +62,16 @@ One answer: the cut for every escape, `apply_recuts`, `SphereRecut`,
 `recut_lean` and the two rotation questions retired with their offer
 rows, each moved row read and re-baselined or fixed, and the
 non-parallel pair under every op against its two caps.
+
+## Evidence (2026-10-08, JOIN `join/sphere-pair-whole-circle`)
+
+The sphere arm of `sphere_extent_scan` cuts a crossing circle into a
+closed group's face too, with no re-chart. That builds the item's poses
+and a 42-pose sweep of ball pairs at their caps
+(`crates/sweep/tests/spheres_crossing_off_every_edge.rs`). Across both
+arms, a closed group may now draw a plane escape (re-chart) and a
+sphere cut together. The re-chart's graft renames the faces a cut names,
+so that group refuses `FallbackExtentUnsupported` ("the re-chart the
+plane asks for would rename the face the sphere's cut names"), pinned by
+`a_ball_poking_a_plane_and_crossing_a_sphere_refuses_typed`. One answer,
+the cut, would retire that refusal with the others this row names.
