@@ -157,12 +157,12 @@
 //! and said so at the end.
 //!
 //! **A door builds the operand, and `shell` reaches the refusal:** the
-//! tangency arm of [`ReplaceFaceError::TogetherAxialCorner`] (the
-//! bullet); the meridian-pair arm's parallel-caps refusal (the
-//! half-turn lune) and its tangent-or-miss refusal (the narrow 20°
-//! lune, whose moved caps' meeting line stands `t/sin 10° ≈ 0.288`
-//! from the axis, past the shrunk circle's `r − t = 0.25`) — both
-//! `torax_axial`; `TogetherNotAxial`'s oblique-plane arm;
+//! two-root tie of [`ReplaceFaceError::TogetherAxialCorner`]
+//! ([`nearest`]; the opened tangent dome's lift, `shell_curved_mouth`);
+//! the meridian-pair arm's parallel-caps refusal (the half-turn lune)
+//! and its tangent-or-miss refusal (the narrow 20° lune, whose moved
+//! caps' meeting line stands `t/sin 10° ≈ 0.288` from the axis, past
+//! the shrunk circle's `r − t = 0.25`) — both `torax_axial`; `TogetherNotAxial`'s oblique-plane arm;
 //! `TogetherEdgeDisagreement` (`sf2b_r1_probes`, `sf2b_r2_probes`,
 //! and `shell7_seam_corner`'s three-quarter-turn cone frustum); the
 //! window's no-forward-window refusal (`sf2b_r1_probes::r1p2`'s sliver
@@ -184,6 +184,12 @@
 //! klein elbow's equator seams (`torax_axial`, `verbs_shell`,
 //! `shell7_seam_corner`, `torax_interval`) and the two-arc lune's,
 //! which certifies at the attach layer (`torax_axial`).
+//!
+//! **The tangency arm has door-built rows** ([`tangent_foot`]): the
+//! tangent dome and the tangent bullet, whose cavity sphere and
+//! cylinder meet tangent again at the equator (`shell_curved_mouth`,
+//! `sf2b_axial`). The profile solve's own refusal for a pair that is
+//! nearly tangent outside the band, parallel, or missing has none.
 //!
 //! **The carried arms themselves have door-built rows**: a full tube's
 //! seam vertex (torus circle), a drum's collinear wall vertex
@@ -1403,8 +1409,13 @@ fn solve_corner<T: Decide>(
     // of a statement about the geometry. ----
     let mut solved: Option<(T, T)> = carried;
     if solved.is_none() {
+        let mut tangent: Option<(T, T)> = None;
         'pairs: for (i, a) in profiles.iter().enumerate() {
             for b in profiles.iter().skip(i + 1) {
+                if let Some(foot) = tangent_foot(a, b, band)? {
+                    tangent.get_or_insert(foot);
+                    continue;
+                }
                 let Some(det) = transversality(a, b) else {
                     continue;
                 };
@@ -1425,11 +1436,13 @@ fn solve_corner<T: Decide>(
                 }
             }
         }
+        solved = solved.or(tangent);
     }
     let (rho, h) = solved.ok_or_else(|| {
         refuse(
             "no pair of the surfaces here meets transversally enough to resolve this corner \
-             against the edges that end at it — they are tangent, parallel, or they miss",
+             against the edges that end at it — they are nearly tangent, parallel, or they \
+             miss",
         )
     })?;
     match decide("offset_axial_radius", Margin::of(rho), band) {
@@ -1656,22 +1669,28 @@ fn cap_pair_corner<T: Decide>(
         n: (T::one(), T::zero()),
         c: rho_line,
     };
-    let det = transversality(&wall, circle)
-        .unwrap_or_else(|| unreachable!("a line and a circle always have a transversality"));
-    for &arm in arms {
-        match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
-            Ok(Sign::Positive) => {}
-            Ok(_) => {
-                return Err(refuse(
-                    "the moved caps' meeting line does not cross the profile circle \
-                     transversally against the edges that end here — it is tangent, or it \
-                     misses the circle",
-                ));
+    let (rho, h) = match tangent_foot(&wall, circle, band)? {
+        Some(foot) => foot,
+        None => {
+            let det = transversality(&wall, circle).unwrap_or_else(|| {
+                unreachable!("a line and a circle always have a transversality")
+            });
+            for &arm in arms {
+                match decide("offset_axial_corner", Margin::levered(det.abs(), arm), band) {
+                    Ok(Sign::Positive) => {}
+                    Ok(_) => {
+                        return Err(refuse(
+                            "the moved caps' meeting line does not cross the profile circle \
+                             transversally against the edges that end here — it is nearly \
+                             tangent, or it misses the circle",
+                        ));
+                    }
+                    Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+                }
             }
-            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+            nearest(&roots(&wall, circle, det), rho_old, h_old, vertex, band)?
         }
-    }
-    let (rho, h) = nearest(&roots(&wall, circle, det), rho_old, h_old, vertex, band)?;
+    };
     match decide("offset_axial_radius", Margin::of(rho), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => return Err(refuse("the solved corner is on or across the axis")),
@@ -1743,6 +1762,43 @@ fn transversality<T: Real>(a: &Profile<T>, b: &Profile<T>) -> Option<T> {
             Some((r.powi(2) - d.powi(2)).max(T::zero()).sqrt() / *r)
         }
         (Profile::Circle { .. }, Profile::Circle { .. }) => None,
+    }
+}
+
+/// A line–circle pair the band calls TANGENT, and its one meeting
+/// point: the foot of the circle's centre on the line.
+///
+/// Tangency is decided on the gap `r − |d|` between the circle and the
+/// line (`d` the centre's signed distance to it), a length, and not on
+/// the roots. The roots of a tangent pair stand `2√(2r·gap)` apart, so
+/// a gap inside the band can leave them anywhere from coincident to
+/// well outside it, and whether [`transversality`]'s meter or
+/// [`nearest`]'s tie then refused would be decided by rounding and
+/// scale. Every point of the line within that spread lies within the
+/// band of both curves, so each is a corner; the foot is the one the
+/// exact data name — the double root, and the midpoint of any split
+/// pair — and it lies on the line exactly and within the gap of the
+/// circle. A pair with a gap outside the band crosses (or misses) and
+/// takes the transversal route, where two distinct roots equally far
+/// from the old corner still refuse.
+///
+/// `None` for a pair that is not a line and a circle, and for one whose
+/// gap is not Zero.
+fn tangent_foot<T: Decide>(
+    a: &Profile<T>,
+    b: &Profile<T>,
+    band: Band,
+) -> Result<Option<(T, T)>, ReplaceFaceError<T>> {
+    let ((Profile::Line { n, c }, Profile::Circle { rho_c, h_c, r })
+    | (Profile::Circle { rho_c, h_c, r }, Profile::Line { n, c })) = (a, b)
+    else {
+        return Ok(None);
+    };
+    let d = n.0 * *rho_c + n.1 * *h_c - *c;
+    match decide("offset_axial_tangency", Margin::of(*r - d.abs()), band) {
+        Ok(Sign::Zero) => Ok(Some((*rho_c - n.0 * d, *h_c - n.1 * d))),
+        Ok(_) => Ok(None),
+        Err(source) => Err(ReplaceFaceError::Escalated { source }),
     }
 }
 

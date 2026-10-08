@@ -12,8 +12,8 @@
 
 use crate::common::census::{genus_of, rings_of};
 use crate::common::shell_operands::{
-    capped_vessel, cone_tipped_vessel, d_section, dome_sector, domed_vessel, hollow_capped_vessel,
-    vessel,
+    capped_vessel, cone_tipped_vessel, d_section, dome_sector, domed_vessel, funnel_vessel,
+    hollow_capped_vessel, vessel,
 };
 use core::f64::consts::PI;
 use geom_core::Tol;
@@ -226,51 +226,229 @@ fn a_sphere_window_refuses_at_check_7() {
     }
 }
 
-/// **A cone tip and a tangent dome refuse before the rim stage**: the
-/// sealed hollow of each refuses at the cavity's own offset door — a
-/// cone face that reaches its apex has no nappe to turn a distance by,
-/// and a hemisphere tangent to its wall meets the cavity's wall at a
-/// double corner — and opening either refuses identically, so neither
-/// refusal is the mouth's.
+/// The vertex of `body` at `(rho, y)` in the meridian half-plane
+/// `z = 0, x ≥ 0`, if any.
+fn vertex_at(body: &Body<f64>, rho: f64, y: f64) -> Option<topo::VertexKey> {
+    body.vertex_points()
+        .find(|(_, p)| (p.x - rho).abs() < 1e-12 && (p.y - y).abs() < 1e-12 && p.z.abs() < 1e-12)
+        .map(|(k, _)| k)
+}
+
+/// **A cone tip shells through its apex, on either nappe, sealed and
+/// open.** The tip (`cone_tipped_vessel`, apex up) lies on the mirror
+/// nappe and the funnel (`funnel_vessel`, apex down) on the opening
+/// one; each cone face reaches its apex at a corner, and lies on the
+/// nappe its other corners stand on. Sealed, the cavity's apex is the
+/// moved apex, slid `t / sin α` along the axis into the material.
+/// Opened through the cone, the cavity's counterpart cone is lifted
+/// back onto the designated one by the nappe-turned distance
+/// (`shell::lift_to`'s cone arm), and the cone keeps both half-faces as
+/// a seamed band through its apex: the cavity wall's corner lands on
+/// the operand's cone at radius `r − t`, and the apex dies. Opened
+/// through the flat cap instead, the cavity runs out through it. Each
+/// row is tier-3 valid and its volume is the closed form.
 #[test]
-fn a_cone_tip_and_a_tangent_dome_refuse_in_the_sealed_arm() {
+fn a_cone_tip_shells_through_its_apex_on_either_nappe() {
     let tol = Tol::witness();
-    for (what, body, kind) in [
+    let (r, h, k, t): (f64, f64, f64, f64) = (0.5, 0.6, 0.4, 0.05);
+    let (a, slope) = (r - t, k / r);
+    let slide = t * (r * r + k * k).sqrt() / r;
+    let outer = PI * r * r * (h + k / 3.0);
+    // `dir` points from the apex into the cone's material along `y`;
+    // `cap` is the flat cap's station.
+    for (what, body, nappe, apex, dir, cap) in [
         (
-            "the cone tip",
-            cone_tipped_vessel(0.5, 0.6, 0.4),
-            geom::SurfaceKind::Cone,
+            "the tip",
+            cone_tipped_vessel(r, h, k),
+            topo::Nappe::Mirror,
+            h + k,
+            -1.0,
+            0.0,
         ),
         (
-            "the tangent dome",
-            domed_vessel(0.5, 0.6),
-            geom::SurfaceKind::Sphere,
+            "the funnel",
+            funnel_vessel(r, h, k),
+            topo::Nappe::Opening,
+            0.0,
+            1.0,
+            h + k,
         ),
     ] {
-        let sealed = topo::shell(&finished("the operand", body.clone(), tol), 0.05, tol)
-            .expect_err("the sealed hollow refuses");
-        let opened = open(&body, &faces_on(&body, kind), 0.05).expect_err("so does the open one");
-        let door = |e: &ShellError<f64>| match e {
-            ShellError::Face { error, .. } => format!("{error:?}"),
-            other => panic!("{what}: expected the cavity door's refusal, got {other:?}"),
+        let cone = faces_on(&body, geom::SurfaceKind::Cone);
+        assert_eq!(cone.len(), 2, "{what}: the revolve wears two half-faces");
+        for &f in &cone {
+            assert_eq!(
+                topo::face_nappe(&body, f, crate::common::approx::band()).expect("a nappe"),
+                nappe,
+                "{what}: a face reaching its apex lies on its other corners' nappe"
+            );
+        }
+        let floor = cap - dir * t;
+        let column = |top: f64| PI * a * a * (top - floor).abs();
+        let corner = apex + dir * (slide + a * slope);
+        let sealed_cavity = column(corner) + PI * a * a * a * slope / 3.0;
+        let volume = |b: &Body<f64>| {
+            let p = topo::mass_properties(b, tol).expect("props");
+            (p.volume, p.volume_pad)
         };
+
+        let sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+            .unwrap_or_else(|e| panic!("{what}: the sealed hollow builds, got {e:?}"))
+            .body;
         assert_eq!(
-            door(&sealed),
-            door(&opened),
-            "{what}: one refusal, sealed or open"
+            topo::validate_geometric(&sealed, tol),
+            Ok(()),
+            "{what}: tier 3"
         );
         assert!(
-            matches!(
-                (&sealed, what),
-                (ShellError::Face { error, .. }, "the cone tip")
-                    if matches!(**error, topo::ReplaceFaceError::NappeStraddles { .. })
-            ) || matches!(
-                (&sealed, what),
-                (ShellError::Face { error, .. }, "the tangent dome")
-                    if matches!(**error, topo::ReplaceFaceError::TogetherAxialCorner { .. })
-            ),
-            "{what}: got {sealed:?}"
+            vertex_at(&sealed, 0.0, apex + dir * slide).is_some(),
+            "{what}: the cavity's apex is the moved apex"
         );
+        let (got, pad) = volume(&sealed);
+        let want = outer - sealed_cavity;
+        assert!(
+            (got - want).abs() <= 1e-12 + pad,
+            "{what}: sealed volume {got} (pad {pad}), want {want}"
+        );
+
+        let opened =
+            open(&body, &cone, t).unwrap_or_else(|e| panic!("{what}: the cone opens, got {e:?}"));
+        let cup = &opened.body;
+        assert_eq!(
+            topo::validate_geometric(cup, tol),
+            Ok(()),
+            "{what}: open, tier 3"
+        );
+        assert_eq!(
+            (cup.shells().count(), rings_of(cup), genus_of(cup)),
+            (1, 0, 0),
+            "{what}: one shell, a ring-free seamed band, genus 0"
+        );
+        assert_eq!(
+            faces_on(cup, geom::SurfaceKind::Cone),
+            cone,
+            "{what}: both half-faces survive as the band, under their keys"
+        );
+        for &f in &cone {
+            let surface = cup.get_surface(cup.get_face(f).unwrap().surface);
+            assert!(
+                matches!(surface, Some(geom::Surface::Cone { apex: p, .. })
+                    if p.x == 0.0 && p.y == apex && p.z == 0.0),
+                "{what}: the band wears the designated cone, got {surface:?}"
+            );
+        }
+        let lifted = apex + dir * a * slope;
+        assert!(
+            vertex_at(cup, a, lifted).is_some(),
+            "{what}: the cavity wall's corner is lifted onto the designated cone at r - t"
+        );
+        let tip = vertex_at(&body, 0.0, apex).expect("the operand's apex");
+        assert!(cup.get_vertex(tip).is_none(), "{what}: the apex dies");
+        let (got, pad) = volume(cup);
+        let want = outer - column(lifted) - PI * a * a * a * slope / 3.0;
+        assert!(
+            (got - want).abs() <= 1e-12 + pad,
+            "{what}: open volume {got} (pad {pad}), want {want}"
+        );
+        mesh::tessellate(cup, 1e-2, tol)
+            .unwrap_or_else(|e| panic!("{what}: the band triangulates, got {e:?}"));
+
+        let flat = faces_on(&body, geom::SurfaceKind::Plane);
+        let through_cap = open(&body, &flat, t)
+            .unwrap_or_else(|e| panic!("{what}: the cap opens, got {e:?}"))
+            .body;
+        assert_eq!(
+            topo::validate_geometric(&through_cap, tol),
+            Ok(()),
+            "{what}: open through the cap, tier 3"
+        );
+        let (got, pad) = volume(&through_cap);
+        let want = outer - sealed_cavity - PI * a * a * t;
+        assert!(
+            (got - want).abs() <= 1e-12 + pad,
+            "{what}: open-through-cap volume {got} (pad {pad}), want {want}"
+        );
+    }
+}
+
+/// **A hemisphere tangent to its wall shells at the tangent circle.**
+/// The cavity's sphere and cylinder, both at `r − t`, are tangent again
+/// at the equator, and the moved corner is that circle: the meridian
+/// solve's double root, decided by the pair's tangency gap rather than
+/// by its two roots. The same body at the tangent bullet's scale takes
+/// the same arm. Each is tier-3 valid, meshes, and its volume is the
+/// closed form; opened through the floor, the cavity runs out through
+/// it.
+#[test]
+fn a_tangent_dome_shells_at_its_tangent_circle() {
+    let tol = Tol::witness();
+    for (r, h, t) in [(0.5, 0.6, 0.05), (3.0 / 64.0, 8.0 / 64.0, 1.0 / 128.0)] {
+        let body = domed_vessel(r, h);
+        let a = r - t;
+        let solid =
+            |rad: f64, base: f64| PI * rad * rad * (h - base) + 2.0 * PI * rad.powi(3) / 3.0;
+        let sealed_want = solid(r, 0.0) - solid(a, t);
+        let hollow = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+            .unwrap_or_else(|e| panic!("r = {r}: the dome shells, got {e:?}"))
+            .body;
+        assert_eq!(
+            topo::validate_geometric(&hollow, tol),
+            Ok(()),
+            "r = {r}: tier 3"
+        );
+        assert!(
+            vertex_at(&hollow, a, h).is_some(),
+            "r = {r}: the cavity's corner is on the tangent circle"
+        );
+        let props = topo::mass_properties(&hollow, tol).expect("props");
+        assert!(
+            (props.volume - sealed_want).abs() <= 1e-12 * r.powi(3) + props.volume_pad,
+            "r = {r}: volume {} (pad {}), want {sealed_want}",
+            props.volume,
+            props.volume_pad
+        );
+        mesh::tessellate(&hollow, r / 50.0, tol)
+            .unwrap_or_else(|e| panic!("r = {r}: the hollow triangulates, got {e:?}"));
+
+        let floor = faces_on(&body, geom::SurfaceKind::Plane);
+        let cup = open(&body, &floor, t)
+            .unwrap_or_else(|e| panic!("r = {r}: the floor opens, got {e:?}"))
+            .body;
+        assert_eq!(
+            topo::validate_geometric(&cup, tol),
+            Ok(()),
+            "r = {r}: open, tier 3"
+        );
+        let props = topo::mass_properties(&cup, tol).expect("props");
+        let want = sealed_want - PI * a * a * t;
+        assert!(
+            (props.volume - want).abs() <= 1e-12 * r.powi(3) + props.volume_pad,
+            "r = {r}: open volume {} (pad {}), want {want}",
+            props.volume,
+            props.volume_pad
+        );
+    }
+}
+
+/// **Two distinct roots the same distance from the corner still
+/// refuse.** Opening the tangent dome lifts the cavity's sphere back to
+/// radius `r`, which CROSSES the cavity's cylinder at `r − t` at two
+/// stations `h ± √(r² − (r − t)²)`, symmetric about the old corner at
+/// the equator: a transversal pair, past the tangency arm, whose two
+/// answers `nearest` cannot choose between.
+#[test]
+fn opening_a_tangent_dome_refuses_two_equidistant_roots() {
+    let body = domed_vessel(0.5, 0.6);
+    let dome = faces_on(&body, geom::SurfaceKind::Sphere);
+    match open(&body, &dome, 0.05) {
+        Err(ShellError::Lift { error, .. }) => match *error {
+            topo::ReplaceFaceError::TogetherAxialCorner { what, .. } => assert!(
+                what.contains("same distance"),
+                "the refusal names the tie, got {what}"
+            ),
+            other => panic!("expected the corner solve's tie, got {other:?}"),
+        },
+        other => panic!("expected the lift's refusal, got {other:?}"),
     }
 }
 

@@ -2,8 +2,9 @@
 //! runs over them: the vessel and the tube (a rectangular and an
 //! annular meridian, each revolved a full turn), the hollow box, the
 //! two-void box, the curved-mouth operands (a vessel under a spherical
-//! cap, a hemisphere or a cone; the D-section; a dome sector), and the
-//! readers that name a body's shells by the role the classifier decides.
+//! cap, a hemisphere or a cone, or over a cone; the D-section; a dome
+//! sector), and the readers that name a body's shells by the role the
+//! classifier decides.
 //!
 //! A shell row and its review twin are about THE SAME BODY only while
 //! both build it here ([`super::cavity`]'s rule): a fixture that moves
@@ -137,6 +138,18 @@ pub fn domed_vessel(r: f64, h: f64) -> Body<f64> {
 pub fn cone_tipped_vessel(r: f64, h: f64, k: f64) -> Body<f64> {
     revolved_about_y(
         corners(&[(0.0, 0.0), (r, 0.0), (r, h), (0.0, h + k)]),
+        Revolution::Full,
+        Tol::witness(),
+    )
+}
+
+/// **The funnel vessel**: [`cone_tipped_vessel`] stood on its tip — a
+/// cone of height `k` whose apex is on the axis at the origin, under a
+/// cylinder of radius `r` and height `h`. Its cone face lies on the
+/// opening nappe, where the tip's lies on the mirror one.
+pub fn funnel_vessel(r: f64, h: f64, k: f64) -> Body<f64> {
+    revolved_about_y(
+        corners(&[(0.0, 0.0), (r, k), (r, k + h), (0.0, k + h)]),
         Revolution::Full,
         Tol::witness(),
     )
