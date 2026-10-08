@@ -230,11 +230,27 @@ fn tangent_cap_quarter<T: Decide>(r: f64, reversed: bool) -> Result<EdgeCurve<T>
 }
 
 /// The refusal a right-angle crossing described as a tangency owes, in
-/// either order and at any scalar: its defect is first-order.
-const PARALLELISM_DEFECT: CertifyError = CertifyError::ResidualExceeded {
-    check: CertCheck::TangentParallel,
-    sample: 1,
-};
+/// either order and at any scalar: its defect is first-order, and it
+/// carries the reading the scalar classified — a point margin at `f64`,
+/// an enclosure at `Interval` (`kind`) — lying wholly past the band's
+/// far edge, which a poisoned or zero reading would not.
+fn is_parallelism_defect(refusal: Option<CertifyError>, kind: geom_core::MarginKind) -> bool {
+    let Some(CertifyError::ResidualExceeded {
+        check: CertCheck::TangentParallel,
+        sample: 1,
+        margin,
+    }) = refusal
+    else {
+        return false;
+    };
+    let escalate = band().escalate();
+    margin.kind() == kind
+        && match margin.diagnostic_f64_for_error_text() {
+            geom_core::ErrorTextReading::Value(m) => m.abs() >= escalate,
+            geom_core::ErrorTextReading::Enclosure { lo, hi } => lo >= escalate || hi <= -escalate,
+            geom_core::ErrorTextReading::Invalid => false,
+        }
+}
 
 /// **A right-angle crossing described as a tangency is refused at the
 /// parallelism check** — D4 ¶1's `sin θ ≤ ε·|κ_rel|`, i.e. the margin
@@ -283,10 +299,10 @@ fn a_right_angle_crossing_described_as_a_tangency_is_refused() {
     .expect("the cap crossing is a certified transverse intersection");
 
     for reversed in [false, true] {
-        assert_eq!(
-            tangent_cap_quarter::<f64>(r, reversed).err(),
-            Some(PARALLELISM_DEFECT),
-            "a right-angle crossing is not a tangency (reversed: {reversed})"
+        let refusal = tangent_cap_quarter::<f64>(r, reversed).err();
+        assert!(
+            is_parallelism_defect(refusal, geom_core::MarginKind::Value),
+            "a right-angle crossing is not a tangency (reversed: {reversed}): {refusal:?}"
         );
     }
 }
@@ -318,10 +334,10 @@ fn a_right_angle_crossing_described_as_a_tangency_is_refused_at_interval() {
     );
 
     for reversed in [false, true] {
-        assert_eq!(
-            tangent_cap_quarter::<Interval>(r, reversed).err(),
-            Some(PARALLELISM_DEFECT),
-            "a right-angle crossing is not a tangency at Interval (reversed: {reversed})"
+        let refusal = tangent_cap_quarter::<Interval>(r, reversed).err();
+        assert!(
+            is_parallelism_defect(refusal, geom_core::MarginKind::Enclosure),
+            "a right-angle crossing is not a tangency at Interval (reversed: {reversed}): {refusal:?}"
         );
     }
 }
