@@ -595,6 +595,127 @@ pub(super) fn section_segments<T: Decide>(
     Ok(segments)
 }
 
+/// **The section loops with one site on a wrap edge**: a transverse
+/// section of a one-face closed wall crosses the wall's wrap edge (both
+/// its halves bound that face) once, so its loop has one site, and the
+/// record there carries both of the loop's germs, one each way round
+/// the conic. The loop is one segment, from that site round the whole
+/// conic back to it ([`crate::chord_join`]'s self-loop chord): its two
+/// ends are the record's two slots.
+///
+/// Read after [`section_segments`]' quiescence, from the records it left
+/// whole. A record is taken only when nothing else could be on its
+/// loop: both its germs are inside a face on both operands, with one
+/// locus pair and a conic section frame; no germ of another record
+/// names that locus pair; every real edge at the site, on each operand,
+/// has both halves in the germ's face there (the wrap edge on the
+/// wall, none inside the other's face); and the two germs turn round
+/// the conic in opposite senses. Any other one-site record is left for
+/// the [`SplitJoinError::SingleSiteSectionLoop`] refusal — among them a
+/// conic lying along an operand edge, which is a coincidence.
+fn wrap_site_segments<T: Decide>(
+    red: &BooleanReduction<T>,
+    matched: &[SectionSegment<T>],
+    band: Band,
+) -> Result<Vec<SectionSegment<T>>, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let (sa, sb) = (Sides::new(red, Operand::A), Sides::new(red, Operand::B));
+    let mut open = open_records(red)?;
+    for seg in matched {
+        for (r, slot) in seg.ends {
+            open[r].a[slot].1 = true;
+            open[r].b[slot].1 = true;
+        }
+    }
+    let mut out = Vec::new();
+    for (r, rec) in open.iter().enumerate() {
+        let [(g0, used0), (g1, used1)] = rec.a;
+        if used0 || used1 || g0.a_locus != g1.a_locus || g0.b_locus != g1.b_locus {
+            continue;
+        }
+        let (super::Locus::InFace(fa), super::Locus::InFace(fb)) = (g0.a_locus, g0.b_locus) else {
+            continue;
+        };
+        let Some(frame) = germ_section_frame(red, &g0, band)? else {
+            continue;
+        };
+        let shared = open.iter().enumerate().any(|(o, other)| {
+            o != r
+                && other
+                    .a
+                    .iter()
+                    .any(|(g, _)| g.a_locus == g0.a_locus && g.b_locus == g0.b_locus)
+        });
+        if shared || !wrap_site(&red.a, fa, g0.he)? || !wrap_site(&red.b, fb, rec.b[0].0.he)? {
+            continue;
+        }
+        if sa.is_up(&red.a, g0.he)? == sa.is_up(&red.a, g1.he)?
+            || sb.is_up(&red.b, rec.b[0].0.he)? == sb.is_up(&red.b, rec.b[1].0.he)?
+        {
+            return Err(desync("a one-site record's two germs agree in sense"));
+        }
+        let p = red
+            .a
+            .half_edge_start_point(g0.he)
+            .ok_or(desync("germ site has no point"))?;
+        let senses = (
+            rotational_sense(frame, p, g0.dir, band)?,
+            rotational_sense(frame, p, g1.dir, band)?,
+        );
+        match senses {
+            (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {}
+            (Sign::Zero, _) | (_, Sign::Zero) => return Err(desync(RADIAL_GERM)),
+            _ => {
+                return Err(desync(
+                    "a one-site record's two germs turn one way round its conic",
+                ));
+            }
+        }
+        out.push(SectionSegment {
+            ends: [(r, 0), (r, 1)],
+            germ: g0,
+            lane: SegmentLane::Section,
+        });
+    }
+    Ok(out)
+}
+
+/// Whether every real edge at the site of null half `he` has both its
+/// halves in `face`: on a wall, the site lies on the face's wrap edge;
+/// inside a face, no real edge reaches it.
+fn wrap_site<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    he: HalfEdgeKey,
+) -> Result<bool, BooleanError> {
+    let desync = |what| BooleanError::JoinDesync { what };
+    let start = body
+        .get_half_edge(he)
+        .ok_or(desync("germ half no longer resolves"))?
+        .start;
+    let end = body
+        .half_edge_end(he)
+        .ok_or(desync("germ half no longer resolves"))?;
+    let site =
+        crate::chord_join::null_site(body, &[start, end]).map_err(super::sectors::stale_site)?;
+    for v in site {
+        for k in body.edges_of_vertex_linked(v) {
+            let e = body
+                .get_edge(k)
+                .ok_or(desync("a site edge no longer resolves"))?;
+            if body.edge_curve_linked(k, e).null_scaffold().is_some() {
+                continue;
+            }
+            for h in [e.he_plus, e.he_minus] {
+                if body.face_of_half_edge(h) != Some(face) {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+    Ok(true)
+}
+
 /// [`section_segments`] read as sites: the pair-record count and each
 /// segment's two germ sites on the A clone.
 #[cfg(any(test, feature = "test-support"))]
@@ -644,7 +765,9 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Connected, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let segments = section_segments(red, band)?;
+    let mut segments = section_segments(red, band)?;
+    let wrapped = wrap_site_segments(red, &segments, band)?;
+    segments.extend(wrapped);
     let mut sa = SolidJoin::new(red, Operand::A, band);
     let mut sb = SolidJoin::new(red, Operand::B, band);
     let mut completed: Vec<UnresolvedPair> = Vec::new();
@@ -703,13 +826,31 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         // reach past the ball, and a shorter arm never decides a length
         // positive that the full reach would not. Read only by the arms
         // that mint a germ normal, before they mutate the body.
+        // A one-site loop's two sites are one, and its chord runs round
+        // the whole conic: the ball holds the site's antipode through the
+        // conic's centre in the other's place, a point of the conic too.
+        let antipode = if entry == cand {
+            let (center, _) = germ_section_frame(red, &germ, band)?
+                .ok_or(desync("a one-site section loop has no conic frame"))?;
+            let p = red
+                .a
+                .half_edge_start_point(ea)
+                .ok_or(desync("germ site has no point"))?;
+            Some(center + (center - p))
+        } else {
+            None
+        };
         let germ_reach = |body: &Body<T>| -> Result<geom_brep::ExtentBall<T>, BooleanError> {
             let site = |he| {
                 body.half_edge_start_point(he)
                     .map(geom_brep::ExtentBall::point)
                     .ok_or(desync("germ site has no point"))
             };
-            geom_brep::ExtentBall::enclosing(&[site(ea)?, site(ra)?])
+            let other = match antipode {
+                Some(q) => geom_brep::ExtentBall::point(q),
+                None => site(ra)?,
+            };
+            geom_brep::ExtentBall::enclosing(&[site(ea)?, other])
                 .ok_or(desync("a join has no germ sites"))
         };
         let germ_normal = |reach: geom_brep::ExtentBall<T>, origin: Point3<T>, n: Vec3<T>| {
@@ -939,6 +1080,8 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
             .filter(|&i| open[i].fully_used())
             .collect();
         done.sort_unstable_by(|x, y| y.cmp(x));
+        // A one-site loop's segment ends at one record twice.
+        done.dedup();
         for i in done {
             let r = open[i];
             cut_pair(
@@ -953,12 +1096,11 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         }
     }
 
-    // ---- A closed section loop with one site: a record whose two
-    // germs name one locus on both operands along a conic can only
-    // match itself, which the join does not do (a self-matching record
-    // would see the adjacency skip fire both ways and retire a real face
-    // as the null face). Refused typed before the loose ends are
-    // counted. ----
+    // ---- A closed section loop with one site that is no wrap edge's
+    // transverse crossing ([`wrap_site_segments`] joined the rest): a
+    // record whose two germs name one locus on both operands along a
+    // conic can only match itself. Refused typed before the loose ends
+    // are counted. ----
     let mut single_site = 0;
     for r in &open {
         let [(g0, used0), (g1, used1)] = r.a;
