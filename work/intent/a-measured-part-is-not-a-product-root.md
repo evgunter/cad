@@ -2,11 +2,11 @@
 id: a-measured-part-is-not-a-product-root
 kind: issue
 title: A Measure reading a part's faces consumes it, so a document that asserts a requirement over its own part has no product
-status: parked
+status: closed
 opened: 2026-10-03
 priority: P2
 cost: M
-blocked_on: [the-product-is-an-explicit-list]
+closed: 2026-10-08
 ---
 
 
@@ -63,3 +63,12 @@ stays in the product. Moved here from RECIPE.
 Re-parked on `the-product-is-an-explicit-list` (INTENT stage 2 PR C,
 `docs/INTENT-STAGE2-SPEC.md` §4): the explicit list keeps the measured part
 whatever reads it, and test 7 is this row's acceptance.
+
+## Closed
+
+By INTENT stage 2 unit C (`the-product-is-an-explicit-list`, branch
+`intent/s2-c-world`): the product is the world, so a body is in it
+because a `PlaceInWorld` reads it, whatever else reads it. A measure
+over the placed part leaves it placed:
+`crates/editor-core/tests/intent_s2_c_world.rs`,
+`a_measured_and_asserted_block_placed_is_the_product`.

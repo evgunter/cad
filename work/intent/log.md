@@ -479,3 +479,16 @@ Every operand field holds a `VarId` read of an output, typed by its slot's `Oper
 - **A pre-B file** spells its operands as node ids, which parse as variable ids and refuse `SnapshotError::OperandUnminted` with the regenerate recourse, rather than `Unreadable`: the bytes are well-formed, so only the read walk can tell.
 - **`DeclaredNameNotUpstream`** asks the read relation: a name is out of a carrier's reach when the carrier or a node downstream of it minted it, or a node inserted after it that it does not read.
 - The viewer's body and instances seats read the kind of the variable a node named alone defines (`Doc::read_of_node`), closing `body-seat-reads-through-the-placer-chain`.
+
+## 2026-10-08 — unit C: the product is the world (branch `intent/s2-c-world`)
+
+`Node::PlaceInWorld { body, pose }` reads one `Body` and defines one `Body` output, `copy`; the product is the copies in the placements' document order, and nothing places as a side effect. `roots.rs`, `Doc::roots`, `SetRoots`, `RootFault`, A10's maintenance (`on_insert`, `on_delete`, `on_set_members`) and `PlacedUnderTwoRoots`/N4's once-per-product rule are deleted. `DocEdit::place(body, pose)` is the authoring door.
+
+- **Copy names** are the body's names under a new segment `RoleSeg::Placed { of }` minted at the placement (content tag 51), as a pattern copy's are qualified by the copy; `StableName::in_copy` / `copy_of` are the pair. Lane's call, reported to the orchestrator.
+- **Errors.** `NoBodyRoots` is `EmptyProduct { unplaced }`; a placement whose read is unresolved is `StrandedPlacement { placement }`.
+- **A mate whose member no placement reads mints nothing at the at-rest gate** (F's rule landing early; lane's call, reported).
+- **Instances** keep one `body` port (the part's whole world) pending the orchestrator's answer on the per-placement signature.
+- **Split.** The part's world is the cut's placements; the remainder places the instance once, after the kept placements (no splice). D-2's consumer-ward closure narrows: a remainder read of a body the cut places re-points to the instance's body; any other read of a cut body is `SeveredEdge`. A name the part's world does not carry is `SplitError::NameOutsidePartWorld`.
+- **Inline.** `InstanceConsumed` retires: a reader of the instance re-points to the inlined body (`InstanceReadUncarried` when nothing carries it); a posed host placement reads through the part's single identity placement, else `PlacementPoseCrosses`. `UnplaceableFrame` names the part's placement.
+- **Pre-C files** refuse `Unreadable` naming `roots`. The corpus builders place their pre-C roots in root order, and `intent_s2_c_world` test 6 checks each regenerated product against its recorded pre-C digest.
+- **Closed here:** `a-measured-part-is-not-a-product-root` (test 7) and `a-failed-requirement-refuses-the-whole-product` (test 8).
