@@ -1077,3 +1077,15 @@ live owner is already over budget: FUSE 47, EMIT 62, GERM 53. Each
 successor's `keep_out` names the shared ground.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-10-08 — CONTACT-11 lands
+
+- **The review:** REQUEST-CHANGES from a single full review, then
+  APPROVE-WITH-FIXES from the delta review. The linear `SupSpeed` side
+  test replaces both the torus's variation check and the cone's area
+  check, which was quadratic. That fixes a wrong `In` in a small notch
+  of a cone face, live on main.
+- **The 1e-12 red row** is main's own: the tipped rod, filed on TINT.
+- Landing as `contact/land-11`.
+
+Signed: (CONTACT orchestrator)
