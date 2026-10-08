@@ -202,3 +202,61 @@ error.
 - A10: "A world placement (`PlaceInWorld`) is an operation reading one `Body` and defining its copy as an output" →
   "A placement (`Place`) reads one shape and defines its copy"; "the copies the document's world placements define" →
   "every copy in the world's space, in placement order".
+
+## Round 3
+
+**1. Reading Ev's sentence.** "None of these should be 'moving' at all; at most one of them already has a placement."
+I read it as rejecting `Transform` as a motion: an operation that takes a positioned thing and repositions it. A body
+has no location (Ev, 2026-10-03), so there is nothing to move it *from*. What a person means by "transform the ball
+21 times" is 21 relations, each saying where a copy of the ball sits relative to something else. In each pair (the
+ball, a pip), the ball has no placement and the pip has exactly one. That is "at most one". Read against the cases:
+- **The die's pips.** Each pip is a copy of the ball, pinned against a pose of the die. The ball is not moved, and no
+  pip was ever anywhere else.
+- **A part moved within its own document before a boolean.** It is a copy related to the poses it should sit
+  against, not a moved body. The original is unchanged and stays readable.
+- **`Transform` over a placed copy `C`.** "Moving" `C` would give it a second placement, which is the contradiction
+  Ev named. It is either a new copy related to `C` (a `Place` reading `C`, whose bundle reads `Carried(C, …)`), or a
+  further mate in `C`'s bundle, which is an overconstraint.
+
+So `Transform` is **neither a construction nor its own operation**: it retires, and its uses are placements. A
+`Transform` construction (the sibling of `Pattern`, reading a body and a chain) would be exactly the motion Ev
+rejects. It would also be a second way to say where a copy of a body sits, beside `Place`, so I lean against the
+S3P designer who proposed keeping it.
+
+**2. Final state.**
+- **Each pip** is `Place { shape: ball, mates: [Frame: BodyFrame(ball) ≅ Offset { <a pose of the die>, by: chain } ] }`.
+  - The chain is scalar variables, today's frame numbers.
+  - Its space is the space of what it reads: the document's construction coordinates, where the die and the ball
+    were built.
+  - It is **not** in the product, because construction coordinates are never the world's space.
+- **The boolean** `Union { die, pips }` is legal under "reads lie in one space", because the die (a construction) and
+  the pips (copies pinned against the die's poses) are in that one space. The union's result is placed in the world
+  by its own `Place`.
+  - This needs S3P's "a space is a set of copies" to also count the document's construction coordinates as a space,
+    whose members are its constructions and the copies pinned against their poses. Otherwise no boolean of a body
+    and its displaced copies can be written. Flag this to S3P.
+- **21 pips as one node.** `Pattern` becomes the multi-copy form of `Place`.
+  - It reads one shape and a family of target poses: `Linear`, `Circular`, or an explicit `Vec<Frame>`.
+  - It defines a `Bodies` of copies, each pinned by one `Frame` mate from `BodyFrame(shape)` to its member of the
+    family.
+  - So a pattern also relates copies and never moves anything.
+  - The die's frames (six `Explicit` in the file) become six `Frame` variables.
+- **`Transform`** retires, along with `wire_transform`, `placeable_operand` and the member walk through it.
+- **`PlacedFrom`** retires: every copy is an output of a `Place` or a `Pattern`, and names pass through as DM3 says.
+- **The pin** is the old chain written in the target pose's frame, so stage D's bit-equality holds by the same
+  `transform_rigid` call.
+
+**3. Text, and (i)/(ii).**
+- **D10 Operations** gains: "Nothing moves a body: a body has no location, and a copy of it is placed. A copy is
+  defined by one placement (`Place`, or a `Pattern`, which places one copy per member of a pose family), never moved
+  after. A further statement of where it sits is an overconstraint."
+- **D10 Spaces** gains, after "a part is born in its own space": "A document's constructions share its construction
+  coordinates, which form a space; a copy pinned against their poses is in that space, and a boolean may read both."
+- **A10** gains "`Pattern` places as `Place` does".
+- **D10's last paragraph** adds `Transform` and `PlacedFrom` to the retirements.
+- **(i)/(ii)** is unchanged by this. Retiring `Transform` decides how a copy is defined, not how many shapes one
+  placement reads.
+  - A `Pattern` defining a `Bodies` fits (ii), where `Place` reads one shape. Under (i), a pattern's output would
+    have to be read as one shape, or exploded into a list.
+  - So the result leans further towards (ii), with my round-2 amendment: an instance's single body is picked by the
+    part's placement id, not by position.
