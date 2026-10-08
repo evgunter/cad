@@ -279,6 +279,12 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          clone's pcurves, then adopts the clone",
     ),
     (
+        "join_edges_within",
+        "a pipeline of `kev_describing` kills over the vertices the caller's scope holds, \
+         each asserting the tier-1 postcondition (the planar arm's re-description writes a \
+         curve and no topology), then a scoped re-mint, which writes rows and no topology",
+    ),
+    (
         "merge_coplanar_faces_declared",
         "runs `merge_coplanar_faces_staged`, which asserts tier 1 through its surgery \
          scope and runs `join_edges` on its staging clone before adopting it",
