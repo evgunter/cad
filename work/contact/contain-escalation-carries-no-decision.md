@@ -151,15 +151,15 @@ carrier rung, whose pass set is the caller's, ends on its lever alone.
   and the span rule is tagged, so none takes the unreadable-margin note.
 - **contfp's decision.** `boolean::ContainDecision { Loop(_), ArcEnd,
   OneCircle, Carrier, WindowPeriod }` rides `ContainError::Escalated`.
-  - `Boundary` and `OneCircle` are sized on `SizedPass::AnySign`.
+  - `Boundary` (size "distance") and `OneCircle` are sized on `SizedPass::AnySign`.
   - `ArcSpan` is sized on `NonNegative`. Its site raises only a negative margin or a straddle, so it ends in its lever alone.
-  - `WindowPeriod` is sized on `Positive`.
+  - `WindowPeriod` (size "gap", to a full turn) is sized on `Positive`.
   - `Ray`, `Plane`, `ArcEnd` and `Carrier` are `recourse::LeverOnly`.
   - Each lever has one source, `boolean::placement_lever`.
 - **Renderers.**
   - `validate::classify_contain` reads it at rest.
   - The census's `Undecided::WitnessTooClose(Option<LoopDecision>)` reads it, in its lever alone, since `what` is a `&'static str` (`work/restfront/census-undecidable-what-cannot-carry-a-valued-ending`).
-  - The Boolean reads it as `BooleanDecision::Containment { decision, escalation }`, which ends through `ContainDecision::ending`. `None` keeps 3493's lever.
+  - The Boolean reads it as `BooleanDecision::Containment { decision, escalation }`, which ends in the decision's own lever alone (`ContainDecision::lever_ending`). It offers no tolerance, because no single margin binds the operation. `None` ends in `placement_lever(None)`, also lever alone.
 - **What stays uncarried.** The point-in-solid door's own escalation, its
   `Display`'s coincidence menu, and the later stories PR 3513's offers
   meet. These are now `work/contact/point-in-solid-escalation-carries-no-decision`.

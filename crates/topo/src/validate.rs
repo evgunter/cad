@@ -3095,9 +3095,6 @@ fn classify_contain(e: &ContainError) -> (Cow<'static, str>, Cow<'static, str>) 
     }
 }
 
-const CLOSE_TO_BOUNDARY: &str =
-    "a point of it lies too close to a boundary to place at this tolerance";
-
 const UNWALKABLE: &str = "its boundary could not be walked";
 
 /// No ray parity cast settled — each grazed or gave nothing to read —
@@ -3117,7 +3114,11 @@ fn close_to_boundary(
     diag: &Indeterminate,
 ) -> (Cow<'static, str>, Cow<'static, str>) {
     (
-        CLOSE_TO_BOUNDARY.into(),
+        format!(
+            "{} is undecided at this tolerance",
+            crate::boolean::placement_subject(decision)
+        )
+        .into(),
         crate::boolean::placement_ending(decision, escalation, diag, Reading::AtRest).into(),
     )
 }
@@ -10703,7 +10704,7 @@ mod tests {
         // The door's own escalation names no decision: the unnamed lever.
         assert_eq!(
             read(S::Escalated { face, diag }).1,
-            "Recourse: move the geometry clear of the boundary"
+            "Recourse: move the point clearly inside or outside the face"
         );
         // A poisoned margin adds the unreadable-margin note, on the carried
         // path as on the top-level one.

@@ -13,7 +13,7 @@
 //! on its oval, and a spline edge, which has no crossing row, refuses
 //! typed wherever it could matter.
 
-use geom_brep::recourse::{LeverOnly, Reading, SizedDecision, SizedPass, StoredDefinite};
+use geom_brep::recourse::{LeverOnly, Reading, SizedPass};
 use geom_core::k_stats::Magnitude;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
@@ -22,6 +22,7 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, LoopKey, VertexKey};
 use crate::live::{linked, proven};
 use crate::ray_walk::ParityRows;
+use crate::splitting::containment::placement_sized;
 use crate::splitting::containment::{
     BoundaryRows, CarrierLoop, ConicRows, EdgeContact, carrier_loop, carrier_loop_side,
 };
@@ -81,11 +82,6 @@ impl From<LoopDecision> for ContainDecision {
     }
 }
 
-/// The lever of a point too near the boundary to place where the refusal
-/// names no decision: the point-in-solid door's escalation, and the
-/// sphere region's, which do not carry one.
-const UNNAMED_LEVER: &str = "move the geometry clear of the boundary";
-
 /// What a placement refusal's decision decides, as a clause: `decision`'s
 /// own, or, where the refusal names none, the placement question itself.
 #[must_use]
@@ -96,9 +92,9 @@ pub const fn placement_subject(decision: Option<ContainDecision>) -> &'static st
             "whether an arc's end lies where its boundary's corner is stored"
         }
         Some(ContainDecision::OneCircle) => "whether a loop's arcs are arcs of one circle",
-        Some(ContainDecision::Carrier) => "whether the point lies on the face's surface",
+        Some(ContainDecision::Carrier) => "whether a point lies on the face's surface",
         Some(ContainDecision::WindowPeriod) => {
-            "whether a cylinder face sweeps clearly less than a full turn"
+            "whether a cylinder face sweeps less than a full turn"
         }
         None => "whether a point lies inside a face, on its boundary, or outside it",
     }
@@ -106,7 +102,9 @@ pub const fn placement_subject(decision: Option<ContainDecision>) -> &'static st
 
 /// The geometry lever of a placement refusal, after "Recourse: " — the one
 /// source every rendering of it reads: `decision`'s own, or, where the
-/// refusal names none, the unnamed lever.
+/// refusal names none (the point-in-solid door's escalation, the sphere
+/// region's, a cone face's nappe read at the Boolean), the placement
+/// question's own lever.
 #[must_use]
 pub const fn placement_lever(decision: Option<ContainDecision>) -> &'static str {
     match decision {
@@ -118,12 +116,34 @@ pub const fn placement_lever(decision: Option<ContainDecision>) -> &'static str 
         Some(ContainDecision::Carrier) => {
             "move the point exactly onto the face's surface or clearly off it"
         }
-        Some(ContainDecision::WindowPeriod) => {
-            "move the geometry so the wall sweeps clearly less than a full turn"
-        }
-        None => UNNAMED_LEVER,
+        Some(ContainDecision::WindowPeriod) => "keep the wall clearly short of a full turn",
+        None => "move the point clearly inside or outside the face",
     }
 }
+
+/// **The escalations each site raises**: every decision paired with each
+/// way its sites' readings can stand, and `None` for a refusal that names
+/// no decision. A pair not here is raised nowhere.
+pub const CONTAINMENT_RAISED: [(Option<ContainDecision>, Escalation); 13] = {
+    use ContainDecision as C;
+    use Escalation::{Decided, Margin, Straddle};
+    use LoopDecision as L;
+    [
+        (None, Margin),
+        (Some(C::Loop(L::Boundary)), Margin),
+        (Some(C::Loop(L::Boundary)), Straddle),
+        (Some(C::Loop(L::Boundary)), Decided),
+        (Some(C::Loop(L::Ray)), Margin),
+        (Some(C::Loop(L::ArcSpan)), Margin),
+        (Some(C::Loop(L::ArcSpan)), Straddle),
+        (Some(C::Loop(L::Plane)), Margin),
+        (Some(C::ArcEnd), Margin),
+        (Some(C::ArcEnd), Decided),
+        (Some(C::OneCircle), Margin),
+        (Some(C::Carrier), Margin),
+        (Some(C::WindowPeriod), Margin),
+    ]
+};
 
 impl ContainDecision {
     /// Every decision, for the rows that sample them.
@@ -144,25 +164,17 @@ impl ContainDecision {
     pub fn ending(self, escalation: Escalation, diag: &Indeterminate, reading: Reading) -> String {
         let arm = escalation.arm(diag);
         let lever = placement_lever(Some(self));
-        let sized = |size, passes| SizedDecision {
-            lever,
-            size,
-            passes,
-            stored: StoredDefinite::Lever,
-            at_zero: None,
-        };
         match self {
             Self::Loop(d) => d.ending(escalation, diag, reading),
             Self::ArcEnd | Self::Carrier => LeverOnly { lever }.recourse(arm),
-            Self::OneCircle => {
-                sized("gap between circles", SizedPass::AnySign).recourse(arm, reading)
+            Self::OneCircle => placement_sized(lever, "gap between circles", SizedPass::AnySign)
+                .recourse(arm, reading),
+            Self::WindowPeriod => {
+                placement_sized(lever, "gap", SizedPass::Positive).recourse(arm, reading)
             }
-            Self::WindowPeriod => sized("sweep", SizedPass::Positive).recourse(arm, reading),
         }
     }
-}
 
-impl ContainDecision {
     /// The decision's lever alone on `escalation`'s arm, with the
     /// unreadable-margin note on a poisoned margin: its ending at a door
     /// that offers no tolerance for it (the Boolean's, `refusal_routes`).
@@ -1231,13 +1243,12 @@ mod tests {
         const ARC: &str =
             "Recourse: move the geometry so this arc stays clearly short of a full turn";
         const PLANE: &str =
-            "Recourse: ask about a point and a loop that lie exactly in the plane given";
+            "Recourse: move the geometry so the face is flat and the point lies on it";
         const END: &str = "Recourse: move the point clear of the arc's end";
         const CARRIER: &str =
             "Recourse: move the point exactly onto the face's surface or clearly off it";
-        const WALL: &str =
-            "Recourse: move the geometry so the wall sweeps clearly less than a full turn";
-        const UNNAMED: &str = "Recourse: move the geometry clear of the boundary";
+        const WALL: &str = "Recourse: keep the wall clearly short of a full turn";
+        const UNNAMED: &str = "Recourse: move the point clearly inside or outside the face";
         let loop_ = |d| Some(ContainDecision::Loop(d));
         let tighten = |lever: &str, size: &str| {
             format!("{lever}, or, if this {size} is intended, tighten the tolerance below 5e-10 m")
@@ -1248,13 +1259,13 @@ mod tests {
                 loop_(LoopDecision::Boundary),
                 Margin,
                 above,
-                tighten(BOUNDARY, "length"),
+                tighten(BOUNDARY, "distance"),
             ),
             (
                 loop_(LoopDecision::Boundary),
                 Margin,
                 below,
-                tighten(BOUNDARY, "length"),
+                tighten(BOUNDARY, "distance"),
             ),
             (
                 loop_(LoopDecision::Boundary),
@@ -1321,7 +1332,7 @@ mod tests {
                 Some(ContainDecision::WindowPeriod),
                 Margin,
                 above,
-                tighten(WALL, "sweep"),
+                tighten(WALL, "gap"),
             ),
             (
                 Some(ContainDecision::WindowPeriod),
@@ -1384,8 +1395,8 @@ mod tests {
             .to_string();
             assert!(
                 at_rest.ends_with(&format!(
-                    "a point of it lies too close to a boundary to place at this tolerance. \
-                     {ending}"
+                    "{} is undecided at this tolerance. {ending}",
+                    placement_subject(decision)
                 )),
                 "{row}: {at_rest}"
             );
@@ -1432,7 +1443,7 @@ mod tests {
         assert_eq!(escalation, Escalation::Margin);
         let ending = placement_ending(decision, escalation, &diag, Reading::AtRest);
         assert!(
-            ending.contains("if this length is intended, tighten the tolerance below"),
+            ending.contains("if this distance is intended, tighten the tolerance below"),
             "{ending}"
         );
     }

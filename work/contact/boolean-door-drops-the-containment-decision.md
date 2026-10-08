@@ -43,7 +43,12 @@ It covers all three wrap sites:
 - the span walk's curved placement;
 - `carrier_touch`'s.
 
-A carried decision ends through `ContainDecision::ending` at a build,
-the one table contfp's and the at-rest renderers read. `None` keeps PR
-3493's lever alone. The point-in-solid door's own escalations are still
+A carried decision ends in its own lever alone
+(`ContainDecision::lever_ending`), read from `boolean::placement_lever`,
+the lever source contfp's and the at-rest renderers share. The Boolean
+offers no tolerance for it: it asks the walk of many points, and a
+smaller tolerance moves the other points' readings into the band as it
+decides this one, so no carried margin binds the operation. `None`
+also ends in a lever alone (`LeverPass::ByRung`), `placement_lever(None)`,
+the same text contfp and the at-rest renderers give it. The point-in-solid door's own escalations are still
 unnamed: `point-in-solid-escalation-carries-no-decision`.

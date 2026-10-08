@@ -200,10 +200,10 @@ impl LoopDecision {
     #[must_use]
     pub const fn subject(self) -> &'static str {
         match self {
-            Self::Boundary => "whether the point lies on the loop's boundary or clear of it",
-            Self::Ray => "where a test ray from the point meets the loop's boundary",
+            Self::Boundary => "whether a point lies on the loop's boundary or clear of it",
+            Self::Ray => "where a test ray from a point meets the loop's boundary",
             Self::ArcSpan => "whether an arc of the loop stays short of a full turn",
-            Self::Plane => "whether the point and the loop lie in the plane given",
+            Self::Plane => "whether a point and the face lie in one plane",
         }
     }
 
@@ -215,7 +215,7 @@ impl LoopDecision {
             Self::Boundary => "move the point exactly onto the boundary or clearly off it",
             Self::Ray => "nudge the point so no boundary corner lines up with it",
             Self::ArcSpan => "move the geometry so this arc stays clearly short of a full turn",
-            Self::Plane => "ask about a point and a loop that lie exactly in the plane given",
+            Self::Plane => "move the geometry so the face is flat and the point lies on it",
         }
     }
 
@@ -228,21 +228,32 @@ impl LoopDecision {
     #[must_use]
     pub fn ending(self, escalation: Escalation, diag: &Indeterminate, reading: Reading) -> String {
         let arm = escalation.arm(diag);
-        let sized = |size, passes| SizedDecision {
-            lever: self.lever(),
-            size,
-            passes,
-            stored: StoredDefinite::Lever,
-            at_zero: None,
-        };
+        let sized = |size, passes| placement_sized(self.lever(), size, passes);
         match self {
-            Self::Boundary => sized("length", SizedPass::AnySign).recourse(arm, reading),
+            Self::Boundary => sized("distance", SizedPass::AnySign).recourse(arm, reading),
             Self::ArcSpan => sized("arc", SizedPass::NonNegative).recourse(arm, reading),
             Self::Ray | Self::Plane => LeverOnly {
                 lever: self.lever(),
             }
             .recourse(arm),
         }
+    }
+}
+
+/// A placement decision on a size the user may intend, read over stored
+/// geometry by its lever: the one shape every sized placement decision
+/// (the walk's and contfp's) takes.
+pub(crate) const fn placement_sized(
+    lever: &'static str,
+    size: &'static str,
+    passes: SizedPass,
+) -> SizedDecision {
+    SizedDecision {
+        lever,
+        size,
+        passes,
+        stored: StoredDefinite::Lever,
+        at_zero: None,
     }
 }
 
@@ -1972,12 +1983,15 @@ fn carrier_walk<T: Decide>(
                 // and then the point is in the band of this edge, which
                 // is an escalation, never a panic.
                 Boundary::Decided => {
-                    return Err(on_boundary(ReadEscalation::from(
-                        crate::invalid_margin::invalid(
+                    // This walk's own row decided `q` on the edge, and the
+                    // caller's decided it off: decided, and still no answer.
+                    return Err(on_boundary(ReadEscalation {
+                        escalation: Escalation::Decided,
+                        diag: crate::invalid_margin::invalid(
                             band,
                             "point_in_arc_loop_boundary_disagreement",
                         ),
-                    )));
+                    }));
                 }
             },
         }

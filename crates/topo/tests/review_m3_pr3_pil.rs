@@ -460,21 +460,24 @@ fn an_in_band_schedule_arm_takes_the_next_member() {
 /// schedule ray's line by the band's midpoint, leaves every ray from the
 /// centre in band, so the walk refuses on `Ray`. Each carries its
 /// margin and ends in its decision's ending: the valued tighten for the
-/// boundary's length, the lever alone for the ray.
+/// boundary's distance, the lever alone for the ray. A query off the
+/// square's plane by the band's midpoint escalates on `Plane`, a
+/// residual, in its lever alone.
 #[test]
 fn each_walk_site_tags_its_decision() {
     use geom_brep::recourse::Reading;
     use topo::{Escalation, LoopDecision};
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let m = 0.5 * (band.zero() + band.escalate());
-    let tagged = |profile: &[(f64, f64)], x: f64, y: f64| {
+    let tagged_at = |profile: &[(f64, f64)], x: f64, y: f64, z: f64| {
         let fx = prism::<f64>(profile, 1.0, Tol::witness());
         let top = fx.body.get_face(fx.top_face).unwrap();
-        match point_in_loop(&fx.body, top.outer, n_z(), Point3::new(x, y, 1.0), band) {
+        match point_in_loop(&fx.body, top.outer, n_z(), Point3::new(x, y, z), band) {
             Err(e @ PointInLoopError::Escalated { .. }) => e,
             other => panic!("expected an escalation, got {other:?}"),
         }
     };
+    let tagged = |profile: &[(f64, f64)], x: f64, y: f64| tagged_at(profile, x, y, 1.0);
     let square = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
     let off_the_rays: Vec<(f64, f64)> = all_rays_graze_profile()
         .into_iter()
@@ -486,6 +489,13 @@ fn each_walk_site_tags_its_decision() {
     for (row, e, want) in [
         ("edge", tagged(&square, 1.0, m), LoopDecision::Boundary),
         ("rays", tagged(&off_the_rays, 0.0, 0.0), LoopDecision::Ray),
+        // A query off the square's plane by the band's midpoint:
+        // `point_in_loop`'s certified precondition.
+        (
+            "plane",
+            tagged_at(&square, 1.0, 1.0, 1.0 + m),
+            LoopDecision::Plane,
+        ),
     ] {
         let PointInLoopError::Escalated {
             decision,

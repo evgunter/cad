@@ -148,8 +148,8 @@ pub use carrier_eq::{
     CarrierDesc, CarrierEqError, CarrierRelation, CoincidenceMeasure, ConsumedExtent, carrier_eq,
 };
 pub use contain::{
-    ContainDecision, ContainError, FaceContainment, contfp, curved_face_containment,
-    placement_ending, placement_lever, placement_subject,
+    CONTAINMENT_RAISED, ContainDecision, ContainError, FaceContainment, contfp,
+    curved_face_containment, placement_ending, placement_lever, placement_subject,
 };
 // Crate-internal: tier 3's check 9 decides two whole-circle loops
 // against each other (its contact arm 4) on the same loop

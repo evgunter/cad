@@ -1656,11 +1656,9 @@ impl BooleanDecision {
             // where the caller placed the point on the surface; the period
             // rung refuses a negative margin), so no one margin gives a
             // tolerance to tighten below.
-            Self::Containment { decision: None, .. } => Ending::Lever(
-                "move the parts so they meet clearly inside or clearly outside that face's \
-                 boundary",
-                LeverPass::ByRung,
-            ),
+            Self::Containment { decision: None, .. } => {
+                Ending::Lever(crate::boolean::placement_lever(None), LeverPass::ByRung)
+            }
             Self::Crossing(decision) => Ending::Sized(decision.sized()),
             // Both definite verdicts pass (the vertices meet, or lie
             // apart); a negative distance is not a verdict.
@@ -1976,20 +1974,12 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::Torus => TorusConvention::iter()
                     .map(BooleanDecision::Torus)
                     .collect(),
-                BooleanDecisionKind::Containment => core::iter::once(None)
-                    .chain(ContainDecision::ALL.map(Some))
-                    .flat_map(|decision| {
-                        [
-                            Escalation::Margin,
-                            Escalation::Straddle,
-                            Escalation::Decided,
-                        ]
-                        .map(|escalation| BooleanDecision::Containment {
-                            decision,
-                            escalation,
-                        })
+                BooleanDecisionKind::Containment => crate::boolean::CONTAINMENT_RAISED
+                    .map(|(decision, escalation)| BooleanDecision::Containment {
+                        decision,
+                        escalation,
                     })
-                    .collect(),
+                    .to_vec(),
                 BooleanDecisionKind::Crossing => CrossingDecision::iter()
                     .map(BooleanDecision::Crossing)
                     .collect(),
@@ -2504,8 +2494,7 @@ pub(in crate::boolean) mod tests {
             BooleanDecision::Containment { decision: None, .. } => (
                 "whether a point lies inside a face, on its boundary, or outside it",
                 Ending::Lever(
-                    "Recourse: move the parts so they meet clearly inside or clearly outside \
-                     that face's boundary",
+                    "Recourse: move the point clearly inside or outside the face",
                     LeverPass::ByRung,
                 ),
             ),

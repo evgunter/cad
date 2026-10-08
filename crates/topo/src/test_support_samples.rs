@@ -270,28 +270,23 @@ fn contain_errors() -> Vec<ContainError> {
         escalation,
         diag,
     };
-    let mut v: Vec<ContainError> = core::iter::once(None)
-        .chain(ContainDecision::ALL.map(Some))
-        .flat_map(|decision| {
-            if decision == arc_span {
-                vec![escalated(decision, Escalation::Margin, over_wound)]
-            } else {
-                vec![
-                    escalated(decision, Escalation::Margin, value),
-                    escalated(decision, Escalation::Margin, poisoned),
-                ]
+    // Every pair a site raises (`boolean::CONTAINMENT_RAISED`), in each form
+    // its reading can take there.
+    let mut v: Vec<ContainError> = crate::boolean::CONTAINMENT_RAISED
+        .into_iter()
+        .flat_map(|(decision, escalation)| match escalation {
+            Escalation::Margin if decision == arc_span => {
+                vec![escalated(decision, escalation, over_wound)]
+            }
+            Escalation::Margin => vec![
+                escalated(decision, escalation, value),
+                escalated(decision, escalation, poisoned),
+            ],
+            Escalation::Straddle | Escalation::Decided => {
+                vec![escalated(decision, escalation, poisoned)]
             }
         })
         .collect();
-    v.extend([
-        escalated(
-            Some(LoopDecision::Boundary.into()),
-            Escalation::Straddle,
-            poisoned,
-        ),
-        escalated(arc_span, Escalation::Straddle, poisoned),
-        escalated(Some(ContainDecision::ArcEnd), Escalation::Decided, poisoned),
-    ]);
     v.extend([
         ContainError::RayExhausted,
         ContainError::StaleFace(crate::entity::FaceKey::default()),

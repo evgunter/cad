@@ -3116,42 +3116,35 @@ pub(crate) enum Undecided {
     OffPlane,
 }
 
-/// [`Undecided::WitnessTooClose`]'s sentence: the lead, and the lever of
-/// the loop walk's decision the refusal carries, or of a refusal naming
-/// none — read from [`crate::boolean::placement_lever`], the one source.
-/// The margin that would value a tighter tolerance stops here: `what` is
-/// a `&'static str`, so each sentence is built once and kept.
+/// [`Undecided::WitnessTooClose`]'s sentence, for every decision the
+/// loop walk carries and for none: the walk's question about the corner
+/// tested (the point its subject names), and its lever, both read from
+/// [`crate::boolean::placement_subject`] and
+/// [`crate::boolean::placement_lever`]. The margin that would value a
+/// tighter tolerance stops here: `what` is a `&'static str`, so each
+/// sentence is built once and kept.
 fn witness_too_close(decision: Option<crate::splitting::LoopDecision>) -> &'static str {
-    use crate::splitting::LoopDecision as D;
-    static SENTENCES: std::sync::LazyLock<[String; 5]> = std::sync::LazyLock::new(|| {
-        [
-            None,
-            Some(D::Boundary),
-            Some(D::Ray),
-            Some(D::ArcSpan),
-            Some(D::Plane),
-        ]
-        .map(|decision| {
-            format!(
-                "{WITNESS_LEAD}Recourse: {}",
-                crate::boolean::placement_lever(decision.map(Into::into))
-            )
-        })
+    type Sentences = Vec<(Option<crate::splitting::LoopDecision>, String)>;
+    static SENTENCES: std::sync::LazyLock<Sentences> = std::sync::LazyLock::new(|| {
+        core::iter::once(None)
+            .chain(crate::splitting::LoopDecision::ALL.map(Some))
+            .map(|decision| {
+                let carried = decision.map(Into::into);
+                let sentence = format!(
+                    "testing a corner of one against the other, {} is undecided at this \
+                     tolerance. Recourse: {}",
+                    crate::boolean::placement_subject(carried),
+                    crate::boolean::placement_lever(carried)
+                );
+                (decision, sentence)
+            })
+            .collect()
     });
-    let at = match decision {
-        None => 0,
-        Some(D::Boundary) => 1,
-        Some(D::Ray) => 2,
-        Some(D::ArcSpan) => 3,
-        Some(D::Plane) => 4,
-    };
-    &SENTENCES[at]
+    SENTENCES
+        .iter()
+        .find(|(d, _)| *d == decision)
+        .map_or("", |(_, sentence)| sentence.as_str())
 }
-
-/// The lead of [`witness_too_close`]: the corner is the point the levers
-/// name.
-const WITNESS_LEAD: &str = "a corner of one, the point the check tests, lies too close to the \
-                            other's boundary to place at this tolerance. ";
 
 impl Undecided {
     /// Whether arm 1 raises it, on a face pair; arm 2 raises the rest,

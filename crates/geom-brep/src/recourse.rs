@@ -62,12 +62,7 @@ pub fn defect_ending(reading: Reading) -> &'static str {
 /// the words are not spelled twice.
 #[must_use]
 pub fn not_yet(arm: RefusedArm<'_>) -> String {
-    let unreadable = match arm {
-        RefusedArm::Undecided(cause) => cause.margin.is_invalid(),
-        RefusedArm::Zero(Classified { margin, .. }) => margin.is_invalid(),
-        RefusedArm::Straddle | RefusedArm::SignCertain => false,
-    };
-    if unreadable {
+    if arm.unreadable() {
         format!("{NOT_YET_ENDING}: {UNREADABLE_MARGIN_NOTE}")
     } else {
         NOT_YET_ENDING.to_owned()
@@ -185,6 +180,19 @@ pub enum RefusedArm<'a> {
     Straddle,
 }
 
+impl RefusedArm<'_> {
+    /// Whether the arm's margin could not be read: the one test every
+    /// ending here adds the unreadable-margin note on. A straddle is two
+    /// readable bounds, and a sign-certain arm was read.
+    fn unreadable(self) -> bool {
+        match self {
+            Self::Undecided(cause) => cause.margin.is_invalid(),
+            Self::Zero(Classified { margin, .. }) => margin.is_invalid(),
+            Self::Straddle | Self::SignCertain => false,
+        }
+    }
+}
+
 /// A decision on no size the user chose whose refusal a geometry lever
 /// reaches: every arm ends in the lever alone, since no smaller tolerance
 /// is its recourse (D4 ¶1 (i)), and a margin that could not be read adds
@@ -201,12 +209,7 @@ impl LeverOnly {
     #[must_use]
     pub fn recourse(self, arm: RefusedArm<'_>) -> String {
         let Self { lever } = self;
-        let unreadable = match arm {
-            RefusedArm::Undecided(cause) => cause.margin.is_invalid(),
-            RefusedArm::Zero(Classified { margin, .. }) => margin.is_invalid(),
-            RefusedArm::Straddle | RefusedArm::SignCertain => false,
-        };
-        if unreadable {
+        if arm.unreadable() {
             format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}")
         } else {
             format!("Recourse: {lever}")

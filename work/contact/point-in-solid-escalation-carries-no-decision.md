@@ -35,17 +35,18 @@ chains are:
 - `classify_point_in_solid`;
 - `BooleanDecision::CONTAINMENT_UNNAMED`.
 
-At contfp and at rest these end in the one unnamed lever,
-`boolean::placement_lever(None)` ("move the geometry clear of the
-boundary"). At the Boolean they end in PR 3493's lever ("move the parts
-so they meet clearly inside or clearly outside that face's boundary",
-`LeverPass::ByRung`).
+Every door ends these in the one unnamed lever,
+`boolean::placement_lever(None)`: "move the geometry so the point lies
+clearly inside or clearly outside the face". At the Boolean that lever
+is under `LeverPass::ByRung`.
 
 `impl Display for PointInSolidError` still ends `Escalated`,
 `RayExhausted` and `Loop(RayExhausted)` in `COINCIDENCE_RECOURSE`
-("declare the coincidence, move the geometry, or lower the tolerance").
-The point-in-solid door takes no declaration, and D4 ¶1 (i) offers no
-unvalued lowering. The Boolean shows these through
+("declare the coincidence, or move the geometry").
+The point-in-solid door takes no declaration a face pair could name (a
+ray cast's graze, or a point near a face of the other solid, is not a
+pair of faces), so the menu's first arm is advice nobody can follow
+there. The Boolean shows these through
 `BooleanError::Containment`. That is the refusal PR 3513's executed
 offers meet later, the stories `topo::test_support::LATER_STORIES_OWNED`
 logs under this row (moved here from

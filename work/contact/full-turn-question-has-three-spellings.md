@@ -1,7 +1,7 @@
 ---
 id: full-turn-question-has-three-spellings
 kind: issue
-title: topo/geom-brep: the arc's gap to a full turn is asked under three spellings (contfp ArcSpan, WindowPeriod, certify ParamWinding)
+title: topo/geom-brep: the arc's gap to a full turn is asked under four spellings (LoopDecision::ArcSpan, WindowPeriod, certify ParamWinding, BooleanDecision::ArcSpan)
 status: open
 opened: 2026-09-29
 ---
@@ -12,7 +12,7 @@ opened: 2026-09-29
 
 ## What
 
-Three decisions ask how far an arc or window falls short of a full turn:
+Several decisions ask how far an arc or window falls short of a full turn:
 
 - `geom_brep::certify::CertCheck::ParamWinding`
   (`crates/geom-brep/src/certify.rs`, `CertCheck::ending`): a
@@ -42,3 +42,21 @@ Give certify's table a public lever per `CertCheck`, or move the
 full-turn decision into `geom_brep::recourse` as a named constant.
 `LoopDecision::ArcSpan` then reads it. Keep `WindowPeriod` separate
 unless the door's remainder is ruled a pass.
+
+## A fourth spelling (CONTACT-10 fix pass)
+
+`boolean::BooleanDecision::ArcSpan` (`crates/topo/src/boolean/refusal_routes.rs`,
+`BooleanDecision::ending`) ends as `Unsized::Defect`. Its reasoning is
+that the edge's certification decided this same margin at this band,
+so no arm of it is the user's. `splitting::LoopDecision::ArcSpan` asks
+the same question of a loop edge and ends in a user lever ("move the
+geometry so this arc stays clearly short of a full turn", sized "arc",
+`NonNegative`).
+
+Both readings can stand, because they are different doors:
+- the Boolean's is a re-read of a certified edge;
+- the walk's is the first reading of a loop at rest, where an elliptic edge's span rule is the walk's own.
+
+Whether they are one decision, with a defect ending at the Boolean and
+a lever at rest, belongs in the same repair.
+
