@@ -1,11 +1,12 @@
 ---
 id: circle-torus-certifies-shallow-roots-off-by-more-than-the-band
 kind: issue
-title: The circle x torus door certifies shallow-crossing roots up to 185 K-eps along the carrier from the truth at eps 1e-12: its subdivision passes no root-slack meter
+title: The circle x torus door certifies shallow-crossing roots up to 166 K-eps along the carrier from the truth at eps 1e-12: its subdivision passes no root-slack meter
 status: closed
 opened: 2026-10-08
 closed: 2026-10-08
 branch: germ/circle-torus-outside-band
+pr: 4357
 priority: P0
 refs: [the-half-angle-ladder-certifies-in-band-configurations, circle-torus-meters-accept-an-unreadable-reading, degree-2-subdivision-doors-carry-no-root-slack-meter]
 ---
@@ -134,7 +135,7 @@ the pole family). The three poses' errors are 2.2e-10 and 3.8e-10 m
 The defect stands as filed; the table's counts and worst errors above
 are the decimal oracle's.
 
-## Fixed (PR NNNN)
+## Fixed (PR 4357)
 
 The general arm hands the subdivision a `RootSlack` meter
 (`bool_circle_torus_sub_root_slack`). Its reading is `F` itself, the

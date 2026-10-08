@@ -100,7 +100,7 @@ The conic × quadric door's cone arm hands it one
 and `circle_torus::circle_torus_roots` still pass `None`, and what this
 row asks of them is unchanged.
 
-## Fixed with GERM's P0 (2026-10-08)
+## Fixed with GERM's P0 (PR 4357, 2026-10-08)
 
 GERM's circle × torus measurement found the general arm wrong outside
 the band at `ε = 1e-12` (321 root placements of 9,000 poses, up to
