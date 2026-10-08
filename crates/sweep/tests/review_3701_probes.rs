@@ -65,7 +65,7 @@ fn prism(w: f64, bottom: &[f64], top: &[f64], t: Tol) -> Body<f64> {
             body = cut_stations(body, rim, &at, t);
         }
     }
-    body.merge_coplanar_faces(t).unwrap();
+    topo::test_support::merge_unjoined(&mut body, t).unwrap();
     body
 }
 

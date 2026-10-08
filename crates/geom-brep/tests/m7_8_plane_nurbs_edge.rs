@@ -29,6 +29,7 @@ use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
+use geom_brep::ssi::PointLever;
 use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, PlaneNurbsRefusal,
     plane_nurbs_limbs,
@@ -161,6 +162,98 @@ fn a_tangential_plane_refuses_with_the_transversality_vocabulary() {
             println!("M7-8 tangential plane: refused at interior sample {sample}");
         }
         other => panic!("a tangential plane must refuse the Intersection precondition: {other:?}"),
+    }
+}
+
+/// **A plane near tangent to a tightly curved wall refuses at the
+/// wall's curvature radius.** The quarter cylinder scaled to radius
+/// `ρ` = 1 mm, cut along its `u = 0` ruling by a plane turned from the
+/// tangent plane there by `sin θ = ε/(2ρ)`: the second line it cuts lies
+/// `2ρ·sin θ = ε` away. The per-sample transversality reads
+/// `sin θ · min(ρ, E)` = ε/2, inside the band, so the stated ruling
+/// refuses `NotTransverse`; levered by the edge's extent of 1 m alone it
+/// would read 500ε and clear.
+#[test]
+fn a_plane_near_tangent_to_a_tight_wall_refuses_at_its_curvature_radius() {
+    let rho = 1e-3;
+    let eps = band().zero();
+    let unit = quarter_cylinder_wall();
+    let control = unit
+        .control()
+        .iter()
+        .map(|p| Point3::new(rho * p.x, rho * p.y, p.z))
+        .collect();
+    let wall = NurbsSurface::new(
+        unit.knots_u().clone(),
+        unit.knots_v().clone(),
+        control,
+        unit.weights().to_vec(),
+    )
+    .unwrap();
+    let sin = eps / (2.0 * rho);
+    let cos = (1.0 - sin * sin).sqrt();
+    let plane = Surface::Plane {
+        origin: Point3::new(rho, 0.0, 0.0),
+        normal: Vec3::new(cos, sin, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let carrier = segment(Point3::new(rho, 0.0, 0.0), Point3::new(rho, 0.0, 1.0));
+    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
+        Err(PlaneNurbsRefusal::NotTransverse { verdict, lever, .. }) => {
+            assert_eq!(
+                lever,
+                PointLever::CurvatureRadius,
+                "the lever the refusal names"
+            );
+            let m = verdict.margin().diagnostic_f64_for_error_text().value();
+            assert!(
+                m.is_some_and(|m| m <= eps),
+                "the margin is sin θ times the wall's radius, ε/2, not the extent's: {m:?}"
+            );
+        }
+        other => panic!("a plane ε from tangent to a 1 mm wall must refuse: {other:?}"),
+    }
+}
+
+/// **A plane near tangent to a flat wall refuses at the edge's
+/// extent.** The flat wall `x = 0` over `y, z ∈ [0, 1]`, cut along its
+/// `y = 0` side by a plane turned from it by `sin θ = ε/2`: the wall's
+/// curvature is zero, so the per-sample transversality reads
+/// `sin θ · E` with `E` the edge's extent of 1 m, ε/2, inside the band,
+/// and the refusal names the extent.
+#[test]
+fn a_plane_near_tangent_to_a_flat_wall_refuses_at_the_edges_extent() {
+    let eps = band().zero();
+    let k = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let wall = NurbsSurface::new(
+        k.clone(),
+        k,
+        vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, 1.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ],
+        vec![1.0; 4],
+    )
+    .unwrap();
+    let sin = eps / 2.0;
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new((1.0 - sin * sin).sqrt(), sin, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let carrier = segment(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 0.0, 1.0));
+    match plane_nurbs_limbs::<f64>(&carrier, &plane, &wall, 1.0, band()) {
+        Err(PlaneNurbsRefusal::NotTransverse { verdict, lever, .. }) => {
+            assert_eq!(lever, PointLever::Extent, "the lever the refusal names");
+            let m = verdict.margin().diagnostic_f64_for_error_text().value();
+            assert!(
+                m.is_some_and(|m| m <= eps && m > 0.0),
+                "the margin is sin θ times the extent, ε/2: {m:?}"
+            );
+        }
+        other => panic!("a plane ε/2 from tangent to a flat wall must refuse: {other:?}"),
     }
 }
 

@@ -726,7 +726,7 @@ mod tests {
             )
         }
 
-        fn lever_arm(&self, _x: &[f64; 3]) -> f64 {
+        fn max_curvature(&self, _x: &[f64; 3]) -> f64 {
             1.0
         }
     }
@@ -913,7 +913,7 @@ mod tests {
             (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0))
         }
 
-        fn lever_arm(&self, _x: &[f64; 4]) -> f64 {
+        fn max_curvature(&self, _x: &[f64; 4]) -> f64 {
             1.0
         }
     }

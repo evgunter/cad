@@ -7,7 +7,7 @@ opened: 2026-09-20
 priority: P0
 cost: M
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -404,3 +404,7 @@ yet done:
 - editor-core labels every coincidence `DecidedCoincident`.
 
 Weigh this against the #3990 ruling before reusing any of it.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: held step 2's payload sites (CarrierEqError::Undeclared, UndeclaredCoincidence) and contact_verify's declared-contact contradictions are what stage 4 retires; steps 4–5 could be split off as workable. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

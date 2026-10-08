@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 Found by the dual review of PR 3846 (r1 NOTE 3); analysis on that PR's
@@ -55,3 +55,7 @@ these arms today. Arcs lying ON a continued carrier take the
 carrier-identity rung, a different case, but the posture is shared. So
 the fix starts by measuring which committed rows reach the arms with a
 torus line or a non-coincident arc.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the arms sit under `if covered` in reduce::curved_face_arm, and the cover is the declared-tangency channel stage 4 retires. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

@@ -363,6 +363,7 @@ fn fold_replace_face_error<T: Real>(
         R::Escalated { source } => R::Escalated { source },
         R::Op { edge, error } => R::Op { edge, error },
         R::Pcurve { source } => R::Pcurve { source },
+        R::Join { refusal } => R::Join { refusal },
         R::ResultNotClosed { errors } => R::ResultNotClosed { errors },
     }
 }
