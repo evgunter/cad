@@ -776,7 +776,11 @@ pub fn import_step(
             let mut record = Vec::with_capacity(model.instances.len());
             for (index, instance) in model.instances.iter().enumerate() {
                 let spec = &solids[instance.solid];
-                let one = assemble::build_one_solid(spec, tol)?;
+                let one = assemble::build_one_solid(
+                    spec,
+                    tol,
+                    geom_core::FileCoincidence::new(eps_in, tol),
+                )?;
                 let one = match instance.placed {
                     Some(entities::Placed {
                         map: Some(map),
