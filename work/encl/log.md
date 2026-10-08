@@ -1329,3 +1329,11 @@ coincidence is now a margined verdict (no declarations), checked by the
   - A fix pass is dispatched.
 - 2026-10-08 — The `loop-boundary-discards --selftest` failure is already filed on GUARD (`loop-boundary-selftest-cannot-plant-an-arm-fragment`, opened 2026-10-06). It needs no handoff.
 - 2026-10-08 — PR 3431 is up to main at `0819ff7d6f`; a full review is dispatched.
+- 2026-10-08 — The full review of PR 3431 came back APPROVE-WITH-FIXES; hosted CI is green on `0819ff7d6f`.
+  - The premise holds: main's `at_wedge` re-quote loses the gate's verdict, so `collapsed` is earned. Merge resolution, fence and D10 are clean.
+  - The fix pass, sent to the original lane:
+    - the verdict becomes private, minted only from the gate, re-quoted through one method; `of_rung` goes; a verdict enum if contained;
+    - `DIHEDRAL_ARM` gets an `at_zero` note for the cone apex;
+    - the retired ssi row's residue (march.rs still says "too close to call" on a definite collapse) is re-filed on ssimarch;
+    - one sign→variant mapping; the two arm texts tell one story;
+    - validate's lost text check is restored.
