@@ -426,6 +426,7 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::ResidualExceeded {
             check: CertCheck::Surface1Residual,
             sample: 4,
+            margin: MarginDiag::value(3e-8),
         },
         CertifyError::NotTransverse {
             lever: None,
