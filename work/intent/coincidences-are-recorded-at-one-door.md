@@ -28,9 +28,10 @@ FORK-S4F's rungs read. When the units land, NAMES N6 becomes: "**N6 — A
 cell's construction is read from the document.** A recorded cell is
 named by the read it entered the deciding operation through and its
 name there. The door reads its carrier at that name from the symbolic
-evaluation (D10, Coincidence); a pass-through placement adds no name
-segment (N1), so the read, not the name, carries where the cell was
-placed. The kernel carries no recipe provenance of a description." C3's
+evaluation (D10, Coincidence). A placement is an operation that
+defines a copy, and the copy's cells keep the names of the body it
+copies (N1), so the read, naming the copy, not the name, says which
+copy a cell is a cell of. The kernel carries no recipe provenance of a description." C3's
 `PatchContact` reads "backed by a `SameOpposite` decision", every
 granularity citing its backing; topo's preamble gains the decision
 beside the record.

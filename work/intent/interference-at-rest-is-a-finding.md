@@ -12,8 +12,8 @@ blocked_on: [the-product-is-an-explicit-list, measure-is-an-operation, select-de
 
 INTENT stage 5, PR B. Spec: `docs/INTENT-STAGE5-SPEC.md` §3.
 
-D10: at rest, "interference is a finding of its own; neither refuses
-where the census has a lane". Today the census's containment arm
+D10: at rest, "an overlap of their material is an interference
+finding", and "nothing it finds refuses". Today the census's containment arm
 (`crates/topo/src/census.rs:5634`) pushes
 `ValidationError::InstanceInterference`, and A5's gate attributes it
 `Unattributed` (`crates/editor-core/src/assembly.rs:1791`) and refuses
@@ -42,8 +42,12 @@ from the spec's recommendation in three places, and this unit builds
 on it provisionally: `Distance = 0` quiets nothing (only `Gap`, over an
 opposed face pair); an interference is quiet only when every face
 bounding the overlap lies between the carriers of one asserted pair;
-an overlap the kernel cannot intersect is a loud interference that
-nothing quiets, not a could-not-look finding.
+an overlap the kernel cannot intersect is an interference finding, not
+a could-not-look finding, sited at the faces incident to the census's
+witnesses and quiet under an assertion over two of them (2026-10-08:
+a deliberate press fit must be quietable;
+`an-unintersectable-press-fit-is-quieted-only-at-its-witness-faces`
+holds the full fix).
 
 After Ev's comments on #4319 (rounds 3 and 4): an interference is quiet
 only when the asserted pair's own faces bound the overlap, so a second
@@ -55,3 +59,14 @@ half) needs stage 4 to record a face-on-face planar contact as the face
 pair: the census records planar contact at vertex and edge level, and no
 `Vertex` selection exists, so without that lift a planar contact could
 never be quieted.
+
+Ev, 2026-10-08, on a pattern's outputs: "we should have a map higher
+order function to allow declaring over all the outputs of the
+pattern." A `map` over a pattern's `Bodies` covers member against
+another copy: one assertion written once, one per member, each reading
+the one bound variable, as many as the pattern's `Count`. Overlap
+between members (neighbours in a ring) needs a map over pairs of
+members, adjacent or all. D10's Assertions paragraph states it; the
+maps are `a-map-over-a-patterns-bodies-asserts-once-per-member`. This
+unit's quieting rule is per finding, so a mapped assertion quiets
+exactly as the one it expands to would.

@@ -1229,9 +1229,10 @@ which only an operation defines; and the selections of a shape
 — or **defined**, by an `Expr` over other variables, by a selection of a
 `Body` variable, or as an output of an operation. A dimensioned literal stands nowhere, neither in a slot
 nor inside a formula: the only constants are dimensionless rationals,
-rational fractions of a turn, and zero, which is the same in every unit
-and so stands at any dimension; each is the shape of a formula rather
-than a dimension. Typing a value in the GUI mints a free variable and
+rational fractions of a turn, and a lone `0`, which carries no unit and
+so stands at any dimension as the omission it marks (`0 mm` is a
+dimensioned literal, so typing it mints a variable); each is the shape
+of a formula rather than a dimension. Typing a value in the GUI mints a free variable and
 offers an existing variable of equal value; declining the offer is what
 makes the two distinct. A variable without a name is read by exactly
 one slot or definition, which is how it is spoken; a variable two
@@ -1356,8 +1357,16 @@ are the two cells the census found coincident; an interference, when
 the assertion's two faces bound the overlap and every face bounding it
 lies between the carriers of an asserted pair. An assertion speaks for
 nothing else, so a new contact or overlap anywhere else is loud until
-something says otherwise, and an overlap the kernel cannot bound is
-loud and nothing quiets it.
+something says otherwise. An overlap the census found but the kernel
+cannot intersect has no bounding faces, so its site is the faces
+incident to the census's witnesses of it, and an assertion whose two
+faces, one of each copy, are among them quiets it. The bodies of a pattern's `Bodies` are
+examined like any others, and an assertion about each of them is
+written once, as a `map` over the `Bodies`: one assertion per member,
+each reading the one bound variable, as many as the pattern's `Count`.
+That quiets each member against another copy; an overlap between two
+members (neighbours in a ring) is quieted by a map over pairs of
+members, adjacent pairs or all pairs.
 
 D10 governs where a companion clause disagrees, and these retire as
 the program that builds it reaches them: the declared-contact seats

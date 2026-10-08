@@ -9,7 +9,7 @@ Scope: D10's **Assertions** paragraph (`docs/DESIGN.md` §D10), as `work/intent/
 
 D10's paragraph, verbatim, since every unit below builds one of its sentences:
 
-> **Assertions.** `Assert { measure, relation, bound }` (`≤`, `≥`, `=`, the bound a variable) checks and never places. At rest, contact between copies is an `unproven-coincidence` finding unless it is structural (a mate-placed face is), and interference is a finding of its own; neither refuses where the census has a lane. A finding is quiet exactly when an assertion on the same measure at the same site has a bound the observation meets and that does not straddle zero: a contact finding under an assertion that the gap is zero, an interference finding under a bound on one side of zero.
+> **Assertions.** `Assert { measure, relation, bound }` (`≤`, `≥`, `=`, the bound a variable) checks and never places. At rest the census examines the copies of each space pairwise, and nothing it finds refuses. Contact between copies is an `unproven-coincidence` finding unless it is structural (a mate-placed face is); an overlap of their material is an interference finding; and a pair the census has no lane for is a finding too, saying it could not look, so no outcome of the census is silence. A contact or interference finding observes the sign of the gap (CONTACT-DESIGN C5) between two copies: a contact is `g = 0` at two cells, an interference `g < 0` over one connected overlap of their material. Holding assertions quiet a finding when they say the same: each reads a `Gap`'s output directly, over an opposed pair of faces of the two copies, and admits only values of the finding's sign (`= 0` for a contact; `≤ b` or `= b` with `b` negative for an interference). A contact is quiet when such an assertion's two faces are the two cells the census found coincident; an interference, when the assertion's two faces bound the overlap and every face bounding it lies between the carriers of an asserted pair. An assertion speaks for nothing else, so a new contact or overlap anywhere else is loud until something says otherwise. An overlap the census found but the kernel cannot intersect has no bounding faces, so its site is the faces incident to the census's witnesses of it, and an assertion whose two faces, one of each copy, are among them quiets it. The bodies of a pattern's `Bodies` are examined like any others, and an assertion about each of them is written once, as a `map` over the `Bodies`: one assertion per member, each reading the one bound variable, as many as the pattern's `Count`. That quiets each member against another copy; an overlap between two members (neighbours in a ring) is quieted by a map over pairs of members, adjacent pairs or all pairs.
 
 **Rulings this spec builds on.** Ev's rule that the redesign governs the text it replaced applies throughout.
 
@@ -86,7 +86,7 @@ The state of the mechanisms at the baseline:
   It reads the assertion's verdict, never its measure's value. So a failed requirement quiets nothing and gates nothing (`a-failed-requirement-refuses-the-whole-product`'s acceptance is kept).
 - **The resident.** `CheckId::AtRest` reads the subject product (`reads_subject() == true`). It runs the tier-3′ census per space (stage 3's spaces, copies compared only within one), collects stage 4's at-rest contact records and the interference verdicts, and quiets each finding.
   - **Where the census has no lane** (`CensusUnsupported`, `CensusUndecidable`, `CensusEscalated`, `CensusLaneUnsupported`) and where the body is malformed (tiers 1–3), the resident cannot look. It says so as a finding with its own evidence, per DS6's "a check that could not look says so as a FINDING".
-  - Severity and the refusing path are FORK-S5-4's. The recommendation is `Severity` (Off/Warn/Error, default Warn), legal under DS6 because an assertion is this resident's waiver vocabulary. `enforce_checks` refuses a loud finding at Error, and a could-not-look finding whenever the resident is not Off. That is where D10's "neither refuses where the census has a lane" binds.
+  - Severity and the refusing path are FORK-S5-4's. The recommendation is `Severity` (Off/Warn/Error, default Warn), legal under DS6 because an assertion is this resident's waiver vocabulary. `enforce_checks` refuses a loud contact or interference finding at Error. A could-not-look finding never refuses, whatever the severity: it is reported loud and counted apart, because that the resident could not judge is not something the document said, and no assertion answers it (DS6).
 - **What retires.**
   - `assembly::assemble` and `assemble_gathered`, with `AssemblyError::AtRest`. The other arms are stage 4's (`Mint`, `CarriedMintRefusal`, `Uncertified`) or stage 3's (`Space`).
   - `Assembly` as a type: its body, names and records are the product's.
@@ -129,7 +129,7 @@ The state of the mechanisms at the baseline:
 - The rest keep today's attribution and refusal order (`Mint`, `CarriedMintRefusal`, `AtRest`, `Uncertified`) until stages 3, 4 and C.
 - **The overlap site** (FORK-S5-2, recommended (b)). For each interfering pair of copies, the gate intersects the two copies' bodies (`topo` boolean intersection, the f64 lane at the gate's ε).
   - Each connected solid of the result is one `InterferenceFinding`, named by the face sites of both copies that bound it. The result's faces carry the operands' names, `FromA`/`FromB` (N-machinery).
-  - An intersection that refuses yields one finding for the pair with `overlap: Unlocalized(refusal)`. That finding is loud and cannot be quieted (test 9).
+  - An intersection that refuses yields one finding for the pair with `overlap: Unlocalized(refusal)`, sited at the faces incident to the census's witnesses (FORK-S5-2 (c)). An assertion whose two faces, one of each copy, are among them quiets it (test 9). That site is partial: a pin passing right through a bore leaves no witness on the pin's own face, and `work/intent/an-unintersectable-press-fit-is-quieted-only-at-its-witness-faces.md` holds the full fix.
 - `Assembly` gains `interference: Vec<InterferenceFinding>` in census order. `assemble` returns `Ok` when interference findings are all there is.
 
 **The quieting rule** (`checks/at_rest.rs`, new; §1): `quieted_by` with its interference half.
@@ -225,18 +225,18 @@ Lands after stages 3 and 4. What it consumes from them is stated in §10, and it
    - *Breaks if* the rule reads the measure's value instead of the verdict (the violated row quiets), or matches by body instead of copy.
 7. **(B) A second overlap of the same pair stays loud.** The same pin and plate, with the pin also cutting into a second feature of the plate. There are two findings, and the bore assertion quiets only the one its faces bound. *Breaks if* the site is the copy pair (FORK-S5-2 (a)): both go quiet.
 8. **(B) A pierce is interference.** A tilted brick whose edge pierces a plate face between two copies, with no vertex inside (BOOL-4 R2's construction) is one interference finding, not `AtRest`. *Breaks if* `EdgeFacePierce` between copies still routes to `UndeclaredContact`'s refusal.
-9. **(B) Unlocalized.** An interfering pair whose intersection refuses (a sliver at ε) gives one finding with `overlap: Unlocalized`, loud, which no assertion quiets. *Breaks if* a refused intersection drops the finding (the overlap vanishes from the report, which C6's "never silently passed" forbids).
+9. **(B) Unlocalized.** A pin pressed into a bore with 2 µm interference, whose intersection (a 2 µm cylindrical shell) refuses, gives one finding with `overlap: Unlocalized`. With no assertion it is loud; under `Gap(bore, pin) ≤ −2 µm` over the bore and pin faces incident to the census's witness it is quiet. *Breaks if* a refused intersection drops the finding (the overlap vanishes from the report, which C6's "never silently passed" forbids), or the press fit stays loud under its assertion.
 10. **(B) A failed requirement gates nothing.** The pin-and-bore document whose quieting assertion's measure names a face that vanished (a failed select): `product()` is `Ok`, the finding is loud, and the assertion reports its own failure. *Breaks if* a poisoned assertion poisons the gate.
 11. **(C) Contact quiet under `= 0`.**
     - Two copies resting face to face, placed by values rather than a mate (stage 4 records the coincidence as unproven): one loud `Contact` finding.
     - With `Gap(a, b) = 0` over the two face sites it is quiet, and with `Gap ≥ 0` it is loud.
     - The same pair placed by a mate has no finding (structural).
     - *Breaks if* `≥ 0` quiets (the straddle reading), or the mate-placed pair is reported.
-12. **(C) No lane refuses at the one refusing path.**
-    - A `CensusUndecidable` pair (curved × planar within reach) is a could-not-look finding, and `enforce_checks` refuses it at Warn and Error and not at Off.
+12. **(C) A could-not-look finding never refuses.**
+    - A `CensusUndecidable` pair (curved × planar within reach) is a could-not-look finding, reported at Warn and Error, and `enforce_checks` refuses it at none.
     - A loud interference refuses only at Error.
     - A quiet one never refuses.
-    - *Breaks if* could-not-look is filtered by severity like a loud finding, or a quiet finding counts.
+    - *Breaks if* a could-not-look finding refuses at any severity, or a quiet finding counts.
 13. **(C) Separation's successor.**
     - The heat sink's five `Separation` findings become five `Interference` findings, and no `NotSeparated` remains.
     - A pair the boxes cannot separate but the census clears has no finding.
@@ -322,9 +322,9 @@ The stage-3 and stage-4 specs (`intent/stage3-spec`, `intent/stage4-spec`) were 
 - **The problem.** A5 is a gate today: `assemble` returns `Err` on a finding. D10 makes contact and interference findings, which refuse nowhere the census has a lane, and leaves the no-lane case refusing. The registry's posture is that residents report and only `enforce_checks` refuses, and DS6 lets a resident offer `error` only with a waiver vocabulary.
 - **Options:**
   - **(a) A5 stays a door.** `assemble` keeps its `Result`, refuses only no-lane and malformed bodies, and its `Ok` carries the findings, quiet or loud. The registry is unchanged. Two finding surfaces (the checks report and the assembly) stay.
-  - **(b) A registry resident.** `CheckId::AtRest` with `Severity`. Assertions are its waiver vocabulary, and their staleness direction is free. No-lane is a could-not-look finding that `enforce_checks` refuses whenever the resident is on. `assemble` retires.
+  - **(b) A registry resident.** `CheckId::AtRest` with `Severity`. Assertions are its waiver vocabulary, and their staleness direction is free. No-lane is a could-not-look finding, reported loud and never refused (DS6: nothing answers it). `assemble` retires.
   - **(c) As (b), but `Advisory`.** It never refuses. No-lane findings are reported only.
-- **Recommendation: (b)**, likely on the resident and unsure on the no-lane severity rule. It is the plan's wording, it leaves one finding surface, and an assertion is the per-finding, provenance-carrying, staleness-checked record DS6 asks a waiver to be. DS6's waiver paragraph is re-worded to name assertions as the at-rest resident's waiver.
+- **Recommendation: (b)**, likely. It is the plan's wording, it leaves one finding surface, and an assertion is the per-finding, provenance-carrying, staleness-checked record DS6 asks a waiver to be. DS6's waiver paragraph is re-worded to name assertions as the at-rest resident's waiver.
 
 **FORK-S5-5 — The `Separation` check's fate.** *Ratified text: DS6's second-resident paragraph (DISCIPLINES is "WIP, provisionally accepted").*
 
@@ -341,4 +341,4 @@ The stage-3 and stage-4 specs (`intent/stage3-spec`, `intent/stage4-spec`) were 
 2. **Which evaluation does the rule read?** The one the census ran in, at its scalar. An assertion `Unevaluated` at that scalar quiets nothing.
 3. **Mass properties of a product with interference.** Today mass properties sum solids, so an overlap is counted twice. C6's opt-in overlap subtraction is the `Fit` era's and retires with it in stage 4. **Recommendation:** leave mass properties as they are, and let the interference finding be what says the sum double-counts. A subtraction is a later door over findings, not a stage-5 deliverable.
 4. **Does `=` need a written tolerance?** No. `=` is decided at the document's ε like every margined verdict (D4). An engineering tolerance on a gap is two assertions (`≥ b₁`, `≤ b₂`), and those quiet nothing at a contact, by FORK-S5-3 (b).
-5. **Interference inside one node's value** (a pattern whose copies overlap, a multi-solid boolean result). That is not "at rest between copies". It stays the kernel's typed error (`restfront/tier-3-admits-two-solids-of-one-body-whose-material-overlaps`). Stage 5 does not touch it.
+5. **Interference inside one node's value** (a multi-solid boolean result). That is not "at rest between copies". It stays the kernel's typed error (`restfront/tier-3-admits-two-solids-of-one-body-whose-material-overlaps`). Stage 5 does not touch it. The members of a pattern's `Bodies` are not one value: an overlap between two of them, or between one and another copy, is a finding like any other, and an assertion over every member is written once as a `map` over the `Bodies` (D10; `work/intent/a-map-over-a-patterns-bodies-asserts-once-per-member.md`).
