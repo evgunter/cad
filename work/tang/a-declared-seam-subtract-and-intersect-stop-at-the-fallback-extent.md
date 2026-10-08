@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -45,3 +45,7 @@ plane face's boundary"), operand the ball. Before
 cup's rim plane, on the boundary of the rim annulus, so the plane arm
 meets exactly this item's circle-on-a-boundary read; a ball filling a
 spherical cavity has no plane face and builds every op.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the no-crossings fallback (ops.rs face_boundary_meets) is reached only because the declared Rest/Seam cover takes the rim events away; stage 4's Zero glue replaces that cover. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

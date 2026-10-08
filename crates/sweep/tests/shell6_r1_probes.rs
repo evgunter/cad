@@ -199,7 +199,7 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
             let mut work = body.clone();
             let got = topo::replace_faces_offset(&mut work, &group, d, Tol::witness());
             match &got {
-                Ok(()) => println!(
+                Ok(_) => println!(
                     "[r1] {what} per-chart d={d}: BUILT, volume {}",
                     volume(&work)
                 ),
@@ -368,7 +368,7 @@ fn r1_per_chart_cone_offset_reachability_attack() {
             let mut work = body.clone();
             let got = topo::replace_faces_offset(&mut work, &group, d, Tol::witness());
             match &got {
-                Ok(()) => {
+                Ok(_) => {
                     let v1 = volume(&work);
                     let tier3 = topo::validate_geometric(&work, Tol::witness());
                     let minted = cone_of(&work, cone_faces(&work)[0]);

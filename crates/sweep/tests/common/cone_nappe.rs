@@ -32,7 +32,7 @@ use topo::{Body, EulerOpError, FaceKey, ReplaceFaceError};
 /// follows the order the door walks the rim — on a frustum whose caps
 /// are whole discs the narrowing one reaches the edge first — and is
 /// filed as `work/shell/cap-rim-refusal-order-follows-the-arena.md`.
-pub fn rim_refusal_gap(got: &Result<(), ReplaceFaceError<f64>>) -> Option<Option<f64>> {
+pub fn rim_refusal_gap<O>(got: &Result<O, ReplaceFaceError<f64>>) -> Option<Option<f64>> {
     match got {
         Err(ReplaceFaceError::ReanchorOffCarrier { gap, .. }) => Some(Some(*gap)),
         Err(ReplaceFaceError::Op {

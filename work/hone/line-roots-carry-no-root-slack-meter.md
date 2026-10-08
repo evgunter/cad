@@ -7,7 +7,7 @@ opened: 2026-10-02
 priority: P3
 cost: M
 design: true
-refs: [circle-sphere-root-slack-refuses-near-tangent-pairs-at-1e-12]
+refs: [3847]
 ---
 
 

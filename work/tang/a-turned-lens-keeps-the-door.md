@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 ## What
@@ -35,3 +35,11 @@ it at the bowl's rim vertex. One half is then answered by (b), its ends
 paired along a chain of the bowl's arcs. The other half is answered by
 the interior question's certified absence (measured by the PR's
 reviewer, with instrumentation).
+
+Measured again on 2026-10-08 (TANG, turned-hemisphere sweep). With the
+discs declared `Rest`, it builds in both orders at 0.000003°, 0.0001°,
+0.01°, 0.03°, 7°, 30°, 45°, 90°, 173° and 359.99°, at `2·V(dome)`.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: it already builds; what remains is the discs' Rest declaration and the UndeclaredCoincidence refusal without it, both retired when booleans glue on Zero. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

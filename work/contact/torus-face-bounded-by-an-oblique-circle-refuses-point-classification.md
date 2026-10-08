@@ -7,7 +7,7 @@ opened: 2026-10-04
 priority: P1
 cost: H
 design: true
-refs: [carved-sphere-body-cannot-be-classified-or-reused-as-an-operand, cone-chart-trim-reads-a-tilted-section-as-its-vertex-window]
+refs: [4046, cone-chart-trim-reads-a-tilted-section-as-its-vertex-window]
 ---
 
 Found by the class sweep of `reach/carved-sphere-classify`, by reading.

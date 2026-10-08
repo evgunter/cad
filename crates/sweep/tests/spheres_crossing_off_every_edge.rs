@@ -231,7 +231,7 @@ fn a_ball_on_the_centre_line_builds_at_every_radius_and_depth() {
 /// `10⁻⁴` and `10⁻⁶` in from either tangency every radius builds. The
 /// depths are band-relative (at `ε = 10⁻⁶` they reach the escalation
 /// gap, and at `10⁻¹²` the f64 placement frontier,
-/// `work/reach/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`),
+/// `work/apex/f64-cannot-place-a-shallow-crossing-within-the-finest-band.md`),
 /// so the other ε rows stand down.
 #[test]
 fn a_ball_near_tangency_builds_at_the_default_band() {

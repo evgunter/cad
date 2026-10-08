@@ -4,6 +4,7 @@ kind: issue
 title: A subnormal-weight face now passes the meters' refinement, and offset_fit's Elevation arm calls an underflow a kernel finding
 status: open
 opened: 2026-10-01
+priority: P3
 ---
 
 

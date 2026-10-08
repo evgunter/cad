@@ -502,7 +502,7 @@ fn offset_planes_by(
             faces,
         })
         .collect();
-    offset_planes_together(body, &moves, band(), Tol::witness())
+    offset_planes_together(body, &moves, band(), Tol::witness()).map(|_| ())
 }
 
 /// **A seam keeps its image, at rest and with its plane moving.** Its

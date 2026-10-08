@@ -8,7 +8,7 @@
 
 use crate::shared::tol::{band, eps};
 use geom::{NurbsSurface, Surface};
-use geom_brep::ssi::{self, SsiDomain, SsiError, SsiOperand, TubeScale};
+use geom_brep::ssi::{self, SsiDomain, SsiError, SsiOperand};
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::ComposeError;
 use geom_core::{Point3, Vec3};
@@ -158,7 +158,7 @@ fn deviation1_and_3_domain_mismatch_refuses_typed_with_the_recourse() {
         Some(&bad),
         &SsiOperand::Analytic(&p),
         &SsiOperand::nurbs(&w).expect("the wall's chart speeds mint"),
-        TubeScale::uniform(1.5),
+        1.5,
         band(),
     )
     .expect_err("a domain-mismatched pcurve cannot certify");
