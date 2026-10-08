@@ -1,0 +1,52 @@
+---
+id: boolean-strut-anchor-splices-at-an-unproven-next-mate-step
+kind: issue
+title: boolean insert's strut_anchor and mint_run step next(mate(·)) without proving the step starts at the site vertex, and a strut site's mev proves only the walk from the step it is handed
+status: open
+opened: 2026-10-03
+priority: P3
+cost: E
+refs: [vertex-orbit-reads-no-start-vertex, kill-ops-anchor-emanating-on-an-unproven-next-mate-step]
+---
+
+
+## What
+
+Found by the receipt of `vertex-orbit-reads-no-start-vertex` (topo).
+
+In `crates/topo/src/boolean/insert.rs`, `strut_anchor` and `mint_run`
+each step a half-edge one place clockwise with a local `successor`
+closure (`body.mate(he)`, then that half's `next`), and neither reads
+the start of the half it lands on. `strut_anchor` keeps stepping while
+the half it holds is a strut hung earlier at `vertex`. `mint_run`
+steps once: from the sector's own half for a dangling strut, or from
+the run's last half for `he2`. Either result goes into
+`MevSite::Fan { he1, he2 }`.
+
+For a run, `Body::mev_fan_plan` refuses an `he2` that starts somewhere
+other than `he1` (`FanStartMismatch`). It also refuses a walk from
+`he1` that leaves `he1`'s start, which is the orbit walk's own proof.
+
+For a strut site (`he1 == he2 == he`) no read ties `he` to `vertex`. A
+torn `next` puts `he` at another vertex. The plan then proves the walk
+from `he` stays at *that* vertex, and the split hangs the strut there
+instead of at `vertex`.
+
+These are one-step reads, not closed walks, so the orbit walk's start
+proof does not cover them. They are the shape the kill operators had
+(`kill-ops-anchor-emanating-on-an-unproven-next-mate-step`), on the
+boolean's ground.
+
+## The shape to give
+
+Make the step panic naming the record (D2 row 4) when the half it
+lands on does not start at `vertex`, in both functions.
+
+Built on `lane-c-boolean-graft`: every one-step read that ends at a
+strut site goes through `insert::orbit_step_at`, which panics naming the
+half and the vertex it starts at. That covers `mint_directed`'s first
+step past a holder-less corner's arrival, each step `strut_anchor`
+takes past an earlier strut, and `mint_run`'s step for a dangling
+strut. A strut nested at its holder's tip starts from the holder's
+`next`, which starts at the holder's end by construction, and that end
+is the vertex the strut hangs at.

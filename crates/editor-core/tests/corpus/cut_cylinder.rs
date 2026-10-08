@@ -10,6 +10,7 @@
 //! pieces sit behind props' curved-quadrature frontier (M5 PR 11) —
 //! validity + the ellipse pins are the oracles.
 
+use editor_core::ExtrudeSide;
 use editor_core::{Datum, DocEdit, LoopProgram, Node, ProfileProgram, SlotId};
 
 use crate::fixture::{len, scl, xy_frame};
@@ -42,6 +43,7 @@ pub fn document() -> CorpusDoc {
     let cylinder = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
 
     // The tilted tool plane through mid-height: normal at TILT off the
@@ -67,6 +69,7 @@ pub fn document() -> CorpusDoc {
             node: tool,
             slot: SlotId::Origin(editor_core::Axis3::Z),
             expr: len(0.4375),
+            fresh: Vec::new(),
         },
         bump_root: tool,
     }

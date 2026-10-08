@@ -46,8 +46,8 @@
 
 use geom_core::{Band, Decide, Tol};
 
-use crate::eval::{Evaluation, NodeResult};
-use crate::expr::ParamEnv;
+use crate::eval::Evaluation;
+use crate::expr::VarEnv;
 use crate::node::RecipeNodeId;
 
 use super::geompred::{self, GeomPred, SelectRefusal};
@@ -153,6 +153,8 @@ seg_tags! {
     FromB,
     FromMember,
     Seam,
+    Crossing,
+    EdgeCrossing,
     Merged,
     Fragment,
     // Split
@@ -169,6 +171,8 @@ seg_tags! {
     TrimEdge,
     FootVertex,
     EndArc,
+    Mitre,
+    TurnFoot,
     BandFace,
     BandTrim,
     BandFoot,
@@ -249,6 +253,8 @@ impl SegTag {
             RoleSeg::FromB(..) => Self::FromB,
             RoleSeg::FromMember { .. } => Self::FromMember,
             RoleSeg::Seam { .. } => Self::Seam,
+            RoleSeg::Crossing { .. } => Self::Crossing,
+            RoleSeg::EdgeCrossing { .. } => Self::EdgeCrossing,
             RoleSeg::Merged(..) => Self::Merged,
             RoleSeg::Fragment(..) => Self::Fragment,
             RoleSeg::SplitBody(..) => Self::SplitBody,
@@ -263,6 +269,8 @@ impl SegTag {
             RoleSeg::TrimEdge { .. } => Self::TrimEdge,
             RoleSeg::FootVertex { .. } => Self::FootVertex,
             RoleSeg::EndArc { .. } => Self::EndArc,
+            RoleSeg::Mitre { .. } => Self::Mitre,
+            RoleSeg::TurnFoot { .. } => Self::TurnFoot,
             RoleSeg::BandFace(..) => Self::BandFace,
             RoleSeg::BandTrim { .. } => Self::BandTrim,
             RoleSeg::BandFoot(..) => Self::BandFoot,
@@ -304,6 +312,8 @@ impl SegTag {
             // with, and this segment versions with the union's.
             | Self::FromMember
             | Self::Seam
+            | Self::Crossing
+            | Self::EdgeCrossing
             | Self::Merged
             | Self::Fragment => OpGroup::Boolean,
             Self::SplitBody
@@ -318,6 +328,8 @@ impl SegTag {
             | Self::TrimEdge
             | Self::FootVertex
             | Self::EndArc
+            | Self::Mitre
+            | Self::TurnFoot
             | Self::BandFace
             | Self::BandTrim
             | Self::BandFoot
@@ -364,14 +376,23 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::FromB(_)
         | RoleSeg::FromMember { .. }
         | RoleSeg::Seam { .. }
+        | RoleSeg::Crossing { .. }
+        | RoleSeg::EdgeCrossing { .. }
         | RoleSeg::Merged(_)
-        | RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. })
+        | RoleSeg::Fragment(
+            Qualifier::Borders(_)
+            | Qualifier::Keeps(_)
+            | Qualifier::Ends(_)
+            | Qualifier::OrderAlong { .. },
+        )
         | RoleSeg::FromTarget(_)
         | RoleSeg::BlendFace(_)
         | RoleSeg::CornerFace(_)
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandFoot(_)
         | RoleSeg::BandCross { .. }
@@ -412,6 +433,8 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::FromTarget(n)
         | RoleSeg::BlendFace(n)
         | RoleSeg::CornerFace(n)
+        | RoleSeg::Mitre { vertex: n }
+        | RoleSeg::TurnFoot { vertex: n }
         | RoleSeg::BandFoot(n)
         | RoleSeg::BandCut(n)
         | RoleSeg::Inner(n)
@@ -424,7 +447,8 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::BandTrim { edge: n, .. }
         | RoleSeg::Instance { of: n, .. }
         | RoleSeg::InPart { of: n } => vec![n],
-        RoleSeg::Seam { a, b } => vec![a, b],
+        RoleSeg::Seam { a, b } | RoleSeg::EdgeCrossing { a, b, .. } => vec![a, b],
+        RoleSeg::Crossing { edge, face, .. } => vec![edge, face],
         RoleSeg::TrimEdge { edge, support } => vec![edge, support],
         RoleSeg::FootVertex { vertex, support } => vec![vertex, support],
         RoleSeg::EndArc { vertex, edge } => vec![vertex, edge],
@@ -432,8 +456,13 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
             std::iter::once(&**edge).chain(band).collect()
         }
-        // A verdict qualifier, not a role argument (see the doc note).
-        RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. }) => Vec::new(),
+        // A qualifier, not a role argument (see the doc note).
+        RoleSeg::Fragment(
+            Qualifier::Borders(_)
+            | Qualifier::Keeps(_)
+            | Qualifier::Ends(_)
+            | Qualifier::OrderAlong { .. },
+        ) => Vec::new(),
         name_free_seg!() => Vec::new(),
     }
 }
@@ -509,6 +538,17 @@ impl SegPat {
     /// Whether `seg` matches.
     #[must_use]
     pub fn matches(&self, seg: &RoleSeg) -> bool {
+        let mut pending = Vec::new();
+        self.level_matches(seg, &mut pending) && all_match(pending)
+    }
+
+    /// Whether `seg` matches this pattern's own axes, its argument
+    /// patterns set aside in `pending` with the names they must match.
+    fn level_matches<'a>(
+        &'a self,
+        seg: &'a RoleSeg,
+        pending: &mut Vec<(&'a NamePat, &'a StableName)>,
+    ) -> bool {
         let tag = SegTag::of(seg);
         let tag_ok = match self.tag {
             TagPat::Any => true,
@@ -519,18 +559,40 @@ impl SegPat {
             return false;
         }
         let args = name_args(seg);
-        self.args.len() <= args.len()
-            && self
-                .args
-                .iter()
-                .zip(args)
-                .all(|(pat, name)| pat.matches(name))
+        if self.args.len() > args.len() {
+            return false;
+        }
+        pending.extend(self.args.iter().zip(args));
+        true
     }
+}
+
+/// Whether every pattern in `pending` matches its name, and every
+/// pattern those set aside, as deep as they nest — from this walk's own
+/// stack.
+fn all_match<'a>(mut pending: Vec<(&'a NamePat, &'a StableName)>) -> bool {
+    while let Some((pat, name)) = pending.pop() {
+        if !pat.level_matches(name, &mut pending) {
+            return false;
+        }
+    }
+    true
 }
 
 /// A pattern over a whole [`StableName`]: kind, minting node, and the
 /// exact shape of the role path.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+///
+/// A pattern nests one whole pattern per argument it constrains, as
+/// deep as its author builds it, so its `Drop`, `Clone`, `PartialEq`,
+/// `Debug` and [`NamePat::matches`] are written one level at a time
+/// and none recurses on the nesting. `Clone`, `PartialEq` and `Debug`
+/// are the walks a [`StableName`] runs (`names::nest`'s `copy_nested`,
+/// `eq_nested` and `render_nested`). `Drop` and `matches` are their
+/// own: a pattern owns every pattern it holds, where a name shares what
+/// it holds through handles and asks each whether it is the last
+/// holder, and matching walks a pattern and a name in step, which no
+/// walk over a name alone does.
+#[derive(Default)]
 pub struct NamePat {
     /// If set, the name's entity kind must be exactly this.
     pub kind: Option<EntityKind>,
@@ -555,7 +617,8 @@ impl NamePat {
     pub fn of_kind(kind: EntityKind) -> Self {
         Self {
             kind: Some(kind),
-            ..Self::default()
+            node: None,
+            path: None,
         }
     }
 
@@ -582,6 +645,16 @@ impl NamePat {
     /// Whether `name` matches.
     #[must_use]
     pub fn matches(&self, name: &StableName) -> bool {
+        all_match(vec![(self, name)])
+    }
+
+    /// Whether `name` matches this pattern's own level, its segment
+    /// patterns' argument patterns set aside in `pending`.
+    fn level_matches<'a>(
+        &'a self,
+        name: &'a StableName,
+        pending: &mut Vec<(&'a NamePat, &'a StableName)>,
+    ) -> bool {
         if self.kind.is_some_and(|k| k != name.kind) || self.node.is_some_and(|n| n != name.node) {
             return false;
         }
@@ -589,9 +662,118 @@ impl NamePat {
             None => true,
             Some(pats) => {
                 pats.len() == name.path.len()
-                    && pats.iter().zip(&name.path).all(|(p, s)| p.matches(s))
+                    && pats
+                        .iter()
+                        .zip(&name.path)
+                        .all(|(p, s)| p.level_matches(s, pending))
             }
         }
+    }
+
+    /// The patterns this one holds, one level down, in declaration
+    /// order.
+    fn held(&self) -> Vec<&NamePat> {
+        self.path.iter().flatten().flat_map(|s| &s.args).collect()
+    }
+}
+
+impl Drop for NamePat {
+    fn drop(&mut self) {
+        // Every pattern below this one is moved here before it goes, so
+        // each dropped in the loop holds none.
+        fn take(pat: &mut NamePat, into: &mut Vec<NamePat>) {
+            for seg in pat.path.iter_mut().flatten() {
+                into.append(&mut seg.args);
+            }
+        }
+        let mut pats = Vec::new();
+        take(self, &mut pats);
+        while let Some(mut pat) = pats.pop() {
+            take(&mut pat, &mut pats);
+        }
+    }
+}
+
+impl Clone for NamePat {
+    fn clone(&self) -> Self {
+        super::nest::copy_nested(self, NamePat::held, |pat, copies| {
+            let NamePat { kind, node, path } = pat;
+            NamePat {
+                kind: *kind,
+                node: *node,
+                path: path.as_ref().map(|segs| {
+                    segs.iter()
+                        .map(|seg| {
+                            let SegPat { tag, side, args } = seg;
+                            SegPat {
+                                tag: *tag,
+                                side: *side,
+                                args: copies.take(args.len()).collect(),
+                            }
+                        })
+                        .collect()
+                }),
+            }
+        })
+    }
+}
+
+impl PartialEq for NamePat {
+    fn eq(&self, other: &Self) -> bool {
+        use super::nest::{Family, Walk, eq_nested, shallow};
+        if shallow(Walk::Eq, Family::Pattern) {
+            return true;
+        }
+        // Every field is bound, so a field added to the pattern is an
+        // E0027 here until equality says what it does with it.
+        let same = |a: &NamePat, b: &NamePat| {
+            let NamePat { kind, node, path } = a;
+            let NamePat {
+                kind: b_kind,
+                node: b_node,
+                path: b_path,
+            } = b;
+            kind == b_kind && node == b_node && path == b_path
+        };
+        eq_nested(Family::Pattern, self, other, same, NamePat::held)
+    }
+}
+
+impl Eq for NamePat {}
+
+/// One level of a pattern as the derived impl renders it.
+struct PatLevel<'a>(&'a NamePat);
+
+impl core::fmt::Debug for PatLevel<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let NamePat { kind, node, path } = self.0;
+        f.debug_struct("NamePat")
+            .field("kind", kind)
+            .field("node", node)
+            .field("path", path)
+            .finish()
+    }
+}
+
+impl core::fmt::Debug for NamePat {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use super::nest::{Family, Walk, render_nested, shallow};
+        if shallow(Walk::Debug, Family::Pattern) {
+            return core::fmt::Write::write_char(f, super::nest::HOLE);
+        }
+        render_nested(
+            self,
+            f,
+            Family::Pattern,
+            |p, alternate| {
+                if alternate {
+                    format!("{:#?}", PatLevel(p))
+                } else {
+                    format!("{:?}", PatLevel(p))
+                }
+            },
+            NamePat::held,
+        )
     }
 }
 
@@ -651,12 +833,20 @@ impl Selector {
 /// deduped), ready for [`crate::Node::fillet`]. Empty if `node` has
 /// no value, no table, or nothing matching — the fillet node is where
 /// an empty selection refuses.
+///
+/// **"No value" answers "no names" here, deliberately**: the question
+/// is which names `node`'s table holds, and a node with no value holds
+/// no table. The empty list is not the last word on it — the node that
+/// consumes the stored selection reads `node` as its input, so it is
+/// poisoned through it while it has no value, and refuses the empty
+/// selection once it has one.
 pub fn select<T: Decide>(
     ev: &Evaluation<T>,
     node: RecipeNodeId,
     sel: &Selector,
 ) -> Vec<StableName> {
-    let Some(NodeResult::Ok(value)) = ev.nodes.get(&node) else {
+    // No value, no names: this function's doc.
+    let Some(value) = ev.value(node) else {
         return Vec::new();
     };
     let mut out: Vec<StableName> = value
@@ -701,9 +891,9 @@ pub fn select<T: Decide>(
 ///
 /// # `params`
 ///
-/// [`GeomPred::DatumDistance`] states its value as an [`Expr`](crate::Expr), which
+/// [`GeomPred::DatumDistance`] states its value as a [`Formula`](crate::Formula), which
 /// cannot be evaluated without the document's parameter bindings
-/// (`Doc::param_env`). The design's signature omits this argument; it
+/// (`Doc::var_env`). The design's signature omits this argument; it
 /// is added here rather than degrading the value to a bare float,
 /// because a selection rule written against a named parameter is the
 /// whole point of `Expr` being the value type (SELECT-DESIGN §5).
@@ -724,10 +914,11 @@ pub fn select_where<T: Decide>(
     node: RecipeNodeId,
     sel: &Selector,
     geom: &[GeomPred],
-    params: &ParamEnv<T>,
+    params: &VarEnv<T>,
     tol: Tol,
 ) -> Result<Vec<StableName>, SelectRefusal> {
-    let Some(NodeResult::Ok(value)) = ev.nodes.get(&node) else {
+    // No value, no names: `select`'s doc.
+    let Some(value) = ev.value(node) else {
         return Ok(Vec::new());
     };
     let atoms = geompred::prepare(ev, geom, params)?;

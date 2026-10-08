@@ -1,7 +1,7 @@
 ---
 id: three-spellings-say-a-parameter-is-not-declared
 kind: issue
-title: Three spellings say a parameter is not declared, and one of them is Refusal::NoSuchParam's own
+title: Three spellings say a parameter is not declared, and one of them is Refusal::NoSuchVariable's own
 status: open
 opened: 2026-09-19
 refs: [a-disabled-control-says-why-in-four-shapes]
@@ -21,11 +21,11 @@ a sentence.*
 
 ## The refusal, and its one home
 
-`crates/viewer/src/session/refuse.rs`'s `Refusal::NoSuchParam` renders:
+`crates/viewer/src/session/refuse.rs`'s `Refusal::NoSuchVariable` renders:
 
 > no document parameter named {name} — declare it first
 
-Two doors raise it: `Session::begin_param_gesture`
+Two doors raise it: `Session::begin_variable_gesture`
 (`crates/viewer/src/session.rs`, the `ok_or_else` in the `start`
 closure) and `crates/viewer/src/session/probe.rs`'s parameter probe.
 The first is the one that matters here — it is the door a drag on a
@@ -36,13 +36,13 @@ parameter's number field reaches.
 `crates/viewer/src/pane/properties.rs`, both in the `else` of a branch
 whose other arm draws the control:
 
-1. `Panel::standing_ui`'s `Standing::Param { present: false }` arm
+1. `Panel::standing_ui`'s `Standing::Variable { present: false }` arm
    (the `colored_label` at `:297`) draws
    `format!("parameter {} is no longer declared", name.0)` where the
    present arm draws the parameter's row.
 2. The parameter panel's own `else` (`:119`) draws
    `"that parameter is gone"` where the `Some` arm draws the draggable
-   value field and `Panel::param_bounds_ui`.
+   value field and `Panel::variable_bounds_ui`.
 
 So a reader who lost a parameter out from under a selection is told the
 fact in the chrome's words, and a reader who drags before the frame
@@ -53,7 +53,7 @@ in `refuse.rs`, called by the panel.
 
 ## What a fix has to decide
 
-`NoSuchParam`'s wording ends *"— declare it first"*, which is a status
+`NoSuchVariable`'s wording ends *"— declare it first"*, which is a status
 line's instruction and is the wrong half for a panel that is describing
 a selection rather than answering an attempt. This is the same fork
 `the-new-document-button-states-its-refusal-twice` hit and
@@ -79,3 +79,16 @@ pane says a fact once: the panel's `"that parameter is gone"` line is
 spellings are left — the header's `"parameter {name} is no longer
 declared"` and the session refusal's — and which words they share is
 still this row's question.
+
+## Evidence 2026-09-24 (`chrome/subset-policy`, PR 3140)
+
+There is a fourth reading of the same fact, and it disagrees with the
+wording. `frame::creation_offer` is now exhaustive over `Refusal`
+(through `Refusal::parse_error`). Written out, it shows that
+`Refusal::NoSuchVariable` gets **no** creation offer: only the parse door's
+`ParseError::UnknownParam` prefills the add-parameter affordance. Yet
+`NoSuchVariable`'s sentence ends *"— declare it first"*. So a drag or a
+range probe on an undeclared parameter tells the reader to declare it,
+and the chrome does not offer the door to do so. That PR left the
+answer unchanged, since the answer is behaviour, and whoever settles the
+wording here also settles whether the offer follows it.

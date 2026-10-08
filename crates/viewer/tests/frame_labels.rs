@@ -2,9 +2,9 @@
 //! and the feature tree's rows, from one home (`tree::frame_pose`).
 //!
 //! The defect these rows are filed against is that every frame in the
-//! document read `feature 3` in the add-profile combo and `Datum
-//! frame` on its own tree row, so two frames a centimetre apart were
-//! indistinguishable in both places. The central assertion here is
+//! document read by its number alone in the add-profile combo and as
+//! `Datum frame` on its own tree row, so two frames a centimetre apart
+//! were indistinguishable in both places. The central assertion here is
 //! therefore a DIFFERENCE: two frames that differ only in where they
 //! are get two different labels.
 //!
@@ -24,12 +24,14 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::AuthoredNode;
 
 use pncad::document::{
-    Datum, Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, ProfileProgram, RecipeNodeId,
+    Datum, Dimension, Doc, DocEdit, Formula, FreeVar, Node, ProfileProgram, RecipeNodeId, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, StableName};
+use viewer::parts::PartFiles;
 use viewer::session::ProfilePlane;
 use viewer::tree;
 
@@ -40,28 +42,40 @@ use viewer::tree;
 /// typed here: this suite asserts that the world xy frame is LABELLED
 /// `xy`, so it has to be drawing the frame the tree actually calls
 /// that one.
-fn frame_at(origin: [f64; 3]) -> Node<ProfileProgram> {
+fn frame_at(origin: [f64; 3]) -> AuthoredNode {
     let (_, u, v) = ProfilePlane::xy_numbers();
     common::frame(origin, u, v)
 }
 
-/// The label for one node, through the home the picker and the tree
-/// both read.
-fn label(node: &Node<ProfileProgram>, id: u64) -> String {
-    tree::node_label(node, RecipeNodeId(id))
+/// The label for one node inserted into `doc`, through the home the
+/// picker and the tree both read, and the id the insert door minted.
+fn label_in(doc: &Doc<ProfileProgram>, node: AuthoredNode) -> (String, RecipeNodeId) {
+    let (doc, id) = common::inserted(doc, node, Tol::witness());
+    (tree::node_label(&doc, id, &PartFiles::Unscanned), id)
+}
+
+/// [`label_in`] over an empty document.
+fn label(node: AuthoredNode) -> (String, RecipeNodeId) {
+    label_in(&Doc::empty_derived("frame-labels", Tol::witness()), node)
 }
 
 /// **The row's own complaint, as an assertion**: two frames a
 /// centimetre apart are told apart.
 #[test]
 fn two_frames_a_centimetre_apart_get_different_labels() {
-    let here = label(&frame_at([0.0, 0.0, 0.0]), 3);
-    let there = label(&frame_at([0.0, 0.0, 0.01]), 7);
+    let (here, id) = label(frame_at([0.0, 0.0, 0.0]));
+    let (there, _) = label(frame_at([0.0, 0.0, 0.01]));
     assert_ne!(
         here, there,
         "the picker's whole job at this row is telling these two apart"
     );
-    assert!(here.contains("feature 3"), "{here}");
+    assert!(
+        here.starts_with(&format!(
+            "Datum frame {} — ",
+            test_utils::refusal::tag(id.0.digest())
+        )),
+        "the node as the document speaks it, then its pose: {here}"
+    );
     assert!(
         here.contains("xy"),
         "the world xy frame is named as one: {here}"
@@ -89,7 +103,7 @@ fn a_frames_origin_is_written_in_its_own_notation() {
         u: common::scl3(ProfilePlane::xy_numbers().1),
         v: common::scl3(ProfilePlane::xy_numbers().2),
     });
-    let shown = label(&node, 5);
+    let (shown, _) = label(node);
     assert!(
         shown.contains("(0, 0, 10) mm"),
         "ten millimetres up, said the way it was typed: {shown}"
@@ -108,12 +122,21 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
         origin: [
             common::len(0.0),
             common::len(0.0),
-            Expr::param(ParamName::new("height"), Dimension::Length),
+            Formula::named(VarName::from_static("height"), Dimension::Length),
         ],
         u: common::scl3(ProfilePlane::xy_numbers().1),
         v: common::scl3(ProfilePlane::xy_numbers().2),
     });
-    let shown = label(&node, 2);
+    let tol = Tol::witness();
+    let (doc, _) = common::edited(
+        &Doc::empty_derived("frame-labels-driven", tol),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("height"),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.001)),
+        },
+        tol,
+    );
+    let (shown, _) = label_in(&doc, node);
     assert!(shown.contains("driven"), "{shown}");
     assert!(
         !shown.contains('('),
@@ -126,7 +149,7 @@ fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
 #[test]
 fn an_oblique_frame_is_not_called_a_world_plane() {
     let node = common::frame([0.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0]);
-    let shown = label(&node, 1);
+    let (shown, _) = label(node);
     assert!(
         !shown.contains("xy"),
         "a frame that is not the xy plane is not called one: {shown}"
@@ -138,19 +161,34 @@ fn an_oblique_frame_is_not_called_a_world_plane() {
 /// answer the node holds, and the limit of what it holds.
 #[test]
 fn a_face_frame_names_the_node_its_face_is_read_off() {
+    let tol = Tol::witness();
+    let (doc, at) = common::inserted(
+        &Doc::empty_derived("frame-labels-face", tol),
+        frame_at([0.0, 0.0, 0.0]),
+        tol,
+    );
     let node = Node::Datum(Datum::FaceFrame {
-        at: RecipeNodeId(4),
+        at,
         face: StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(4),
+            node: at,
             path: vec![],
         },
         spin: common::ang(0.0),
     });
-    let shown = label(&node, 6);
-    assert!(shown.contains("feature 6"), "{shown}");
+    let (shown, id) = label_in(&doc, node);
     assert!(
-        shown.contains("on feature 4's face"),
+        shown.starts_with(&format!(
+            "Datum frame (on face) {} — ",
+            test_utils::refusal::tag(id.0.digest())
+        )),
+        "{shown}"
+    );
+    assert!(
+        shown.contains(&format!(
+            "on Datum frame {}'s face",
+            test_utils::refusal::tag(at.0.digest())
+        )),
         "the face's carrier is what the node can say: {shown}"
     );
 }
@@ -164,7 +202,7 @@ fn the_tree_rows_tell_two_frames_apart() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-labels", tol);
     let (doc, _) = common::inserted(&doc, frame_at([0.0, 0.0, 0.0]), tol);
     let (doc, _) = common::inserted(&doc, frame_at([0.0, 0.0, 0.01]), tol);
-    let poses: Vec<Option<String>> = tree::rows(&doc, None)
+    let poses: Vec<Option<String>> = tree::rows(&doc, None, &viewer::parts::PartFiles::default())
         .into_iter()
         .map(|row| row.pose)
         .collect();
@@ -184,9 +222,9 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-labels-other", tol);
     let (doc, _) = common::edited(
         &doc,
-        DocEdit::SetDocParam {
-            name: ParamName::new("unused"),
-            value: DocParam::continuous(Dimension::Length, 0.001),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("unused"),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.001)),
         },
         tol,
     );
@@ -197,18 +235,16 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
         }),
         tol,
     );
-    let rows = tree::rows(&doc, None);
+    let rows = tree::rows(&doc, None, &viewer::parts::PartFiles::default());
     let point = rows.last().expect("the point's row");
-    assert_eq!(point.kind, "Datum point");
+    assert_eq!(point.spoken.kind(), Some("Datum point"));
     assert_eq!(point.pose, None);
     assert_eq!(
-        tree::node_label(
-            &Node::Datum(Datum::Point {
-                position: common::len3([1.0, 2.0, 3.0])
-            }),
-            RecipeNodeId(1)
+        tree::node_label(&doc, point.id, &PartFiles::Unscanned),
+        format!(
+            "Datum point {}",
+            test_utils::refusal::tag(point.id.0.digest())
         ),
-        "feature 1",
-        "a node with nothing more to say is named by its number, as it always was"
+        "a node with nothing more to say is named by its kind and tag"
     );
 }

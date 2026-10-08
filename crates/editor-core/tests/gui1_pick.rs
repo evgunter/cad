@@ -9,8 +9,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use bvh::test_support::ray;
+use editor_core::NodeStanding;
 use editor_core::{
     CancelToken, EntityKey, EvalOptions, Evaluation, HitTestError, MeshPick, MeshPickError, Node,
     PickTarget, ProfileDoc, RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face, resolve,
@@ -46,6 +48,7 @@ fn cube_doc_node(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -89,7 +92,7 @@ fn resolved_patch<'a>(
 fn patch_on_plane(mesh: &Mesh, patch: &FacePatch, axis: usize, plane: f64) -> bool {
     patch.triangles.iter().flatten().all(|&i| {
         let p = mesh.positions[i as usize];
-        let c = [p.x, p.y, p.z][axis];
+        let c = p.to_array()[axis];
         c == plane
     })
 }
@@ -124,7 +127,7 @@ fn picks_every_face_of_a_box() {
         assert_eq!(hit.node, ext);
         assert_eq!(hit.body, 0);
         assert_eq!(hit.t, 2.0, "dyadic face-center hit is exact");
-        let c = [hit.point.x, hit.point.y, hit.point.z][axis];
+        let c = hit.point.to_array()[axis];
         assert_eq!(c, plane, "hit point lies on the face plane");
         let patch = resolved_patch(&doc, &ev, &mesh, &hit.name);
         assert!(
@@ -239,7 +242,8 @@ fn unusable_nodes_surface_typed_errors() {
         doc,
         Node::Extrude {
             profile,
-            distance: len(0.0), // degenerate: the extrude fails
+            distance: len(0.0), // degenerate: the extrude fails,
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, poisoned) = insert(
@@ -248,7 +252,7 @@ fn unusable_nodes_surface_typed_errors() {
             op: editor_core::BooleanOp::Union,
             a: bad,
             b: good,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -261,19 +265,19 @@ fn unusable_nodes_surface_typed_errors() {
     let t = |node| [PickTarget::new(&ev, node, 0, &pick)];
     assert_eq!(
         pick_face(&ev, &t(bad), &r).expect_err("failed node is an error"),
-        HitTestError::NodeFailed { node: bad }
+        HitTestError::Standing(NodeStanding::Failed { node: bad })
     );
     assert_eq!(
         pick_face(&ev, &t(poisoned), &r).expect_err("poisoned node is an error"),
-        HitTestError::NodePoisoned {
+        HitTestError::Standing(NodeStanding::Poisoned {
             node: poisoned,
             through: bad
-        }
+        })
     );
-    let foreign = RecipeNodeId(9999);
+    let foreign = RecipeNodeId::new(0, 9999);
     assert_eq!(
         pick_face(&ev, &t(foreign), &r).expect_err("foreign node is an error"),
-        HitTestError::NodeNotEvaluated { node: foreign }
+        HitTestError::Standing(NodeStanding::NotInDocument { node: foreign })
     );
     // A good target FIRST does not mask a bad one later in the slice.
     let both = [
@@ -282,7 +286,7 @@ fn unusable_nodes_surface_typed_errors() {
     ];
     assert_eq!(
         pick_face(&ev, &both, &r).expect_err("bad target still surfaces"),
-        HitTestError::NodeFailed { node: bad }
+        HitTestError::Standing(NodeStanding::Failed { node: bad })
     );
 }
 
@@ -416,7 +420,8 @@ fn node_pick_door_is_prepaired_and_typed() {
         doc,
         Node::Extrude {
             profile: lone_profile,
-            distance: len(0.0), // degenerate: fails
+            distance: len(0.0), // degenerate: fails,
+            side: ExtrudeSide::Along,
         },
     );
     let ev = run(&doc);
@@ -457,12 +462,12 @@ fn node_pick_door_is_prepaired_and_typed() {
     assert_eq!(
         editor_core::NodePick::build(&ev, bad, 0, DELTA, Tol::witness())
             .expect_err("a failed node has no body to pair"),
-        NodePickError::Standing(HitTestError::NodeFailed { node: bad })
+        NodePickError::Standing(NodeStanding::Failed { node: bad })
     );
-    let foreign = RecipeNodeId(9999);
+    let foreign = RecipeNodeId::new(0, 9999);
     assert_eq!(
         editor_core::NodePick::build(&ev, foreign, 0, DELTA, Tol::witness())
             .expect_err("a foreign id has no result"),
-        NodePickError::Standing(HitTestError::NodeNotEvaluated { node: foreign })
+        NodePickError::Standing(NodeStanding::NotInDocument { node: foreign })
     );
 }

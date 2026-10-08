@@ -1,17 +1,18 @@
 //! M9-D1 review probes (R1), naming level: the narrowed refusal and
 //! the None-export honesty, attacked with profiles the shipped rows
 //! don't cover — a SUBDIVIDED axis run (interior on-axis vertex: the
-//! full case deletes it, the partial keeps it as a third pole) and a
+//! full case deletes it, the partial collapses the run to one axis
+//! edge, so neither has an entity there) and a
 //! MIXED on/off-axis dome. Every row stands on `check_total`: a
 //! silently mis-named or unnamed vertex cannot pass.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::Formula;
 
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload, evaluate,
-    vertex_position,
 };
 use fixture::{ang, insert, len, len2, scl, table};
 use geom_core::Tol;
@@ -34,7 +35,7 @@ fn outer_pole(doc: &editor_core::ProfileDoc, node: RecipeNodeId, v: u32) -> Stab
 
 /// A revolve doc for one authored chain on the xz-authoring plane of
 /// [`m4_pr3_names`]'s ball fixture (axis = sketch y).
-fn revolve_chain(steps: Vec<ProgramStep>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
+fn revolve_chain(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m9_d1_r1_probes", Tol::witness());
     let (doc, plane) = insert(doc, fixture::xy_frame());
     let (doc, p) = insert(
@@ -92,7 +93,10 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
         ids: Vec::new(),
     });
     doc.apply(
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
@@ -100,9 +104,10 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
 }
 
 /// The mixed dome: (0,0) →line→ (1,0) →quarter arc→ (0,1) →axis
-/// line→ close. One off-axis anchor + two poles, full revolve: the
-/// narrowed refusal must NOT fire (the off-axis vertex anchors), and
-/// both poles come from the export.
+/// line→ close. One off-axis anchor + the dome's pole, full revolve:
+/// the narrowed refusal must NOT fire (the off-axis vertex anchors),
+/// and the pole comes from the export. The base disc's centre (0,0) is
+/// no vertex — a plane wall is built whole — so it names no pole.
 #[test]
 fn full_mixed_profile_names_poles_and_anchors_the_off_axis_vertex() {
     let b = (core::f64::consts::FRAC_PI_8).tan();
@@ -121,7 +126,10 @@ fn full_mixed_profile_names_poles_and_anchors_the_off_axis_vertex() {
     let ev = run(&doc);
     let t = table(&ev, rev);
     // Canonical v0=(0,0), v1=(1,0) off-axis, v2=(0,1).
-    assert!(t.lookup(&outer_pole(&doc, rev, 0)).is_some());
+    assert!(
+        t.lookup(&outer_pole(&doc, rev, 0)).is_none(),
+        "a disc's centre is not a pole"
+    );
     assert!(
         t.lookup(&outer_pole(&doc, rev, 1)).is_none(),
         "off-axis vertex is not a pole"
@@ -158,7 +166,7 @@ fn export_poles_by_canonical_vertex(
     revolution: sweep::Revolution<f64>,
 ) -> Vec<bool> {
     let profile = *doc
-        .order()
+        .ids()
         .iter()
         .find(|id| matches!(doc.node(**id), Some(Node::Profile(_))))
         .expect("the doc's profile node");
@@ -211,31 +219,20 @@ fn full_subdivided_axis_run_names_no_vertex_for_the_interior() {
     );
 }
 
-/// **PARTIAL revolve of the same run: the interior on-axis vertex IS a
-/// pole.** The partial case keeps the axis run, the rotation fixes
-/// every point of it, and both meridian chains meet at the interior
-/// vertex — structurally what the run tips are — so it takes
-/// `Pole(v1)` and the export says `Some`.
+/// **PARTIAL revolve of the same run: the interior vertex is a
+/// station.** The two wedge caps carry the axis run as one shared axis
+/// edge, so the interior vertex has no entity, as in the full case: no
+/// name, and the export says `None`; the run's tips are poles.
 #[test]
-fn partial_subdivided_axis_run_names_the_interior_vertex_a_pole() {
+fn partial_subdivided_axis_run_names_no_vertex_for_the_interior() {
     let (doc, rev) = subdivided_axis_run(std::f64::consts::FRAC_PI_2);
     let ev = run(&doc);
     let t = table(&ev, rev);
-    for v in 0..3 {
-        assert!(
+    for (v, named) in [(0, true), (1, false), (2, true)] {
+        assert_eq!(
             t.lookup(&outer_pole(&doc, rev, v)).is_some(),
-            "pole {v} unnamed"
-        );
-    }
-    // The interior vertex is the run's midpoint, not a third tip.
-    let at = |v| {
-        vertex_position(&ev, rev, &outer_pole(&doc, rev, v)).expect("a named pole has a position")
-    };
-    let (a, b, c) = (at(0), at(1), at(2));
-    for (mid, ends) in [(b.x, a.x + c.x), (b.y, a.y + c.y), (b.z, a.z + c.z)] {
-        assert!(
-            (2.0 * mid - ends).abs() < 1e-12,
-            "the interior pole is off the run's midpoint"
+            named,
+            "pole {v}"
         );
     }
     assert_eq!(
@@ -244,7 +241,7 @@ fn partial_subdivided_axis_run_names_the_interior_vertex_a_pole() {
             &ev,
             sweep::Revolution::Partial(std::f64::consts::FRAC_PI_2)
         ),
-        vec![true, true, true],
+        vec![true, false, true],
         "the export's arm must agree with what the emitter named"
     );
 }

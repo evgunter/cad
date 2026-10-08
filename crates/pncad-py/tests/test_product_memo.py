@@ -27,7 +27,7 @@ import unittest
 import pncad
 from pncad import (
     Doc,
-    Expr,
+    Formula,
     Node,
     assemble,
     evaluate,
@@ -43,19 +43,19 @@ def slab(doc, x0, x1):
     profile = doc.insert(
         Node.polygon(
             [
-                (Expr.length_in(x0, m), Expr.length_in(0.0, m)),
-                (Expr.length_in(x1, m), Expr.length_in(0.0, m)),
-                (Expr.length_in(x1, m), Expr.length_in(1.0, m)),
-                (Expr.length_in(x0, m), Expr.length_in(1.0, m)),
+                (Formula.length_in(x0, m), Formula.length_in(0.0, m)),
+                (Formula.length_in(x1, m), Formula.length_in(0.0, m)),
+                (Formula.length_in(x1, m), Formula.length_in(1.0, m)),
+                (Formula.length_in(x0, m), Formula.length_in(1.0, m)),
             ],
-            plane=doc.sketch_frame(elevation=Expr.length_in(0.0, m)),
+            plane=doc.sketch_frame(elevation=Formula.length_in(0.0, m)),
         )
     )
-    return doc.insert(Node.extrude(profile, Expr.length_in(1.0, m)))
+    return doc.insert(Node.extrude(profile, Formula.length_in(1.0, m)))
 
 
-def one_box(label="memo-one-box"):
-    doc = Doc(label)
+def one_box(seed="memo-one-box"):
+    doc = Doc(seed)
     slab(doc, 0.0, 1.0)
     return doc
 
@@ -116,11 +116,11 @@ class TestBothQuestionsOnOneEvaluation(unittest.TestCase):
         doc.insert(
             Node.polygon(
                 [
-                    (Expr.length_in(0.0, m), Expr.length_in(0.0, m)),
-                    (Expr.length_in(1.0, m), Expr.length_in(0.0, m)),
-                    (Expr.length_in(1.0, m), Expr.length_in(1.0, m)),
+                    (Formula.length_in(0.0, m), Formula.length_in(0.0, m)),
+                    (Formula.length_in(1.0, m), Formula.length_in(0.0, m)),
+                    (Formula.length_in(1.0, m), Formula.length_in(1.0, m)),
                 ],
-                plane=doc.sketch_frame(elevation=Expr.length_in(0.0, m)),
+                plane=doc.sketch_frame(elevation=Formula.length_in(0.0, m)),
             )
         )
         ev = evaluate(doc)

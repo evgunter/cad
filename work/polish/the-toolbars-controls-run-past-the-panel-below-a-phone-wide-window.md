@@ -1,0 +1,100 @@
+---
+id: the-toolbars-controls-run-past-the-panel-below-a-phone-wide-window
+kind: issue
+title: viewer: below a 400-point window the toolbar's theme picker, and below the message floor its canceled line, are drawn past the panel
+status: open
+opened: 2026-09-29
+priority: P4
+cost: M
+refs: [the-toolbars-status-line-runs-past-the-panel-below-a-floor-wide-window]
+---
+
+## Question (answered by Ev, 2026-10-01)
+
+What does the chrome owe a window narrower than it was laid out for? The toolbar's theme picker, an egui `ComboBox`, does not wrap and runs past the panel. Below about 190 points, the canceled line runs past too. The Checks window and the part chooser clip below a floor-wide screen. The choice is the chrome's contract with window width: what number it is stated in, and what happens below it.
+
+
+Found while moving the status line into a row of its own
+(`chrome/status-line`), by sweeping every text run the toolbar paints
+across 120-to-640-point windows, headless, through `app::tests`'
+`toolbar_drawn`. The status line is no longer in the controls' row; what
+is left there has two overruns.
+
+## The theme picker
+
+`crate::app`'s `toolbar_ui` draws the palette `egui::ComboBox` in the
+`horizontal_wrapped` row. egui's `combo_box_dyn` allocates the box
+through `button_frame` with no check against what is left of the line,
+so, unlike a button, it does not move to the next line when it does not
+fit. Measured (the startup fixture, which is evaluating):
+
+- 180 to 220-point windows: the picker's text ends at x = 232 and the
+  row at 249, against a panel that ends at 172 to 212.
+- 360-point window: the row ends at 370.6, against a panel ending
+  at 352.
+- 400 (`app::tests`' `NARROW`) and wider: inside.
+
+It also widens the panel's `Ui`: its `max_rect` grows to take in the
+overrun, so anything laid out after the row sees the wider width.
+`toolbar_ui` reads the panel's width before the row and bounds the
+status row to it, separator included. The panel's own bottom border
+still spans the widened rect: at a 120-point window it ends at
+x = 184 against a panel ending at 112.
+
+## The canceled line
+
+`CANCELED_LINE` is a `crate::widgets::message` in the same row. Below
+a window of about 190 points (the floor, 172.6, plus the panel's
+margins) it is laid out at the floor, and the panel has nothing to
+scroll. Measured: 8 points past the panel at 120 to 180-point windows,
+inside from 200. The status line's answer (a row of its own that
+scrolls) is not obviously right here, because the Re-evaluate button
+belongs beside the sentence.
+
+## Not measured
+
+The Checks window (`crate::app`'s `checks_window`, `default_width(420)`)
+and the part chooser (`crate::pane::create`'s `part_window`) are
+`egui::Window`s. egui caps a window at the screen (`egui::Window`'s
+constrain step), and neither window scrolls, so below a floor-wide
+screen a message in either is clipped rather than scrolled. The
+same narrow regime, not driven.
+
+Whether windows this narrow are in scope is the question to answer
+first: `NARROW` holds the chrome at 400 points, and every overrun here
+is below it.
+
+## Ev's answer (2026-10-01, on PR 3607)
+
+> sounds good!
+
+The ruling is the recommendation both designers converged on:
+- **Theme picker:** it becomes a wrapping `menu_button` over `Theme::ALL`. Its overrun does not depend on window width.
+- **Width contract:** the chrome's width contract is stated in `message_floor`, about 190 points and derived from the font.
+  - At or above the floor, every control and sentence in the toolbar sits inside the panel.
+  - Below the floor, the toolbar is laid out at the floor and scrolls sideways as one unit. The status row's private scroll area and the `panel_width` workaround go.
+- **Windows:** the Checks window and the part chooser get `hscroll`. The Checks window derives its width the way the part chooser does, replacing `default_width(420)`.
+- **Tests:** `NARROW` retires as a contract. The holds become a sweep from 120 to 1280 points, plus a check that nothing in a `horizontal_wrapped` row ends past its region at any width.
+- **No zoom clamp.**
+
+## Partial work (2026-10-01)
+
+The lane for Ev's ruling on #3607 was stopped when the row moved to
+POLISH. Its work is on `chrome/width-contract` (head `9326ac5d12`), with
+#3607's branch merged in. No PR was opened. That branch's copy of this
+row still reads `dispatched`; the copy here is the live one, and a
+successor merging the branch keeps this one.
+
+Done on the branch:
+- `toolbar_ui` sits in one horizontal `ScrollArea`, at least
+  `message_floor` wide (172.6 points). The status row's own scroll
+  area and the `panel_width` workaround are gone.
+- The theme picker is a `menu_button` over `Theme::ALL`.
+- `widgets::window_width` sizes the Checks window and the part chooser,
+  never below the floor.
+- A sweep holds the toolbar from 120 to 1280 points. It goes red with
+  the old `ComboBox`.
+
+Left to do: the README re-wording, clippy, CI and the PR. One more
+point needs a decision: the Checks window now takes the toolbar's width,
+which is nearly the whole screen at 1280 points. It is untested.

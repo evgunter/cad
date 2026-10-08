@@ -87,7 +87,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, ProfileProgram, RecipeNodeId, SpokenNode};
 
 use crate::session::{NodeKindWanted, admits};
 use crate::vocab::vocabulary;
@@ -146,9 +146,6 @@ impl Seat {
     /// this table and the door's are two readings of one fact, and
     /// two spellings of it would let a tool route a pick into a seat
     /// the door rejects.
-    ///
-    /// Exhaustive on purpose — a new seat has to say what it is for
-    /// before it can be routed to.
     pub fn wants(self) -> NodeKindWanted {
         match self {
             Self::RevolveProfile => NodeKindWanted::Profile,
@@ -214,8 +211,9 @@ pub enum SeatEvent {
     PickLost {
         /// Which seat was emptied.
         seat: Seat,
-        /// The node that was held.
-        node: RecipeNodeId,
+        /// The node that was held, by the last label the document gave
+        /// it ([`Seats::respeak`]).
+        node: SpokenNode,
     },
 }
 
@@ -224,9 +222,8 @@ impl core::fmt::Display for SeatEvent {
         match self {
             Self::PickLost { seat, node } => write!(
                 f,
-                "the {} pick ({}) is no longer in the document; the tool dropped it",
+                "the {} pick ({node}) is no longer in the document; the tool dropped it",
                 seat.name(),
-                crate::tree::node_number(*node)
             ),
         }
     }
@@ -249,10 +246,12 @@ impl core::fmt::Display for SeatEvent {
 /// So the second slot of a one-seat value is never set (only `pick`
 /// writes a slot, and on that value it writes the first), and nothing
 /// reads it either: an invariant held twice rather than relied on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Seats {
     roles: [Seat; 2],
-    held: [Option<RecipeNodeId>; 2],
+    /// Each seat's pick, as the document last spoke it
+    /// ([`Seats::respeak`]).
+    held: [Option<SpokenNode>; 2],
 }
 
 impl Seats {
@@ -273,7 +272,7 @@ impl Seats {
 
     /// The pick in seat `i` (0 or 1).
     pub fn held(&self, i: usize) -> Option<RecipeNodeId> {
-        self.held.get(i).copied().flatten()
+        self.held.get(i)?.as_ref().map(SpokenNode::id)
     }
 
     /// Whether any seat holds a pick.
@@ -291,7 +290,7 @@ impl Seats {
     /// Each seat's role and what it holds, in seat order — one entry
     /// per SEAT, so a one-seat tool's unused second slot is not one.
     fn each(&self) -> impl Iterator<Item = (Seat, Option<RecipeNodeId>)> + '_ {
-        (0..self.arity()).map(|i| (self.roles[i], self.held[i]))
+        (0..self.arity()).map(|i| (self.roles[i], self.held(i)))
     }
 
     /// Fill the first empty seat; with both full, REPLACE the second
@@ -317,8 +316,9 @@ impl Seats {
         // written over the first EMPTY slot: on a one-seat tool that
         // sends a second pick to a slot nothing reads, and the pick
         // is then a click that silently did nothing.
+        let said = Some(doc.spoken(node));
         if self.arity() == 1 {
-            self.held[0] = Some(node);
+            self.held[0] = said;
             return;
         }
         let plain = usize::from(self.held[0].is_some());
@@ -331,7 +331,7 @@ impl Seats {
         } else {
             plain
         };
-        self.held[seat] = Some(node);
+        self.held[seat] = said;
     }
 
     /// Empty every seat — the chrome's "start the picks over" door.
@@ -348,16 +348,25 @@ impl Seats {
         self.held = [None, None];
     }
 
+    /// **The held picks' nodes, spoken again from `doc`**, the shown
+    /// document after an operation ([`SpokenNode::respoken`]'s rule): a
+    /// node `doc` holds takes its label now, and one it no longer holds
+    /// keeps the last it had, which is what a drop names it by.
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        respeak_each(&mut self.held, doc);
+    }
+
     /// Re-read the held picks against the document, dropping any whose
     /// node is gone (module docs: the survival semantics). Returns the
     /// typed drops.
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
         let mut events = Vec::new();
         for i in 0..self.arity() {
-            if let Some(node) = self.held[i]
-                && doc.node(node).is_none()
+            if self.held[i]
+                .as_ref()
+                .is_some_and(|node| doc.node(node.id()).is_none())
+                && let Some(node) = self.held[i].take()
             {
-                self.held[i] = None;
                 events.push(SeatEvent::PickLost {
                     seat: self.roles[i],
                     node,
@@ -379,6 +388,14 @@ impl Seats {
     }
 }
 
+/// **Each held node spoken again from `doc`** ([`SpokenNode::respoken`]):
+/// the seats' picks and the mate tool's.
+pub(crate) fn respeak_each(held: &mut [Option<SpokenNode>], doc: &Doc<ProfileProgram>) {
+    for node in held.iter_mut().flatten() {
+        *node = node.respoken(doc);
+    }
+}
+
 /// **The line a seated tool's panel shows for its held picks**: each
 /// seat's role and the feature it holds, in the order the tool's
 /// [`Seats`] declares them — so a reader can tell which pick is in
@@ -389,14 +406,14 @@ impl Seats {
 /// order, or name ones the tool no longer has, and still compile.
 ///
 /// Each item is said in the words a seat's drop notice uses
-/// ([`SeatEvent`]): the role by [`Seat::name`] and the pick by
-/// [`crate::tree::node_number`], so the panel and the notice about
-/// the same pick call it one thing.
-pub fn seat_line(seats: &Seats) -> String {
+/// ([`SeatEvent`]): the role by [`Seat::name`] and the pick as `doc`
+/// speaks it, so the panel and the notice about the same pick call it
+/// one thing.
+pub fn seat_line(seats: &Seats, doc: &Doc<ProfileProgram>) -> String {
     picks_line(
         seats
             .each()
-            .map(|(seat, held)| (seat.name(), held.map(crate::tree::node_number))),
+            .map(|(seat, held)| (seat.name(), held.map(|node| doc.spoken(node).to_string()))),
     )
 }
 

@@ -45,10 +45,10 @@ use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
+use geom_core::Sign;
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
 use geom_core::spline::KnotVector;
-use geom_core::{MarginDiag, Sign};
 use slotmap::SlotMap;
 
 /// The `x = 0` and `y = 0` planes: two analytic charts whose
@@ -213,7 +213,7 @@ fn a_sub_band_carrier_escalates_on_its_meter_not_its_span() {
                 "the escalation must name the METER: {cause:?}"
             );
             assert!(
-                !matches!(cause.margin, MarginDiag::Invalid),
+                !cause.margin.is_invalid(),
                 "an in-band length is indeterminate, not invalid: {cause:?}"
             );
         }

@@ -69,6 +69,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Band, Point3, Real, Vec3};
 
 use crate::convention::{ConventionEnd, RepresentabilityMargin};
+use crate::datum::{AnalyticData, DatumValue};
 
 use crate::azimuth;
 pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
@@ -207,8 +208,7 @@ pub enum Surface<T: Real> {
         /// The unit pole axis: the poles lie at `center ± axis·radius`
         /// (`v = ±π/2`).
         axis: Vec3<T>,
-        /// The unit reference direction ⊥ `axis` where u = 0 lives —
-        /// the seam meridian.
+        /// The unit reference direction ⊥ `axis` where u = 0 lives.
         u_ref: Vec3<T>,
     },
 
@@ -245,8 +245,7 @@ pub enum Surface<T: Real> {
         /// The minor radius r in meters: the tube radius (positive by
         /// convention).
         minor_radius: T,
-        /// The unit reference direction ⊥ `axis` where u = 0 lives —
-        /// the seam meridian.
+        /// The unit reference direction ⊥ `axis` where u = 0 lives.
         u_ref: Vec3<T>,
     },
 
@@ -275,7 +274,103 @@ pub enum Surface<T: Real> {
     /// no other door), so unlike [`Surface::Nurbs`] there is no
     /// placeholder state in this variant: an `Approx` surface is always
     /// described.
+    ///
+    /// **Its own kind, not `Nurbs`** ([`SurfaceKind::Approx`]): a table
+    /// indexed by kind decides what a claim about a surface means, and a
+    /// claim about an approximating surface is a claim about the fit,
+    /// not about the surface asked for.
     Approx(Arc<ApproxSurface<T>>),
+}
+
+/// Which [`Surface`] variant a surface is: the workspace's one
+/// fieldless mirror of the surface enum ([`Surface::kind`]).
+///
+/// Hand-written rather than derived so each variant's doc speaks of the
+/// tag, not of a payload it does not have. A variant added to
+/// [`Surface`] reds [`Surface::kind`]'s wildcard-free match until it
+/// has a kind here; [`Self::ALL`] is derived from this enum, so there
+/// is no roster to forget.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, strum::VariantArray)]
+pub enum SurfaceKind {
+    /// A [`Surface::Plane`].
+    Plane,
+    /// A [`Surface::Cylinder`].
+    Cylinder,
+    /// A [`Surface::Cone`].
+    Cone,
+    /// A [`Surface::Sphere`].
+    Sphere,
+    /// A [`Surface::Torus`].
+    Torus,
+    /// A [`Surface::Nurbs`], described or the placeholder.
+    Nurbs,
+    /// A [`Surface::Approx`]: its own kind, not [`Self::Nurbs`] — a
+    /// claim about an approximating surface is a claim about the fit,
+    /// not about the surface asked for.
+    Approx,
+}
+
+impl<T: Real> Surface<T> {
+    /// Which variant this surface is.
+    ///
+    /// **No wildcard arm**: a new [`Surface`] variant is a compile error
+    /// here until [`SurfaceKind`] names it.
+    #[must_use]
+    pub fn kind(&self) -> SurfaceKind {
+        match self {
+            Self::Plane { .. } => SurfaceKind::Plane,
+            Self::Cylinder { .. } => SurfaceKind::Cylinder,
+            Self::Cone { .. } => SurfaceKind::Cone,
+            Self::Sphere { .. } => SurfaceKind::Sphere,
+            Self::Torus { .. } => SurfaceKind::Torus,
+            Self::Nurbs(_) => SurfaceKind::Nurbs,
+            Self::Approx(_) => SurfaceKind::Approx,
+        }
+    }
+}
+
+impl SurfaceKind {
+    /// Every kind, in declaration order.
+    pub const ALL: [Self; <Self as strum::VariantArray>::VARIANTS.len()] =
+        match <Self as strum::VariantArray>::VARIANTS.first_chunk() {
+            Some(all) => *all,
+            None => unreachable!(),
+        };
+
+    /// The kind's name: one lower-case word, the spelling refusals and
+    /// tables print.
+    ///
+    /// **Also a persisted key.** `tools/tess-meter` writes it into its
+    /// CSV's `chart` column and `tools/tess-lint` joins committed
+    /// baselines on that column, so rewording a name re-keys every
+    /// baseline row that carries it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Plane => "plane",
+            Self::Cylinder => "cylinder",
+            Self::Cone => "cone",
+            Self::Sphere => "sphere",
+            Self::Torus => "torus",
+            Self::Nurbs => "nurbs",
+            Self::Approx => "approx",
+        }
+    }
+
+    /// The kind as an adjective for a face or its surface, for prose
+    /// ("a cylindrical face").
+    #[must_use]
+    pub const fn adjective(self) -> &'static str {
+        match self {
+            Self::Plane => "flat",
+            Self::Cylinder => "cylindrical",
+            Self::Cone => "conical",
+            Self::Sphere => "spherical",
+            Self::Torus => "toroidal",
+            Self::Nurbs => "spline",
+            Self::Approx => "fitted",
+        }
+    }
 }
 
 /// **The ring-torus convention's ring half, decided: its one home.**
@@ -288,7 +383,9 @@ pub enum Surface<T: Real> {
 /// constructor in this crate, the offset door and the plane×torus
 /// section in `geom_brep`, and in `topo` tier 3, the trim door's
 /// meridian frame and the regular outward normal. Each maps a
-/// non-`Positive` answer into its own refusal.
+/// non-`Positive` answer into its own refusal; the verdict keeps the
+/// reporting margin for a refusal that quotes it (tier 3's
+/// `DegenerateTorus`).
 ///
 /// The tube half `r > 0` is a separate datum and is not decided here:
 /// `R − r` alone passes a nonpositive tube radius whenever the
@@ -307,8 +404,8 @@ pub fn ring_torus<T: geom_core::Decide>(
     major_radius: T,
     minor_radius: T,
     band: Band,
-) -> Result<geom_core::Sign, geom_core::Indeterminate> {
-    geom_core::k_stats::decide(
+) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+    geom_core::k_stats::decide_reported(
         "ring_torus_convention",
         geom_core::Margin::of(major_radius - minor_radius),
         band,
@@ -316,7 +413,8 @@ pub fn ring_torus<T: geom_core::Decide>(
 }
 
 /// **The ring-torus convention's tube half, decided**: `r > 0`, as a
-/// length on the band under `torus_tube_positive`. The door that needs
+/// length on the band under `torus_tube_positive`, the verdict keeping
+/// its reporting margin as [`ring_torus`]'s does. The door that needs
 /// both halves asks this one first ([`ring_torus`]'s docs say why), or
 /// reads both through [`require_ring_torus`].
 ///
@@ -327,8 +425,8 @@ pub fn ring_torus<T: geom_core::Decide>(
 pub fn torus_tube<T: geom_core::Decide>(
     minor_radius: T,
     band: Band,
-) -> Result<geom_core::Sign, geom_core::Indeterminate> {
-    geom_core::k_stats::decide(
+) -> Result<geom_core::Decided, geom_core::Indeterminate> {
+    geom_core::k_stats::decide_reported(
         "torus_tube_positive",
         geom_core::Margin::of(minor_radius),
         band,
@@ -363,6 +461,12 @@ pub fn require_ring_torus<T: geom_core::Decide>(
     )
 }
 
+/// What a refusal of the placeholder chart
+/// ([`Surface::is_placeholder_chart`]) says, wherever it is refused —
+/// one text, so every reader sees the same fact in the same words.
+pub const PLACEHOLDER_SURFACE: &str =
+    "the surface has no description yet: it is only the placeholder a construction starts from";
+
 impl<T: Real> Surface<T> {
     /// The "no description yet" NURBS state (the former unit
     /// placeholder variant, as data): a structurally valid payload
@@ -395,6 +499,18 @@ impl<T: Real> Surface<T> {
             Surface::Nurbs(n) => Some(n),
             Surface::Approx(a) => Some(a.fit()),
         }
+    }
+
+    /// Is this surface's chart the placeholder — the
+    /// [`NurbsSurface::placeholder`] payload a construction starts from,
+    /// or an approximating surface whose fit is one? Such a chart has no
+    /// locus (its net is all-poison), so nothing can be imaged on it or
+    /// metred through it. The ONE spelling of the question: every door
+    /// that refuses the placeholder asks here, so `Nurbs` and `Approx`
+    /// cannot drift apart. The refusal text is [`PLACEHOLDER_SURFACE`].
+    pub fn is_placeholder_chart(&self) -> bool {
+        self.spline_chart()
+            .is_some_and(NurbsSurface::is_placeholder)
     }
 
     /// **The representability margins of this surface's datum
@@ -556,6 +672,143 @@ impl SurfaceDatum {
             Self::Center => "center",
             Self::MajorRadius => "major_radius",
             Self::MinorRadius => "minor_radius",
+        }
+    }
+}
+
+/// A surface's stored data, by what kind of datum it stores
+/// ([`Surface::data`]).
+#[derive(Debug)]
+pub enum SurfaceData<'a, T: Real> {
+    /// An analytic kind's fields.
+    Analytic(AnalyticData<T, SurfaceDatum>),
+    /// A spline net, unread.
+    Nurbs(&'a Arc<NurbsSurface<T>>),
+    /// A fitted surface, unread.
+    Approx(&'a Arc<ApproxSurface<T>>),
+}
+
+/// Two surfaces read side by side ([`Surface::paired_with`]).
+#[derive(Debug)]
+pub enum SurfacePairing<'a, T: Real> {
+    /// The kinds differ, so no datum of one answers a datum of the
+    /// other.
+    KindsDiffer,
+    /// One analytic kind: each stored datum with its counterpart.
+    Analytic(AnalyticPairs<T>),
+    /// Two spline payloads, unread.
+    Nurbs(&'a Arc<NurbsSurface<T>>, &'a Arc<NurbsSurface<T>>),
+    /// Two fitted payloads, unread.
+    Approx(&'a Arc<ApproxSurface<T>>, &'a Arc<ApproxSurface<T>>),
+}
+
+/// Two surfaces of one analytic kind, datum against datum
+/// ([`SurfacePairing::Analytic`]).
+#[derive(Clone, Copy, Debug)]
+pub struct AnalyticPairs<T: Real>(AnalyticData<T, SurfaceDatum>, AnalyticData<T, SurfaceDatum>);
+
+impl<T: Real> AnalyticPairs<T> {
+    /// Each stored datum with its two values, in field order.
+    pub fn pairs(self) -> impl Iterator<Item = (SurfaceDatum, DatumValue<T>, DatumValue<T>)> {
+        self.0
+            .into_iter()
+            .zip(self.1)
+            .map(|((datum, x), (_, y))| (datum, x, y))
+    }
+}
+
+impl<T: Real> Surface<T> {
+    /// **The surface's stored data** — the one walk of the analytic
+    /// kinds' fields, which each reader that visits them field by
+    /// field folds with its own question (a poison read, a hash key, a
+    /// comparison through a comparator of its choosing), and the
+    /// payload of a spline kind.
+    ///
+    /// The variants are destructured without `..`, so a field a variant
+    /// gains is a compile error here rather than a datum every reader
+    /// silently skips; a kind that is not read as fields is a new
+    /// [`SurfaceData`] arm, which every reader matches exhaustively. A field
+    /// that takes a kind past the walk's width is caught later, by the
+    /// build that first instantiates the walk (`AnalyticData::new`'s
+    /// bound), which `cargo check` does not reach.
+    pub fn data(&self) -> SurfaceData<'_, T> {
+        use DatumValue::{Direction, Point, Scalar};
+        use SurfaceDatum as D;
+        SurfaceData::Analytic(match *self {
+            Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Origin, Point(origin)),
+                (D::Normal, Direction(normal)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Origin, Point(origin)),
+                (D::Axis, Direction(axis)),
+                (D::Radius, Scalar(radius)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Apex, Point(apex)),
+                (D::Axis, Direction(axis)),
+                (D::HalfAngle, Scalar(half_angle)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Radius, Scalar(radius)),
+                (D::Axis, Direction(axis)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => AnalyticData::new([
+                (D::Center, Point(center)),
+                (D::Axis, Direction(axis)),
+                (D::MajorRadius, Scalar(major_radius)),
+                (D::MinorRadius, Scalar(minor_radius)),
+                (D::URef, Direction(u_ref)),
+            ]),
+            Surface::Nurbs(ref n) => return SurfaceData::Nurbs(n),
+            Surface::Approx(ref a) => return SurfaceData::Approx(a),
+        })
+    }
+
+    /// `self` and `other` read side by side: their [`Surface::data`]
+    /// paired when they are one kind, [`SurfacePairing::KindsDiffer`]
+    /// otherwise. Each comparator folds the pairs its own way; none
+    /// walks the fields again.
+    pub fn paired_with<'a>(&'a self, other: &'a Self) -> SurfacePairing<'a, T> {
+        use SurfaceData as S;
+        if core::mem::discriminant(self) != core::mem::discriminant(other) {
+            return SurfacePairing::KindsDiffer;
+        }
+        match (self.data(), other.data()) {
+            (S::Analytic(a), S::Analytic(b)) => SurfacePairing::Analytic(AnalyticPairs(a, b)),
+            (S::Nurbs(a), S::Nurbs(b)) => SurfacePairing::Nurbs(a, b),
+            (S::Approx(a), S::Approx(b)) => SurfacePairing::Approx(a, b),
+            (S::Analytic(_) | S::Nurbs(_) | S::Approx(_), _) => SurfacePairing::KindsDiffer,
         }
     }
 }
@@ -1746,5 +1999,35 @@ mod tests {
             let q = n.eval(Interval::zero(), Interval::zero());
             assert!(q.x.is_poison() && q.y.is_poison() && q.z.is_poison());
         }
+    }
+
+    /// **A spindle a hair past the ring refuses without a false
+    /// tolerance offer.** `R − r ≈ −5e-10` decides zero on the negative
+    /// side of `ring_torus_convention`, which passes only a positive
+    /// margin: every smaller tolerance decides it negative, so the
+    /// refusal says so rather than offering one. A ring a hair inside
+    /// the convention, the same distance on the positive side, keeps
+    /// its offer, and the tolerance it names decides the convention.
+    #[test]
+    fn a_ring_convention_zero_on_the_spindle_side_offers_no_tolerance() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let spindle = require_ring_torus(1.0, 1.0 + 5e-10, band)
+            .unwrap_err()
+            .to_string();
+        assert!(!spindle.contains("tighten"), "{spindle}");
+        assert!(
+            spindle.contains("no smaller tolerance moves onto a side"),
+            "{spindle}"
+        );
+        let ring = require_ring_torus(1.0 + 5e-10, 1.0, band)
+            .unwrap_err()
+            .to_string();
+        assert!(ring.contains("tighten the tolerance below"), "{ring}");
+        let offered = Band::new(1e-11, 1e-10).unwrap();
+        assert_eq!(
+            require_ring_torus(1.0 + 5e-10, 1.0, offered),
+            Ok(()),
+            "the offered tolerance decides the ring"
+        );
     }
 }

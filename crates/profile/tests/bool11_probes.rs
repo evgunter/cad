@@ -524,7 +524,7 @@ fn the_per_leg_band_composes_and_the_data_gate_catches_the_sum() {
         .expect_err("the data gate must not silently accept a run bowed past its tolerance");
     let msg = err.to_string();
     assert!(
-        msg.contains("escalated") && msg.contains("chord_side"),
+        msg.contains("escalated") && format!("{err:?}").contains("chord_side"),
         "the gate should escalate on chord_side rather than refusing definitely or \
          accepting: {msg}"
     );

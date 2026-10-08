@@ -37,7 +37,7 @@ const L_PROFILE: [(f64, f64); 6] = [
 /// The bracket over the L, `z ∈ [0, 1]`, with `part` grafted beside it.
 fn bracket_with(part: &Body<f64>) -> Body<f64> {
     let mut out = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness()).body;
-    topo::graft_disjoint(&mut out, part, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, part).unwrap();
     out
 }
 

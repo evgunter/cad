@@ -104,8 +104,12 @@ mod focus_highlight;
 mod frame_labels;
 #[path = "frame_policy.rs"]
 mod frame_policy;
+#[path = "gauge_door_and_badge.rs"]
+mod gauge_door_and_badge;
 #[path = "gesture_table.rs"]
 mod gesture_table;
+#[path = "gui_variables.rs"]
+mod gui_variables;
 #[path = "index_memo.rs"]
 mod index_memo;
 #[path = "input_mapping.rs"]
@@ -121,12 +125,16 @@ mod mate_tool_flow;
 mod msolve3_placer_refused;
 #[path = "msolve4_blame_rows.rs"]
 mod msolve4_blame_rows;
-#[path = "msolve5_read_below_a_root.rs"]
-mod msolve5_read_below_a_root;
+#[path = "msolve5_moved_above_badge.rs"]
+mod msolve5_moved_above_badge;
+#[path = "node_labels.rs"]
+mod node_labels;
 #[path = "panel_display.rs"]
 mod panel_display;
 #[path = "panel_edits.rs"]
 mod panel_edits;
+#[path = "part_root_carried.rs"]
+mod part_root_carried;
 #[path = "path_authoring.rs"]
 mod path_authoring;
 #[path = "pick3_acceptance.rs"]
@@ -139,8 +147,6 @@ mod prefs;
 mod profile_draw;
 #[path = "profile_edit.rs"]
 mod profile_edit;
-#[path = "profile_edit_order.rs"]
-mod profile_edit_order;
 #[path = "refusal_concision_edits.rs"]
 mod refusal_concision_edits;
 #[path = "review_gui0_r1.rs"]

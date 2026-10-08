@@ -1,9 +1,14 @@
 //! **The surgery's front door, as types.**
 //!
 //! [`super::surgery::blend_surgery`] admits a verdict one clause at a
-//! time — this chain is a single plane–plane link; this corner is
-//! trivalent with all three edges
-//! requested; this support face has its entire outer cycle requested.
+//! time — this chain's links are plane–plane and meet only at joints
+//! on one support pair; this corner is trivalent with all three edges
+//! requested; every requested edge of this support face ends at a
+//! planned corner, joint, cut-off or turn of it. A cut-off — an end
+//! whose edge alone is requested — and a turn — an end two requested
+//! edges share — have no token of their own: the verdict classified
+//! each, its plan reads it off the source, and a support's admission
+//! counts it among the stations.
 //! Each type here is one of those
 //! clauses, and **holding the value is the fact**: a helper handed one
 //! has no branch left to write about it. A refusal belongs to the door
@@ -25,7 +30,7 @@
 //! # What these tokens do NOT claim
 //!
 //! They describe the verdict and the source body **as the plan read
-//! them**. [`AdmittedOpen`] borrows out of the verdict, which is
+//! them**. [`OpenBand`] and [`AdmittedOpen`] borrow out of the verdict, which is
 //! immutable for the whole run, so it cannot go stale. [`CornerFaces`] and
 //! [`RequestedBoundary`] are read off the SOURCE body and consumed
 //! against a clone, so a token may describe a face the carve has since
@@ -35,23 +40,23 @@
 use geom_core::{Decide, Point3, Real};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
-use super::battery::{Chain, Convexity, Link};
-use super::build::{face_cycle, fan_at, outward_of};
+use super::battery::{Chain, Convexity, JointVerdict, Link, Turn, joint_verdict};
+use super::build::{fan_at, outward_of};
 use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_chain, unbuilt_corner_config, unbuilt_geometry,
-    unbuilt_run_out,
 };
 use super::{BlendError, CornerConfig};
 
-/// **A chain admitted through the open-chain door**: exactly one link,
-/// whose arm is plane–plane (the band between trivalent corners) or
-/// ruled (the cylinder band between transverse caps).
+/// **One link of an admitted open band**, whose arm is plane–plane
+/// (the band between trivalent corners) or ruled (the cylinder band
+/// between plane caps).
 ///
-/// [`AdmittedOpen::admit`] is the only way to obtain one, and it is the
-/// door — the two refusals it raises are the surgery's own
-/// open-chain frontier. Everything downstream that used to re-test one
-/// of those properties takes this instead; which of the two bands a
-/// holder carves is read off the link's arm.
+/// [`OpenBand::admit`] is the only way to obtain one: the token is
+/// minted for each link of a chain that door admitted, so holding one
+/// is holding a link the open-chain door has passed. Everything
+/// downstream that used to re-test one of the door's properties takes
+/// this instead; which of the two bands a holder carves is read off
+/// the link's arm.
 ///
 /// The token does not name a convexity, because no admission clause
 /// reads one: the chamfer's strip and flat corner patch carry no
@@ -72,45 +77,10 @@ impl<T: Real> Clone for AdmittedOpen<'_, T> {
 impl<T: Real> Copy for AdmittedOpen<'_, T> {}
 
 impl<'a, T: Real> AdmittedOpen<'a, T> {
-    /// The open-chain door: admit a chain the battery resolved, or
-    /// refuse it through the frontier vocabulary.
-    ///
-    /// # Errors
-    ///
-    /// [`BlendError::UnsupportedChain`] when the chain has more than
-    /// one link (junction carry-through), or when its arm is neither
-    /// plane–plane nor ruled.
-    pub(super) fn admit(chain: &'a Chain<T>) -> Result<Self, BlendError> {
-        let link = chain.first();
-        if !chain.rest().is_empty() {
-            return Err(unbuilt_chain(
-                link.edge,
-                "an open chain with more than one link needs junction \
-                 carry-through, which is not implemented",
-            ));
-        }
-        // Two open bands are built, and the door admits exactly those:
-        // the plane–plane link, terminating in trivalent corners the
-        // corner patch fills, and the RULED link — a cylinder band
-        // about a straight spine over supports sharing the ruling —
-        // terminating in transverse caps the band is cut off at. The
-        // battery's predicate 6 has already classified each end as
-        // the one its arm needs; a coaxial torus arm on an open arc has
-        // neither termination and refuses here.
-        if !(link.arm.is_plane_plane() || link.arm.is_ruled()) {
-            return Err(unbuilt_chain(
-                link.edge,
-                "an open chain's supports are neither a plane–plane nor a ruled cylinder pair",
-            ));
-        }
-        // No convexity clause, and no verb: neither band asks for
-        // either. The ruled strip is minted from the supports' own
-        // outward normals and its corner patch from three trimline
-        // crossings; the rolling ball's cylinder, corner ball, feet
-        // and octant chart each fold the link's stored convexity
-        // verdict — one decision, derived at every site that needs
-        // its sign, on either side.
-        Ok(Self { link })
+    /// The token for one link of a chain [`OpenBand::admit`] is
+    /// admitting — called from that door only, after its arm check.
+    fn admitted(link: &'a Link<T>) -> Self {
+        Self { link }
     }
 
     /// The admitted link.
@@ -134,6 +104,195 @@ impl<'a, T: Real> AdmittedOpen<'a, T> {
     /// planned.
     pub(super) fn convexity(&self) -> Convexity {
         self.link.convexity
+    }
+}
+
+/// **A joint of an admitted open band**: an interior valence-2
+/// vertex of the chain where two consecutive plane–plane links meet on
+/// the SAME two support faces.
+///
+/// Identical supports are what make it the trivial junction: the arm
+/// is one function of the two supports, so it is the same on either
+/// side, the two links' bands are one surface, and the joint only
+/// splits it. The band is carved as ONE face across the joint, whose
+/// trimlines carry the joint's two feet as vertices — the same shape
+/// the supports keep, whose boundary carries the joint itself.
+pub(super) struct Joint {
+    vertex: VertexKey,
+    faces: [FaceKey; 2],
+    arriving: EdgeKey,
+}
+
+impl Joint {
+    /// Admit the junction at `vertex` between `arriving` and `leaving`
+    /// as a joint; `chain` is the edge the chain refuses under.
+    ///
+    /// # Errors
+    ///
+    /// [`BlendError::UnsupportedChain`] when the two links are not both
+    /// plane–plane, or do not lie between the same two support faces;
+    /// [`BlendError::BodyNotIntact`] when the vertex's orbit does not
+    /// walk; [`BlendError::UnsupportedCorner`] when the vertex carries
+    /// edges other than the two links.
+    fn admit<T: Decide>(
+        body: &Body<T>,
+        vertex: VertexKey,
+        arriving: &Link<T>,
+        leaving: &Link<T>,
+        chain: EdgeKey,
+    ) -> Result<Self, BlendError> {
+        // Only the plane–plane band mints the struts a joint is fused
+        // across: the ruled band is cut off at plane caps and
+        // mints none, and a torus arm on an open arc has no band.
+        match joint_verdict(body, vertex, arriving, leaving) {
+            JointVerdict::Joint => {}
+            JointVerdict::NotPlanar => {
+                return Err(unbuilt_chain(
+                    chain,
+                    "an open chain's links meet on supports other than two planes; that \
+                     junction is not implemented",
+                ));
+            }
+            JointVerdict::OtherFaces => {
+                return Err(unbuilt_chain(
+                    chain,
+                    "an open chain's links meet on different support faces; that junction is \
+                     not implemented",
+                ));
+            }
+            JointVerdict::Valence(valence) => {
+                return Err(unbuilt_corner_config(
+                    vertex,
+                    CornerConfig::NEdgeVertex { valence },
+                ));
+            }
+            JointVerdict::OrbitBroken => {
+                return Err(not_intact(
+                    EntityId::Vertex(vertex),
+                    "a joint's vertex orbit does not walk",
+                ));
+            }
+        }
+        Ok(Self {
+            vertex,
+            faces: [arriving.face_a, arriving.face_b],
+            arriving: arriving.edge,
+        })
+    }
+
+    /// The joint vertex.
+    pub(super) fn vertex(&self) -> VertexKey {
+        self.vertex
+    }
+
+    /// The two support faces both links lie between, in the arriving
+    /// link's `(face_a, face_b)` order.
+    pub(super) fn faces(&self) -> [FaceKey; 2] {
+        self.faces
+    }
+
+    /// The link arriving at the joint in walk order — the one whose
+    /// trimlines the joint's feet are read off.
+    pub(super) fn arriving(&self) -> EdgeKey {
+        self.arriving
+    }
+}
+
+/// **A chain admitted through the open-chain door**: its links, in
+/// walk order, every one plane–plane or ruled, and every junction
+/// between them a [`Joint`].
+///
+/// A one-link chain is a band of one link and no joints. A chain of
+/// several is admitted only where each consecutive pair shares BOTH
+/// support faces — a rim a valence-2 vertex splits, which is what a
+/// coplanar-face merge leaves of a subdivided wall — and only on the
+/// plane–plane arm. Any other junction is general junction
+/// carry-through, and refuses.
+///
+/// Non-emptiness is the shape, as on [`super::battery::Chain`]: the
+/// first link lives in its own field.
+pub(super) struct OpenBand<'a, T: Real> {
+    first: AdmittedOpen<'a, T>,
+    rest: Vec<AdmittedOpen<'a, T>>,
+    joints: Vec<Joint>,
+}
+
+impl<'a, T: Decide> OpenBand<'a, T> {
+    /// The open-chain door: admit a chain the battery resolved, or
+    /// refuse it through the frontier vocabulary.
+    ///
+    /// # Errors
+    ///
+    /// [`Joint::admit`]'s refusals at any junction, and
+    /// [`BlendError::UnsupportedChain`] when a link's arm is neither
+    /// plane–plane nor ruled.
+    pub(super) fn admit(body: &Body<T>, chain: &'a Chain<T>) -> Result<Self, BlendError> {
+        // Two open bands are built, and the door admits exactly those:
+        // the plane–plane link, terminating in trivalent corners the
+        // corner patch fills, and the RULED link — a cylinder band
+        // about a straight spine over supports sharing the ruling —
+        // terminating in plane caps the band is cut off at. The
+        // battery's predicate 6 has already classified each end as
+        // the one its arm needs; a coaxial torus arm on an open arc has
+        // neither termination and refuses here.
+        //
+        // No convexity clause, and no verb: neither band asks for
+        // either. The ruled strip is minted from the supports' own
+        // outward normals and its corner patch from three trimline
+        // crossings; the rolling ball's cylinder, corner ball, feet
+        // and octant chart each fold the link's stored convexity
+        // verdict — one decision, derived at every site that needs
+        // its sign, on either side.
+        let links: Vec<&'a Link<T>> = chain.links().collect();
+        let mut joints = Vec::with_capacity(chain.junctions.len());
+        for j in &chain.junctions {
+            let (Some(a), Some(b)) = (links.get(j.arriving()), links.get(j.leaving())) else {
+                return Err(not_intact(
+                    EntityId::Vertex(j.vertex),
+                    "a chain junction names a link position the chain does not carry",
+                ));
+            };
+            joints.push(Joint::admit(body, j.vertex, a, b, chain.first().edge)?);
+        }
+        for link in chain.links() {
+            if !(link.arm.is_plane_plane() || link.arm.is_ruled()) {
+                return Err(unbuilt_chain(
+                    link.edge,
+                    "an open chain's supports are neither a plane–plane nor a ruled cylinder pair",
+                ));
+            }
+        }
+        let first = AdmittedOpen::admitted(chain.first());
+        let rest = chain.rest().iter().map(AdmittedOpen::admitted).collect();
+        Ok(Self {
+            first,
+            rest,
+            joints,
+        })
+    }
+
+    /// The band's first link in walk order — always present.
+    pub(super) fn first(&self) -> AdmittedOpen<'a, T> {
+        self.first
+    }
+
+    /// Every link, in walk order. Never empty.
+    pub(super) fn links(&self) -> impl Iterator<Item = AdmittedOpen<'a, T>> + '_ {
+        core::iter::once(self.first).chain(self.rest.iter().copied())
+    }
+
+    /// The lowest-keyed link — the one the band's face is ordered and
+    /// surfaced by.
+    pub(super) fn lowest(&self) -> AdmittedOpen<'a, T> {
+        self.rest
+            .iter()
+            .copied()
+            .fold(self.first, |m, o| if o.edge() < m.edge() { o } else { m })
+    }
+
+    /// The joints between consecutive links — empty on a one-link band.
+    pub(super) fn joints(&self) -> &[Joint] {
+        &self.joints
     }
 }
 
@@ -370,34 +529,89 @@ impl CornerFaces {
     }
 }
 
-/// One boundary station of an admitted support face: the half-edge the
-/// strut is spun off, the vertex it stands on, the boundary edge that
-/// leaves it, and the corner's foot on this face (the fillet's ball
-/// rest; the chamfer's trimline crossing — the plan derives it, the
-/// door carries it).
+/// One station of an admitted support face: a vertex of its boundary
+/// where a requested edge ends, and the band's foot on this face there
+/// (the fillet's ball rest or the chamfer's trimline crossing at a
+/// corner, the trimline's foot at a joint or a cut-off — the plan
+/// derives it, the door carries it).
 pub(super) struct BoundaryStation<T: Real> {
-    /// The cycle half-edge whose start is [`BoundaryStation::vertex`].
+    /// The cycle half-edge whose start is [`BoundaryStation::vertex`]:
+    /// where a strut is spliced.
     pub(super) half_edge: HalfEdgeKey,
-    /// The boundary vertex the strut stands on.
+    /// The boundary vertex.
     pub(super) vertex: VertexKey,
-    /// The boundary edge leaving that vertex, in cycle order.
-    pub(super) edge: EdgeKey,
-    /// The corner's foot on this face — the strut's far point.
+    /// The band's foot on this face.
     pub(super) foot: Point3<T>,
+    /// Which planned end or joint the station is.
+    pub(super) kind: StationKind,
 }
 
-/// **A support face whose ENTIRE outer cycle is requested**: every
-/// boundary edge is an admitted open link, and every boundary vertex
-/// is a planned corner that counts this face among its three.
+/// Which of the three planned shapes a station is — one, by admission.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum StationKind {
+    /// A corner patch's sharp vertex.
+    Corner,
+    /// A joint, where one band runs on through.
+    Joint,
+    /// A cut-off's old vertex.
+    CutOff,
+    /// A turn, on the face both its bands support: the foot is where
+    /// their trimlines cross.
+    Mitre,
+    /// A turn, on one of the third edge's two faces: the foot is on
+    /// that edge, which the carve splits there.
+    TurnFoot,
+}
+
+impl StationKind {
+    /// Whether the carve spins a STRUT out to the foot — at a corner, a
+    /// joint or a turn's shared face, whose foot lies inside the face —
+    /// rather than finding it already on a split edge, at a cut-off or
+    /// a turn's foot.
+    pub(super) fn spins_a_strut(self) -> bool {
+        match self {
+            Self::Corner | Self::Joint | Self::Mitre => true,
+            Self::CutOff | Self::TurnFoot => false,
+        }
+    }
+}
+
+/// One requested edge of an admitted support face, as its boundary
+/// traverses it: the carve's trimline chord runs from the foot at
+/// `from` to the foot at `to`.
+pub(super) struct BoundaryChord<T: Real> {
+    /// The requested edge's half-edge in this face's cycle.
+    pub(super) half_edge: HalfEdgeKey,
+    /// The requested edge.
+    pub(super) edge: EdgeKey,
+    /// The station the half-edge starts at.
+    pub(super) from: VertexKey,
+    /// The station it ends at.
+    pub(super) to: VertexKey,
+    /// The band's feet on this face at `from` and at `to`, the two
+    /// stations' own.
+    pub(super) feet: [Point3<T>; 2],
+}
+
+/// One planned cut-off, as support admission reads it: the old vertex,
+/// the band's two supports, and its foot on each in that order.
+pub(super) type CutOffRow<T> = (VertexKey, [FaceKey; 2], [Point3<T>; 2]);
+
+/// **A support face's requested boundary**: every requested edge in its
+/// cycles, each ending at two stations, and every station a planned
+/// corner or joint that counts this face among its supports, or a
+/// planned cut-off or turn whose band this face supports.
 ///
-/// The blank phase carves such a face into the shrunk face plus one
-/// strip per edge, and that carve is well-defined only under exactly
-/// this property. Admission checks it in the plan phase, before any
-/// mutation, and hands the carve the walk it checked plus each
-/// station's foot — so the carve reads no source geometry of its own.
+/// The blank phase carves such a face LOCALLY — one strip per requested
+/// edge, the rest of the face shrunk and kept — and that carve is
+/// well-defined under exactly this property. Admission checks it in the
+/// plan phase, before any mutation, and hands the carve the walk it
+/// checked plus each station's foot, so the carve reads no source
+/// geometry of its own.
 pub(super) struct RequestedBoundary<T: Real> {
     face: FaceKey,
     stations: Vec<BoundaryStation<T>>,
+    chords: Vec<BoundaryChord<T>>,
 }
 
 // `Decide` alone: admission walks a cycle and folds a stored plane
@@ -408,84 +622,150 @@ impl<T: Decide> RequestedBoundary<T> {
     /// Admit one support face of the plan.
     ///
     /// `corners` is `(vertex, its three faces, its three FEET in those
-    /// faces' orbit order)` for every planned corner. The feet are the
-    /// plan's, not this door's: where a band's trimlines meet on a
-    /// support is the one thing the two verbs derive differently (the
-    /// ball's foot; the two trimlines' crossing), and deriving it here
-    /// would put that difference in the door instead of in the plan
+    /// faces' orbit order)` for every planned corner, `joints` is
+    /// `(joint, its foot on each of its two faces in that order)` for
+    /// every planned joint, `cut_offs` is `(vertex, the band's two
+    /// supports, its foot on each in that order)` for every planned
+    /// cut-off, and `turns` is every planned turn, whose station on its
+    /// shared face is the trimlines' crossing and on each of its third
+    /// edge's faces the foot. The
+    /// feet are the plan's, not this door's: where a band's
+    /// trimlines meet a support is what the two verbs derive differently
+    /// (the ball's foot; the two trimlines' crossing), and deriving it
+    /// here would put that difference in the door instead of in the plan
     /// that owns it.
     ///
     /// # Errors
     ///
-    /// [`BlendError::BodyNotIntact`] when the face has no outer cycle
-    /// that walks, or a planned corner does not carry a foot on this
-    /// face; [`BlendError::UnsupportedGeometry`] when the face is not
-    /// a plane; [`BlendError::UnsupportedRunOut`] when a boundary edge
-    /// is not requested, or a boundary vertex is not a planned corner
-    /// of this face.
+    /// [`BlendError::BodyNotIntact`] when a cycle of the face does not
+    /// walk, or a requested edge ends at a vertex that is not exactly
+    /// one planned station of this face; [`BlendError::UnsupportedGeometry`]
+    /// when the face is not a plane.
     pub(super) fn admit(
         body: &Body<T>,
         face: FaceKey,
         opens: &[AdmittedOpen<'_, T>],
         corners: &[(VertexKey, &CornerFaces, [Point3<T>; 3])],
+        joints: &[(&Joint, [Point3<T>; 2])],
+        cut_offs: &[CutOffRow<T>],
+        turns: &[Turn<T>],
     ) -> Result<Self, BlendError> {
         // Read once so a face that is not a plane refuses at this door
         // rather than deeper in the carve.
         outward_of(body, face)
             .ok_or_else(|| unbuilt_geometry(EntityId::Face(face), CORNER_SUPPORT_NOT_PLANAR))?;
-        let cycle = face_cycle(body, face).ok_or_else(|| {
-            not_intact(
-                EntityId::Face(face),
-                "a support face has no outer cycle that walks",
-            )
-        })?;
-        let mut stations = Vec::with_capacity(cycle.len());
-        for he in cycle {
-            // Every member of a returned cycle was resolved by the
-            // bounded walk that returned it.
-            let Some(h) = body.get_half_edge(he) else {
-                unreachable!(
-                    "support admission: cycle members are proven live by the bounded walk \
-                     `face_cycle` just ran"
-                )
-            };
-            // A face touched by an open link has its ENTIRE outer
-            // cycle requested — each boundary vertex is a
-            // fully-requested corner, so both its edges on this face
-            // are. Both halves are CHECKED here rather than asserted
-            // downstream.
-            if !opens.iter().any(|o| o.edge() == h.edge) {
-                return Err(unbuilt_run_out(
-                    EntityId::Edge(h.edge),
-                    "a support face's boundary carries an edge the request does not cover",
-                ));
-            }
-            let Some((_, faces, feet)) = corners
+        let fd = body
+            .get_face(face)
+            .ok_or_else(|| not_intact(EntityId::Face(face), "a support face"))?;
+        let station = |he: HalfEdgeKey, v: VertexKey| -> Result<BoundaryStation<T>, BlendError> {
+            let corner = corners
                 .iter()
-                .find(|(v, faces, _)| *v == h.start && faces.contains(face))
-            else {
-                return Err(unbuilt_run_out(
-                    EntityId::Vertex(h.start),
-                    "a support face's boundary vertex is not a fully requested corner of this face",
-                ));
-            };
-            // `contains` above passed, so the slot is present; keyed
-            // rather than positional so the row cannot be another
-            // support's.
-            let Some(slot) = faces.slot_of(face) else {
-                return Err(not_intact(
-                    EntityId::Face(face),
-                    "a planned corner carries this face but has no foot on it",
-                ));
-            };
-            stations.push(BoundaryStation {
-                half_edge: he,
-                vertex: h.start,
-                edge: h.edge,
-                foot: feet[slot],
+                .find(|(c, faces, _)| *c == v && faces.contains(face))
+                .map(|(_, faces, feet)| faces.slot_of(face).map(|slot| feet[slot]));
+            let joint = joints
+                .iter()
+                .find(|(j, _)| j.vertex() == v && j.faces().contains(&face))
+                .map(|(j, feet)| {
+                    if j.faces()[0] == face {
+                        feet[0]
+                    } else {
+                        feet[1]
+                    }
+                });
+            let cut = cut_offs
+                .iter()
+                .find(|(c, faces, _)| *c == v && faces.contains(&face))
+                .map(|(_, faces, feet)| if faces[0] == face { feet[0] } else { feet[1] });
+            let turn = turns.iter().find(|t| t.vertex == v).and_then(|t| {
+                if t.shared == face {
+                    Some((t.crossing, StationKind::Mitre))
+                } else {
+                    t.others
+                        .contains(&face)
+                        .then_some((t.foot, StationKind::TurnFoot))
+                }
             });
+            // A corner and a joint END a band and run through it, and a
+            // cut-off's vertex carries one requested edge, a turn's two
+            // and a corner's three — so a vertex is at most one of the
+            // four, and a requested edge's end is at least one.
+            let (foot, kind) = match (corner, joint, cut, turn) {
+                (Some(Some(foot)), None, None, None) => (foot, StationKind::Corner),
+                (None, Some(foot), None, None) => (foot, StationKind::Joint),
+                (None, None, Some(foot), None) => (foot, StationKind::CutOff),
+                (None, None, None, Some(station)) => station,
+                _ => {
+                    return Err(not_intact(
+                        EntityId::Vertex(v),
+                        "a requested edge of a support ends at a vertex that is not exactly one \
+                         planned corner, joint, cut-off or turn of that support",
+                    ));
+                }
+            };
+            Ok(BoundaryStation {
+                half_edge: he,
+                vertex: v,
+                foot,
+                kind,
+            })
+        };
+        // A station's foot, admitting the station the first time one of
+        // its requested edges reaches it.
+        let footed = |stations: &mut Vec<BoundaryStation<T>>,
+                      he: HalfEdgeKey,
+                      v: VertexKey|
+         -> Result<Point3<T>, BlendError> {
+            if let Some(s) = stations.iter().find(|s| s.vertex == v) {
+                return Ok(s.foot);
+            }
+            let s = station(he, v)?;
+            let foot = s.foot;
+            stations.push(s);
+            Ok(foot)
+        };
+        let mut stations: Vec<BoundaryStation<T>> = Vec::new();
+        let mut chords = Vec::new();
+        for lp in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+            let walk = loop_cycle_of(body, lp).ok_or_else(|| {
+                not_intact(
+                    EntityId::Loop(lp),
+                    "a cycle of a support face does not walk",
+                )
+            })?;
+            let n = walk.len();
+            for (i, &he) in walk.iter().enumerate() {
+                // Every member of a returned cycle was resolved by the
+                // bounded walk that returned it.
+                let (Some(h), Some(next)) = (
+                    body.get_half_edge(he),
+                    body.get_half_edge(walk[(i + 1) % n]),
+                ) else {
+                    unreachable!(
+                        "support admission: cycle members are proven live by the bounded \
+                         walk `loop_cycle_of` just ran"
+                    )
+                };
+                if !opens.iter().any(|o| o.edge() == h.edge) {
+                    continue;
+                }
+                let feet = [
+                    footed(&mut stations, he, h.start)?,
+                    footed(&mut stations, walk[(i + 1) % n], next.start)?,
+                ];
+                chords.push(BoundaryChord {
+                    half_edge: he,
+                    edge: h.edge,
+                    from: h.start,
+                    to: next.start,
+                    feet,
+                });
+            }
         }
-        Ok(Self { face, stations })
+        Ok(Self {
+            face,
+            stations,
+            chords,
+        })
     }
 
     /// The admitted support face.
@@ -493,9 +773,23 @@ impl<T: Decide> RequestedBoundary<T> {
         self.face
     }
 
-    /// Its boundary stations, in cycle order.
+    /// Its stations, in cycle order.
     pub(super) fn stations(&self) -> &[BoundaryStation<T>] {
         &self.stations
+    }
+
+    /// Its requested edges, in cycle order.
+    pub(super) fn chords(&self) -> &[BoundaryChord<T>] {
+        &self.chords
+    }
+}
+
+/// The half-edges of one loop's cycle, in `next` order: empty for a
+/// lone-vertex loop, `None` where the loop or its cycle does not walk.
+fn loop_cycle_of<T: Decide>(body: &Body<T>, lp: topo::LoopKey) -> Option<Vec<HalfEdgeKey>> {
+    match body.get_loop(lp)?.boundary {
+        topo::LoopBoundary::Cycle { first } => body.loop_cycle(first),
+        topo::LoopBoundary::Empty { .. } => Some(Vec::new()),
     }
 }
 
@@ -507,7 +801,7 @@ mod tests {
 
     use super::super::BlendError;
     use super::super::battery::{Chain, ChainClosure, Link};
-    use super::{AdmittedOpen, CornerFaces, CornerLinks};
+    use super::{AdmittedOpen, CornerFaces, CornerLinks, OpenBand};
     use crate::test_support::{L, all_links, cube};
 
     /// **What guards the unforgeability claim**, since nothing else
@@ -517,8 +811,10 @@ mod tests {
     /// is a constructor added *inside* the boundary that skips the
     /// check, so this row asserts both halves of "inside":
     ///
-    /// 1. **Four token types, four `Self` struct literals, one apiece**,
-    ///    each inside the door that checks. A fifth reddens this row.
+    /// 1. **Six token types, six `Self` struct literals, one apiece**,
+    ///    each inside the door that checks — the open link's inside
+    ///    [`super::OpenBand::admit`]'s, through the one private helper
+    ///    that door calls. A seventh reddens this row.
     /// 2. **No child module**, because `admit/…` would be inside the
     ///    privacy boundary *and* outside this file's text — the one
     ///    escape that defeats clause 1 silently.
@@ -549,9 +845,10 @@ mod tests {
         let source = test_utils::source::code_only(include_str!("admit.rs"));
         let literals = source.matches("Self {").count() - source.matches("-> Self {").count();
         assert_eq!(
-            literals, 4,
+            literals, 6,
             "admit.rs must hold exactly one construction site per token type \
-             (AdmittedOpen, CornerLinks, CornerFaces, RequestedBoundary) — found {literals}"
+             (AdmittedOpen, Joint, OpenBand, CornerLinks, CornerFaces, RequestedBoundary) \
+             — found {literals}"
         );
         let child = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/blend/admit");
         assert!(
@@ -579,7 +876,11 @@ mod tests {
         let chains: Vec<Chain<f64>> = links.iter().cloned().map(open_chain).collect();
         let admitted: Vec<AdmittedOpen<'_, f64>> = chains
             .iter()
-            .map(|c| AdmittedOpen::admit(c).expect("a cube's links are plane–plane"))
+            .map(|c| {
+                OpenBand::admit(&body, c)
+                    .expect("a cube's links are plane–plane")
+                    .first()
+            })
             .collect();
         let vertex = links[0].start;
         let stranger = *admitted

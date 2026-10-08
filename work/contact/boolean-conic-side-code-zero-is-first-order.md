@@ -29,3 +29,14 @@ If this is reached, a wrong germ at the vertex refuses at the join
 (`SplitJoinError::UnpairedLooseEnds`, whose message names this cause).
 The fix's shape is the splitting lane's: descend to second order at
 the Zero, and keep On only for a second-order tie.
+
+**Reached, in its declared form (TANG m9-3 residues, 2026-10-01).**
+`crates/sweep/tests/m9_3_zip.rs`'s
+`a_tangent_curved_sector_on_a_face_lumps_whole` puts a quarter round's
+arc, tangent at its end vertex, on a face containing that vertex: the
+arc bound reads On at first order exactly as described. Declared
+`Tangent`, the wall sector descends through `tangent_lump`; undeclared,
+the curved on-carrier sector refuses C8 (`CurvedBooleanUnsupported`)
+first, so the undeclared wrong-germ path is still not reached. The same
+fixture shows the arc split at the band's edge
+(`work/hone/an-arc-tangent-to-a-face-at-its-end-is-split-at-the-edge-of-the-band.md`).

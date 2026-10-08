@@ -14,25 +14,27 @@
 //! file still render a payload through `Debug`, each for a stated
 //! reason: `WebStartupError::Runner` (a `JsValue` the orphan rule
 //! forecloses writing a `Display` for) and `Disagreement` (a role path,
-//! whose `RoleSeg` has none). One message door that is not a `Display`
-//! renders one too, for `Disagreement`'s reason: `frame::pick_refusal`
-//! writes the certified tie's faces with their role paths, because a
-//! sentence about two answers that cannot be told apart cannot render
-//! them as the same words (`frame_policy.rs`,
-//! `the_status_line_renders_two_tied_faces_as_two_different_phrases`). `PreviewError::Transition` is not one of
+//! whose `RoleSeg` has none, printed for the operator who replays a
+//! picking-path bug). `PreviewError::Transition` is not one of
 //! them and is not covered here either: it needs a replayed chain to
 //! carry a verb at all, so its prose row sits beside the chain that
 //! produces it (`tests/path_authoring.rs`,
 //! `an_illegal_walk_refuses_at_the_preview_and_at_the_door`).
 
 use bvh::Aabb;
-use editor_core::{HitTestError, InterrogateError, MateSide, NodePickError};
-use pncad::document::{EditError, RecipeNodeId};
+use editor_core::{
+    HitTestError, InterrogateError, MateSide, NameLookupError, NodePickError, NodeStanding,
+    UnnamedEntity,
+};
+use pncad::document::{EditError, RecipeNodeId, Said, Speaker};
 use pncad::mesh::TessellateError;
+use test_utils::refusal::tagged;
 use viewer::camera::{CameraError, CameraOp, CameraOpError};
 use viewer::history::ReplayError;
 use viewer::matetool::MateToolError;
-use viewer::pickindex::{EdgeNameFault, IdMapError, PatchId, PickError, PickIndexError};
+use viewer::pickindex::{
+    EdgeNameFault, EdgeNamesRefused, IdMapError, PatchId, PickError, PickIndexError,
+};
 use viewer::scene::{SceneDocError, SceneError};
 
 /// Whether a rendering looks like a derived `Debug` rather than prose:
@@ -149,15 +151,26 @@ fn camera_op_renders_as_the_move_it_is() {
 
 #[test]
 fn scene_error_names_the_counts_it_carries() {
-    let delta = SceneError::InvalidDisplayTolerance { delta: -1.0 }.to_string();
-    assert!(delta.contains("-1"), "{delta}");
+    let delta = SceneError::InvalidDisplayTolerance {
+        delta: -1.0,
+        unit: pncad::quantity::MM,
+    }
+    .to_string();
+    assert!(
+        delta.contains("-1 mm"),
+        "the δ in the unit it was written in: {delta}"
+    );
     prose(&delta, "InvalidDisplayTolerance");
 
     // The second δ arm, whose whole point is that it is NOT the first:
     // the value it names is a finite, strictly positive length, and
     // what it lacks is a millimetre reading.
-    let coarse = SceneError::DisplayToleranceOverflowsMillimetres { delta: 1.0e306 }.to_string();
-    assert!(coarse.contains("1e306"), "{coarse}");
+    let coarse = SceneError::DisplayToleranceOverflowsMillimetres {
+        delta: 1.0e306,
+        unit: pncad::quantity::M,
+    }
+    .to_string();
+    assert!(coarse.contains("1e306 m"), "{coarse}");
     assert!(
         coarse.contains("millimetre"),
         "the arm says what the δ lacks, not that it is not a length: {coarse}"
@@ -214,6 +227,7 @@ fn mate_tool_error_forwards_its_frame_arm() {
     let outer = MateToolError::Frame {
         side: MateSide::A,
         error: inner,
+        held: pncad::document::HeldNodes::default(),
     }
     .to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
@@ -229,7 +243,7 @@ fn scene_doc_error_renders_its_postcondition_arm() {
 fn id_map_error_names_the_patch_and_the_count() {
     let duplicate = IdMapError::Duplicate {
         key: PatchId {
-            node: RecipeNodeId(7),
+            node: RecipeNodeId::new(0, tagged(7)),
             body: 1,
             patch: 2,
         },
@@ -254,19 +268,62 @@ fn pick_index_error_forwards_its_id_arm() {
 }
 
 /// The indexing arm carries `editor-core`'s own refusal, and the root
-/// it names is this layer's contribution — both reach the reader.
+/// it names is this layer's contribution. The arm claims only that the
+/// root was not indexed, which is true of every payload: why — no
+/// value, no body, a tessellation refusal — is the payload's to say.
 #[test]
-fn pick_index_error_forwards_its_node_arm() {
-    let node = RecipeNodeId(7);
-    let inner = NodePickError::NotABody { node };
-    let outer = PickIndexError::Node {
-        node,
-        error: inner.clone(),
+fn pick_index_error_says_only_that_its_root_was_not_indexed() {
+    let node = RecipeNodeId::new(0, tagged(7));
+    let not_a_body = NodePickError::NotABody { node };
+    let standing = NodeStanding::Failed { node };
+    for inner in [not_a_body, NodePickError::Standing(standing)] {
+        let outer = PickIndexError::Node {
+            node,
+            error: inner.clone(),
+        }
+        .to_string();
+        assert_eq!(
+            outer,
+            format!(
+                "root 000000000007 could not be indexed: {}",
+                Said(&inner, Speaker::TAG.about(node))
+            )
+        );
     }
-    .to_string();
-    assert!(outer.contains(&inner.to_string()), "{outer}");
-    assert!(outer.contains('7'), "{outer}");
-    prose(&outer, "NotABody");
+}
+
+/// A node with no value is the one fact a pick-index refusal shares
+/// with the tree, at the build and at the name doors alike; every
+/// other refusal is the index's own.
+#[test]
+fn pick_index_error_reads_a_standing_at_the_build_and_at_the_name_doors() {
+    let node = RecipeNodeId::new(0, tagged(7));
+    let standing = NodeStanding::Failed { node };
+    let build = PickIndexError::Node {
+        node,
+        error: NodePickError::Standing(standing),
+    };
+    let names = PickIndexError::Names(NameLookupError::Standing(standing));
+    let not_a_body = PickIndexError::Node {
+        node,
+        error: NodePickError::NotABody { node },
+    };
+    assert_eq!(
+        (build.standing(), names.standing(), not_a_body.standing()),
+        (Some(standing), Some(standing), None)
+    );
+    let poisoned = NodeStanding::Poisoned {
+        node,
+        through: RecipeNodeId::new(0, tagged(3)),
+    };
+    assert_eq!(
+        names.restated(|_| poisoned),
+        Some((
+            standing,
+            PickIndexError::Names(NameLookupError::Standing(poisoned))
+        )),
+        "the standing is re-read in its own seat"
+    );
 }
 
 /// The layout arm is this layer's OWN finding — no payload to forward
@@ -275,7 +332,7 @@ fn pick_index_error_forwards_its_node_arm() {
 #[test]
 fn pick_index_error_names_the_body_drawn_twice() {
     let drawn_twice = PickIndexError::DrawnTwice {
-        node: RecipeNodeId(7),
+        node: RecipeNodeId::new(0, tagged(7)),
         body: 2,
     }
     .to_string();
@@ -296,29 +353,71 @@ fn pick_error_forwards_its_camera_arm() {
 /// composing a sentence about somebody else's refusal.
 #[test]
 fn pick_error_forwards_its_hit_test_arm() {
-    let inner = HitTestError::NodeFailed {
-        node: RecipeNodeId(4),
-    };
+    let inner = HitTestError::Standing(NodeStanding::Failed {
+        node: RecipeNodeId::new(0, tagged(4)),
+    });
     let outer = PickError::HitTest(inner.clone()).to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
     prose(&outer, "NodeFailed");
 }
 
-/// A drawn edge with no name carries the naming layer's own report.
+/// A drawn edge with no name carries the naming layer's own report —
+/// a lookup's, whole, and the sentence says no hit test ran, because
+/// the index was built by a table read and the status line that
+/// forwards this refusal must not name an event that did not happen.
 #[test]
 fn edge_name_fault_forwards_its_unnamed_arm() {
-    let inner = HitTestError::NodeFailed {
-        node: RecipeNodeId(4),
+    let inner = UnnamedEntity {
+        node: RecipeNodeId::new(0, tagged(4)),
+        entity: editor_core::EntityRef {
+            body: 0,
+            key: editor_core::EntityKey::Edge(pncad::topo::EdgeKey::default()),
+        },
     };
-    let outer = EdgeNameFault::Unnamed(inner.clone()).to_string();
+    let outer = EdgeNameFault::Unnamed(inner).to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
+    assert!(!outer.contains("hit test"), "{outer}");
     prose(&outer, "Unnamed");
+    let picked = PickError::EdgeName(EdgeNameFault::Unnamed(inner)).to_string();
+    assert!(picked.contains(&inner.to_string()), "{picked}");
+    assert!(!picked.contains("hit test"), "{picked}");
 }
 
+/// A body's edge-name refusal names the body and its counts, and
+/// forwards its refusal through [`EdgeNameFault::Unnamed`]'s own words
+/// rather than saying "no name" again in its own.
 #[test]
-fn replay_error_names_the_log_position_and_forwards_the_refusal() {
+fn edge_names_refused_forwards_its_first_refusal() {
+    let first = crate::common::unnamed_edge(RecipeNodeId::new(0, tagged(4)), 1);
+    let said = EdgeNamesRefused {
+        node: RecipeNodeId::new(0, tagged(4)),
+        body: 1,
+        first,
+        named: 11,
+        refused: 1,
+    }
+    .to_string();
+    let fault = Said(
+        &EdgeNameFault::Unnamed(first),
+        Speaker::TAG.about(RecipeNodeId::new(0, tagged(4))),
+    )
+    .to_string();
+    assert_eq!(
+        said,
+        format!(
+            "the index names 11 of the 12 edges it draws on body 1 of node 000000000004; the first it cannot: {fault}"
+        )
+    );
+    prose(&said, "EdgeNamesRefused");
+}
+
+/// The replay forwards the refusal's problem and ends as a damaged
+/// file or a defect does: nobody is making the logged edit, so the edit
+/// door's recourse is not the reader's.
+#[test]
+fn replay_error_names_the_log_position_and_forwards_the_problem() {
     let inner = EditError::UnknownNode {
-        id: RecipeNodeId(4),
+        id: editor_core::SpokenNode::absent(RecipeNodeId::new(0, tagged(4))),
     };
     let outer = ReplayError::Refused {
         index: 3,
@@ -326,7 +425,11 @@ fn replay_error_names_the_log_position_and_forwards_the_refusal() {
     }
     .to_string();
     assert!(outer.contains('3'), "{outer}");
-    assert!(outer.contains(&inner.to_string()), "{outer}");
+    assert!(outer.contains(&inner.problem().to_string()), "{outer}");
+    assert!(
+        outer.ends_with(geom_core::KERNEL_OR_FILE_DEFECT_ENDING) && !outer.contains("Recourse:"),
+        "{outer}"
+    );
     prose(&outer, "Refused");
 }
 
@@ -338,13 +441,16 @@ fn indeterminate_wording_forwards_the_causes_own_words() {
     use editor_core::ResolveIndeterminate;
     use viewer::app::indeterminate_wording;
 
-    let cause = ResolveIndeterminate::TargetFailed {
-        node: RecipeNodeId(6),
+    let cause = ResolveIndeterminate {
+        standing: NodeStanding::Failed {
+            node: RecipeNodeId::new(0, tagged(6)),
+        },
     };
-    let shown = indeterminate_wording("face", &cause);
+    let shown = indeterminate_wording("face", &cause, Speaker::TAG);
     assert!(shown.contains("face"), "{shown}");
     assert!(shown.contains(&cause.to_string()), "{shown}");
-    prose(&shown, "TargetFailed");
+    prose(&shown, "ResolveIndeterminate");
+    prose(&shown, "Failed");
 }
 
 test_utils::loud_skip_marker!(

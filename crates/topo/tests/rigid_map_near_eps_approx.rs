@@ -123,10 +123,13 @@ fn image(
 /// The seed body with `face` on its one face.
 fn body_with(face: geom::ApproxSurface<f64>) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
-    let created = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let created = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     body.set_face_surface(
         created.face,
-        FaceSurface::New(Surface::Approx(Arc::new(face))),
+        FaceSurface::New {
+            surface: Surface::Approx(Arc::new(face)),
+            sense: true,
+        },
     )
     .unwrap();
     (body, created.face)

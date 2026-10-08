@@ -92,7 +92,7 @@ impl From<FitError> for PcurveError {
 /// a named constant, never data-dependent): dense enough that the
 /// chord interpolant of the graph is well below any practical fit
 /// tolerance over a full period.
-pub const PCURVE_FIT_SAMPLES: usize = 129;
+pub const PCURVE_FIT_SAMPLES: u32 = 129;
 
 /// The exact rational-quadratic pcurve of an **ellipse arc in a plane
 /// chart** (the section plane itself, or any plane containing the
@@ -252,11 +252,10 @@ pub fn ellipse_pcurve_on_cylinder(
     // the cylinder frame (unwrapped continuously from the previous
     // sample — the graph is monotone in θ, steps < π by the schedule),
     // height along the axis.
-    let mut points = Vec::with_capacity(PCURVE_FIT_SAMPLES);
+    let mut points = Vec::with_capacity(PCURVE_FIT_SAMPLES as usize);
     let mut prev_u = 0.0f64;
     for i in 0..PCURVE_FIT_SAMPLES {
-        #[allow(clippy::cast_precision_loss)]
-        let theta = t0 + span * (i as f64 / (PCURVE_FIT_SAMPLES - 1) as f64);
+        let theta = crate::certify::schedule_param(t0, t1, i, PCURVE_FIT_SAMPLES);
         let p = carrier.eval(theta);
         let w = p - o;
         let radial = w - ax * w.dot(ax);

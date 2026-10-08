@@ -14,13 +14,14 @@
 use std::sync::Arc;
 
 use pncad::document::{
-    CancelToken, Dimension, Doc, DocEdit, DocParam, EvalOptions, Evaluation, ParamName, PartReach,
-    PartResolver, ProfileProgram, RecipeNodeId, SlotId, apply, evaluate,
+    Dimension, Doc, DocEdit, Evaluation, FreeVar, PartReach, PartResolver, ProfileProgram,
+    RecipeNodeId, SlotId, VarId, apply,
 };
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
 
 use crate::bounds;
+use crate::evalseam::evaluate_beside;
 use crate::props::{self, SlotValue};
 use crate::session::refuse::Refusal;
 
@@ -52,7 +53,7 @@ pub struct BoundsReading {
 impl BoundsReading {
     /// The reading as one line, in the unit the search used — the one
     /// place a probe's result becomes a sentence, for a slot field and
-    /// a document parameter's alike.
+    /// a document variable's alike.
     pub fn wording(&self) -> String {
         self.bounds.wording(self.unit)
     }
@@ -61,8 +62,8 @@ impl BoundsReading {
 /// The field a locally-valid-range probe was taken for.
 ///
 /// Two arms rather than one with an `Option`, for the reason
-/// `BeginGesture` and `BeginParamGesture` are two doors: a slot and a
-/// document parameter are addressed differently, and collapsing them
+/// `BeginGesture` and `BeginVariableGesture` are two doors: a slot and a
+/// document variable are addressed differently, and collapsing them
 /// puts an `Option` in every arm that reads one.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BoundsTarget {
@@ -73,10 +74,10 @@ pub enum BoundsTarget {
         /// The slot.
         slot: SlotId,
     },
-    /// A document parameter.
-    Param {
-        /// The parameter.
-        name: ParamName,
+    /// A document variable.
+    Variable {
+        /// The variable.
+        var: VarId,
     },
 }
 
@@ -107,9 +108,9 @@ pub(super) fn probe_bounds(
     // baseline" compares two runs of one function rather than a run
     // against the landed evaluation, which may have been taken at a
     // different memo state.
-    let baseline = bounds::Verdict::of(&evaluate_with(base, prior, resolver, tol));
+    let baseline = bounds::Verdict::of(&evaluate_beside(base, prior, resolver, tol));
     // A probe's edit is a slot value on one node — it never moves a
-    // cluster's gauge — but the door is the session's, so it levers
+    // group's root — but the door is the session's, so it levers
     // through the session's own seam like every other edit.
     let reach = PartReach::<f64>::with_resolver(resolver.as_ref(), tol);
     let result = bounds::probe(
@@ -120,7 +121,7 @@ pub(super) fn probe_bounds(
             };
             match apply(base, &edit, tol, &reach) {
                 Ok(applied) => {
-                    let eval = evaluate_with(&applied.doc, prior, resolver, tol);
+                    let eval = evaluate_beside(&applied.doc, prior, resolver, tol);
                     bounds::Verdict::of(&eval).no_worse_than(&baseline)
                 }
                 // The edit door refused: at this value there is no
@@ -141,7 +142,7 @@ pub(super) fn probe_bounds(
 
 /// One written `unit`, in canonical terms — the probe's step, and
 /// the one place that arithmetic is spelled, so a slot's seed and a
-/// parameter's seed are the same answer to the same question.
+/// variable's seed are the same answer to the same question.
 /// `None` is the field that names no unit at all (a count, a bare
 /// scalar), whose step is 1.
 fn probe_seed(unit: Option<UnitDef>) -> f64 {
@@ -184,46 +185,43 @@ fn probe_scale(
                 .into_iter()
                 .find(|row| row.slot == *slot)
                 .and_then(|row| Some((row.value.ok()?, row.dimension, row.unit)));
-            let Some((value, dimension, remembered)) = found else {
+            let Some((value, dimension, unit)) = found else {
                 return Err(Refusal::NoSuchSlot {
-                    node: *node,
+                    node: doc.spoken(*node),
                     slot: *slot,
                 });
             };
-            let value = value.as_f64();
-            // Whatever unit the field is written in — through
-            // `rendering_unit`, so a computed slot's step is the
-            // same unit the panel shows it in rather than a second
-            // answer to the same question.
-            let unit = props::rendering_unit(dimension, remembered);
-            Ok((value, unit, dimension == Dimension::Count))
+            // The unit the field is written in, which a literal
+            // remembers: a slot whose value nobody wrote is driven,
+            // and `DocSession::probe_bounds` refuses a driven slot
+            // before it reaches here, so no working notation is read.
+            // A count remembers none and steps by 1.
+            Ok((value.as_f64(), unit, dimension == Dimension::Count))
         }
-        BoundsTarget::Param { name } => {
-            let Some(param) = doc.params().get(name) else {
-                return Err(Refusal::NoSuchParam(name.clone()));
+        BoundsTarget::Variable { var } => {
+            let Some(held) = doc.var(*var) else {
+                return Err(Refusal::NoSuchVariable(*var));
+            };
+            let Some(free) = held.free() else {
+                return Err(Refusal::VariableIsDefined(doc.spoken_var(*var)));
             };
             // Same rule as a slot's: one of whatever unit the
-            // field is WRITTEN in. A continuous parameter names the
+            // field is WRITTEN in. A continuous variable names the
             // notation it was authored in
-            // (`DocParam::Continuous::display_unit`, which rides
+            // (`FreeVar::Continuous::display_unit`, which rides
             // with the declaration and no value edit disturbs), so
-            // a millimetre parameter is searched in millimetres. A
+            // a millimetre variable is searched in millimetres. A
             // `Count` is a number rather than a quantity, has no
             // unit to name, and steps by 1.
-            let (value, remembered) = match param {
-                DocParam::Continuous {
+            let (value, unit) = match free {
+                FreeVar::Continuous {
                     value,
                     display_unit,
                     ..
                 } => (*value, Some(display_unit.def())),
-                DocParam::Count { value } => (*value as f64, None),
+                FreeVar::Count { value } => (*value as f64, None),
             };
-            // Through `rendering_unit` for the slot arm's reason:
-            // one function answers "what unit is this field written
-            // in" for both fields, so the panel row and the probe
-            // cannot come to two answers.
-            let unit = props::rendering_unit(param.dim(), remembered);
-            Ok((value, unit, param.dim() == Dimension::Count))
+            Ok((value, unit, free.dim() == Dimension::Count))
         }
     }
 }
@@ -237,6 +235,7 @@ fn probe_edit(
 ) -> Option<DocEdit<ProfileProgram>> {
     match target {
         BoundsTarget::Slot { node, slot } => props::slot_edit(
+            doc,
             *node,
             *slot,
             // A sample the slot's dimension cannot carry is a sample
@@ -246,46 +245,17 @@ fn probe_edit(
             props::slot_unit(doc, *node, *slot),
         )
         .ok(),
-        BoundsTarget::Param { name } => {
+        BoundsTarget::Variable { var } => {
             // The dimension is read off the DECLARATION only to
             // decide which `SlotValue` arm the sample becomes; the
             // edit itself carries a value and nothing else, so a
-            // probe cannot disturb the parameter's declaration
-            // (`props::param_edit`'s door).
-            let dimension = doc.params().get(name)?.dim();
-            Some(props::param_edit(
-                name.clone(),
+            // probe cannot disturb the variable's declaration
+            // (`props::variable_edit`'s door).
+            let dimension = doc.var(*var)?.kind().dimension()?;
+            Some(props::variable_edit(
+                *var,
                 SlotValue::of(dimension, value).ok()?,
             ))
         }
     }
-}
-
-/// One evaluation of one document, outside the seam.
-///
-/// **The seam is for the PICTURE**; this is for a question asked about
-/// a document nobody is going to look at (a range probe's candidate).
-/// Routing it through the seam would cancel the run the viewport is
-/// waiting for — the seam's ruled cancel-and-restart policy — which is
-/// exactly the wrong trade for a query the user asked for BESIDE the
-/// picture rather than instead of it.
-///
-/// A fresh `CancelToken` per call, never set: these runs are bounded by
-/// the probe's sample cap, and nothing exists to cancel them from.
-fn evaluate_with(
-    doc: &Doc<ProfileProgram>,
-    prior: Option<&Evaluation<f64>>,
-    resolver: &Option<Arc<dyn PartResolver>>,
-    tol: Tol,
-) -> Evaluation<f64> {
-    evaluate(
-        doc,
-        prior,
-        &CancelToken::new(),
-        &EvalOptions {
-            resolver: resolver.clone(),
-            ..EvalOptions::default()
-        },
-        tol,
-    )
 }

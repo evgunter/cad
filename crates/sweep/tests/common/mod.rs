@@ -32,6 +32,9 @@
 //!   authoring, so it routes to this module rather than to a suite);
 //! - [`cavity`] — the vented-cavity fixture vocabulary (body
 //!   authoring, same routing);
+//! - [`bores`] — bored bodies, the plane cuts through them and the
+//!   section faces of a half (body authoring plus one reader, as
+//!   [`latitude_seam`]);
 //! - [`charts`] — a body's faces grouped by the surface they wear, and
 //!   the `ChartMove` sets the offset doors take: what a suite drives a
 //!   door WITH, which is neither a body nor a check of one;
@@ -55,6 +58,8 @@
 //! - [`torus_walls`] — the torus-walled revolves the offset-axial door
 //!   is measured on, and the cavity it carves in one (body authoring,
 //!   same routing);
+//! - [`bead`] — the drilled bead, the smallest valid body whose faces
+//!   wrap the azimuth alone (body authoring, same routing);
 //! - [`cert_corpus`] — the valid and corrupt bodies the certified doors
 //!   and their `_structural` twins are walked over (body authoring,
 //!   same routing);
@@ -65,9 +70,27 @@
 //!   they route beside [`cap_rims`] rather than into [`orient`];
 //! - [`poses`] — the rigid poses a re-posed row asks its question at:
 //!   what a suite drives a door WITH, as [`charts`];
+//! - [`certificates`] — a built body's stored edge certificates
+//!   against a fresh re-certification: a check of a body that
+//!   evaluates, so it routes beside [`orient`] rather than beside the
+//!   readers of stored data;
 //! - [`revert_ops`] — ∖ in both operand orders and ∩ under one set of
 //!   declarations, swapped for the reversed order: what a suite drives
 //!   a door WITH, as [`poses`];
+//! - [`seam_pairs`] — the face pairs of two face sets that meet along
+//!   a curve, so a seam or `Tangent` declaration names only those: what
+//!   a suite drives a door WITH, as [`revert_ops`];
+//! - [`differential`] — the differential batteries' polygon oracles,
+//!   their one per-pose `outcome` line and the reflex-corner pose: a
+//!   truth derived without the kernel plus the check every battery
+//!   prints, so beside [`oracles`];
+//! - [`stations`] — a station cut back into a rim by hand, and the
+//!   reader that finds stations on a body: body authoring plus the one
+//!   reader its rows check with, as [`cone_nappe`];
+//! - [`pinch_cones`] — a boolean's cones at a point from the operands'
+//!   convex pieces, and the vertices a built body holds there: a truth
+//!   derived without the kernel plus the check against it, so beside
+//!   [`differential`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -137,6 +160,11 @@ pub mod approx;
 /// find-an-edge-by-its-endpoints traversal. Body authoring, so it
 /// routes here.
 pub mod cavity;
+
+/// Bored bodies and the plane cuts through them, and the section faces
+/// a split half carries. Body authoring plus the one reader the split
+/// suites share, so it routes here.
+pub mod bores;
 
 /// A body's charts — its faces grouped by the surface they wear — and
 /// the `ChartMove` sets the simultaneous offset doors take. What a
@@ -219,11 +247,38 @@ pub mod poses;
 /// it routes here.
 pub mod revert_ops;
 
+/// The drilled bead: a bore cylinder and a sphere zone, each a whole
+/// turn. Body authoring, so it routes here.
+pub mod bead;
+
+/// A built body's stored edge certificates against a fresh
+/// re-certification: the check the carrying grafts are pinned with.
+pub mod certificates;
+/// The differential batteries' polygon oracles, per-pose outcome line
+/// and reflex-corner pose.
+pub mod differential;
+/// The cones of a boolean's boundary at a point, read without the
+/// kernel from the operands' convex pieces, and the vertices a built
+/// body holds there: a truth plus the check of a body against it, so
+/// beside [`differential`].
+pub mod pinch_cones;
+/// The pairs of two face sets that meet along a curve, kept from a
+/// cross product of seam or `Tangent` declarations. What a suite drives
+/// a door WITH, so it routes here.
+pub mod seam_pairs;
+
+/// A station cut back into a rim by hand, and the reader that finds a
+/// body's stations, curved carriers included. Body authoring plus the
+/// one reader the run-wall and blend rows check with, so it routes
+/// here.
+pub mod stations;
+
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, SketchPlane};
+use profile::{Open, Profile, SketchPlane, Start};
 use profile::{RawLoop, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::{ProfileLoop, Section};
 use topo::Body;
 
@@ -313,6 +368,40 @@ pub fn three_arc(centre: Point2<f64>, radius: f64, first: f64) -> ProfileLoop<f6
         (at(first + 120.0), b120),
         (at(first + 240.0), b120),
     ])
+}
+
+/// **The rounded rectangle**: `w × h` with its lower-left corner at the
+/// sketch origin, each corner a tangent fillet of radius `r`. Its
+/// straight walls end where the fillets start, which is the flush site
+/// the join refuses when another solid's wall lies on that line.
+pub fn rounded(w: f64, h: f64, r: f64) -> ProfileLoop<f64> {
+    let t = Tol::witness();
+    Open.at(Point2::new(w / 2.0, 0.0))
+        .toward(1.0, 0.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .at(Point2::new(w, h / 2.0), t)
+        .unwrap()
+        .toward(0.0, 1.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .at(Point2::new(w / 2.0, h), t)
+        .unwrap()
+        .toward(-1.0, 0.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .at(Point2::new(0.0, h / 2.0), t)
+        .unwrap()
+        .toward(0.0, -1.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .to(Start, t)
+        .unwrap()
+        .into()
 }
 
 /// **The bulge of the minor arc from `a` to `b` about `c`**:
@@ -430,16 +519,25 @@ pub fn tilted_cut_upper() -> Body<f64> {
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the disc profile validates");
-    let cylinder = sweep::extrude::<f64>(&disc, sweep::Extrusion::Distance(1.0), Tol::witness())
-        .expect("the cylinder extrudes")
-        .body;
+    let cylinder = sweep::extrude::<f64>(
+        &disc,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the cylinder extrudes")
+    .body;
+    let cylinder = sweep::test_support::finished("the cylinder", cylinder, Tol::witness());
     let phi = 0.3f64;
     let result = topo::splitting::split(
         &cylinder,
-        &topo::splitting::SplitPlane {
-            origin: Point3::new(0.0, 0.0, 0.5),
-            normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
-        },
+        &topo::test_support::split_plane(
+            Point3::new(0.0, 0.0, 0.5),
+            Vec3::new(phi.sin(), 0.0, phi.cos()),
+            geom_core::Tol::witness(),
+        ),
         Tol::witness(),
     )
     .expect("the tilted cut splits");
@@ -480,10 +578,12 @@ pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
         2.5,
         tol,
     );
-    let plane = topo::splitting::SplitPlane {
-        origin: Point3::new(0.0, 0.0, 1.25),
-        normal: tilted_cut_normal(),
-    };
+    let tall = sweep::test_support::finished("the tall", tall, tol);
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 1.25),
+        tilted_cut_normal(),
+        geom_core::Tol::witness(),
+    );
     let result = topo::splitting::split(&tall, &plane, tol).expect("the plane cuts the prism");
     let part = if above { result.above } else { result.below };
     let topo::splitting::SplitPart::Body(half) = part else {
@@ -504,15 +604,47 @@ pub fn tilted_cut_cylinder(above: bool) -> Body<f64> {
     half
 }
 
+/// **A bore tilted 0.4 rad about `x`**: a radius-0.1 disc prism of
+/// height 0.8 turned about the `x` axis and centred at `(0.5, 0.5,
+/// 0.5)`, so cut from a unit cube it pierces the top face (and the
+/// bottom) in ELLIPSES — a ring no clearance meter of the blend reads.
+pub fn tilted_bore() -> Body<f64> {
+    let tol = Tol::witness();
+    let bore = sweep::test_support::prism(
+        vec![(Point2::new(-0.1, 0.0), 1.0), (Point2::new(0.1, 0.0), 1.0)],
+        0.8,
+        tol,
+    );
+    let tilt = geom_core::Affine3::rotation_about_axis(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        0.4,
+    );
+    let bore = topo::transform_rigid(&bore, &tilt, tol).expect("the bore turns");
+    topo::transform_rigid(
+        &bore,
+        &geom_core::Affine3::translation(Vec3::new(0.5, 0.5, 0.5)),
+        tol,
+    )
+    .expect("the bore moves")
+}
+
 /// The bulged extrusion: an analytic cylinder wall with a CURVED trim
 /// loop — the cylinder chart's Green form.
 pub fn bulged_extrusion() -> Body<f64> {
     let prof = Profile::new(SketchPlane::xy(), arc_section(1.0))
         .validate(Tol::witness())
         .expect("the profile validates");
-    sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0), Tol::witness())
-        .expect("extrude")
-        .body
+    sweep::extrude::<f64>(
+        &prof,
+        sweep::Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("extrude")
+    .body
 }
 
 /// The **sup-norm distance** between two points — the largest
@@ -523,10 +655,7 @@ pub fn bulged_extrusion() -> Body<f64> {
 /// exactness row in this tree wants, and a fourth hand-rolled copy is
 /// how a suite ends up with a subtly different one.
 pub fn sup_dist(a: Point3<f64>, b: Point3<f64>) -> f64 {
-    (a.x - b.x)
-        .abs()
-        .max((a.y - b.y).abs())
-        .max((a.z - b.z).abs())
+    (a - b).norm_inf()
 }
 
 /// **A margin strictly inside the run's ambiguity band** — the
@@ -657,4 +786,20 @@ pub fn strip_section(s: f64, delta: f64, reversed: bool) -> Section {
 /// sections reproduce the EXTRUSION of that section exactly.
 pub fn stacked(z: &[f64], s: f64) -> Vec<Affine3<f64>> {
     sweep::test_support::stacked_at(&z.iter().map(|h| h * s).collect::<Vec<_>>())
+}
+
+/// The extrusion whose far cap sits at signed offset `d` along the
+/// sketch normal: depth `|d|`, toward the side `d`'s sign names — how
+/// a row that runs "both directions" over one signed offset spells it
+/// at the door, which takes the pair. What a suite drives a door WITH,
+/// so it routes here.
+pub fn to_offset(d: f64) -> sweep::Extrusion<f64> {
+    sweep::Extrusion::Distance {
+        depth: d.abs(),
+        side: if d < 0.0 {
+            sweep::ExtrudeSide::Against
+        } else {
+            sweep::ExtrudeSide::Along
+        },
+    }
 }

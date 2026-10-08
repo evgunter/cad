@@ -23,13 +23,13 @@ const L_PROFILE: [(f64, f64); 6] = [
 
 fn assembly(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     let mut out = a.clone();
-    topo::graft_disjoint(&mut out, b, Tol::witness()).unwrap();
+    topo::graft_disjoint(&mut out, b).unwrap();
     out
 }
 
 fn vertices_where(body: &Body<f64>, pick: impl Fn(Point3<f64>) -> bool) -> Vec<topo::VertexKey> {
-    body.vertices()
-        .filter(|(_, v)| pick(*body.get_point(v.point).unwrap()))
+    body.vertex_points()
+        .filter(|(_, p)| pick(*p))
         .map(|(k, _)| k)
         .collect()
 }
@@ -105,7 +105,7 @@ fn cavity() -> Body<f64> {
             .map(|(s, _)| (s, VoidContainment::Probed(SolidContainment::In)))
             .collect(),
     };
-    insert_void(&mut dst, solid, hole, &evidence, Tol::witness()).unwrap();
+    insert_void(&mut dst, solid, hole, &evidence).unwrap();
     let part = common::brick::<f64>((1.2, 1.8), (1.2, 1.8), (1.2, 1.8), Tol::witness());
     assembly(&dst, &part)
 }

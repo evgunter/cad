@@ -10,6 +10,7 @@
 use geom_brep::offset_meters::mig;
 use geom_core::Bounds;
 use geom_core::Interval;
+use geom_core::interval::certification::Certification;
 
 fn ri(lo: f64, hi: f64) -> Interval {
     Interval::from_bounds(lo, hi)

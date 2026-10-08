@@ -60,9 +60,9 @@ use pncad::authoring::p2;
 use pncad::geom::Surface;
 use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{Open, Start};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
-use pncad::topo::{Body, FaceKey};
+use pncad::topo::{AtRestBody, Body, FaceKey};
 
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::validated;
@@ -116,7 +116,7 @@ const DELTA: f64 = 1e-3;
 
 /// **The meridian**, authored through the PATHS lattice the way a user
 /// would: stations named, arcs given their centres.
-fn meridian(tol: Tol) -> ProfileLoop<f64> {
+fn meridian(tol: Tol) -> ConstructedLoop<f64> {
     Open.at(p2(R_BORE, 0.0))
         .line_to(p2(R_RIM, 0.0), tol)
         .expect("the base annulus")
@@ -232,11 +232,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         want_solid,
         "the meridian mints every analytic kind once, the plane and the cylinder twice"
     );
-    assert_eq!(
-        pncad::topo::validate_geometric(&solid, tol),
-        Ok(()),
-        "the operand: tier 3"
-    );
+    let solid = AtRestBody::validate(solid, tol).expect("the operand: tier 3");
 
     // ---- the hollow ----
     let sealed = pncad::topo::shell(&solid, WALL, tol)

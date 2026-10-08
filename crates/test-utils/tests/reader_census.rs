@@ -123,6 +123,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // node-kind vocabulary census, code view
     },
     Entry {
+        path: "crates/editor-core/src/stackup.rs",
+        disposition: Shared, // value-digest retired-tag census, code view
+    },
+    Entry {
         path: "crates/editor-core/src/verbs/mod.rs",
         disposition: Shared, // the two-Verb naming convention, code view
     },
@@ -159,6 +163,10 @@ const LEDGER: &[Entry] = &[
         path: "crates/editor-core/tests/msolve7_member_residue.rs",
         disposition: Shared, // one-environment-per-solve build count over
                              // mate/member.rs and mate/solve.rs, code view
+    },
+    Entry {
+        path: "crates/editor-core/tests/node_standing.rs",
+        disposition: Shared, // node-result reader census over every src tree, code view
     },
     Entry {
         path: "crates/editor-core/tests/product_gate_attribution.rs",
@@ -202,7 +210,7 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/geom-core/tests/certified_endpoint_census.rs",
-        disposition: Shared, // certification endpoint-read census, code view + balanced_end
+        disposition: Shared, // certification endpoint-read census, code view + literal view
     },
     Entry {
         path: "crates/geom-core/tests/flagged_census.rs",
@@ -363,6 +371,14 @@ const LEDGER: &[Entry] = &[
         ),
     },
     Entry {
+        path: "crates/topo/src/boolean/offer_rows.rs",
+        disposition: Shared, // the Boolean's decision sites, code view
+    },
+    Entry {
+        path: "crates/topo/src/boolean/ops.rs",
+        disposition: Shared, // the smooth seam arm's route through the rule, code view
+    },
+    Entry {
         path: "crates/topo/src/boolean/wall_section_rows.rs",
         disposition: Shared, // the window-construction site list, code view
     },
@@ -374,6 +390,11 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/src/chord_join.rs",
         disposition: Unconverted("Track Q — whitespace-stripped raw text, no reader"),
+    },
+    Entry {
+        path: "crates/topo/src/euler.rs",
+        disposition: Shared, // the removal census over validate.rs's tier-1 pass and
+                             // the kill helpers' bodies, code view
     },
     Entry {
         path: "crates/topo/src/face_normal.rs",
@@ -458,6 +479,14 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/viewer/tests/landing_gathers.rs",
         disposition: Shared, // the gather counter's three gated sites, code view
+    },
+    Entry {
+        path: "crates/viewer/tests/tree_badges.rs",
+        disposition: Shared, // the standing doors' as-drawn census, code view
+    },
+    Entry {
+        path: "tools/k-lint/tests/construction_coupled.rs",
+        disposition: Shared, // rule (5)'s pin on the fitted lane: code view to locate, literal view to read
     },
     Entry {
         path: "tools/k-lint/tests/predicate_roster.rs",

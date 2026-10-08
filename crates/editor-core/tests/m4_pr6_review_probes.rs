@@ -8,11 +8,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, DocParam,
-    EntityKind, EvalOptions, Expr, ExprPath, MetaValue, Node, ParamName, PersistError, ProfileDoc,
-    ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, WitnessDatum, apply,
+    Attr, AttrKind, BooleanOp, BranchCertification, CancelToken, Dimension, DocEdit, EntityKind,
+    EvalOptions, ExprPath, Formula, FreeVar, MetaValue, Node, PersistError, ProfileDoc,
+    ProfileProgram, RecipeNodeId, Rgba8, RoleSeg, SlotId, StableName, VarName, WitnessDatum, apply,
     evaluate, load, save,
 };
 use fixture::{desc, insert, len, on_frame, scl};
@@ -32,13 +33,14 @@ fn small() -> (ProfileDoc, String) {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let doc = apply(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::new("q"),
-            value: DocParam::continuous(Dimension::Length, 2.5),
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("q"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 2.5)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -69,7 +71,7 @@ fn attack_all_ones_nan_slips_save_door() {
     for dim in [Dimension::Length, Dimension::Scalar] {
         assert!(
             matches!(
-                Expr::literal(nan, dim),
+                Formula::literal(nan, dim),
                 Err(editor_core::DimensionError::NonFiniteLiteral)
             ),
             "the {dim:?} literal door must refuse the all-ones NaN"
@@ -101,7 +103,7 @@ fn attack_all_ones_nan_slips_save_door() {
 fn tokens_separate_structure_from_data() {
     // These two programs never enter a document — the comparison is
     // about loop STRUCTURE — so the frame they name is scaffolding.
-    let quad = |loops: Vec<Vec<(f64, f64)>>| desc(RecipeNodeId(0), loops);
+    let quad = |loops: Vec<Vec<(f64, f64)>>| desc(RecipeNodeId::new(0, 0), loops);
     // Loop shape stays structure-distinct: (2 loops of 1 point) vs
     // (1 loop of 2 points) — different programs, never a value alias.
     let two_loops = quad(vec![vec![(0.0, 0.0)], vec![(1.0, 1.0)]]);
@@ -110,41 +112,57 @@ fn tokens_separate_structure_from_data() {
     // The NaN payload class dies at construction (ruled door 1): a
     // program literal cannot carry the all-ones pattern at all.
     assert!(matches!(
-        editor_core::Expr::literal(f64::from_bits(u64::MAX), editor_core::Dimension::Scalar),
+        editor_core::Formula::literal(f64::from_bits(u64::MAX), editor_core::Dimension::Scalar),
         Err(editor_core::DimensionError::NonFiniteLiteral)
     ));
 }
 
 /// ATTACK 2: duplicate JSON object keys in serde-derived BTreeMaps
-/// (params / nodes / metadata / witnesses) — last-wins silently?
+/// (vars / nodes / metadata / witnesses) — last-wins silently?
 #[test]
 fn attack_duplicate_json_keys() {
-    let (_, text) = small();
-    // Duplicate the "q" param with a different value.
-    let dup_param = text.replace(
-        "\"q\": {",
-        "\"q\": {\"Continuous\":{\"dim\":\"Length\",\"value\":9.75,\"display_unit\":\"m\"}}, \"q\": {",
+    let (doc, text) = small();
+    // Duplicate the "q" variable's entry with a different value.
+    let q = doc.var_named("q").expect("the fixture declares q");
+    let key = format!("\"{}\": {{", q.0);
+    let dup_param = text.replacen(
+        &key,
+        &format!(
+            "{key}\"kind\":\"Length\",\"def\":{{\"Free\":{{\"Continuous\":{{\"dim\":\
+             \"Length\",\"value\":9.75,\"display_unit\":\"m\"}}}}}}}}, {key}"
+        ),
+        1,
     );
-    assert_ne!(dup_param, text, "fixture must contain the param");
+    assert_ne!(dup_param, text, "fixture must contain the variable");
     match load(&dup_param, Tol::witness()) {
         Err(PersistError::Unreadable { detail, .. }) => {
             assert!(
-                detail.contains("duplicate document parameter key") && detail.contains("\"q\""),
+                detail.contains("duplicate variable key") && detail.contains(&q.to_string()),
                 "refusal must name key and section: {detail}"
             );
         }
-        other => panic!("duplicate param key must refuse typed, got {other:?}"),
+        other => panic!("duplicate variable key must refuse typed, got {other:?}"),
     }
 }
 
-/// ATTACK 2b: duplicate node-id keys ("0" twice).
+/// The node map's first two keys as the save spells them, `"<id>":`:
+/// the map is keyed by id, so they are the two smallest ids.
+fn first_two_node_keys(doc: &ProfileDoc) -> (String, String) {
+    let mut ids = doc.ids().to_vec();
+    ids.sort();
+    let key = |i: usize| format!("\"{}\":", ids[i].0);
+    (key(0), key(1))
+}
+
+/// ATTACK 2b: duplicate node-id keys (one key twice).
 #[test]
 fn attack_duplicate_node_keys() {
-    let (_, text) = small();
-    // Find the node map entry for id 0 and duplicate the whole entry.
-    let start = text.find("\"0\":").expect("node 0 key");
-    // Node 0's value runs until "\n      \"1\":" at the same level.
-    let end = text.find("\"1\":").expect("node 1 key");
+    let (doc, text) = small();
+    // Find the node map's first entry and duplicate the whole entry:
+    // it runs until the second key at the same level.
+    let (first, second) = first_two_node_keys(&doc);
+    let start = text.find(&first).expect("the first node key");
+    let end = text.find(&second).expect("the second node key");
     let entry = &text[start..end];
     let doubled = format!(
         "{}{}{}",
@@ -163,15 +181,16 @@ fn attack_duplicate_node_keys() {
     }
 }
 
-/// ATTACK 2c: non-canonical integer key text ("00" vs "0") — two
+/// ATTACK 2c: non-canonical integer key text (a leading zero) — two
 /// spellings of one id.
 #[test]
 fn attack_noncanonical_integer_keys() {
-    let (_, text) = small();
-    let start = text.find("\"0\":").expect("node 0 key");
-    let end = text.find("\"1\":").expect("node 1 key");
+    let (doc, text) = small();
+    let (first, second) = first_two_node_keys(&doc);
+    let start = text.find(&first).expect("the first node key");
+    let end = text.find(&second).expect("the second node key");
     let entry = &text[start..end];
-    let alias = entry.replacen("\"0\":", "\"00\":", 1);
+    let alias = entry.replacen(&first, &first.replacen('"', "\"0", 1), 1);
     let doubled = format!(
         "{}{}{}",
         &text[..start],
@@ -180,7 +199,7 @@ fn attack_noncanonical_integer_keys() {
     );
     match load(&doubled, Tol::witness()) {
         Err(_) => {}
-        Ok(_) => panic!("\"0\" and \"00\" both accepted as node id 0 — silent last-wins"),
+        Ok(_) => panic!("{first} and its zero-padded spelling both accepted — silent last-wins"),
     }
 }
 
@@ -205,9 +224,7 @@ fn attack_long_decimal_strings() {
         let crafted = text.replace("\"value\": 2.5", &format!("\"value\": {s}"));
         assert_ne!(crafted, text);
         let loaded = load(&crafted, Tol::witness()).expect("valid file");
-        let Some(DocParam::Continuous { value, .. }) =
-            loaded.doc.params().get(&ParamName::new("q"))
-        else {
+        let Some(FreeVar::Continuous { value, .. }) = loaded.doc.free_named("q") else {
             panic!("param lost")
         };
         assert_eq!(
@@ -227,10 +244,7 @@ fn attack_inf_via_big_exponent() {
         assert_ne!(crafted, text);
         match load(&crafted, Tol::witness()) {
             Err(PersistError::Parse { .. }) => {}
-            Ok(l) => panic!(
-                "{s} loaded as {:?}",
-                l.doc.params().get(&ParamName::new("q"))
-            ),
+            Ok(l) => panic!("{s} loaded as {:?}", l.doc.free_named("q")),
             Err(e) => panic!("unexpected refusal for {s}: {e:?}"),
         }
     }
@@ -256,12 +270,12 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         edits.push(e);
         a.record.minted
     };
-    // 1 SetDocParam
+    // 1 DeclareVar
     push(
         &mut doc,
-        DocEdit::SetDocParam {
-            name: ParamName::new("d"),
-            value: DocParam::continuous(Dimension::Length, 1.5),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("d"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 1.5)),
         },
     );
     // 2 InsertNode xN — the two quads sit at different x offsets, so
@@ -269,60 +283,69 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     let f0 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: frame_at(0.0),
+            node: Box::new(frame_at(0.0)),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
     let p0 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Profile(quad(f0)),
+            node: Box::new(Node::Profile(quad(f0))),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
     let e0 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: p0,
-                distance: Expr::param(ParamName::new("d"), Dimension::Length),
-            },
+                distance: Formula::named(VarName::from_static("d"), Dimension::Length),
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
     let f1 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: frame_at(1.0),
+            node: Box::new(frame_at(1.0)),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
     let p1 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Profile(quad(f1)),
+            node: Box::new(Node::Profile(quad(f1))),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
     let e1 = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: p1,
                 distance: len(1.5),
-            },
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
     let boole = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Boolean {
+            node: Box::new(Node::Boolean {
                 op: BooleanOp::Union,
                 a: e0,
                 b: e1,
-                declare: None,
-            },
+                declare: Vec::new(),
+            }),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -330,14 +353,16 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     let f_doomed = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: frame_at(5.0),
+            node: Box::new(frame_at(5.0)),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
     let doomed = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Profile(quad(f_doomed)),
+            node: Box::new(Node::Profile(quad(f_doomed))),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -350,6 +375,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
             node: e1,
             slot: SlotId::Distance,
             expr: len(2.0),
+            fresh: Vec::new(),
         },
     );
     // 5 SetExpression (whole-slot path)
@@ -368,14 +394,15 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     let pat = push(
         &mut doc,
         DocEdit::InsertNode {
-            node: Node::Pattern {
+            node: Box::new(Node::Pattern {
                 input: boole,
-                count: Expr::count(2),
+                count: Formula::count(2),
                 kind: editor_core::PatternKind::Linear {
                     direction: [scl(1.0), scl(0.0), scl(0.0)],
                     spacing: len(4.0),
                 },
-            },
+            }),
+            fresh: Vec::new(),
         },
     )
     .unwrap();
@@ -384,7 +411,8 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: SlotId::Count,
-            expr: Expr::count(3),
+            expr: Formula::count(3),
+            fresh: Vec::new(),
         },
     );
     // 7 ReWitness
@@ -438,14 +466,14 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         },
     );
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".to_owned(), MetaValue::Int(1));
+    m.insert("v".to_owned(), MetaValue::Int(1.into()));
     m.insert("neg".to_owned(), MetaValue::Float(-0.0));
     push(
         &mut doc,
         DocEdit::SetAppearanceMeta {
             name: body.clone(),
             key: "adv/probe".into(),
-            value: MetaValue::Map(m.clone()),
+            value: MetaValue::map(m.clone()).expect("a shallow value"),
         },
     );
     push(
@@ -453,7 +481,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::SetAppearanceMeta {
             name: body.clone(),
             key: "adv/probe2".into(),
-            value: MetaValue::Map(m),
+            value: MetaValue::map(m).expect("a shallow value"),
         },
     );
     // 11 ClearAppearanceMeta
@@ -492,16 +520,12 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     // Round-trip as a FULL LOG from an empty snapshot.
     let text = save(
         &ProfileDoc::empty_derived("m4_pr6_review_probes", Tol::witness()),
-        &editor_core::LoggedEdit::bare_all(&edits),
+        &edits.to_vec(),
         Tol::witness(),
     )
     .expect("save log");
     let loaded = load(&text, Tol::witness()).expect("load log");
-    assert_eq!(
-        loaded.edits,
-        editor_core::LoggedEdit::bare_all(&edits),
-        "edit log round-trip"
-    );
+    assert_eq!(loaded.edits, edits.to_vec(), "edit log round-trip");
     assert!(loaded.doc.bit_eq(&doc), "replayed doc bit-identical");
     // AND as a snapshot.
     let text2 = save(&doc, &[], Tol::witness()).expect("save snapshot");
@@ -602,7 +626,7 @@ fn attack_header_spellings() {
     assert!(load(&format!("id: {hex}\n{body}"), Tol::witness()).is_ok());
 }
 
-/// ATTACK 10: appearance key referencing a DELETED node (< next_id,
+/// ATTACK 10: appearance key referencing a DELETED node (minted,
 /// not live) in a crafted snapshot — and metadata insertion-order
 /// canonicalization.
 #[test]
@@ -610,19 +634,19 @@ fn attack_meta_order_canonical() {
     let (doc, _) = small();
     let name = StableName {
         kind: EntityKind::Body,
-        node: RecipeNodeId(2),
+        node: doc.ids()[2],
         path: vec![RoleSeg::OutputBody],
     };
     let tree = |order: bool| {
         let mut m = std::collections::BTreeMap::new();
         if order {
-            m.insert("v".to_owned(), MetaValue::Int(1));
-            m.insert("a".to_owned(), MetaValue::Int(2));
+            m.insert("v".to_owned(), MetaValue::Int(1.into()));
+            m.insert("a".to_owned(), MetaValue::Int(2.into()));
         } else {
-            m.insert("a".to_owned(), MetaValue::Int(2));
-            m.insert("v".to_owned(), MetaValue::Int(1));
+            m.insert("a".to_owned(), MetaValue::Int(2.into()));
+            m.insert("v".to_owned(), MetaValue::Int(1.into()));
         }
-        MetaValue::Map(m)
+        MetaValue::map(m).expect("a shallow value")
     };
     let mk = |order: bool| {
         let d = apply(
@@ -656,7 +680,7 @@ fn duplicate_keys_refuse_in_every_map() {
     let doc = apply(
         &doc,
         &DocEdit::ReWitness {
-            node: RecipeNodeId(1),
+            node: doc.ids()[1],
             witness: WitnessDatum {
                 schema: 1,
                 bytes: vec![0x11],
@@ -669,7 +693,7 @@ fn duplicate_keys_refuse_in_every_map() {
     .doc;
     let body = StableName {
         kind: EntityKind::Body,
-        node: RecipeNodeId(2),
+        node: doc.ids()[2],
         path: vec![RoleSeg::OutputBody],
     };
     let doc = apply(
@@ -684,13 +708,13 @@ fn duplicate_keys_refuse_in_every_map() {
     .unwrap()
     .doc;
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".to_owned(), MetaValue::Int(1));
+    m.insert("v".to_owned(), MetaValue::Int(1.into()));
     let doc = apply(
         &doc,
         &DocEdit::SetAppearanceMeta {
             name: body,
             key: "k".into(),
-            value: MetaValue::Map(m),
+            value: MetaValue::map(m).expect("a shallow value"),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -698,16 +722,20 @@ fn duplicate_keys_refuse_in_every_map() {
     .unwrap()
     .doc;
     let text = save(&doc, &[], Tol::witness()).unwrap();
+    // The key the document ALREADY carries (the profile's): the row is
+    // about the strict map's duplicate refusal, and a second, unused
+    // node id would be a witness on a node that cannot hold one — a
+    // different door (`WitnessSite`).
+    let witness_again = format!(
+        "\"witnesses\": {{\"{}\": {{\"schema\": 9, \"bytes\": \"22\"}}, ",
+        doc.ids()[1].0
+    );
 
     // (surgery pattern, expected section words)
     let cases: [(&str, &str, &str); 5] = [
         (
             "\"witnesses\": {",
-            // The key the document ALREADY carries: the row is about
-            // the strict map's duplicate refusal, and a second, unused
-            // node id would be a witness on a node that cannot hold
-            // one — a different door (`WitnessSite`).
-            "\"witnesses\": {\"1\": {\"schema\": 9, \"bytes\": \"22\"}, ",
+            &witness_again,
             "duplicate witness node key",
         ),
         (
@@ -748,13 +776,13 @@ fn duplicate_keys_refuse_in_every_map() {
 /// duplicate keys too (same strict-map door).
 #[test]
 fn duplicate_keys_refuse_in_verdict_summaries() {
-    let json = r#"{"nodes":{"0":{"status":"Ok","populations":{"p":[1,0,0],"p":[0,1,0]}}}}"#;
+    let json = r#"{"nodes":{"0:0000000000000000":{"status":"Ok","populations":{"p":[1,0,0],"p":[0,1,0]}}}}"#;
     let r: Result<editor_core::VerdictSummary, _> = serde_json::from_str(json);
     let e = r
         .expect_err("duplicate population key must refuse")
         .to_string();
     assert!(e.contains("duplicate verdict population key"), "{e}");
-    let json = r#"{"nodes":{"0":{"status":"Ok","populations":{}},"0":{"status":"Failed","populations":{}}}}"#;
+    let json = r#"{"nodes":{"0:0000000000000000":{"status":"Ok","populations":{}},"0:0000000000000000":{"status":"Failed","populations":{}}}}"#;
     let r: Result<editor_core::VerdictSummary, _> = serde_json::from_str(json);
     let e = r
         .expect_err("duplicate summary node key must refuse")

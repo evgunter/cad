@@ -82,6 +82,14 @@ mod asm_roots;
 mod asm_upd_pin_update;
 #[path = "assemble_one_local_battery.rs"]
 mod assemble_one_local_battery;
+#[path = "band_joined_rim_names.rs"]
+mod band_joined_rim_names;
+#[path = "band_planar_cut_off_names.rs"]
+mod band_planar_cut_off_names;
+#[path = "band_planar_mitre_names.rs"]
+mod band_planar_mitre_names;
+#[path = "band_run_wall_names.rs"]
+mod band_run_wall_names;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
 #[path = "blend5_r2_probes.rs"]
@@ -90,24 +98,24 @@ mod blend5_r2_probes;
 mod blend5_rim_support;
 #[path = "blend5_rim_support_wire.rs"]
 mod blend5_rim_support_wire;
+#[path = "blend_dual_sensitivity.rs"]
+mod blend_dual_sensitivity;
 #[path = "bool12r2_ec_probe.rs"]
 mod bool12r2_ec_probe;
 #[path = "bool13_r1_probes.rs"]
 mod bool13_r1_probes;
 #[path = "bool13r2_probes.rs"]
 mod bool13r2_probes;
-#[path = "bool7_shadow_exec.rs"]
-mod bool7_shadow_exec;
-#[path = "bool7r1_probes.rs"]
-mod bool7r1_probes;
-#[path = "bool7r2_probes.rs"]
-mod bool7r2_probes;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
+#[path = "boss_flush_offer.rs"]
+mod boss_flush_offer;
 #[path = "cascade_delete.rs"]
 mod cascade_delete;
 #[path = "cert3r1_dump.rs"]
 mod cert3r1_dump;
+#[path = "declared_pairs_payload.rs"]
+mod declared_pairs_payload;
 #[path = "display_contract.rs"]
 mod display_contract;
 #[path = "dm7_delete_strands.rs"]
@@ -140,6 +148,10 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "edit_blend_canonical.rs"]
 mod edit_blend_canonical;
+#[path = "edit_blend_one_box_of_two.rs"]
+mod edit_blend_one_box_of_two;
+#[path = "edit_bore_two_rims.rs"]
+mod edit_bore_two_rims;
 #[path = "edit_doc_param_distribution.rs"]
 mod edit_doc_param_distribution;
 #[path = "edit_doc_param_unit.rs"]
@@ -154,6 +166,10 @@ mod edit_ladder_rim;
 mod edit_one_predicate;
 #[path = "edit_pair_apply_names.rs"]
 mod edit_pair_apply_names;
+#[path = "edit_placement_corpus_bits.rs"]
+mod edit_placement_corpus_bits;
+#[path = "edit_placement_type.rs"]
+mod edit_placement_type;
 #[path = "edit_recorded_notation.rs"]
 mod edit_recorded_notation;
 #[path = "edit_ruled_carve.rs"]
@@ -180,16 +196,24 @@ mod eval9_nominal_in_the_key;
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+#[path = "reach_slab_cut_sector_side.rs"]
+mod reach_slab_cut_sector_side;
 #[path = "refusal_concision.rs"]
 mod refusal_concision;
 #[path = "refusal_concision_at_rest.rs"]
 mod refusal_concision_at_rest;
 #[path = "refusal_concision_chains.rs"]
 mod refusal_concision_chains;
+#[path = "refusal_concision_refactor.rs"]
+mod refusal_concision_refactor;
 #[path = "remap_reorders_ids.rs"]
 mod remap_reorders_ids;
+#[path = "resolve_cited_line.rs"]
+mod resolve_cited_line;
 #[path = "resolve_group_membership.rs"]
 mod resolve_group_membership;
+#[path = "resolve_piece_ladder.rs"]
+mod resolve_piece_ladder;
 #[path = "resolve_upstream_scope.rs"]
 mod resolve_upstream_scope;
 #[path = "rv_dm7_probes.rs"]
@@ -234,6 +258,8 @@ mod lib_u5_interrogate;
 mod lib_u7_select;
 #[path = "load_door_payload_param_ref.rs"]
 mod load_door_payload_param_ref;
+#[path = "load_door_program_validate.rs"]
+mod load_door_program_validate;
 #[path = "load_door_slot_dimension.rs"]
 mod load_door_slot_dimension;
 #[path = "m10_1_analysis.rs"]
@@ -264,6 +290,14 @@ mod m10_4_seed;
 mod maintenance_net;
 #[path = "msolve10_door_admission.rs"]
 mod msolve10_door_admission;
+#[path = "msolve11_mate_log.rs"]
+mod msolve11_mate_log;
+#[path = "msolve12_honest_translation.rs"]
+mod msolve12_honest_translation;
+#[path = "msolve13_read_at_operand.rs"]
+mod msolve13_read_at_operand;
+#[path = "msolve14_run_scalar.rs"]
+mod msolve14_run_scalar;
 #[path = "msolve1_transform_aware.rs"]
 mod msolve1_transform_aware;
 #[path = "msolve2_member_chain.rs"]
@@ -272,19 +306,27 @@ mod msolve2_member_chain;
 mod msolve3_placer_refused;
 #[path = "msolve4_mate_memo.rs"]
 mod msolve4_mate_memo;
-#[path = "msolve5_read_below_a_root.rs"]
-mod msolve5_read_below_a_root;
+#[path = "msolve5_operand_refusals.rs"]
+mod msolve5_operand_refusals;
 #[path = "msolve6_part_extent.rs"]
 mod msolve6_part_extent;
 #[path = "msolve7_member_residue.rs"]
 mod msolve7_member_residue;
 #[path = "msolve8_levered_clash.rs"]
 mod msolve8_levered_clash;
+#[path = "msolve9_from_face.rs"]
+mod msolve9_from_face;
+#[path = "on_verdict_rows.rs"]
+mod on_verdict_rows;
+#[path = "onb_seam_class_interval.rs"]
+mod onb_seam_class_interval;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
 #[path = "rv_payloadrefs_probes.rs"]
 mod rv_payloadrefs_probes;
 
+#[path = "expr_nesting_bound.rs"]
+mod expr_nesting_bound;
 #[path = "m10_4_r2_probes_interval.rs"]
 mod m10_4_r2_probes_interval;
 #[path = "m10_4_stackup_interval.rs"]
@@ -435,12 +477,46 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "meta_minted_ids.rs"]
+mod meta_minted_ids;
+#[path = "meta_nesting_bound.rs"]
+mod meta_nesting_bound;
+#[path = "name_depth.rs"]
+mod name_depth;
+#[path = "name_size_against_cut_depth.rs"]
+mod name_size_against_cut_depth;
+#[path = "name_tables_by_position.rs"]
+mod name_tables_by_position;
+#[path = "name_words_corpus.rs"]
+mod name_words_corpus;
+#[path = "name_words_rows.rs"]
+mod name_words_rows;
 #[path = "names_verbatim_edge_evaluator.rs"]
 mod names_verbatim_edge_evaluator;
+#[path = "node_labels.rs"]
+mod node_labels;
+#[path = "node_standing.rs"]
+mod node_standing;
+#[path = "p2_face.rs"]
+mod p2_face;
+#[path = "p2_gauge_offsets_and_spaces.rs"]
+mod p2_gauge_offsets_and_spaces;
+#[path = "p2_gauge_poses_and_doors.rs"]
+mod p2_gauge_poses_and_doors;
+#[path = "p2_gauges.rs"]
+mod p2_gauges;
+#[path = "p2_promote_fold.rs"]
+mod p2_promote_fold;
+#[path = "p2_split.rs"]
+mod p2_split;
 #[path = "parallel_node_map_interval.rs"]
 mod parallel_node_map_interval;
 #[path = "parallel_node_map_probe.rs"]
 mod parallel_node_map_probe;
+#[path = "part_depth_bound.rs"]
+mod part_depth_bound;
+#[path = "pattern_spacing_and_step.rs"]
+mod pattern_spacing_and_step;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]
@@ -449,10 +525,14 @@ mod perf12_census_goldens;
 mod perf2_name_keying_differential;
 #[path = "pick3_early_out.rs"]
 mod pick3_early_out;
+#[path = "pierce_ring_engraving.rs"]
+mod pierce_ring_engraving;
 #[path = "pinned_lift_validates_once.rs"]
 mod pinned_lift_validates_once;
 #[path = "pirad_wire.rs"]
 mod pirad_wire;
+#[path = "place_mate_frame_offset.rs"]
+mod place_mate_frame_offset;
 #[path = "placedunion_wire.rs"]
 mod placedunion_wire;
 #[path = "product_gate_attribution.rs"]
@@ -520,6 +600,8 @@ mod seat7_sweep_lowering;
 mod seat8_split_lowering;
 #[path = "seatfw_curved_flush.rs"]
 mod seatfw_curved_flush;
+#[path = "step_handle_binding.rs"]
+mod step_handle_binding;
 #[path = "switch_display_units.rs"]
 mod switch_display_units;
 #[path = "switch_dump.rs"]
@@ -538,6 +620,10 @@ mod switch_slots;
 mod trim_3_windows_interval;
 #[path = "u8a_parse.rs"]
 mod u8a_parse;
+#[path = "union_flush_onto_edge_contact.rs"]
+mod union_flush_onto_edge_contact;
+#[path = "union_pinch_member_order.rs"]
+mod union_pinch_member_order;
 #[path = "unreadable_by_this_build.rs"]
 mod unreadable_by_this_build;
 
@@ -587,6 +673,9 @@ mod kstats_bracket_rows;
 #[path = "m10_9_r1_probes_interval.rs"]
 mod m10_9_r1_probes_interval;
 
+#[path = "sym_9_retry_interval.rs"]
+mod sym_9_retry_interval;
+
 #[path = "m10_10_evidence_interval.rs"]
 mod m10_10_evidence_interval;
 #[path = "m10_10_pins_interval.rs"]
@@ -628,6 +717,22 @@ mod wire_rv_unknown;
 
 #[path = "decide_1_self_dot_interval.rs"]
 mod decide_1_self_dot_interval;
+#[path = "decide_3_split_rows_interval.rs"]
+mod decide_3_split_rows_interval;
+#[path = "decide_6_read_cost_interval.rs"]
+mod decide_6_read_cost_interval;
+#[path = "decide_7_rule_g_cost_interval.rs"]
+mod decide_7_rule_g_cost_interval;
+#[path = "edit_refusal_recourse.rs"]
+mod edit_refusal_recourse;
+#[path = "emit_crossing_sense.rs"]
+mod emit_crossing_sense;
+#[path = "emit_edge_piece_locality.rs"]
+mod emit_edge_piece_locality;
+#[path = "emit_nested_union_flat.rs"]
+mod emit_nested_union_flat;
+#[path = "emit_pair_cut_and_merged.rs"]
+mod emit_pair_cut_and_merged;
 #[path = "emit_seam_edge_merged.rs"]
 mod emit_seam_edge_merged;
 #[path = "emit_seam_junction.rs"]
@@ -636,7 +741,27 @@ mod emit_seam_junction;
 mod emit_shared_rim_several;
 #[path = "emit_split_duplicate.rs"]
 mod emit_split_duplicate;
+#[path = "emit_split_edge_lineage.rs"]
+mod emit_split_edge_lineage;
+#[path = "emit_union_borders.rs"]
+mod emit_union_borders;
 #[path = "emit_union_flush_names.rs"]
 mod emit_union_flush_names;
 #[path = "emit_union_rim_piece_ranks.rs"]
 mod emit_union_rim_piece_ranks;
+#[path = "intent_literals_a_definitions.rs"]
+mod intent_literals_a_definitions;
+#[path = "intent_literals_b_door.rs"]
+mod intent_literals_b_door;
+#[path = "intent_literals_c_slots.rs"]
+mod intent_literals_c_slots;
+#[path = "intent_literals_d_constants.rs"]
+mod intent_literals_d_constants;
+#[path = "intent_s2_a_outputs.rs"]
+mod intent_s2_a_outputs;
+#[path = "intent_vars_2_table.rs"]
+mod intent_vars_2_table;
+#[path = "intent_vars_3_readers.rs"]
+mod intent_vars_3_readers;
+#[path = "run_wall_offers.rs"]
+mod run_wall_offers;

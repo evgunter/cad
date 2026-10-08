@@ -17,16 +17,16 @@
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, Dimension, DocEdit, EvalOptions, Expr, Node, NodeErrorKind, NodeResult,
+    CancelToken, Dimension, DocEdit, EvalOptions, Formula, Node, NodeErrorKind, NodeResult,
     ProfileDoc, RecipeNodeId, SlotId, evaluate, load, save,
 };
 use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
-/// A Count literal — `Expr::count`, because `Expr::literal` REFUSES
+/// A Count literal — `Formula::count`, because `Formula::literal` REFUSES
 /// `Dimension::Count` on purpose (Count literals are integers).
-fn count(v: i64) -> Expr {
-    Expr::count(v)
+fn count(v: i64) -> Formula {
+    Formula::count(v)
 }
 
 /// A square section at height `z`, scaled by `s`: the frame it sits
@@ -121,14 +121,15 @@ fn sweep_inputs_are_profile_then_path_and_it_carries_both_slots() {
 #[test]
 fn a_dangling_profile_ref_refuses_at_the_edit_door() {
     let (doc, ..) = loft_doc();
-    let bogus = RecipeNodeId(9999);
+    let bogus = RecipeNodeId::new(0, 9999);
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Loft {
+                node: Box::new(Node::Loft {
                     profiles: vec![bogus],
                     v_degree: count(1),
-                },
+                }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -145,10 +146,11 @@ fn a_length_expression_in_the_v_degree_slot_refuses() {
     let err = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Loft {
+                node: Box::new(Node::Loft {
                     profiles,
                     v_degree: len(2.0),
-                },
+                }),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -368,7 +370,9 @@ fn a_sweep_node_reaches_its_own_wider_frontier() {
         NodeErrorKind::CurvedSolidFrontier { what } => {
             assert!(what.contains("joined-path composition lane"), "{what}");
             assert!(
-                what.contains("closed chain of two or more segments"),
+                what.contains(
+                    "a closed chain of segments, or a full circle as one segment at one vertex"
+                ),
                 "{what}"
             );
             assert!(!what.contains("multi-segment"), "{what}");

@@ -38,6 +38,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
@@ -150,12 +151,52 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 /// itself. They are goldens in the ordinary sense — when one moves the
 /// question is whether the new behaviour is right, never how to restore
 /// the old number.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
+///
+/// RE-BLESSED, `part_select` ONLY, where JOIN-1's locus matching met
+/// main's shared copy points: each moved it alone — the split halves'
+/// union builds in the chord join rather than the REST zip (JOIN-1), and
+/// an op's copies of one vertex share its point, so the arena order the
+/// digest hashes moved (main) — and the merged tree is neither value.
+///
+/// RE-BLESSED, `part_select` and `kitchen_sink` only, when declaring a
+/// variable began minting its id on the document's chain: every node
+/// minted after a declare was renumbered, and this digest feeds ids.
+/// The id-free body rows (`m4_pr8_corpus`'s exact mass pins,
+/// `m5_pr8_bvh_diff`) held untouched, and every row of a document that
+/// declares nothing held its word.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
+///
+/// RE-BLESSED, `cut_cylinder` only, when a chart image's flag became
+/// `wrap` (the wrap edge, D1): the digest feeds each curve's `Debug`,
+/// whose field name moved; with `wrap: ` read back as `seam: ` the feed
+/// reproduces every old constant, so no evaluation moved.
+///
+/// RE-BLESSED for INTENT-LITERALS PR D (`Expr` holds no float):
+/// `kitchen_sink` alone, whose formulas hold written quantities that
+/// now mint variables of their own, so its ids moved. No outcome or
+/// point moved (the id-free fence held).
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
+    let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x6b92_0ace_eeb8_c896_u64),
-        ("part_select", 0x3414_d602_2131_29c9),
-        ("kitchen_sink", 0x3086_4331_6422_1a9b),
+        ("cut_cylinder", 0x1dcb_d2be_97b6_5546u64),
+        ("part_select", 0xcb0a_e229_f99e_729f),
+        ("kitchen_sink", 0x4baa_5973_ef17_d5a2),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -185,11 +226,15 @@ fn the_split_documents_evaluate_to_their_committed_digests() {
         );
         let got = digest(&ev);
         println!("seat8 {name}: {got:#018x}");
-        assert_eq!(
-            got, want,
-            "{name}'s evaluation moved — a side, its stamps or the name table"
-        );
+        if got != want {
+            moved.push(format!("{name}: {got:#018x} (want {want:#018x})"));
+        }
     }
+    assert!(
+        moved.is_empty(),
+        "these documents' evaluations moved — a side, its stamps or the name table:\n{}",
+        moved.join("\n")
+    );
 }
 
 /// A unit cube on the xy frame, a plane datum at height `z` with `+z`
@@ -206,6 +251,7 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     let tool = r.insert(Node::Datum(Datum::Plane {
         origin: [len(0.0), len(0.0), len(z)],
@@ -228,6 +274,22 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
 /// empty side into a phantom body — moves this number. The constant
 /// reproduces on the extracted merge base (the empty path predates the
 /// migration), so it is a differential pin, not a self-agreement.
+///
+/// RE-BLESSED for the axis-order orthonormal basis: the digest feeds
+/// each surface's `Debug`, and every planar carrier's stored `u_ref`
+/// is now `e_z × n` or `e_y × n` — whichever axis the comparison
+/// `|n.z| ≤ max(|n.x|, |n.y|)/2` picks — divided by its own length.
+/// The plane's LOCUS did not move — origin and normal are
+/// bit-identical, which the STEP fixtures' record-level diff shows
+/// directly — and the id-free body rows (`m4_pr8_corpus`'s exact mass
+/// pins, `m5_pr8_bvh_diff`'s realized-vs-idealized bit equality) were
+/// green across the change untouched.
+///
+/// RE-BLESSED for INTENT-LITERALS PR C (a slot holds a variable): every
+/// node is minted from slots holding variable ids, so every id moved
+/// and this digest feeds ids. No outcome or point moved:
+/// `m10_p_fence::the_corpus_geometry_is_bit_identical_with_ids_masked`
+/// held untouched.
 #[test]
 fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let (r, split) = cube_split_at(5.0);
@@ -248,7 +310,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0xfcdc_b1c1_3050_c776,
+        got, 0x9654_9034_d09e_5f11,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
@@ -318,7 +380,7 @@ fn minted_indices(body: &Body<f64>, node: RecipeNodeId) -> Vec<u32> {
         .chain(body.curves().map(|(k, _)| body.curve_source(k)))
         .chain(body.points().map(|(k, _)| body.point_source(k)));
     for source in sources.flatten() {
-        if source.node == node.0 {
+        if source.node == node.0.digest() {
             let SourceExpr::Minted { index } = source.expr else {
                 panic!("a split stamps minted sources only, found {source:?}");
             };

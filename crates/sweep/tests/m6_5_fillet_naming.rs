@@ -13,12 +13,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{assert_naming_totality, cube};
+use sweep::test_support::{assert_naming_totality, cube, finished};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
@@ -80,9 +80,10 @@ fn rim_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 /// The pipped cube of `corpus/die_composed.rs`, its 12 surviving box
 /// edges and its pip rim's two arcs.
 fn pipped_die() -> (Body<f64>, Vec<EdgeKey>, Vec<EdgeKey>) {
-    let cube0 = cube(DIE_L, Tol::witness());
+    let cube0 = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
     let box_keys: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let pip = ball_poled_z(PIP_R, Vec3::new(0.5, 0.5, DIE_L + (PIP_R - PIP_H)));
+    let pip = finished("the pip ball", pip, Tol::witness());
     let pipped = boolean_op_with(
         BooleanOp::Subtract,
         &cube0,
@@ -95,7 +96,8 @@ fn pipped_die() -> (Body<f64>, Vec<EdgeKey>, Vec<EdgeKey>) {
     .body()
     .expect("a body")
     .body
-    .clone();
+    .clone()
+    .into_body();
     let box_edges: Vec<_> = box_keys
         .into_iter()
         .filter(|k| pipped.get_edge(*k).is_some())
@@ -115,8 +117,13 @@ fn fe_single_call_twelve_open_chains_plus_one_closed_rim() {
     assert_eq!(rims.len(), 2, "the pip rim is two arcs");
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, R, Tol::witness())
-        .expect("one call takes the open chains and the closed rim together");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
+        &all,
+        R,
+        Tol::witness(),
+    )
+    .expect("one call takes the open chains and the closed rim together");
     assert_eq!(out.blend_faces.len(), 12, "one blend per box edge");
     assert_eq!(out.corner_faces.len(), 8, "one octant per box corner");
     assert_eq!(out.band_faces.len(), 1, "one torus band for the pip rim");
@@ -131,7 +138,13 @@ fn every_output_entity_is_a_recorded_mint_or_a_survivor() {
     let (pipped, box_edges, rims) = pipped_die();
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, R, Tol::witness()).expect("the surgery");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
+        &all,
+        R,
+        Tol::witness(),
+    )
+    .expect("the surgery");
 
     // The identity in BOTH directions, and the per-row hygiene (no
     // double record, no reused key but a split fragment's parent's,
@@ -149,7 +162,13 @@ fn the_records_have_the_shape_the_surgery_built() {
     let (pipped, box_edges, rims) = pipped_die();
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, R, Tol::witness()).expect("the surgery");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
+        &all,
+        R,
+        Tol::witness(),
+    )
+    .expect("the surgery");
     let rec = out.naming.as_ref().expect("records");
     assert_eq!(rec.blends.len(), 12);
     assert_eq!(rec.corners.len(), 8);
@@ -184,7 +203,13 @@ fn the_records_have_the_shape_the_surgery_built() {
 fn the_every_edge_request_records_every_entity_it_mints() {
     let cube0 = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    let out = fillet_edges(&cube0, &edges, R, Tol::witness()).expect("the surgery");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&cube0, Tol::witness()),
+        &edges,
+        R,
+        Tol::witness(),
+    )
+    .expect("the surgery");
     let rec = out.naming.as_ref().expect("the surgery keeps its records");
 
     assert_eq!(rec.blends.len(), 12, "one blend per source edge");
@@ -268,7 +293,13 @@ fn the_every_edge_request_records_every_entity_it_mints() {
 fn every_every_edge_record_names_a_source_entity() {
     let cube0 = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    let out = fillet_edges(&cube0, &edges, R, Tol::witness()).expect("the surgery");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&cube0, Tol::witness()),
+        &edges,
+        R,
+        Tol::witness(),
+    )
+    .expect("the surgery");
     let rec = out.naming.as_ref().expect("records");
     for (_, src) in &rec.blends {
         assert!(cube0.get_edge(*src).is_some(), "a blend names no source");
@@ -301,7 +332,7 @@ fn every_every_edge_record_names_a_source_entity() {
 /// sidecar, which are cross-revision by construction.
 #[test]
 fn the_every_edge_fillet_is_deterministic() {
-    let cube0 = cube(DIE_L, Tol::witness());
+    let cube0 = sweep::test_support::finished("cube0", cube(DIE_L, Tol::witness()), Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let a = fillet_edges(&cube0, &edges, R, Tol::witness()).expect("the surgery");
     let b = fillet_edges(&cube0, &edges, R, Tol::witness()).expect("the surgery again");

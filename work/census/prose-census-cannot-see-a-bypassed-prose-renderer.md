@@ -149,14 +149,15 @@ lane.
 `crates/viewer/src/idpass.rs`'s `Disagreement::fmt` wrote a role path
 through positional `{:?}` (`RoleSeg` has no `Display`), and the census
 carried an `UNDECIDED` entry for it. #3249 moved that rendering out of
-`fmt` into a free helper, `name_and_path`, shared by both sides of the
+`fmt` into a free helper, `name_and_path` (now the `NameAndPath`
+value, which `Say for Disagreement` and `frame::pick_refusal` share), shared by both sides of the
 comparison. The census reads `Display` impls, not free functions, so the
 entry stopped matching anything and was removed under the census's own
 rule that a dead entry goes. **The `Debug` rendering still reaches a
 reader; the census just can no longer see it.**
 
 Nothing was dodged — the move was the right refactor, and the reason is
-documented at `name_and_path`. That is what makes it evidence for this
+documented at `NameAndPath`. That is what makes it evidence for this
 row rather than a defect in #3249: composition migrating from a `Display`
 impl into a helper is an ordinary, correct change, and each one silently
 narrows what the census covers. A census that scans only `Display` bodies

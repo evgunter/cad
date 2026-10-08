@@ -40,8 +40,8 @@ use geom_core::Point3;
 use geom_core::Tol;
 use topo::readback::euler_counts;
 use topo::{
-    Body, EulerCounts, EulerOpError, LoopBoundary, MefSite, MevSite, ValidationError, validate,
-    validate_closed,
+    BadArgument, Body, EntityId, EulerCounts, EulerOpError, LoopBoundary, MefSite, MevSite,
+    ValidationError, validate, validate_closed,
 };
 
 fn pt(x: f64, y: f64) -> Point3<f64> {
@@ -51,7 +51,7 @@ fn pt(x: f64, y: f64) -> Point3<f64> {
 /// Pillow: mvfs + mev + mef. Returns (body, seed loop info).
 fn pillow() -> (Body<f64>, topo::MvfsCreated, topo::MevCreated) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0)).unwrap();
+    let seed = body.mvfs(pt(0.0, 0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -106,7 +106,7 @@ fn grow_and_promote_detached_digon(
         Tol::witness(),
     )
     .unwrap();
-    body.mfkrh_plug(kill.ring).unwrap()
+    body.mfkrh_plug(kill.ring, true).unwrap()
 }
 
 // ----------------------------------------------------------------------
@@ -226,7 +226,7 @@ fn nested_detachment_detached_component_with_genus() {
 fn two_solids_validate_independently() {
     let mut body = Body::<f64>::new();
     for i in 0..2 {
-        let seed = body.mvfs(pt(10.0 * f64::from(i), 0.0)).unwrap();
+        let seed = body.mvfs(pt(10.0 * f64::from(i), 0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -257,7 +257,7 @@ fn two_solids_validate_independently() {
 fn per_shell_disconnection_is_attributed_to_the_right_shell() {
     let mut body = Body::<f64>::new();
     // Solid 1: clean pillow.
-    let seed1 = body.mvfs(pt(0.0, 0.0)).unwrap();
+    let seed1 = body.mvfs(pt(0.0, 0.0), true).unwrap();
     let seg1 = body
         .mev_line(
             MevSite::Lone {
@@ -276,7 +276,7 @@ fn per_shell_disconnection_is_attributed_to_the_right_shell() {
     )
     .unwrap();
     // Solid 2: pillow + promoted detached digon.
-    let seed2 = body.mvfs(pt(10.0, 0.0)).unwrap();
+    let seed2 = body.mvfs(pt(10.0, 0.0), true).unwrap();
     let seg2 = body
         .mev_line(
             MevSite::Lone {
@@ -313,7 +313,7 @@ fn per_shell_disconnection_is_attributed_to_the_right_shell() {
 #[test]
 fn empty_outer_with_cycle_ring_is_tier1_legal() {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0)).unwrap();
+    let seed = body.mvfs(pt(0.0, 0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -502,7 +502,7 @@ fn demotion_attack_battery_no_debug_panic() {
     assert!(r.is_err(), "{r:?}");
 
     // mfkrh on an OUTER loop.
-    let r = body.mfkrh_plug(cube_outer);
+    let r = body.mfkrh_plug(cube_outer, true);
     assert!(r.is_err(), "outer is not a ring: {r:?}");
 
     // kev on a self-mated... on a pillow edge (distinct ends required).
@@ -537,9 +537,10 @@ fn demotion_attack_battery_no_debug_panic() {
     assert_eq!(validate(&body), Ok(()));
 }
 
-/// Stale keys (killed entities) into every op: typed errors, no panics.
+/// A key the caller kept past its kill, into every op: each refuses
+/// with `Argument(Stale)` naming the argument the key was passed as.
 #[test]
-fn stale_keys_yield_typed_errors() {
+fn stale_keys_refuse_as_stale_arguments() {
     let (mut body, _seed, seg) = pillow();
     let strut = body
         .mev_line(
@@ -552,34 +553,44 @@ fn stale_keys_yield_typed_errors() {
         )
         .unwrap();
     let dead_he = strut.he_plus;
-    let killed = body.kev(dead_he).unwrap();
-    let _ = killed;
-    for r in [
-        body.kev(dead_he).unwrap_err(),
-        body.kef(dead_he).unwrap_err(),
-        body.kemr(dead_he, dead_he).unwrap_err(),
-        body.mev_line(
-            MevSite::Fan {
-                he1: dead_he,
-                he2: dead_he,
-            },
-            pt(2.0, 2.0),
-            Tol::witness(),
-        )
-        .unwrap_err(),
-        body.mef_chord(
-            MefSite::Chords {
-                he1: dead_he,
-                he2: dead_he,
-            },
-            Tol::witness(),
-        )
-        .unwrap_err(),
+    body.kev(dead_he).unwrap();
+    let stale = |role| {
+        EulerOpError::Argument(BadArgument::Stale {
+            role,
+            key: EntityId::HalfEdge(dead_he),
+        })
+    };
+    for (call, r, role) in [
+        ("kev", body.kev(dead_he).unwrap_err(), "he"),
+        ("kef", body.kef(dead_he).unwrap_err(), "he"),
+        ("kemr", body.kemr(dead_he, dead_he).unwrap_err(), "he1"),
+        (
+            "mev",
+            body.mev_line(
+                MevSite::Fan {
+                    he1: dead_he,
+                    he2: dead_he,
+                },
+                pt(2.0, 2.0),
+                Tol::witness(),
+            )
+            .unwrap_err(),
+            "he1",
+        ),
+        (
+            "mef",
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: dead_he,
+                    he2: dead_he,
+                },
+                Tol::witness(),
+            )
+            .unwrap_err(),
+            "he1",
+        ),
     ] {
-        assert!(
-            matches!(r, EulerOpError::StaleKey { .. }),
-            "expected StaleKey, got {r:?}"
-        );
+        assert_eq!(r, stale(role), "{call}");
     }
     assert_eq!(validate(&body), Ok(()));
 }
@@ -634,7 +645,7 @@ fn assert_tier1_after_all_public_mutations(label: &str, body: &Body<f64>, depth:
     // mfkrh sweep.
     for &lp in &loops {
         let mut clone = body.clone();
-        if clone.mfkrh_plug(lp).is_ok() {
+        if clone.mfkrh_plug(lp, true).is_ok() {
             assert_eq!(
                 validate(&clone),
                 Ok(()),
@@ -787,7 +798,7 @@ fn promoted_empty_ring_still_has_an_empty_loop() {
         .unwrap();
     let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     // mfkrh on the EMPTY ring (if accepted).
-    let promoted = body.mfkrh_plug(kill.ring);
+    let promoted = body.mfkrh_plug(kill.ring, true);
     match promoted {
         Ok(_) => {
             assert_eq!(validate(&body), Ok(()), "tier 1 accepts it");
@@ -815,7 +826,7 @@ fn promoted_empty_ring_still_has_an_empty_loop() {
 #[test]
 fn exhaustive_mutator_sweep_empty_outer_family() {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0)).unwrap();
+    let seed = body.mvfs(pt(0.0, 0.0), true).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
@@ -838,7 +849,7 @@ fn exhaustive_mutator_sweep_empty_outer_family() {
 
     // Direct chain: promote the cycle ring.
     let mut chained = body.clone();
-    if chained.mfkrh_plug(kill.ring).is_ok() {
+    if chained.mfkrh_plug(kill.ring, true).is_ok() {
         assert_eq!(validate(&chained), Ok(()), "promoted strut-cycle face");
         let errs = validate_closed(&chained).unwrap_err();
         assert!(
@@ -861,7 +872,7 @@ fn exhaustive_mutator_sweep_empty_outer_family() {
             }
         }
         let mut clone = body.clone();
-        if clone.mfkrh_plug(lp).is_ok() {
+        if clone.mfkrh_plug(lp, true).is_ok() {
             assert_eq!(validate(&clone), Ok(()), "mfkrh({lp:?})");
         }
     }

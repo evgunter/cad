@@ -71,6 +71,7 @@ use crate::contact::{ContactClass, ContactRefusal, ContactVerdict, FIT_DEFERRAL}
 use crate::entity::FaceKey;
 
 use super::carrier_eq::{CarrierEqError, CarrierRelation};
+use super::refusal_routes::Contradiction;
 
 /// **The class-dispatching contact door**: does this face pair hold
 /// the declared contact, and on whose evidence?
@@ -121,19 +122,10 @@ pub fn contact_pair_verdict<T: Decide>(
 ///
 /// An ANGULAR contradiction (axes not parallel, planes not parallel)
 /// gets no steer: no gap makes those two carriers one, so pointing at
-/// `Fit` there would be advice that cannot work.
-pub(super) fn fit_steer(diag: &Indeterminate) -> Option<&'static str> {
-    matches!(
-        diag.predicate,
-        Some(
-            "carrier_sphere_radius"
-                | "carrier_cyl_radius"
-                | "carrier_sphere_center"
-                | "carrier_cyl_axis_offset"
-                | "bool_plane_offset"
-        )
-    )
-    .then_some(FIT_DEFERRAL)
+/// `Fit` there would be advice that cannot work
+/// ([`Contradiction::fits_a_clearance`]).
+pub(super) fn fit_steer(fact: Contradiction) -> Option<&'static str> {
+    fact.fits_a_clearance().then_some(FIT_DEFERRAL)
 }
 
 /// The `Rest` table (C4): carrier non-contradiction through the
@@ -153,38 +145,53 @@ fn rest_pair_verdict<T: Decide>(
     fb: FaceKey,
     band: Band,
 ) -> Result<ContactVerdict, ContactRefusal> {
-    let outcome = super::rest::carrier_pair_verdict(a, fa, b, fb, true, band).ok_or(
-        ContactRefusal::NotCertifiable {
-            what: "a declared face's surface kind is outside the Rest ladder's inventory \
-                   (plane, sphere, cylinder)",
-        },
-    )?;
+    let outcome =
+        super::rest::carrier_pair_verdict(a, fa, b, fb, true, band).map_err(|unread| {
+            ContactRefusal::NotCertifiable {
+                what: match unread {
+                    super::rest::PairUnread::OutsideInventory => {
+                        "a declared face's surface kind is outside the Rest ladder's inventory \
+                     (plane, sphere, cylinder, torus)"
+                    }
+                    super::rest::PairUnread::Extent(_) => {
+                        "a declared face's consumed extent cannot be read (its box has no claim to \
+                     make, or its boundary cannot be walked)"
+                    }
+                },
+            }
+        })?;
     match outcome {
         Ok((CarrierRelation::SameOpposite, verdict)) => Ok(verdict),
         Ok((CarrierRelation::SameOriented, _)) => Err(ContactRefusal::Contradicted {
             diag: Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
+                margin: geom_core::MarginDiag::INVALID,
                 band,
                 predicate: Some("contact_rest_senses_opposed"),
+                terminal_sliver: false,
             },
             steer: None,
         }),
         // The ladder contradicts a declared pair before it can call
-        // it `Distinct`; a `Distinct` here would be the ladder
+        // it `Distinct`, and a declared pair never reaches the
+        // undeclared coincidence rung; either here would be the ladder
         // breaking its own contract.
-        Ok((CarrierRelation::Distinct, _)) => Err(ContactRefusal::Escalated {
-            diag: Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
-                band,
-                predicate: Some("contact_rest_ladder_invariant"),
-            },
-        }),
-        Err(CarrierEqError::Contradicted(diag)) => Err(ContactRefusal::Contradicted {
-            steer: fit_steer(&diag),
+        Ok((CarrierRelation::Distinct, _)) | Err(CarrierEqError::Undeclared { .. }) => {
+            Err(ContactRefusal::Escalated {
+                diag: Indeterminate {
+                    margin: geom_core::MarginDiag::INVALID,
+                    band,
+                    predicate: Some("contact_rest_ladder_invariant"),
+                    terminal_sliver: false,
+                },
+            })
+        }
+        Err(CarrierEqError::Contradicted { fact, diag }) => Err(ContactRefusal::Contradicted {
+            steer: fit_steer(fact),
             diag,
         }),
-        Err(CarrierEqError::Escalated(diag)) => Err(ContactRefusal::Escalated { diag }),
-        Err(CarrierEqError::Undeclared { diag, .. }) => Err(ContactRefusal::Undeclared { diag }),
+        Err(CarrierEqError::Escalated { diag, .. } | CarrierEqError::Unsettled { diag }) => {
+            Err(ContactRefusal::Escalated { diag })
+        }
     }
 }
 
@@ -323,9 +330,10 @@ pub fn tangent_locus_relation<T: Decide>(
                 Ok(Sign::Positive) => {
                     return Err(ContactRefusal::Contradicted {
                         diag: Indeterminate {
-                            margin: geom_core::MarginDiag::Invalid,
+                            margin: geom_core::MarginDiag::INVALID,
                             band,
                             predicate: Some(name),
+                            terminal_sliver: false,
                         },
                         steer: Some(FIT_DEFERRAL),
                     });
@@ -346,9 +354,7 @@ pub fn tangent_locus_relation<T: Decide>(
         // (the C1 lemma, one dimension down from C3's patch clause).
         let n1: Vec3<T> = implicit_outward_normal(s1, sense1, p).vec();
         let n2: Vec3<T> = implicit_outward_normal(s2, sense2, p).vec();
-        let arm = geom_brep::curvature_lever_arm(s1, p)
-            .min(geom_brep::curvature_lever_arm(s2, p))
-            .min(extent);
+        let arm = geom_brep::folded_lever_arm(s1, s2, p, extent);
         match crate::validate::decide(
             "contact_tangent_opposed",
             Margin::levered(n1.dot(n2), arm),
@@ -358,9 +364,10 @@ pub fn tangent_locus_relation<T: Decide>(
             Ok(Sign::Positive) => {
                 return Err(ContactRefusal::Contradicted {
                     diag: Indeterminate {
-                        margin: geom_core::MarginDiag::Invalid,
+                        margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("contact_tangent_opposed"),
+                        terminal_sliver: false,
                     },
                     steer: None,
                 });
@@ -371,9 +378,10 @@ pub fn tangent_locus_relation<T: Decide>(
             Ok(Sign::Zero) => {
                 return Err(ContactRefusal::Contradicted {
                     diag: Indeterminate {
-                        margin: geom_core::MarginDiag::Invalid,
+                        margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("contact_tangent_independent"),
+                        terminal_sliver: false,
                     },
                     steer: None,
                 });
@@ -420,9 +428,10 @@ pub fn tangent_locus_relation<T: Decide>(
             Ok(Sign::Positive | Sign::Negative) => {
                 return Err(ContactRefusal::Contradicted {
                     diag: Indeterminate {
-                        margin: geom_core::MarginDiag::Invalid,
+                        margin: geom_core::MarginDiag::INVALID,
                         band,
                         predicate: Some("contact_tangent_parallel"),
+                        terminal_sliver: false,
                     },
                     steer: None,
                 });
@@ -444,9 +453,10 @@ pub fn tangent_locus_relation<T: Decide>(
                 if !declared {
                     return Err(ContactRefusal::Escalated {
                         diag: Indeterminate {
-                            margin: geom_core::MarginDiag::Invalid,
+                            margin: geom_core::MarginDiag::INVALID,
                             band,
                             predicate: Some("contact_tangent_second_order"),
+                            terminal_sliver: false,
                         },
                     });
                 }
@@ -476,16 +486,16 @@ mod tests {
 
     fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
         Surface::Plane {
-            origin: Point3::new(o[0], o[1], o[2]),
-            normal: Vec3::new(n[0], n[1], n[2]),
+            origin: Point3::from_array(o),
+            normal: Vec3::from_array(n),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         }
     }
 
     fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
         geom::Curve3::Line {
-            origin: Point3::new(o[0], o[1], o[2]),
-            dir: Vec3::new(d[0], d[1], d[2]),
+            origin: Point3::from_array(o),
+            dir: Vec3::from_array(d),
         }
     }
 
@@ -634,20 +644,15 @@ mod tests {
     /// does not, because no gap makes two non-parallel carriers one.
     #[test]
     fn fit_steer_fires_only_where_a_gap_could_help() {
-        let diag = |p| Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
-            band: band(),
-            predicate: Some(p),
-        };
         assert_eq!(
-            fit_steer(&diag("carrier_sphere_radius")),
+            fit_steer(Contradiction::SphereRadiiDiffer),
             Some(FIT_DEFERRAL)
         );
         assert_eq!(
-            fit_steer(&diag("carrier_cyl_axis_offset")),
+            fit_steer(Contradiction::CylinderAxesApart),
             Some(FIT_DEFERRAL)
         );
-        assert_eq!(fit_steer(&diag("carrier_cyl_axis_parallel")), None);
-        assert_eq!(fit_steer(&diag("bool_plane_parallel")), None);
+        assert_eq!(fit_steer(Contradiction::CylinderAxesNotParallel), None);
+        assert_eq!(fit_steer(Contradiction::PlanesNotParallel), None);
     }
 }

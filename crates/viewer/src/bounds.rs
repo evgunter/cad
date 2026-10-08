@@ -6,7 +6,7 @@
 //! A user about to change a dimension wants to know the room they have
 //! — "if I set any number between these two, nothing new goes wrong;
 //! immediately outside either, something does". This module answers
-//! that for one slot or one document parameter, as a value.
+//! that for one slot or one document variable, as a value.
 //!
 //! **"Nothing NEW"** is the load-bearing word. A document that is
 //! already failing somewhere does not have to be repaired before its
@@ -54,9 +54,9 @@
 //! a door this module cannot open for itself:
 //!
 //! * **A widened binding reaches evaluation as one.**
-//!   `editor_core::analysis::param_env_over` binds an axis as
+//!   `editor_core::analysis::var_env_over` binds an axis as
 //!   `nominal + [lo, hi]` in the scalar's own arithmetic, where
-//!   `Doc::param_env` binds `T::from_f64` of the nominal alone and
+//!   `Doc::var_env` binds `T::from_f64` of the nominal alone and
 //!   every binding is therefore degenerate.
 //! * **A node SLOT has a name to widen.**
 //!   `editor_core::range::RangeField::Slot` names one, and the
@@ -171,7 +171,10 @@ impl Verdict {
         Self(
             eval.nodes
                 .iter()
-                .filter(|(_, result)| matches!(result, NodeResult::Failed(_)))
+                .filter(|(_, result)| match result {
+                    NodeResult::Failed(_) => true,
+                    NodeResult::Ok(_) | NodeResult::Poisoned { .. } => false,
+                })
                 .map(|(id, _)| *id)
                 .collect(),
         )
@@ -293,7 +296,7 @@ impl Bounds {
     /// it is non-zero: a bound that IS zero reads `0`, and a sign is not
     /// a distance ([`crate::readout::reads_back`] measures how far a
     /// text reads FROM the value). This is what stops the rule being
-    /// [`crate::scene::DisplayTolerance::render_mm`] with the δ taken
+    /// [`crate::scene::DisplayTolerance::render_in`] with the δ taken
     /// out — δ is strictly positive and a probed field is not.
     ///
     /// **And a bound may be one the NOTATION cannot name**, which is

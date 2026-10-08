@@ -54,3 +54,14 @@ lint` now REFUSES a `parked` row whose every blocker is closed, and a
 program cannot un-park another program's rows in the PR that closes
 their trigger — `work/README.md`'s one-file-one-item rule makes that a
 merge conflict by design.
+
+## Evidence: the accept-version door is gated on this (AUTH-15, 2026-09-30)
+
+An instance whose pin no longer holds now offers **Accept updated
+version** on its tree row (`SessionOp::AcceptPartVersion`,
+`author/accept-part-version`, PR #3591). The offer is read off the
+instance's `PinMismatch` failure. Because of §1, a part repaired while
+its assembly is open raises no failure, so the offer does not appear
+until the assembly is reopened. The viewer README says so beside the
+feature. Until this row lands, "reopen to re-read" is the documented
+answer.

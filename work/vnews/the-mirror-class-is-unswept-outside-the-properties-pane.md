@@ -72,3 +72,10 @@ The third blind spot PR #2961 named — **a gate that agrees with its
 door by coincidence rather than by reading the same value** — turned
 out to have a member inside that lane's own diff and is filed with it:
 `work/vseam/a-panels-gate-reads-the-previewed-document-while-its-door-reads-the-committed-one`.
+
+**2026-09-29, AUTH-6.** `pane/profile.rs`'s and `widgets.rs`'s
+`ShapeEdits::free()` gates are gone with the lock
+(`author/profile-reshape`): a committed profile's shape controls are
+live, and the door behind them takes every program they author as one
+`SetProgram`. What is left in `pane/profile.rs` to sweep is the step
+controls' end-of-list gates and the edit door's Apply and Revert.

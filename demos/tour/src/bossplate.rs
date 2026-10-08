@@ -20,34 +20,43 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use std::collections::HashMap;
 
-use pncad::authoring::{p2, polygon, v3};
+use pncad::authoring::{p2, polygon, v3, validated};
 use pncad::geom_core::Affine3;
-use pncad::profile::{Profile, SketchPlane, circle_split};
+use pncad::profile::{SketchPlane, circle_split};
 use pncad::sweep::{Extrusion, extrude};
-use pncad::topo::{Body, BooleanBody, BooleanResult, Curve3};
+use pncad::topo::{AtRestBody, Body, BooleanBody, BooleanResult, Curve3};
+
+use crate::booleans::finished;
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
 
 /// The plate: a 4×4×1 block, z ∈ [0, 1].
-fn plate<S: Scalar>(tol: Tol) -> Body<S> {
+fn plate<S: Scalar>(tol: Tol) -> AtRestBody<S> {
     let lp =
         polygon(&[(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)], tol).expect("plate outline");
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol)
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(S::from_f64(1.0)), tol)
-        .unwrap()
-        .body
+    let profile = validated(SketchPlane::xy(), vec![lp], tol).unwrap();
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: S::from_f64(1.0),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
+    finished("the plate", body, tol)
 }
 
 /// The boss: radius 0.5 about (2, 2), three 120° arcs, sketched at
 /// z = 0.4 (strictly inside the plate), extruded 1.2 → pokes out to
 /// z = 1.6.
-fn boss<S: Scalar>(tol: Tol) -> Body<S> {
+fn boss<S: Scalar>(tol: Tol) -> AtRestBody<S> {
     // The DECLARED-SUBDIVISION carrier (`circle_split`), not `circle`:
     // this boss is deliberately split into THREE 120-degree arcs of one
     // carrier, because the stop's whole point is a transverse curved
@@ -57,12 +66,19 @@ fn boss<S: Scalar>(tol: Tol) -> Body<S> {
     // count has to be said out loud; `circle_split` is the door that
     let rim = circle_split(p2(2.0, 2.0), S::from_f64(0.5), 3, S::from_f64(0.0), tol)
         .expect("the three-arc rim authors");
-    let lp = rim.into();
     let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, 0.4)));
-    let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(S::from_f64(1.2)), tol)
-        .unwrap()
-        .body
+    let profile = validated(plane, vec![rim.into()], tol).unwrap();
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: S::from_f64(1.2),
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body;
+    finished("the boss", body, tol)
 }
 
 /// The union (a seamed boolean body — 3′ validates with its own
@@ -162,20 +178,17 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             azim: -55.0,
             up: 'z',
         },
-        // A TRANSVERSE curved boolean declares no contacts, and the 3′
-        // census is exact-on-planar by ruling (C12.4/OQ5: a TOUCHING
-        // curved result refuses there — pinned in
-        // `sweep/tests/m5_pr9_boss_union.rs`); a contact-free body
-        // takes plain tier 3, which this one passes in full.
-        bodies: vec![{
-            let contact_free = bb.contacts.vv.is_empty()
-                && bb.contacts.a_on_b.is_empty()
-                && bb.contacts.b_on_a.is_empty();
-            if contact_free {
-                SceneBody::plain("bossplate", [0.85, 0.55, 0.25], bb.body)
-            } else {
-                SceneBody::seamed("bossplate", [0.85, 0.55, 0.25], bb.body, bb.contacts)
-            }
+        // Routed by `crate::declares_no_contacts`; this transverse
+        // union declares none and passes plain tier 3 in full.
+        bodies: vec![if crate::declares_no_contacts(&bb.contacts) {
+            SceneBody::plain("bossplate", [0.85, 0.55, 0.25], bb.body.into_body())
+        } else {
+            SceneBody::seamed(
+                "bossplate",
+                [0.85, 0.55, 0.25],
+                bb.body.into_body(),
+                bb.contacts,
+            )
         }],
     }]
 }

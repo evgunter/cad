@@ -6,7 +6,7 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations};
+use common::{brick, finished, flush_declarations};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
@@ -19,6 +19,12 @@ fn band() -> Band {
     Band::linear(Tol::witness()).unwrap()
 }
 
+/// A ball of radius `arm` about the origin, no point of either face
+/// known: the extent a bare arm names.
+fn at(arm: f64) -> topo::ConsumedExtent<'static, f64> {
+    topo::ConsumedExtent::unwitnessed(geom_brep::ExtentBall::new(Point3::origin(), arm))
+}
+
 fn declared() -> PlaneIdentity<'static> {
     PlaneIdentity {
         s1: None,
@@ -29,16 +35,16 @@ fn declared() -> PlaneIdentity<'static> {
 
 fn plane(o: [f64; 3], n: [f64; 3]) -> Surface<f64> {
     Surface::Plane {
-        origin: Point3::new(o[0], o[1], o[2]),
-        normal: Vec3::new(n[0], n[1], n[2]),
+        origin: Point3::from_array(o),
+        normal: Vec3::from_array(n),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
 fn line(o: [f64; 3], d: [f64; 3]) -> geom::Curve3<f64> {
     geom::Curve3::Line {
-        origin: Point3::new(o[0], o[1], o[2]),
-        dir: Vec3::new(d[0], d[1], d[2]),
+        origin: Point3::from_array(o),
+        dir: Vec3::from_array(d),
     }
 }
 
@@ -134,8 +140,8 @@ fn probe_sphere_rung_mm_vs_metre_twin() {
             radius: 2.5 * scale,
             outward: false,
         };
-        match carrier_eq(&a, &b, declared(), 1.0, band()).unwrap_err() {
-            CarrierEqError::Contradicted(d) => {
+        match carrier_eq(&a, &b, declared(), &at(1.0), band()).unwrap_err() {
+            CarrierEqError::Contradicted { diag: d, .. } => {
                 assert_eq!(
                     d.predicate,
                     Some("carrier_sphere_radius"),
@@ -173,20 +179,35 @@ fn probe_cylinder_axis_near_tie_three_outcomes() {
     let near = tilt(b.zero() * 0.001);
     assert!(
         matches!(
-            carrier_eq(&base, &near, PlaneIdentity::NONE, 1.0, band()),
+            carrier_eq(&base, &near, PlaneIdentity::NONE, &at(1.0), band()),
             Err(CarrierEqError::Undeclared { .. })
         ),
         "in-band, undeclared: refuses"
     );
     assert_eq!(
-        carrier_eq(&base, &near, declared(), 1.0, band()).unwrap(),
+        carrier_eq(&base, &near, declared(), &at(1.0), band()).unwrap(),
         CarrierRelation::SameOpposite,
         "in-band, declared: bridged"
     );
     // Definite tilt: three orders above the escalate edge at the same
     // 1 m arm.
-    match carrier_eq(&base, &tilt(b.escalate() * 1000.0), declared(), 1.0, band()).unwrap_err() {
-        CarrierEqError::Contradicted(d) => {
+    // A point of the face a metre up the axis, which the tilt has
+    // carried a thousand bands off.
+    let on = [Point3::new(3.0, 0.0, 1.0)];
+    let extent = topo::ConsumedExtent {
+        on: [&on, &[]],
+        ..at(1.0)
+    };
+    match carrier_eq(
+        &base,
+        &tilt(b.escalate() * 1000.0),
+        declared(),
+        &extent,
+        band(),
+    )
+    .unwrap_err()
+    {
+        CarrierEqError::Contradicted { diag: d, .. } => {
             assert_eq!(d.predicate, Some("carrier_cyl_axis_parallel"));
         }
         other => panic!("expected Contradicted, got {other:?}"),
@@ -198,8 +219,17 @@ fn probe_cylinder_axis_near_tie_three_outcomes() {
 /// than vacuously true.
 #[test]
 fn probe_replay_partial_eq_bites_on_mutation() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness());
+    let tol = Tol::witness();
+    let a = finished(
+        "a",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
+    let b = finished(
+        "b",
+        brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), tol),
+        tol,
+    );
     let decls = flush_declarations(&a, &b, Tol::witness());
     let BooleanResult::Body(x) = union_with(&a, &b, &decls, Tol::witness()).unwrap() else {
         panic!("overlapping union cannot be empty");

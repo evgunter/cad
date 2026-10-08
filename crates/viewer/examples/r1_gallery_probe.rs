@@ -121,7 +121,7 @@ fn main() {
         let rows = session.tree_rows();
         let instances: Vec<_> = rows
             .iter()
-            .filter(|r| r.kind == "InstantiatePart")
+            .filter(|r| r.spoken.kind() == Some("InstantiatePart"))
             .collect();
         let failed: Vec<_> = rows
             .iter()
@@ -136,7 +136,7 @@ fn main() {
         for row in &failed {
             violations.push(format!(
                 "{name}: node {} is {:?} — the real gallery must resolve clean",
-                row.id.0, row.status
+                row.id, row.status
             ));
         }
         // The G3 items, per instance: hide takes effect or refuses
@@ -160,12 +160,12 @@ fn main() {
                     let after = index_triangles(&session);
                     println!(
                         "      node {}: hide accepted, drawn triangles {baseline:?} -> {after:?}",
-                        row.id.0
+                        row.id
                     );
                     if after == baseline {
                         violations.push(format!(
                             "{name}: node {} hide ACCEPTED BUT DREW NOTHING DIFFERENT",
-                            row.id.0
+                            row.id
                         ));
                     }
                     session.perform(viewer::session::SessionOp::SetInstanceHidden {
@@ -174,7 +174,7 @@ fn main() {
                     });
                 }
                 Some(refusal) => {
-                    println!("      node {}: hide refused typed — {refusal}", row.id.0);
+                    println!("      node {}: hide refused typed — {refusal}", row.id);
                 }
             }
             if session
@@ -190,12 +190,12 @@ fn main() {
                 let marked = probe_parts(&session);
                 println!(
                     "      node {}: free-move committed, scene probe_parts={marked:?}",
-                    row.id.0
+                    row.id
                 );
                 if marked == Some(0) {
                     violations.push(format!(
                         "{name}: node {} probe COMMITTED BUT MARKED NOTHING",
-                        row.id.0
+                        row.id
                     ));
                 }
                 // Discard the probe so the next instance's baseline is
@@ -207,10 +207,13 @@ fn main() {
                 });
                 session.perform(viewer::session::SessionOp::CommitFreeMove { instance: row.id });
             } else {
-                println!("      node {}: free-move refused typed", row.id.0);
+                println!("      node {}: free-move refused typed", row.id);
             }
         }
-        let mates = rows.iter().filter(|r| r.kind == "Mate").count();
+        let mates = rows
+            .iter()
+            .filter(|r| r.spoken.kind() == Some("Mate"))
+            .count();
         if mates > 0 {
             println!("      ({mates} authored mate node(s))");
         }

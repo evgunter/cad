@@ -5,11 +5,11 @@
 //! — a `Chart` edge image, a stored pcurve row — is re-stated under
 //! the reflection, and every certificate the source carried is a
 //! certificate of the result (`topo::revert` module docs). Measured on
-//! SHELL's drum: a cylinder whose top cap carries a collinear profile
-//! vertex, so one plane holds four faces with a latitude ring between
-//! them, and the ring's two half-circles are the plane images with a
-//! non-zero `v` channel (the six radial lines lie on the `u_ref` axis
-//! and were fixed by the mirror all along). The other image kinds a
+//! SHELL's drum: a cylinder whose top cap carries a latitude ring, so
+//! one plane holds three faces with the ring between them, and the
+//! ring's two half-circles are the plane images with a non-zero `v`
+//! channel (the two radial lines lie on the `u_ref` axis and were fixed
+//! by the mirror all along). The other image kinds a
 //! plane can carry — an iso line, a fitted or general NURBS image —
 //! have no producer on a plane, so their body-level rows build the
 //! face by hand through the Euler door with the image given.
@@ -37,6 +37,7 @@ use geom_core::spline::KnotVector;
 use geom_core::{Band, Point2, Point3, Vec2, Vec3};
 use topo::{Body, EdgeKey, FaceSurface, HalfEdgeKey, MevSite, ValidationError};
 
+use super::common::certificates::assert_certificates_fresh;
 use super::common::latitude_seam::{
     collinear_cap_drum, door_cavity, graft_recertify_failures, plane_images, void_evidence,
 };
@@ -88,7 +89,7 @@ fn assert_mirrored(label: &str, stored: &Pcurve<f64>, mirrored: &Pcurve<f64>, ts
 #[test]
 fn reverted_drum_cavity_mirrors_every_plane_chart_image_with_its_frame() {
     let cavity = door_cavity(&collinear_cap_drum(), T);
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     let stored = plane_images(&cavity);
     let mirrored = plane_images(&reverted);
     assert_eq!(stored.len(), mirrored.len(), "keys are the source's");
@@ -121,7 +122,7 @@ fn reverted_drum_cavity_mirrors_every_plane_chart_image_with_its_frame() {
 fn reverted_drum_cavity_re_certifies_edge_for_edge_and_tier_3_reports_only_the_complement() {
     let cavity = door_cavity(&collinear_cap_drum(), T);
     assert!(graft_recertify_failures(&cavity).is_empty());
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     let failures = graft_recertify_failures(&reverted);
     assert!(
         failures.is_empty(),
@@ -143,17 +144,14 @@ fn reverted_drum_cavity_re_certifies_edge_for_edge_and_tier_3_reports_only_the_c
 fn revert_is_a_bitwise_involution_on_a_body_with_plane_chart_images() {
     let cavity = door_cavity(&collinear_cap_drum(), T);
     let original = format!("{cavity:?}");
-    let once = cavity.revert().unwrap();
+    let once = cavity.revert();
     assert_ne!(
         format!("{once:?}"),
         original,
         "the reversal moved something"
     );
-    assert_eq!(format!("{:?}", once.revert().unwrap()), original);
-    assert_eq!(
-        format!("{:?}", cavity.revert().unwrap()),
-        format!("{once:?}")
-    );
+    assert_eq!(format!("{:?}", once.revert()), original);
+    assert_eq!(format!("{:?}", cavity.revert()), format!("{once:?}"));
 }
 
 /// **A stored pcurve row on a plane face travels the same way**: no
@@ -183,12 +181,11 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
         .unwrap();
     let (carrier3, (t0, t1)) = carrier(&cavity, ek);
     let plane = cavity.get_surface(surface_key).unwrap().clone();
-    let window = image.chart_box(t0, t1);
-    let row = PcurveCache::certify(image, t0, t1, &carrier3, &plane, window, band)
+    let row = PcurveCache::certify(image, t0, t1, &carrier3, &plane, band)
         .expect("a plane row certifies in the harmonic lane");
     assert!(cavity.attach_pcurve(he, row.clone()).is_none());
 
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     let mirrored = reverted.pcurve(he).expect("the row keeps its key");
     assert_mirrored(
         "row",
@@ -210,8 +207,8 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
             &carrier3,
             reverted_plane,
             None,
-            mirrored.pcurve().chart_box(t0, t1),
             band,
+            <f64 as topo::AtRestPolicy>::fitted_lane(),
         )
         .expect("the mirrored row certifies on the reverted plane");
     assert_eq!(
@@ -219,7 +216,13 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
         format!("{:?}", row.certificate()),
         "a fresh run on the reverted body metres the same numbers"
     );
-    let stale = row.recertify(&carrier3, reverted_plane, None, window, band);
+    let stale = row.recertify(
+        &carrier3,
+        reverted_plane,
+        None,
+        band,
+        <f64 as topo::AtRestPolicy>::fitted_lane(),
+    );
     assert!(
         matches!(
             stale,
@@ -231,7 +234,7 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
         "the stored image is wrong on the reverted plane at the first interior sample: \
          the reflection is load-bearing; got {stale:?}"
     );
-    let back = reverted.revert().expect("revert");
+    let back = reverted.revert();
     assert_eq!(
         format!("{:?}", back.pcurve(he).unwrap()),
         format!("{row:?}"),
@@ -239,11 +242,12 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
     );
 }
 
-/// **The void door takes the drum's cavity**, which is where `shell`
-/// used to stop (`ShellError::Insert`, the graft's `Recertify`): the
-/// graft re-runs the meter on the reverted cavity's images, and they
-/// are right now. The assembled thin solid's closed form is pinned end
-/// to end in `shell7_seam_corner`; this row pins the door alone.
+/// **The void door takes the drum's cavity.** The door carries the
+/// reverted cavity's certificates rather than re-running the meter, so
+/// what says the mirrored images are right is the row above, which
+/// meters every reverted edge and tier 3 of the reverted body. The
+/// assembled thin solid's closed form is pinned end to end in
+/// `shell7_seam_corner`; this row pins the door alone.
 #[test]
 fn insert_voids_takes_the_reverted_drum_cavity() {
     let body = collinear_cap_drum();
@@ -252,8 +256,8 @@ fn insert_voids_takes_the_reverted_drum_cavity() {
     let images_before = plane_images(&body).len() + plane_images(&cavity).len();
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
-    topo::insert_voids(&mut out, &solids, cavity, &evidence, tol())
-        .expect("the graft's meter passes on the mirrored images");
+    topo::insert_voids(&mut out, &solids, cavity, &evidence)
+        .expect("the door grafts the reverted cavity");
     assert_eq!(out.shells().count(), 2, "outer + cavity");
     assert_eq!(
         plane_images(&out).len(),
@@ -272,9 +276,15 @@ fn plane_face_with(image: Pcurve<f64>, carrier: Curve3<f64>, t0: f64, t1: f64) -
     };
     let mut body = Body::<f64>::new();
     let (start, end) = (carrier.eval(t0), carrier.eval(t1));
-    let seed = body.mvfs(start).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(plane))
-        .unwrap();
+    let seed = body.mvfs(start, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: plane,
+            sense: true,
+        },
+    )
+    .unwrap();
     let chart = body.get_face(seed.face).unwrap().surface;
     let spec = EdgeCurveSpec {
         description: EdgeDescriptionSpec::chart_image(chart, image),
@@ -351,7 +361,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
     for (label, image) in kinds {
         let body = plane_face_with(image, carrier.clone(), 0.0, len);
         let source = only_curve(&body);
-        let reverted = body.revert().expect(label);
+        let reverted = body.revert();
         let mirrored = only_curve(&reverted);
         assert_eq!(
             std::mem::discriminant(&image_of(&mirrored)),
@@ -379,7 +389,7 @@ fn a_plane_face_with_an_iso_line_or_nurbs_image_reverts_and_recertifies() {
             "{label}: the certificate that travelled verbatim is the fresh run's"
         );
         assert_eq!(
-            format!("{:?}", reverted.revert().unwrap()),
+            format!("{:?}", reverted.revert()),
             format!("{body:?}"),
             "{label}: involution"
         );
@@ -409,7 +419,7 @@ fn a_signed_zero_lands_in_the_mirrored_image_and_never_in_its_certificate() {
         pl: Vec2::new(0.0, 0.0),
     };
     let body = plane_face_with(image, circle, 0.0, core::f64::consts::PI);
-    let reverted = body.revert().unwrap();
+    let reverted = body.revert();
     let m = only_curve(&reverted);
     let img = format!("{:?}", image_of(&m));
     assert!(
@@ -423,8 +433,25 @@ fn a_signed_zero_lands_in_the_mirrored_image_and_never_in_its_certificate() {
     );
     assert_ne!(format!("{reverted:?}"), format!("{body:?}"));
     assert_eq!(
-        format!("{:?}", reverted.revert().unwrap()),
+        format!("{:?}", reverted.revert()),
         format!("{body:?}"),
         "involution"
     );
+}
+
+/// **The void door's carried certificates are the ones a fresh
+/// re-certification mints**, bit for bit (`Certificate`'s `Debug` form,
+/// its D9 identity), on the drum's reverted cavity: the claim
+/// `topo::boolean::voids`' module docs rest the carrying on.
+#[test]
+fn carried_cavity_certificates_equal_a_fresh_recertification() {
+    let body = collinear_cap_drum();
+    let cavity = door_cavity(&body, T);
+    let evidence = void_evidence(&cavity);
+    let mut out = body.clone();
+    let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
+    let ins = topo::insert_voids(&mut out, &solids, cavity.clone(), &evidence).unwrap();
+    let edges = cavity.edges().map(|(ek, _)| ins.edge(ek).unwrap());
+    let compared = assert_certificates_fresh("cavity", &out, edges, tol());
+    assert!(compared > 0);
 }

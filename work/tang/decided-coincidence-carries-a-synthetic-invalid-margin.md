@@ -2,10 +2,12 @@
 id: decided-coincidence-carries-a-synthetic-invalid-margin
 kind: issue
 title: A coincidence decided Zero on every datum is reported with a synthetic MarginDiag::Invalid margin, as if a measurement had failed
-status: open
+status: parked
 opened: 2026-09-25
 priority: P3
-cost: D
+cost: M
+design: true
+blocked_on: [intent-stage4-is-built]
 ---
 
 ## What
@@ -47,3 +49,7 @@ beyond the drive-by that found it (GERM torus doors, from
 ## Home
 
 TANG (`carrier_eq.rs`); `plane_eq.rs` is the planar twin.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the synthetic margins sit on the undeclared-coincidence refusal and ContactContradicted (plane_eq, carrier_eq), which become findings or retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

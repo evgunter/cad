@@ -4,9 +4,8 @@
 //! Both families are PURE. `split` and `inline` hand back the new
 //! document VALUES plus the ordinary recorded edits that produce them,
 //! and mutate nothing; `update_references` hands back an edit list and
-//! applies none of it. That is what makes each of them atomic at the
-//! caller's single step — there is no partially applied state to roll
-//! back from, because the caller applies the whole list or none of it.
+//! applies none of it, each edit one site's and independent of the
+//! rest.
 //!
 //! Persisting a result is the store's write side (`Workspace.create`
 //! for a new part document, `Workspace.resave` for a rewritten one).
@@ -45,7 +44,7 @@
 use std::collections::BTreeSet;
 
 use pyo3::prelude::*;
-use pyo3::types::PyString;
+use pyo3::types::{PyDict, PyString};
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
@@ -54,6 +53,7 @@ use pncad::document as d;
 use pncad::tolerance::Tol;
 
 use super::doc::{Doc, DocEdit, NodeId, name_text};
+use super::step::StepId;
 use super::store::ContentPin;
 
 /// Parse the canonical 32-hex-digit identity spelling — the store
@@ -169,19 +169,21 @@ impl InterfaceRecord {
 /// Raise `SplitError` carrying the refusal's stable tag and payload.
 fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
     use d::SplitError as E;
-    let id = |n: &d::RecipeNodeId| -> Py<PyAny> {
-        Py::new(py, NodeId(*n))
+    // The machine channel keeps the full id and the stored name; the
+    // spoken forms are the message's.
+    let id = |n: &d::SpokenNode| -> Py<PyAny> {
+        Py::new(py, NodeId(n.id()))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None())
     };
     let text = |s: &str| -> Py<PyAny> { PyString::new(py, s).unbind().into_any() };
-    let named = |n: &pncad::prelude::StableName| -> Py<PyAny> {
-        name_text(py, n)
+    let named = |n: &d::SpokenName| -> Py<PyAny> {
+        name_text(py, n.name())
             .map(|s| text(&s))
             .unwrap_or_else(|_| py.None())
     };
     let none = || py.None();
-    let (node, consumer, input, gauge, instance, param, name, doc_id) = match err {
+    let (node, consumer, input, root, instance, param, name, doc_id) = match err {
         E::EmptyCut => (
             none(),
             none(),
@@ -231,22 +233,122 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        E::TornCluster {
-            gauge: g,
+        E::TornGroup {
+            root: g,
             instance: i,
             ..
         } => (none(), none(), none(), id(g), id(i), none(), none(), none()),
-        E::UncutParamReference {
-            param: p,
+        // A gauge refusal names the node whose gauge reference is at
+        // issue in `node` — the kept node on a cut gauge, or the cut
+        // node on a dead chain — and that gauge in `gauge` (below).
+        E::SeveredGauge { kept: n, .. } | E::DeadGaugeReference { node: n, .. } => (
+            id(n),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::NoMaterial { node: n } | E::UnplaceableRoot { root: n, .. } => (
+            id(n),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        // Two anchors: the earlier votes' gauge rides `node` and this
+        // node's `input`, each `None` for the world; the node that
+        // disagrees rides `instance`.
+        E::TwoAnchors {
+            node,
+            first,
+            second,
+        } => (
+            first.as_deref().map_or_else(none, id),
+            none(),
+            second.as_deref().map_or_else(none, id),
+            none(),
+            id(node),
+            none(),
+            none(),
+            none(),
+        ),
+        E::UnplacedAlone { group } => (
+            none(),
+            none(),
+            none(),
+            id(group),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        // The mate is the subject; which side crosses is in the message,
+        // and the root a promote would land at the empty chain, where
+        // that is the recourse, rides `root`.
+        E::MateFrameCrosses {
+            mate,
+            promote: Some(r),
+            ..
+        } => (
+            id(mate),
+            none(),
+            none(),
+            id(r),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::WouldStartPlacing { mate }
+        | E::PlacingMateLeft { mate }
+        | E::MateFrameCrosses { mate, .. } => (
+            id(mate),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::UncutVarReference {
+            var,
             cut_node,
             kept_node,
+            ..
         } => (
             id(cut_node),
             none(),
             id(kept_node),
             none(),
             none(),
-            text(&p.0),
+            text(&var.to_string()),
+            none(),
+            none(),
+        ),
+        E::DefinitionStraddlesCut { var, .. } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(&var.to_string()),
+            none(),
+            none(),
+        ),
+        E::UnresolvedVarCrossesCut { var, node: n } => (
+            id(n),
+            none(),
+            none(),
+            none(),
+            none(),
+            text(&var.to_string()),
             none(),
             none(),
         ),
@@ -272,7 +374,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             named(name),
             none(),
         ),
-        E::Pin { .. } | E::PartEdit { .. } | E::RemainderEdit { .. } | E::StepMapDiverged(_) => (
+        E::Pin { .. } | E::PartEdit { .. } | E::RemainderEdit { .. } => (
             none(),
             none(),
             none(),
@@ -282,6 +384,21 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
+    };
+    let gauge = match err {
+        E::SeveredGauge { gauge: g, .. }
+        | E::DeadGaugeReference { gauge: g, .. }
+        | E::UnplaceableRoot { anchor: g, .. } => id(g),
+        _ => none(),
+    };
+    // A definition tied across the cut: the variable it reads that
+    // moves, and the one that stays (or that the document no longer
+    // holds), as `UncutVarReference` carries both of its nodes.
+    let (moving, staying) = match err {
+        E::DefinitionStraddlesCut {
+            moving, staying, ..
+        } => (text(&moving.to_string()), text(&staying.to_string())),
+        _ => (none(), none()),
     };
     typed_err(
         py,
@@ -295,13 +412,28 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             ("node", node),
             ("consumer", consumer),
             ("input", input),
-            ("gauge", gauge),
+            ("root", root),
             ("instance", instance),
             ("param", param),
             ("name", name),
             ("id", doc_id),
+            ("gauge", gauge),
+            ("moving", moving),
+            ("staying", staying),
         ],
     )
+}
+
+/// A step map as a `dict[StepId, StepId]`.
+fn step_dict<'py>(
+    py: Python<'py>,
+    map: &std::collections::BTreeMap<d::StepId, d::StepId>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let dict = PyDict::new(py);
+    for (from, to) in map {
+        dict.set_item(StepId(*from), StepId(*to))?;
+    }
+    Ok(dict)
 }
 
 /// What a split produced: the two document VALUES and the recorded
@@ -320,7 +452,7 @@ pub(crate) struct SplitOutcome {
     part_maintenance: Vec<d::Maintenance>,
     instance: NodeId,
     node_map: Vec<(NodeId, NodeId)>,
-    step_map: Vec<(u64, u64)>,
+    step_map: std::collections::BTreeMap<d::StepId, d::StepId>,
 }
 
 #[pymethods]
@@ -330,8 +462,9 @@ impl SplitOutcome {
     ///
     /// The document and the maintenance its edits performed travel
     /// TOGETHER, so `last_maintenance` on the `Doc` handed back reads
-    /// the record `remainder_edits` produced rather than an empty
-    /// list that would read as "nothing moved".
+    /// the record `remainder_edits` produced, net of what a later edit
+    /// in the same split took back, rather than an empty list that
+    /// would read as "nothing moved".
     #[getter]
     fn remainder(&self) -> Doc {
         Doc {
@@ -343,8 +476,9 @@ impl SplitOutcome {
     /// The new part document, carrying the cut nodes.
     ///
     /// Its `last_maintenance` is what building the part from empty
-    /// did to the placement registry — a cut cluster re-forms as one
-    /// join per mate that welded two members still separate.
+    /// reported, net of what a later edit in the same split took back.
+    /// An offset a cut mate's insert cleared as it joined two groups
+    /// is re-stated by a later edit, so it is not reported.
     #[getter]
     fn part(&self) -> Doc {
         Doc {
@@ -388,16 +522,16 @@ impl SplitOutcome {
     }
 
     /// Each cut profile step's id → the id the part document minted
-    /// for it, as pairs in the part's own order: a name the caller
+    /// for it: a name the caller
     /// holds on a cut profile's piece is spelled in the part by this
     /// map, as its node is by `node_map`.
     #[getter]
-    fn step_map(&self) -> Vec<(u64, u64)> {
-        self.step_map.clone()
+    fn step_map<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        step_dict(py, &self.step_map)
     }
 
     fn __repr__(&self) -> String {
-        format!("SplitOutcome(instance={})", self.instance.0.0)
+        format!("SplitOutcome(instance={})", self.instance.0.full())
     }
 }
 
@@ -410,8 +544,8 @@ impl SplitOutcome {
 /// in one store.
 ///
 /// The cut must be **ancestor- and consumer-closed** and a union of
-/// WHOLE placement clusters. Everything else refuses typed, naming the
-/// offending edge, cluster, parameter or name.
+/// WHOLE placement groups. Everything else refuses typed, naming the
+/// offending edge, group, parameter or name.
 ///
 /// Pure: `doc` is untouched, nothing is written, and the two documents
 /// come back as values with the edits that produce them.
@@ -429,7 +563,7 @@ pub(crate) fn split(
     let tol = Tol::witness();
     let part_id = document_id(part_id)?;
     let set: BTreeSet<d::RecipeNodeId> = cut.iter().map(|n| n.0).collect();
-    // The cut's edits can move a cluster's gauge (an instance leaves
+    // The cut's edits can move a group's root (an instance leaves
     // the remainder for the part), so the split levers through the
     // same seam `evaluate(doc, resolver=)` crosses — plus the part it
     // is minting, which it holds itself; absent, an edit that needs a
@@ -437,6 +571,7 @@ pub(crate) fn split(
     let store = resolver.map(super::store::Workspace::resolver);
     let out = d::split(&doc.inner, &set, part_id, tol, store.as_ref())
         .map_err(|err| split_err(py, &err))?;
+    let node_map = pairs_in_order(&out.node_map, &out.part);
     Ok(SplitOutcome {
         remainder: out.remainder,
         part: out.part,
@@ -445,12 +580,8 @@ pub(crate) fn split(
         part_edits: out.part_edits,
         part_maintenance: out.part_maintenance,
         instance: NodeId(out.instance),
-        node_map: out
-            .node_map
-            .into_iter()
-            .map(|(a, b)| (NodeId(a), NodeId(b)))
-            .collect(),
-        step_map: out.step_map.into_iter().map(|(a, b)| (a.0, b.0)).collect(),
+        node_map,
+        step_map: out.step_map,
     })
 }
 
@@ -459,14 +590,16 @@ pub(crate) fn split(
 /// Raise `InlineError` carrying the refusal's stable tag and payload.
 fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
     use d::InlineError as E;
-    let id = |n: &d::RecipeNodeId| -> Py<PyAny> {
-        Py::new(py, NodeId(*n))
+    // The machine channel keeps the full id and the stored name; the
+    // spoken forms are the message's.
+    let id = |n: &d::SpokenNode| -> Py<PyAny> {
+        Py::new(py, NodeId(n.id()))
             .map(|v| v.into_any())
             .unwrap_or_else(|_| py.None())
     };
     let text = |s: &str| -> Py<PyAny> { PyString::new(py, s).unbind().into_any() };
-    let named = |n: &pncad::prelude::StableName| -> Py<PyAny> {
-        name_text(py, n)
+    let named = |n: &d::SpokenName| -> Py<PyAny> {
+        name_text(py, n.name())
             .map(|s| text(&s))
             .unwrap_or_else(|_| py.None())
     };
@@ -533,11 +666,21 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::ParamConflict { param: p } => (
+        E::VarNameConflict { name: p } | E::InstanceOutputUncarried { name: p, why: _ } => (
             none(),
             none(),
             none(),
-            text(&p.0),
+            text(p.as_str()),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        E::UnresolvedVarCrossesCut { var, node: n } => (
+            id(n),
+            none(),
+            none(),
+            text(&var.to_string()),
             none(),
             none(),
             none(),
@@ -550,6 +693,57 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
             id(r),
+            none(),
+            none(),
+        ),
+        // The instance is the subject: why it cannot be spliced is the
+        // variant, and an unplaced one's cause is in the message. A
+        // mate-placed instance's host root and part root ride their own
+        // slots (below), and a moved member rides `node`.
+        E::MatePlaced { instance, .. }
+        | E::Unplaced { instance, .. }
+        | E::MovedMemberOffset { member: instance } => (
+            id(instance),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        // A node of the referenced document, in its own id space: it
+        // rides `root`, the part-side slot, as the plain-geometry root
+        // does.
+        E::PartDeadGauge { node: n } => (
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            id(n),
+            none(),
+            none(),
+        ),
+        E::MateFrameCrosses { mate, .. } => (
+            id(mate),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+        ),
+        // The earlier mate is the subject; the one that reads another
+        // inner instance rides `by`.
+        E::MatePairSplits { first, second } => (
+            id(first),
+            id(second),
+            none(),
+            none(),
+            none(),
+            none(),
             none(),
             none(),
         ),
@@ -566,7 +760,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::Edit { .. } | E::StepMapDiverged(_) => (
+        E::Edit { .. } => (
             none(),
             none(),
             none(),
@@ -576,6 +770,21 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
+    };
+    let (host_root, part_root, part_gauges) = match err {
+        E::MatePlaced {
+            host_root,
+            part_root,
+            part_gauges,
+            ..
+        } => (
+            id(host_root),
+            part_root.as_deref().map_or_else(none, id),
+            pyo3::types::PyList::new(py, part_gauges.iter().map(id))
+                .map(|l| l.unbind().into_any())
+                .unwrap_or_else(|_| py.None()),
+        ),
+        _ => (none(), none(), none()),
     };
     typed_err(
         py,
@@ -594,6 +803,9 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             ("root", root),
             ("host_epsilon", host_eps),
             ("part_epsilon", part_eps),
+            ("host_root", host_root),
+            ("part_root", part_root),
+            ("part_gauges", part_gauges),
         ],
     )
 }
@@ -606,7 +818,7 @@ pub(crate) struct InlineOutcome {
     edits: Vec<d::DocEdit<d::ProfileProgram>>,
     maintenance: Vec<d::Maintenance>,
     node_map: Vec<(NodeId, NodeId)>,
-    step_map: Vec<(u64, u64)>,
+    step_map: std::collections::BTreeMap<d::StepId, d::StepId>,
 }
 
 #[pymethods]
@@ -616,7 +828,8 @@ impl InlineOutcome {
     ///
     /// The document and the maintenance its edits performed travel
     /// TOGETHER, so `last_maintenance` on the `Doc` handed back reads
-    /// what the splice did to the placement registry.
+    /// what the splice's edits reported, net of what a later edit in
+    /// the same inline took back.
     #[getter]
     fn doc(&self) -> Doc {
         Doc {
@@ -635,7 +848,8 @@ impl InlineOutcome {
             .collect()
     }
 
-    /// Part node → its id in the spliced document.
+    /// Part node → its id in the spliced document, as pairs in the
+    /// spliced document's order.
     #[getter]
     fn node_map(&self) -> Vec<(NodeId, NodeId)> {
         self.node_map.clone()
@@ -644,13 +858,21 @@ impl InlineOutcome {
     /// Each part profile step's id → the id the host minted for it on
     /// the splice, the step half of `node_map`.
     #[getter]
-    fn step_map(&self) -> Vec<(u64, u64)> {
-        self.step_map.clone()
+    fn step_map<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        step_dict(py, &self.step_map)
     }
 
     fn __repr__(&self) -> String {
         format!("InlineOutcome({} edit(s))", self.edits.len())
     }
+}
+
+/// A node map as the pairs Python reads ([`crate::node_map`]).
+fn pairs_in_order(map: &d::NodeMap, doc: &d::ProfileDoc) -> Vec<(NodeId, NodeId)> {
+    crate::node_map::in_target_id_order(map, doc)
+        .into_iter()
+        .map(|(a, b)| (NodeId(a), NodeId(b)))
+        .collect()
 }
 
 /// Splice a referenced document back in, replacing the instantiate
@@ -676,16 +898,13 @@ pub(crate) fn inline(
     let tol = Tol::witness();
     let store = resolver.resolver();
     let out = d::inline(&doc.inner, instance.0, &store, tol).map_err(|err| inline_err(py, &err))?;
+    let node_map = pairs_in_order(&out.node_map, &out.doc);
     Ok(InlineOutcome {
         doc: out.doc,
         edits: out.edits,
         maintenance: out.maintenance,
-        node_map: out
-            .node_map
-            .into_iter()
-            .map(|(a, b)| (NodeId(a), NodeId(b)))
-            .collect(),
-        step_map: out.step_map.into_iter().map(|(a, b)| (a.0, b.0)).collect(),
+        node_map,
+        step_map: out.step_map,
     })
 }
 
@@ -806,10 +1025,10 @@ pub(crate) fn mixed_pins(doc: &Doc) -> Vec<PinMultiplicity> {
 /// the caller's fact; `Workspace.update_to_store` is the door that
 /// computes one from disk, and it says exactly when it reads.
 ///
-/// The caller applies the whole list or none of it, and that
-/// all-or-nothing is what "atomic" means here: there is no partially
-/// applied state to roll back from, because applying is the caller's
-/// single step.
+/// Each edit moves one site and reads no other edit's result, so the
+/// edits apply in any order, and any subset leaves an authorable
+/// mixed-pin state (`mixed_pins` reads it). "Update everywhere" is the
+/// whole list.
 ///
 /// A site already pinning `new_pin` contributes NO edit — mixed-pin
 /// state is authorable, so "update everywhere" stays usable from the

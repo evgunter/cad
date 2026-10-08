@@ -9,7 +9,9 @@
 //! The certified cells are minutes each — the E6 drive over hundreds
 //! of replayed leaves — and in two months of CI they went red at one ε
 //! alone exactly once, so two of the three runs were buying minutes
-//! of the release row's wall time for almost no signal.
+//! of the release row's wall time for almost no signal. The other two
+//! rows are re-taken daily by `nightly.yml`'s `k-lint (release-default)`
+//! row, so an ε-specific red still surfaces, a day late.
 //!
 //! **At the default ε this run IS the tolerance cell's test.** The
 //! cell asserts what its captions claim inside its own narration — the

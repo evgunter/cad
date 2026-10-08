@@ -1,5 +1,5 @@
 //! **The mid-gesture policy as one executable table**: what a value
-//! gesture — a slot or document-parameter drag — refuses, asserted per
+//! gesture — a slot or document-variable drag — refuses, asserted per
 //! operation.
 //!
 //! The policy used to be 23 copies of one guard spread through
@@ -15,12 +15,9 @@
 //!
 //! [`expected`] is a SECOND, hand-written copy of the answers, so an
 //! accidental edit to the predicate fails here rather than passing by
-//! agreeing with itself. Its match is exhaustive: a forty-third
-//! `SessionOp` does not compile until someone writes down whether a
-//! drag refuses it, which is the property the table exists to buy.
-//! Its index half, checked against `OP_COUNT`, is what makes a MISSING
-//! sample fail too — an unasserted variant is the same silence in a
-//! different place.
+//! agreeing with itself. Its index half, checked against `OP_COUNT`,
+//! is what makes a MISSING sample fail too — an unasserted variant is
+//! the same silence in a different place.
 //!
 //! **This is the only row here that can catch a WRONG table entry**,
 //! and it catches one by disagreeing with a second hand-written copy,
@@ -36,7 +33,7 @@
 //! the union of the ops in those five assertion sites. That union is 19
 //! of the 24 refusals. The five with no external witness are
 //! [`SessionOp::DeleteNode`], [`SessionOp::ProbeBounds`],
-//! [`SessionOp::SetSlotUnit`], [`SessionOp::CreateParam`] and
+//! [`SessionOp::SetSlotUnit`], [`SessionOp::DeclareVar`] and
 //! [`SessionOp::AddMate`]; for those, `expected` is the only place the
 //! answer is written down rather than a check on a written answer.
 //! That is strictly more than the dispatch recorded before the table
@@ -91,13 +88,15 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
+use pncad::document::Formula;
 
 use std::collections::BTreeSet;
 
 use common::{len, len3, scl3};
 use pncad::document::{
-    Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocParam, DocumentId, Frame,
-    MateFrame, MatePrimitive, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId,
+    Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocumentId, Frame, FreeVar,
+    MateFrame, MatePrimitive, Node, ProfileProgram, RecipeNodeId, SlotId, VarId, VarName,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MM, StableName};
@@ -115,7 +114,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 46;
+const OP_COUNT: usize = 53;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -127,6 +126,7 @@ fn fixture(tol: Tol) -> (DocSession, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(0.005),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -144,18 +144,22 @@ fn face(node: RecipeNodeId) -> StableName {
 }
 
 /// A seat for the mate door — well-formed and never evaluated here.
-fn alignment() -> Alignment {
+fn alignment() -> Alignment<Formula> {
     Alignment {
-        a: MateFrame {
-            origin: [0.0; 3],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        b: MateFrame {
-            origin: [0.0; 3],
-            axis: [0.0, 0.0, -1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
+        a: MateFrame::authored(
+            [0.0; 3],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            geom_core::Tol::witness(),
+        )
+        .expect("a definite frame"),
+        b: MateFrame::authored(
+            [0.0; 3],
+            [0.0, 0.0, -1.0],
+            [1.0, 0.0, 0.0],
+            geom_core::Tol::witness(),
+        )
+        .expect("a definite frame"),
         primitive: MatePrimitive::FrameCoincidence,
         sense: AxisSense::Opposed,
         clocking: None,
@@ -167,8 +171,11 @@ fn alignment() -> Alignment {
 /// The values are well-formed and otherwise arbitrary: a refused op
 /// never reaches its own validation, and a permitted one is asserted
 /// on WHICH refusal it gives, not on succeeding.
-fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
-    let param = ParamName::new("thickness");
+pub(crate) fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
+    let param = VarName::from_static("thickness");
+    // A variable no fixture holds: every op carrying it is refused
+    // before it looks, or refused by the door for the absence.
+    let var = VarId::new(0, 0x7468_6963_6b6e);
     vec![
         SessionOp::Select(Selection::Node(node)),
         SessionOp::Hover(Some(Hovered::Face(FaceSelection {
@@ -198,29 +205,27 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             slot: SlotId::Distance,
             text: "1.0 m".to_owned(),
         },
-        SessionOp::SetParam {
-            name: param.clone(),
+        SessionOp::SetVariable {
+            var,
             value: SlotValue::Continuous(0.02),
         },
-        SessionOp::SetParamUnit {
-            name: param.clone(),
+        SessionOp::SetVariableUnit {
+            var,
             unit: MM.def(),
         },
-        SessionOp::SetParamText {
-            name: param.clone(),
+        SessionOp::SetVariableText {
+            var,
             text: "5 mm".to_owned(),
         },
-        SessionOp::CreateParam {
+        SessionOp::DeclareVar {
             name: param.clone(),
-            value: DocParam::continuous(Dimension::Length, 0.005),
+            value: FreeVar::continuous(Dimension::Length, 0.005),
         },
         SessionOp::BeginGesture {
             node,
             slot: SlotId::Distance,
         },
-        SessionOp::BeginParamGesture {
-            name: param.clone(),
-        },
+        SessionOp::BeginVariableGesture { var },
         SessionOp::PreviewGesture {
             node,
             slot: SlotId::Distance,
@@ -230,11 +235,8 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             node,
             slot: SlotId::Distance,
         },
-        SessionOp::PreviewParamGesture {
-            name: param.clone(),
-            value: 0.01,
-        },
-        SessionOp::CommitParamGesture { name: param },
+        SessionOp::PreviewVariableGesture { var, value: 0.01 },
+        SessionOp::CommitVariableGesture { var },
         SessionOp::CancelGesture,
         SessionOp::Undo,
         SessionOp::Redo,
@@ -282,6 +284,7 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             op: BooleanOp::Union,
             a: node,
             b: node,
+            declare: Vec::new(),
         },
         SessionOp::AddSplit {
             target: node,
@@ -327,6 +330,9 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
         SessionOp::AddInstance {
             id: DocumentId::derive("view1b-no-such-part"),
         },
+        SessionOp::AcceptPartVersion {
+            id: DocumentId::derive("view1b-no-such-part"),
+        },
         SessionOp::EditProfile {
             node,
             base: pncad::document::ProfileProgram {
@@ -335,15 +341,37 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
                 ids: Vec::new(),
             },
             loops: vec![],
+            ids: vec![],
+        },
+        SessionOp::SetLabel {
+            node,
+            label: Some(pncad::document::Label::new("renamed").expect("a label")),
+        },
+        SessionOp::CreateLabelled {
+            creation: viewer::session::Creation::of(SessionOp::AddDatum {
+                datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
+            })
+            .expect("adding a datum creates a node"),
+            label: pncad::document::Label::new("Datum frame 1").expect("a label"),
+        },
+        SessionOp::RenameVar {
+            var,
+            name: Some(VarName::from_static("depth")),
+        },
+        SessionOp::DeleteVar { var },
+        SessionOp::SetSlotVariable {
+            node,
+            slot: SlotId::Distance,
+            var,
+        },
+        SessionOp::DeclineOffer {
+            node,
+            slot: SlotId::Distance,
         },
     ]
 }
 
 /// The answers, restated by hand: `(index, permitted mid-drag)`.
-///
-/// **Exhaustive on purpose.** A new `SessionOp` fails to compile here
-/// until its row is written, which is the whole reason the policy is a
-/// table rather than a scattering of guards.
 fn expected(op: &SessionOp) -> (usize, bool) {
     match op {
         // Layer-3 moves: neither the document nor the history is
@@ -355,8 +383,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::ProbeBounds { .. } => (4, false),
         SessionOp::SetSlotUnit { .. } => (5, false),
         SessionOp::SetSlotExpression { .. } => (6, false),
-        SessionOp::SetParam { .. } => (7, false),
-        SessionOp::CreateParam { .. } => (8, false),
+        SessionOp::SetVariable { .. } => (7, false),
+        SessionOp::DeclareVar { .. } => (8, false),
         // The two doors that OPEN a value gesture. Permitted by this
         // table and refused anyway, by `g1::Slot::begin` — rule 1,
         // held once for both gestures and off the very state this
@@ -366,7 +394,7 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // `permitted_during_free_move` already makes for
         // `BeginFreeMove`.
         SessionOp::BeginGesture { .. } => (9, true),
-        SessionOp::BeginParamGesture { .. } => (10, true),
+        SessionOp::BeginVariableGesture { .. } => (10, true),
         // The gesture's own driving doors: a guard here would leave a
         // drag with no way to end. Permitted BY THIS TABLE is the
         // whole of what these rows say — the four that name a target
@@ -375,8 +403,8 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         // about a payload and not about an operation.
         SessionOp::PreviewGesture { .. } => (11, true),
         SessionOp::CommitGesture { .. } => (12, true),
-        SessionOp::PreviewParamGesture { .. } => (13, true),
-        SessionOp::CommitParamGesture { .. } => (14, true),
+        SessionOp::PreviewVariableGesture { .. } => (13, true),
+        SessionOp::CommitVariableGesture { .. } => (14, true),
         SessionOp::CancelGesture => (15, true),
         SessionOp::Undo => (16, false),
         SessionOp::Redo => (17, false),
@@ -411,15 +439,31 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::AddChamfer { .. } => (39, false),
         SessionOp::AddInstance { .. } => (40, false),
         SessionOp::EditProfile { .. } => (41, false),
-        // The parameter row's other two doors, both document edits
-        // and both fenced for `SetParam`'s reason.
-        SessionOp::SetParamUnit { .. } => (42, false),
-        SessionOp::SetParamText { .. } => (43, false),
+        // The variable row's other two doors, both document edits
+        // and both fenced for `SetVariable`'s reason.
+        SessionOp::SetVariableUnit { .. } => (42, false),
+        SessionOp::SetVariableText { .. } => (43, false),
         // Two more insert doors, fenced with every other one: both
         // commit to the history, which is what a drag has to be
         // protected from.
         SessionOp::AddPart { .. } => (44, false),
         SessionOp::Duplicate { .. } => (45, false),
+        // It commits an action to the history (every reference to the
+        // part moves), which is what a drag has to be protected from.
+        SessionOp::AcceptPartVersion { .. } => (46, false),
+        // A rename is a document edit, fenced for `SetVariable`'s reason,
+        // and a labelled creation is a creation.
+        SessionOp::SetLabel { .. } => (47, false),
+        SessionOp::CreateLabelled { .. } => (48, false),
+        // A variable's rename and delete are document edits, fenced
+        // for `SetVariable`'s reason.
+        SessionOp::RenameVar { .. } => (49, false),
+        SessionOp::DeleteVar { .. } => (50, false),
+        // The slot-write gesture is a document edit, fenced for
+        // `SetVariable`'s reason; declining an offer touches neither the
+        // document nor the history.
+        SessionOp::SetSlotVariable { .. } => (51, false),
+        SessionOp::DeclineOffer { .. } => (52, true),
     }
 }
 
@@ -479,7 +523,7 @@ fn every_op_behaves_as_the_table_says() {
         let fenced = matches!(outcome.refusal, Some(Refusal::GestureInFlight));
         let begins_a_second_gesture = matches!(
             op,
-            SessionOp::BeginGesture { .. } | SessionOp::BeginParamGesture { .. }
+            SessionOp::BeginGesture { .. } | SessionOp::BeginVariableGesture { .. }
         );
         assert_eq!(
             fenced,
@@ -505,7 +549,7 @@ fn every_op_behaves_as_the_table_says() {
 /// first* rather than told about a field it was never going to open.
 /// That ordering is the whole of what moving the answer down had to
 /// preserve: with the mid-gesture table's rows gone, the two doors'
-/// own checks — a driven slot, a parameter the document does not
+/// own checks — a driven slot, a variable the document does not
 /// declare — would otherwise run first and answer a question nobody
 /// asked.
 ///
@@ -514,15 +558,15 @@ fn every_op_behaves_as_the_table_says() {
 /// begins still get their own refusals, so the check has not been
 /// dropped on the way in.
 ///
-/// Where it goes red: hoist `guard_driven` or the parameter lookup out
+/// Where it goes red: hoist `guard_driven` or the variable lookup out
 /// of `DocSession::start`'s closure and the first half turns into
-/// `DrivenByExpression` / `NoSuchParam`; drop either check and the
+/// `DrivenByExpression` / `NoSuchVariable`; drop either check and the
 /// second half stops refusing at all.
 #[test]
 fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
     let tol = Tol::witness();
     let (mut session, first, second, param) = two_fields(tol);
-    let undeclared = ParamName::new("no-such-parameter");
+    let undeclared = VarId::new(0, 0x6e6f_7375_6368);
 
     // The second extrude's distance becomes a computed slot, which is
     // what `begin_gesture`'s own check refuses.
@@ -531,20 +575,18 @@ fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
             .perform(SessionOp::SetSlotExpression {
                 node: second,
                 slot: SlotId::Distance,
-                text: param.0.clone(),
+                text: param.as_str().to_owned(),
             })
             .refusal
             .is_none(),
-        "the fixture's second slot is driven by the parameter"
+        "the fixture's second slot is driven by the variable"
     );
 
     let driven = SessionOp::BeginGesture {
         node: second,
         slot: SlotId::Distance,
     };
-    let missing = SessionOp::BeginParamGesture {
-        name: undeclared.clone(),
-    };
+    let missing = SessionOp::BeginVariableGesture { var: undeclared };
 
     // With nothing in flight, each door answers for its own target.
     assert!(
@@ -557,9 +599,9 @@ fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
     assert!(
         matches!(
             session.perform(missing.clone()).refusal,
-            Some(Refusal::NoSuchParam(ref name)) if *name == undeclared
+            Some(Refusal::NoSuchVariable(var)) if var == undeclared
         ),
-        "a drag on an undeclared parameter is refused by the lookup"
+        "a drag on an undeclared variable is refused by the lookup"
     );
 
     assert!(
@@ -582,7 +624,7 @@ fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
     let refused = session.perform(missing).refusal;
     assert!(
         matches!(refused, Some(Refusal::GestureInFlight)),
-        "the parameter lookup answered for a gesture nothing was opening: {refused:?}"
+        "the variable lookup answered for a gesture nothing was opening: {refused:?}"
     );
 }
 
@@ -620,7 +662,7 @@ fn nothing_is_fenced_when_no_gesture_is_in_flight() {
 /// (`DocEdit::SetParam`) and a structural `Count`
 /// (`DocEdit::SetStructuralParam`) — the two of the three value-gesture
 /// edits that write into `doc.nodes` at all, and the ones the identity
-/// is actually about. Dragging a document parameter instead would
+/// is actually about. Dragging a document variable instead would
 /// write only `doc.params`, which no display predicate reads, and every
 /// assertion below would hold for any implementation of them.
 ///
@@ -759,13 +801,12 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             "{slot:?}: one edit for the whole drag"
         );
         // The door actually taken, so the claim above is executed
-        // rather than described: these are the value-gesture edits
-        // that write into `doc.nodes`.
+        // rather than described: a value gesture writes the value of
+        // the variable its slot reads (Q6), a count's as a spacing's.
         assert!(
             matches!(
                 (&outcome.committed[0], slot),
-                (DocEdit::SetParam { .. }, SlotId::Spacing)
-                    | (DocEdit::SetStructuralParam { .. }, SlotId::Count)
+                (DocEdit::SetVarValue { .. }, SlotId::Spacing | SlotId::Count)
             ),
             "{slot:?} took an unexpected door: {:?}",
             outcome.committed[0]
@@ -813,9 +854,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
 
 // --- the cancel doors -----------------------------------------------
 
-/// **Which operations cancel a GESTURE**, written down exhaustively so
-/// that a forty-third operation cannot join the enum without answering
-/// whether the chrome owes it a door.
+/// **Which operations cancel a GESTURE.**
 ///
 /// The rule ranges over what an operation cancels, NOT over what it is
 /// called. [`SessionOp::CancelEvaluation`] is spelled `Cancel` and
@@ -832,19 +871,23 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::SetSlot { .. }
+        | SessionOp::SetSlotVariable { .. }
+        | SessionOp::DeclineOffer { .. }
         | SessionOp::ProbeBounds { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
-        | SessionOp::SetParam { .. }
-        | SessionOp::SetParamUnit { .. }
-        | SessionOp::SetParamText { .. }
-        | SessionOp::CreateParam { .. }
+        | SessionOp::SetVariable { .. }
+        | SessionOp::SetVariableUnit { .. }
+        | SessionOp::SetVariableText { .. }
+        | SessionOp::DeclareVar { .. }
+        | SessionOp::RenameVar { .. }
+        | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
-        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::BeginVariableGesture { .. }
         | SessionOp::PreviewGesture { .. }
         | SessionOp::CommitGesture { .. }
-        | SessionOp::PreviewParamGesture { .. }
-        | SessionOp::CommitParamGesture { .. }
+        | SessionOp::PreviewVariableGesture { .. }
+        | SessionOp::CommitVariableGesture { .. }
         | SessionOp::Undo
         | SessionOp::Redo
         | SessionOp::CancelEvaluation
@@ -871,7 +914,10 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
         | SessionOp::Duplicate { .. }
-        | SessionOp::AddInstance { .. } => false,
+        | SessionOp::AddInstance { .. }
+        | SessionOp::AcceptPartVersion { .. }
+        | SessionOp::SetLabel { .. }
+        | SessionOp::CreateLabelled { .. } => false,
     }
 }
 
@@ -927,7 +973,7 @@ fn every_gesture_cancel_has_a_chrome_door() {
 fn family(name: &GestureName) -> usize {
     match name {
         GestureName::Value(ValueGestureName::Slot { .. }) => 0,
-        GestureName::Value(ValueGestureName::Param(_)) => 1,
+        GestureName::Value(ValueGestureName::Variable(_)) => 1,
         GestureName::FreeMove(_) => 2,
     }
 }
@@ -937,20 +983,20 @@ fn family(name: &GestureName) -> usize {
 fn sample_names() -> Vec<GestureName> {
     let names = vec![
         GestureName::Value(ValueGestureName::Slot {
-            node: RecipeNodeId(3),
+            node: RecipeNodeId::new(0, 3),
             slot: SlotId::Distance,
         }),
         GestureName::Value(ValueGestureName::Slot {
-            node: RecipeNodeId(4),
+            node: RecipeNodeId::new(0, 4),
             slot: SlotId::Distance,
         }),
-        GestureName::Value(ValueGestureName::Param(ParamName("h".into()))),
-        GestureName::Value(ValueGestureName::Param(ParamName("w".into()))),
+        GestureName::Value(ValueGestureName::Variable(VarId::new(0, 0x68))),
+        GestureName::Value(ValueGestureName::Variable(VarId::new(0, 0x77))),
         GestureName::FreeMove(FreeMoveName {
-            instance: RecipeNodeId(3),
+            instance: RecipeNodeId::new(0, 3),
         }),
         GestureName::FreeMove(FreeMoveName {
-            instance: RecipeNodeId(4),
+            instance: RecipeNodeId::new(0, 4),
         }),
     ];
     let covered: BTreeSet<usize> = names.iter().map(family).collect();
@@ -981,7 +1027,7 @@ fn minted(name: &GestureName) -> [SessionOp; 3] {
 /// mechanically.**
 ///
 /// Six driving operations name their gesture three ways — a node and
-/// a slot, a parameter name, an instance — and
+/// a slot, a variable name, an instance — and
 /// [`SessionOp::names_gesture`] is where they become one
 /// [`GestureName`]. Asserted over `every_op`'s samples, which
 /// `the_table_answers_for_every_op` holds to one per variant, so the
@@ -1059,7 +1105,7 @@ fn every_driving_operation_names_one_gesture() {
 /// two gestures that became one.
 ///
 /// Both range over the sampled targets and not over all of them: two
-/// nodes, two parameters and two instances, one pair per family, with
+/// nodes, two variables and two instances, one pair per family, with
 /// [`sample_names`]'s own exhaustive witness that no family is missing.
 #[test]
 fn a_name_is_the_payload_it_was_read_off() {
@@ -1105,10 +1151,10 @@ fn a_name_is_the_payload_it_was_read_off() {
 fn a_names_cancel_is_its_own_drags() {
     for name in [
         GestureName::Value(ValueGestureName::Slot {
-            node: RecipeNodeId(3),
+            node: RecipeNodeId::new(0, 3),
             slot: SlotId::Distance,
         }),
-        GestureName::Value(ValueGestureName::Param(ParamName("h".into()))),
+        GestureName::Value(ValueGestureName::Variable(VarId::new(0, 0x68))),
     ] {
         assert!(
             matches!(name.cancel(), SessionOp::CancelGesture),
@@ -1118,7 +1164,7 @@ fn a_names_cancel_is_its_own_drags() {
     assert!(
         matches!(
             GestureName::FreeMove(FreeMoveName {
-                instance: RecipeNodeId(3)
+                instance: RecipeNodeId::new(0, 3)
             })
             .cancel(),
             SessionOp::CancelFreeMove
@@ -1413,10 +1459,10 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
 /// rather than as a second copy of its rows.**
 ///
 /// `expected` above is a hand-written copy of
-/// `permitted_during_value_gesture` because that table has 25 refusals
-/// with no shorter description than the list itself — 24 of them move
-/// the document, the history or the file a drag previews against, and
-/// `ProbeBounds` is the twenty-fifth and reads rather than moves. The
+/// `permitted_during_value_gesture` because that table's refusals have
+/// no shorter description than the list itself — all but one move the
+/// document, the history or the file a drag previews against, and
+/// `ProbeBounds` reads rather than moves. The
 /// free-move table has two, and they have a name: an operation that REPLACES the
 /// document the session is about — as against one that moves it, which
 /// a prune answers for by reporting. So this says the name, and
@@ -1424,10 +1470,6 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
 /// the table against it. A row that disagrees is either a table entry
 /// that is wrong or a property that has stopped being the reason, and
 /// both are things to find out.
-///
-/// **Exhaustive on purpose**, like `expected`: a forty-third `SessionOp`
-/// does not compile until someone says whether it replaces the
-/// document.
 fn replaces_the_document(op: &SessionOp) -> bool {
     match op {
         // The two doors that put a different document under the
@@ -1438,19 +1480,23 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::Hover(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::SetSlot { .. }
+        | SessionOp::SetSlotVariable { .. }
+        | SessionOp::DeclineOffer { .. }
         | SessionOp::ProbeBounds { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
-        | SessionOp::SetParam { .. }
-        | SessionOp::SetParamUnit { .. }
-        | SessionOp::SetParamText { .. }
-        | SessionOp::CreateParam { .. }
+        | SessionOp::SetVariable { .. }
+        | SessionOp::SetVariableUnit { .. }
+        | SessionOp::SetVariableText { .. }
+        | SessionOp::DeclareVar { .. }
+        | SessionOp::RenameVar { .. }
+        | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
-        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::BeginVariableGesture { .. }
         | SessionOp::PreviewGesture { .. }
         | SessionOp::CommitGesture { .. }
-        | SessionOp::PreviewParamGesture { .. }
-        | SessionOp::CommitParamGesture { .. }
+        | SessionOp::PreviewVariableGesture { .. }
+        | SessionOp::CommitVariableGesture { .. }
         | SessionOp::CancelGesture
         | SessionOp::Undo
         | SessionOp::Redo
@@ -1477,13 +1523,15 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddChamfer { .. }
         | SessionOp::AddPart { .. }
         | SessionOp::Duplicate { .. }
-        | SessionOp::AddInstance { .. } => false,
+        | SessionOp::AddInstance { .. }
+        | SessionOp::AcceptPartVersion { .. }
+        | SessionOp::SetLabel { .. }
+        | SessionOp::CreateLabelled { .. } => false,
     }
 }
 
 /// The free-move table is exactly the replacement doors, on the same
-/// sample roster the value table is checked on — so a forty-third
-/// operation is answered for both drags or does not compile.
+/// sample roster the value table is checked on.
 #[test]
 fn the_free_move_table_refuses_exactly_the_replacement_doors() {
     let tol = Tol::witness();
@@ -1592,10 +1640,10 @@ fn no_operation_dissolves_an_in_flight_free_move_in_silence() {
 }
 
 /// The fixture with a SECOND literal-driven extrude and a document
-/// parameter beside the first: the two shapes a field that is not the
+/// variable beside the first: the two shapes a field that is not the
 /// one being dragged can have, and the two doors a value gesture opens
 /// through.
-fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, ParamName) {
+fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, VarName) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("view-gesture-identity", tol);
     let (doc, profile) = common::framed_square(&doc, 0.04, tol);
     let (doc, first) = common::inserted(
@@ -1603,6 +1651,7 @@ fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, ParamName) {
         Node::Extrude {
             profile,
             distance: len(0.005),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -1611,20 +1660,21 @@ fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, ParamName) {
         Node::Extrude {
             profile,
             distance: len(0.003),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
-    let param = ParamName::new("thickness");
+    let param = VarName::from_static("thickness");
     assert!(
         session
-            .perform(SessionOp::CreateParam {
+            .perform(SessionOp::DeclareVar {
                 name: param.clone(),
-                value: DocParam::continuous(Dimension::Length, 0.004),
+                value: FreeVar::continuous(Dimension::Length, 0.004),
             })
             .refusal
             .is_none(),
-        "the fixture's parameter is declared"
+        "the fixture's variable is declared"
     );
     (session, first, second, param)
 }
@@ -1654,7 +1704,7 @@ fn committed_distance(
 ///
 /// The second field is taken twice, because a value gesture has two
 /// doors and they are addressed differently: another node's literal
-/// slot, and a document parameter.
+/// slot, and a document variable.
 ///
 /// Where it goes red: drop the name check in `preview_gesture` and the
 /// refused rows turn into previews against the open gesture's slot;
@@ -1664,6 +1714,7 @@ fn committed_distance(
 fn a_drag_on_another_field_cannot_steer_the_open_one() {
     let tol = Tol::witness();
     let (mut session, first, second, param) = two_fields(tol);
+    let var = common::var_of(session.committed_doc(), param.as_str());
 
     // The drag that is open, moved once so it has a value to land.
     assert!(
@@ -1723,29 +1774,22 @@ fn a_drag_on_another_field_cannot_steer_the_open_one() {
     );
     assert!(committed.committed.is_empty());
 
-    // The parameter door, the same three ops in the other spelling.
+    // The variable door, the same three ops in the other spelling.
     assert!(matches!(
         session
-            .perform(SessionOp::BeginParamGesture {
-                name: param.clone()
-            })
+            .perform(SessionOp::BeginVariableGesture { var })
             .refusal,
         Some(Refusal::GestureInFlight)
     ));
     assert!(matches!(
         session
-            .perform(SessionOp::PreviewParamGesture {
-                name: param.clone(),
-                value: 0.012,
-            })
+            .perform(SessionOp::PreviewVariableGesture { var, value: 0.012 })
             .refusal,
         Some(Refusal::WrongGesture)
     ));
     assert!(matches!(
         session
-            .perform(SessionOp::CommitParamGesture {
-                name: param.clone()
-            })
+            .perform(SessionOp::CommitVariableGesture { var })
             .refusal,
         Some(Refusal::WrongGesture)
     ));
@@ -1759,11 +1803,17 @@ fn a_drag_on_another_field_cannot_steer_the_open_one() {
     });
     assert!(landed.refusal.is_none());
     assert_eq!(landed.committed.len(), 1, "one edit for the whole drag");
+    // A value gesture writes the slot's own variable (Q6): the
+    // variable the open drag's slot reads.
+    let dragged = session
+        .committed_doc()
+        .slot(first, SlotId::Distance)
+        .expect("the extrude reads its distance");
     assert!(
         matches!(
             landed.committed.first(),
-            Some(DocEdit::SetParam { node, slot, .. })
-                if *node == first && *slot == SlotId::Distance
+            Some(DocEdit::SetVarValue { var, .. })
+                if *var == pncad::document::VarRef::Id(dragged)
         ),
         "and it is the open drag's own slot that moved: {:?}",
         landed.committed.first()
@@ -2067,49 +2117,43 @@ fn the_open_probes_own_instance_driven_again_lands_its_frame() {
 fn the_field_dragged_after_a_strand_does_not_land_in_the_stranded_slot() {
     let tol = Tol::witness();
     let (mut session, extrude) = fixture(tol);
-    let param = ParamName::new("thickness");
+    let param = VarName::from_static("thickness");
     assert!(
         session
-            .perform(SessionOp::CreateParam {
+            .perform(SessionOp::DeclareVar {
                 name: param.clone(),
-                value: DocParam::continuous(Dimension::Length, 0.004),
+                value: FreeVar::continuous(Dimension::Length, 0.004),
             })
             .refusal
             .is_none()
     );
+    let var = common::var_of(session.committed_doc(), param.as_str());
     strand_the_distance_drag(&mut session, extrude);
 
-    // The parameter row is drawn whatever the selection's standing is
+    // The variable row is drawn whatever the selection's standing is
     // — it is the document's, not the selected node's — so it is a
     // field the reader can still reach.
     assert!(
-        viewer::props::param_rows(session.doc())
+        viewer::props::variable_rows(session.doc())
             .iter()
-            .any(|row| row.name == param),
-        "the parameter the reader drags next is on the panel"
+            .any(|row| row.var == var),
+        "the variable the reader drags next is on the panel"
     );
     assert!(matches!(
         session
-            .perform(SessionOp::BeginParamGesture {
-                name: param.clone()
-            })
+            .perform(SessionOp::BeginVariableGesture { var })
             .refusal,
         Some(Refusal::GestureInFlight)
     ));
     assert!(matches!(
         session
-            .perform(SessionOp::PreviewParamGesture {
-                name: param.clone(),
-                value: 0.012,
-            })
+            .perform(SessionOp::PreviewVariableGesture { var, value: 0.012 })
             .refusal,
         Some(Refusal::WrongGesture)
     ));
     assert!(matches!(
         session
-            .perform(SessionOp::CommitParamGesture {
-                name: param.clone()
-            })
+            .perform(SessionOp::CommitVariableGesture { var })
             .refusal,
         Some(Refusal::WrongGesture)
     ));
@@ -2121,7 +2165,7 @@ fn the_field_dragged_after_a_strand_does_not_land_in_the_stranded_slot() {
     assert_eq!(
         session.history().len(),
         2,
-        "and the parameter's declaration is the only edit in the history"
+        "and the variable's declaration is the only edit in the history"
     );
 }
 

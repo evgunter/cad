@@ -139,7 +139,7 @@ fn a_dual_seed_on_a_profile_parameter_now_carries_a_tangent() {
     };
     // Pass 1: the f64 elaboration, and its record.
     let nominal = program
-        .resolve(&doc.doc.param_env::<f64>())
+        .resolve(&doc.doc.var_env::<f64>())
         .expect("resolves at f64");
     let mut records = Vec::new();
     for steps in &nominal {
@@ -147,7 +147,7 @@ fn a_dual_seed_on_a_profile_parameter_now_carries_a_tangent() {
         records.push(record);
     }
     // Pass 2: the same program at Dual, seeded on the hole radius.
-    let mut env = doc.doc.param_env::<Dual64>();
+    let mut env = doc.doc.var_env::<Dual64>();
     let seeded = env
         .bindings
         .iter_mut()
@@ -166,6 +166,7 @@ fn a_dual_seed_on_a_profile_parameter_now_carries_a_tangent() {
         let lp = profile::replay_guided(steps, &records[li], Tol::witness())
             .expect("the seeded elaboration keeps the nominal structure");
         seen_tangent |= lp
+            .as_loop()
             .vertices()
             .iter()
             .any(|v| v.x.deriv != 0.0 || v.y.deriv != 0.0);
@@ -190,10 +191,9 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     // All three of these are used ONLY by this row, so they are
     // imported here rather than at module scope.
     use crate::fixture;
-    use editor_core::ParamName;
     use geom_core::{Interval, Real};
     /// The nominal f64 loops, replayed for the record's sake.
-    fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ProfileLoop<f64>> {
+    fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ConstructedLoop<f64>> {
         resolved
             .iter()
             .map(|steps| profile::replay(steps, Tol::witness()).expect("the nominal replays"))
@@ -205,21 +205,24 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
         panic!("the plate's profile node is a profile node")
     };
     let nominal = program
-        .resolve(&doc.doc.param_env::<f64>())
+        .resolve(&doc.doc.var_env::<f64>())
         .expect("resolves at f64");
     let mut records = Vec::new();
     for steps in &nominal {
         let (_, record) = profile::replay_recording(steps, Tol::witness()).expect("replays");
         records.push(record);
     }
-    let mut env = doc.doc.param_env::<Interval>();
+    let mut env = doc.doc.var_env::<Interval>();
     // The hole radius BY NAME. Widening every continuous parameter
     // would make the row's own subject unclear: the claim is about a
     // box on the dimension that drives this profile, and a helper that
     // clobbers whatever else the document happens to carry would keep
     // passing if the plate grew a second parameter that did the
     // refusing instead.
-    let hole_r = ParamName::new(corpus::plate_param::HOLE_R);
+    let hole_r = doc
+        .doc
+        .var_named(corpus::plate_param::HOLE_R)
+        .expect("the plate declares its hole radius");
     let Some(ParamValue::Continuous { value, .. }) = env.bindings.get_mut(&hole_r) else {
         panic!("the plate's hole radius is a continuous parameter named hole_r")
     };
@@ -246,27 +249,32 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     // from a `SketchPlane`, and the node id is not one. Read from the
     // document, so this is the plane the evaluator would build too.
     let plane = fixture::plane_of(&doc.doc, program.plane);
-    let (_, canonical) = profile::Profile::new(plane, nominal_loops(&nominal))
+    let (_, canonical) = profile::ConstructedProfile::new(plane, nominal_loops(&nominal))
         .validate_recording(Tol::witness())
         .expect("the nominal validates and records");
     // The sketch plane at the lane scalar lifts as constants: VQ8 keeps
     // the plane out of the parameter layer.
-    let err = profile::Profile::new(plane.map(Interval::from_f64), loops)
+    let err = profile::ConstructedProfile::new(plane.map(Interval::from_f64), loops)
         .validate_guided(Tol::witness(), &canonical)
         .expect_err("a hole radius spanning four orders of magnitude cannot certify");
     // The FAMILY, not the fact that some string came back. This wall is
     // an ordinary validation predicate going indeterminate on a box too
-    // wide to classify — `arc_diameter_clearance`, which is NOT a
-    // consumed structure decision and so does not (and should not)
-    // arrive in the `Structure` vocabulary. That distinction is the
+    // wide to classify — `carrier_line_circle`, the hole's carrier
+    // against the plate's sides, which is NOT a consumed structure
+    // decision and so does not (and should not)
+    // arrive in the `Structure` vocabulary. (It was
+    // `arc_diameter_clearance` while that margin read 2r − |a − apex|;
+    // read on the carrier, 2r·(1 − sin(|Δθ|/4)), the box's semicircles
+    // are decided Positive at every radius in it, and the wall is the
+    // next predicate the width reaches.) That distinction is the
     // whole point of asserting the family here: a reader who sees
     // "aborts typed" should be able to tell which of the two kinds of
     // typed abort this row is about.
     match &err {
         profile::ProfileError::Escalated { source, .. } => assert_eq!(
             source.predicate,
-            Some("arc_diameter_clearance"),
-            "the wide box is expected to stall the clearance predicate"
+            Some("carrier_line_circle"),
+            "the wide box is expected to stall the line/circle clearance"
         ),
         other => panic!(
             "expected an escalation from a validation predicate, got {other:?} — if this \
@@ -328,7 +336,7 @@ fn the_loft_ladder_tracks_the_profile_ladder_under_the_lift() {
 /// and does not move the value channel.
 ///
 /// What this row does NOT show is a seeded tangent, and the reason is
-/// worth stating rather than leaving as an absence: `Doc::param_env`
+/// worth stating rather than leaving as an absence: `Doc::var_env`
 /// embeds every parameter through `from_f64`, so a document evaluation
 /// has no seed to carry — putting one there is the seeding surface,
 /// which is another unit's. The seam this unit opened is that a seed
@@ -338,7 +346,7 @@ fn the_loft_ladder_tracks_the_profile_ladder_under_the_lift() {
 /// exact call `wire_profile` makes.
 ///
 /// What this row does show is that the whole lifted path — resolving
-/// the program at `ParamEnv<Dual64>`, elaborating it guided, feeding
+/// the program at `VarEnv<Dual64>`, elaborating it guided, feeding
 /// both dual channels into the content key — runs at `Dual` and leaves
 /// the value channel exactly where the pinned lane put it.
 #[test]
@@ -422,7 +430,7 @@ fn the_loft_section_stays_f64_while_the_profile_payload_lifts() {
                 && let ValuePayload::Body(b) = &v.payload
             {
                 for (_, p) in b.points() {
-                    for c in [p.x, p.y, p.z] {
+                    for c in p.to_array() {
                         out.push((c.lo().to_bits(), c.hi().to_bits()));
                     }
                 }
@@ -485,7 +493,7 @@ fn plate() -> corpus::CorpusDoc {
 
 fn profile_node_of(doc: &corpus::CorpusDoc) -> editor_core::RecipeNodeId {
     *doc.doc
-        .order()
+        .ids()
         .iter()
         .find(|id| matches!(doc.doc.node(**id), Some(Node::Profile(_))))
         .expect("the plate has a profile node")

@@ -11,11 +11,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    BooleanOp, CancelToken, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation,
-    Expr, Node, NodeResult, ParamName, ProfileDoc, ProfileProgram, RecipeNodeId, apply, evaluate,
+    BooleanOp, CancelToken, Dimension, DocEdit, DocumentId, EvalOptions, Evaluation, Formula,
+    FreeVar, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, VarName, apply, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
@@ -33,36 +34,41 @@ fn boxed(
     z0: f64,
     h: f64,
 ) -> (ProfileDoc, RecipeNodeId) {
-    // The FRAME first, so the id predicted for the profile below is
-    // taken after it: this helper reads ids off the document's length,
-    // and a profile now lands one node later than it used to.
-    let plane = RecipeNodeId(doc.len() as u64);
     let doc = push(
         doc,
         &DocEdit::InsertNode {
-            node: fixture::frame([0.0, 0.0, z0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            node: Box::new(fixture::frame(
+                [0.0, 0.0, z0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+            )),
+            fresh: Vec::new(),
         },
     );
-    let p = RecipeNodeId(doc.len() as u64);
+    let plane = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Profile(fixture::desc(
+            node: Box::new(Node::Profile(fixture::desc(
                 plane,
                 vec![vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)]],
-            )),
+            ))),
+            fresh: Vec::new(),
         },
     );
-    let e = RecipeNodeId(doc.len() as u64);
+    let p = crate::fixture::newest(&doc);
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: p,
                 distance: len(h),
-            },
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         },
     );
+    let e = crate::fixture::newest(&doc);
     (doc, e)
 }
 
@@ -74,66 +80,78 @@ fn r2_measure_free_content_keys() {
     let d0 = ProfileDoc::empty(DocumentId::derive("r2-keydiff"), Tol::witness());
     let d1 = push(
         &d0,
-        &DocEdit::SetDocParam {
-            name: ParamName::new("t"),
-            value: DocParam::Continuous {
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("t"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.125,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
-            },
+            }),
         },
     );
     let (d2, a) = boxed(&d1, (0.0, 1.0), (0.0, 2.0), 0.0, 3.0);
     // A parameter under a slot, so the parameter channel is live.
-    let bplane = RecipeNodeId(d2.len() as u64);
     let d2 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: fixture::frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+            node: Box::new(fixture::frame(
+                [0.0, 0.0, 1.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+            )),
+            fresh: Vec::new(),
         },
     );
-    let bp = RecipeNodeId(d2.len() as u64);
+    let bplane = crate::fixture::newest(&d2);
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
-            node: Node::Profile(fixture::desc(
+            node: Box::new(Node::Profile(fixture::desc(
                 bplane,
                 vec![vec![(0.5, 0.5), (1.5, 0.5), (1.5, 2.5), (0.5, 2.5)]],
-            )),
+            ))),
+            fresh: Vec::new(),
         },
     );
-    let b = RecipeNodeId(d3.len() as u64);
+    let bp = crate::fixture::newest(&d3);
     let d4 = push(
         &d3,
         &DocEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: bp,
-                distance: Expr::param(ParamName::new("t"), Dimension::Length),
-            },
+                distance: Formula::named(VarName::from_static("t"), Dimension::Length),
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         },
     );
-    let cut = RecipeNodeId(d4.len() as u64);
+    let b = crate::fixture::newest(&d4);
     let d5 = push(
         &d4,
         &DocEdit::InsertNode {
-            node: Node::Boolean {
+            node: Box::new(Node::Boolean {
                 op: BooleanOp::Subtract,
                 a,
                 b,
-                declare: None,
-            },
+                declare: Vec::new(),
+            }),
+            fresh: Vec::new(),
         },
     );
+    let cut = crate::fixture::newest(&d5);
     let d6 = push(
         &d5,
         &DocEdit::InsertNode {
-            node: Node::Transform {
-                input: cut,
-                translation: [len(1.0), len(2.0), len(3.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
+            node: Box::new(Node::transform(
+                cut,
+                editor_core::Step::Rigid {
+                    translation: [len(1.0), len(2.0), len(3.0)],
+                    axis: [scl(0.0), scl(0.0), scl(1.0)],
+                    angle: ang(0.0),
+                },
+            )),
+            fresh: Vec::new(),
         },
     );
     let ev: Evaluation<f64> = evaluate::<f64>(

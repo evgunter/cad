@@ -48,8 +48,13 @@ fn the_waist_carves_at_the_certified_scalar_and_brackets_the_pappus_fill() {
     let v0 = 7.0 * PI / 12.0;
     assert_brackets(p0.volume, v0, "the source");
 
-    let out = fillet_edges(&source, &arcs, iv(r), tol)
-        .unwrap_or_else(|e| panic!("the concave waist carves at Interval, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol),
+        &arcs,
+        iv(r),
+        tol,
+    )
+    .unwrap_or_else(|e| panic!("the concave waist carves at Interval, got {e:?}"));
     assert_eq!(out.band_faces.len(), 1, "one annulus band");
     validate_geometric(&out.body, tol).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
     let p1 = mass_properties(&out.body, tol).expect("interval props");

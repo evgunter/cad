@@ -102,13 +102,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use pncad::document::{
-    AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocParam, DocumentId,
-    EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamName,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, apply, evaluate,
+    AssertionDir, CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EvalOptions,
+    Evaluation, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RefusingReach, SitedRef, VarName, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
+use pncad::prelude::AuthoredNode;
 use pncad::select::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
 use pncad::topo::{Body, SurfaceKey};
 
@@ -165,11 +167,10 @@ pub const POSITION_BOUND: f64 = 1.0e-3;
 /// built around should not be a literal buried in the drawing code.
 ///
 /// **At the DEFAULT ε**, like every other measured number here: the
-/// fraction moves with ε — `1.083e-1` at ε = 1e-6, measured. WHY it
-/// moves is not established, and the cell says so: the refusal at the
-/// wall is the wedge's poisoned margin, which a band does not
-/// classify. So the cell asks at every ε whether this published box
-/// still certifies there rather than reasoning about it.
+/// fraction moves with ε — `1.083e-1` at ε = 1e-6, measured — for the
+/// reason `chaintol`'s header gives ("What sets the wall"). So the
+/// cell asks at every ε whether this published box still certifies
+/// there rather than reasoning about it.
 pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
 
 /// **The same measurement at 1, 2, 3 and 4 links** — one number in
@@ -236,7 +237,10 @@ pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 4.995e-1;
 /// document it is visible on the sheet rather than only in a report.
 /// The enclosures are TIGHT, not padded: `3.996e-5` m is exactly
 /// `L · 3σ_c · 1` at the certified box's own σ, to every digit the
-/// measurement carries.
+/// measurement carries. Along the chain they are microns: the sheet
+/// draws each side under `mcchain`'s pixel floor AT that floor,
+/// centred on the pin, says in its legend which sides are floored, and
+/// prints the true half-widths in its table.
 pub const CERTIFIED_PIN_BOX: [(f64, f64); LINKS + 1] = [
     (0.0, 0.0),
     (6.653231802815351e-8, 3.995961969247516e-5),
@@ -284,31 +288,43 @@ pub fn pin_axis<T: pncad::geom_core::Real>(body: &Body<T>) -> (T, T) {
 /// The parameter name of joint `k` (`k` is 1-based, joint 1 at the
 /// base). One spelling, read by the document, the sheet and the
 /// certified table alike.
-pub fn joint_name(k: usize) -> String {
-    format!("joint_{k}")
+pub fn joint_name(k: usize) -> VarName {
+    VarName::new(format!("joint_{k}")).expect("joint_<k> is one identifier")
 }
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
+fn len(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Length).expect("finite length")
 }
 
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
+fn scl(v: f64) -> Formula {
+    Formula::literal(v, Dimension::Scalar).expect("finite scalar")
 }
 
-fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied =
-        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
+fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
+        tol,
+        &RefusingReach,
+    )
+    .expect("the insert applies");
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }
 
-fn declare(doc: &mut ProfileDoc, n: &str, value: f64, distribution: Distribution, tol: Tol) {
+fn declare(doc: &mut ProfileDoc, name: VarName, value: f64, distribution: Distribution, tol: Tol) {
     let applied = apply(
         doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::new(n),
-            value: DocParam::continuous_with(Dimension::Angle, value, distribution),
+        &DocEdit::DeclareVar {
+            name,
+            def: pncad::document::VarDecl::Free(FreeVar::continuous_with(
+                Dimension::Angle,
+                value,
+                distribution,
+            )),
         },
         tol,
         &RefusingReach,
@@ -335,6 +351,19 @@ pub struct Chain {
     pub pins: Vec<RecipeNodeId>,
 }
 
+/// **The study** at `links` links: [`JOINT_SIGMA`] on every joint and
+/// [`POSITION_BOUND`] on the tip. At [`LINKS`] it is the chain
+/// [`crate::mcchain`] replays and the gallery writes;
+/// [`crate::chaintol`]'s table walks it from one link up.
+pub fn study(links: usize, tol: Tol) -> Chain {
+    chain(links, JOINT_SIGMA, POSITION_BOUND, tol)
+}
+
+/// The study's document at [`LINKS`] links, as the GUI opens it.
+pub fn gallery_document(tol: Tol) -> ProfileDoc {
+    study(LINKS, tol).doc
+}
+
 /// The chain document at `links` links, with `joint_sigma` on every
 /// joint and `bound` on the tip's position.
 ///
@@ -348,7 +377,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     for k in 1..=links {
         declare(
             &mut doc,
-            &joint_name(k),
+            joint_name(k),
             0.0,
             Distribution::Normal { sigma: joint_sigma },
             tol,
@@ -390,6 +419,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
         Node::Extrude {
             profile: bar_profile,
             distance: len(LINK_THICKNESS),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -411,6 +441,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             Node::Extrude {
                 profile,
                 distance: len(LINK_THICKNESS),
+                side: ExtrudeSide::Along,
             },
             tol,
         )
@@ -429,12 +460,14 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             let step = if j == 1 { 0.0 } else { LINK_LENGTH };
             node = insert(
                 doc,
-                Node::Transform {
-                    input: node,
-                    translation: [len(step), len(0.0), len(0.0)],
-                    rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: Expr::param(ParamName::new(joint_name(j)), Dimension::Angle),
-                },
+                Node::transform(
+                    node,
+                    pncad::document::Step::Rigid {
+                        translation: [len(step), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: Formula::named(joint_name(j), Dimension::Angle),
+                    },
+                ),
                 tol,
             );
         }
@@ -469,9 +502,9 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
             node,
             &Selector::of(NamePat::of_kind(EntityKind::Face)),
             &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                pncad::geom_brep::SurfaceKind::Cylinder,
+                pncad::prelude::SurfaceKind::Cylinder,
             ))],
-            &doc.param_env::<f64>(),
+            &doc.var_env::<f64>(),
             tol,
         )
         .expect("the surface-kind atom is exact");

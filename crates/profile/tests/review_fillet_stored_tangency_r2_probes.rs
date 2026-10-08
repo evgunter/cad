@@ -59,7 +59,7 @@ fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
         .angle(theta, tol())?
         .line(1.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 fn line_arc_centre(theta: f64) -> Point2<f64> {
@@ -81,7 +81,7 @@ fn line_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>>
             },
             tol(),
         )
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 fn arc_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
@@ -100,7 +100,7 @@ fn arc_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> 
         tol(),
     )?
     .line_to(Start, tol())
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 type Corner = (
@@ -143,7 +143,7 @@ fn two_fillets_with_a_leg_of(gap: f64, radius: f64) -> Result<ProfileLoop<f64>, 
         .angle(phi + std::f64::consts::PI, tol())?
         .line(3.0, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// The item's bend with its corner AT THE SEAM: the loop enters at
@@ -161,7 +161,7 @@ fn seam_fillet(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f6
         .angle(theta, tol())?
         .fillet(radius, tol())?
         .to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// A FUSED-incoming fillet at a small turn: the radius-2 circle about
@@ -184,7 +184,7 @@ fn fused_incoming(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError
     .line_to(Point2::new(-4.0, 3.0), tol())?
     .line_to(Point2::new(3.0, 3.0), tol())?
     .line_to(Start, tol())
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 // ------------------------------------------------------------------
@@ -345,43 +345,23 @@ fn the_recourse_followed_at_every_decade_and_the_spec_lever_reversed() {
             "c = {c}: larger turn: {turned:?}"
         );
         // Lever 2: the larger radius, sized from the law the sentence
-        // states: r(1 − cos(θ/2)) has to clear the band. The lever has
-        // a ceiling the sentence does not state: the stored bulge
-        // pins the carrier's radius only to a few ulps of the RADIUS,
-        // so once the radius the sagitta law asks for exceeds
-        // ε / (a few · ε_mach) the reconstructed carrier's clearance is
-        // itself in band and the door escalates `carrier_line_circle`
-        // instead. That happens for θ ≲ 3e-7 whatever ε is, i.e. at
-        // ε = 1e-12's 0.1·√ε decade.
+        // states: r(1 − cos(θ/2)) has to clear the band. The fillet arc
+        // stores the radius as authored, so the lever has no ceiling
+        // of its own: however large the radius the sagitta law asks
+        // for, the stored carrier is that radius, not one reconstructed
+        // from a chord to a few of its ulps.
         let bigger = 4.0 * band_top() / (1.0 - (theta * 0.5).cos());
         let widened = outcome(line_line(theta, bigger));
-        // The reconstruction error is a few ulps of the radius; where
-        // that is a decade clear of ε on either side the verdict is
-        // pinned, and in between it is recorded.
-        let ulp_of_radius = bigger * f64::EPSILON;
         println!(
             "RECOURSE eps={:e} c={c} theta={theta:e}: refused '{predicate}' at {margin:e}; \
-             larger radius needed = {bigger:e} m (setback {:e} m, ulp of the radius {:e}) \
-             -> {widened:?}",
+             larger radius needed = {bigger:e} m (setback {:e} m) -> {widened:?}",
             tol().eps(),
             bigger * (theta * 0.5).tan(),
-            ulp_of_radius
         );
-        if ulp_of_radius * 64.0 < tol().eps() {
-            assert!(
-                matches!(widened, Outcome::Validates),
-                "c = {c}: the larger radius {bigger:e} builds and validates: {widened:?}"
-            );
-        } else if ulp_of_radius > tol().eps() {
-            assert!(
-                matches!(
-                    widened,
-                    Outcome::DoorEscalated(_) | Outcome::DoorStoredForm(..)
-                ),
-                "c = {c}: a radius of {bigger:e} m cannot be reconstructed from its bulge \
-                 to eps, so the door refuses it too: {widened:?}"
-            );
-        }
+        assert!(
+            matches!(widened, Outcome::Validates),
+            "c = {c}: the larger radius {bigger:e} builds and validates: {widened:?}"
+        );
         never_contradicted("larger radius", &widened);
         // The spec's lever: a smaller radius at the same turn.
         let shrunk = outcome(line_line(theta, R * 0.25));
@@ -484,7 +464,7 @@ fn scaled_line_line(
         .angle(theta, tol())?
         .line(scale, tol())?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// **The other way a stored fillet loses its carrier: radius, not

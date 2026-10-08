@@ -21,7 +21,27 @@ use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::{Body, FaceKey};
+use topo::{Body, EulerOpError, FaceKey, ReplaceFaceError};
+
+/// **The caps' refusal of a cone chart whose offset moves its rims off
+/// them**, read either way it arrives: `Some(Some(gap))` where a rim
+/// vertex's re-anchor refuses first (`ReanchorOffCarrier`, carrying the
+/// gap), `Some(None)` where a rim edge's re-chart onto the unmoved cap
+/// does (`RechartFalsifies` through the attach door, which carries no
+/// gap), `None` for anything else. Which of the two is reached first
+/// follows the order the door walks the rim — on a frustum whose caps
+/// are whole discs the narrowing one reaches the edge first — and is
+/// filed as `work/shell/cap-rim-refusal-order-follows-the-arena.md`.
+pub fn rim_refusal_gap<O>(got: &Result<O, ReplaceFaceError<f64>>) -> Option<Option<f64>> {
+    match got {
+        Err(ReplaceFaceError::ReanchorOffCarrier { gap, .. }) => Some(Some(*gap)),
+        Err(ReplaceFaceError::Op {
+            error: EulerOpError::RechartFalsifies { .. },
+            ..
+        }) => Some(None),
+        _ => None,
+    }
+}
 
 /// The wall thickness the SHELL-6 rows offset by.
 pub const T: f64 = 1.0 / 128.0;
@@ -143,12 +163,23 @@ pub fn reanchor_cone(body: &mut Body<f64>, group: &[FaceKey], apex_y: f64) -> Su
         half_angle,
         u_ref,
     };
+    // Lifts RechartStrandsDescriptions: the re-anchored cone is geometric nonsense on purpose.
     let key = body
-        .set_face_surface(group[0], topo::FaceSurface::New(moved.clone()))
+        .set_face_surface_unvouched_for_tests(
+            group[0],
+            topo::FaceSurface::New {
+                surface: moved.clone(),
+                sense: true,
+            },
+        )
         .expect("the face takes a re-anchored cone");
     for &other in &group[1..] {
-        body.set_face_surface(other, topo::FaceSurface::Shared(key))
-            .expect("its neighbours share it");
+        // Lifts RechartStrandsDescriptions: the re-anchored cone is geometric nonsense on purpose.
+        body.set_face_surface_unvouched_for_tests(
+            other,
+            topo::FaceSurface::Shared { key, sense: true },
+        )
+        .expect("its neighbours share it");
     }
     moved
 }

@@ -284,6 +284,19 @@ jobs:
       - name: demos tour suite (the #99 ε pin + the tour's own probes)
         if: matrix.row == 'release-default'
         run: cd demos/tour && cargo nextest run --release --no-fail-fast
+      # The per-PR `eps_regression` runs `demo-tour certified` at the default
+      # ε only (#3291: minutes per run, almost never red at one ε alone), so
+      # the other two rows are re-taken here, once a day. The cells assert
+      # their captions inside the narration, so exit 0 is the check.
+      - name: the tour's certified cells at the other ε rows
+        if: matrix.row == 'release-default'
+        run: |
+          set -euo pipefail
+          cd demos/tour
+          for eps in 1e-6 1e-12; do
+            echo "== demo-tour certified at eps = $eps"
+            CAD_TOLERANCE_EPS=$eps cargo run --release -- certified
+          done
       - name: the tour die corpus is regenerable byte-for-byte
         if: matrix.row == 'release-default'
         run: |
@@ -340,6 +353,9 @@ jobs:
       - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
         if: matrix.row == 'dev-probe'
         run: scripts/k_probe_sweep.sh target/k-fresh
+      - name: the demo sweep's bracketed bodies, per eps (demos/tour, feature = probe)
+        if: matrix.row == 'dev-probe'
+        run: cd demos/tour && cargo test --features probe --test k_probe_brackets
       - name: large-K lint (gate — a flagged margin fails this row)
         if: matrix.row == 'dev-probe'
         run: |
@@ -491,7 +507,7 @@ jobs:
           set -o pipefail
           cargo test --release -p topo --lib -- \
             review_m1_pr2::release_corruption \
-            review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking \
+            review_m1_pr4::kill_ops_on_torn_bodies_panic_only_naming_a_premise \
             review_d18 | tee release-corruption.log
           grep -qE '^test result: ok\. [1-9][0-9]* passed' release-corruption.log
 

@@ -26,14 +26,15 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use pncad::document::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use crate::common;
 
-use pncad::document::{Doc, Evaluation, Expr, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, Formula, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::select::{HitTestError, NodePick};
+use pncad::select::{NodePick, UnnamedEntity};
 use viewer::pickindex::{EdgeId, EdgeNameFault, PickIndex};
 use viewer::scene;
 use viewer::session::{DocSession, EdgeSelection, FaceSelection};
@@ -59,6 +60,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         Node::Extrude {
             profile,
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -66,7 +68,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         &doc,
         Node::Pattern {
             input: block,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: pncad::document::PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
                 spacing: common::len(0.05),
@@ -80,14 +82,19 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         Node::Extrude {
             profile: twinned,
             distance: common::len(0.008),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
-    let placed = |at: f64| Node::Transform {
-        input: twinned,
-        translation: [common::len(at), common::len(0.2), common::len(0.0)],
-        rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-        rotation_angle: common::ang(0.0),
+    let placed = |at: f64| {
+        Node::transform(
+            twinned,
+            pncad::document::Step::Rigid {
+                translation: [common::len(at), common::len(0.2), common::len(0.0)],
+                axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
+                angle: common::ang(0.0),
+            },
+        )
     };
     let (doc, _first) = common::inserted(&doc, placed(0.0), tol);
     let (doc, _second) = common::inserted(&doc, placed(0.1), tol);
@@ -97,6 +104,7 @@ fn fixture(tol: Tol) -> Doc<ProfileProgram> {
         Node::Extrude {
             profile: last,
             distance: common::len(0.004),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -122,18 +130,18 @@ fn indexed(tol: Tol) -> (DocSession, PickIndex) {
 /// so it stays an INDEPENDENT statement of what the layout means no
 /// matter how the index comes to hold it.
 struct HandWalked {
-    names: Vec<Result<StableName, HitTestError>>,
+    names: Vec<Result<StableName, UnnamedEntity>>,
     by_name: BTreeMap<StableName, Vec<u32>>,
     by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)>,
     id_slice: Vec<u32>,
     edges: Vec<EdgeId>,
-    edge_names: Vec<Result<StableName, HitTestError>>,
+    edge_names: Vec<Result<StableName, UnnamedEntity>>,
     edges_by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)>,
 }
 
 impl HandWalked {
     fn of(parts: &[NodePick], eval: &Evaluation<f64>) -> Self {
-        let mut names: Vec<Result<StableName, HitTestError>> = Vec::new();
+        let mut names: Vec<Result<StableName, UnnamedEntity>> = Vec::new();
         for part in parts {
             names.extend(
                 part.patch_names(eval)
@@ -158,7 +166,7 @@ impl HandWalked {
             next += patches;
         }
         let mut edges: Vec<EdgeId> = Vec::new();
-        let mut edge_names: Vec<Result<StableName, HitTestError>> = Vec::new();
+        let mut edge_names: Vec<Result<StableName, UnnamedEntity>> = Vec::new();
         let mut edges_by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)> = BTreeMap::new();
         for part in parts {
             let start = edges.len();
@@ -188,7 +196,7 @@ impl HandWalked {
         }
     }
 
-    fn name_of(&self, id: u32) -> Option<&Result<StableName, HitTestError>> {
+    fn name_of(&self, id: u32) -> Option<&Result<StableName, UnnamedEntity>> {
         self.names.get(usize::try_from(id.checked_sub(1)?).ok()?)
     }
 
@@ -248,7 +256,7 @@ impl HandWalked {
         }
         match self.edge_names.get(start + id.boundary) {
             Some(Ok(name)) => Ok(name),
-            Some(Err(error)) => Err(EdgeNameFault::Unnamed(error.clone())),
+            Some(Err(error)) => Err(EdgeNameFault::Unnamed(*error)),
             None => Err(EdgeNameFault::OutOfRange {
                 node: id.node,
                 body: id.body,
@@ -322,7 +330,7 @@ fn every_window_door_answers_what_the_hand_walk_does() {
 
     // Every drawn (node, body), and one that is not drawn.
     let mut targets: Vec<(RecipeNodeId, u32)> = hand.by_target.keys().copied().collect();
-    let absent = RecipeNodeId(u64::MAX);
+    let absent = RecipeNodeId::new(0, u64::MAX);
     targets.push((absent, 0));
     targets.push((index.parts()[0].node(), 99));
     for (node, body) in targets {

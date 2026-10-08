@@ -4,18 +4,20 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Point3, Tol, Vec3};
-use sweep::test_support::tube_frame;
+use sweep::test_support::{finished, tube_frame};
 use sweep::{TubeWindow, tube_along_arc};
 use topo::query::{self, SurfaceKindSet};
-use topo::{Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration};
+use topo::{
+    AtRestBody, Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration,
+};
 
 const TUBE: f64 = 0.06;
 const RING: f64 = 5.0;
 
-fn full_torus(major: f64) -> Body<f64> {
-    tube_along_arc(
+fn full_torus(major: f64) -> AtRestBody<f64> {
+    let torus = tube_along_arc(
         tube_frame(
             Point3::origin(),
             Vec3::new(0.0, 0.0, 1.0),
@@ -28,7 +30,8 @@ fn full_torus(major: f64) -> Body<f64> {
         Tol::witness(),
     )
     .expect("the full torus builds")
-    .body
+    .body;
+    finished("the full torus", torus, Tol::witness())
 }
 
 fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
@@ -101,7 +104,7 @@ fn r2_an_in_band_rim_identification_escalates_rather_than_reading_as_no_rim() {
     let e_pert = topo::union_with(&a, &perturbed, &d_pert, Tol::witness()).expect_err("refuses");
     println!("[r2] in-band-perturbed kiss: {e_pert:?}");
     match e_pert {
-        BooleanError::Escalated { diag } => assert_eq!(
+        BooleanError::Escalated { diag, .. } => assert_eq!(
             diag.predicate,
             Some("rim_circle_radius"),
             "the escalation must name the datum that landed in the band"
@@ -164,7 +167,7 @@ fn r2_a_definitely_absent_rim_keeps_the_bare_class_refusal() {
         matches!(
             e,
             BooleanError::UnsupportedDeclarationClass {
-                class: ContactClass::Tangent
+                class: topo::BooleanCoincidence::TANGENT
             }
         ),
         "a definitely-absent rim is not an escalation — that verdict belongs to the \

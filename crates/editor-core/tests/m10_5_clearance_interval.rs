@@ -19,12 +19,13 @@
 //! geometry to measure. That is the driver's own measured limit, and
 //! issue 1191's class.
 //!
-//! Separately, every planar face whose normal has a zero z-component —
-//! every vertical wall of an extruded prism — carries a SIGN-HULLED
-//! `u_ref` at the interval scalar, because the branchless orthonormal
-//! basis starts at `copysign(1, n.z)`. The engine re-charts planes at
-//! its own door rather than reading that frame; the defect itself is
-//! filed as `work/issues/interval-orthonormal-basis-sign-hull.md`.
+//! Every carrier is measured in its STORED chart. A planar face's
+//! `u_ref` comes from the orthonormal basis's world-axis comparison,
+//! `|n.z| ≤ max(|n.x|, |n.y|)/2`, which decides at the equator — a
+//! vertical wall's `|n.z|` is zero and the other two are not — so a
+//! wall stores an exact in-plane horizontal and the engine has nothing
+//! to re-chart around. The `refines` door stays: it refuses a chart
+//! that halving cannot narrow, whatever made it wide.
 //!
 //! A rigid translation keeps the rest clean: its rotation is the
 //! identity, so every stored direction passes through exactly. It does
@@ -117,6 +118,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -129,8 +132,8 @@ use editor_core::clearance::{
 };
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileDoc,
-    ProfileProgram, RecipeNodeId,
+    Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, Node, ProfileDoc,
+    ProfileProgram, RecipeNodeId, VarName,
 };
 use geom_core::{Sign, Tol};
 
@@ -145,15 +148,15 @@ fn half() -> f64 {
     Tol::witness().eps() / 64.0
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> VarName {
+    VarName::from_static(n)
 }
 
 /// The leaf box: one axis at [`half`] around the nominal.
-fn box_of(axis: &str) -> ParamBox {
+fn box_of(doc: &ProfileDoc, axis: &str) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
-        name(axis),
+        doc.var_named(axis).expect("the fixture declares the axis"),
         BoxAxis::Varying {
             lo: -half(),
             hi: half(),
@@ -164,10 +167,10 @@ fn box_of(axis: &str) -> ParamBox {
 
 /// Declares one continuous parameter with a uniform distribution of
 /// half-width [`half`].
-fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
-    r.push(DocEdit::SetDocParam {
+fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
+    r.push(DocEdit::DeclareVar {
         name: name(axis),
-        value: DocParam::Continuous {
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: nominal,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -175,20 +178,22 @@ fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
                 lo: -half(),
                 hi: half(),
             }),
-        },
+        }),
     });
 }
 
 /// A rigid translation along +x — identity rotation, so every stored
 /// direction passes through exactly and the placed body's charts are as
 /// clean as the literal one's.
-fn translated(input: RecipeNodeId, by: Expr) -> Node<ProfileProgram> {
-    Node::Transform {
+fn translated(input: RecipeNodeId, by: Formula) -> AuthoredNode {
+    Node::transform(
         input,
-        translation: [by, len(0.0), len(0.0)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    }
+        editor_core::Step::Rigid {
+            translation: [by, len(0.0), len(0.0)],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    )
 }
 
 /// A prism over a literal polygon, extruded a literal depth.
@@ -211,6 +216,7 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
     r.insert(Node::Extrude {
         profile: p,
         distance: len(depth),
+        side: ExtrudeSide::Along,
     })
 }
 
@@ -249,7 +255,7 @@ fn dumbbell() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let placed = r.insert(translated(
         solid,
-        Expr::param(name("place"), Dimension::Length),
+        Formula::named(name("place"), Dimension::Length),
     ));
     (r.doc, solid, placed)
 }
@@ -311,7 +317,7 @@ fn hexagon() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let solid = extruded(&mut r, &corners, 1.0);
     let placed = r.insert(translated(
         solid,
-        Expr::param(name("place"), Dimension::Length),
+        Formula::named(name("place"), Dimension::Length),
     ));
     (r.doc, solid, placed)
 }
@@ -333,7 +339,7 @@ fn facing_blocks(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         1.0,
     );
-    let by = Expr::add(len(1.0), Expr::param(name("gap"), Dimension::Length))
+    let by = Formula::add(len(1.0), Formula::named(name("gap"), Dimension::Length))
         .expect("1 m + a length is a length");
     let b = r.insert(translated(a, by));
     (r.doc, a, b)
@@ -358,6 +364,7 @@ fn query(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
         tol: Tol::witness(),
         config,
         oracle: &NoTangents,
+        resolver: None,
     }
 }
 
@@ -377,7 +384,14 @@ fn query(c: f64, config: ClearanceConfig) -> ClearanceQuery<'static> {
 fn a_generous_wall_clearance_holds_over_the_dumbbell() {
     let (doc, minted, _at) = dumbbell();
     let sel = Selection::body_of(minted);
-    let report = clearance(&doc, &box_of("place"), &sel, &sel, 0.2, Tol::witness());
+    let report = clearance(
+        &doc,
+        &box_of(&doc, "place"),
+        &sel,
+        &sel,
+        0.2,
+        Tol::witness(),
+    );
     assert_eq!(
         report.verdict(),
         &ClearanceVerdict::Holds,
@@ -400,7 +414,14 @@ fn a_generous_wall_clearance_holds_over_the_dumbbell() {
 fn the_bound_the_neck_breaks_is_violated_with_a_verified_witness() {
     let (doc, minted, _at) = dumbbell();
     let sel = neck_walls(&doc, minted, minted);
-    let report = clearance(&doc, &box_of("place"), &sel, &sel, 0.6, Tol::witness());
+    let report = clearance(
+        &doc,
+        &box_of(&doc, "place"),
+        &sel,
+        &sel,
+        0.6,
+        Tol::witness(),
+    );
     let ClearanceVerdict::Violated(v) = report.verdict() else {
         panic!("expected a violation at c = 0.6: {}", report.serialize());
     };
@@ -448,7 +469,7 @@ fn a_starved_cell_budget_refuses_typed() {
             ..ClearanceConfig::default()
         },
     );
-    let report = clearance_with(&doc, &box_of("place"), &sel, &sel, &q);
+    let report = clearance_with(&doc, &box_of(&doc, "place"), &sel, &sel, &q);
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Budget(CellBudget::Pairs {
             max_cell_pairs,
@@ -473,7 +494,7 @@ fn a_starved_cell_depth_refuses_on_its_own_axis() {
             ..ClearanceConfig::default()
         },
     );
-    let report = clearance_with(&doc, &box_of("place"), &sel, &sel, &q);
+    let report = clearance_with(&doc, &box_of(&doc, "place"), &sel, &sel, &q);
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Budget(CellBudget::Depth {
             max_cell_depth,
@@ -494,7 +515,7 @@ fn a_starved_cell_depth_refuses_on_its_own_axis() {
 fn every_run_lands_in_exactly_one_arm_with_a_holding_receipt() {
     let (doc, minted, _at) = dumbbell();
     let sel = neck_walls(&doc, minted, minted);
-    let leaf = box_of("place");
+    let leaf = box_of(&doc, "place");
     for c in [0.0, 0.1, 0.39, 0.6, 5.0] {
         for pairs in [4, 64, 4_096] {
             let q = query(
@@ -536,7 +557,14 @@ fn a_slanted_pair_the_tree_cannot_exclude_is_discharged_by_refining_it() {
             fixture::fname(minted, fixture::wall(&doc, minted, 3)),
         ]),
     };
-    let report = clearance(&doc, &box_of("place"), &sel, &sel, 1.5, Tol::witness());
+    let report = clearance(
+        &doc,
+        &box_of(&doc, "place"),
+        &sel,
+        &sel,
+        1.5,
+        Tol::witness(),
+    );
     assert_eq!(
         report.verdict(),
         &ClearanceVerdict::Holds,
@@ -574,7 +602,7 @@ fn a_sound_prism_certifies_strictly_positive_between_non_adjacent_faces() {
         },
     ] {
         let sel = Selection::body_of(at);
-        let report = self_intersection(&doc, &box_of("place"), &sel, Tol::witness());
+        let report = self_intersection(&doc, &box_of(&doc, "place"), &sel, Tol::witness());
         assert_eq!(
             report.verdict(),
             &ClearanceVerdict::Holds,
@@ -595,7 +623,7 @@ fn a_sound_prism_certifies_strictly_positive_between_non_adjacent_faces() {
 fn a_bound_under_the_parameter_band_holds() {
     let (doc, a, b) = facing_blocks(0.4);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
-    let report = clearance(&doc, &box_of("gap"), &sa, &sb, 0.3, Tol::witness());
+    let report = clearance(&doc, &box_of(&doc, "gap"), &sa, &sb, 0.3, Tol::witness());
     assert_eq!(
         report.verdict(),
         &ClearanceVerdict::Holds,
@@ -611,7 +639,7 @@ fn a_bound_under_the_parameter_band_holds() {
 fn a_bound_over_the_parameter_band_is_violated() {
     let (doc, a, b) = facing_blocks(0.4);
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
-    let report = clearance(&doc, &box_of("gap"), &sa, &sb, 0.5, Tol::witness());
+    let report = clearance(&doc, &box_of(&doc, "gap"), &sa, &sb, 0.5, Tol::witness());
     assert_eq!(
         report.verdict().holds(),
         Some(false),
@@ -659,7 +687,14 @@ fn a_selection_that_is_not_a_face_refuses_naming_itself() {
         faces: FaceScope::Named(vec![fixture::ename(at, fixture::wall(&doc, at, 0))]),
     };
     let whole = Selection::body_of(at);
-    let report = clearance(&doc, &box_of("place"), &sel, &whole, 0.1, Tol::witness());
+    let report = clearance(
+        &doc,
+        &box_of(&doc, "place"),
+        &sel,
+        &whole,
+        0.1,
+        Tol::witness(),
+    );
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Selection(_)) => {}
         other => panic!("expected a selection refusal, got {other:?}"),
@@ -671,8 +706,15 @@ fn a_selection_that_is_not_a_face_refuses_naming_itself() {
 #[test]
 fn a_node_that_does_not_exist_refuses_at_the_selection() {
     let (doc, _minted, _at) = hexagon();
-    let sel = Selection::body_of(RecipeNodeId(9999));
-    let report = clearance(&doc, &box_of("place"), &sel, &sel, 0.1, Tol::witness());
+    let sel = Selection::body_of(RecipeNodeId::new(0, 9999));
+    let report = clearance(
+        &doc,
+        &box_of(&doc, "place"),
+        &sel,
+        &sel,
+        0.1,
+        Tol::witness(),
+    );
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Selection(_)) => {}
         other => panic!("expected a selection refusal, got {other:?}"),
@@ -689,7 +731,7 @@ fn the_answer_is_deterministic_across_repeats() {
     let slanted = opposite_flats(&hex, hex_minted);
     let (doc, minted, _at) = dumbbell();
     let sel = Selection::body_of(minted);
-    let leaf = box_of("place");
+    let leaf = box_of(&doc, "place");
     // The stable answer is the claim, and the run that has to be stable
     // is the EXPENSIVE one: a bound that holds only by refining, which
     // is the slanted pair a hair under its own separation — thousands
@@ -728,11 +770,18 @@ fn the_answer_is_deterministic_across_repeats() {
 /// walls stand exactly `gap` apart, so the separation is strictly
 /// increasing in that parameter and its minimum over the leaf is at the
 /// axis' lower end.
-struct GapIncreasing;
+struct GapIncreasing(editor_core::VarId);
+
+impl GapIncreasing {
+    /// The oracle over `doc`'s `gap`.
+    fn of(doc: &ProfileDoc) -> Self {
+        Self(doc.var_named("gap").expect("the fixture declares gap"))
+    }
+}
 
 impl MonotoneOracle for GapIncreasing {
-    fn monotone_in(&self, param: &ParamName) -> Option<Sign> {
-        (param == &name("gap")).then_some(Sign::Positive)
+    fn monotone_in(&self, param: editor_core::VarId) -> Option<Sign> {
+        (param == self.0).then_some(Sign::Positive)
     }
 }
 
@@ -753,8 +802,9 @@ fn gap_run(
             ..ClearanceConfig::default()
         },
         oracle,
+        resolver: None,
     };
-    clearance_with(doc, &box_of("gap"), sa, sb, &q)
+    clearance_with(doc, &box_of(doc, "gap"), sa, sb, &q)
 }
 
 /// **The accelerator is removable**: on the bounds the engine answers
@@ -765,7 +815,7 @@ fn pruning_does_not_change_a_definite_verdict() {
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
     for (c, expected) in [(0.3, "Holds"), (0.5, "Violated")] {
         let off = gap_run(&doc, &sa, &sb, c, Pruning::Off, &NoTangents);
-        let on = gap_run(&doc, &sa, &sb, c, Pruning::Facets, &GapIncreasing);
+        let on = gap_run(&doc, &sa, &sb, c, Pruning::Facets, &GapIncreasing::of(&doc));
         assert_eq!(off.verdict().label(), expected, "{}", off.serialize());
         assert_eq!(on.verdict().label(), expected, "{}", on.serialize());
         assert_eq!(off.verdict().holds(), on.verdict().holds());
@@ -785,7 +835,7 @@ fn pruning_restricts_the_box_to_the_facet_it_names() {
     let (sa, sb) = (Selection::body_of(a), Selection::body_of(b));
     let mut facet_axes = BTreeMap::new();
     facet_axes.insert(
-        name("gap"),
+        doc.var_named("gap").expect("declared"),
         BoxAxis::Varying {
             lo: -half(),
             hi: -half(),
@@ -801,13 +851,17 @@ fn pruning_restricts_the_box_to_the_facet_it_names() {
             ..ClearanceConfig::default()
         },
         oracle,
+        resolver: None,
     };
     let on = clearance_with(
         &doc,
-        &box_of("gap"),
+        &box_of(&doc, "gap"),
         &sa,
         &sb,
-        &q(Pruning::Facets, &GapIncreasing),
+        &q(
+            Pruning::Facets,
+            Box::leak(Box::new(GapIncreasing::of(&doc))),
+        ),
     );
     let at_facet = clearance_with(&doc, &facet, &sa, &sb, &q(Pruning::Off, &NoTangents));
     assert_eq!(
@@ -912,7 +966,7 @@ fn a_driver_certified_leaf_carries_the_certificate() {
 fn the_cost_curve_is_measured_at_both_ends() {
     let (doc, minted, _at) = dumbbell();
     let sel = neck_walls(&doc, minted, minted);
-    let leaf = box_of("place");
+    let leaf = box_of(&doc, "place");
     let mut violated_cells = Vec::new();
     for c in [0.9, 0.8, 0.7, 0.6, 0.5, 0.41] {
         let report = clearance(&doc, &leaf, &sel, &sel, c, Tol::witness());
@@ -944,8 +998,8 @@ fn the_cost_curve_is_measured_at_both_ends() {
     // 1.155 m apart where the faces are 2 m apart. Every cell of it is
     // classified, so this is what a budget actually buys.
     let (hex, minted, _at) = hexagon();
-    let sel = opposite_flats(&doc, minted);
-    let leaf = box_of("place");
+    let sel = opposite_flats(&hex, minted);
+    let leaf = box_of(&doc, "place");
     let held = clearance(&hex, &leaf, &sel, &sel, 1.5, Tol::witness());
     let hr = held.receipt();
     assert_eq!(
@@ -1004,7 +1058,14 @@ fn the_cost_curve_is_measured_at_both_ends() {
 fn early_exit_accounts_for_what_it_did_not_examine() {
     let (doc, minted, _at) = dumbbell();
     let sel = Selection::body_of(minted);
-    let report = clearance(&doc, &box_of("place"), &sel, &sel, 0.6, Tol::witness());
+    let report = clearance(
+        &doc,
+        &box_of(&doc, "place"),
+        &sel,
+        &sel,
+        0.6,
+        Tol::witness(),
+    );
     let r = report.receipt();
     assert_eq!(report.verdict().label(), "Violated");
     assert!(
@@ -1021,7 +1082,14 @@ fn early_exit_accounts_for_what_it_did_not_examine() {
         "spelled out: the four buckets cover the forest's leaves"
     );
     // A query that runs to completion abandons nothing.
-    let held = clearance(&doc, &box_of("place"), &sel, &sel, 0.2, Tol::witness());
+    let held = clearance(
+        &doc,
+        &box_of(&doc, "place"),
+        &sel,
+        &sel,
+        0.2,
+        Tol::witness(),
+    );
     assert_eq!(held.verdict(), &ClearanceVerdict::Holds);
     assert_eq!(held.receipt().abandoned, 0, "{:?}", held.receipt());
 }
@@ -1034,7 +1102,7 @@ fn early_exit_accounts_for_what_it_did_not_examine() {
 fn the_query_door_refuses_a_bound_that_is_not_a_distance() {
     let (doc, minted, _at) = dumbbell();
     let sel = Selection::body_of(minted);
-    let leaf = box_of("place");
+    let leaf = box_of(&doc, "place");
     for c in [f64::NAN, f64::INFINITY, -1.0] {
         let report = clearance(&doc, &leaf, &sel, &sel, c, Tol::witness());
         match report.verdict() {
@@ -1083,11 +1151,18 @@ fn the_unsupported_carrier_arm_refuses_naming_the_class() {
     }
     let loft = r.insert(Node::Loft {
         profiles,
-        v_degree: Expr::count(2),
+        v_degree: Formula::count(2),
     });
     let doc = r.doc;
     let sel = Selection::body_of(loft);
-    let report = clearance(&doc, &box_of("place"), &sel, &sel, 0.1, Tol::witness());
+    let report = clearance(
+        &doc,
+        &box_of(&doc, "place"),
+        &sel,
+        &sel,
+        0.1,
+        Tol::witness(),
+    );
     match report.verdict() {
         ClearanceVerdict::Refused(ClearanceRefusal::Unsupported { carrier, .. }) => {
             println!("[unsupported] {carrier}");

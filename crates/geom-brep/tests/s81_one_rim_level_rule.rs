@@ -19,6 +19,10 @@
 //! It overstated by `major / minor`; on the gasket below that is 1000,
 //! and the row is what the overstatement costs.
 //!
+//! **The torus has since left the rule's flux arm**: its reader is the
+//! chart Green form over the loop's lift, which reads each rim at its
+//! own level and groups nothing; its rows below say what that reads.
+//!
 //! The rows here are the two directions of the change: a face that was
 //! refused and should not have been, and the refusal floor that keeps
 //! the merge from being a rule that groups everything.
@@ -95,49 +99,44 @@ fn exact_area(va: f64, vb: f64) -> f64 {
     MINOR * 1.1 * (MAJOR * (vb - va) + MINOR * (vb.sin() - va.sin()))
 }
 
-/// **A rim split half an ε off level is one rim.**
+/// **A rim split half an ε off level measures, at its own level.**
 ///
 /// The wobble is taken from the run's OWN band, never from a literal —
 /// this file is on the `eps ∈ {default, 1e-6, 1e-12}` matrix, and a
 /// literal states a claim about one of the three. `MINOR · wobble =
 /// 0.5 · band.zero()`, so the split arc is displaced half a
-/// coincidence threshold: the two arcs are the same level by the run's
-/// own tolerance, and the face is a genuine iso-rectangle.
+/// coincidence threshold, and the loop closes within the band.
 ///
-/// Metered at `major` instead, the SAME angle reads
-/// `0.5 · (MAJOR/MINOR) · cos v · zero ≈ 490 · zero` — past `escalate`
-/// at any K — so the two arcs became two groups whose span sums (0.7
-/// and 0.4) then disagreed: **measured on this branch's parent,
-/// `NotIsoRectangle { what: "props_du_consistent" }`.**
-///
-/// Goes red by putting `major` back on the level margin — the group
-/// splits and the refusal returns — and red the other way if the area
-/// stops being exact.
+/// The torus reader is the chart Green form `−∮ G(v) du`, which reads
+/// each rim at the level its carrier states rather than grouping rims
+/// by a level rule: the wobbled arc contributes at its own level, so
+/// the area differs from the unwobbled band's by exactly that arc's
+/// strip — `Δu · r(R + r cos v)·wobble` to first order — and by no more.
+/// Metered at `major`, the old grouping rule split the arcs into two
+/// groups and refused `props_du_consistent`; nothing here groups.
 #[test]
-fn a_rim_arc_split_within_epsilon_of_its_level_stays_one_group() {
+fn a_rim_arc_split_within_epsilon_of_its_level_measures_at_its_own_level() {
     let band = band();
     let (va, vb) = (0.2, 0.7);
-    let (s, edges) = gasket_band(va, vb, 0.5 * band.zero() / MINOR);
+    let wobble = 0.5 * band.zero() / MINOR;
+    let (s, edges) = gasket_band(va, vb, wobble);
     let got = curved_face(&s, &edges, true, band)
-        .expect("a rim wobbled half an epsilon is still one rim");
+        .expect("a rim wobbled half an epsilon still bounds the band");
     let exact = exact_area(va, vb);
-    let rel = (got.area - exact).abs() / exact;
+    let strip = 0.4 * MINOR * (MAJOR + MINOR * va.cos()) * wobble;
+    let off = (got.area - exact).abs();
     assert!(
-        rel < 1e-12,
-        "area {:.15e} != exact {exact:.15e} (rel {rel:.3e})",
+        (off - strip).abs() <= 1e-3 * strip + 1e-15,
+        "area {:.15e} vs exact {exact:.15e}: off by {off:.3e}, the wobbled strip is {strip:.3e}",
         got.area
     );
 }
 
-/// **The floor that keeps the merge honest.** The exact lever must
-/// still REFUSE a genuinely distinct level, or "one rule at the minor
-/// radius" would just be a rule that groups everything. Ten times the
-/// run's own ESCALATE threshold is decisively outside the band at any ε
-/// and any K, and the arc is then not at either extreme: the
-/// iso-rectangle predicate — the same rule, the same arm — refuses it.
-/// That refusal is the one the parent gave too; what changed is only
-/// where the boundary between the two answers sits, and it now sits at
-/// the level's own lever.
+/// **The floor.** Ten times the run's own ESCALATE threshold off its
+/// level, the split arc's ends no longer meet its neighbours' at any ε
+/// and any K: the loop does not close, and the reader refuses it
+/// (`props_loop_closed`) rather than integrate a boundary that bounds
+/// nothing.
 #[test]
 fn a_rim_arc_well_outside_the_band_is_still_refused() {
     let band = band();
@@ -146,10 +145,10 @@ fn a_rim_arc_well_outside_the_band_is_still_refused() {
         matches!(
             curved_face(&s, &edges, true, band),
             Err(PropsError::NotIsoRectangle {
-                what: "props_rim_level"
+                what: "props_loop_closed"
             })
         ),
-        "a rim decisively off its level is not at an extreme"
+        "a rim decisively off its level leaves the loop open"
     );
 }
 

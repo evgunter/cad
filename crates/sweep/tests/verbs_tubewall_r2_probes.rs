@@ -278,7 +278,7 @@ fn r2_escalation_from_a_wall_predicate_reports_the_hollow_doors_name() {
         source.predicate
     );
     assert!(
-        msg.starts_with("the hollow tube escalated:"),
+        msg.starts_with("whether the hollow tube's "),
         "a hollow-only predicate must name the hollow door: {msg}"
     );
     // And a SHARED arm does not claim either door: a reversed window

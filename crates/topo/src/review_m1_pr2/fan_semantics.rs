@@ -27,7 +27,7 @@ fn p(x: f64) -> Point3<f64> {
 fn valence_five_fan_split_moves_the_clockwise_run() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(p(0.0)).unwrap();
+    let seed = body.mvfs(p(0.0), true).unwrap();
     let g = body
         .mev_line(
             MevSite::Lone {
@@ -158,7 +158,7 @@ fn cross_loop_fan_on_the_digon_pillow_stack() {
     // faces glued -- 1 mvfs + 2 mev + 1 mef gives the two-edge digon;
     // instead build the 3-vertex chain + close = triangle lamina).
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
     let ab = body
         .mev_line(
             MevSite::Lone {
