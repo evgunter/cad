@@ -257,3 +257,61 @@ S3P designer who proposed keeping it.
     have to be read as one shape, or exploded into a list.
   - So the result leans further towards (ii), with my round-2 amendment: an instance's single body is picked by the
     part's placement id, not by position.
+
+## Round 4 — corrections against Ev's 2026-10-03 words
+
+**Ev's principles cited below** (Ev 2 and Ev 3, verbatim in `5f7a1c71e3`):
+- **E1:** "parts don't sit at (0,0,0) in their own space; they just don't have a location (or orientation) … never
+  anything real."
+- **E2:** "you can't Transform an already placed part … the placement isn't a hole on the part to be filled, it's a
+  description of how two inherently-unplaced parts relate."
+- **E3:** the world "looks like a part … other things can relate to it … but it actually just sets the coordinates";
+  "one number rather than a profusion."
+- **E4:** none of the computing-coordinate choices depend on the world node.
+- **E5:** "constraints that fall back to being assertions seems worse than either."
+- **E6:** a boolean "require[s] that they're already related."
+- **E7:** "different spaces are just implicit in whether parts are constrained relative to each other. there is no
+  canonical main space."
+
+Where my earlier rounds read otherwise, Ev's words win. The corrections:
+
+1. **Withdrawn: the instance's `frame: Frame` port (R1, R2).** It bends E1 and E3. It made a part's world frame a pose
+   that the parent mates against, which makes a part's location real. An instance defines the part's world-named
+   bodies only, in one space (their relations are the part's, computed per E4), and no pose of the part's world. A
+   mate on an instance reads poses of its bodies (faces, or poses the part's construction defines over them). The old
+   `FrameBase::Part` mates, which named the part's coordinates, have no faithful image. The migration re-anchors each
+   on a pose of the body it read, or drops it and names it.
+2. **Withdrawn: "a document's construction coordinates form a space" (R3).** It is the "document's own coordinates"
+   that Ev caught on #4324, and it bends E1 and E7. Replacement: a space is relatedness, nothing else. Each pip is a
+   `Place` of the ball whose mates read poses **of the die's body** (e.g. a face frame, `Offset` by scalar
+   variables). The pip is then related to the die, so the union of the die and the pips reads one space (E6). Ev's
+   "at most one of them already has a placement" is literal here: the die has none, and each pip has one.
+3. **Withdrawn: a mate side read as `BodyFrame(body)` / "own frame" (R1, R3).** It is a frame standing for the
+   coordinates, which bends E1. A mate's `on` side is a pose defined over the shape's own geometry or construction,
+   never a frame that names its coordinates. What a part's first construction frame is belongs to S3P. I depend on
+   S3P answering it without a blank frame.
+4. **Withdrawn: "until F, a mate beyond the pin is verified as the spec's interim does" (R1).** That is E5's
+   "constraints that fall back to being assertions". It also recreates placing-or-declaring by position, which is
+   the problem A11 (4) caused. From C onward, a mate that does not lower its bundle's fold refuses. Today's declaring
+   mates migrate to explicit assertions (stage 4/5's `Assert`) or are dropped, and each is named. If that has to wait
+   on stage 4's lint, C waits; the stage does not land a fallback.
+5. **Revised: the product and the world (R1's R2 rejection reversed).** E3 asks for one number. I rejected "the world
+   related once" only because pip copies would enter the product, and that reason came from treating a space as
+   coordinates. Revised:
+   - a **world placement names** one body for the product and defines no copy (copies are `Place`'s alone; the pose
+     stage 2 put there was "transient", Ev, #4220);
+   - every named body must lie in one space, or the gather refuses, naming the spaces;
+   - the world is related to that space by **one** mate, its own and undeletable, whose `to` is a pose of a named
+     body;
+   - only export reads it.
+   So pips that are not named stay out, the union is named directly, and no identity `Place` exists just to export.
+6. **Held:** a `Place` owns its mates (E2); `Transform` retires (E2: nothing moves); mates hold no number; `Flip`;
+   an axis plus a direction for clocking. `Pattern` as a family of placements holds only where its target poses are
+   poses of a body. The die's six explicit frames re-anchor on die poses, or the migration names them.
+7. **Text.**
+   - D10 Operations: "A world placement names one `Body` for the product; the bodies it names lie in one space, which
+     the world is related to by one mate of its own, read by export alone. A placement (`Place`) reads one shape and
+     defines its copy, pinned by its mates against poses of other bodies; nothing else defines a copy or moves one."
+   - D10 Spaces: "A **space** is a set of bodies related by placements; nothing else, no coordinates, makes one."
+   - FORK-1: "an instance of a part defines one `Bodies`, the bodies the part's world names, in one space."
+   - **(i)/(ii):** the `frame` port leaves both options. Picking a single body stays by the part's world placement id.
