@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-06
 priority: P3
 cost: M
-refs: [degree-2-subdivision-doors-carry-no-root-slack-meter, an-edge-crossing-a-cone-face-has-no-root-lane]
+refs: [degree-2-subdivision-doors-carry-no-root-slack-meter, 4135]
 ---
 
 

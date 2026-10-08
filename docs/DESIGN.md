@@ -296,7 +296,7 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    The Boolean door's result meets tier 3 without the census: its
    declared contacts ride beside it (`BooleanBody::contacts`), and the
    census over them is parked on CONTACT's cross-solid curved lane
-   (`work/reach/boolean-door-runs-the-census-over-its-result.md`).
+   (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
    Construction state (tier 1, or tier 2 without geometric
    certification) is what Euler operators hand back, and becomes a
    finished body only through the at-rest gate.
@@ -1325,21 +1325,26 @@ operand's description for a merged face, and refuses what falls in the
 sliver band.
 
 **Assertions.** `Assert { measure, relation, bound }` (`≤`, `≥`, `=`,
-the bound a variable) checks and never places. At rest, contact
-between copies is an `unproven-coincidence` finding unless it is
-structural (a mate-placed face is), and interference is a finding of
-its own; neither refuses where the census has a lane. A finding
-observes the sign of the gap (CONTACT-DESIGN C5) between two copies: a contact
-is `g = 0` at two cells, an interference `g < 0` over one connected
-overlap of their material. It is quiet exactly when holding assertions
-say the same: each reads a `Gap`'s output directly, over an opposed
-pair of faces of the two copies, and admits only values of the
-finding's sign (`= 0` for a contact; `≤ b` or `= b` with `b` negative
-for an interference). A contact is quiet when such an assertion's two
-faces are the two cells the census found coincident; an interference,
-when every face bounding the overlap lies between the carriers of one
-such pair. An overlap the kernel cannot bound is loud, and nothing
-quiets it.
+the bound a variable) checks and never places. At rest the census
+examines the copies of each space pairwise, and nothing it finds
+refuses. Contact between copies is an `unproven-coincidence` finding
+unless it is structural (a mate-placed face is); an overlap of their
+material is an interference finding; and a pair the census has no lane
+for is a finding too, saying it could not look, so no outcome of the
+census is silence. A contact or interference finding observes the sign
+of the gap (CONTACT-DESIGN C5) between two copies: a contact is `g = 0`
+at two cells, an interference `g < 0` over one connected overlap of
+their material. Holding assertions quiet a finding when they say the
+same: each reads a `Gap`'s output directly, over an opposed pair of
+faces of the two copies, and admits only values of the finding's sign
+(`= 0` for a contact; `≤ b` or `= b` with `b` negative for an
+interference). A contact is quiet when such an assertion's two faces
+are the two cells the census found coincident; an interference, when
+the assertion's two faces bound the overlap and every face bounding it
+lies between the carriers of an asserted pair. An assertion speaks for
+nothing else, so a new contact or overlap anywhere else is loud until
+something says otherwise, and an overlap the kernel cannot bound is
+loud and nothing quiets it.
 
 D10 governs where a companion clause disagrees, and these retire as
 the program that builds it reaches them: the declared-contact seats
@@ -1349,9 +1354,11 @@ undeclared-contact and undeclared-tangency refusals, which become
 `unproven-coincidence` findings, with ASSEMBLY A5's hard error on an
 unattributed contact; DISCIPLINES DS2's identification grade; the axis
 declaration channel; `ParamSource`'s literal tokens; PARAM-LINT's
-declared-distinct record; the profiles' stored tangent-joint flags; and
+declared-distinct record; the profiles' stored tangent-joint flags;
 ASSEMBLY A3, A10's sink rule, A11 (2)'s gauges and offsets, A11 (4)'s
-declaring mates and A12's reading edges.
+declaring mates and A12's reading edges; and A5's at-rest gate
+(`assemble` and its refusal), whose census becomes a check, with
+DISCIPLINES DS6's product-separation resident (`Separation`).
 
 ## Layering
 
