@@ -141,16 +141,13 @@ impl<T: Decide> SpiricArc<T> {
         row: &'static str,
         band: Band,
     ) -> bool {
-        let chord = b - a;
-        let (len, dir) = (chord.norm(), chord.normalize());
         let mut stack = vec![self.root()];
         let mut visits = 0;
         while let Some(p) = stack.pop() {
             visits += 1;
             let ball = self.bounds(&p);
-            let w = ball.center - a;
-            let foot = w.dot(dir).max(T::zero()).min(len);
-            if positive(row, (w - dir * foot).norm() - ball.reach, band) {
+            let gap = crate::sector_shape::point_segment_distance(a, b, ball.center);
+            if positive(row, gap - ball.reach, band) {
                 continue;
             }
             if p.depth >= MAX_DEPTH || visits >= MAX_PIECES {

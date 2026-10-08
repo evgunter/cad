@@ -158,7 +158,7 @@
 //! [`ef_bound_backed`]'s face-pair arms — the last with its cut-schedule
 //! blocker gone (the edge-on-face bullet below), its migration parked
 //! with the declared-pair machinery D10 retires
-//! (`work/intent/intent-stage4-is-built.md`).
+//! (`work/contact/ef-bound-backed-migrates-to-region-confinement.md`).
 //! A grandfathered rung asks whether a declared face pair HOLDS the
 //! entities of the event — one on each side, through boundary
 //! membership and an edge's incidence to the faces it bounds — and
@@ -189,32 +189,35 @@
 //!   events on both carriers — no interior record can carry more
 //!   information than the bounds on the planar corpus.
 //! - An **edge-on-face overlap** is certified iff each of its two
-//!   bounds is backed. Where the edge holds a vertex at the bound, that
-//!   vertex must be v-on-f-declared on this face, v-v-declared with a
-//!   coincident vertex of the face's boundary, backed by a declared
-//!   face pair naming this face and one holding the vertex
-//!   (`vf_face_backed`), `(vertex, edge)`-recorded onto an edge of the
-//!   face's boundary, or itself a vertex of the face's boundary or on
-//!   one point with one (structural). Where it holds none — the
-//!   bound falls where a boundary vertex of the face rests on the edge
-//!   — the bound is a vertex-on-edge event and is backed as that
-//!   lane's events are: its `(vertex, edge)` record, or a declared face
-//!   pair holding that vertex on one boundary and naming a face the
-//!   edge bounds (`ve_face_backed`).
-//!   Same argument as the edge-edge bullet's, one dimension up: a bound
-//!   of the overlap is a point where some entity of the pair ends, and
-//!   which side's entity that is is a fact about the configuration, not
-//!   about what a declaration can hold.
-//!   Where the face's boundary crosses the edge away from any vertex,
-//!   the crossing is a bound too: the overlap lane cuts the edge there
-//!   ([`boundary_crossings`]), and the bound is the edge-edge lane's
-//!   `EdgeEdgeCross` event, backed as that lane backs it (an op's
-//!   edge-edge record, or [`ee_cross_backed`]). Where the crossing boundary edge is a conic
-//!   arc no census lane examines the crossing as an event, so no rung
-//!   backs that bound and the cell is an `UndeclaredContact`. With a
-//!   cut at every place the boundary meets the edge, each cell lies
-//!   inside or outside the face whole, and its midpoint probe answers
-//!   for all of it.
+//!   bounds is backed. A bound is a point where the edge ends or where
+//!   the face's region ends along it, and the region ends only on the
+//!   face's boundary, which meets the edge at a boundary vertex or
+//!   where a boundary edge crosses it. So a bound is one of three
+//!   events, each backed as its own lane's events are:
+//!   - **The edge's own vertex.** It must be v-on-f-declared on this
+//!     face, v-v-declared with a coincident vertex of the face's
+//!     boundary, backed by a declared face pair naming this face and
+//!     one holding the vertex (`vf_face_backed`),
+//!     `(vertex, edge)`-recorded onto an edge of the face's boundary,
+//!     or itself a vertex of the face's boundary or on one point with
+//!     one (structural).
+//!   - **A boundary vertex of the face resting on the edge's
+//!     interior.** A vertex-on-edge event: its `(vertex, edge)` record,
+//!     or a declared face pair holding that vertex on one boundary and
+//!     naming a face the edge bounds (`ve_face_backed`).
+//!   - **A boundary edge crossing the edge's interior.** The edge-edge
+//!     lane's `EdgeEdgeCross` event ([`boundary_crossings`] cuts there):
+//!     an op's edge-edge record, or [`ee_cross_backed`]. A conic
+//!     boundary edge's crossing is no event any census lane examines,
+//!     so nothing backs that bound and the cell is an
+//!     `UndeclaredContact`.
+//!
+//!   Same argument as the edge-edge bullet's, one dimension up: which
+//!   entity ends at a bound is a fact about the configuration, not
+//!   about what a declaration can hold. With a cut at every one of
+//!   these, no boundary crosses a cell's open span on a decided
+//!   reading, so each cell lies inside or outside the face whole and its
+//!   midpoint probe answers for all of it.
 //!
 //! Failure mode: a segment overlap with a missing bounding record is
 //! [`ValidationError::UndeclaredContact`] — never inferred. (A
@@ -1915,6 +1918,18 @@ enum CutAt {
     ConicCrossing,
 }
 
+impl CutAt {
+    /// A fixed order over what can sit at one point: a vertex, then
+    /// straight crossings by edge key, then a conic crossing.
+    fn rank(self) -> (u8, Option<EdgeKey>) {
+        match self {
+            Self::Vertex => (0, None),
+            Self::Crossing(g) => (1, Some(g)),
+            Self::ConicCrossing => (2, None),
+        }
+    }
+}
+
 /// One cut of an edge's span: its arc length from the edge's start,
 /// and what sits there.
 #[derive(Clone, Copy, Debug)]
@@ -1946,16 +1961,19 @@ const EF_CROSS_SCREEN: &str = "pm_census_ef_cross_screen";
 /// boundary edge (a spiric, a spline) lies in, in metres.
 const EF_CROSS_REACH: &str = "pm_census_ef_cross_reach";
 
-/// The rows [`crate::splitting::containment::carrier_loop`] reads a
-/// conic boundary edge's span under, for the crossing cuts. Only
-/// `span` and `straddle` are read there.
+/// The rows a conic boundary edge is read under for the crossing
+/// cuts: its span by [`crate::splitting::containment::carrier_loop`],
+/// and where a root lands on it by `LoopEdge::contact`. The `line` and
+/// `spiric` fields are the type's own and are never read here (a
+/// straight edge is read by [`EF_CROSS_SIDE`], a spiric arc by
+/// `SpiricArc::clears_segment`); they carry one name that says so.
 const EF_CROSS_ROWS: crate::splitting::containment::BoundaryRows =
     crate::splitting::containment::BoundaryRows {
         line: &crate::ray_walk::ParityRows {
-            segment: "pm_census_ef_cross_segment",
-            boundary: "pm_census_ef_cross_boundary",
-            side: EF_CROSS_SIDE,
-            advance: "pm_census_ef_cross_advance",
+            segment: EF_CROSS_UNREAD,
+            boundary: EF_CROSS_UNREAD,
+            side: EF_CROSS_UNREAD,
+            advance: EF_CROSS_UNREAD,
         },
         conic: crate::splitting::containment::ConicRows {
             span: "pm_census_ef_cross_arc_span",
@@ -1965,12 +1983,16 @@ const EF_CROSS_ROWS: crate::splitting::containment::BoundaryRows =
             straddle: "pm_census_ef_cross_arc_straddle",
         },
         spiric: crate::splitting::spiric_arc::SpiricRows {
-            end: "pm_census_ef_cross_spiric_end",
-            clear: "pm_census_ef_cross_spiric_clear",
-            on: "pm_census_ef_cross_spiric_on",
-            leaf: "pm_census_ef_cross_spiric_leaf",
+            end: EF_CROSS_UNREAD,
+            clear: EF_CROSS_UNREAD,
+            on: EF_CROSS_UNREAD,
+            leaf: EF_CROSS_UNREAD,
         },
     };
+
+/// The name of a row [`EF_CROSS_ROWS`] must fill and the crossing cuts
+/// never read.
+const EF_CROSS_UNREAD: &str = "pm_census_ef_cross_unread";
 
 /// The cells of edge `e` lying in face `f`'s interior: the edge cut at
 /// every face vertex on its line and at every crossing of the face's
@@ -2022,17 +2044,23 @@ fn ef_overlap_cells<T: Decide>(
     cuts.extend(crossings);
     // Insertion sort through the trilean comparator (tiny lists); an
     // escalated comparison aborts this pair's lane (already reported).
+    // Coincident cuts are ordered by what sits there
+    // ([`CutAt::rank`]), so which one bounds the cell on either side is
+    // a function of the cuts, never of the order they were found in.
     for i in 1..cuts.len() {
         let mut j = i;
         while j > 0 {
-            match tri_cmp(cuts[j - 1].s, cuts[j].s, band, errors) {
-                Some(core::cmp::Ordering::Greater) => {
-                    cuts.swap(j - 1, j);
-                    j -= 1;
-                }
-                Some(_) => break,
+            let swap = match tri_cmp(cuts[j - 1].s, cuts[j].s, band, errors) {
+                Some(core::cmp::Ordering::Greater) => true,
+                Some(core::cmp::Ordering::Equal) => cuts[j - 1].at.rank() > cuts[j].at.rank(),
+                Some(core::cmp::Ordering::Less) => false,
                 None => return out,
+            };
+            if !swap {
+                break;
             }
+            cuts.swap(j - 1, j);
+            j -= 1;
         }
     }
     for pair in cuts.windows(2) {
@@ -2058,29 +2086,10 @@ fn ef_overlap_cells<T: Decide>(
 /// Every point strictly inside `e`'s span where `f`'s boundary crosses
 /// `e`'s line away from its vertices, as cuts; `None` where the
 /// boundary could not be read or a crossing could not be decided
-/// (refusal pushed).
-///
-/// Each boundary edge is read on its own carrier
-/// ([`crate::splitting::containment::carrier_loop`]):
-///
-/// - **A straight edge** crosses where its two ends lie definitely on
-///   opposite sides of `e`'s line ([`EF_CROSS_SIDE`], a point's signed
-///   distance in metres). An end within ε of the line is a boundary
-///   vertex on it, which the vertex cuts take on their own row.
-/// - **A circle or ellipse arc** crosses at the roots of its carrier
-///   against the plane through `e`'s line normal to the face
-///   (`plane_crossing_lane` — the splitting lane's root-based
-///   reading, its graze and interiority rows in metres); a root at an
-///   arc's end is its vertex, the vertex cuts' again.
-/// - **A spiric or spline arc** has no certified crossing position: the
-///   pair's lane runs only where `e` definitely clears the arc — a
-///   spiric arc piece by piece (`SpiricArc::clears_segment`), a spline
-///   through the ball its control hull lies in — and otherwise refuses
-///   the face typed ([`ContainError::Uncrossable`], the point-in-face
-///   door's refusal for an edge it cannot cross).
-///
-/// A crossing is a cut where it lies strictly inside `e`'s span
-/// ([`EF_CROSS_SPAN`]); at `e`'s end it is the end's own cut.
+/// (refusal pushed). Each boundary edge is read on its own carrier
+/// ([`crate::splitting::containment::carrier_loop`]) by
+/// [`edge_crossings`]; a crossing is a cut where it lies strictly inside
+/// `e`'s span ([`span_interior`]).
 fn boundary_crossings<T: Decide>(
     body: &Body<T>,
     e: &EdgeGeo<T>,
@@ -2088,178 +2097,261 @@ fn boundary_crossings<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> Option<Vec<Cut<T>>> {
-    use crate::splitting::containment::{LoopEdge, Uncrossable, UncrossableCarrier, carrier_loop};
-    use crate::splitting::{ConicPlaneMeet, PlaneCrossingLane, plane_crossing_lane};
-    let refuse = |cause: ContainError, errors: &mut Vec<ValidationError>| {
-        errors.push(ValidationError::CensusUnsupported {
+    use crate::splitting::containment::carrier_loop;
+    let refused = |r: CrossRefusal, errors: &mut Vec<ValidationError>| match r {
+        CrossRefusal::Escalated(causes) => errors.extend(
+            causes
+                .into_iter()
+                .map(|cause| ValidationError::CensusEscalated { cause }),
+        ),
+        CrossRefusal::Unsupported(cause) => errors.push(ValidationError::CensusUnsupported {
             subject: CensusSubject::Entity(EntityId::Face(f.key)),
             cause: CensusUnsupportedCause::Containment(cause),
-        });
-    };
-    let escalate = |cause, errors: &mut Vec<ValidationError>| {
-        errors.push(ValidationError::CensusEscalated { cause });
+        }),
     };
     let Some(face) = body.get_face(f.key) else {
-        refuse(ContainError::StaleFace(f.key), errors);
+        refused(CrossRefusal::Unsupported(ContainError::StaleFace(f.key)), errors);
         return None;
     };
-    let m = f.normal.cross(e.dir).normalize();
     let mut cuts = Vec::new();
-    let mut cut_at = |q: Point3<T>, at, errors: &mut Vec<ValidationError>| -> Option<()> {
-        let s = (q - e.p0).dot(e.dir);
-        let mut inside = true;
-        for margin in [s, e.len - s] {
-            match decide(EF_CROSS_SPAN, Margin::of(margin), band) {
-                Ok(Sign::Positive) => {}
-                Ok(Sign::Zero | Sign::Negative) => inside = false,
-                Err(cause) => {
-                    escalate(cause, errors);
-                    return None;
-                }
-            }
-        }
-        if inside {
-            cuts.push(Cut { s, at });
-        }
-        Some(())
-    };
-    // An arc with no crossing row: the lane runs only where the edge
-    // definitely clears the ball the arc lies in.
-    let reach_clear =
-        |center: Point3<T>, reach: T, errors: &mut Vec<ValidationError>| -> Result<(), bool> {
-            let w = center - e.p0;
-            let foot = w.dot(e.dir).max(T::zero()).min(e.len);
-            let clear = (w - e.dir * foot).norm() - reach;
-            match decide(EF_CROSS_REACH, Margin::of(clear), band) {
-                Ok(Sign::Positive) => Ok(()),
-                Ok(Sign::Zero | Sign::Negative) => Err(true),
-                Err(cause) => {
-                    escalate(cause, errors);
-                    Err(false)
-                }
-            }
-        };
     for lk in face_loops(face) {
         let lp = match carrier_loop(body, lk, EF_CROSS_ROWS, band) {
             Ok(lp) => lp,
             Err(err) => {
-                match ContainError::from(err) {
-                    ContainError::Escalated(cause) => escalate(cause, errors),
-                    other => refuse(other, errors),
-                }
+                let r = match ContainError::from(err) {
+                    ContainError::Escalated(cause) => CrossRefusal::Escalated(vec![cause]),
+                    other => CrossRefusal::Unsupported(other),
+                };
+                refused(r, errors);
                 return None;
             }
         };
         let n = lp.verts.len();
         for (i, edge) in lp.edges.iter().enumerate() {
-            let key = lp.keys[i];
-            let clears =
-                |center, reach, carrier, errors: &mut Vec<ValidationError>| match reach_clear(
-                    center, reach, errors,
-                ) {
-                    Ok(()) => Some(()),
-                    Err(within) => {
-                        if within {
-                            let at = Uncrossable {
-                                r#loop: lk,
-                                edge: key,
-                                carrier,
-                            };
-                            refuse(ContainError::Uncrossable(at), errors);
-                        }
-                        None
-                    }
-                };
-            match *edge {
-                LoopEdge::Chord => {
-                    let (a, b) = (lp.verts[i], lp.verts[(i + 1) % n]);
-                    let along = |p: Point3<T>| (p - e.p0).dot(e.dir);
-                    let beyond = |x: T| {
-                        matches!(
-                            decide(EF_CROSS_SCREEN, Margin::of(x), band),
-                            Ok(Sign::Positive)
-                        )
-                    };
-                    if (beyond(T::zero() - along(a)) && beyond(T::zero() - along(b)))
-                        || (beyond(along(a) - e.len) && beyond(along(b) - e.len))
-                    {
-                        continue;
-                    }
-                    let (da, db) = (m.dot(a - e.p0), m.dot(b - e.p0));
-                    let (sa, sb) = match (
-                        decide(EF_CROSS_SIDE, Margin::of(da), band),
-                        decide(EF_CROSS_SIDE, Margin::of(db), band),
-                    ) {
-                        (Ok(sa), Ok(sb)) => (sa, sb),
-                        (ra, rb) => {
-                            for r in [ra, rb] {
-                                if let Err(cause) = r {
-                                    escalate(cause, errors);
-                                }
-                            }
-                            return None;
-                        }
-                    };
-                    if matches!(
-                        (sa, sb),
-                        (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive)
-                    ) {
-                        let q = a + (b - a) * (da / (da - db));
-                        cut_at(q, CutAt::Crossing(key), errors)?;
-                    }
-                }
-                LoopEdge::Conic(_) => {
-                    let Some(curve) = body
-                        .get_edge(key)
-                        .and_then(|edge| body.get_curve_geom(edge.curve))
-                        .and_then(CurveGeom::certified)
-                    else {
-                        refuse(ContainError::LoopUnreadable(lk), errors);
-                        return None;
-                    };
-                    let (t0, t1) = curve.params();
-                    match plane_crossing_lane(curve.carrier(), t0, t1, e.p0, m, band) {
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Miss) => {}
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Ok(roots))) => {
-                            for t in roots {
-                                cut_at(curve.carrier().eval(t), CutAt::ConicCrossing, errors)?;
-                            }
-                        }
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Roots(Err(fault))) => {
-                            escalate(fault.diag(), errors);
-                            return None;
-                        }
-                        // An arc of a planar face lies in the face's
-                        // plane, which the cut plane is normal to: a
-                        // parallel reading is an arc off its face.
-                        PlaneCrossingLane::Conic(ConicPlaneMeet::Parallel { .. })
-                        | PlaneCrossingLane::Line
-                        | PlaneCrossingLane::Unlaned => {
-                            refuse(ContainError::LoopUnreadable(lk), errors);
-                            return None;
+            let side = BoundarySide {
+                r#loop: lk,
+                key: lp.keys[i],
+                ends: (lp.verts[i], lp.verts[(i + 1) % n]),
+            };
+            match edge_crossings(body, e, f, edge, side, band) {
+                Ok(points) => {
+                    for (q, at) in points {
+                        if let Some(s) = span_interior(e, q, band, errors) {
+                            cuts.push(Cut { s, at });
                         }
                     }
                 }
-                LoopEdge::Spiric(ref k) => {
-                    if !k.clears_segment(e.p0, e.p0 + e.dir * e.len, EF_CROSS_REACH, band) {
-                        let at = Uncrossable {
-                            r#loop: lk,
-                            edge: key,
-                            carrier: UncrossableCarrier::Spiric,
-                        };
-                        refuse(ContainError::Uncrossable(at), errors);
-                        return None;
-                    }
+                Err(r) => {
+                    refused(r, errors);
+                    return None;
                 }
-                LoopEdge::Unrowed {
-                    center,
-                    reach,
-                    carrier,
-                } => clears(center, reach, carrier, errors)?,
             }
         }
     }
     Some(cuts)
+}
+
+/// What reading one boundary edge for crossings refused with.
+enum CrossRefusal {
+    /// A crossing too close to call: the rows' own escalations.
+    Escalated(Vec<geom_core::Indeterminate>),
+    /// The boundary could not be read, typed.
+    Unsupported(ContainError),
+}
+
+/// One boundary edge of a face: its loop, its key, and its two ends in
+/// the loop's walk order.
+#[derive(Clone, Copy)]
+struct BoundarySide<T: Real> {
+    r#loop: LoopKey,
+    key: EdgeKey,
+    ends: (Point3<T>, Point3<T>),
+}
+
+/// The in-plane unit normal to `e`'s line: a point's signed distance
+/// along it is its offset from the line within the face's plane.
+fn across<T: Real>(e: &EdgeGeo<T>, f: &FaceGeo<T>) -> Vec3<T> {
+    f.normal.cross(e.dir).normalize()
+}
+
+/// The arc length along `e` of a crossing at `q`, where it lies strictly
+/// inside `e`'s span ([`EF_CROSS_SPAN`]). At an end (Zero) it is the
+/// end's own cut, and past one it is no cut. In band it escalates
+/// (pushed) and is no cut, as the vertex cuts' span row does: either
+/// way the event sits within the band of `e`'s end, whose own cut
+/// bounds the cell there.
+fn span_interior<T: Decide>(
+    e: &EdgeGeo<T>,
+    q: Point3<T>,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) -> Option<T> {
+    let s = (q - e.p0).dot(e.dir);
+    let mut inside = true;
+    for margin in [s, e.len - s] {
+        match decide(EF_CROSS_SPAN, Margin::of(margin), band) {
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Zero | Sign::Negative) => inside = false,
+            Err(cause) => {
+                errors.push(ValidationError::CensusEscalated { cause });
+                inside = false;
+            }
+        }
+    }
+    inside.then_some(s)
+}
+
+/// Where one boundary edge of `f` crosses `e`'s line, by its carrier:
+///
+/// - **A straight edge** ([`chord_crossing`]): where its two ends lie
+///   definitely on opposite sides of the line.
+/// - **A circle or ellipse arc** ([`conic_crossings`]): at each root of
+///   its carrier against the plane through the line normal to the face,
+///   placed on the arc in metres.
+/// - **A spiric or spline arc** has no certified crossing position: the
+///   lane runs only where `e` definitely clears the arc — a spiric arc
+///   piece by piece (`SpiricArc::clears_segment`), a spline through the
+///   ball its control hull lies in ([`EF_CROSS_REACH`]) — and otherwise
+///   refuses the face typed ([`ContainError::Uncrossable`], the
+///   point-in-face door's refusal for an edge it cannot cross).
+fn edge_crossings<T: Decide>(
+    body: &Body<T>,
+    e: &EdgeGeo<T>,
+    f: &FaceGeo<T>,
+    edge: &crate::splitting::containment::LoopEdge<T>,
+    side: BoundarySide<T>,
+    band: Band,
+) -> Result<Vec<(Point3<T>, CutAt)>, CrossRefusal> {
+    use crate::splitting::containment::{LoopEdge, Uncrossable, UncrossableCarrier};
+    let uncrossable = |carrier| {
+        CrossRefusal::Unsupported(ContainError::Uncrossable(Uncrossable {
+            r#loop: side.r#loop,
+            edge: side.key,
+            carrier,
+        }))
+    };
+    let p1 = e.p0 + e.dir * e.len;
+    match *edge {
+        LoopEdge::Chord => Ok(chord_crossing(e, f, side.ends, band)?
+            .map(|q| (q, CutAt::Crossing(side.key)))
+            .into_iter()
+            .collect()),
+        LoopEdge::Conic(_) => conic_crossings(body, e, f, edge, side, band),
+        LoopEdge::Spiric(ref k) => {
+            if k.clears_segment(e.p0, p1, EF_CROSS_REACH, band) {
+                Ok(Vec::new())
+            } else {
+                Err(uncrossable(UncrossableCarrier::Spiric))
+            }
+        }
+        LoopEdge::Unrowed {
+            center,
+            reach,
+            carrier,
+        } => {
+            let clear = crate::sector_shape::point_segment_distance(e.p0, p1, center) - reach;
+            match decide(EF_CROSS_REACH, Margin::of(clear), band) {
+                Ok(Sign::Positive) => Ok(Vec::new()),
+                Ok(Sign::Zero | Sign::Negative) => Err(uncrossable(carrier)),
+                Err(cause) => Err(CrossRefusal::Escalated(vec![cause])),
+            }
+        }
+    }
+}
+
+/// Where a straight boundary edge `a → b` crosses `e`'s line, if its two
+/// ends lie definitely on opposite sides of it ([`EF_CROSS_SIDE`]). An
+/// end within ε of the line is a boundary vertex on it, which the vertex
+/// cuts take on their own row. An edge lying wholly past one end of `e`
+/// by more than the band is not read at all ([`EF_CROSS_SCREEN`]).
+fn chord_crossing<T: Decide>(
+    e: &EdgeGeo<T>,
+    f: &FaceGeo<T>,
+    (a, b): (Point3<T>, Point3<T>),
+    band: Band,
+) -> Result<Option<Point3<T>>, CrossRefusal> {
+    let along = |p: Point3<T>| (p - e.p0).dot(e.dir);
+    let beyond = |x: T| {
+        matches!(
+            decide(EF_CROSS_SCREEN, Margin::of(x), band),
+            Ok(Sign::Positive)
+        )
+    };
+    if (beyond(T::zero() - along(a)) && beyond(T::zero() - along(b)))
+        || (beyond(along(a) - e.len) && beyond(along(b) - e.len))
+    {
+        return Ok(None);
+    }
+    let m = across(e, f);
+    let (da, db) = (m.dot(a - e.p0), m.dot(b - e.p0));
+    match (
+        decide(EF_CROSS_SIDE, Margin::of(da), band),
+        decide(EF_CROSS_SIDE, Margin::of(db), band),
+    ) {
+        (Ok(Sign::Positive), Ok(Sign::Negative)) | (Ok(Sign::Negative), Ok(Sign::Positive)) => {
+            Ok(Some(a + (b - a) * (da / (da - db))))
+        }
+        (Ok(_), Ok(_)) => Ok(None),
+        (ra, rb) => Err(CrossRefusal::Escalated(
+            [ra, rb].into_iter().filter_map(Result::err).collect(),
+        )),
+    }
+}
+
+/// Where a circle or ellipse boundary arc crosses `e`'s line. The roots
+/// of its whole carrier against the plane through the line normal to the
+/// face come from the splitting lane's carrier reading
+/// (`conic_plane_candidates`: its graze row `R − |D|` in metres). Each
+/// root is then placed on the ARC by the arc's own boundary reading
+/// (`LoopEdge::contact`, metres along the carrier): `On`, clear of both
+/// ends, is a crossing; `End`, within the band of an end, is that end's
+/// vertex, which the vertex cuts take; `Carrier` is off the arc. The
+/// carrier parameter is never read against the span: a parameter gap
+/// times the smaller semi-axis understates an ellipse's arc length by up
+/// to the axis ratio.
+fn conic_crossings<T: Decide>(
+    body: &Body<T>,
+    e: &EdgeGeo<T>,
+    f: &FaceGeo<T>,
+    edge: &crate::splitting::containment::LoopEdge<T>,
+    side: BoundarySide<T>,
+    band: Band,
+) -> Result<Vec<(Point3<T>, CutAt)>, CrossRefusal> {
+    use crate::splitting::containment::EdgeContact;
+    use crate::splitting::{ConicPlaneMeet, conic_plane_candidates};
+    let unreadable = || CrossRefusal::Unsupported(ContainError::LoopUnreadable(side.r#loop));
+    let curve = body
+        .get_edge(side.key)
+        .and_then(|edge| body.get_curve_geom(edge.curve))
+        .and_then(CurveGeom::certified)
+        .ok_or_else(unreadable)?;
+    let conic = geom_brep::Conic::of(curve.carrier()).ok_or_else(unreadable)?;
+    let roots = match conic_plane_candidates(conic, e.p0, across(e, f), band) {
+        Ok(roots) => roots,
+        Err(ConicPlaneMeet::Miss) => return Ok(Vec::new()),
+        Err(ConicPlaneMeet::Roots(Err(fault))) => {
+            return Err(CrossRefusal::Escalated(vec![fault.diag()]));
+        }
+        // An arc of a planar face lies in the face's plane, which the
+        // cut plane is normal to: a parallel reading is an arc off its
+        // face.
+        Err(ConicPlaneMeet::Parallel { .. } | ConicPlaneMeet::Roots(Ok(_))) => {
+            return Err(unreadable());
+        }
+    };
+    let mut out = Vec::new();
+    for t in roots.into_iter().flatten() {
+        let q = curve.carrier().eval(t);
+        match edge.contact(side.ends, q, EF_CROSS_ROWS, band) {
+            Ok(EdgeContact::On) => out.push((q, CutAt::ConicCrossing)),
+            Ok(EdgeContact::End | EdgeContact::Carrier) => {}
+            // A root of the carrier read off it, or an arc read as no
+            // conic: the arc is not what its loop says it is.
+            Ok(EdgeContact::Off | EdgeContact::Unread) => return Err(unreadable()),
+            Err(cause) => return Err(CrossRefusal::Escalated(vec![cause])),
+        }
+    }
+    Ok(out)
 }
 
 /// Census pass 5: edge × edge — proper interior crossings (backable
@@ -3880,39 +3972,38 @@ impl TouchSite {
     }
 
     /// The analysis's verdict on the site ([`touch_verdict`]): a rest
-    /// only where every point the site meets at reads one, and
-    /// otherwise the first point's refusal.
+    /// only where every point the site meets at reads one. Otherwise a
+    /// decided [`TouchVerdict::Crossing`] at any point, over a refusal
+    /// at another — definite evidence over an undecided reading — and
+    /// failing that the first point's refusal.
     fn verdict<T: Decide>(self, body: &Body<T>, geo: &Geo<T>, band: Band) -> TouchVerdict {
-        let points = match self.stars(body, geo, band) {
+        let (first, rest) = match self.stars(body, geo, band) {
             Ok(points) => points,
             Err(v) => return v,
         };
-        let mut rest = None;
-        for (a, b) in points {
-            match touch_verdict(a, b, band) {
-                v @ TouchVerdict::Rest(_) => {
-                    rest.get_or_insert(v);
-                }
-                v => return v,
-            }
-        }
-        rest.unwrap_or(TouchVerdict::InBand)
+        let mut all = vec![touch_verdict(first.0, first.1, band)];
+        all.extend(rest.into_iter().map(|(a, b)| touch_verdict(a, b, band)));
+        let pick = all
+            .iter()
+            .position(|v| matches!(v, TouchVerdict::Crossing))
+            .or_else(|| all.iter().position(|v| !matches!(v, TouchVerdict::Rest(_))))
+            .unwrap_or(0);
+        // `all` holds the first point's verdict, so `pick` is in it.
+        all.swap_remove(pick)
     }
 
-    /// The two stars the site compares at each point it meets at, each
-    /// as built or as the verdict its build refused with; `Err` where
-    /// no touch point reads. Every site meets at one point but an edge
+    /// The two stars the site compares at each point it meets at — the
+    /// first, and the rest — each as built or as the verdict its build
+    /// refused with; `Err` where no touch point reads. Every site meets at one point but an edge
     /// in a face, which meets at every cell of its overlap: the cells
     /// are separate pieces of the face, so no one of them answers for
     /// another.
-    #[allow(clippy::type_complexity)]
     fn stars<T: Decide>(
         self,
         body: &Body<T>,
         geo: &Geo<T>,
         band: Band,
-    ) -> Result<Vec<(Result<Star<T>, TouchVerdict>, Result<Star<T>, TouchVerdict>)>, TouchVerdict>
-    {
+    ) -> Result<(StarPair<T>, Vec<StarPair<T>>), TouchVerdict> {
         let at_vertex = |v: VertexKey| geo.vmap.get(&v).copied().ok_or(TouchVerdict::Corrupt);
         let edge = |e: EdgeKey| {
             geo.edges
@@ -3923,7 +4014,7 @@ impl TouchSite {
         let vertex = |v: VertexKey| Star::vertex(body, geo, v, band);
         let on_edge = |e: EdgeKey, p: Point3<T>| Star::edge(body, geo, e, p, band);
         let in_face = |f: FaceKey, p: Point3<T>| Star::face(body, geo, f, p, band);
-        Ok(vec![match self {
+        let one = match self {
             Self::VertexVertex(a, b) => (vertex(a), vertex(b)),
             Self::VertexOnEdge(v, e) => (vertex(v), on_edge(e, at_vertex(v)?)),
             Self::EdgeEdge(a, b) => {
@@ -3938,21 +4029,25 @@ impl TouchSite {
                 let fg = planar_face(geo, f).ok_or(TouchVerdict::Unreadable)?;
                 let mut refused = Vec::new();
                 let cells = ef_overlap_cells(body, edge(e)?, fg, geo, band, &mut refused);
-                if !refused.is_empty() || cells.is_empty() {
+                if !refused.is_empty() {
                     return Err(TouchVerdict::InBand);
                 }
-                return Ok(cells
-                    .iter()
-                    .map(|c| (on_edge(e, c.mid), in_face(f, c.mid)))
-                    .collect());
+                let mut pairs = cells.iter().map(|c| (on_edge(e, c.mid), in_face(f, c.mid)));
+                let first = pairs.next().ok_or(TouchVerdict::InBand)?;
+                return Ok((first, pairs.collect()));
             }
             Self::EdgeCross(a, b) => {
                 let q = ee_cross_point(edge(a)?, edge(b)?);
                 (on_edge(a, q), on_edge(b, q))
             }
-        }])
+        };
+        Ok((one, Vec::new()))
     }
 }
+
+/// One touch point's two stars, each as built or as the verdict its
+/// build refused with.
+type StarPair<T> = (Result<Star<T>, TouchVerdict>, Result<Star<T>, TouchVerdict>);
 
 /// Where the touch point sits on one solid's boundary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -10078,7 +10173,8 @@ mod tests {
         /// A crossing at the edge's own end (the cap side `x = 0.9`) is
         /// that end's cut, not a new one; a crossing past the end (a
         /// slanted side meeting the line at `x ≈ 0.917`) is none; a
-        /// crossing in the band of the end escalates on the span row.
+        /// crossing in the band of the end escalates on the span row and
+        /// is no cut, as the vertex cuts' own span row does.
         #[test]
         fn a_crossing_is_cut_only_strictly_inside_the_span() {
             let (body, face, edge) = lap(&[(0.9, 0.2), (1.1, 0.2), (1.1, 0.42), (0.9, 0.42)]);
@@ -10098,7 +10194,7 @@ mod tests {
             let x = 0.9 + 3.0 * band().zero();
             let (body, face, edge) = lap(&[(x, 0.2), (1.1, 0.2), (1.1, 0.42), (x, 0.42)]);
             let (cuts, errors) = crossings(&body, face, edge);
-            assert!(cuts.is_none(), "{cuts:?}");
+            assert!(cuts.as_ref().is_some_and(Vec::is_empty), "{cuts:?}");
             assert!(escalated(&errors).contains(&EF_CROSS_SPAN), "{errors:?}");
         }
 
@@ -10335,6 +10431,95 @@ mod tests {
             );
         }
 
+        /// `pm_census_ef_cross_reach` on a spline boundary edge, at the
+        /// verdict it feeds: the lane runs only where the edge definitely
+        /// clears the ball the spline lies in. A ball the shelf edge
+        /// passes through refuses the face typed, naming the spline; one
+        /// a metre off passes with nothing cut.
+        #[test]
+        fn a_spline_boundary_refuses_where_its_ball_meets_the_edge() {
+            use crate::splitting::containment::{LoopEdge, Uncrossable, UncrossableCarrier};
+            let (body, face, edge) = lap(&[(0.1, 0.2), (0.3, 0.2), (0.3, 0.42), (0.1, 0.42)]);
+            let geo = snapshot(&body);
+            let e = geo.edges.iter().find(|x| x.key == edge).unwrap();
+            let f = planar_face(&geo, face).unwrap();
+            let lk = body.get_face(face).unwrap().outer;
+            let side = BoundarySide {
+                r#loop: lk,
+                key: edge,
+                ends: (Point3::new(0.4, 0.25, 0.5), Point3::new(0.5, 0.35, 0.5)),
+            };
+            let spline = |center| LoopEdge::Unrowed {
+                center,
+                reach: 0.1,
+                carrier: UncrossableCarrier::Spline,
+            };
+            let near = spline(Point3::new(0.45, 0.32, 0.5));
+            assert!(
+                matches!(
+                    edge_crossings(&body, e, f, &near, side, band()),
+                    Err(CrossRefusal::Unsupported(ContainError::Uncrossable(
+                        Uncrossable {
+                            carrier: UncrossableCarrier::Spline,
+                            ..
+                        }
+                    )))
+                ),
+                "a spline within reach of the edge refuses"
+            );
+            let far = spline(Point3::new(0.45, 1.3, 0.5));
+            assert!(
+                matches!(edge_crossings(&body, e, f, &far, side, band()), Ok(v) if v.is_empty()),
+                "a spline a metre off passes"
+            );
+        }
+
+        /// `SpiricArc::clears_segment` never clears a segment that meets
+        /// the arc: a short segment through each of 257 points spread
+        /// along the spiric cap's arc, across it, is read as meeting it
+        /// every time — where a piece's ball understated its arc, a piece
+        /// holding the point would clear.
+        #[test]
+        fn a_spiric_arc_never_clears_a_segment_through_it() {
+            use crate::splitting::containment::{LoopEdge, carrier_loop};
+            use std::f64::consts::FRAC_PI_2;
+            let body = spiric_cap(2.0, 1.0, 0.5, (-FRAC_PI_2, FRAC_PI_2));
+            let geo = snapshot(&body);
+            let cap = geo
+                .faces
+                .iter()
+                .find(|f| f.boundary.len() == 2)
+                .expect("the spiric cap")
+                .key;
+            let lp = carrier_loop(&body, body.get_face(cap).unwrap().outer, EF_CROSS_ROWS, band())
+                .unwrap_or_else(|_| panic!("the cap's loop reads"));
+            let arc = lp
+                .edges
+                .iter()
+                .find_map(|edge| match edge {
+                    LoopEdge::Spiric(k) => Some(k),
+                    _ => None,
+                })
+                .expect("the spiric arc");
+            let oval = geom::Curve3::Spiric {
+                center: Point3::origin(),
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+                major_radius: 2.0,
+                minor_radius: 1.0,
+                offset: 0.5,
+            };
+            let cleared: Vec<f64> = (0..=256)
+                .map(|i| -FRAC_PI_2 + std::f64::consts::PI * f64::from(i) / 256.0)
+                .filter(|&v| {
+                    let p = oval.eval(v);
+                    let across = Vec3::new(0.0, 1.0, 1.0).normalize() * 0.01;
+                    arc.clears_segment(p - across, p + across, EF_CROSS_REACH, band())
+                })
+                .collect();
+            assert!(cleared.is_empty(), "segments through the arc cleared at v = {cleared:?}");
+        }
+
         /// A planar cap bounded by one ellipse arc `(t0, t1)` of
         /// `carrier`, cut from `cyl` by the plane through the ellipse,
         /// and the chord closing it; the cap's face.
@@ -10450,7 +10635,7 @@ mod tests {
         /// edge's stretch inside the cap is one cell between them.
         #[test]
         fn a_steep_ellipse_crossing_near_an_arc_end_is_cut() {
-            use std::f64::consts::{FRAC_PI_2, PI};
+            use std::f64::consts::FRAC_PI_2;
             let carrier = geom::Curve3::Ellipse {
                 center: Point3::origin(),
                 axis: Vec3::unit_z(),
@@ -10475,7 +10660,7 @@ mod tests {
                         (cells[0].1, cells[0].3),
                         (CutAt::ConicCrossing, CutAt::ConicCrossing)
                     ),
-                "one cell, crossing to crossing: {cells:?} (π = {PI})"
+                "one cell, crossing to crossing: {cells:?}"
             );
         }
 
@@ -10489,7 +10674,7 @@ mod tests {
         /// edge ending inside has no cell straddling it.
         #[test]
         fn a_tilted_ellipse_crossing_near_an_arc_end_is_cut() {
-            use std::f64::consts::{FRAC_PI_2, PI};
+            use std::f64::consts::FRAC_PI_2;
             let major = 4.01_f64.sqrt();
             let normal = Vec3::new(-20.0, 0.0, 1.0).normalize();
             let carrier = geom::Curve3::Ellipse {
@@ -10515,7 +10700,7 @@ mod tests {
                     && (cells[0].0 + 0.05).abs() < 1e-9
                     && (cells[0].2 - 0.1).abs() < 1e-6
                     && matches!(cells[0].3, CutAt::ConicCrossing),
-                "the stretch inside, bounded at the crossing: {cells:?} (π = {PI})"
+                "the stretch inside, bounded at the crossing: {cells:?}"
             );
             let (cells, errors) = cells_along_y(&body, cap, &on_y(0.0, 0.15));
             assert!(errors.is_empty(), "{errors:?}");

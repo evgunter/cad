@@ -5,7 +5,8 @@
 //! runs across the post's cap, entering and leaving it through the
 //! cap's side edges away from any vertex; the shelf edge's own midpoint
 //! lies outside the cap. Each resting stretch is found, reported where
-//! it lies, and — declared — backed at the region-confined strength.
+//! it lies, and — declared — backed: each bound at a crossing by the
+//! crossing's own rung, each at a cap corner by the vertex arms.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;

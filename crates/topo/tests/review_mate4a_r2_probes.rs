@@ -142,8 +142,8 @@ fn count_ef(cs: &[CensusContact]) -> usize {
 /// Under the UNIFIED strength (CONTACT-DESIGN C3/C4's annotation;
 /// MATE-9) this reach is exactly what `ef_bound_backed`'s
 /// grandfathering carries, so this row stays green as the anomaly's
-/// pin while the rung is grandfathered; its migration waits on INTENT
-/// stage 4 (the grandfather note names it).
+/// pin while the rung is grandfathered; its migration is parked as
+/// `ef-bound-backed-migrates-to-region-confinement`.
 #[test]
 fn r2_an_unrelated_declared_pair_backs_the_ef_bound() {
     let (body, post_top, _shelf_bottom, side_ha, side_ab, shelf_side) = overhang_seat_full();

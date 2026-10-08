@@ -430,9 +430,13 @@ sense-invariant.
 `ef_bound_backed` confine by structural incidence only, so they can back
 an event outside the pair's overlap region. Each migrates to the unified
 strength one at a time, measured. The edge-on-face lane cuts an edge
-wherever the face's boundary meets it, at a coincident vertex or a
-crossing, so no cell spans the face's boundary; `ef_bound_backed`'s
-migration waits on INTENT stage 4, which retires declared pairs (D10).
+at every boundary vertex on it and every place a boundary edge crosses
+it, each placed in metres along both (a crossing within the band of an
+arc's end is that end's vertex), and refuses a face whose spiric or
+spline edge it cannot clear, so no cell spans the face's boundary on a
+decided reading. `ef_bound_backed`'s migration is parked with the
+declared-pair machinery D10 retires
+(`work/contact/ef-bound-backed-migrates-to-region-confinement.md`).
 
 **`EdgeFacePierce` stays categorical.** A transverse dive is
 interpenetration until a C6 vocabulary exists; the recourse is
@@ -459,7 +463,8 @@ affects only what declines, never what certifies.
 ## Open
 
 - The `EdgeFacePierce` arm (issue 973) waits for the C6 interference era.
-- `ef_bound_backed`'s migration waits on INTENT stage 4 (D10).
+- `ef_bound_backed`'s migration is parked
+  (`ef-bound-backed-migrates-to-region-confinement`, D10).
 - `interior_witness`'s budget-exhaustion decline is untyped (1478).
 - The declared-cusp wedge-0/2π arm is defined, unbuilt (941).
 - Sphere, cone and torus cross-description declared pairs refuse
