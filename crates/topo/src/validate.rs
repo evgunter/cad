@@ -8697,14 +8697,28 @@ impl<T: Real> AtRestBody<T> {
 
 /// **Why an operand that carries no verdict is not a finished body** —
 /// the two promises [`AtRestBody::gate_unverdicted`] reads.
-#[derive(Debug)]
-pub(crate) enum Unfinished {
+#[derive(Clone, Debug)]
+pub enum Unfinished {
     /// Tier 2's findings: scaffolding at rest.
     Scaffolding(Vec<ValidationError>),
-    /// [`wound_negative`]'s findings: solids check 7 decides inside-out
+    /// The orientation read's findings: solids check 7 decides inside-out
     /// ([`ValidationError::NegativeVolume`]), or shells check 10 finds
     /// bounding negative material ([`ValidationError::ShellWinding`]).
     InsideOut(Vec<ValidationError>),
+}
+
+impl Unfinished {
+    /// What every door refusing an operand with scaffolding at rest says
+    /// after naming the operand.
+    pub const SCAFFOLDING_REFUSAL: &'static str = "is not a finished solid: it still \
+        carries what an edit left behind, such as a strut or an empty loop, so it is \
+        refused. Recourse: finish that edit first";
+    /// What every door refusing an inside-out operand says after naming
+    /// the operand: true of a solid check 7 decides negative and of a
+    /// shell check 10 finds bounding negative material.
+    pub const INSIDE_OUT_REFUSAL: &'static str = "is inside-out, as a whole or in one of \
+        its shells, so faces there point into its material and bound negative volume, and \
+        it is refused. Recourse: build it with its faces pointing outward, or revert it";
 }
 
 impl<T: Real> AtRestBody<T> {
@@ -8714,11 +8728,11 @@ impl<T: Real> AtRestBody<T> {
     /// [`AtRestOutcome::Validated`] operand passes untouched: tier 3's
     /// verdict holds both reads. Otherwise, in order:
     ///
-    /// 1. tier 2 over the whole body ([`operand_scaffolding`], whose
+    /// 1. tier 2 over the whole body (`operand_scaffolding`, whose
     ///    tier-1 panic names `subject`);
     /// 2. orientation, at the scalar's lane
     ///    ([`crate::AtRestPolicy::quad_lane`]), read as tier 3 reads it
-    ///    ([`wound_negative`]): check 7 per solid, then, behind a clean
+    ///    (`wound_negative`): check 7 per solid, then, behind a clean
     ///    check 7, check 10 per shell. A solid whose total it decides
     ///    definitely negative refuses, and so does a shell bounding
     ///    negative material inside a solid whose total is positive; a
@@ -8728,7 +8742,11 @@ impl<T: Real> AtRestBody<T> {
     /// inside-out solid, and a solid's hides an inside-out shell. So a
     /// door that reads a several-solid operand as one solid runs this
     /// before it merges.
-    pub(crate) fn gate_unverdicted(
+    ///
+    /// # Errors
+    ///
+    /// [`Unfinished`], naming which promise failed.
+    pub fn gate_unverdicted(
         &self,
         subject: impl fmt::Display,
         band: Band,

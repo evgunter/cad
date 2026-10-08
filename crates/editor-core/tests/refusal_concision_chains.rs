@@ -65,6 +65,8 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Pcurves",
     "Transform/Pcurve",
     "Transform/NullScaffold",
+    "UnfinishedOperand/ScaffoldingEmptyLoop",
+    "UnfinishedOperand/ScaffoldingStrutVertex",
     "Loft/Pcurve",
     "Blend/BodyNotIntact",
     "Blend/SurgeryInvariant",
@@ -214,6 +216,7 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "Expr/CountOverflow",
     "Expr/CountToScalarOutOfRange",
     "Expr/NonFiniteResult",
+    "Expr/Unlowered",
     "Expr/UnresolvedVar",
     "Expr/VarKindMismatch",
     "FaceFrameKind",
@@ -1002,6 +1005,51 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row(
+            "UnfinishedOperand/NegativeVolume",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
+            },
+        ),
+        row(
+            "UnfinishedOperand/ScaffoldAtRest",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::ScaffoldAtRest {
+                    edge: topo::EdgeKey::default(),
+                }],
+            },
+        ),
+        row(
+            "UnfinishedOperand/ScaffoldingEmptyLoop",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::ScaffoldingEmptyLoop {
+                    loop_: topo::LoopKey::default(),
+                }],
+            },
+        ),
+        row(
+            "UnfinishedOperand/ScaffoldingStrutVertex",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex {
+                    vertex: topo::VertexKey::default(),
+                }],
+            },
+        ),
+        row(
+            "UnfinishedOperand/DescriptionNotAdjacent",
+            NodeErrorKind::UnfinishedOperand {
+                input: RecipeNodeId::new(0, tagged(3)),
+                errors: vec![topo::ValidationError::DescriptionNotAdjacent {
+                    edge: topo::EdgeKey::default(),
+                }],
+            },
+        ),
+        row(
             "EmptyHalf",
             NodeErrorKind::EmptyHalf {
                 input: RecipeNodeId::new(0, tagged(3)),
@@ -1079,7 +1127,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(whole)",
             NodeErrorKind::FullRangeStep {
-                step: stored("360 deg"),
+                step: formula("360 deg"),
                 evaluated: None,
                 turns: StepTurns::Whole,
             },
@@ -1087,7 +1135,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(whole, evaluated)",
             NodeErrorKind::FullRangeStep {
-                step: stored("720 deg * scalar(blades)"),
+                step: formula("720 deg * scalar(blades)"),
                 evaluated: Some(geom_core::MarginDiag::value(12.566370614359172)),
                 turns: StepTurns::Whole,
             },
@@ -1095,7 +1143,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(within)",
             NodeErrorKind::FullRangeStep {
-                step: stored("760 deg"),
+                step: formula("760 deg"),
                 evaluated: None,
                 turns: StepTurns::Within(formula("40 deg")),
             },
@@ -1103,7 +1151,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(within, evaluated)",
             NodeErrorKind::FullRangeStep {
-                step: stored("360 deg / scalar(blades) - 400 deg"),
+                step: formula("360 deg / scalar(blades) - 400 deg"),
                 evaluated: Some(geom_core::MarginDiag::value(-6.632251157578452)),
                 turns: StepTurns::Within(formula("360 deg / scalar(blades) - 400 deg + 360 deg")),
             },
@@ -1111,7 +1159,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         row(
             "FullRangeStep(unresolved)",
             NodeErrorKind::FullRangeStep {
-                step: stored("1e20 rad"),
+                step: formula("1e20 rad"),
                 evaluated: None,
                 turns: StepTurns::Unresolved,
             },
@@ -2441,6 +2489,20 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
+            "ScaffoldingOperand",
+            E::ScaffoldingOperand {
+                errors: vec![topo::ValidationError::ScaffoldingStrutVertex { vertex }],
+            },
+        ),
+        (
+            "InsideOutOperand",
+            E::InsideOutOperand {
+                errors: vec![topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                }],
+            },
+        ),
+        (
             "Certify",
             E::Certify {
                 site: "blend face pcurves",
@@ -2995,6 +3057,16 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
             EvalError::CountToScalarOutOfRange(1 << 60),
         ),
         ("NonFiniteResult", EvalError::NonFiniteResult),
+        // No node raises it — a lowered document holds no authored
+        // leaf, so a node's expression never reaches it — but a formula
+        // evaluated outside a document does, and it renders through the
+        // same `Display` within the same budget.
+        (
+            "Unlowered",
+            EvalError::Unlowered(editor_core::LowerFault::Quantity {
+                dim: Dimension::Length,
+            }),
+        ),
     ];
     let param_box = [
         (
@@ -5090,16 +5162,4 @@ fn formula(text: &str) -> editor_core::Formula {
         editor_core::Dimension::Count,
     )]);
     editor_core::parse_formula(text, &names).expect("the formula parses")
-}
-
-/// [`formula`] as a document stores it, `blades` a count variable.
-fn stored(text: &str) -> editor_core::Expr {
-    formula(text)
-        .lower(&|name| {
-            (name.as_str() == "blades").then_some((
-                editor_core::VarId::new(0, tagged(9)),
-                editor_core::Dimension::Count,
-            ))
-        })
-        .expect("the formula lowers")
 }

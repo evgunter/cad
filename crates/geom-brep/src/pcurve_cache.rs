@@ -2699,6 +2699,7 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
         E::Escalated { cause, .. } | E::CertificateEscalated { cause, .. } => {
             return PcurveCertifyError::FittedEscalated { cause };
         }
+        E::ChartRow { source } => return PcurveCertifyError::ChartRow { source },
         // Only a marching door refines; the refusal it could not answer
         // is the certificate's, and reads as it.
         E::RefinementExhausted { refusal, .. } => return ssi_refusal(*refusal),
@@ -6628,12 +6629,8 @@ fn run_iso_checks<T: Decide>(
                                arrives with its first minting construction",
                     });
                 };
-                let b = crate::nurbs_iso::boundary_iso_u(payload, end).map_err(|_| {
-                    PcurveCertifyError::IsoUnsupported {
-                        what: "the chart's boundary row failed to re-wrap as a curve \
-                               (corrupt chart structure)",
-                    }
-                })?;
+                let b = crate::nurbs_iso::boundary_iso_u(payload, end)
+                    .map_err(|source| PcurveCertifyError::ChartRow { source })?;
                 if b.weights().iter().any(|w| *w != 1.0) {
                     return Err(PcurveCertifyError::IsoUnsupported {
                         what: "a LINE seam on a RATIONAL chart column: the Greville hull \
@@ -9563,6 +9560,25 @@ mod tests {
             .unwrap()
             .get();
         assert!((rate - 1.0).abs() < 1e-15, "the unit-chord net meters at 1");
+    }
+
+    /// SSI's corrupt-chart refusal leaves the fitted lane as this
+    /// module's `ChartRow` with the spline layer's payload whole — not
+    /// flattened into `FittedCertificate`'s text, which would read as a
+    /// certificate's refusal rather than a structural one.
+    #[test]
+    fn an_ssi_chart_row_refusal_keeps_its_source() {
+        let source = SplineError::WeightCountMismatch {
+            weights: 5,
+            control: 6,
+        };
+        let got = ssi_refusal(crate::ssi::SsiError::ChartRow {
+            source: source.clone(),
+        });
+        assert!(
+            matches!(&got, PcurveCertifyError::ChartRow { source: s } if *s == source),
+            "{got:?}"
+        );
     }
 
     // ---- The seam class's LINE-carrier limb (#388). ----

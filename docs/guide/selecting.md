@@ -126,12 +126,12 @@ assert!(select_where(
 // POSITION — and it is the same face the role path names.
 let top = select_where(
     &ev, cube, &faces,
-    // The comparand is a query's, not a slot's: stored, so a written
-    // formula lowers to it with no document in scope.
+    // The comparand is a query's, not a slot's: a formula, evaluated
+    // with no document in scope, so it reads no name.
     &[GeomPred::DatumDistance {
         datum: ground,
         cmp: Cmp::Approx,
-        value: Expr::try_from(len(1.0)).expect("a literal reads no name"),
+        value: len(1.0),
     }],
     &params,
     tol,
@@ -151,8 +151,7 @@ assert!(matches!(
         &[GeomPred::DatumDistance {
             datum: ground,
             cmp: Cmp::Approx,
-            value: Expr::try_from(Formula::literal(1.0, Dimension::Angle).expect("an angle"))
-                .expect("a literal reads no name"),
+            value: Formula::literal(1.0, Dimension::Angle).expect("an angle"),
         }],
         &params,
         tol,

@@ -262,10 +262,18 @@ impl PartialEq for Said {
 impl Eq for Said {}
 
 /// **Each line this table's edge rows lie on → those rows**, in key
-/// order ([`NameTable::on_line`]). A cache like [`Said`]: a clone
-/// starts empty, a write empties it, and it is no part of the value.
+/// order ([`NameTable::on_line`]), and each edge an edge set's line lists
+/// → those lines ([`NameTable::sets_listing`]). A cache like [`Said`]: a
+/// clone starts empty, a write empties it, and it is no part of the
+/// value.
 #[derive(Default)]
-struct Lines(std::sync::OnceLock<BTreeMap<NameRef, Vec<NameRef>>>);
+struct Lines(std::sync::OnceLock<LineIndex>);
+
+/// What [`Lines`] caches.
+struct LineIndex {
+    by_line: BTreeMap<NameRef, Vec<NameRef>>,
+    in_set: BTreeMap<StableName, Vec<NameRef>>,
+}
 
 impl Clone for Lines {
     fn clone(&self) -> Self {
@@ -383,22 +391,43 @@ impl NameTable {
     /// `line`, in key order — a row that is the line itself included.
     /// Empty where `line` is no edge's or no row lies on it.
     pub(crate) fn on_line(&self, line: &StableName) -> &[NameRef] {
-        self.lines
-            .0
-            .get_or_init(|| {
-                let mut by_line: BTreeMap<NameRef, Vec<NameRef>> = BTreeMap::new();
-                for row in self.forward.keys() {
-                    if row.kind == super::role::EntityKind::Edge {
-                        by_line
-                            .entry(super::role::edge_line(row))
-                            .or_default()
-                            .push(row.clone());
-                    }
-                }
-                by_line
-            })
+        self.line_index()
+            .by_line
             .get(line)
             .map_or(&[], Vec::as_slice)
+    }
+
+    /// **The edge sets that list `edge`**: the lines of this table's
+    /// edge rows that are `Merged` sets with `edge` among their
+    /// constituents, in key order. Empty where none does.
+    pub(crate) fn sets_listing(&self, edge: &StableName) -> &[NameRef] {
+        self.line_index()
+            .in_set
+            .get(edge)
+            .map_or(&[], Vec::as_slice)
+    }
+
+    fn line_index(&self) -> &LineIndex {
+        self.lines.0.get_or_init(|| {
+            let mut by_line: BTreeMap<NameRef, Vec<NameRef>> = BTreeMap::new();
+            for row in self.forward.keys() {
+                if row.kind == super::role::EntityKind::Edge {
+                    by_line
+                        .entry(super::role::edge_line(row))
+                        .or_default()
+                        .push(row.clone());
+                }
+            }
+            let mut in_set: BTreeMap<StableName, Vec<NameRef>> = BTreeMap::new();
+            for line in by_line.keys() {
+                if let [super::role::RoleSeg::Merged(set)] = line.path.as_slice() {
+                    for c in set {
+                        in_set.entry(c.clone()).or_default().push(line.clone());
+                    }
+                }
+            }
+            LineIndex { by_line, in_set }
+        })
     }
 
     /// Rows in key order, as the shared handles — [`NameTable::iter`]'s

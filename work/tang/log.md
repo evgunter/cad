@@ -694,3 +694,49 @@ PR 4211's FULL review (APPROVE-WITH-FIXES, 0 MAJOR). The fixes:
 
 The review's far-pole, bar and edge-midpoint poses are rows, and so are
 two far-pole notches whose outer-point paths run through a run vertex.
+## 2026-10-07 — a touching vertex read again by a pair builds (TANG implementer)
+
+`a-vertex-read-twice-where-the-first-pass-writes-nothing-refuses` (P1)
+closes. The `VertexReadTwice` refusal narrows to a pierce that would hang
+struts, a second pierce, or a partner whose link touches the pierced face.
+A touching vertex's edges are classed against the face and its pairs
+together. Pyramids standing on a plate at one point fold in every member
+order at tier 3, and the strut-hanging prisms still refuse. The 630-cell
+matrix (21 scenes × 5 poses × 6 ops) builds sound or refuses typed, with
+each result's material and classes at `MEET` checked against
+`point_in_solid`. Filed on CONTACT:
+`a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone`.
+
+## 2026-10-07 — measured levers reach the consumed region (TANG implementer)
+
+chord_join's cylinder lane and the germ frame's plane×cylinder pair
+lever the axis tilt at the wall face's axial extent from the reading
+point (`face_axial_range`, `Reach::range_along` per edge, a
+conic arc over its span), and `pc_axis_plane_parallel` reads the
+rulings' hinge station and the face's own reach across the wall
+(`Reach::Face`), so a finite tilt is never read parallel over a short
+axial lever and a short face is never turned definite by its wall's
+size. Closes `chord-join-face-reach-misses-a-curved-edges-bulge` and
+`germ-frame-levers-a-plane-cylinder-tilt-at-the-radius`; filed
+`chord-join-cone-lane-levers-from-the-base-vertex-not-the-apex`,
+`germ-cylinder-pair-span-misses-a-curved-edges-bulge`,
+`spiric-and-spline-axial-levers-read-past-the-span` and
+`whole-turn-conic-reach-over-states-a-rim-faces-lever`.
+
+## 2026-10-07 — position and tilt as one sum (TANG implementer)
+
+The section classifiers decide a served verdict's position datum and
+the term beside it as one margin across the reach (`decide_across`):
+plane×cylinder's gap, the cylinder pair's coaxial and gap rows and the
+witness's internal gap (the axes' distance's exact range), cone×cylinder's
+coaxial row, and, from the sweep, plane×torus's two-oval and cap rows
+and plane×cone's apex section. Closes
+`cylinder-axis-rows-decide-tilt-and-gap-one-at-a-time`. Filed on this
+slate `ball-lever-reads-the-3d-distance-not-the-axial-travel`,
+`face-hinge-lever-applies-its-larger-side-both-ways`,
+`cone-cylinder-levers-at-the-extent-not-the-circle-station`,
+`plane-torus-oval-tilt-levered-at-the-extent-not-the-tube-height`,
+`decide-across-and-carrier-eq-floor-are-two-spellings` and
+`plane-cylinder-gap-reads-the-3d-distance-not-the-in-section-stand-off`;
+the sweep's siblings went to OFFSET, CLEAVE, CHART, CONTACT, FLUX and
+GERM.

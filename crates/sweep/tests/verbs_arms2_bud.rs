@@ -144,8 +144,13 @@ fn the_bud_mouth_rim_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
         "the bud is five walls, five latitude rims and its three curved walls' seams"
     );
     let mouth = one_edge_rim_at(&source, 0.8, 0.6);
-    let out = fillet_edges(&source, &[mouth], R, tol())
-        .unwrap_or_else(|e| panic!("the bud's sphere-cone mouth rim fillets, got {e:?}"));
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[mouth],
+        R,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("the bud's sphere-cone mouth rim fillets, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("the filleted bud must be tier-3 valid, got {e:?}"));
     // The annulus band's own census delta: two feet minted, the rim
@@ -186,7 +191,13 @@ fn the_bud_mouth_rim_fillets_to_a_tier_3_valid_solid_with_a_pinned_census() {
 fn the_bud_band_meets_its_two_supports_on_the_closed_form_circles() {
     let source = bud();
     let mouth = one_edge_rim_at(&source, 0.8, 0.6);
-    let out = fillet_edges(&source, &[mouth], R, tol()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[mouth],
+        R,
+        tol(),
+    )
+    .unwrap();
     let (cx, cy) = ball_centre();
     let s10 = 10.0f64.sqrt();
     // On the sphere: `C + (R/(R−r))·(c − C)` for `C = 0`, `R = 1`.
@@ -227,7 +238,13 @@ fn the_bud_band_meets_its_two_supports_on_the_closed_form_circles() {
 fn the_bud_band_is_a_ring_free_wall_with_two_closed_circles_and_a_slit() {
     let source = bud();
     let mouth = one_edge_rim_at(&source, 0.8, 0.6);
-    let out = fillet_edges(&source, &[mouth], R, tol()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[mouth],
+        R,
+        tol(),
+    )
+    .unwrap();
     let f = out.band_faces[0];
     let fd = out.body.get_face(f).unwrap();
     assert!(fd.rings.is_empty(), "a curved face must be ring-free");
@@ -263,8 +280,13 @@ fn the_bud_lip_and_bore_rims_fillet_through_their_own_arms() {
     ] {
         let source = bud();
         let rim = one_edge_rim_at(&source, rim_r, rim_y);
-        let out = fillet_edges(&source, &[rim], radius, tol())
-            .unwrap_or_else(|e| panic!("{which} rim fillets, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&source, tol()),
+            &[rim],
+            radius,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{which} rim fillets, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{which}: tier-3 valid, got {e:?}"));
         let (_, minor) = band_torus(&out.body, out.band_faces[0]);
@@ -283,7 +305,13 @@ fn the_bud_lip_and_bore_rims_fillet_through_their_own_arms() {
 fn the_filleted_bud_removes_material_and_stays_closed_form() {
     let source = bud();
     let mouth = one_edge_rim_at(&source, 0.8, 0.6);
-    let out = fillet_edges(&source, &[mouth], R, tol()).unwrap();
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[mouth],
+        R,
+        tol(),
+    )
+    .unwrap();
     let before = mass_properties(&source, tol()).expect("the bud's mass properties");
     let after = mass_properties(&out.body, tol()).expect("the filleted bud's mass properties");
     let removed = before.volume - after.volume;
@@ -395,7 +423,14 @@ fn the_partial_revolve_of_the_bud_still_refuses() {
     let arcs = arcs_at(&source, 0.8, 0.6);
     assert_eq!(arcs.len(), 1, "half a revolve leaves one mouth arc");
     let arc = arcs[0];
-    match fillet_edges(&source, &[arc], R, tol()).map_err(|r| r.error) {
+    match fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &[arc],
+        R,
+        tol(),
+    )
+    .map_err(|r| r.error)
+    {
         Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
         other => panic!("a partial revolve's open mouth arc must refuse, got {other:?}"),
     }

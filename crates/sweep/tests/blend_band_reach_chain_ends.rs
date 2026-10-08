@@ -119,9 +119,14 @@ fn a_cut_off_face_at_another_links_end_is_metered_against_the_link() {
             on_y(&body, f, w),
             "w = {w}: the face named is the back face"
         );
-        let door = fillet_edges(&body, &edges, r, tol())
-            .map(|_| ())
-            .map_err(|e| e.error);
+        let door = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            r,
+            tol(),
+        )
+        .map(|_| ())
+        .map_err(|e| e.error);
         assert!(
             matches!(door, Err(BlendError::FaceClearanceUncertified { .. })),
             "w = {w}: the door refuses the thin top at its support screen: {door:?}"
@@ -136,8 +141,13 @@ fn a_cut_off_face_at_another_links_end_is_metered_against_the_link() {
     if let Err(e) = band_reach(&req, band()) {
         panic!("w = 0.6: clear at the meter: {e:?}");
     }
-    let f = fillet_edges(&body, &edges, r, tol())
-        .unwrap_or_else(|e| panic!("w = 0.6: the wide body builds: {:?}", e.error));
+    let f = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        r,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("w = 0.6: the wide body builds: {:?}", e.error));
     assert_eq!(
         validate_geometric(&f.body, tol()),
         Ok(()),
@@ -204,9 +214,14 @@ fn an_l_shaped_end_plates_arm_over_the_band_is_metered_and_refused() {
         !(nx.abs() > 1.0 - 1e-12 && (d * nx - 4.0).abs() < 1e-12),
         "in: the face named is the arm's, not the end plate's"
     );
-    let door = fillet_edges(&body, &edges, r, tol())
-        .map(|_| ())
-        .map_err(|e| e.error);
+    let door = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        r,
+        tol(),
+    )
+    .map(|_| ())
+    .map_err(|e| e.error);
     assert!(
         matches!(door, Err(BlendError::RingClearance { bounded: false, .. })),
         "in: the end face's ring meter refuses the arm's ring first: {door:?}"
@@ -214,8 +229,13 @@ fn an_l_shaped_end_plates_arm_over_the_band_is_metered_and_refused() {
 
     for (what, body) in [("clear", with_arm(0.5, 0.6)), ("no arm", pocket.clone())] {
         let edges = edge(&body);
-        let f = fillet_edges(&body, &edges, r, tol())
-            .unwrap_or_else(|e| panic!("{what}: builds: {:?}", e.error));
+        let f = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            r,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: builds: {:?}", e.error));
         assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "{what}: tier 3");
     }
 }
@@ -357,9 +377,14 @@ fn a_jointed_chains_far_end_face_is_metered_against_the_near_link() {
             && (ny.abs() - 0.6 / 9.36f64.sqrt()).abs() < 1e-9,
         "the face named is the leaning end face, got normal ({nx}, {ny})"
     );
-    let door = fillet_edges(&body, &edges, r, tol())
-        .map(|_| ())
-        .map_err(|e| e.error);
+    let door = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        r,
+        tol(),
+    )
+    .map(|_| ())
+    .map_err(|e| e.error);
     assert!(
         matches!(door, Err(BlendError::FaceClearanceUncertified { .. })),
         "the door's joint-foot screen refuses first: {door:?}"
@@ -374,8 +399,13 @@ fn a_jointed_chains_far_end_face_is_metered_against_the_near_link() {
         if let Err(e) = band_reach(&req, band()) {
             panic!("{station:?}: clear at the meter: {e:?}");
         }
-        let f = fillet_edges(&body, &edges, r, tol())
-            .unwrap_or_else(|e| panic!("{station:?}: builds: {:?}", e.error));
+        let f = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            r,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{station:?}: builds: {:?}", e.error));
         assert_eq!(
             validate_geometric(&f.body, tol()),
             Ok(()),
@@ -415,9 +445,14 @@ fn a_curved_end_face_fails_loud_at_the_meter() {
         ),
         "the meter fails loud on the curved face: {e:?}"
     );
-    let door = fillet_edges(&body, &edges, 0.5, tol())
-        .map(|_| ())
-        .map_err(|e| e.error);
+    let door = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &edges,
+        0.5,
+        tol(),
+    )
+    .map(|_| ())
+    .map_err(|e| e.error);
     assert!(
         matches!(
             door,
@@ -452,9 +487,14 @@ fn the_bands_of_chains_that_meet_at_turns_are_metered_against_each_other() {
             size: 0.5,
         };
         let meter = band_reach(&req, band());
-        let door = fillet_edges(&body, &edges, 0.5, tol())
-            .map(|_| ())
-            .map_err(|e| e.error);
+        let door = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            0.5,
+            tol(),
+        )
+        .map(|_| ())
+        .map_err(|e| e.error);
         for (what, out) in [("meter", meter), ("door", door)] {
             match out {
                 Err(BlendError::FaceClearance {
@@ -509,8 +549,13 @@ fn a_far_end_face_just_clear_of_the_band_builds() {
         if let Err(e) = band_reach(&req, band()) {
             panic!("{what}: clear at the meter: {e:?}");
         }
-        let f = fillet_edges(&body, &edges, 0.5, tol())
-            .unwrap_or_else(|e| panic!("{what}: builds: {:?}", e.error));
+        let f = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            0.5,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: builds: {:?}", e.error));
         assert_eq!(validate_geometric(&f.body, tol()), Ok(()), "{what}: tier 3");
     }
 }
@@ -542,8 +587,13 @@ fn a_chain_into_a_corner_patch_builds() {
         if let Err(e) = band_reach(&req, band()) {
             panic!("wx = {wx}: clear at the meter: {e:?}");
         }
-        let f = fillet_edges(&body, &edges, 0.5, tol())
-            .unwrap_or_else(|e| panic!("wx = {wx}: builds: {:?}", e.error));
+        let f = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &edges,
+            0.5,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("wx = {wx}: builds: {:?}", e.error));
         assert_eq!(
             validate_geometric(&f.body, tol()),
             Ok(()),
