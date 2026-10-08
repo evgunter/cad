@@ -4897,3 +4897,7 @@ mod tests {
 
 #[cfg(test)]
 mod cone_fuzz;
+
+#[cfg(test)]
+#[path = "rv_probe_4289.rs"]
+mod rv_probe_4289;
