@@ -146,7 +146,8 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
     assert!(at_f64.as_ref().is_err_and(plane_limb), "f64: {at_f64:?}");
     let at_iv = certify(&lift(&carrier), plane(), cylinder_z(), true).map(|_| ());
     assert!(at_iv.as_ref().is_err_and(plane_limb), "Interval: {at_iv:?}");
-    let direct = geom_brep::analytic_rung3(&carrier, &plane(), &cylinder_z(), band());
+    let direct =
+        geom_brep::analytic_rung3(&carrier, carrier.domain(), &plane(), &cylinder_z(), band());
     assert!(
         matches!(
             direct,
@@ -171,7 +172,9 @@ fn a_carrier_off_the_plane_between_samples_refuses_on_the_plane_limb() {
     certify(&flat, plane(), cylinder_z(), true).expect("f64: the flat quarter certifies");
     certify(&lift(&flat), plane(), cylinder_z(), true)
         .expect("Interval: the flat quarter certifies");
-    // With the lane withheld the edge certifies at the schedule alone.
+    // With the lane withheld the limbs are not stated, and the bulge
+    // passes the schedule (`work/pcert/lane-free-doors-skip-the-
+    // analytic-rung3-limbs.md` holds the policy open).
     certify(&carrier, plane(), cylinder_z(), false)
         .expect("no lane: the schedule alone, which the bulge passes");
 }
@@ -267,6 +270,7 @@ fn the_analytic_refusal_names_its_own_pair() {
     let carrier = steinmetz_arc(0.4, 0.3);
     let err = geom_brep::analytic_rung3(
         &carrier,
+        carrier.domain(),
         &cylinder_about(Vec3::unit_y(), Vec3::unit_x()),
         &cylinder_about(Vec3::unit_x(), Vec3::unit_y()),
         band(),
@@ -278,4 +282,114 @@ fn the_analytic_refusal_names_its_own_pair() {
         "{words}"
     );
     let _: Band = band();
+}
+
+/// `EdgeCurve::certify_via` of an `Intersection` of `s1`, `s2` over
+/// `carrier` restricted to `[t0, t1]`, the lane in hand.
+fn certify_over(
+    carrier: &NurbsCurve3<f64>,
+    (t0, t1): (f64, f64),
+    s1: Surface<f64>,
+    s2: Surface<f64>,
+) -> Result<(), CertifyError> {
+    let c = Curve3::Nurbs(Arc::new(carrier.clone()));
+    let mut arena: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
+    let (k1, k2) = (arena.insert(s1), arena.insert(s2));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::Intersection {
+            s1: k1,
+            s2: k2,
+            witness: c.eval(0.5 * (t0 + t1)),
+        },
+        carrier: c.clone(),
+        param_start: t0,
+        param_end: t1,
+    };
+    EdgeCurve::certify_via(
+        spec,
+        c.eval(t0),
+        c.eval(t1),
+        |k| arena.get(k).cloned(),
+        band(),
+        Some(NurbsLane::certified()),
+    )
+    .map(|_| ())
+}
+
+/// **The edge's limbs read the edge's own interval.** A carrier flat on
+/// the plane over `[0, ½]` and bulged off it over `(½, 1]`: the edge
+/// over `[0, ½]` certifies (the net past its end is not the edge's — a
+/// split edge keeps its parent's carrier), and the edge over `[½, 1]`
+/// refuses on the plane limb. (Ported from PR 4304's confirming
+/// review.)
+#[test]
+fn an_edges_limbs_read_only_its_own_interval_of_the_carrier() {
+    let bumped = bulged(16, 2e-3);
+    let flat = bulged(16, 0.0);
+    // Sub-arcs 0..8 (controls 0..=16) from the flat quarter, the rest
+    // from the bulged one: they share the knot vector and weights.
+    let ctl: Vec<_> = flat.control()[..17]
+        .iter()
+        .chain(&bumped.control()[17..])
+        .copied()
+        .collect();
+    let carrier = NurbsCurve3::new(flat.knots().clone(), ctl, flat.weights().to_vec()).unwrap();
+    for k in 0..=64 {
+        let t = 0.5 * f64::from(k) / 64.0;
+        assert!(carrier.eval(t).z.abs() < 1e-15, "flat on [0, ½] at {t}");
+    }
+    let off = carrier.eval(0.5 + 1.0 / 32.0).z;
+    assert!(off > 5e-4, "bulged past ½: {off:e}");
+    certify_over(&carrier, (0.0, 0.5), plane(), cylinder_z())
+        .expect("the edge's own interval is on both surfaces");
+    let past = certify_over(&carrier, (0.5, 1.0), plane(), cylinder_z());
+    assert!(
+        matches!(
+            past,
+            Err(CertifyError::AnalyticRung3(AnalyticRung3Refusal::Limb {
+                operand: geom::SurfaceKind::Plane,
+                value,
+                ..
+            })) if value >= off
+        ),
+        "{past:?}"
+    );
+}
+
+/// **The tube reads the edge's own interval.** The Steinmetz arc whose
+/// whole carrier passes the crossing of the two branches refuses on the
+/// crossing's verdict (`TubeStraddles`); an edge over the stretch
+/// before the crossing never reads it. That stretch does not certify
+/// either: the tube's one-arc check reads an invalid margin on every
+/// Steinmetz stretch, the crossing's or not
+/// (`work/pcert/the-tube-reads-an-invalid-margin-on-a-steinmetz-branch-clear-of-its-crossing.md`).
+#[test]
+fn the_tube_reads_only_the_edges_own_interval_of_the_carrier() {
+    let carrier = steinmetz_arc(0.4, 0.3);
+    let (s1, s2) = (
+        cylinder_about(Vec3::unit_y(), Vec3::unit_x()),
+        cylinder_about(Vec3::unit_x(), Vec3::unit_y()),
+    );
+    let whole = certify_over(&carrier, (0.0, 1.0), s1.clone(), s2.clone());
+    assert!(
+        matches!(
+            whole,
+            Err(CertifyError::AnalyticRung3(
+                AnalyticRung3Refusal::TubeStraddles { .. }
+            ))
+        ),
+        "{whole:?}"
+    );
+    for stretch in [(0.0, 0.3), (0.7, 1.0)] {
+        let cut = certify_over(&carrier, stretch, s1.clone(), s2.clone());
+        assert!(
+            !matches!(
+                cut,
+                Err(CertifyError::AnalyticRung3(
+                    AnalyticRung3Refusal::TubeStraddles { .. }
+                ))
+            ),
+            "{stretch:?} holds no crossing: {cut:?}"
+        );
+    }
 }

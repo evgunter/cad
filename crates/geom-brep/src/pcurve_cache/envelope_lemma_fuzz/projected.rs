@@ -927,6 +927,76 @@ fn an_edge_reads_only_its_own_interval_of_the_net() {
     );
 }
 
+/// The unit quarter circle in `z = 0` as 16 rational quadratic
+/// sub-arcs joined at double knots `j/16`, every control from the
+/// ninth sub-arc on (`t > ½`) scaled radially by `1 + h`: on the unit
+/// cylinder over `[0, ½]`, and the circle of radius `1 + h` — exactly
+/// `h` off it — over `(½, 1]`.
+fn quarter_off_past_half(h: f64) -> Curve3<f64> {
+    let n = 16_usize;
+    #[allow(clippy::cast_precision_loss)]
+    let span = FRAC_PI_2 / n as f64;
+    let half = 0.5 * span;
+    let mut ctl = vec![Point3::new(1.0, 0.0, 0.0)];
+    let mut w = vec![1.0];
+    let mut knots = vec![0.0, 0.0, 0.0];
+    for j in 0..n {
+        #[allow(clippy::cast_precision_loss)]
+        let a = span * j as f64;
+        let m = a + half;
+        ctl.push(Point3::new(m.cos() / half.cos(), m.sin() / half.cos(), 0.0));
+        w.push(half.cos());
+        ctl.push(Point3::new((a + span).cos(), (a + span).sin(), 0.0));
+        w.push(1.0);
+        if j + 1 < n {
+            #[allow(clippy::cast_precision_loss)]
+            let k = (j + 1) as f64 / n as f64;
+            knots.extend([k, k]);
+        }
+    }
+    knots.extend([1.0, 1.0, 1.0]);
+    // Control 16 is `C(½)`, shared by the eighth and ninth sub-arcs.
+    for p in &mut ctl[17..] {
+        *p = Point3::new(p.x * (1.0 + h), p.y * (1.0 + h), 0.0);
+    }
+    Curve3::Nurbs(Arc::new(
+        NurbsCurve3::new(KnotVector::clamped(knots, 2).unwrap(), ctl, w).unwrap(),
+    ))
+}
+
+/// **A spline edge's incidence reads only the knot spans its interval
+/// meets** (`net_incidence`'s `met`). A carrier on the cylinder over
+/// `[0, ½]` and `h` off it past `½`: the edge over `[0, ½]` certifies
+/// inside the band at `f64` and `Interval`, and the edge over `[0, 1]`
+/// reads the offset, or refuses.
+#[test]
+fn a_spline_edges_incidence_reads_only_the_spans_its_interval_meets() {
+    let h = 1e-4;
+    let c = quarter_off_past_half(h);
+    let cylinder = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    for (scalar, got) in ["f64", "Interval"]
+        .into_iter()
+        .zip(certify_both(&c, &cylinder, 0.0, 0.5))
+    {
+        let env = got.unwrap_or_else(|e| panic!("{scalar}: the edge on the cylinder: {e:?}"));
+        assert!(env <= band().zero(), "{scalar}: envelope {env:e}");
+    }
+    for (scalar, got) in ["f64", "Interval"]
+        .into_iter()
+        .zip(certify_both(&c, &cylinder, 0.0, 1.0))
+    {
+        assert!(
+            got.as_ref().is_err() || got.as_ref().is_ok_and(|&env| env >= h * (1.0 - 1e-6)),
+            "{scalar}: the whole net, {h:e} off past ½: {got:?}"
+        );
+    }
+}
+
 /// A carrier at distance exactly `delta` from `surf`, on each chart:
 /// the plane's segment, a cylinder's, sphere's and torus's parallel
 /// circles moved off along the normal, a cone rim moved off its
@@ -1072,7 +1142,6 @@ fn each_conversion_reads_its_stated_floors() {
     let (f, d) = (1e-3, 0.25);
     let hull = |rho_lo: f64, z: (f64, f64)| ProjectedHull {
         pieces: vec![PieceHull {
-            range: (0.0, 1.0),
             x_lo: 1.0,
             tube_lo: 1.0,
         }],
@@ -1100,7 +1169,7 @@ fn each_conversion_reads_its_stated_floors() {
     };
     let (inc, floor) = net_incidence(
         &hull(1.0, (0.5, 2.0)),
-        &[0],
+        (0.0, 1.0),
         &stored(crate::Nappe::Opening),
         &cone,
         d,
@@ -1114,7 +1183,7 @@ fn each_conversion_reads_its_stated_floors() {
     );
     let mirror = net_incidence(
         &hull(0.1, (0.5, 2.0)),
-        &[0],
+        (0.0, 1.0),
         &stored(crate::Nappe::Mirror),
         &cone,
         d,
@@ -1172,7 +1241,7 @@ fn each_conversion_reads_its_stated_floors() {
             Surface::Sphere { .. } => ProjectedChart::Sphere,
             _ => ProjectedChart::Cylinder,
         };
-        let (inc, floor) = net_incidence(&hull(rho, (0.0, 0.0)), &[0], &chart, &surf, d, b)
+        let (inc, floor) = net_incidence(&hull(rho, (0.0, 0.0)), (0.0, 1.0), &chart, &surf, d, b)
             .unwrap_or_else(|e| panic!("{surf:?}: {e:?}"));
         assert!(close(inc, want), "{surf:?}: {inc:e} against {want:e}");
         assert!(close(floor, rho - d), "{surf:?}: floor {floor}");
@@ -1181,7 +1250,7 @@ fn each_conversion_reads_its_stated_floors() {
     uncertified.spans[0].f_sup = f64::NAN;
     let got = net_incidence(
         &uncertified,
-        &[0],
+        (0.0, 1.0),
         &stored(crate::Nappe::Opening),
         &cone,
         d,
@@ -1490,4 +1559,94 @@ fn the_plane_envelope_dominates_a_carrier_off_the_plane() {
         env >= dense && dense > 0.5 * h,
         "envelope {env:e}, dense {dense:e}"
     );
+}
+
+/// **The cone's lever reads the smallest `σz` of a part** (behaviour,
+/// not formula). A segment near the apex whose distance from the cone
+/// falls from `d` to zero across the first incidence part while the
+/// lever `ρ cos α + σz sin α` grows thirteenfold: `|f| = distance ·
+/// lever` peaks inside the part, so a lever read at the part's largest
+/// `σz` divides the peak by about half the part's growth. The incidence
+/// term of the edge over that part alone — the carrier's distance from
+/// the chart — dominates the sampled displacement, `d` at its start.
+#[test]
+fn a_cone_carrier_leaving_the_apex_is_dominated() {
+    let b = band();
+    let lane = crate::FittedLane::<f64>::certified();
+    let alpha = 0.6_f64;
+    let cone = Surface::Cone {
+        apex: Point3::origin(),
+        axis: Vec3::unit_z(),
+        half_angle: alpha,
+        u_ref: Vec3::unit_x(),
+    };
+    let generator = Vec3::new(alpha.sin(), 0.0, alpha.cos());
+    let normal = Vec3::new(alpha.cos(), 0.0, -alpha.sin());
+    let d = 1e-3;
+    // On the cone at `t = 1/8`, the end of the first of the knot span's
+    // `INCIDENCE_CUTS` parts.
+    let c = segment(
+        Point3::origin() + generator * 0.02 + normal * d,
+        Point3::origin() + generator * 2.02 - normal * (7.0 * d),
+    );
+    let (t0, t1) = (0.0, 0.125);
+    let image = project(&c, None, &cone, b).unwrap();
+    let pcurve = Pcurve::Projected(Box::new(image.clone()));
+    let sup = sampled(&pcurve, &c, &cone, t0, t1);
+    assert!((sup - d).abs() < 1e-9, "the start is {d:e} off: {sup:e}");
+    let boxed = pcurve.chart_box(t0, t1);
+    let terms = projected_envelope(&image, t0, t1, &boxed, &c, &cone, b, Some(lane))
+        .expect("the lever is positive on the nappe");
+    let incidence = terms.0[EnvelopeTerm::Incidence.slot()];
+    assert!(
+        incidence >= sup * (1.0 - 1e-9),
+        "incidence {incidence:e} under the displacement {sup:e}"
+    );
+}
+
+/// **A part's uncertified bound refuses where the edge reads it, and
+/// only there** (behaviour, on the lane's own hull). The hull of a
+/// spline on the cylinder; a part's composite bound or floor made NaN
+/// inside the edge's interval refuses, and the same past the edge's
+/// end is not the edge's.
+#[test]
+fn an_uncertified_part_refuses_only_inside_the_edges_interval() {
+    let b = band();
+    let lane = crate::FittedLane::<f64>::certified();
+    let cylinder = Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: Vec3::unit_z(),
+        radius: 1.0,
+        u_ref: Vec3::unit_x(),
+    };
+    let c = quarter_off_past_half(0.0);
+    let image = project(&c, None, &cylinder, b).unwrap();
+    let FramedCarrier::Net(net) = &image.carrier else {
+        unreachable!("a spline carrier")
+    };
+    let twin = super::super::orthonormal_chart(&cylinder);
+    let hull = lane.projected_hull(&image, net, &twin).unwrap();
+    let edge = (0.0, 0.5);
+    let read = |hull: &super::super::projected::ProjectedHull| {
+        super::super::projected::net_incidence(hull, edge, &image.chart, &twin, 0.0, b)
+    };
+    let (clean, _) = read(&hull).expect("the clean hull");
+    assert!(clean <= b.zero(), "{clean:e}");
+    let inside = hull.spans.iter().position(|s| s.range.1 <= 0.5).unwrap();
+    let past = hull.spans.iter().position(|s| s.range.0 >= 0.5).unwrap();
+    for poison in [
+        |s: &mut super::super::projected::SpanHull| s.f_sup = f64::NAN,
+        |s: &mut super::super::projected::SpanHull| s.rho_lo = f64::NAN,
+    ] {
+        let mut h = hull.clone();
+        poison(&mut h.spans[past]);
+        read(&h).expect("an uncertified part past the edge's end is not the edge's");
+        let mut h = hull.clone();
+        poison(&mut h.spans[inside]);
+        let got = read(&h);
+        assert!(
+            matches!(got, Err(PcurveCertifyError::ImageMismatch { .. })),
+            "an uncertified part the edge reads: {got:?}"
+        );
+    }
 }

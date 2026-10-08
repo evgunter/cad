@@ -89,10 +89,9 @@ the carrier; the proof is the same at every door, a search's and an
 edge's at rest. For a carrier between two analytic surfaces the three
 limbs are the edge certificate's own (`edge_nurbs::analytic_rung3`,
 through the scalar's certified lane): limb 2 against each operand, its
-distance from that surface over the whole span, whatever faces store
-pcurve rows (a planar face stores none), which implies limb 1; and the
-tube. A door that holds no lane certifies such an edge at the schedule
-alone. Each box, cut to the wall's knot rectangle (and to the
+distance from that surface over the edge's interval, whatever faces
+store pcurve rows (a planar face stores none), which implies limb 1;
+and the tube over the same interval. Each box, cut to the wall's knot rectangle (and to the
 ℝ³ slab where a search clips to one), holds exactly one piece: two
 simple solutions on its boundary, or a stretch of its boundary on a
 side of the wall's domain that the boundary pass reads within ε of the

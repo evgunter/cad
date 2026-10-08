@@ -65,10 +65,11 @@ fn a_rung3_edge_at_rest_carries_its_projected_rows_and_its_edge_the_tube() {
     // same carrier against a degenerate pair (its own surface twice,
     // nowhere transverse) passes limbs 1–2 and refuses on the tube — the
     // limb is live, not vacuous.
-    geom_brep::analytic_rung3(&built.carrier, &built.cylinder, &built.sphere, band)
+    let span = built.carrier.domain();
+    geom_brep::analytic_rung3(&built.carrier, span, &built.cylinder, &built.sphere, band)
         .expect("TUBE: the pair's crossing is one arc spanning the carrier");
     let degenerate =
-        geom_brep::analytic_rung3(&built.carrier, &built.cylinder, &built.cylinder, band);
+        geom_brep::analytic_rung3(&built.carrier, span, &built.cylinder, &built.cylinder, band);
     assert!(
         matches!(
             degenerate,
@@ -273,7 +274,7 @@ mod certified {
     use super::fixture;
     use geom_brep::{EnvelopeStatement, Pcurve};
     use geom_core::Tol;
-    use geom_core::{Band, Bounds, Interval};
+    use geom_core::{Band, Bounds, Interval, Real};
 
     /// The same body at the interval scalar: the rows are minted there,
     /// their envelope is an enclosure inside the band, the edge's analytic
@@ -302,7 +303,9 @@ mod certified {
                 env.hi()
             );
         }
-        geom_brep::analytic_rung3(&built.carrier, &built.cylinder, &built.sphere, band)
+        let (a, b) = built.carrier.domain();
+        let span = (Interval::from_f64(a), Interval::from_f64(b));
+        geom_brep::analytic_rung3(&built.carrier, span, &built.cylinder, &built.sphere, band)
             .expect("TUBE: the lifted pair's crossing is one arc spanning the carrier");
         let findings = topo::pcurves::validate_pcurves(&built.body, band);
         assert!(findings.is_empty(), "AT-REST: {findings:?}");

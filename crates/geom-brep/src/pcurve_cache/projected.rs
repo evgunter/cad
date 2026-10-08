@@ -1160,7 +1160,6 @@ pub(crate) struct ProjectedHull {
 /// One piece of a [`ProjectedHull`].
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct PieceHull {
-    pub(crate) range: (f64, f64),
     pub(crate) x_lo: f64,
     pub(crate) tube_lo: f64,
 }
@@ -1179,10 +1178,11 @@ pub(crate) struct SpanHull {
 }
 
 /// The floors of a Bézier part's points, read off its controls `q`:
-/// the lower bound of `ρ` (the larger of the box's nearest point to the
-/// axis and the controls' support along their chord, `ρ ≥ p·n̂`), and
-/// the range of `z`.
-pub(crate) fn part_floors<T: SpanLocate>(q: &[(Vec3<T>, T)]) -> (T, (T, T)) {
+/// two lower bounds of `ρ` — the box's nearest point to the axis (at
+/// least zero), and the controls' support along their chord, `ρ ≥ p·n̂`,
+/// whose divisor `|first + last|` the caller must see certified before
+/// it reads the support — and the range of `z`.
+pub(crate) fn part_floors<T: SpanLocate>(q: &[(Vec3<T>, T)]) -> (T, T, (T, T)) {
     let first = q[0].0;
     let mut b = FrameBox {
         x: (first.x, first.x),
@@ -1203,7 +1203,7 @@ pub(crate) fn part_floors<T: SpanLocate>(q: &[(Vec3<T>, T)]) -> (T, (T, T)) {
         .reduce(|m, x| m.min(x))
         .unwrap_or_else(T::zero);
     let boxed = ProjectedImage::<T>::rho_range(&b).0;
-    (boxed.max(support).max(T::zero()), b.z)
+    (boxed.max(T::zero()), support, b.z)
 }
 
 /// The one decision every condition of this module reads: whether
@@ -1260,7 +1260,8 @@ fn off_period<T: Real>(angle: T, shift: T) -> T {
 }
 
 /// The incidence of a net's re-derived twin over the parts of it the
-/// pieces `met` overlap: per part, the canonical composite's bound `|f|`
+/// window `[t0, t1]` overlaps (the edge's interval; a part past its ends
+/// is not the edge's): per part, the canonical composite's bound `|f|`
 /// converted to metres (module docs) on the floors of the twin's own
 /// points, and the smallest radial floor of the stored carrier, `ρ_min`
 /// of the twin less `d`, the stored net's distance from it (what the
@@ -1283,12 +1284,12 @@ fn off_period<T: Real>(angle: T, shift: T) -> T {
 ///
 /// # Errors
 ///
-/// [`PcurveCertifyError::ImageMismatch`] when no part meets a met piece,
-/// or one that does has no certified composite bound; the cone's lever
-/// refuses [`SectorChannel::Lever`] at the part.
+/// [`PcurveCertifyError::ImageMismatch`] when no part meets the window,
+/// or one that does has no certified composite bound or floor; the
+/// cone's lever refuses [`SectorChannel::Lever`] at the part.
 pub(super) fn net_incidence<T: Decide>(
     hull: &ProjectedHull,
-    met: &[usize],
+    (t0, t1): (T, T),
     chart: &ProjectedChart<T>,
     twin: &Surface<T>,
     d: T,
@@ -1300,17 +1301,39 @@ pub(super) fn net_incidence<T: Decide>(
     };
     let mut incidence = T::zero();
     let mut rho_floor: Option<T> = None;
+    let Some(last) = hull.spans.last() else {
+        return Err(refuse("the net has no knot span"));
+    };
+    // The parts `[t0, t1]` overlaps, located on the parts' own breaks:
+    // the lower end as a point locates (a break it sits on reads as the
+    // part starting there), the upper end on the mirrored breaks (a
+    // break it sits on reads as the part ending there), so a part that
+    // meets the interval at one end point alone is not read.
+    let bounds: Vec<f64> = hull
+        .spans
+        .iter()
+        .map(|s| s.range.0)
+        .chain([last.range.1])
+        .collect();
+    let mirrored: Vec<f64> = bounds.iter().rev().map(|&x| -x).collect();
+    let n = hull.spans.len();
+    let (parts, mirrored) = (breaks_vector(&bounds), breaks_vector(&mirrored));
+    let lower = t0.locate_spans(&parts);
+    let upper = (T::zero() - t1).locate_spans(&mirrored);
+    let window = (lower.first.index() - 1).min(n - upper.last.index())
+        ..=(lower.last.index() - 1).max(n - upper.first.index());
     for (j, span) in hull.spans.iter().enumerate() {
-        let meets = met
-            .iter()
-            .map(|&k| &hull.pieces[k])
-            .any(|p| p.range.0 < span.range.1 && p.range.1 > span.range.0);
-        if !meets {
+        if !window.contains(&j) {
             continue;
         }
         if !span.f_sup.is_finite() {
             return Err(refuse(
                 "a knot span's canonical composite bound is not certified",
+            ));
+        }
+        if !(span.rho_lo.is_finite() && span.z.0.is_finite() && span.z.1.is_finite()) {
+            return Err(refuse(
+                "a knot span's radial or axial floor is not certified",
             ));
         }
         let rho = T::from_f64(span.rho_lo);
@@ -1357,7 +1380,7 @@ pub(super) fn net_incidence<T: Decide>(
         incidence = incidence.max(disp);
     }
     let Some(rho_floor) = rho_floor else {
-        return Err(refuse("no knot span of the net is met by a piece"));
+        return Err(refuse("no knot span of the net meets the edge's interval"));
     };
     Ok((incidence, rho_floor))
 }
@@ -1423,8 +1446,16 @@ pub(crate) fn net_offset_sup<T: Decide>(
     };
     let d = net_fidelity(stored, &twin_net);
     let hull = lane.projected_hull(&image, &twin_net, &twin)?;
-    let met: Vec<usize> = (0..pieces).collect();
-    net_incidence(&hull, &met, &image.chart, &twin, d, band).map(|(incidence, _)| incidence)
+    let (d0, d1) = net.domain();
+    net_incidence(
+        &hull,
+        (T::from_f64(d0), T::from_f64(d1)),
+        &image.chart,
+        &twin,
+        d,
+        band,
+    )
+    .map(|(incidence, _)| incidence)
 }
 
 /// Check 4 of a projected row (module docs): the envelope's terms, with
@@ -1511,7 +1542,8 @@ pub(super) fn projected_envelope<T: Decide>(
                     holds(T::from_f64(piece.tube_lo), band, k, SectorChannel::Tube)?;
                 }
             }
-            let (incidence, rho_floor) = net_incidence(&hull, &met, &image.chart, &twin, d, band)?;
+            let (incidence, rho_floor) =
+                net_incidence(&hull, (t0, t1), &image.chart, &twin, d, band)?;
             (incidence, d, rho_floor)
         }
         (FramedCarrier::Circle { centre, a, b, .. }, Curve3::Circle { .. }) => {
@@ -1678,7 +1710,7 @@ pub(super) fn run_projected_checks<T: Decide>(
     if surface.is_placeholder_chart() {
         return Err(PcurveCertifyError::PlaceholderChart);
     }
-    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+    if !crate::edge_nurbs::is_analytic(surface) {
         return Err(PcurveCertifyError::UnsupportedChart {
             chart: surface.kind(),
         });

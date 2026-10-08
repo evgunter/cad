@@ -619,22 +619,29 @@ pub fn is_analytic<T: Real>(surface: &Surface<T>) -> bool {
 /// pcurve rows:
 ///
 /// - **limb 2, per operand**: the carrier's distance from the operand,
-///   certified over its whole knot domain
+///   certified over the edge's interval `params`
 ///   ([`crate::pcurve_cache::projected::net_offset_sup`]: the operand's
 ///   canonical implicit form composed along the carrier, converted to
 ///   metres per span) and decided zero against the band. Limb 1, the
 ///   same distance at the schedule's samples, is implied by it;
 /// - **limb 3**: over a chain of boxes around the carrier the
 ///   enclosure of `(∇f₁ × ∇f₂)·e` excludes zero, so the solution set in
-///   the chain is one arc and it spans the carrier.
+///   the chain is one arc and it spans the carrier over `params`.
+///
+/// Both read the carrier cut to `params` (its bracket's outer ends, so
+/// the piece covers the interval at every scalar): the net past the
+/// edge's ends is not the edge's (C4), and a split edge keeps its
+/// parent's carrier.
 ///
 /// # Errors
 ///
 /// [`AnalyticRung3Refusal`]: a limb's measured refusal or escalation,
 /// the tube's verdict, an operand whose distance bound has no
-/// certificate, or a spline operand.
+/// certificate, a spline operand, or an interval the carrier cannot be
+/// cut to.
 pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
+    params: (T, T),
     s1: &Surface<T>,
     s2: &Surface<T>,
     band: Band,
@@ -644,6 +651,9 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             what: "the analytic rung-3 certificate reads two analytic operands",
         });
     }
+    let (t0, t1) = params;
+    let piece = edge_piece(carrier, t0.lo().min(t1.lo()), t0.hi().max(t1.hi()))?;
+    let carrier = &piece;
     let lane = crate::FittedLane::<T>::certified();
     for operand in [s1, s2] {
         let kind = operand.kind();
@@ -684,6 +694,40 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     )
     .map(|_| ())
     .map_err(AnalyticRung3Refusal::of_tube)
+}
+
+/// The carrier cut to `[lo, hi]` — the edge's interval from its lower
+/// end's infimum to its upper end's supremum — clamped to the knot
+/// domain (a poison end reads as the domain's, the wider cut). Knot
+/// insertion is evaluation-invariant, so the piece is the carrier over
+/// that span.
+fn edge_piece<T: Real>(
+    carrier: &NurbsCurve3<T>,
+    lo: f64,
+    hi: f64,
+) -> Result<NurbsCurve3<T>, AnalyticRung3Refusal> {
+    let refuse = |what| AnalyticRung3Refusal::Unsupported { what };
+    let (d0, d1) = carrier.domain();
+    let (a, b) = (lo.max(d0), hi.min(d1));
+    if a.partial_cmp(&b) != Some(core::cmp::Ordering::Less) {
+        return Err(refuse(
+            "the edge's interval is empty on the carrier's domain",
+        ));
+    }
+    let mut piece = carrier.clone();
+    if b < d1 {
+        piece = piece
+            .split_at(b)
+            .map_err(|_| refuse("the carrier would not cut at the edge's upper end"))?
+            .0;
+    }
+    if a > d0 {
+        piece = piece
+            .split_at(a)
+            .map_err(|_| refuse("the carrier would not cut at the edge's lower end"))?
+            .1;
+    }
+    Ok(piece)
 }
 
 /// [`analytic_rung3`]'s typed refusal — the analytic pair's own

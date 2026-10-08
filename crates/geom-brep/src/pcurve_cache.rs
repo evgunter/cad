@@ -2477,21 +2477,12 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         v_sign: cross(image.v_sign),
     };
     // An endpoint of a bracket that does not certify is an ordinary
-    // number, not a bound: every read here asks first, and refuses.
-    let lower = |v: geom_core::Interval| {
-        if v.is_certified() {
-            Ok(v.lo())
-        } else {
-            Err(refuse("a hull bound does not certify"))
-        }
-    };
-    let upper = |v: geom_core::Interval| {
-        if v.is_certified() {
-            Ok(v.hi())
-        } else {
-            Err(refuse("a hull bound does not certify"))
-        }
-    };
+    // number, not a bound: every read here asks first, and reads NaN
+    // for one that does not. A piece or span the edge's interval meets
+    // refuses on it (`projected::net_incidence`, the sector check); one
+    // outside the interval is not the edge's.
+    let lower = |v: geom_core::Interval| if v.is_certified() { v.lo() } else { f64::NAN };
+    let upper = |v: geom_core::Interval| if v.is_certified() { v.hi() } else { f64::NAN };
     let knots = image.breaks.knots();
     let pieces = (0..image.pieces())
         .map(|k| {
@@ -2502,16 +2493,15 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                 geom_core::Interval::from_bounds(b, b),
             );
             let tube_lo = match lifted.chart {
-                ProjectedChart::Torus { major } => lower(lifted.tube_box(k, &fb, major).0.0)?,
+                ProjectedChart::Torus { major } => lower(lifted.tube_box(k, &fb, major).0.0),
                 _ => f64::INFINITY,
             };
-            Ok(PieceHull {
-                range: (a, b),
-                x_lo: lower(fb.x.0)?,
+            PieceHull {
+                x_lo: lower(fb.x.0),
                 tube_lo,
-            })
+            }
         })
-        .collect::<Result<_, PcurveCertifyError>>()?;
+        .collect();
     let form = match *twin {
         Surface::Plane { .. } => CanonicalSurface::Plane,
         Surface::Cylinder { radius, .. } => CanonicalSurface::Cylinder {
@@ -2585,16 +2575,23 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                 .windows(2)
                 .position(|w| w[0] <= range.0 && range.1 <= w[1])
                 .map_or(f64::NAN, |i| whole_sup[i]);
-            let (rho, z) =
+            let (boxed, support, z) =
                 projected::part_floors(&projected::piece_controls(&twin_net, range.0, range.1));
-            Ok(SpanHull {
+            // The support's divisor may not certify (a chord through the
+            // axis): the box's floor stands alone then.
+            let rho = if support.is_certified() {
+                boxed.max(support)
+            } else {
+                boxed
+            };
+            SpanHull {
                 range,
                 f_sup: part.min(whole),
-                rho_lo: lower(rho)?,
-                z: (lower(z.0)?, upper(z.1)?),
-            })
+                rho_lo: lower(rho),
+                z: (lower(z.0), upper(z.1)),
+            }
         })
-        .collect::<Result<_, PcurveCertifyError>>()?;
+        .collect();
     Ok(ProjectedHull { pieces, spans })
 }
 
@@ -2634,7 +2631,7 @@ pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEn
             | Surface::Torus { .. }) => Ok(SsiOperand::Analytic(other)),
         }
     }
-    let spline_operand = |s: &Surface<T>| matches!(s, Surface::Nurbs(_) | Surface::Approx(_));
+    let spline_operand = |s: &Surface<T>| !crate::edge_nurbs::is_analytic(s);
     let Curve3::Nurbs(carrier) = carrier else {
         unreachable!(
             "fitted_lane: the one caller, `run_fitted_checks`, admits only a Nurbs carrier at \
@@ -3803,7 +3800,7 @@ fn run_harmonic_checks<T: Decide>(
     // The closed-form lane is the analytic charts'; a spline chart —
     // the payload's or an approximating surface's fit — goes through
     // the fitted lane instead.
-    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+    if !crate::edge_nurbs::is_analytic(surface) {
         return Err(PcurveCertifyError::UnsupportedChart { chart });
     }
     // `chart_pcurve` mints a harmonic image only from a carrier's own
@@ -6025,7 +6022,7 @@ fn run_fitted_checks<T: Decide>(
     if surface.is_placeholder_chart() {
         return Err(PcurveCertifyError::PlaceholderChart);
     }
-    if !matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+    if crate::edge_nurbs::is_analytic(surface) {
         return Err(PcurveCertifyError::ImageMismatch {
             image: PcurveKind::Fitted,
             why: "an analytic chart holds no fitted-grade image: its image of a spline \
@@ -7072,12 +7069,12 @@ fn chart_image<T: Decide>(
     // A spline carrier has no closed form on any chart: its image is the
     // projected one, after the incidence test shows it not off the chart.
     if let Curve3::Nurbs(net) = carrier {
-        if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+        if !crate::edge_nurbs::is_analytic(surface) {
             return Err(PcurveCertifyError::UnsupportedChart {
                 chart: surface.kind(),
             });
         }
-        if let Incidence::Off = net_incidence(net, surface, band)? {
+        if let Incidence::Off = net_incidence(net, span, surface, band)? {
             return Err(
                 NoImage::OffChart("the spline carrier does not lie on the chart")
                     .refusal(surface, carrier),
@@ -7095,17 +7092,23 @@ fn chart_image<T: Decide>(
 }
 
 /// The incidence test of a spline carrier: [`chart_incidence`]'s, at
-/// [`INCIDENCE_SAMPLES`] points of its knot domain.
+/// [`INCIDENCE_SAMPLES`] points of the edge's interval `span`, or of
+/// the knot domain where none is given: the net past the edge's ends is
+/// not the edge's.
 fn net_incidence<T: Decide>(
     net: &NurbsCurve3<T>,
+    span: Option<(T, T)>,
     surface: &Surface<T>,
     band: Band,
 ) -> Result<Incidence, PcurveCertifyError> {
-    let (d0, d1) = net.domain();
+    let (t0, t1) = span.unwrap_or_else(|| {
+        let (d0, d1) = net.domain();
+        (T::from_f64(d0), T::from_f64(d1))
+    });
     let n = f64::from(INCIDENCE_SAMPLES);
     let farthest = (0..=INCIDENCE_SAMPLES).fold(T::zero(), |far, i| {
-        let t = d0 + (d1 - d0) * f64::from(i) / n;
-        let d = chart_distance(surface, net.eval(T::from_f64(t)));
+        let t = t0 + (t1 - t0) * T::from_f64(f64::from(i) / n);
+        let d = chart_distance(surface, net.eval(t));
         if far.is_poison() || d.is_poison() {
             d + far
         } else {

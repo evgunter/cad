@@ -4709,7 +4709,8 @@ pub fn validate_geometric_certificate<
 /// a between-samples claim about a rung-3 edge between two analytic
 /// faces**: its distance limbs and uniqueness tube run through the same
 /// lane (`geom_brep::analytic_rung3`), so this door re-certifies it at
-/// the schedule alone.
+/// the schedule alone
+/// (`work/pcert/lane-free-doors-skip-the-analytic-rung3-limbs.md`).
 /// Check 10 (shell winding) reads each shell's role off the same sums,
 /// and refuses a several-shell solid one of whose shells needed the
 /// quadrature or reads no role ([`ValidationError::ShellRoleUndecided`]).
@@ -6079,11 +6080,12 @@ pub(crate) fn tier3_local_checks_marked<
         //
         // **The same lane carries an analytic rung-3 edge's
         // between-samples certificate** (`geom_brep::analytic_rung3`: the
-        // carrier's distance from each operand over the whole span, and
-        // the uniqueness tube). The certified doors re-derive it whole;
-        // the `_structural` doors, holding no lane, re-certify such an
-        // edge at the schedule alone, and do not report the skip, for
-        // the reason above: it is a fact about the caller.
+        // carrier's distance from each operand over the edge's interval,
+        // and the uniqueness tube). The certified doors re-derive it
+        // whole; the `_structural` doors, holding no lane, re-certify
+        // such an edge at the schedule alone, and do not report the
+        // skip, for the reason above: it is a fact about the caller
+        // (`work/pcert/lane-free-doors-skip-the-analytic-rung3-limbs.md`).
         //
         // Every other carrier class is re-certified the same way at
         // both doors. Re-certification re-derives; it never trusts the

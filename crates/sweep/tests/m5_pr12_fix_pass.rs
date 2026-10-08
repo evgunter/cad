@@ -344,8 +344,12 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
                 // re-derived and certified there, and every densely
                 // sampled displacement's certified LOWER bound under the
                 // certified envelope's upper bound, which is under the
-                // band. Nothing is allowed for rounding, so an envelope
-                // that under-stated the displacement goes red.
+                // band. On these corners the displacement is rounding-
+                // sized and a sample's lower bound sits at or below
+                // zero, so this pins an envelope inside the band and
+                // goes red only on an image corrupted past the interval
+                // evaluation's width; dominance near the band, and each
+                // term's load, are `geom_brep`'s projected fuzz rows'.
                 let edge = f.body.get_half_edge(he).unwrap().edge;
                 let curve = f.body.get_edge(edge).unwrap().curve;
                 let Some(topo::CurveGeom::Certified(curve)) = f.body.get_curve_geom(curve) else {
