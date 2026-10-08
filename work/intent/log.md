@@ -579,3 +579,16 @@ The unit A lane found that spec §2's two asks could not both hold: an output lo
 | `tang/a-turned-hemisphere-keeps-the-crossing-layers-door` | `d10-one-way-to-say-intent-is-unbuilt` | — (open) | the cell is reduce::lying_on's certificates against a partner seam ruling, crossing-layer geometry the Zero path keeps (check first whether it already builds; its sibling closed by PR 4148) |
 | `topo/boolean-unreadable-norm-ends-as-a-kernel-defect` | `d10-one-way-to-say-intent-is-unbuilt` | — (open) | a NaN plane normal is operand poison routed PlaneRung::Norm → SelfCheck::Normals (refusal_routes.rs); the plane ladder and poison endings survive D10, no declaration involved |
 | `zip/tangent-lever-row-escalates-containment-at-eps-1e-6` | `d10-one-way-to-say-intent-is-unbuilt` | — (open) | red on main; the escalation is reduce's contfp ON ladder (contain.rs), which runs before the zip and survives stage 4's Zero glue |
+
+## 2026-10-08 — stage 3 sliced (`docs/INTENT-STAGE3-SPEC.md`)
+
+A spec lane sized stage 3 (spaces and placement) at main `044b5eb2e`, written against stage 2's final shapes. Stage 3 lands in six PRs, each green, in this order:
+
+- A `poses-are-variables` (H): pose definitions over a space's seed; the `Datum` node retires.
+- B `a-mate-relates-two-poses` (H): a mate equates two poses; `MatePrimitive`, `MateFrame` and the riders retire.
+- C `a-placement-is-the-bundle-of-mates` (H): `Place { body, mates }` and the world frame; gauges, offsets, `PlaceInWorld` and the spanning tree retire.
+- D `transform-retires-into-a-placement` (M).
+- E `each-space-computes-in-its-earliest-members-frame` (M): the only unit that moves f64 digests, on purpose.
+- F `a-mate-on-a-pinned-copy-refuses` (M): waits on stage 4's retirement of A5's hard error as well as on C.
+
+Six forks are open for designer pairs: FORK-S3-1 (what a free pose is), S3-2 (what a placement is), S3-3 (what a mate reads), S3-4 (what overconstraint means), S3-5 (what placing an instance copies), S3-6 (what a space's member is). `intent-stage3-is-built` parks on the six units, and spec §11 says which unit releases each of the 13 re-homed rows.
