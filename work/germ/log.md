@@ -436,3 +436,13 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+
+## 2026-10-08 — the tilted rod lands (PR 3428)
+
+- **The change:** the section certificate's interior-loop verdict is raised before the volume backstop, at both sites that run it (`boolean_op_recut`, `try_rest_union`), re-applied on main's new output stage.
+- **Re-measured on main:**
+  - main's backstop now measures by certified quadrature and PASSES the wrong body here (∪ missing the 0.0078 m³ lens at β 0.5, spin π/2). So the certificate is the ONLY barrier;
+  - 11 rows pin its refusal and go red when it is bypassed;
+  - not live, since every reaching pose refuses.
+- **Tier:** orchestrator read.
+- **A lane slip:** an empty commit was pushed to retrigger CI. It is against the rules and did no harm. Lanes are reminded.
