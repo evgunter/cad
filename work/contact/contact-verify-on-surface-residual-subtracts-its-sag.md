@@ -2,9 +2,11 @@
 id: contact-verify-on-surface-residual-subtracts-its-sag
 kind: issue
 title: contact_verify's on-surface residual decides |r| − residual_sag where the edge certifier decides r + residual_sag, so the verify direction is padded the wrong way
-status: open
+status: parked
 opened: 2026-10-03
 priority: P1
+blocked_on: [booleans-glue-on-zero]
+cost: E
 ---
 
 Found by CLEAVE's `cleave/steep-tube-eps` lane, in its sweep for one-sided
@@ -37,3 +39,7 @@ escalates where nothing is undecided.
 Measure on the contact corpus: does any sample read `|r| − sag ≤ ε <
 |r| + sag`? Then split the gate. Verify on `|r| + sag` (the edge lane's
 pad) and contradict on `|r| − sag`.
+
+## Parked on the D10 hold (2026-10-08)
+
+After that unit this gate (`r.abs() - residual_sag`, `contact_verify.rs`) becomes the tangency glue decision, so that unit must carry this fix. (CONTACT close-out triage; `work/contact/log.md`.)

@@ -4,7 +4,7 @@ kind: issue
 title: A near-tangent two-run pierce leaves its copies apart on one point, and the two edges leaving them run within the band for a stretch the census passes, at 89 poses main refused
 status: open
 opened: 2026-10-04
-priority: P0
+priority: P1
 cost: M
 refs: [boolean-bound-parallelism-verdicts-are-levered-at-a-short-or-unit-arm, the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start, near-tangent-boolean-results-ship-with-an-escalated-tier-3-census, a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op]
 ---
@@ -187,3 +187,7 @@ correspondence fuses them, which is where the kernel reads them as one
 cone; it no longer matters whether a face meets both. The pinned
 witness is unchanged (copies apart in ∪, one vertex in ∖), but the
 row's count of poses may move and was not re-measured.
+
+## CONTACT close-out triage (2026-10-08)
+
+P0 to P1: the weld it rests on was retired by PR 4139 and its 89 poses were not re-measured. Re-measure first; drop to P2 if they no longer reach a wrong answer. Parallelism is still levered at the full arm (`census.rs`, ~:2000).

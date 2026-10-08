@@ -2,9 +2,10 @@
 id: contact-refusal-prose-outgrows-the-viewer
 kind: issue
 title: topo: the containment refusals left over 50 words after the concision pass (Ev's concision request)
-status: open
+status: closed
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
+closed: 2026-10-08
 ---
 
 
@@ -56,3 +57,7 @@ variant to a short reason and one recourse in the viewer's terms
 measured by `editor-core/tests/refusal_concision_at_rest.rs` and no
 longer by this row. This row's subject is unchanged: the sentence
 itself, as the callers that hold a `ContainError` (through `CensusUnsupportedCause::Containment` and `RingNestingUndecided`) directly still read it.
+
+## Closed (2026-10-08)
+
+Its only listed arm, `ContainError::ArcLoopUnsupported`, was deleted by `9b40bc8f04` (PR 3865).

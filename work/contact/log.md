@@ -1019,3 +1019,61 @@ REACHHOLD did. A reader lane classifies each open row against the
 hold first.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-10-08 — Close-out triage applied
+
+A read-only lane triaged the 41 open rows that no unit carries.
+
+**Held (14).** Each is parked on the finer INTENT stage-4 unit that
+releases it:
+- `coincidences-are-recorded-at-one-door`: 5 rows.
+- `booleans-glue-on-zero`: 7 rows.
+- `declared-pairs-retire`: 2 rows.
+
+The held half of `census-arena-walks-read-a-torn-record-as-absent` was
+split off as `census-declared-sites-read-a-torn-record-as-absent`.
+
+Two consequences for stage 4:
+- `contact-verify-on-surface-residual-subtracts-its-sag` becomes the
+  tangency glue gate, so that unit must carry the fix.
+- The successors' lever rows refuse today. Once booleans glue on Zero,
+  the same misread Zero glues, so they should land before that.
+
+**Re-priced:**
+- `two-copies-of-a-pierce-…`: P0 to P1. PR 4139 retired its weld;
+  re-measure it.
+- `the-census-edge-edge-collinear-lane-…`: P0 to P2. It is a false
+  refusal, not a wrong answer.
+- `census-cross-solid-curved-pairs-…`: P2 to P1, priced H.
+- Six unpriced rows are now priced.
+
+**Closed:**
+- Two duplicates: `census-edge-overlap-decides-…` and
+  `a-notched-full-turn-wall-…`.
+- `contact-refusal-prose-outgrows-the-viewer`: its arm was deleted by
+  PR 3865.
+
+`a-cube-sunk-flush-…` is to be re-measured; it is probably fixed by
+PR 3655.
+
+**Moved:** `window-site-scan-reads-items-by-line` went back to ORIGIN,
+whose `source_walk` is the fix.
+
+**The successor cut** (made at landing):
+
+| Successor | What it carries | Load |
+|---|---|---|
+| RESTREAD | The census's geometric reading. Its spine: cross-solid curved pairs (H), then the edge-edge pair lane, the saddle, the self-touch star and AllOn | about 28 |
+| A vertex/sector program | The seam dihedral, then the lever family: vertex-pair, coplanar lump, bound parallelism, germ within. It also takes the F7 gate's curved keys, the merge's period closure and `merge_skipped` | about 18 |
+| INSIDE | Point-in-solid, containment and the chart trims: torus oblique (P1 H), at-infinity (P1), the full-turn wall, the ringed wall, the torus split lead, then the P3/P4 tail | about 22 |
+| CONTACTHOLD | The 15 held rows; it opens `blocked` | — |
+
+The name CENSUS is taken: it is an existing P3 program. The boolean
+half measured 41 points, over the 30-point budget, so it splits on its
+two file families.
+
+Rows on other programs' ground stay with the successors, because every
+live owner is already over budget: FUSE 47, EMIT 62, GERM 53. Each
+successor's `keep_out` names the shared ground.
+
+Signed: (CONTACT orchestrator)

@@ -4,7 +4,7 @@ kind: issue
 title: The census's collinear edge-edge lane reads two edges' line offset at the second edge's start, so its overlap verdict depends on arena order: a body whose edges part by 21 bands reads an undeclared overlap
 status: open
 opened: 2026-10-04
-priority: P0
+priority: P2
 cost: M
 refs: [boolean-bound-parallelism-verdicts-are-levered-at-a-short-or-unit-arm, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
 ---
@@ -78,3 +78,7 @@ two edges leave one point on two vertices and diverge, and what passes
 them is the parallel reading levered at the full arm. Rerun the pinned
 row with tier 3′ asserted. The near-tangent battery of PR 4026's
 review (`r1_pierce_probes`, `R1_NT_D`) is the corpus to diff.
+
+## CONTACT close-out triage (2026-10-08)
+
+P0 to P2: a false refusal on a 1e-7 rad near-tangent pose, not a wrong answer. It absorbs the closed duplicate `census-edge-overlap-decides-parallel-and-line-gap-one-at-a-time`: one summed-margin fix (parallelism and line gap decided together) closes both.
