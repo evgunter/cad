@@ -57,6 +57,8 @@ mod revolve_common;
 
 #[path = "a_pole_and_an_apex_join_nothing.rs"]
 mod a_pole_and_an_apex_join_nothing;
+#[path = "a_ring_on_a_cone_face.rs"]
+mod a_ring_on_a_cone_face;
 #[path = "a_ring_on_a_sphere_face.rs"]
 mod a_ring_on_a_sphere_face;
 #[path = "a_ruling_lying_on_a_wall.rs"]
