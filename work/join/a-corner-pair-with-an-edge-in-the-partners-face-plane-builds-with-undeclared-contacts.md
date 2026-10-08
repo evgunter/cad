@@ -44,3 +44,13 @@ coincidence ground, so the row waits on D10.
 --ignored --nocapture | grep t3p=false`. Read each body's
 `topo::validate_pseudomanifold(&bb.body, &bb.contacts, tol)` errors
 for the kinds.
+
+## Also in `join1_delta_arc_battery` (2026-10-08)
+
+Measured on main `047d10d5` and on `join/battery-hygiene`, unmoved
+between them: 6 lines `ARC tri {half,shallow,tri} d=(0.0, 0.5)
+zb=(0.5, 1.5) decl={false,true} U` build two solids at the volume,
+with tier 2, the certificate and a legal operand. They fail tier 3′
+on one `UndeclaredContact { EdgeFaceOverlap }`. The triangle's apex
+edge `x = 0, y = 0.5` lies in the partner's face plane `y = 0.5`
+(witness `(0.0, 0.5, 1.0)`).
