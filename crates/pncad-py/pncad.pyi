@@ -6937,7 +6937,7 @@ class Coincidence:
     `relation` is `same_oriented`, `same_opposite`, `on_carrier` or
     `equal_angles`; `site` is `plane_ladder`, `carrier_ladder`,
     `split_on` or `battery_turn`. `rung` is the door's rung that proved
-    it structural (`same_source`), or `None`, and then `residual` says
+    it structural (`same_construction`), or `None`, and then `residual` says
     what separates the two constructions."""
 
     @property

@@ -98,11 +98,11 @@ fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
         geom_core::MarginKind::Value,
         "the declared reading's own margin, never a synthetic one"
     );
-    let Proof::Unproven { residual, .. } = coincide::prove(&ev, row) else {
+    let Proof::Unproven { residual, .. } = coincide::prove(&doc, row) else {
         panic!("the same-source rung proves a declared glue of two extrudes")
     };
     assert!(
-        matches!(&residual.sources, [Some(a), Some(b)] if !a.same_base(b)),
+        matches!(&residual.constructions, [Some(a), Some(b)] if a != b),
         "two constructions: {residual:?}"
     );
     let findings = unproven(&doc, &ev);
@@ -148,19 +148,21 @@ fn face_on(ev: &Evaluation<f64>, node: RecipeNodeId, p: [f64; 3], n: [f64; 3]) -
         .unwrap_or_else(|| panic!("{node:?} has a face through {p:?} facing {n:?}"))
 }
 
-/// **The same source is proven, through the placement** (§11 row 4).
-/// A box placed by a transform and split in two: the two halves' `−x`
-/// walls are pieces of the one extruded wall, placed by the one
-/// transform, so a row over them is `Structural(SameSource)`. The
-/// box's own wall against a half's is two constructions — the placed
-/// copy is not the unplaced one — and stays unproven.
+/// **The same construction read twice is proven, through the
+/// placement** (§11 row 4). A box placed by a transform and split in
+/// two: each half's `−x` wall is a piece of the one extruded wall, read
+/// through the one transform, so a row over them is
+/// `Structural(SameConstruction)`. The box's own wall against a half's
+/// is two constructions — the placed copy is not the unplaced one, and
+/// the walk sees the transform although it adds no name segment — and
+/// stays unproven.
 ///
-/// No production row reaches the door with same-source cells in this
-/// unit: the kernel settles a same-source pair by its own structural
-/// rung before any margin (stage 4 spec §14 Q1), so the row is built
-/// here over the scene's real cells.
+/// No production row reaches the door with one construction read
+/// twice in this unit: the kernel settles a same-source pair by its own
+/// structural rung before any margin (stage 4 spec §14 Q1), so the row
+/// is built here over the scene's real cells.
 #[test]
-fn a_row_over_one_placed_construction_is_proven_same_source() {
+fn a_row_over_one_placed_construction_is_proven_the_same_construction() {
     let doc = ProfileDoc::empty_derived("coincide-same-source", Tol::witness());
     let (doc, the_box) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, placed) = insert(
@@ -215,8 +217,8 @@ fn a_row_over_one_placed_construction_is_proven_same_source() {
         entity(below, &wall(below, 0.25)),
     ]);
     assert_eq!(
-        coincide::prove(&ev, &halves),
-        Proof::Structural(Rung::SameSource),
+        coincide::prove(&doc, &halves),
+        Proof::Structural(Rung::SameConstruction),
         "the two pieces of one placed wall"
     );
     let unplaced = face_on(&ev, the_box, [0.0, 0.5, 0.5], [-1.0, 0.0, 0.0]);
@@ -225,7 +227,7 @@ fn a_row_over_one_placed_construction_is_proven_same_source() {
         entity(above, &wall(above, 0.75)),
     ]);
     assert!(
-        matches!(coincide::prove(&ev, &across), Proof::Unproven { .. }),
+        matches!(coincide::prove(&doc, &across), Proof::Unproven { .. }),
         "an unplaced wall and its placed copy are two constructions"
     );
 }
@@ -330,7 +332,7 @@ fn a_filleted_box_records_one_unproven_turn_per_corner() {
                 "{cell:?} is a requested rim edge of the box"
             );
         }
-        assert!(matches!(coincide::prove(&ev, row), Proof::Unproven { .. }));
+        assert!(matches!(coincide::prove(&doc, row), Proof::Unproven { .. }));
     }
     assert_eq!(unproven(&doc, &ev).len(), 8);
 }

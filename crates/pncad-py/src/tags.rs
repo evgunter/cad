@@ -3016,7 +3016,7 @@ pub fn decision_site_tag(site: pncad::document::coincidence::DecisionSite) -> &'
 /// row ([`pncad::document::Rung`]).
 pub fn coincidence_rung_tag(rung: pncad::document::Rung) -> &'static str {
     match rung {
-        pncad::document::Rung::SameSource => "same_source",
+        pncad::document::Rung::SameConstruction => "same_construction",
     }
 }
 

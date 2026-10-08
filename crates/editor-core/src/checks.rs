@@ -1204,7 +1204,7 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
     if cfg.severity(CheckId::UnprovenCoincidence) == Severity::Off {
         report.skipped.push(CheckId::UnprovenCoincidence);
     } else {
-        unproven_coincidence(ev, &mut report);
+        unproven_coincidence(doc, ev, &mut report);
     }
     if cfg.severity(CheckId::Separation) == Severity::Off {
         report.skipped.push(CheckId::Separation);
@@ -1224,14 +1224,14 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
 /// The `unproven-coincidence` resident's pass (D10): every evaluated
 /// node's rows, in evaluation order then decision order, each the door
 /// leaves unproven a finding attributed to the node that decided it.
-fn unproven_coincidence<T: Decide>(ev: &Evaluation<T>, report: &mut ChecksReport) {
+fn unproven_coincidence<P, T: Decide>(doc: &Doc<P>, ev: &Evaluation<T>, report: &mut ChecksReport) {
     for &node in &ev.order {
         let Some(value) = ev.value(node) else {
             continue;
         };
         for row in value.coincidences.iter() {
             if let crate::coincide::Proof::Unproven { residual, recourse } =
-                crate::coincide::prove(ev, row)
+                crate::coincide::prove(doc, row)
             {
                 report.findings.push(CheckFinding {
                     check: CheckId::UnprovenCoincidence,

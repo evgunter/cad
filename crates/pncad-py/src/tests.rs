@@ -3961,7 +3961,7 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
             margin: pncad::geom_core::MarginDiag::value(0.0),
         },
         residual: pncad::document::Residual {
-            sources: [None, None],
+            constructions: [None, None],
         },
         recourse: pncad::document::coincide::Recourse::OneConstruction,
     };
@@ -5018,7 +5018,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "coincidence_rung_tag",
-        values: &["same_source"],
+        values: &["same_construction"],
         delegates: &[],
     },
     TagEntry {

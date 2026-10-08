@@ -1349,7 +1349,7 @@ impl Evaluation {
         value
             .coincidences
             .iter()
-            .map(|row| Coincidence::new(py, row, &d::coincide::prove(&self.inner, row)))
+            .map(|row| Coincidence::new(py, row, &d::coincide::prove(&self.doc, row)))
             .collect()
     }
 
@@ -2646,7 +2646,7 @@ impl Coincidence {
         self.site
     }
 
-    /// The door's rung that proved it structural (`same_source`), or
+    /// The door's rung that proved it structural (`same_construction`), or
     /// `None`: it holds at the current values only.
     #[getter]
     fn rung(&self) -> Option<&'static str> {

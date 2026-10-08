@@ -12,20 +12,21 @@
 //! `unproven-coincidence` check ([`crate::CheckId::UnprovenCoincidence`])
 //! reports each row the door leaves [`Proof::Unproven`].
 //!
-//! **One rung today, [`Rung::SameSource`]**: the two cells' carriers
-//! hold one recipe source ([`topo::GeomSource`]) once their placements
-//! are composed, which the sources carry ([`topo::source`]'s
-//! `Placed`). That is what the kernel's own structural rung proves, so
-//! the door proves exactly what the kernel already calls structural.
-//! Where a cell's carrier is read lives in [`carrier_source`] alone.
+//! **One rung today, [`Rung::SameConstruction`]**: the same
+//! construction read twice. Each cell is walked from the read it
+//! entered the deciding operation through, down its name's
+//! carry-through segments and the placements its read passes, to the
+//! node that minted it ([`construction`]); two cells are one
+//! construction when they reach one minting role through one chain of
+//! placements. Provenance is the document's: the walk reads the recipe
+//! and the names, never a stamp the kernel carries.
 
 use core::fmt;
 
-use geom_core::{Decide, MarginDiag};
+use geom_core::MarginDiag;
 
-use crate::eval::Evaluation;
-use crate::names::{EntityKey, EntityRef, Entry, NameTable, NamingError, StableName};
-use crate::node::RecipeNodeId;
+use crate::names::{EntityKey, EntityRef, NameTable, NamingError, RoleSeg, StableName};
+use crate::node::{Node, RecipeNodeId};
 
 /// **One coincidence an operation decided from values**, its cells
 /// named in the tables of the inputs the decision read.
@@ -78,27 +79,50 @@ pub enum Proof {
 /// The rung of the door that proved a row.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Rung {
-    /// The two cells' carriers are one recipe source once their
-    /// placements are composed.
-    SameSource,
+    /// The two cells are one construction read twice: one minting role,
+    /// reached through one chain of placements.
+    SameConstruction,
+}
+
+/// **A cell's construction**, as the door reads it off the document:
+/// the name the minting node gave the entity (its role there, piece
+/// qualifiers dropped, since every piece of an entity lies on its one
+/// carrier), and the placements met on the way from the read to it,
+/// outermost first.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Construction {
+    /// The entity as its minting node named it.
+    pub minted: StableName,
+    /// The placements between the minting node and the read.
+    pub placed: Vec<Placed>,
+}
+
+/// One placement a cell's read passes on the way to its minting node.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Placed {
+    /// A `Transform`'s one map.
+    Transform(RecipeNodeId),
+    /// A pattern's (or a placed union's) instance `i`.
+    Instance(RecipeNodeId, u32),
 }
 
 /// **What separates an unproven row's two constructions**: each cell's
-/// carrier source, `None` where the cell has none (a tool plane, or a
-/// carrier no operation stamped).
+/// construction, `None` where the walk reaches none (a tool plane, a
+/// read through an operation that is not a placement, a name the walk
+/// cannot classify).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Residual {
-    /// Each cell's carrier source, in the row's cell order.
-    pub sources: [Option<topo::GeomSource>; 2],
+    /// Each cell's construction, in the row's cell order.
+    pub constructions: [Option<Construction>; 2],
 }
 
 impl fmt::Display for Residual {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.sources {
+        match &self.constructions {
             [Some(_), Some(_)] => f.write_str("the two cells are two constructions"),
-            [None, None] => f.write_str("neither cell's carrier is a recorded construction"),
+            [None, None] => f.write_str("neither cell's carrier is read to a construction"),
             [None, Some(_)] | [Some(_), None] => {
-                f.write_str("one cell's carrier is not a recorded construction")
+                f.write_str("one cell's carrier is not read to a construction")
             }
         }
     }
@@ -145,41 +169,94 @@ pub(crate) const fn site_words(site: topo::DecisionSite) -> &'static str {
     }
 }
 
-/// **The door**: whether `row`, a coincidence a node of `eval` decided,
+/// **The door**: whether `row`, a coincidence a node of `doc` decided,
 /// holds structurally. The rungs are tried in order (module docs).
 #[must_use]
-pub fn prove<T: Decide>(eval: &Evaluation<T>, row: &NamedCoincidence) -> Proof {
-    let sources = row.cells.each_ref().map(|cell| carrier_source(eval, cell));
-    match &sources {
-        [Some(a), Some(b)] if a.same_base(b) => Proof::Structural(Rung::SameSource),
+pub fn prove<P>(doc: &crate::doc::Doc<P>, row: &NamedCoincidence) -> Proof {
+    let constructions = row.cells.each_ref().map(|cell| match cell {
+        NamedCell::Entity { input, name } => construction(doc, *input, name),
+        NamedCell::Tool { .. } => None,
+    });
+    match &constructions {
+        [Some(a), Some(b)] if a == b => Proof::Structural(Rung::SameConstruction),
         _ => Proof::Unproven {
-            residual: Residual { sources },
+            residual: Residual { constructions },
             recourse: Recourse::OneConstruction,
         },
     }
 }
 
-/// The recipe source of `cell`'s carrier in `eval`: a face's surface,
-/// an edge's curve, a vertex's point. `None` for a tool, a name that no
-/// longer resolves to one entity, or a carrier with no source.
-fn carrier_source<T: Decide>(eval: &Evaluation<T>, cell: &NamedCell) -> Option<topo::GeomSource> {
-    let NamedCell::Entity { input, name } = cell else {
-        return None;
-    };
-    let value = eval.value(*input)?;
-    let Some(Entry::Unique(EntityRef { body, key })) = value.name_table.lookup(name) else {
-        return None;
-    };
-    let (_, held, ..) = crate::product::sources_of(value)?
-        .into_iter()
-        .find(|(ix, ..)| ix == body)?;
-    match *key {
-        EntityKey::Face(f) => held.surface_source(held.get_face(f)?.surface),
-        EntityKey::Edge(e) => held.curve_source(held.get_edge(e)?.curve),
-        EntityKey::Vertex(v) => held.point_source(held.get_vertex(v)?.point),
-        EntityKey::Body => None,
+/// **The construction of the entity `name` names in `read`'s value**:
+/// the walk down from the read to the node that minted it.
+///
+/// At each node the walk either passes through whole (a `Transform`,
+/// which places, or a `Part` or a split that leaves the entity intact,
+/// neither of which adds a name segment, N1) or reads the name's
+/// outermost segment there: a minted role ends the walk, and a carried
+/// one (`FromA`, `FromMember`, `Instance`, …) names the entity in the
+/// input the segment says, where the walk continues. `None` where the
+/// read passes an operation that is neither, or a segment the
+/// partition does not place (`names::attribute`).
+#[must_use]
+pub fn construction<P>(
+    doc: &crate::doc::Doc<P>,
+    read: RecipeNodeId,
+    name: &StableName,
+) -> Option<Construction> {
+    use crate::names::attribute::{SegOrigin, origin};
+    let mut placed = Vec::new();
+    let (mut at, mut name) = (read, name.clone());
+    loop {
+        while at != name.node {
+            at = match doc.node(at)? {
+                Node::Transform { input, .. } => {
+                    placed.push(Placed::Transform(at));
+                    *input
+                }
+                Node::Part { of, .. } => *of,
+                Node::Split { target, .. } => *target,
+                _ => return None,
+            };
+        }
+        let seg = name.path.first()?;
+        let of = match origin(seg) {
+            SegOrigin::Minted => {
+                let mut minted = name;
+                minted
+                    .path
+                    .truncate(crate::names::role::fragment_tail_start(&minted.path));
+                return Some(Construction { minted, placed });
+            }
+            SegOrigin::Unclassified => return None,
+            SegOrigin::Carried(of, _) => of.clone(),
+        };
+        at = match (seg, doc.node(at)?) {
+            (RoleSeg::FromA(_), Node::Boolean { a, .. }) => *a,
+            (RoleSeg::FromB(_), Node::Boolean { b, .. }) => *b,
+            (RoleSeg::FromMember { member, .. }, _) => *member,
+            (RoleSeg::Instance { i, .. }, node) => {
+                placed.push(Placed::Instance(at, *i));
+                body_input(node)?
+            }
+            (_, node) => body_input(node)?,
+        };
+        name = of;
     }
-    .cloned()
+}
+
+/// The one body a single-operand operation reads, or `None`.
+fn body_input<P>(node: &Node<P>) -> Option<RecipeNodeId> {
+    match node {
+        Node::Fillet { target, .. }
+        | Node::Chamfer { target, .. }
+        | Node::Shell { target, .. }
+        | Node::Split { target, .. } => Some(*target),
+        Node::Pattern { input, .. }
+        | Node::PlacedUnion { input, .. }
+        | Node::Transform { input, .. } => Some(*input),
+        Node::Part { of, .. } => Some(*of),
+        _ => None,
+    }
 }
 
 /// The deciding node's inputs a row's cells are keyed in: the node
