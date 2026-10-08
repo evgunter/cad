@@ -1,0 +1,74 @@
+diff --git a/crates/topo/src/boolean/vtxfac.rs b/crates/topo/src/boolean/vtxfac.rs
+index e0fc19b8e..3ed308aca 100644
+--- a/crates/topo/src/boolean/vtxfac.rs
++++ b/crates/topo/src/boolean/vtxfac.rs
+@@ -289,12 +289,69 @@ pub(super) fn pair_classes<T: Decide>(
+             .flat_map(|r| r.rows.iter().copied())
+             .collect()
+     };
++    if let Ok(path) = std::env::var("CAD_PAIR_INSTR") {
++        let tag = instr_head_tag(pairs, band);
++        let unread_lone = pairs.len() == 1 && pairs[0].read.is_none();
++        let line = format!(
++            "{}\tpairs={}\ttag={}\tlone_unread={}\n",
++            std::thread::current().name().unwrap_or("?"),
++            pairs.len(),
++            tag,
++            unread_lone
++        );
++        use std::io::Write;
++        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
++            let _ = f.write_all(line.as_bytes());
++        }
++    }
+     Ok(match pairs {
+         [_] => alone(),
+         _ => layered_alone(pairs, band)?.unwrap_or_else(alone),
+     })
+ }
+ 
++/// REVIEW INSTRUMENT (PR 4358): what the PR head's `pair_classes` would
++/// do on these inputs: `lone`, `refuse-unread`, `refuse-inside`, `err`,
++/// `fallback` or `layered`.
++fn instr_head_tag<T: Decide>(pairs: &[PairRead<T>], band: Band) -> &'static str {
++    if let [_] = pairs {
++        return "lone";
++    }
++    if pairs.iter().any(|p| p.read.is_none()) {
++        return "refuse-unread";
++    }
++    let mut base = None;
++    for i in 0..pairs.len() {
++        let mut outermost = true;
++        for j in (0..pairs.len()).filter(|&j| j != i) {
++            match super::sectors::wedge_classes(&pairs[i].sectors, &pairs[j].sectors, band) {
++                Err(_) => return "err",
++                Ok(None) => return "refuse-inside",
++                Ok(Some(r)) => {
++                    if !r.rows.is_empty() && r.rows.iter().all(|&(_, c)| held(c, r.met)) {
++                        outermost = false;
++                    }
++                }
++            }
++        }
++        if outermost {
++            let read = pairs[i].read.as_ref().unwrap();
++            let here = if read.met { SideCode::Out } else { SideCode::In };
++            if base.is_some_and(|b| b != here) {
++                return "fallback";
++            }
++            base = Some(here);
++        }
++    }
++    let Some(base) = base else { return "fallback" };
++    let first = pairs[0].read.as_ref().unwrap();
++    if first.rows.iter().all(|&(he, _)| layered(base, he, pairs.iter()).is_some()) {
++        "layered"
++    } else {
++        "fallback"
++    }
++}
++
+ /// [`pair_classes`]' layering, or `None` where it cannot decide.
+ fn layered_alone<T: Decide>(
+     pairs: &[PairRead<T>],
