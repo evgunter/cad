@@ -275,3 +275,69 @@ There is no rewrite system, so nothing is assumed and nothing false can be deriv
 **A11 (1).** The sentence "several mates on one pair fold by exact coset intersection … to DETERMINED, UNDER or CONTRADICTORY, the last refusing with the added mate's measured clash" becomes:
 
 > "A placement's mates fold in order, each projected onto the residual subgroup the earlier ones leave, to DETERMINED or UNDER, or refuse OVERCONSTRAINED (a mate that fixes nothing; on a pinned copy no predicate runs); a degenerate configuration refuses as its construction does."
+
+## Correction after reading Ev's 2026-10-03 transcript (`5f7a1c71e3`)
+
+**My round 3 answer and its addendum are withdrawn.** The ordered fold bends two of Ev's principles.
+
+- **It is a constraint falling back to an assertion.** Under the ordered fold, a second-peg mate states "peg 2 is coaxial with hole 2". The fold honours only the part of that statement that is still free and hands the rest to the lint. Ev 4: "having constraints that fall back to being assertions seems worse than either".
+- **A mate's meaning would depend on its position in the order.** That is the spanning-tree problem respelled, which Ev was "surprised that mates work that way today" about (Ev 2).
+
+Where D10, A11 or my earlier rounds read differently from the transcript, Ev's words win.
+
+The principles I now rely on, from the transcript:
+
+- **P1 (Ev 1).** "adding a mate … supplies a constraint, and has no position it needs to efface". A mate's whole statement holds, or the mate is not admitted.
+- **P2 (Ev 4).** "either have assertions and constraints be the same thing, or not do any particular cleverness with the solver". I take the second branch: no cleverness. That rules out #4325's structurally-proven excess (cleverness at the door) and also the ordered fold (a fallback).
+- **P3 (Ev 2, agreeing to "a relation on a pinned copy is an overconstraint").** A placement is determined by relation to other parts.
+- **P4 (Ev 1).** "the recourse for such lints (at least those which can't be fixed by construction, which we could tell by whether it'd make them overconstrained) is a declared inequality or equation". A contact that a mate cannot state without overconstraining is the lint's, and its recourse is an assertion. It is never a half-honoured mate.
+- **P5 (Ev 3).** "slick … but i won't fight over it". Declined, per P2's either-or.
+
+### The final state I now recommend (likely)
+
+**1. Overconstraint is decided by the mates' kinds alone, and nothing is measured.**
+
+- Each mate kind contributes its scalar equations: Plane 3, Axis 4, Point 3, Direction 2, Frame 6.
+- The table's generic rows give the excess of a bundle from its kinds alone. Examples:
+  - Plane + Plane has excess 1 (the angle);
+  - Plane + Axis has at least 1;
+  - Plane + Point has 1;
+  - any mate on a `Frame`-pinned copy has excess 6.
+- **A mate that would give its placement any excess refuses `Overconstrained`.** This is DOF counting by subgroup algebra. It holds whatever the values, and needs no door, no `Sym` and no predicate.
+- A configuration whose values are degenerate, where the generic row does not hold, refuses as its construction does (FORK-1b).
+- `Contradictory` retires, because no admitted equation can disagree with another.
+
+**2. A pinned copy therefore holds exactly one `Frame` mate.**
+
+- Coarser mates (Plane, Axis and the like) leave freedom. They refuse `Under` today, and are the mechanisms of A1 rung (c) later.
+- What used to be a bundle of picks is written as **constructions on each side**, which the GUI builds from the same picks: `Through{axis, point}`, `FaceFrame` with spin, `Meet`, …
+- **Two pegs:** `Frame(Through{peg-1 axis, peg-2 centre}) = Frame(Through{hole-1 axis, hole-2 centre})`.
+  - The user states exactly this, and it holds exactly.
+  - Peg 2 against hole 2 is a contact like any other: the census records it, the lint proves it by the `Sym` replay (structural if the spacings are one variable), and an `Assert` quiets it otherwise (P4). Nothing the user wrote is dropped.
+
+**3. A mate-placed face.**
+
+- The copy's frame is the construction `F = B·A⁻¹` over the two sides' frames. The lint's replay (#4322) evaluates it like any other construction.
+- A face on which the frame is built (the primary face in `FaceFrame`, or the axis in `Through`), and every carrier derived from it, is zero as a polynomial at contact. No rewrite system is needed and no hazard arises.
+- The world stays only what export reads (Ev 4: it "just sets the coordinates"). A mate relates poses of copies, never a world frame or a blank frame.
+
+**What this bends.** "A placement is the bundle of mates" becomes "a placement is one frame equation, between constructions that may read many parts". So the bundle is the constructions' inputs, not a list of mates. Ev's wish that the mates' `Subgroup` "can literally be shared" survives: the subgroup is still each pose kind's symmetry and the residual of an under-pinned copy.
+
+### Proposed text
+
+**D10, Spaces and placement.**
+
+> "A placement is a mate equating a frame of the copy with a frame built from what it is placed against; each frame may be a construction over several poses. A mate supplies its whole statement or is not admitted: one whose equations, counted by kind through subgroup algebra (A11 (1)), exceed the freedom the copy has left refuses as an overconstraint, decided without measuring, and anything further about where copies meet is a contact, linted and quieted by an assertion."
+
+**A11 (1).**
+
+> "a copy's mates are counted by kind: their equations either leave a residual subgroup (UNDER) or pin it (DETERMINED) or exceed its freedom (OVERCONSTRAINED, refused at the door and in the solve, nothing measured); a configuration degenerate at its values refuses as its construction does."
+
+"Exact coset intersection", "measured clash" and CONTRADICTORY go.
+
+**Withdrawn:** #4325's excess clause and my round 3 ordered fold.
+
+Confidence:
+- *sure* that both withdrawn answers bend P2;
+- *likely* on the one-frame-equation final state;
+- *unsure* whether Ev reads "bundle" as needing several mates. If so, the coherent alternative is P2's first branch: a solver in which assertions and constraints are one thing. That is a later design and should not be built now.
