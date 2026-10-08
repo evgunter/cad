@@ -2,11 +2,12 @@
 id: declared-only-meetings-clear-at-the-census-gate-unread
 kind: issue
 title: A pair whose only meetings are declared is probed but its records are not side-read, so an overlap they hide with no vertex strictly inside clears
-status: dispatched
+status: parked
 opened: 2026-09-26
 priority: P0
 cost: H
 parent: CONTACT-13
+blocked_on: [intent-stage4-is-built]
 ---
 
 Filed by CONTACT-5 and re-scoped by its fix pass. Arm 2 of

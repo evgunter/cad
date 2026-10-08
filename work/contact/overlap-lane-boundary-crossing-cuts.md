@@ -26,3 +26,10 @@ Referenced from: the C3/C4 grandfather note (`crates/topo/README.md`), `census.r
 ## Home
 
 `work/mate/` — the ground is `crates/topo/src/census.rs`, a S-MATE territory glob, and the issue is MATE-9's own adjudication residue on the declared-contact strengths S-MATE charters.
+
+## The migration half is parked on the D10 hold (2026-10-08)
+
+CONTACT-12 lands the cuts. The `ef_bound_backed` migration this row
+was filed for is declared-pair machinery, which retires at INTENT
+stage 4. When stage 4 lands, re-read the row against the built code
+and close it if the rung is gone.

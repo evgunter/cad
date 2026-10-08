@@ -981,3 +981,41 @@ Pinned at `sweep/tests/reach_wall_chord_rows.rs`,
 `a_vertex_on_a_curved_face_is_confirmed_by_its_trim`. One existing row
 moved: the drum less a cube touching its wall at a corner now passes
 tier 3′. CONTACT's owner: please ack, or say what you want changed.
+
+## 2026-10-08 — Resumed under the D10 hold (Ev)
+
+Ev resumed dispatch. While CONTACT was paused, Ev ratified D10 (PR
+3990, 2026-10-03), which places a hold on new work on its ground: the
+node vocabulary, placement, declared pairs and declared contact, the
+undeclared refusals, and `Measure`/`Assertion`. A started unit may
+finish, and a held row parks on the INTENT stage that releases it.
+
+How CONTACT's units stand:
+- **CONTACT-10** (containment endings): not held ground. It resumes,
+  first reconciling with TOPO's merged PR 3493, as recorded on
+  2026-09-30.
+- **CONTACT-11** (the torus and cone chart box): not held. Its fix
+  pass is done, so a delta review comes next, then landing.
+- **CONTACT-12** (the overlap lane's crossing cuts): started, so it
+  finishes, re-scoped to the cuts and the read of every cell. The
+  `ef_bound_backed` migration is declared-pair machinery, so it is
+  dropped and parked on `intent-stage4-is-built`.
+- **CONTACT-13** (the meeting ledger): parked on
+  `intent-stage4-is-built`, with its row and Ev's curved-cone row. The
+  hold permits finishing it, but only the red rows were built, and
+  what was left to write was a rule for what a declaration licenses,
+  which stage 4 deletes.
+  - The cost: the two built wrong clears stay live until stage 4.
+    Both need a user's contact declaration, the feature D10 retires.
+  - The alternative was finishing it as an H-cost dual-review unit
+    whose code stage 4 removes.
+  - The committed rows are the acceptance carried to stage 4.
+
+**Close-out (Ev, 2026-09-29).** After these units land, CONTACT
+closes. Its open rows, about 55, many of them filed by other programs
+during the pause, go to successor programs cut on the priority seam.
+Held rows go to a hold program that opens `blocked`, as REACH's
+REACHHOLD did. A reader lane classifies each open row against the
+hold first.
+
+Signed: (CONTACT orchestrator)
