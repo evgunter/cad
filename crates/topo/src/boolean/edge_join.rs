@@ -719,3 +719,98 @@ mod conventional {
         assert!(!is_conventional_vertex(&body, far), "an open edge's end");
     }
 }
+
+#[cfg(test)]
+mod join_door {
+    //! **The join door and the doors that end with it**: a brick whose
+    //! edge was split at its middle holds one joinable vertex; the join
+    //! door takes it back to the brick, and the public merge door and
+    //! an offset door, ending with the join, leave none either.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use geom_core::{Band, Tol};
+
+    use super::joinable_vertices;
+    use crate::body::Body;
+    use crate::split::SplitEdgeCreated;
+    use crate::test_support_fixtures::brick;
+
+    /// A unit brick with one edge split at its middle, the split's
+    /// record, and the brick's own arena counts.
+    fn split_brick() -> (
+        Body<f64>,
+        SplitEdgeCreated,
+        crate::test_support::ArenaCounts,
+    ) {
+        let tol = Tol::witness();
+        let mut body = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+        let whole = body.arena_counts();
+        let (e, d) = body.edges().next().unwrap();
+        let (t0, t1) = body
+            .get_curve_geom(d.curve)
+            .and_then(crate::CurveGeom::certified)
+            .unwrap()
+            .params();
+        let made = body.split_edge(e, 0.5 * (t0 + t1), tol).unwrap();
+        (body, made, whole)
+    }
+
+    #[test]
+    fn the_join_door_takes_a_split_edge_back() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (mut body, made, whole) = split_brick();
+        assert_eq!(joinable_vertices(&body, band).unwrap(), vec![made.vertex]);
+        let joins = body.join_edges(band, tol).unwrap();
+        assert_eq!(joins.len(), 1);
+        assert_eq!(joins[0].vertex, made.vertex);
+        assert_eq!(joins[0].conventional, None);
+        assert_eq!(body.arena_counts(), whole, "the brick again");
+        assert!(joinable_vertices(&body, band).unwrap().is_empty());
+        crate::validate_geometric(&body, tol).unwrap();
+        assert!(body.join_edges(band, tol).unwrap().is_empty(), "idempotent");
+    }
+
+    #[test]
+    fn the_merge_door_ends_with_the_join_and_reports_it() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (mut body, made, whole) = split_brick();
+        let outcome = body.merge_coplanar_faces(tol).unwrap();
+        assert!(
+            outcome.groups.is_empty(),
+            "nothing to merge, and still joined"
+        );
+        assert_eq!(outcome.joins.len(), 1);
+        assert_eq!(outcome.joins[0].vertex, made.vertex);
+        assert_eq!(body.arena_counts(), whole);
+        assert!(joinable_vertices(&body, band).unwrap().is_empty());
+    }
+
+    #[test]
+    fn an_offset_door_ends_with_the_join() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let (mut body, made, whole) = split_brick();
+        // A face the split edge does not bound, so the offset keeps
+        // the vertex and only the join takes it.
+        let far = body
+            .faces()
+            .map(|(f, _)| f)
+            .find(|&f| {
+                body.face_loops_linked(f, body.get_face(f).unwrap())
+                    .all(|(_, l)| match l.boundary {
+                        crate::LoopBoundary::Cycle { first } => body
+                            .loop_cycle(first)
+                            .unwrap()
+                            .iter()
+                            .all(|&h| body.get_half_edge(h).unwrap().start != made.vertex),
+                        crate::LoopBoundary::Empty { .. } => true,
+                    })
+            })
+            .unwrap();
+        crate::replace_face_offset(&mut body, far, 0.25, tol).unwrap();
+        assert!(joinable_vertices(&body, band).unwrap().is_empty());
+        assert_eq!(body.arena_counts(), whole);
+    }
+}
