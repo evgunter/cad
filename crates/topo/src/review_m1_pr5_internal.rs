@@ -585,17 +585,7 @@ fn every_public_mutation_path_preserves_tier1() {
     // scope sits one call down, in `merge_coplanar_faces_unjoined`,
     // which the walk (public doors only) does not visit, so the pin
     // reads that body's source directly.
-    let merge_file = crate::source_walk::crate_sources()
-        .into_iter()
-        .find(|f| f.ends_with("merge_faces.rs"))
-        .expect("merge_faces.rs is a crate source");
-    let merge_text = std::fs::read_to_string(&merge_file).expect("a readable source file");
-    let merge_code = crate::source_walk::CodeOnly::of(&merge_text);
-    let unjoined = merge_code
-        .fns()
-        .into_iter()
-        .find(|f| f.name == "merge_coplanar_faces_unjoined")
-        .map(|f| f.own_body().to_owned());
+    let unjoined = crate::source_walk::fn_body("merge_faces", "merge_coplanar_faces_unjoined");
     assert!(
         unjoined
             .as_deref()

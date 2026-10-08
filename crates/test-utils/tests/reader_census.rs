@@ -413,10 +413,6 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // `unreachable!` message texts, literal view
     },
     Entry {
-        path: "crates/topo/src/review_m1_pr5_internal.rs",
-        disposition: Shared, // the merge door's surgery-scope pin, code view
-    },
-    Entry {
         path: "crates/topo/src/sector_shape.rs",
         disposition: Unconverted("Track Q — raw text, no reader at all"),
     },
