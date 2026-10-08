@@ -480,19 +480,27 @@ fn the_clearance_gate_reads_arc_bounded_footprints() {
 /// `y = 0.5` for `len`, between the wall `x = 3` and a notch wall
 /// `w_top` from it at the arm's top and `w_foot` at its foot.
 fn arm_prism(len: f64, w_top: f64, w_foot: f64, h: f64) -> Body<f64> {
-    let top = 0.5 + len;
     prism(
-        corners(&[
-            (0.0, 0.0),
-            (3.0, 0.0),
-            (3.0, top),
-            (3.0 - w_top, top),
-            (3.0 - w_foot, 0.5),
-            (0.0, 0.5),
-        ]),
+        corners(&arm_outline(1.0, len, w_top, w_foot)),
         h,
         Tol::witness(),
     )
+}
+
+/// [`arm_prism`]'s profile, every length scaled by `s`.
+fn arm_outline(s: f64, len: f64, w_top: f64, w_foot: f64) -> Vec<(f64, f64)> {
+    let top = 0.5 + len;
+    [
+        (0.0, 0.0),
+        (3.0, 0.0),
+        (3.0, top),
+        (3.0 - w_top, top),
+        (3.0 - w_foot, 0.5),
+        (0.0, 0.5),
+    ]
+    .iter()
+    .map(|&(x, y)| (s * x, s * y))
+    .collect()
 }
 
 /// `body` shelled at `t` refuses `WallClearance`, naming the arm's two
@@ -560,6 +568,164 @@ fn the_clearance_gate_takes_a_tilted_gap_short_by_its_drift() {
         0.05,
         "an arm 0.098 wide at its foot cannot hold two 0.05 walls",
     );
+}
+
+/// `body` shelled at `t` refuses `OffsetsCross`, naming the arm's wall
+/// `x = 3` and its notch wall; returns the reported overlap.
+fn assert_the_tilted_arm_walls_cross(body: &Body<f64>, t: f64, why: &str) -> f64 {
+    let e = topo::shell(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        Tol::witness(),
+    )
+    .expect_err(why);
+    let ShellError::OffsetsCross {
+        face,
+        other,
+        overlap,
+        thickness,
+    } = e
+    else {
+        panic!("{why}: expected the moved walls to cross, got {e}");
+    };
+    assert_eq!(thickness, t, "{why}: the refusal quotes the wall");
+    let normal = |f: FaceKey| match body.get_surface(body.get_face(f).unwrap().surface) {
+        Some(geom::Surface::Plane { normal, .. }) => *normal,
+        _ => panic!("{f:?} is planar"),
+    };
+    let mut xs = [normal(face).x.abs(), normal(other).x.abs()];
+    xs.sort_by(f64::total_cmp);
+    assert!(
+        xs[1] > 1.0 - 1e-12 && xs[0] < 1.0 - 1e-9 && xs[0] > 0.5,
+        "{why}: the refusal names the wall x = 3 and the notch wall, got |n_x| {xs:?}"
+    );
+    overlap
+}
+
+/// The foot width at which the notch wall's moved foot corner reaches
+/// the moved wall `x = 3 − t`, for a notch wall that leans `lean` over
+/// the arm's `len`, in the arm's unscaled units. Moving the notch wall in
+/// by `t` and the shelf down by `t`, their corner stands
+/// `t·(√(len² + lean²) + lean)/len` past the foot, so the two moved
+/// walls meet when the foot is that plus `t` wide.
+fn crossing_foot(t: f64, len: f64, lean: f64) -> f64 {
+    t + t * (len.hypot(lean) + lean) / len
+}
+
+/// The sealed volume of the arm prism scaled by `s` at `t`: the
+/// outline's area times its height, less the inset outline's area
+/// times the cavity's height, valid while the inset does not cross.
+fn arm_volume(s: f64, len: f64, w_top: f64, w_foot: f64, h: f64, t: f64) -> f64 {
+    let pts = arm_outline(s, len, w_top, w_foot);
+    shoelace(&pts) * h - shoelace(&inset(&pts, t)) * (h - 2.0 * t)
+}
+
+/// **Two walls meeting at an angle cross where the arm is thin.** The
+/// arm is `0.5` wide at its top and `0.2` at its foot, its notch wall
+/// leaning `0.54` rad off antiparallel to the wall `x = 3`: outside
+/// both of the squarely-facing windows, so no gap is read. At
+/// `t = 0.15` the two moved walls meet below `y ≈ 0.75`, and the two
+/// moved faces overlap along the whole cavity height `1 − 2t` of the
+/// vertical line their planes share. Before the tilted read this built
+/// a body whose volume, `1.3197…`, counted the crossed lobe negative.
+#[test]
+fn two_tilted_walls_whose_offsets_cross_refuse_typed() {
+    let overlap = assert_the_tilted_arm_walls_cross(
+        &arm_prism(0.5, 0.5, 0.2, 1.0),
+        0.15,
+        "a 0.2 foot under a 0.54 rad lean cannot hold two 0.15 walls",
+    );
+    assert!(
+        (overlap - 0.7).abs() < 1e-9,
+        "the moved walls overlap over the cavity height 0.7, got {overlap}"
+    );
+}
+
+/// **A long thin arm at a fine wall.** `100` long, `1` wide at its top
+/// and `0.0015` at its foot, at `t = 0.001`: the lean is `0.01` rad,
+/// whose drift across the part is far over one wall and whose cosine is
+/// far outside the band, so neither squarely-facing window reads it.
+/// It used to build with a wrong volume.
+#[test]
+fn a_long_thin_tilted_arm_refuses_typed() {
+    assert_the_tilted_arm_walls_cross(
+        &arm_prism(100.0, 1.0, 0.0015, 1.0),
+        0.001,
+        "a 0.0015 foot cannot hold two 0.001 walls",
+    );
+}
+
+/// **A wedge at the same lean that is thick everywhere still shells.**
+/// The arm leans as the crossing one does (`0.3` over `0.5`) but is
+/// `0.5` wide at its foot, so its moved walls stay apart at `t = 0.15`:
+/// it builds, tier 3, with the closed-form volume. A dihedral cut-off
+/// at this lean would refuse it.
+#[test]
+fn a_thick_wedge_at_the_crossing_lean_shells_to_its_closed_form() {
+    let tol = Tol::witness();
+    let t = 0.15;
+    let body = arm_prism(0.5, 0.8, 0.5, 1.0);
+    let hollow = topo::shell(&finished("the wedge", body, tol), t, tol)
+        .unwrap_or_else(|e| panic!("a 0.5 foot holds two 0.15 walls, got {e}"))
+        .body;
+    assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
+    let props = topo::mass_properties(&hollow, tol).expect("props");
+    let want = arm_volume(1.0, 0.5, 0.8, 0.5, 1.0, t);
+    assert!(
+        (props.volume - want).abs() <= 1e-12,
+        "the wedge's wall is {want}, got {}",
+        props.volume
+    );
+}
+
+/// **The read is the crossing itself, at metre and millimetre
+/// extents.** At the crossing lean, a foot `2%` of a wall narrower
+/// than [`crossing_foot`] refuses and one `2%` wider shells to its
+/// closed form. Both feet are wider than `2t`, so a read of the
+/// operand faces' least distance against `2t` would pass the crossing
+/// one: the moved notch wall reaches past its concave foot corner.
+#[test]
+fn the_tilted_read_turns_at_the_crossing_foot_at_metre_and_millimetre_extents() {
+    let tol = Tol::witness();
+    let (len, lean) = (0.5, 0.3);
+    for s in [1.0, 1e-3] {
+        let t = 0.15 * s;
+        let foot = crossing_foot(0.15, len, lean);
+        let nudge = 0.02 * t / s;
+        if nudge * s < 100.0 * tol.k() * tol.eps() {
+            println!(
+                "SKIPPED at scale {s}: a nudge of {} m is within a hundred escalation widths \
+                 at eps {}, so this run contributes no threshold row at this scale",
+                nudge * s,
+                tol.eps()
+            );
+            continue;
+        }
+        assert!(foot - nudge > 2.0 * t / s, "the crossing foot is over two walls");
+        let inside = foot - nudge;
+        let body = |w: f64| prism(corners(&arm_outline(s, len, w + lean, w)), s, tol);
+        assert_the_tilted_arm_walls_cross(
+            &body(inside),
+            t,
+            &format!("scale {s}: a foot just under the crossing one refuses"),
+        );
+        let outside = foot + nudge;
+        let hollow = topo::shell(&finished("the arm", body(outside), tol), t, tol)
+            .unwrap_or_else(|e| panic!("scale {s}: a foot just over the crossing one shells, got {e}"))
+            .body;
+        assert_eq!(
+            topo::validate_geometric(&hollow, tol),
+            Ok(()),
+            "scale {s}: tier 3"
+        );
+        let props = topo::mass_properties(&hollow, tol).expect("props");
+        let want = arm_volume(s, len, outside + lean, outside, s, t);
+        assert!(
+            (props.volume - want).abs() <= 1e-12 * s.powi(3),
+            "scale {s}: the arm's wall is {want}, got {}",
+            props.volume
+        );
+    }
 }
 
 /// **Two voids.** With material `g = 0.4` between them, `t > g/2`

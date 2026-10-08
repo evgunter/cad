@@ -470,6 +470,30 @@ pub enum ShellError<T: Real> {
         /// The wall the two offsets would need, `2t`.
         needed: T,
     },
+    /// **Two moved walls meeting at an angle cross.** Two non-adjacent
+    /// planar faces of one solid that are not parallel have inward
+    /// offsets whose regions overlap along the line their moved planes
+    /// share ([`moved_walls_cross`]): somewhere between the two faces
+    /// the material is thinner than the two walls, so the cavity would
+    /// self-intersect. [`ShellError::WallClearance`] is the same
+    /// collision on a pair that faces squarely; this is the pair at an
+    /// angle, which has no single gap to report.
+    ///
+    /// Conservative in the same direction: a face bounded by a curve
+    /// other than a line is read as at least its chord polygon plus the
+    /// ball holding each such edge, so it may refuse a pair that would
+    /// have cleared, never the reverse.
+    OffsetsCross {
+        /// One of the two planar faces.
+        face: FaceKey,
+        /// The other.
+        other: FaceKey,
+        /// How far, along the line the two moved planes share, the two
+        /// moved faces overlap, in meters: zero when they only touch.
+        overlap: T,
+        /// The wall thickness the shell was asked for.
+        thickness: T,
+    },
     /// A chart worn by several faces of ONE solid has faces with
     /// DIFFERENT orientation bits, so "inward" is not one direction for
     /// it. A solid moves its wearers of a chart as one; a mixed-sense
@@ -630,6 +654,13 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "two faces face each other across {gap:?} m of material and the two walls \
                  need {needed:?} m, so the cavity would self-intersect. Recourse: use a \
                  thinner wall"
+            ),
+            Self::OffsetsCross { thickness, .. } => write!(
+                f,
+                "two faces that meet at an angle have material between them thinner than two \
+                 walls of {thickness:?} m somewhere along their overlap, so their inward \
+                 offsets cross and the cavity would self-intersect. Recourse: use a thinner \
+                 wall"
             ),
             Self::ChartSenseMixed { .. } => write!(
                 f,
@@ -1322,6 +1353,9 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
             }
         }
     }
+
+    // ---- Decide: no two moved walls meeting at an angle cross. ----
+    moved_walls_cross(&cavity, &partition, thickness, band)?;
 
     // ---- The evidence: the construction's own decides, carried. ----
     //
@@ -3436,6 +3470,302 @@ fn footprints_may_overlap<T: Decide>(
         )
     };
     !(separated(grown(a.box_u), grown(re_u)) || separated(grown(a.box_v), grown(re_v)))
+}
+
+/// **The tilted read: two moved walls of one solid that meet at an
+/// angle must not cross.** [`wall_clearance`] reads a pair that faces
+/// squarely, on the operand, as a gap against `2t`. A pair at an angle
+/// has no single gap: its planes meet, and whether the walls cross is
+/// whether the two MOVED faces overlap. So this read runs on the cavity
+/// the offset doors built, where every face already is its own inward
+/// offset, bounded by the corners those doors solved — the eroded
+/// footprint a concave edge extends and a convex one trims, exactly.
+///
+/// For every pair of non-adjacent planar faces of one solid whose
+/// planes are transversal (they diverge across the pair by more than
+/// the band), both faces are cut by `L`, the line the two planes share,
+/// and the two sets of `L` they cover are compared. Two planar regions
+/// in transversal planes meet only on `L`, so the pair is clear exactly
+/// when those sets are disjoint, and the overlap of the two sets is the
+/// margin: Positive refuses [`ShellError::OffsetsCross`]. Zero, a
+/// touch, refuses too unless the two faces share a vertex, whose moved
+/// copy both faces hold by construction. A pair parallel to the band
+/// is not read: facing, it is [`wall_clearance`]'s; facing the same
+/// way, its moved planes stay parallel and cannot cross.
+///
+/// Each set is the face's region cut by `L`, by crossing parity over
+/// its boundary. Every boundary vertex is put on one side of `L` by a
+/// decide, Zero counting with the positive side, so an edge ending on
+/// `L` is counted once and a vertex touching `L` is a closed interval
+/// of length zero. An edge whose curve is not a line is read as its
+/// chord, and the chord of `L` through the ball holding the edge's arc
+/// is added to the set: the region between an arc and its chord lies
+/// in that ball, so the set read holds the true one. Crossings are
+/// paired in the order of their enclosures' centres; the overlap is
+/// then computed in `T` and decided, and an undecided side or overlap
+/// escalates rather than clearing.
+fn moved_walls_cross<T: Decide + geom_core::CertifiedBounds>(
+    cavity: &Body<T>,
+    partition: &crate::offset_together::Scope,
+    thickness: T,
+    band: Band,
+) -> Result<(), ShellError<T>> {
+    let escalated = |source| ShellError::Escalated { source };
+    let walls = moved_walls(cavity, partition);
+    for (i, a) in walls.iter().enumerate() {
+        for b in &walls[i + 1..] {
+            if a.solid != b.solid || boxes_apart(a, b, band) {
+                continue;
+            }
+            if face_neighbours(cavity, a.face).contains(&b.face) {
+                continue;
+            }
+            let cross = a.normal.cross(b.normal);
+            let lever = gate_measured(
+                "shell_walls_extent",
+                (a.hi - a.lo).norm() + (b.hi - b.lo).norm() + (b.lo - a.lo).norm(),
+                band,
+            )
+            .map_err(escalated)?;
+            match decide(
+                "shell_moved_walls_transversal",
+                Margin::of(cross.norm() * lever),
+                band,
+            )
+            .map_err(escalated)?
+            {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => continue,
+            }
+            // The point of `L` nearest `a`'s box centre, so every side
+            // and position below is a short difference.
+            let d = cross / cross.norm();
+            let k = a.normal.dot(b.normal);
+            let q = a.lo + (a.hi - a.lo) * T::from_f64(0.5);
+            let r_a = a.normal.dot(a.origin - q);
+            let r_b = b.normal.dot(b.origin - q);
+            let det = T::one() - k * k;
+            let p0 = q + a.normal * ((r_a - k * r_b) / det) + b.normal * ((r_b - k * r_a) / det);
+            let on_a = a.cut(p0, d, band).map_err(escalated)?;
+            let on_b = b.cut(p0, d, band).map_err(escalated)?;
+            for &(a_lo, a_hi) in &on_a {
+                for &(b_lo, b_hi) in &on_b {
+                    let overlap = a_hi.min(b_hi) - a_lo.max(b_lo);
+                    let crosses = match decide(
+                        "shell_moved_walls_overlap",
+                        Margin::of(overlap),
+                        band,
+                    )
+                    .map_err(escalated)?
+                    {
+                        Sign::Positive => true,
+                        Sign::Zero => !a.vertices.iter().any(|v| b.vertices.contains(v)),
+                        Sign::Negative => false,
+                    };
+                    if crosses {
+                        return Err(ShellError::OffsetsCross {
+                            face: a.face,
+                            other: b.face,
+                            overlap: overlap.max(T::zero()),
+                            thickness,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// One moved planar face as [`moved_walls_cross`] reads it: its plane,
+/// its boundary edges, its vertices and the box holding its boundary.
+struct MovedWall<T: Real> {
+    face: FaceKey,
+    solid: SolidKey,
+    origin: geom_core::Point3<T>,
+    normal: geom_core::Vec3<T>,
+    /// Every boundary edge as its two ends and, for an edge that is not
+    /// a line, the ball holding its arc.
+    edges: Vec<BoundaryEdge<T>>,
+    vertices: Vec<VertexKey>,
+    lo: geom_core::Point3<T>,
+    hi: geom_core::Point3<T>,
+}
+
+struct BoundaryEdge<T: Real> {
+    start: (VertexKey, geom_core::Point3<T>),
+    end: (VertexKey, geom_core::Point3<T>),
+    ball: Option<(geom_core::Point3<T>, T)>,
+}
+
+impl<T: Decide + geom_core::CertifiedBounds> MovedWall<T> {
+    /// The intervals of `L = p0 + s·d` (`d` unit, in this face's plane)
+    /// the face covers, as `(lo, hi)` in `s` (module docs of
+    /// [`moved_walls_cross`] for the reading).
+    fn cut(
+        &self,
+        p0: geom_core::Point3<T>,
+        d: geom_core::Vec3<T>,
+        band: Band,
+    ) -> Result<Vec<(T, T)>, Indeterminate> {
+        let m = self.normal.cross(d);
+        let mut sides: Vec<(VertexKey, bool)> = Vec::new();
+        let mut side_of = |(v, p): (VertexKey, geom_core::Point3<T>)| {
+            if let Some(&(_, s)) = sides.iter().find(|(w, _)| *w == v) {
+                return Ok(s);
+            }
+            let s = !matches!(
+                decide(
+                    "shell_moved_wall_side",
+                    Margin::of((p - p0).dot(m)),
+                    band
+                )?,
+                Sign::Negative
+            );
+            sides.push((v, s));
+            Ok::<bool, Indeterminate>(s)
+        };
+        let mut crossings: Vec<T> = Vec::new();
+        let mut out = Vec::new();
+        for edge in &self.edges {
+            let (p, q) = (edge.start.1, edge.end.1);
+            if side_of(edge.start)? != side_of(edge.end)? {
+                let (sp, sq) = ((p - p0).dot(m), (q - p0).dot(m));
+                let x = p + (q - p) * (sp / (sp - sq));
+                crossings.push((x - p0).dot(d));
+            }
+            if let Some((c, rho)) = edge.ball {
+                let w = c - p0;
+                let along = w.dot(d);
+                let perp2 = (w.dot(w) - along * along).max(T::zero());
+                if !matches!(
+                    decide(
+                        "shell_moved_wall_ball_reach",
+                        Margin::of(rho - perp2.sqrt()),
+                        band
+                    )?,
+                    Sign::Negative
+                ) {
+                    let half = (rho * rho - perp2).max(T::zero()).sqrt();
+                    out.push((along - half, along + half));
+                }
+            }
+        }
+        let centre = |x: &T| {
+            let x = *x;
+            0.5 * (x.lo() + x.hi())
+        };
+        crossings.sort_by(|x, y| centre(x).total_cmp(&centre(y)));
+        // Parity over closed loops: every vertex has one side, so each
+        // loop crosses `L` an even number of times.
+        out.extend(crossings.chunks_exact(2).map(|pair| (pair[0], pair[1])));
+        Ok(out)
+    }
+}
+
+/// Every planar face of the moved `cavity`, read for
+/// [`moved_walls_cross`].
+#[track_caller]
+fn moved_walls<T: Decide>(
+    cavity: &Body<T>,
+    partition: &crate::offset_together::Scope,
+) -> Vec<MovedWall<T>> {
+    let mut out = Vec::new();
+    for (face, data) in cavity.faces() {
+        let geom::Surface::Plane { origin, normal, .. } = cavity.face_surface_linked(face, data)
+        else {
+            continue;
+        };
+        let (origin, normal) = (*origin, *normal);
+        let mut edges = Vec::new();
+        let mut vertices = Vec::new();
+        let mut points = Vec::new();
+        for (_, cycle) in crate::pcurves::face_loop_walks(cavity, face) {
+            let ends: Vec<(VertexKey, geom_core::Point3<T>)> = cycle
+                .iter()
+                .map(|&he| {
+                    let h = proven(&cavity.half_edges, he, EntityId::HalfEdge);
+                    let at = cavity.linked_vertex_point(h.start, EntityId::HalfEdge(he), "start");
+                    (h.start, at)
+                })
+                .collect();
+            for (i, &he) in cycle.iter().enumerate() {
+                let h = proven(&cavity.half_edges, he, EntityId::HalfEdge);
+                let edge = linked(
+                    &cavity.edges,
+                    h.edge,
+                    EntityId::Edge,
+                    EntityId::HalfEdge(he),
+                    "edge",
+                );
+                let ball = cavity
+                    .edge_curve_linked(h.edge, edge)
+                    .certified()
+                    .filter(|curve| !matches!(curve.carrier(), geom::Curve3::Line { .. }))
+                    .map(|curve| {
+                        crate::splitting::containment::carrier_ball(curve.carrier(), curve.params())
+                            .unwrap_or_else(|| {
+                                unreachable!("a certified spline carrier has control points")
+                            })
+                    });
+                if let Some((c, rho)) = ball {
+                    let r = geom_core::Vec3::new(rho, rho, rho);
+                    points.extend([c - r, c + r]);
+                }
+                points.push(ends[i].1);
+                if !vertices.contains(&ends[i].0) {
+                    vertices.push(ends[i].0);
+                }
+                edges.push(BoundaryEdge {
+                    start: ends[i],
+                    end: ends[(i + 1) % ends.len()],
+                    ball,
+                });
+            }
+        }
+        let Some((&first, rest)) = points.split_first() else {
+            continue;
+        };
+        let (lo, hi) = rest.iter().fold((first, first), |(lo, hi), p| {
+            (
+                geom_core::Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z)),
+                geom_core::Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z)),
+            )
+        });
+        out.push(MovedWall {
+            face,
+            solid: partition.solid_of(face).unwrap_or_else(|| {
+                unreachable!(
+                    "{face:?} is in no solid's walk: the cavity is a clone of the operand, so \
+                     the operand's partition walks every face of it"
+                )
+            }),
+            origin,
+            normal,
+            edges,
+            vertices,
+            lo,
+            hi,
+        });
+    }
+    out
+}
+
+/// Are the two walls' boxes definitely apart on some axis? `false` on
+/// any ambiguity, which reads the pair.
+fn boxes_apart<T: Decide>(a: &MovedWall<T>, b: &MovedWall<T>, band: Band) -> bool {
+    let apart = |gap: T| {
+        matches!(
+            decide("shell_moved_walls_apart", Margin::of(gap), band),
+            Ok(Sign::Positive)
+        )
+    };
+    apart(b.lo.x - a.hi.x)
+        || apart(a.lo.x - b.hi.x)
+        || apart(b.lo.y - a.hi.y)
+        || apart(a.lo.y - b.hi.y)
+        || apart(b.lo.z - a.hi.z)
+        || apart(a.lo.z - b.hi.z)
 }
 
 /// The signed distance that moves `face` INTO the material: the

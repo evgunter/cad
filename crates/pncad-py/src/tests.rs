@@ -6010,6 +6010,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "lift",
             "no_solid",
             "not_valid",
+            "offsets_cross",
             "open_face_chart_partial",
             "open_face_repeated",
             "open_face_rim_not_expressible",
