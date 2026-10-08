@@ -824,13 +824,15 @@ pub enum SessionOp {
     /// **Duplicate one body**: a copy stepped clear of the picked body,
     /// drawn and editable on its own.
     ///
-    /// **The copy is a `Node::Transform` of the body, placed** — two
-    /// inserts, one action, one undo: the transform and its identity
-    /// world placement (A10). The original's placements are untouched.
-    /// A transform rather than a second placement of the body, because
-    /// a feature gesture re-points every placement of its target: a
-    /// copy that were the same body would take every fillet authored on
-    /// the original, and the original every one authored on it.
+    /// **A duplicate is a pattern of two, its copy projected and
+    /// placed** — a `Node::Pattern` of count
+    /// [`crate::combine::DUPLICATE_COUNT`] over the body, a `Node::Part`
+    /// picking its second instance, and that projection's identity
+    /// world placement (A10). Three inserts, one action, one undo. The
+    /// original's placements are untouched. The copy is a body of its
+    /// own rather than a second placement of the original, because a
+    /// feature gesture re-points every placement of its target body
+    /// (`work/chrome/a-feature-gesture-re-points-every-copy-of-its-target.md`).
     ///
     /// **The step is measured, not fixed**
     /// ([`crate::combine::duplicate_step`]): along
@@ -840,9 +842,10 @@ pub enum SessionOp {
     /// CURRENT document, so this door refuses ([`Refusal::Duplicate`])
     /// before anything has landed, while an edit has not landed yet,
     /// and for an input whose value is several bodies — which the body
-    /// seat's node-kind gate admits for a transform of a pattern. The
-    /// step lands in the transform's ordinary translation slots and is
-    /// edited in the property panel afterwards.
+    /// seat's node-kind gate admits for a transform of a pattern, and
+    /// which a pattern of two would index in place, adding nothing.
+    /// Both numbers land in the pattern's ordinary slots and are edited
+    /// in the property panel afterwards.
     Duplicate {
         /// The body duplicated.
         input: RecipeNodeId,

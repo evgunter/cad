@@ -2615,7 +2615,7 @@ fn a_pattern_places_nothing_and_a_projection_places_its_copy() {
 /// it** — the gesture Ev asked for, in the world's terms: the copy is a
 /// transform of the body, placed in the same action.
 #[test]
-fn duplicating_a_body_places_a_transformed_copy_beside_it() {
+fn duplicating_a_body_places_its_patterned_copy_beside_it() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
@@ -2624,19 +2624,27 @@ fn duplicating_a_body_places_a_transformed_copy_beside_it() {
 
     let outcome = session.perform(SessionOp::Duplicate { input: body });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 2, "a transform and its placement");
+    assert_eq!(
+        outcome.committed.len(),
+        3,
+        "a pattern of two, its copy's projection, and that projection's placement"
+    );
     let minted = outcome.minted.clone();
-    let [copy, placement] = minted[..] else {
-        panic!("two inserts mint two ids: {minted:?}");
+    let [pattern, copy, placement] = minted[..] else {
+        panic!("three inserts mint three ids: {minted:?}");
     };
     let doc = session.committed_doc();
-    let Some(Node::Transform { input, .. }) = doc.node(copy) else {
-        panic!("the copy is a transform");
+    let Some(Node::Pattern { input, .. }) = doc.node(pattern) else {
+        panic!("the duplicate is a pattern");
     };
     assert_eq!(
         Some(*input),
         doc.output(body, 0),
         "of the body it duplicates"
+    );
+    assert!(
+        matches!(doc.node(copy), Some(Node::Part { .. })),
+        "the copy is the pattern's second instance, projected"
     );
     assert!(
         matches!(doc.node(placement), Some(Node::PlaceInWorld { .. })),
@@ -2656,7 +2664,7 @@ fn duplicating_a_body_places_a_transformed_copy_beside_it() {
     assert_eq!(separation_findings(&mut session), 0, "and they do not meet");
 }
 
-/// **One gesture, one undo**: the two inserts are one action, so one
+/// **One gesture, one undo**: the three inserts are one action, so one
 /// `Undo` puts the document back exactly as it was.
 #[test]
 fn duplicating_is_one_undo() {
@@ -2677,7 +2685,7 @@ fn duplicating_is_one_undo() {
     );
     assert!(
         session.committed_doc().bit_eq(&before),
-        "one undo puts back both inserts, bit for bit",
+        "one undo puts back all three inserts, bit for bit",
     );
 }
 
@@ -2693,8 +2701,8 @@ fn a_duplicates_copy_moves_on_its_own() {
     let one = A[0] * A[1] * A[2];
     let outcome = session.perform(SessionOp::Duplicate { input: body });
     let minted = outcome.minted.clone();
-    let [copy, _placement] = minted[..] else {
-        panic!("two inserts mint two ids: {minted:?}");
+    let [_pattern, copy, _placement] = minted[..] else {
+        panic!("three inserts mint three ids: {minted:?}");
     };
 
     let placed = session_insert(
@@ -2958,26 +2966,40 @@ fn picked_from_above(session: &DocSession, x: f64, y: f64) -> Selection {
     Selection::Face(common::asm::pick_face(session, &common::asm::down_at(x, y)))
 }
 
-/// A duplicate's step, read back off the committed copy: its
-/// translation along each axis, which the door authors literal.
-fn step_of(session: &DocSession, copy: RecipeNodeId) -> [f64; 3] {
+/// A duplicate's step, read back off the committed pattern: its
+/// direction scaled by its spacing, which the door authors literal.
+fn step_of(session: &DocSession, pattern: RecipeNodeId) -> [f64; 3] {
     let doc = session.committed_doc();
-    assert!(
-        matches!(doc.node(copy), Some(Node::Transform { .. })),
-        "a duplicate's copy is a transform"
-    );
-    [Axis3::X, Axis3::Y, Axis3::Z].map(|axis| {
-        let expr = doc
-            .slot_expansion(copy, SlotId::Translation(axis))
-            .expect("a transform carries its translation");
-        expr.literal_value()
-            .expect("the door authors a literal step")
+    let Some(Node::Pattern {
+        kind: PatternKind::Linear { direction, .. },
+        ..
+    }) = doc.node(pattern)
+    else {
+        panic!("a duplicate is a linear pattern");
+    };
+    let spacing = spacing_of(session, pattern);
+    direction.map(|c| {
+        doc.written(&Expr::var(c, Dimension::Scalar))
+            .literal_value()
+            .expect("a literal component")
+            * spacing
     })
 }
 
-/// The step's length along [`STEP_DIRECTION`], which is world +x.
-fn spacing_of(session: &DocSession, copy: RecipeNodeId) -> f64 {
-    step_of(session, copy)[0]
+/// The pattern's spacing: the step's length along [`STEP_DIRECTION`].
+fn spacing_of(session: &DocSession, pattern: RecipeNodeId) -> f64 {
+    let Some(Node::Pattern {
+        kind: PatternKind::Linear { spacing, .. },
+        ..
+    }) = session.committed_doc().node(pattern)
+    else {
+        panic!("a duplicate is a linear pattern");
+    };
+    session
+        .committed_doc()
+        .written(&Expr::var(*spacing, Dimension::Length))
+        .literal_value()
+        .expect("the door authors a literal spacing")
 }
 
 /// The separation findings the landed checks report.
@@ -3001,10 +3023,10 @@ fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
     let outcome = session.perform(SessionOp::Duplicate { input: body });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let minted = outcome.minted.clone();
-    let [copy, _placement] = minted[..] else {
-        panic!("two inserts mint two ids: {minted:?}");
+    let [pattern, copy, _placement] = minted[..] else {
+        panic!("three inserts mint three ids: {minted:?}");
     };
-    let step = spacing_of(&session, copy);
+    let step = spacing_of(&session, pattern);
     let moved = session_insert(
         &mut session,
         SessionOp::AddTransform {
@@ -3088,14 +3110,14 @@ fn duplicating_a_moved_copy_picked_in_the_viewport_duplicates_the_copy() {
         .expect("the pick filled the seat");
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let copy = outcome.minted[0];
-    let Some(Node::Transform { input, .. }) = session.committed_doc().node(copy) else {
-        panic!("a transform");
+    let pattern = outcome.minted[0];
+    let Some(Node::Pattern { input, .. }) = session.committed_doc().node(pattern) else {
+        panic!("a pattern");
     };
     assert_eq!(
         Some(*input),
         session.committed_doc().output(moved, 0),
-        "the copy is of the moved copy"
+        "the pattern replicates the moved copy"
     );
     assert_eq!(
         separation_findings(&mut session),

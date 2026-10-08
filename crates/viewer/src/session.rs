@@ -2954,14 +2954,15 @@ impl DocSession {
         self.create_placed(combine::part_node(of, select))
     }
 
-    /// Duplicate one body ([`SessionOp::Duplicate`]): a transform of
-    /// it stepped clear, and that copy's identity world placement.
+    /// Duplicate one body ([`SessionOp::Duplicate`]): a pattern of two
+    /// stepped clear, and its second copy's projection placed in the
+    /// world.
     ///
-    /// **Two inserts as ONE action and therefore one undo**, the shape
-    /// [`Self::create_placed`] takes: the copy is a creation, so it is
-    /// placed where the person can see it. The original's placements
-    /// are untouched, and the copy is a body of its own — a feature
-    /// authored on it re-points the copy's placement alone.
+    /// **Three inserts as ONE action and therefore one undo.** The
+    /// original stays placed where it was; the copy is a creation, so
+    /// it is placed where the person can see it, and it is a body of
+    /// its own — a feature authored on it re-points the copy's
+    /// placement alone.
     fn add_duplicate(&mut self, input: RecipeNodeId) -> OpOutcome {
         if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
@@ -2982,12 +2983,19 @@ impl DocSession {
             Ok(step) => step,
             Err(fault) => return OpOutcome::refused(Refusal::Duplicate(fault)),
         };
-        let copy = combine::duplicate_translation(step)
-            .and_then(|translation| combine::duplicate_node(input, translation));
-        match copy {
-            Ok(copy) => self.create_placed(copy),
-            Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
-        }
+        let pattern = match combine::duplicate_rule(step) {
+            Ok(rule) => combine::pattern_node(input, combine::DUPLICATE_COUNT, rule),
+            Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
+        };
+        self.commit_run(|run| {
+            let pattern = run.insert(pattern)?;
+            let copy = run.insert(combine::part_node(
+                pattern,
+                PartSelectSpec::Instance(combine::DUPLICATE_COUNT - 1),
+            ))?;
+            run.apply(DocEdit::place(copy, None))?;
+            Ok(())
+        })
     }
 
     /// Insert one blend — fillet or chamfer — on a set of an existing

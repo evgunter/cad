@@ -2,8 +2,9 @@
 id: inline-refuses-a-posed-instance-a-placement-pose-could-take
 kind: issue
 title: Inline refuses UnplaceableFrame for a posed instance of plain geometry, though the part's placement now carries a pose that could take the frame
-status: open
+status: closed
 opened: 2026-10-08
+closed: 2026-10-08
 ---
 
 
@@ -25,3 +26,10 @@ frame. Whether inline should compose poses is a design question (it
 changes A4's inline rule); the rows that pin today's refusal are
 `asm4_split_inline::row3_further_typed_refusals` and
 `node_labels::an_inline_refusal_speaks_host_nodes_from_the_host_and_part_nodes_from_the_part`.
+
+## Closed
+
+Superseded by stage 3 (`[ev]` #4326; orchestrator ruling on PR #4359).
+A placement's pose is a transient interim that only the gather and
+export read as position, so inline does not compose a frame into it;
+stage 3 replaces the pose, and with it the refusal this row asked about.

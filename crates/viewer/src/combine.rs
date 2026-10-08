@@ -912,8 +912,8 @@ fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) ->
     Some(hi - lo)
 }
 
-/// The translation a duplicate's copy is moved by: [`STEP_DIRECTION`]
-/// stepped by `step` metres ([`duplicate_step`]'s answer).
+/// The pattern rule a duplicate commits: [`STEP_DIRECTION`] stepped by
+/// `step` metres ([`duplicate_step`]'s answer).
 ///
 /// # Errors
 ///
@@ -921,40 +921,19 @@ fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) ->
 /// [`duplicate_step`] never answers — and it is a `Result` for
 /// [`crate::session::ProfilePlane::world_xy`]'s reason: whether a
 /// number is authorable keeps ONE home, the expression door.
-pub fn duplicate_translation(step: f64) -> Result<[Formula; 3], pncad::document::DimensionError> {
-    use pncad::document::Dimension;
-    let [x, y, z] = STEP_DIRECTION;
-    Ok([
-        Formula::literal(x * step, Dimension::Length)?,
-        Formula::literal(y * step, Dimension::Length)?,
-        Formula::literal(z * step, Dimension::Length)?,
-    ])
-}
-
-/// **A duplicate's copy**: the transform of `input` by `translation`
-/// ([`duplicate_translation`]), unrotated — a body of its own, so a
-/// feature authored on the copy re-points the copy's placement and
-/// leaves the original's alone.
-///
-/// # Errors
-///
-/// [`pncad::document::DimensionError`] for [`duplicate_translation`]'s
-/// reason.
-pub fn duplicate_node(
-    input: RecipeNodeId,
-    translation: [Formula; 3],
-) -> Result<AuthoredNode, pncad::document::DimensionError> {
+pub fn duplicate_rule(step: f64) -> Result<PatternRuleSpec, pncad::document::DimensionError> {
     use pncad::document::Dimension;
     let scalar = |v: f64| Formula::literal(v, Dimension::Scalar);
-    Ok(Node::transform(
-        input,
-        pncad::document::Step::Rigid {
-            translation,
-            axis: [scalar(0.0)?, scalar(0.0)?, scalar(1.0)?],
-            angle: Formula::literal(0.0, Dimension::Angle)?,
-        },
-    ))
+    let [x, y, z] = STEP_DIRECTION;
+    Ok(PatternRuleSpec::Linear {
+        direction: [scalar(x)?, scalar(y)?, scalar(z)?],
+        spacing: Formula::literal(step, Dimension::Length)?,
+    })
 }
+
+/// **How many bodies a duplicate's pattern holds**: the original and
+/// one copy.
+pub const DUPLICATE_COUNT: i64 = 2;
 
 /// Lower one part spec to its node, minting the STRUCTURAL index.
 ///
