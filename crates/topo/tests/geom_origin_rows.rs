@@ -261,7 +261,7 @@ fn revert_twice_leaves_both_channels_identical() {
     let o0 = origins(&stamped);
     let a0 = arms(&stamped);
 
-    let once = stamped.revert().unwrap();
+    let once = stamped.revert();
     assert_eq!(arms(&once), a0, "a reversal does not move an origin's arm");
     assert_ne!(sources(&once), s0, "N6's orient tag flipped");
     assert_ne!(
@@ -270,7 +270,7 @@ fn revert_twice_leaves_both_channels_identical() {
         "the Recipe arm carries the source, so it flips with it"
     );
 
-    let twice = once.revert().unwrap();
+    let twice = once.revert();
     assert_eq!(sources(&twice), s0);
     assert_eq!(origins(&twice), o0);
 }
@@ -282,7 +282,7 @@ fn revert_twice_leaves_both_channels_identical() {
 fn revert_preserves_a_non_recipe_origin() {
     let mut b = unit_brick();
     b.mark_imported();
-    let once = b.revert().unwrap();
+    let once = b.revert();
     for (k, _) in once.surfaces() {
         assert_eq!(once.surface_origin(k), Some(&GeomOrigin::Imported));
     }
@@ -309,7 +309,7 @@ fn a_second_transform_and_a_revert_keep_the_cleared_mark() {
     let once = transform_rigid(&stamped, &aside(), tol).unwrap();
     let twice = transform_rigid(&once, &aside(), tol).unwrap();
     assert_eq!(twice.surface_origin(k), Some(&GeomOrigin::Cleared));
-    let reverted = twice.revert().unwrap();
+    let reverted = twice.revert();
     assert_eq!(reverted.surface_origin(k), Some(&GeomOrigin::Cleared));
 }
 
@@ -414,7 +414,7 @@ fn an_origin_rides_the_graft_and_the_destination_keeps_its_own() {
     let mut src = unit_brick();
     src.mark_imported();
     let src = transform_rigid(&src, &aside(), tol).unwrap();
-    graft_disjoint(&mut dst, &src, tol).unwrap();
+    graft_disjoint(&mut dst, &src).unwrap();
 
     let grafted: Vec<_> = dst
         .surfaces()
@@ -442,7 +442,7 @@ fn a_graft_carries_the_point_and_curve_origins_too() {
     let mut src = unit_brick();
     src.mark_imported();
     let src = transform_rigid(&src, &aside(), tol).unwrap();
-    graft_disjoint(&mut dst, &src, tol).unwrap();
+    graft_disjoint(&mut dst, &src).unwrap();
 
     let mut grafted_p = 0usize;
     for (k, _) in dst.points() {

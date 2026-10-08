@@ -13,15 +13,17 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocParam, DocParamValue,
-    DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, ParamName,
-    PersistError, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, Selector, SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload,
-    apply, evaluate, face_frame, load, save, select_where, vertex_position,
+    AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocumentId, EditError,
+    EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError,
+    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
+    SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
+    face_frame, load, save, select_where, vertex_position,
 };
 use fixture::{ang, len, len2, scl};
 use geom_core::Tol;
@@ -42,10 +44,13 @@ fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Profil
         .doc
 }
 
-fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn insert(doc: &editor_core::ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
-        &DocEdit::InsertNode { node },
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
@@ -53,14 +58,14 @@ fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (Profile
     (applied.doc, applied.record.minted.expect("insert mints"))
 }
 
-fn no_params() -> editor_core::ParamEnv<f64> {
-    ProfileDoc::empty_derived("m10-2-r1-noparams", Tol::witness()).param_env::<f64>()
+fn no_params() -> editor_core::VarEnv<f64> {
+    ProfileDoc::empty_derived("m10-2-r1-noparams", Tol::witness()).var_env::<f64>()
 }
 
 fn faces_of_kind(
     ev: &Evaluation<f64>,
     body: RecipeNodeId,
-    kind: geom_brep::SurfaceKind,
+    kind: geom::SurfaceKind,
 ) -> Vec<StableName> {
     let mut faces = select_where(
         ev,
@@ -111,14 +116,14 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-slab"), Tol::witness());
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
-            value: DocParam::Continuous {
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("depth"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: DEPTH,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
-            },
+            }),
         },
     );
     let outer = LoopProgram::Chain(vec![
@@ -141,7 +146,8 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::param(ParamName::new("depth"), Dimension::Length),
+            distance: Formula::named(VarName::from_static("depth"), Dimension::Length),
+            side: ExtrudeSide::Along,
         },
     );
     (doc, slab)
@@ -151,14 +157,13 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
 /// door: the faces whose carrier axis is ±ẑ. Returned bottom (z≈0)
 /// first.
 fn caps(ev: &Evaluation<f64>, slab: RecipeNodeId) -> [StableName; 2] {
-    let mut z_faces: Vec<(f64, StableName)> =
-        faces_of_kind(ev, slab, geom_brep::SurfaceKind::Plane)
-            .into_iter()
-            .filter_map(|name| {
-                let pose = face_frame(ev, slab, &name).expect("a plane face has a frame");
-                (pose.axis.z.abs() > 0.99).then_some((pose.origin.z, name))
-            })
-            .collect();
+    let mut z_faces: Vec<(f64, StableName)> = faces_of_kind(ev, slab, geom::SurfaceKind::Plane)
+        .into_iter()
+        .filter_map(|name| {
+            let pose = face_frame(ev, slab, &name).expect("a plane face has a frame");
+            (pose.axis.z.abs() > 0.99).then_some((pose.origin.z, name))
+        })
+        .collect();
     z_faces.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     assert_eq!(z_faces.len(), 2, "a slab has two z-normal caps");
     let mut it = z_faces.into_iter().map(|(_, n)| n);
@@ -290,7 +295,7 @@ fn r1_plane_angles_have_the_authored_values() {
     let (doc, slab) = slab();
     let ev = eval(&doc);
     let [bottom, top] = caps(&ev, slab);
-    let all_planes = faces_of_kind(&ev, slab, geom_brep::SurfaceKind::Plane);
+    let all_planes = faces_of_kind(&ev, slab, geom::SurfaceKind::Plane);
     let x_wall = all_planes
         .iter()
         .find(|n| {
@@ -457,11 +462,11 @@ fn r1_sphere_gap_three_regimes_on_revolved_balls() {
         let (doc, socket) = ball(&doc, 1.0, 0.0);
         let (doc, pin) = ball(&doc, 0.25, c);
         let ev = eval(&doc);
-        let socket_face = faces_of_kind(&ev, socket, geom_brep::SurfaceKind::Sphere)
+        let socket_face = faces_of_kind(&ev, socket, geom::SurfaceKind::Sphere)
             .first()
             .expect("the socket revolve mints a sphere face")
             .clone();
-        let ball_face = faces_of_kind(&ev, pin, geom_brep::SurfaceKind::Sphere)
+        let ball_face = faces_of_kind(&ev, pin, geom::SurfaceKind::Sphere)
             .first()
             .expect("the ball revolve mints a sphere face")
             .clone();
@@ -505,6 +510,7 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
         Node::Extrude {
             profile: p1,
             distance: len(0.1),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, p2) = insert(&doc, circle(off, pin_r));
@@ -513,6 +519,7 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
         Node::Extrude {
             profile: p2,
             distance: len(0.1),
+            side: ExtrudeSide::Along,
         },
     );
     let _ = p2;
@@ -530,7 +537,7 @@ fn at_mint<const N: usize>(names: [StableName; N]) -> Vec<SitedRef> {
 }
 
 fn wall(ev: &Evaluation<f64>, node: RecipeNodeId) -> StableName {
-    faces_of_kind(ev, node, geom_brep::SurfaceKind::Cylinder)
+    faces_of_kind(ev, node, geom::SurfaceKind::Cylinder)
         .first()
         .expect("a circular extrude mints a cylinder wall")
         .clone()
@@ -632,6 +639,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
         Node::Extrude {
             profile: p1,
             distance: len(0.1),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, p2) = insert(
@@ -650,6 +658,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
         Node::Extrude {
             profile: p2,
             distance: len(0.1),
+            side: ExtrudeSide::Along,
         },
     );
     let ev = eval(&doc);
@@ -879,18 +888,20 @@ fn r1_ops_refuse_measurement_operands_typed() {
             op: editor_core::BooleanOp::Subtract,
             a: slab,
             b: a,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // Transform of the MEASURE's id.
     let (doc, moved_measure) = insert(
         &doc,
-        Node::Transform {
-            input: m,
-            translation: [len(0.1), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            m,
+            editor_core::Step::Rigid {
+                translation: [len(0.1), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let ev = eval(&doc);
     for id in [bool_over_verdict, moved_measure] {
@@ -923,16 +934,18 @@ fn r1_a_wall_selected_from_a_transform_measures_the_unmoved_carrier() {
     let (doc, bore, pin) = cylinders(0.3, 0.2, 0.5);
     let (doc, moved) = insert(
         &doc,
-        Node::Transform {
-            input: pin,
-            translation: [len(0.25), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            pin,
+            editor_core::Step::Rigid {
+                translation: [len(0.25), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
     let ev = eval(&doc);
     let bore_wall = wall(&ev, bore);
-    let transform_walls = faces_of_kind(&ev, moved, geom_brep::SurfaceKind::Cylinder);
+    let transform_walls = faces_of_kind(&ev, moved, geom::SurfaceKind::Cylinder);
     assert!(
         !transform_walls.is_empty(),
         "the moved body still has its wall"
@@ -998,41 +1011,36 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     let doc = corruptible();
     let text = save(&doc, &[], Tol::witness()).expect("saves");
 
-    // (a) The bound's dimension: Length → Angle. The bound literal is
-    // distinctive, so locate its dim line relative to it.
+    // (a) The bound's dimension: Length → Angle. The bound is written
+    // as a distinctive value, so its variable is found by it.
     //
-    // The UNIT moves with the dim, and must: since v20 every literal
-    // names the notation it was written in, so a literal whose dim said
-    // `Angle` while its unit said `m` is corrupt in a NEARER way, and
-    // the wire rebuild refuses it as a display-unit mismatch before the
-    // snapshot walk this row is about ever runs. Moving both keeps the
-    // literal well-formed and leaves exactly one thing wrong with the
-    // document — the bound's dimension against its measure — which is
-    // what this row is here to pin.
-    let target =
-        "\"value\": 0.777,\n              \"dim\": \"Length\",\n              \"unit\": \"m\"";
-    let (target, replacement) = if text.contains(target) {
-        (
-            target.to_string(),
-            target
-                .replace("Length", "Angle")
-                .replace("\"m\"", "\"rad\""),
-        )
-    } else {
-        // Fall back to a whitespace-insensitive locate: find the literal,
-        // then the next "Length" and the unit after it.
-        let at = text
-            .find("0.777")
-            .expect("the bound literal is in the file");
-        let unit_at = text[at..].find("\"m\"").expect("its unit follows") + at;
-        let t = &text[at..unit_at + 3];
-        (
-            t.to_string(),
-            t.replace("Length", "Angle").replace("\"m\"", "\"rad\""),
-        )
+    // The kind, the dimension and the UNIT all move, and must: a
+    // variable whose kind said `Angle` while its unit said `m` is
+    // corrupt in a NEARER way, refused before the snapshot walk this
+    // row is about ever runs. Moving all three keeps the variable
+    // well-formed and leaves exactly one thing wrong with the document
+    // — the bound's dimension against its measure — which is what this
+    // row is here to pin.
+    let (header, body) = text.split_once('\n').expect("a header line");
+    let mut wire: serde_json::Value = serde_json::from_str(body).expect("a JSON body");
+    let bound: Vec<String> = wire["snapshot"]["vars"]
+        .as_object()
+        .expect("a variable table")
+        .iter()
+        .filter(|(_, var)| var["def"]["Free"]["Continuous"]["value"] == serde_json::json!(0.777))
+        .map(|(id, _)| id.clone())
+        .collect();
+    let [bound] = &bound[..] else {
+        panic!("one variable holds the bound, got {bound:?}")
     };
-    assert_eq!(text.matches(&target).count(), 1);
-    let corrupt = text.replace(&target, &replacement);
+    let held = &mut wire["snapshot"]["vars"][bound.as_str()];
+    held["kind"] = serde_json::json!("Angle");
+    held["def"]["Free"]["Continuous"]["dim"] = serde_json::json!("Angle");
+    held["def"]["Free"]["Continuous"]["display_unit"] = serde_json::json!("rad");
+    let corrupt = format!(
+        "{header}\n{}",
+        serde_json::to_string(&wire).expect("re-emit")
+    );
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionBound {
             measured: Dimension::Length,
@@ -1042,29 +1050,36 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
         other => panic!("a mismatched bound dim must refuse AssertionBound, got {other:?}"),
     }
 
-    // (b) The assertion's target: point it at the sketch FRAME (node
-    // 0), which is not a measure. The slab is frame 0 + profile 1 +
-    // extrude 2, so the measure is node 3.
-    let target = "\"measure\": 3";
-    assert_eq!(text.matches(target).count(), 1, "{target:?} must be unique");
-    let corrupt = text.replace(target, "\"measure\": 0");
+    // (b) The assertion's target: point it at the sketch FRAME (the
+    // first node), which is not a measure. The slab is frame, profile
+    // and extrude, so the measure is the fourth node.
+    let [frame, _, extrude, measure] = doc.ids()[..4] else {
+        panic!("a slab and its measure");
+    };
+    let target = format!("\"measure\": \"{}\"", measure.0);
+    assert_eq!(
+        text.matches(&target).count(),
+        1,
+        "{target:?} must be unique"
+    );
+    let corrupt = text.replace(&target, &format!("\"measure\": \"{}\"", frame.0));
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::AssertionTarget { .. })) => {}
         other => panic!("a non-measure target must refuse AssertionTarget, got {other:?}"),
     }
 
     // (c) A reference whose minting node does not exist. The refs are
-    // minted by the extrude (node 2).
-    let target = "\"node\": 2,";
-    let n = text.matches(target).count();
-    assert!(n >= 1, "the measure's refs name node 2");
-    let corrupt = text.replacen(target, "\"node\": 77,", 1);
+    // minted by the extrude.
+    let target = format!("\"node\": \"{}\",", extrude.0);
+    let n = text.matches(&target).count();
+    assert!(n >= 1, "the measure's refs name the extrude");
+    let corrupt = text.replacen(&target, "\"node\": \"0:000000000000004d\",", 1);
     match load(&corrupt, Tol::witness()) {
-        // Two typed gates can own this corruption: the id-counter
+        // Two typed gates can own this corruption: the mint-log
         // check (77 was never minted) or the dangling-input walk.
         // Either is a loud load-door refusal, which is the claim.
         Err(PersistError::Snapshot(
-            SnapshotError::DanglingInput { .. } | SnapshotError::IdBeyondCounter { .. },
+            SnapshotError::DanglingInput { .. } | SnapshotError::NodeNotMinted { .. },
         )) => {}
         other => panic!("a dangling minting node must refuse typed at load, got {other:?}"),
     }
@@ -1081,20 +1096,24 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     let [bottom, top] = caps(&ev, slab);
     let expr = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(ParamName::new("ghost"), Dimension::Length)),
+        MeasureExpr::value(Formula::named(
+            VarName::from_static("ghost"),
+            Dimension::Length,
+        )),
     )
     .expect("Length - Length");
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::measure(expr, at_mint([bottom, top])).expect("indices in range"),
+            node: Box::new(Node::measure(expr, at_mint([bottom, top])).expect("indices in range")),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
     .expect_err("an undeclared parameter refuses");
     assert!(
-        matches!(err, EditError::PayloadUnknownDocParam { .. }),
+        matches!(err, EditError::PayloadUnknownVarName { .. }),
         "got {err:?}"
     );
 }
@@ -1109,14 +1128,14 @@ fn r1_own_document_web_and_flip() {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-r1-web"), Tol::witness());
     doc = push(
         &doc,
-        &DocEdit::SetDocParam {
-            name: ParamName::new("r"),
-            value: DocParam::Continuous {
+        &DocEdit::DeclareVar {
+            name: VarName::from_static("r"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 0.1,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
                 distribution: None,
-            },
+            }),
         },
     );
     let (doc, xy) = insert(&doc, fixture::xy_frame());
@@ -1125,7 +1144,7 @@ fn r1_own_document_web_and_flip() {
             plane: xy,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
-                radius: Expr::param(ParamName::new("r"), Dimension::Length),
+                radius: Formula::named(VarName::from_static("r"), Dimension::Length),
             }],
             ids: Vec::new(),
         })
@@ -1136,6 +1155,7 @@ fn r1_own_document_web_and_flip() {
         Node::Extrude {
             profile: p1,
             distance: len(0.05),
+            side: ExtrudeSide::Along,
         },
     );
     let (d4, p2) = insert(&d3, circle(0.25));
@@ -1144,11 +1164,12 @@ fn r1_own_document_web_and_flip() {
         Node::Extrude {
             profile: p2,
             distance: len(0.05),
+            side: ExtrudeSide::Along,
         },
     );
     let _ = p2;
     let ev = eval(&d5);
-    let r = || MeasureExpr::value(Expr::param(ParamName::new("r"), Dimension::Length));
+    let r = || MeasureExpr::value(Formula::named(VarName::from_static("r"), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(r(), r()).expect("Length + Length"),
@@ -1174,9 +1195,9 @@ fn r1_own_document_web_and_flip() {
     // r → 0.24: web = 0.5 − 0.48 = 0.02 < 0.05: Violated, both numbers.
     let d8 = push(
         &d7,
-        &DocEdit::SetDocParamValue {
-            name: ParamName::new("r"),
-            value: DocParamValue::Continuous(0.24),
+        &DocEdit::SetVarValue {
+            var: VarName::from_static("r").into(),
+            value: FreeValue::Continuous(0.24),
         },
     );
     match verdict(&eval(&d8), a) {

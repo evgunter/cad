@@ -18,8 +18,8 @@ Found by CONTACT-11's review (MINOR-4).
 CAD file with an L-shaped torus or cone face reaches the trims'
 chart-box checks, `torus_chart_windows` and `cone_trimmed_window` in
 `crates/topo/src/boolean/solid_contain.rs`. Today no boolean can mint
-such a face: `topo::subtract` refuses the torus × plane pair at
-`RevertRoster` (`crates/sweep/tests/contact11_torus_chart_l.rs`).
+such a face: `topo::subtract` refuses the torus × plane pair
+(`GermFrameUnsupported`) (`crates/sweep/tests/contact11_torus_chart_l.rs`).
 
 ## What is guarded, and what is missing
 

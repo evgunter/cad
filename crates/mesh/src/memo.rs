@@ -40,10 +40,8 @@
 //! boundary, not from the stored plane.
 //!
 //! The curved lane additionally reads the surface's fields (the chart),
-//! the face's `sense` (the pole-to-pole band's azimuth choice), each
-//! edge description's `seam` flag (`topo::chart_iso::classify_kind`
-//! reads it before the carrier) and the identity structure of the
-//! edges' split-lineage carriers (`geom_brep::props`' torus folding
+//! the face's `sense` (the pole-to-pole band's azimuth choice) and the
+//! identity structure of the edges' split-lineage carriers (`geom_brep::props`' torus folding
 //! asks whether two arcs are pieces of one original edge) — the last
 //! folded as a relabeling, like the chord ids, since a root edge key
 //! is an arena key.
@@ -87,8 +85,10 @@
 
 use std::collections::HashMap;
 
-use geom::{Curve3, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::{EdgeDescription, Pcurve};
+use geom::{
+    Curve3, CurveData, DatumValue, NurbsCurve2, NurbsCurve3, NurbsSurface, Surface, SurfaceData,
+};
+use geom_brep::{FocalImage, Pcurve, SpiricImage};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use topo::{Body, FaceKey};
@@ -699,9 +699,6 @@ pub(crate) struct EdgeInputs {
     pub(crate) chord_params: Vec<f64>,
     /// The half-edge's stored pcurve, if any (the trimmed lane's).
     pub(crate) pcurve: Option<Pcurve<f64>>,
-    /// Whether the edge's description marks it a chart seam (the
-    /// curved lane's classification reads this before the carrier).
-    pub(crate) seam: bool,
     /// The edge's split-lineage root, as an identity: `None` where the
     /// lineage does not resolve. Folded as a relabeling, never as the
     /// key it is.
@@ -752,6 +749,17 @@ impl FaceInputs {
         let mut roots: HashMap<topo::EdgeKey, u32> = HashMap::new();
         for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
             let walk = loop_half_edges(body, lk, fk)?;
+            // Each half-edge's image as the loop's lift places it — what
+            // the trimmed lane walks (`topo::Body::loop_lift`); none for
+            // a loop with no lift.
+            let mut lifted: HashMap<topo::HalfEdgeKey, Pcurve<f64>> = body
+                .loop_lift(lk)
+                .map(|rows| {
+                    rows.into_iter()
+                        .map(|row| (row.half_edge, row.pcurve))
+                        .collect()
+                })
+                .unwrap_or_default();
             let mut edges = Vec::with_capacity(walk.len());
             for (hek, ek, forward) in walk {
                 let edge = body
@@ -787,8 +795,7 @@ impl FaceInputs {
                     positions: ids.iter().map(|&id| positions[id as usize]).collect(),
                     ids,
                     chord_params,
-                    pcurve: body.pcurve(hek).map(|cache| cache.pcurve().clone()),
-                    seam: matches!(curve.description(), EdgeDescription::Chart(c) if c.seam),
+                    pcurve: lifted.remove(&hek),
                     lineage,
                 });
             }
@@ -886,7 +893,6 @@ impl FaceInputs {
                         w.p3(*p);
                     }
                     if curved {
-                        w.bool(e.seam);
                         match e.lineage {
                             None => w.u8(0),
                             Some(c) => {
@@ -1035,126 +1041,53 @@ impl KeyWriter {
         });
     }
 
-    /// The surface's fields. Exhaustive on purpose: a new variant or
-    /// field is a compile error here, not a silent gap in the key.
+    /// The surface's fields, through [`Surface::data`], whose
+    /// exhaustive walk makes a new field a datum of the key rather than
+    /// a silent gap in it.
     fn surface(&mut self, s: &Surface<f64>) {
         self.surface_kind(s);
-        match s {
-            Surface::Plane {
-                origin,
-                normal,
-                u_ref,
-            } => {
-                self.p3(*origin);
-                self.v3(*normal);
-                self.v3(*u_ref);
-            }
-            Surface::Cylinder {
-                origin,
-                axis,
-                radius,
-                u_ref,
-            } => {
-                self.p3(*origin);
-                self.v3(*axis);
-                self.f64(*radius);
-                self.v3(*u_ref);
-            }
-            Surface::Cone {
-                apex,
-                axis,
-                half_angle,
-                u_ref,
-            } => {
-                self.p3(*apex);
-                self.v3(*axis);
-                self.f64(*half_angle);
-                self.v3(*u_ref);
-            }
-            Surface::Sphere {
-                center,
-                radius,
-                axis,
-                u_ref,
-            } => {
-                self.p3(*center);
-                self.f64(*radius);
-                self.v3(*axis);
-                self.v3(*u_ref);
-            }
-            Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-            } => {
-                self.p3(*center);
-                self.v3(*axis);
-                self.f64(*major_radius);
-                self.f64(*minor_radius);
-                self.v3(*u_ref);
-            }
-            Surface::Nurbs(n) => self.nurbs_surface(n),
+        match s.data() {
+            SurfaceData::Nurbs(n) => self.nurbs_surface(n),
             // The lane meshes the fit; the description, window and
             // certificate it was fitted against are not read.
-            Surface::Approx(a) => self.nurbs_surface(a.fit()),
+            SurfaceData::Approx(a) => self.nurbs_surface(a.fit()),
+            SurfaceData::Analytic(data) => {
+                for (_, value) in data {
+                    self.datum(value);
+                }
+            }
         }
     }
 
+    fn curve3_kind(&mut self, c: &Curve3<f64>) {
+        self.u8(match c {
+            Curve3::Line { .. } => 0,
+            Curve3::Circle { .. } => 1,
+            Curve3::Ellipse { .. } => 2,
+            Curve3::Nurbs(_) => 3,
+            Curve3::Spiric { .. } => 4,
+        });
+    }
+
+    /// The carrier's fields, through [`Curve3::data`], as
+    /// [`Self::surface`] reads a surface's.
     fn curve3(&mut self, c: &Curve3<f64>) {
-        match c {
-            Curve3::Line { origin, dir } => {
-                self.u8(0);
-                self.p3(*origin);
-                self.v3(*dir);
+        self.curve3_kind(c);
+        match c.data() {
+            CurveData::Nurbs(n) => self.nurbs3(n),
+            CurveData::Analytic(data) => {
+                for (_, value) in data {
+                    self.datum(value);
+                }
             }
-            Curve3::Circle {
-                center,
-                axis,
-                radius,
-                u_ref,
-            } => {
-                self.u8(1);
-                self.p3(*center);
-                self.v3(*axis);
-                self.f64(*radius);
-                self.v3(*u_ref);
-            }
-            Curve3::Ellipse {
-                center,
-                axis,
-                major,
-                minor,
-                u_ref,
-            } => {
-                self.u8(2);
-                self.p3(*center);
-                self.v3(*axis);
-                self.f64(*major);
-                self.f64(*minor);
-                self.v3(*u_ref);
-            }
-            Curve3::Spiric {
-                center,
-                axis,
-                u_ref,
-                major_radius,
-                minor_radius,
-                offset,
-            } => {
-                self.u8(4);
-                self.p3(*center);
-                self.v3(*axis);
-                self.v3(*u_ref);
-                self.f64(*major_radius);
-                self.f64(*minor_radius);
-                self.f64(*offset);
-            }
-            Curve3::Nurbs(n) => {
-                self.u8(3);
-                self.nurbs3(n);
-            }
+        }
+    }
+
+    fn datum(&mut self, value: DatumValue<f64>) {
+        match value {
+            DatumValue::Point(p) => self.p3(p),
+            DatumValue::Direction(v) => self.v3(v),
+            DatumValue::Scalar(x) => self.f64(x),
         }
     }
 
@@ -1194,6 +1127,48 @@ impl KeyWriter {
                 self.f64(*angle);
                 self.knots(breaks);
             }
+            Pcurve::Spiric {
+                major,
+                minor,
+                offset,
+                image,
+            } => {
+                self.u8(5);
+                self.f64(*major);
+                self.f64(*minor);
+                self.f64(*offset);
+                // The image kind is a second tag byte, so the two
+                // chart images of one carrier never key alike.
+                match image {
+                    SpiricImage::Cap { p0, pm, pa } => {
+                        self.u8(0);
+                        self.p2(*p0);
+                        self.v2(*pm);
+                        self.v2(*pa);
+                    }
+                    SpiricImage::Wall { u0, v0, sense } => {
+                        self.u8(1);
+                        self.f64(*u0);
+                        self.f64(*v0);
+                        self.f64(*sense);
+                    }
+                }
+            }
+            Pcurve::FocalSection(FocalImage {
+                u0,
+                t0,
+                v0,
+                va,
+                vb,
+                vl,
+                beta,
+                sense,
+            }) => {
+                self.u8(6);
+                for x in [u0, t0, v0, va, vb, vl, beta, sense] {
+                    self.f64(*x);
+                }
+            }
         }
     }
 }
@@ -1228,7 +1203,6 @@ mod tests {
                 p0: Point2::new(seed, 0.0),
                 pl: Vec2::new(0.0, 1.0),
             }),
-            seam: false,
             lineage: Some(ids[0]),
         }
     }
@@ -1408,11 +1382,6 @@ mod tests {
             [false, false, true],
         ),
         (
-            "an edge's seam flag",
-            |f| f.loops[0][1].seam = true,
-            [false, true, false],
-        ),
-        (
             "the carriers' identity structure",
             |f| f.loops[0][1].lineage = f.loops[0][0].lineage,
             [false, true, false],
@@ -1585,5 +1554,83 @@ mod tests {
         assert_eq!(keys.stored(0), None);
         assert_eq!(keys.stored_ids().count(), 0);
         assert_eq!(memo.len(), 0, "a refusal stores nothing");
+    }
+
+    /// **The key reads every scalar the surface walk yields.** Each
+    /// analytic kind ([`geom::test_support::analytic_surfaces`]) is built
+    /// from a flat scalar list; the walk's own scalars, flattened, must
+    /// be exactly the builder's (so a walk that drops a field, last
+    /// included, is a short list), and every one of them, changed
+    /// alone, must change the key.
+    #[test]
+    fn the_surface_key_reads_every_scalar_the_walk_yields() {
+        let key = |s: &Surface<f64>| {
+            let mut w = KeyWriter::default();
+            w.surface(s);
+            w.0
+        };
+        let base = geom::test_support::scalar_base();
+        for kind in geom::test_support::analytic_surfaces() {
+            let at_rest = (kind.build)(&base);
+            let SurfaceData::Analytic(data) = at_rest.data() else {
+                panic!("{at_rest:?}: an analytic kind reads as analytic data")
+            };
+            let walked: Vec<(geom::SurfaceDatum, f64)> = data
+                .into_iter()
+                .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
+                .collect();
+            assert_eq!(
+                walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
+                base[..kind.scalars],
+                "{at_rest:?}: the walk yields the builder's scalars, in its order"
+            );
+            for (i, &(datum, _)) in walked.iter().enumerate() {
+                let mut moved = base.clone();
+                moved[i] += 0.5;
+                assert_ne!(
+                    key(&(kind.build)(&moved)),
+                    key(&at_rest),
+                    "{at_rest:?}: the key missed a change to {} (scalar {i})",
+                    datum.name()
+                );
+            }
+        }
+    }
+
+    /// **The key reads every scalar the curve walk yields** — the
+    /// carrier twin of the surface row above, over [`Curve3::data`].
+    #[test]
+    fn the_curve_key_reads_every_scalar_the_walk_yields() {
+        let key = |c: &Curve3<f64>| {
+            let mut w = KeyWriter::default();
+            w.curve3(c);
+            w.0
+        };
+        let base = geom::test_support::scalar_base();
+        for kind in geom::test_support::analytic_curves() {
+            let at_rest = (kind.build)(&base);
+            let CurveData::Analytic(data) = at_rest.data() else {
+                panic!("{at_rest:?}: an analytic kind reads as analytic data")
+            };
+            let walked: Vec<(geom::CurveDatum, f64)> = data
+                .into_iter()
+                .flat_map(|(datum, value)| value.scalars().map(move |x| (datum, x)))
+                .collect();
+            assert_eq!(
+                walked.iter().map(|&(_, x)| x).collect::<Vec<_>>(),
+                base[..kind.scalars],
+                "{at_rest:?}: the walk yields the builder's scalars, in its order"
+            );
+            for (i, &(datum, _)) in walked.iter().enumerate() {
+                let mut moved = base.clone();
+                moved[i] += 0.5;
+                assert_ne!(
+                    key(&(kind.build)(&moved)),
+                    key(&at_rest),
+                    "{at_rest:?}: the key missed a change to {} (scalar {i})",
+                    datum.name()
+                );
+            }
+        }
     }
 }

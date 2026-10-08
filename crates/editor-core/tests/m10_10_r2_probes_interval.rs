@@ -14,6 +14,7 @@
 //! ```
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 
 use editor_core::analysis::{
@@ -22,10 +23,10 @@ use editor_core::analysis::{
 use editor_core::drive::{DriveConfig, RefusalReason, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
-    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet,
-    UnitSym, select_where,
+    Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
+    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
+    select_where,
 };
 use geom_core::{SymRules, Tol};
 
@@ -46,14 +47,14 @@ fn env_usize(name: &str, default: usize) -> usize {
 fn leaf_mass(analyzed: &AnalyzedBox, box_: &ParamBox) -> f64 {
     let mut m = 1.0;
     for (name, axis) in box_.axes() {
-        let Some(p) = analyzed.get(name) else {
+        let Some(p) = analyzed.get(*name) else {
             continue;
         };
         let Some(dist) = &p.distribution else {
             continue;
         };
         if let BoxAxis::Varying { lo, hi } = axis {
-            m *= box_mass(name, dist, (*lo, *hi)).unwrap_or(f64::NAN);
+            m *= box_mass(&analyzed.spoken(*name), dist, (*lo, *hi)).unwrap_or(f64::NAN);
         }
     }
     m
@@ -90,10 +91,10 @@ fn children(box_: &ParamBox) -> Vec<ParamBox> {
         };
         out = out
             .into_iter()
-            .flat_map(|acc: BTreeMap<ParamName, BoxAxis>| {
+            .flat_map(|acc: BTreeMap<editor_core::VarId, BoxAxis>| {
                 halves.iter().map(move |h| {
                     let mut a = acc.clone();
-                    a.insert(name.clone(), *h);
+                    a.insert(*name, *h);
                     a
                 })
             })
@@ -154,7 +155,7 @@ fn r2_evidence_every_refused_leaf_of_the_plates_real_study_read_as_its_set() {
         acc.certified,
         acc.unanalyzed
     );
-    match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
+    match stackup(&doc, measure, &analyzed, &verdict, None, true, None, tol) {
         Ok(r) => println!(
             "   stackup: worst case [{:.6e}, {:.6e}] over {} leaves; nominal {:?}",
             r.worst_case.lo, r.worst_case.hi, r.worst_case.leaves, r.nominal
@@ -231,8 +232,9 @@ fn r2_evidence_every_refused_leaf_of_the_plates_real_study_read_as_its_set() {
 /// side is an arc authored by BULGE (`ArcTo(Bulge)`), a round hole
 /// inside it, and the measure `distance(hole wall, arc wall)` with an
 /// assertion on it. Two variants: the bulge a LITERAL (0.4) with the
-/// hole's centre and radius varying, and the bulge a PARAMETER (the
-/// honest limit rule D states: `atan|b|` against `atan b`).
+/// hole's centre and radius varying, and the bulge a PARAMETER (where
+/// the carrier's span and the pushforward now read one `atan b` atom,
+/// and what stands is the coefficient ring and the radius's `abs`).
 ///
 /// Geometry (metres): chord `(4e-3, ∓2e-3)`, bulge `b` → sagitta
 /// `2e-3·b`, radius `(1 + b²)/(2b)·2e-3`, centre `x = 4e-3 + 2e-3·b −
@@ -261,17 +263,18 @@ pub(crate) fn d_tab_at(
     tol: Tol,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, dim: Dimension, value: f64, d: Distribution| {
-        r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
-            value: DocParam::Continuous {
-                dim,
-                value,
-                display_unit: UnitSym::canonical_for(dim),
-                distribution: Some(d),
-            },
-        });
-    };
+    let declare =
+        |r: &mut Recorder, n: &'static str, dim: Dimension, value: f64, d: Distribution| {
+            r.push(DocEdit::DeclareVar {
+                name: VarName::from_static(n),
+                def: editor_core::VarDecl::Free(FreeVar::Continuous {
+                    dim,
+                    value,
+                    display_unit: UnitSym::canonical_for(dim),
+                    distribution: Some(d),
+                }),
+            });
+        };
     declare(
         &mut r,
         "hole_x",
@@ -302,7 +305,7 @@ pub(crate) fn d_tab_at(
                 hi: 0.05 * scale,
             },
         );
-        Expr::param(ParamName::new("bulge"), Dimension::Scalar)
+        Formula::named(VarName::from_static("bulge"), Dimension::Scalar)
     } else {
         scl(bulge_nominal)
     };
@@ -326,21 +329,23 @@ pub(crate) fn d_tab_at(
     let tab = r.insert(Node::Extrude {
         profile,
         distance: thickness.clone(),
+        side: ExtrudeSide::Along,
     });
     let hole_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Circle {
             centre: [
-                Expr::param(ParamName::new("hole_x"), Dimension::Length),
+                Formula::named(VarName::from_static("hole_x"), Dimension::Length),
                 len(0.0),
             ],
-            radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
+            radius: Formula::named(VarName::from_static("hole_r"), Dimension::Length),
         }],
         ids: Vec::new(),
     }));
     let hole = r.insert(Node::Extrude {
         profile: hole_profile,
         distance: thickness,
+        side: ExtrudeSide::Along,
     });
     let refs = {
         let ev: editor_core::Evaluation<f64> = editor_core::evaluate(
@@ -350,14 +355,14 @@ pub(crate) fn d_tab_at(
             &editor_core::EvalOptions::default(),
             tol,
         );
-        let env = r.doc.param_env::<f64>();
+        let env = r.doc.var_env::<f64>();
         let wall = |node: RecipeNodeId| {
             let mut faces = select_where(
                 &ev,
                 node,
                 &Selector::of(NamePat::of_kind(EntityKind::Face)),
                 &[GeomPred::SurfaceKind(SurfaceKindSet::just(
-                    geom_brep::SurfaceKind::Cylinder,
+                    geom::SurfaceKind::Cylinder,
                 ))],
                 &env,
                 tol,
@@ -438,7 +443,7 @@ fn r2_evidence_the_d_tab_end_to_end() {
             if let Some(l) = verdict.certified().first() {
                 println!("      first certified leaf's receipt: {:?}", l.decisions);
             }
-            match stackup(&doc, measure, &analyzed, &verdict, None, false, tol) {
+            match stackup(&doc, measure, &analyzed, &verdict, None, false, None, tol) {
                 Ok(r) => println!(
                     "      stackup: worst case [{:.6e}, {:.6e}] over {} leaves; nominal {:?}",
                     r.worst_case.lo, r.worst_case.hi, r.worst_case.leaves, r.nominal

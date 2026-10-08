@@ -56,7 +56,7 @@ use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::ProfileLoop;
 use profile::RawLoop;
 use revolve_common::*;
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Revolution, revolve};
 use topo::{Body, BooleanError, PointInSolidError, SolidContainment, point_in_solid};
 
@@ -99,9 +99,7 @@ fn frustum() -> Body<f64> {
 
 /// A quarter cone: the same triangle through a π/2 revolve. Its ONE
 /// cone face is azimuth-trimmed (window `[−π, −π/2]`, the quadrant
-/// `x > 0, z < 0`), and it is a legal boolean operand — a full
-/// revolve's base disc is two half-discs on ONE plane key, which the
-/// maximal-faces precondition refuses before containment is ever asked.
+/// `x > 0, z < 0`).
 fn quarter_cone() -> Body<f64> {
     revolve(
         &validated(vec![triangle()]),
@@ -395,9 +393,15 @@ fn every_ray_from_the_virtual_apex_grazes_and_the_door_escalates() {
     let PointInSolidError::RayExhausted = err else {
         panic!("expected the grazing escalation, got {err:?}");
     };
+    // Free space has no coincidence to declare: the recourse is the
+    // one without a declaration in it.
     let msg = err.to_string();
+    assert!(msg.contains("off its boundary"), "{msg}");
     assert!(msg.contains("grazed"), "{msg}");
-    assert!(msg.contains("ill-conditioned"), "{msg}");
+    assert!(
+        msg.ends_with(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE)),
+        "{msg}"
+    );
 }
 
 /// **The azimuth-trimmed class.** A partial revolve's cone face has a
@@ -451,14 +455,14 @@ fn the_azimuth_window_selects_the_swept_quadrant() {
 /// containment question then cannot be asked. With the arm the union
 /// assembles.
 ///
-/// The operand is the QUARTER cone: a full revolve's base disc is two
-/// half-discs sharing one plane key, which the maximal-faces
-/// precondition (F7) refuses before any containment door is reached —
-/// a planar precondition, nothing to do with this arm.
+/// The operand is the full cone as built: its base disc is one face
+/// (`crates/sweep/README.md`, "Walls: one per run"), so the
+/// maximal-faces precondition (F7) has nothing to refuse.
 #[test]
 fn a_disjoint_union_with_a_cone_face_now_assembles() {
-    let a = quarter_cone();
+    let a = finished("the cone", cone(), Tol::witness());
     let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0), Tol::witness());
+    let b = finished("the brick", b, Tol::witness());
     let out = match topo::union(&a, &b, Tol::witness()) {
         Ok(out) => out,
         Err(BooleanError::Containment(e)) => panic!(
@@ -509,7 +513,7 @@ fn the_kind_refusal_no_longer_names_the_cone() {
     }
     let msg = PointInSolidError::KindUnsupported {
         face: body.faces().next().unwrap().0,
-        kind: geom_brep::SurfaceKind::Nurbs,
+        kind: geom::SurfaceKind::Nurbs,
     }
     .to_string();
     assert!(msg.contains("The solid itself is fine"), "{msg}");
@@ -525,9 +529,9 @@ fn the_kind_refusal_no_longer_names_the_cone() {
     assert!(msg.contains("spline"), "{msg}");
 
     // The arm's OWN refusal, for a cone face in neither chart class.
-    // No public door mints one today — it wants a ringed cone face or
-    // two bands stacked on one cone key — so what is pinned here is the
-    // claim the message makes, not a body that reaches it.
+    // The body that reaches it through the public doors is a tilted
+    // split's half (`reach_cone_split.rs`); what is pinned here is the
+    // claim the message makes.
     let msg = PointInSolidError::PartialConeFace {
         face: body.faces().next().unwrap().0,
     }
@@ -567,10 +571,8 @@ fn the_clamp_floor_clears_the_apex_escalation_shell() {
     let body = cone();
     let apex = Point3::new(0.0, 1.0, 0.0);
     let mut extent = 0.0_f64;
-    for (_, v) in body.vertices() {
-        if let Some(p) = body.get_point(v.point) {
-            extent = extent.max(p.distance(apex));
-        }
+    for (_, p) in body.vertex_points() {
+        extent = extent.max(p.distance(apex));
     }
     assert!(
         (extent - CONE_SLANT).abs() < 1e-12,

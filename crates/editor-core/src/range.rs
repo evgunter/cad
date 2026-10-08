@@ -69,14 +69,13 @@
 //! # The one field, and where its widening lives
 //!
 //! The widening is a property of the QUERY, never of the document. A
-//! document parameter already has a name to widen, so it is boxed
-//! directly. A node SLOT has none — its value is a bit-pinned `f64`
-//! literal — so the query derives a document of its own: a clone
-//! carrying one synthetic continuous parameter whose nominal is the
-//! literal's bits, with the slot rewritten to name it. The input
-//! document is never edited, keyed or persisted, its memo is not
-//! shared, and the derivation is a pure function of (document, field,
-//! seed) that lives only for the query ([`derive`]).
+//! node SLOT reads a variable (VR4), so a slot is boxed through the
+//! free variable it reads, exactly as a variable named directly is:
+//! the query derives a document of its own, a clone with that
+//! variable's spread set to the seed. The input document is never
+//! edited, keyed or persisted, its memo is not shared, and the
+//! derivation is a pure function of (document, field, seed) that lives
+//! only for the query ([`derive`]).
 //!
 //! Every OTHER parameter's distribution is cleared in the derived
 //! document, so the drive has exactly one varying axis. That is what
@@ -111,27 +110,33 @@ use geom_core::Tol;
 
 use crate::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use crate::distribution::Distribution;
-use crate::doc::{Doc, DocParam, ParamName};
+use crate::doc::{Doc, FreeVar};
 use crate::drive::{
     DriveConfig, DriveRefusal, FlipEvidence, ParamBoxVerdict, RefusalReason, drive,
 };
 use crate::edit::{DocEdit, EditError, apply};
-use crate::expr::Expr;
 use crate::node::{RecipeNodeId, SlotId};
 use crate::program::ProfileProgram;
+use crate::spoken::SpokenNode;
+use crate::spoken::SpokenVar;
+use crate::var::VarId;
 
 /// The field a range is asked about: one document parameter, or one
 /// node slot.
 ///
-/// The two are not the same kind of thing and the query does not
-/// pretend they are: a parameter is already a name the analysis can
-/// vary, and a slot is a literal that has to be given one.
+/// A slot is boxed through the free variable it reads; one that reads a
+/// defined variable has no interval of its own
+/// ([`RangeRefusal::SlotIsDefined`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RangeField {
-    /// A document parameter, boxed directly.
-    Param(ParamName),
-    /// A continuous slot of one node, widened through a synthetic
-    /// parameter of the derived document.
+    /// A free variable of the document, boxed directly.
+    Param(VarId),
+    /// A continuous slot of one node, widened through the free variable
+    /// it reads. That variable may be shared — a named one, or an
+    /// anonymous one several slots read (D10: sharing is reading one
+    /// variable) — and widening it moves every reader, not only this
+    /// slot: the certified range is the variable's, reported against the
+    /// slot it was asked through.
     Slot {
         /// The node owning the slot.
         node: RecipeNodeId,
@@ -323,7 +328,7 @@ pub struct CertifiedRange {
     field: RangeField,
     nominal: f64,
     seed: RangeSeed,
-    pinned: Vec<ParamName>,
+    pinned: Vec<VarId>,
     lo: RangeSide,
     hi: RangeSide,
 }
@@ -350,12 +355,12 @@ impl CertifiedRange {
     }
 
     /// **The condition this answer holds under**: the parameters whose
-    /// declared distribution the derivation cleared, in name order, so
+    /// declared distribution the derivation cleared, in declaration order, so
     /// the drive had one axis. Every one of them is at its nominal for
     /// the whole certificate, and empty means the document declared no
     /// other spread to drop.
     #[must_use]
-    pub fn pinned(&self) -> &[ParamName] {
+    pub fn pinned(&self) -> &[VarId] {
         &self.pinned
     }
 
@@ -419,18 +424,19 @@ pub enum RangeRefusal {
     /// The document declares no such parameter, or declares it
     /// `Count` — a structural parameter is not a box axis.
     NotAContinuousParam {
-        /// The name asked for.
-        param: ParamName,
+        /// The variable asked for.
+        param: SpokenVar,
     },
     /// The document has no such node.
     UnknownNode {
-        /// The id asked for.
-        node: RecipeNodeId,
+        /// The id asked for, which the document does not hold
+        /// ([`SpokenNode::absent`]).
+        node: SpokenNode,
     },
     /// The node carries no such slot.
     UnknownSlot {
-        /// The node.
-        node: RecipeNodeId,
+        /// The node, spoken from the document asked about.
+        node: SpokenNode,
         /// The slot asked for.
         slot: SlotId,
     },
@@ -438,28 +444,19 @@ pub enum RangeRefusal {
     /// shapes rather than measuring one, and a structural slot has no
     /// interval to certify over.
     StructuralSlot {
-        /// The node.
-        node: RecipeNodeId,
+        /// The node, spoken from the document asked about.
+        node: SpokenNode,
         /// The slot.
         slot: SlotId,
     },
-    /// The slot is not a bare literal: it is already driven by an
-    /// expression, which the rewrite would SHADOW. Widening it would
-    /// certify a document the caller did not ask about — vary the
-    /// parameters that expression reads instead.
-    SlotIsNotALiteral {
-        /// The node.
-        node: RecipeNodeId,
+    /// The slot reads a DEFINED variable: its value is a function of
+    /// other variables, so it has no interval of its own to certify
+    /// over — certify the variables its definition reads instead.
+    SlotIsDefined {
+        /// The node, spoken from the document asked about.
+        node: SpokenNode,
         /// The slot.
         slot: SlotId,
-    },
-    /// The synthetic parameter's name is already taken by the
-    /// document. Refused rather than renamed: a query that silently
-    /// picked another name would be widening something the caller
-    /// cannot see.
-    SyntheticNameTaken {
-        /// The name that collided.
-        param: ParamName,
     },
     /// The derived document's own edit door refused the derivation.
     Derivation(Box<EditError>),
@@ -515,35 +512,42 @@ impl core::fmt::Display for RangeRefusal {
                  certify over"
             ),
             Self::UnknownNode { node } => {
-                write!(f, "this document has no node {}", node.0)
+                write!(f, "this document has no {node}")
             }
             Self::UnknownSlot { node, slot } => {
-                write!(f, "node {} carries no {} slot", node.0, slot.label())
+                write!(f, "{node} carries no {} slot", slot.label())
             }
             Self::StructuralSlot { node, slot } => write!(
                 f,
-                "the {} slot of node {} is structural (Count) — a structural slot selects \
+                "the {} slot of {} is structural (Count) — a structural slot selects \
                  between shapes and has no interval to certify over",
                 slot.label(),
-                node.0
+                node
             ),
-            Self::SlotIsNotALiteral { node, slot } => write!(
+            Self::SlotIsDefined { node, slot } => write!(
                 f,
-                "the {} slot of node {} is driven by an expression, which naming it would \
-                 shadow — certify the parameters that expression reads instead",
+                "the {} slot of {} reads a variable defined by a formula, which has no \
+                 interval of its own — certify the variables that formula reads instead",
                 slot.label(),
-                node.0
+                node
             ),
-            Self::SyntheticNameTaken { param } => write!(
+            // Every derived edit re-writes a value the document already
+            // holds, or declares one over a validated seed, so the edit
+            // door's recourse — about an edit nobody made — is not this
+            // door's.
+            Self::Derivation(e) => write!(
                 f,
-                "the query's synthetic parameter name {param} is already declared by this document"
+                "the derived document was refused: {}. {}",
+                e.problem(),
+                geom_core::KERNEL_DEFECT_ENDING
             ),
-            Self::Derivation(e) => write!(f, "the derived document was refused: {e}"),
-            Self::SeedIsNotTheAnalyzedAxis { analyzed, asked } => write!(
+            Self::SeedIsNotTheAnalyzedAxis {
+                analyzed: (analyzed_lo, analyzed_hi),
+                asked: (asked_lo, asked_hi),
+            } => write!(
                 f,
-                "the analysis derived the axis [{}, {}] for this field, which is not the seed \
-                 [{}, {}] that was asked for",
-                analyzed.0, analyzed.1, asked.0, asked.1
+                "the analysis derived the axis [{analyzed_lo}, {analyzed_hi}] for this field, \
+                 which is not the seed [{asked_lo}, {asked_hi}] that was asked for",
             ),
             Self::MoreThanOneAxisVaries { varying } => write!(
                 f,
@@ -551,11 +555,10 @@ impl core::fmt::Display for RangeRefusal {
                  field, and a box over several is `drive`'s own answer"
             ),
             Self::Drive(e) => write!(f, "the drive refused: {e}"),
-            Self::LeavesAreNotAPartition { at } => write!(
+            Self::LeavesAreNotAPartition { at: (lo, hi) } => write!(
                 f,
-                "the drive's leaves do not tile the seed: [{}, {}] leaves a gap, overlaps a \
+                "the drive's leaves do not tile the seed: [{lo}, {hi}] leaves a gap, overlaps a \
                  neighbour, or varies off the field's axis",
-                at.0, at.1
             ),
         }
     }
@@ -570,39 +573,25 @@ impl core::error::Error for RangeRefusal {}
 /// on the input, keyed against it, or shared with its memo.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DerivedRange {
-    /// The document the drive runs on — the input verbatim for a
-    /// parameter field, and the input plus one synthetic parameter
-    /// with the slot rewritten to name it for a slot field.
+    /// The document the drive runs on: the input, its spreads set as
+    /// [`derive`] says.
     pub doc: Doc<ProfileProgram>,
-    /// The parameter whose axis IS the seed.
-    pub axis: ParamName,
+    /// The variable whose axis IS the seed.
+    pub axis: VarId,
     /// The field's value in the input document, bit for bit.
     pub nominal: f64,
     /// The parameters whose declared distribution this derivation
-    /// CLEARED, in name order — the condition the answer holds under
+    /// CLEARED, in declaration order — the condition the answer holds under
     /// ([`CertifiedRange::pinned`]).
-    pub pinned: Vec<ParamName>,
-}
-
-/// The synthetic parameter a slot is widened through, named for the
-/// slot it stands for.
-///
-/// Written so a reader of the derived document can see what it is and
-/// where it came from, and so that it cannot be mistaken for anything
-/// a user authored: the derivation refuses rather than overwriting a
-/// name the document already declares
-/// ([`RangeRefusal::SyntheticNameTaken`]).
-fn synthetic_name(node: RecipeNodeId, slot: SlotId) -> ParamName {
-    ParamName::new(format!("query:certified-range:{}:{}", node.0, slot.label()))
+    pub pinned: Vec<VarId>,
 }
 
 /// **The derived document** (a pure function of its three arguments).
 ///
-/// For [`RangeField::Param`] the document is the input with that
-/// parameter's distribution set to the seed. For
-/// [`RangeField::Slot`] it additionally carries one synthetic
-/// continuous parameter whose nominal is the slot literal's bits, and
-/// the slot rewritten to name it.
+/// The document is the input with the field's variable's distribution
+/// set to the seed: the variable itself for [`RangeField::Param`], the
+/// free variable the slot reads for [`RangeField::Slot`] (VR4), widened
+/// in place — nothing declared, nothing named, nothing rewritten.
 ///
 /// Every other continuous parameter's distribution is CLEARED, so the
 /// drive has exactly one varying axis (module docs).
@@ -633,17 +622,19 @@ pub fn derive(
         hi: seed.hi,
     };
     let (mut derived, axis, nominal) = match field {
-        RangeField::Param(name) => {
-            let Some(DocParam::Continuous { value, .. }) = doc.params().get(name) else {
+        RangeField::Param(var) => {
+            let Some(FreeVar::Continuous { value, .. }) = doc.free(*var) else {
                 return Err(RangeRefusal::NotAContinuousParam {
-                    param: name.clone(),
+                    param: doc.spoken_var(*var),
                 });
             };
-            (doc.clone(), name.clone(), *value)
+            (doc.clone(), *var, *value)
         }
         RangeField::Slot { node, slot } => {
             let Some(n) = doc.node(*node) else {
-                return Err(RangeRefusal::UnknownNode { node: *node });
+                return Err(RangeRefusal::UnknownNode {
+                    node: SpokenNode::absent(*node),
+                });
             };
             // WHETHER THE NODE CARRIES THE SLOT IS ASKED FIRST. A slot
             // id is a vocabulary-wide name, so `Count` is structural
@@ -651,93 +642,58 @@ pub fn derive(
             // of node N is structural" for a node with no count slot
             // states the vocabulary's fact where the caller asked
             // about this document's.
-            let Some(expr) = n.expr(*slot) else {
+            let Some(var) = n.expr(*slot) else {
                 return Err(RangeRefusal::UnknownSlot {
-                    node: *node,
+                    node: doc.spoken(*node),
                     slot: *slot,
                 });
             };
             if slot.is_structural() {
                 return Err(RangeRefusal::StructuralSlot {
-                    node: *node,
+                    node: doc.spoken(*node),
                     slot: *slot,
                 });
             }
-            let Some(value) = expr.literal_value() else {
-                return Err(RangeRefusal::SlotIsNotALiteral {
-                    node: *node,
+            let Some(FreeVar::Continuous { value, .. }) = doc.free(*var) else {
+                return Err(RangeRefusal::SlotIsDefined {
+                    node: doc.spoken(*node),
                     slot: *slot,
                 });
             };
-            let dim = slot.dimension();
-            let name = synthetic_name(*node, *slot);
-            if doc.params().contains_key(&name) {
-                return Err(RangeRefusal::SyntheticNameTaken { param: name });
-            }
-            // The synthetic parameter's nominal is the literal's value
-            // verbatim, and a literal and a parameter reference reach
-            // the evaluator through the same `T::from_f64`, so the
-            // derived document's f64 build is the input's bit for bit.
-            let with_param = edit(
-                doc,
-                &DocEdit::SetDocParam {
-                    name: name.clone(),
-                    value: DocParam::continuous(dim, value),
-                },
-                tol,
-            )?;
-            let rewritten = edit(
-                &with_param,
-                &DocEdit::SetParam {
-                    node: *node,
-                    slot: *slot,
-                    expr: Expr::param(name.clone(), dim),
-                },
-                tol,
-            )?;
-            (rewritten, name, value)
+            (doc.clone(), *var, *value)
         }
     };
     // The axis takes the seed; every other continuous parameter is
     // pinned at its nominal, because this query's contract is one
     // field.
-    let annotated: Vec<(ParamName, DocParam)> = derived
-        .params()
-        .iter()
-        .filter_map(|(name, p)| match p {
-            DocParam::Continuous {
-                dim: d,
-                value,
-                display_unit,
-                distribution,
-            } => {
-                let wanted = if *name == axis { Some(band) } else { None };
-                (*distribution != wanted).then(|| {
-                    (
-                        name.clone(),
-                        DocParam::Continuous {
-                            dim: *d,
-                            value: *value,
-                            display_unit: *display_unit,
-                            distribution: wanted,
-                        },
-                    )
-                })
+    let annotated: Vec<(VarId, Option<Distribution>)> = derived
+        .free_vars()
+        .filter_map(|(id, free)| match free {
+            FreeVar::Continuous { distribution, .. } => {
+                let wanted = if id == axis { Some(band) } else { None };
+                (*distribution != wanted).then_some((id, wanted))
             }
-            DocParam::Count { .. } => None,
+            FreeVar::Count { .. } => None,
         })
         .collect();
     // What the clearing PINNED: the parameters that had a declared
     // spread and lost it, which is the condition the answer holds
     // under. The axis itself is never in the list — it did not lose a
     // spread, it was given one.
-    let pinned: Vec<ParamName> = annotated
+    let pinned: Vec<VarId> = annotated
         .iter()
-        .filter(|(name, value)| *name != axis && value.distribution().is_none())
-        .map(|(name, _)| name.clone())
+        .filter(|(id, wanted)| *id != axis && wanted.is_none())
+        .map(|(id, _)| *id)
         .collect();
-    for (name, value) in annotated {
-        derived = edit(&derived, &DocEdit::SetDocParam { name, value }, tol)?;
+    for (var, distribution) in annotated {
+        derived = edit(
+            &derived,
+            &DocEdit::SetVarDistribution {
+                var: var.into(),
+                distribution,
+            },
+            tol,
+        )?;
     }
     Ok(DerivedRange {
         doc: derived,
@@ -749,7 +705,7 @@ pub fn derive(
 
 /// One edit, applied purely, with the door's refusal carried. The
 /// edits this module applies are document-parameter edits, which
-/// never move a cluster's gauge, so the reach is the refusing one: it
+/// never move a group's root, so the reach is the refusing one: it
 /// is never asked, and a door that did ask would refuse typed rather
 /// than lever over nothing.
 fn edit(
@@ -791,7 +747,7 @@ pub fn certified_range(
     // tolerance.
     let asked = (seed.lo, seed.hi);
     let derived_axis = analyzed
-        .get(&derived.axis)
+        .get(derived.axis)
         .map_or((0.0, 0.0), |p| (p.offsets.lo, p.offsets.hi));
     if derived_axis != asked {
         return Err(RangeRefusal::SeedIsNotTheAnalyzedAxis {
@@ -805,7 +761,7 @@ pub fn certified_range(
     }
     let verdict = drive(&derived.doc, &analyzed, config, tol)
         .map_err(|e| RangeRefusal::Drive(Box::new(e)))?;
-    let leaves = walkable_leaves(&verdict, &derived.axis, seed)?;
+    let leaves = walkable_leaves(&verdict, derived.axis, seed)?;
     Ok(CertifiedRange {
         field: field.clone(),
         nominal: derived.nominal,
@@ -843,7 +799,7 @@ struct Leaf<'a> {
 /// rather than claiming a guard nothing has shown to work.
 fn walkable_leaves<'a>(
     verdict: &'a ParamBoxVerdict,
-    axis: &ParamName,
+    axis: VarId,
     seed: RangeSeed,
 ) -> Result<Vec<Leaf<'a>>, RangeRefusal> {
     let span = |box_: &ParamBox| -> Result<(f64, f64), RangeRefusal> {
@@ -1083,7 +1039,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     fn node(n: u64) -> RecipeNodeId {
-        RecipeNodeId(n)
+        RecipeNodeId::new(0, n)
     }
 
     /// A flip evidence with the two node standings asked for.

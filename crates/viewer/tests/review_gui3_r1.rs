@@ -5,7 +5,7 @@
 //! from, not what their fixture is made of.** Every row here asserts
 //! on history structure, refusals, landing generations or file bytes,
 //! written out from the PR's prose rather than read off the unit's
-//! rows. The profile's shape and the parameter's name are not oracles
+//! rows. The profile's shape and the variable's name are not oracles
 //! here — no row asserts on either — so a row added that DOES assert
 //! on geometry states that at its own site and brings its own fixture,
 //! because nothing below would catch it if it did not.
@@ -24,13 +24,15 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
+use pncad::document::AuthoredNode;
+use pncad::document::ExtrudeSide;
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, EvalOutcome, Expr, LoopProgram, Node, ParamName,
-    ProfileProgram, RecipeNodeId, SlotId,
+    Dimension, Doc, DocEdit, EvalOutcome, Formula, FreeVar, LoopProgram, Node, ProfileProgram,
+    RecipeNodeId, SlotId, VarName,
 };
 use pncad::geom_core::Tol;
 
-use crate::common::{ang, edited, inserted, len, scl, tempdir, xy_frame};
+use crate::common::{ang, edited, inserted, len, row_of, scl, tempdir, xy_frame};
 use viewer::evalseam::EvalDone;
 use viewer::history::History;
 use viewer::props::{SlotDriver, SlotValue};
@@ -38,16 +40,16 @@ use viewer::session::{DocSession, Landing, Refusal, Selection, SessionOp};
 use viewer::tree::RowStatus;
 use viewer::{docio, props, tree};
 
-/// R1's own parameter name, so this suite's document reads apart from
+/// R1's own variable name, so this suite's document reads apart from
 /// the unit suites' in the aggregated binary. No row asserts on the
 /// name.
-fn depth_param() -> ParamName {
-    ParamName::new("r1_depth")
+fn depth_param() -> VarName {
+    VarName::from_static("r1_depth")
 }
 
 /// A triangle, for the same reason as `depth_param` — it reads apart
 /// from the unit suites' square. No row asserts on the shape.
-fn triangle(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
+fn triangle(plane: RecipeNodeId, side: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -58,14 +60,14 @@ fn triangle(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
 }
 
 /// A wedge whose extrude distance is `r1_depth * 3`: a driven slot
-/// over one parameter, R1's own derivation of the affordance fixture.
+/// over one variable, R1's own derivation of the affordance fixture.
 fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-wedge", tol);
     let (doc, _) = edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: depth_param(),
-            value: DocParam::continuous(Dimension::Length, 0.002),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
         tol,
     );
@@ -75,8 +77,9 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::mul(Expr::param(depth_param(), Dimension::Length), scl(3.0))
+            distance: Formula::mul(Formula::named(depth_param(), Dimension::Length), scl(3.0))
                 .expect("length * scalar is a length"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -84,17 +87,17 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
 }
 
 fn set_depth(session: &mut DocSession, metres: f64) {
-    let outcome = session.perform(SessionOp::SetParam {
-        name: depth_param(),
+    let outcome = session.perform(SessionOp::SetVariable {
+        var: crate::common::var_of(session.committed_doc(), depth_param().as_str()),
         value: SlotValue::Continuous(metres),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
 }
 
 fn depth_of(doc: &Doc<ProfileProgram>) -> f64 {
-    match props::param_rows(doc)
+    match props::variable_rows(doc)
         .into_iter()
-        .find(|row| row.name == depth_param())
+        .find(|row| row.label.name() == Some(&depth_param()))
         .expect("the fixture declares r1_depth")
         .value
     {
@@ -305,9 +308,9 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r1-literal-first", tol);
     let (doc, _) = edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: depth_param(),
-            value: DocParam::continuous(Dimension::Length, 0.002),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
         tol,
     );
@@ -317,7 +320,8 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
         &doc,
         Node::Extrude {
             profile,
-            distance: len(0.005), // literal to begin with
+            distance: len(0.005), // literal to begin with,
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -377,6 +381,7 @@ fn r1_document_edits_are_refused_while_a_gesture_is_in_flight() {
         Node::Extrude {
             profile,
             distance: len(0.005),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -444,15 +449,20 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
         Node::Extrude {
             profile,
             // Well-dimensioned at the door, non-finite at evaluation.
-            distance: Expr::div(len(0.005), scl(0.0)).expect("length / scalar"),
+            distance: Formula::div(len(0.005), scl(0.0)).expect("length / scalar"),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
-    let transform = |input| Node::Transform {
-        input,
-        translation: [len(0.001), len(0.0), len(0.0)],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
+    let transform = |input| {
+        Node::transform(
+            input,
+            pncad::document::Step::Rigid {
+                translation: [len(0.001), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        )
     };
     let (doc, child) = inserted(&doc, transform(extrude), tol);
     let (doc, grandchild) = inserted(&doc, transform(child), tol);
@@ -462,20 +472,11 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
     let rows = session.tree_rows();
     assert!(tree::has_faults(&rows));
     assert!(matches!(
-        &rows
-            .iter()
-            .find(|row| row.id == extrude)
-            .expect("the extrude has a row")
-            .status,
+        &row_of(&rows, extrude).status,
         RowStatus::Failed { .. }
     ));
     for id in [child, grandchild] {
-        match &rows
-            .iter()
-            .find(|row| row.id == id)
-            .expect("the descendant has a row")
-            .status
-        {
+        match &row_of(&rows, id).status {
             RowStatus::Poisoned { through, message } => {
                 assert_eq!(
                     *through, extrude,
@@ -483,7 +484,13 @@ fn r1_a_two_hop_poison_chain_reports_the_root_cause() {
                 );
                 assert_eq!(
                     message.as_deref(),
-                    Some(viewer::tree::downstream_wording(extrude).as_str()),
+                    Some(
+                        format!(
+                            "upstream failure at Extrude {} — that row carries the cause",
+                            test_utils::refusal::tag(extrude.0.digest())
+                        )
+                        .as_str()
+                    ),
                     "and points the reader at that row rather than reciting its error"
                 );
             }
@@ -504,15 +511,16 @@ fn r1_a_replayed_history_opens_at_the_tip_with_the_log_undoable() {
             node: extrude,
             slot: SlotId::Distance,
             expr: len(0.011),
+            fresh: Vec::new(),
         },
         DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
             expr: len(0.013),
+            fresh: Vec::new(),
         },
     ];
-    let mut history = History::replayed(doc, &pncad::document::LoggedEdit::bare_all(&edits), tol)
-        .expect("the log replays");
+    let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
     assert!(!history.can_redo(), "the cursor opens at the tip");
     assert!(history.can_undo());
     assert!(history.undo().is_some());

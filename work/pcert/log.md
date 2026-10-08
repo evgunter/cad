@@ -64,3 +64,651 @@ Signed (FIX orchestrator).
 - 2026-09-28 — Seam note from ENCL: PR 3351 (merged `e39a5c4cc4`) routes certification refusals per D4 ¶1 as Ev ruled on PR 3352. Recourse belongs to the decision (`CertCheck::ending()`, one table) and the reading belongs to the door: `geom_brep::certify::recourse(check, RefusedArm, Reading::{Build, AtRest, Adopt})`. `CertifyError`/`PlaneNurbsRefusal` `Display` is now payload-only. Each door appends `ending(reading)`. The `certification: ` prefix is gone. `pcurve_cache.rs` is back to main's literals. Its forwarded-`Indeterminate` Display is still on your row. (ENCL orchestrator)
 - 2026-09-28 — Seam note from ENCL: PR 3392 (merged `277dcb052b`) splits certify's conflated Zero/Negative verdicts: `IntervalNotForward { verdict }`, `WindingExceeded` routed as sign-certain, the tangent tube as its own `CertifyError::TubeNotSeparated` (`CertCheck::TangentTube`, lever alone at every reading), and `TubeStraddles { verdict: Refused }`. `RefusedArm::ZeroOrNegative` is deleted; `geom_brep::recourse` now holds `Refused` and `Definite`. A zero span stays a defect at every reading (Ev, e1600790f9). `pcurve_cache.rs`: doc references updated. Evidence added to `recourse-chain-stops-at-pcurve-certify-error`: `PcurveCertifyError::IntervalNotForward` has the same Zero/Negative conflation at four sites, and `ssi_refusal` flattens `Refused` to a bare f64. (ENCL orchestrator)
 - 2026-09-29 — Seam note from ENCL: PR 3398 (merged `3aac59af62`) moves `topo::validate`'s remaining 'lower the tolerance' endings onto their decisions (D4 ¶1). `geom_brep::recourse` gains `Unsized` and `defect_ending`, moved out of certify. `pcurve_cache.rs`: `PcurveCertifyError::ending(reading)` / `PcurveCheck::recourse`; `AzimuthPeriodExceeded` ends as ParamWinding's sign-certain arm, pinned against `WindingExceeded`. (ENCL orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+- 2026-09-29 — Seam note from TOPO: PR 3160 (`half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`, not yet merged) amends `validate-pcurves-never-recertifies-a-face-it-finds-incomplete`: `mev`/`mef`/`mekr` no longer mint a rowless half-edge into a complete face, and the row now names the doors that still can (`PcurveMintError::MissingCache`'s list). The same PR moves `validate_pcurves`' presence verdict onto `StoredRows::complete` and its gaps, shared with the Euler operators' site mint; the findings and their order are unchanged. (TOPO)
+
+## 2026-10-01 — picked up; the tail cut; the design question named
+
+First orchestrator on the track. Status `active`.
+
+**The cut.** The track measured 36.5 points against its 30, so its P3
+and P4 rows went to a new program, PCTAIL, along the priority seam
+(`work/README.md`, Track size): `recourse-chain-stops-at-pcurve-certify-error`,
+`pcurve-certify-escalation-renders-the-coincidence-menu-unlabelled`,
+`pcert-refusal-prose-outgrows-the-viewer`, `pcurve-posture-guard-is-blind-to-body-producing-doors`,
+`line-seam-limbs-partial-and-rational-column-corners-have-no-measured-caller`,
+`D305` and `S83`, by `git mv`, ids unchanged. PCERT keeps 22 points.
+The alternative was to keep the tail and run it after the spine; the
+README makes the split the rule once a track grows past its ceiling, and
+the tail's rows are independent of the spine.
+
+**Re-priced.** The two legacy-`D` validate_pcurves rows are M with
+`design` set; `S331` gains `design` (its question is open: TOPO's
+2026-09-05 direction, Ev concurring, says at-rest validation must tell a
+refused mint from an uncovered class, and names two shapes).
+
+**The design question.** `S331` and its two `validate-pcurves-*`
+siblings are one question — what a face storing no row, or some rows,
+may mean at rest, and what `validate_pcurves` may claim — and go to
+the Opus and Fable designer pair before any lane builds them.
+**`D36` is held with them**: `mint_faces` swallows exactly
+`PcurveCertifyError::UnsupportedCarrier` and clears the face, so
+splitting that variant decides what the mint may leave behind. That
+coupling is not on either row.
+
+**Ruled, not weighed: `pcurve-fit-refusal-drops-the-domain-doors-reason`.**
+`chart_image` collapses two failure sites into `PcurveFit` — the
+interpolation (`edge_nurbs.rs`, `chart_image`, the `interpolate` call)
+and the carrier-domain door — so they become two refusals a caller can
+tell apart, and the domain one carries the domain door's typed reason.
+Whether that is a split-off variant keeping the enum's derives or a
+payload is a local choice; the lane argues it in its PR. `design`
+cleared.
+
+**Dispatched, in parallel with the weighing** (review tier and reason):
+
+- `placeholder-chart-sup-arms-are-not-a-bound` — single FULL review:
+  the deliverable is a reachability claim (can a placeholder chart
+  reach a metred verdict), which is believed by checking, not reading.
+- `pcurve-chart-box-is-looser-than-harmonic-extent` — single FULL
+  review: an enclosure that tightens is exactly where a too-tight box
+  ships green; check 5 re-measures.
+- `pcurve-fit-refusal-drops-the-domain-doors-reason` — single STYLE
+  review: a refusal-vocabulary change that reads for itself.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — the weighing, the reviews, D36
+
+**The design pair** (`docs/DESIGN-FORK-PROTOCOL.md`; byte on
+`analysis/design-fork/pcert-at-rest-absence-2026-10-01`) agreed on the
+spine at first report: no recorded history (never-minted, refused and
+emptied are histories a body at rest cannot hold), and tier 3 derives a
+rowless face rather than skipping it. They split on whether a stored
+row is mandatory at rest (`Unminted` and `MissingCache` findings) or a
+cache every reader can do without (one deriving reader), and on whether
+an uncovered face is a finding. One reconciliation round CONVERGED (not
+crossed): both now recommend the optional cache (one likely, one
+unsure) and an uncovered face out of the validity verdict. The
+remaining question — may a reader rely on a stored row — goes to Ev on
+`pcert/ev-at-rest-rows`.
+
+**Spike, for that question** (read-only): the walk pins a loop's branch
+once at its start; honouring stored rows as anchors needs a `fixed`
+flag on `WalkItem` and a start rotation, about 30–80 lines, not a new
+walk. Derivation costs about 1–3× the re-certification tier 3 already
+pays. `boolean/boxes.rs::face_window_steps` would rise from `Real` to
+`Decide` and return owned rows; the props quad lane needs the fitted
+lane passed as a parameter or a bound raise on the public
+`mass_properties`. Two stored runs a period apart are reachable without
+corruption: `plan_moved_rows` keeps moved rows unchecked when the chart
+matches (`kef`'s remnant), and only pass 3 catches it, which today
+never runs on a face with a gap.
+
+**Off-question, recorded so they are not lost:** `crates/sweep/src/extrude.rs`
+mints nothing, so extruded arc walls are rowless at rest (a defect
+under the mandatory answer, cache warmth under the optional one —
+filed once Ev rules); `validate_pcurves`' and `MissingCache`'s docs
+cite a "spec §5" and "every sweep output" as never minted, both stale.
+
+**`D36` re-banded P0 and dispatched now** (single FULL review: a
+refusal that narrows a swallow turns some passing mints loud, which is
+believed by checking): both designers recommended the split under
+every answer, and the swallow forgives a body whose edge is not on its
+face. Reasons on the row.
+
+**Reviews adjudicated:**
+
+- `pcurve-chart-box-is-looser-than-harmonic-extent` (PR 3610): approve.
+  The reviewer found check 5 tautological at mint and at rest (the
+  window is the hull of the same rows' `chart_box`), so the row's
+  premise that check 5 was looser than needed was wrong: nothing could
+  move a verdict, and nothing did. One MINOR, latent: the new box is
+  not monotone under span restriction for a channel mixing trig and
+  linear terms, which `split_cache` relies on; no constructor builds
+  such a channel today. Fix pass: pin child-in-parent for the families
+  that ship, state the premise where `split_cache` and check 5's docs
+  rest on it, fold the `IsoLine` arm onto the one home, fix the stale
+  "the one arm whose box is TIGHT" comment.
+- `placeholder-chart-sup-arms-are-not-a-bound` (PR 3614): mergeable
+  with fixes. Two MINORs: the "is this the placeholder" test is spelled
+  twice and the spellings disagree on an `Approx` surface whose fit is
+  the placeholder; and the new `weight_ratio_factor` `assert!` is
+  reachable through public knot insertion (subnormal weights), so it
+  returns to poison and the upstream weight defect is filed. The
+  placeholder refusal now has five spellings; the fix pass gives it one
+  home.
+- `pcurve-fit-refusal-drops-the-domain-doors-reason` (PR 3612):
+  mergeable. Two schedule copies the dedup's pattern could not match
+  (`step-import`'s `arc_rim_on_wall_boundary`, `geom-brep`'s
+  `pcurve.rs` fit schedule); the reparameterize recourse is spelled in
+  two places; `DomainInvalid` is unreachable through the producer (the
+  foot schedule poisons first).
+
+**A possible red main, not this program's:** `topo`'s
+`euler_kill::tests::kev_describing_asks_the_survivors_point_only_where_a_question_needs_it`
+fails under `--all-features` (tier-1 `DanglingGeometry`) and passes
+without; one lane saw it on a clean `origin/main`. Checked against the
+nightly before anyone is summoned.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — note from REACH: main is red on a row PR 3612 moved
+
+Bisected to PR 3612: `m10_sym_profile_interval` `the_forms_the_walks_build_are_pinned_per_eps_row`
+is red on main at the default ε. Filed on your slate as
+`pcurve-fit-domain-refusal-moves-the-m10-sym-walk-ledger` with the
+numbers. Whether to re-baseline is your call. — (REACH orchestrator)
+
+## 2026-10-01 — two merged, one red on main, Ev's questions
+
+**Merged:** PR 3610 (`pcurve-chart-box-is-looser-than-harmonic-extent`)
+and PR 3612 (`pcurve-fit-refusal-drops-the-domain-doors-reason`), by a
+merge-steward lane in sequence after their fix passes went green. Both
+rows closed here rather than on their own branches: a state-sync commit
+on a merged-code branch would have re-earned the gate for no code.
+
+**3612 turned main red.** Its exact end samples moved `editor-core`'s
+`m10_sym_profile_interval::the_forms_the_walks_build_are_pinned_per_eps_row`
+ledger, which its change filter did not run (the steward bisected
+3610's merge green, 3612's red). The re-baseline is this program's debt,
+on `pcert/rebaseline-sym-ledger`, ported into PR 3614, whose CI it
+reds. 3614's other red, `sweep`'s `reach_volume_backstop` off the
+default ε, is REACH's (`work/reach/reach-volume-backstop-fails-off-the-default-eps.md`,
+caused by PR 3611): inherited, annotated on the PR, not absorbed.
+
+**`D36`** stopped at its gate (3614 unmerged) with its per-site
+classification done: three meanings, about 9 uncovered (two gated by a
+new sphere incidence trilean), 14 not on the chart, 5 image mismatches,
+8 unreachable or fixed by a type change. It resumes when 3614 lands.
+
+**Ev asked on PR 3617** why `extrude` does not mint and why the octant
+is uncached. Answered there: no reason is recorded for extrude
+(filed on CARVE as `extrude-mints-no-pcurve-rows`), and the octant can
+be cached — the fitted Circle route exists, no mint site reaches it
+(filed here as `mint-has-no-route-to-the-fitted-general-circle-arm`).
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — 3614 and the ledger re-baseline merged
+
+PR 3652 re-baselined `editor-core`'s sym walk ledger (main red since
+3612's merge): only the decision walks moved, the same calls building
+fewer forms, at every ε row for the slab and once for the plate, whose
+move was hidden behind the slab's failing assertion until that one was
+fixed. Measured locally at all three ε rows; green hosted.
+
+PR 3614 (`placeholder-chart-sup-arms-are-not-a-bound`) merged with the
+re-baseline ported in. Its one remaining red was confirmed at the step
+level as inherited: default ε, the slow set and doc-tests green; the
+off-ε step failed on exactly the four `reach_volume_backstop` rows
+REACH has filed (`reach-volume-backstop-fails-off-the-default-eps`,
+PR 3611's). Annotated on the PR before merging; REACH keeps the debt.
+
+`D36` resumes now that its gate (3614) has landed.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — D36's review adjudicated
+
+PR 3664 (`D36`) was implemented and reviewed in their own cloud
+sessions so this one stayed responsive. The reviewer posted its report
+as a PR comment, which did not wake this session (a comment from the
+same account reads as this session's own); the check-in caught it.
+
+Verdict mergeable with fixes. One MAJOR, by execution: the sphere polar
+arm's centring gate reads an amplified quantity (`h·sin θ` after an
+axial gate on `ρ·sin θ`), so a near-pole small circle exactly on the
+sphere reads `CarrierOffChart` and the mint refuses a valid body; it
+goes through the incidence test like the meridian arm. Also adjudicated
+in: two uncovered classes missing from the residual row; typed
+chart/carrier/class payloads instead of hand-written strings (the fix
+re-minting the defect it closes); per-class recourses; rows asserting
+the site, not just the variant. The reviewer's instrumented full
+workspace (10494 rows, slow set included) found no committed producer
+leaning on the old swallow for an off-chart carrier.
+
+Filed `site-rows-leaves-an-off-chart-edge-silent` (P0): the Euler
+site mint clears an off-chart edge's face, so the op and tier 3 stay
+silent where the mint refuses. Its fix depends on PR 3617's ruling.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — Ev's first ruling on PR 3617
+
+Ev, on PR 3617: *"i do think that wiring those up, rather than
+explicitly permitting them to be missing, makes sense"* — answering the
+orchestrator's choice between a coverage-status channel for uncovered
+faces and wiring their routes. Read as: no "legally uncached" state at
+rest; each uncovered class gets a route (the general sphere circle
+through `certify_fitted`'s Circle arm first:
+`mint-has-no-route-to-the-fitted-general-circle-arm`), and until it has
+one a face of that class refuses at the producer. The reading is
+confirmed back on the PR together with the still-open question
+(mandatory row vs cache), which this ruling bears on but does not
+settle.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — D36 merged
+
+PR 3664 merged (`97a207f`) after a full review and a delta review, both
+in their own cloud sessions, and two fix passes. One live wrong answer
+closed (an edge not on its face no longer passes the mint), and two
+were found and closed in review that the split itself would have
+introduced (on-chart circles near a sphere's pole and on a wide cone
+called off-chart). Filed by the lane on other slates: chart's
+`plane-chart-polygon-erases-the-chart-pcurve-refusal` and
+`chart-region-arm-unbounded-names-its-chart-by-string`, export's
+`step-export-carrier-kind-duplicates-curve-kind`, and in `work/issues/`
+`chart-image-unavailable-folds-uncovered-and-off-chart` and
+`uncovered-chart-classes-have-no-incidence-test`.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — Ev's second ruling on PR 3617
+
+Ev, on PR 3617: *"i don't see the benefit to them not being mandatory
+after everything wires them up? how would an object that's missing them
+come to exist?"* The orchestrator agreed: once every class is wired,
+only a producer's omission (`extrude`) or an un-minted assembly of
+Euler operations leaves a body rowless, and a tier-3 finding is the
+right answer to both; the cache answer's one payoff (simpler Euler
+doors) is had under "doors may drop, producers mint". C4 on PR 3617
+now states mandatory rows; that PR merges on Ev's confirmation of the
+text. Neither designer's first recommendation (both leaned cache).
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — the general-circle route dispatched
+
+`mint-has-no-route-to-the-fitted-general-circle-arm` dispatched on Ev's
+first ruling on PR 3617 (wire the uncovered classes rather than permit
+them uncached), which does not wait on the C4 wording: route
+`SphereGeneralCircle` into `certify_fitted`'s Circle arm and retire that
+class's mint exemption in the same PR. Run in its own cloud session.
+Review tier: single FULL — a new certified route through branch
+pinning, believed by building, not reading.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — PR 3617 merged; the at-rest unit dispatched
+
+Ev confirmed C4 by a 👍 on the orchestrator's "what I'll write, unless
+you object" comment (reactions wake nothing, so it sat unseen until Ev
+pointed it out). PR 3617 merged (`a4ab8d4`) with the fork-log row's
+second half: Ev's decision, matching neither first recommendation.
+
+Dispatched as ONE unit under `S331` (branch `pcert/at-rest-rows-mandatory`):
+`S331`, `validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`,
+`validate-pcurves-never-recertifies-a-face-it-finds-incomplete`,
+`site-rows-leaves-an-off-chart-edge-silent`, and
+`extrude-mints-no-pcurve-rows`, claimed from CARVE by `git mv` because
+mandatory rows make a non-minting producer a tier-3 red: the unit
+cannot land without it. Review tier: DUAL — the change redefines what
+tier 3 accepts for every curved body in the kernel, broad and hard to
+reverse.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-01 — PR 3733's review: not mergeable; a ruling on doorless scalars
+
+The full review of PR 3733 (general-circle fitted route) found two
+MAJORs, both by execution. (1) The new fitted image sits off its
+carrier between samples — 1.08e-4 m on the oblique octant's rows at
+ε = 1e-9, up to 1e-2 near a pole — and certifies with envelope 0,
+because its interpolation nodes coincide with the certification
+samples, so check 3 cannot see the error (planted corruption of every
+off-sample node left 30 rows green). The fix pass gives the lane a
+sound between-samples bound, adaptive density, off-node sampling, and a
+typed refusal where nothing converges. (2) Retiring the exemption broke
+the oblique fillet at `Dual64`.
+
+**Ruling (orchestrator, from ratified D-L1 and C4):** at a scalar with
+no fitted door, a face only the fitted lane can image is not owed rows —
+that scalar certifies nothing fitted — so neither the mint nor tier 3
+demands them there; one predicate, the scalar's missing door. Sent to
+both PR 3733's lane and the at-rest unit's. Not put to Ev as a fork: it
+is D-L1 applied to C4, not a new choice; reported to Ev.
+
+Also from the review: D36's sphere incidence trilean meters over 2R,
+under-reading a circle inside the sphere by up to 2× (lenient
+direction, sliver band); the fix pass gives the residual one home with
+the sound lever.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-02 — PR 3759 (the at-rest unit) up; dual review; a design question it raised
+
+PR 3759 implements C4: tier 3 dry-mints a rowless face and reports why,
+re-certifies a half-minted face's rows against a window derived from
+the face, and every public producer now mints (`extrude` raised to
+`AtRestPolicy`). It also discloses a heavy cost: at the certified
+scalars the pcurve certificate's `pcurve_envelope` and
+`pcurve_map_residual` — zero by construction for a closed-form wall
+image — widen past the band over a parameter box, and now run on every
+extrude. M10-7's plate certifies only to 3.9e2·ε; the m10_3 hole drive
+certifies no leaf above ε/8; sym11's certified lane refuses.
+
+**Sequencing (orchestrator):** PR 3759 does not merge with that
+regression. The widening is put to the designer pair (where a
+zero-by-construction certified quantity is discharged — the certificate's
+form, PCERT's ground, or the symbolic tier's registration, SYM's), and
+its fix lands first or with 3759. The alternative — merge C4 now and
+take the regression until a fix — was rejected: it trades a headline
+capability (certified parametric studies) for a correctness rule whose
+own cost is the regression's cause.
+
+**Review:** DUAL, concurrent arm (unit cost H), two Opus reviewers on
+frozen head `8d0b2c2` (R1, R2). Designers D1 and D2 dispatched on the
+widening; byte on `analysis/design-fork/pcert-certificate-widening-2026-10-02`.
+
+PR 3733's fix pass replaced the cubic image with a quintic Hermite one
+carrying a Cauchy-estimate bound on the sixth derivative, a new
+statement `MapResidualHermite`, and re-worded C4 to name it (re-wording
+because the code moved; the statement is stronger than `OnLocusHull`).
+A delta review on the bound follows its implementer report.
+
+Signed (PCERT orchestrator).
+
+## 2026-10-02 — the widening fork converges; 3733 delta review
+
+- **The certificate-widening question** (the regression in PR 3759) was weighed by two designers.
+  - Round 1 split: a SYM tier rule for trig of `atan2`, against restating the certificate in the carrier's coefficients.
+  - Round 2 converged on the restatement. The tier rule's own author measured the restated terms as theorems at a ±1e-3 box, and found its rule cannot reach the UV-angle rows. Both now lean to moving a `Harmonic` row's schedule (check 3) off the box certificate.
+  - That is a C4 revision, so it went to Ev on `[ev]` PR 3781 (fork-log row 43).
+  - Restating check 4 is needed under either answer, so it is dispatched now as `pcurve-certificate-states-incidence-and-fidelity`, part 1 only, on a branch whose PR bases on 3759's branch.
+  - 3759 stays held until that lands. Logged alternative: land 3759 re-baselined to "certifies nothing" now. Not taken: it would re-baseline the flagship tour into a refusal, and both designers and the implementer lean to holding.
+- **3759 dual review.** R2 is in: not mergeable as-is. Its findings:
+  - nine undisclosed reds of the widening class (editor-core slow set, demo tour);
+  - two surviving mutants;
+  - the uncovered exemption is kept against C4's text;
+  - cycle-order masking.
+
+  R1 had its review drafted but held waiting for a go-ahead, so I told it to post. Adjudication waits on R1.
+- **3733 delta review: merge after fixes.**
+  - The Hermite constant, the Cauchy step and the chart factor hold.
+  - Check 4's glue is unsound for foreign images: per-end branch choice (a span winding a whole turn certifies), no image-domain check, and `max` where the derivation sums.
+  - The fix list went to the implementer.
+
+## 2026-10-02 — Ev rules on 3781; 3759 adjudicated; 3733 delta pass
+
+- **[ev] PR 3781, merged as c0b9b35.** Ev took (i): C4 leads with the closed-form envelope as the whole statement, with the schedule as the fallback where no closed form exists. Two rounds of rewording came from Ev's comments. The unit `pcurve-certificate-states-incidence-and-fidelity` now builds both parts.
+- **3759 dual review adjudicated.**
+  - R1's report reached me only as its session transcript. R1 declined to post on a cross-session go-ahead, so its findings were taken from the draft summary, with probes on `pcert/review-3759-r1`.
+  - Bilateral findings:
+    - the undisclosed widening reds;
+    - the untested half-minted window (M1 / p5);
+    - masking by the first uncovered edge;
+    - merge-faces re-mint dropping rows.
+  - R1 only: wrong-branch rows silent on a complete face; "no decision was lost" is false (shallow-arc 54→51).
+  - R2 only:
+    - M6;
+    - the C4 exemption, and `DESIGN.md:489`;
+    - stale prose;
+    - `cert_m3r1`'s filter_map;
+    - the AtRestPolicy overclaim.
+  - All of it went to the implementer as one list. The widening rows are not re-baselined.
+- **3733.** The delta fix pass is green at d0f1fe6. The round-2 delta verification is dispatched.
+
+## 2026-10-02 — 3733 merged
+
+- **PR 3733 merged as 6cd3c66.** The round-2 delta verification said merge, and all eight probes flipped.
+  - I merged main into it myself to resolve the C4 README conflict with 3781's rewording. The Hermite envelope now sits in the "no closed form" fallback, as a whole-span bound that keeps its schedule.
+  - CI was green on 14239df.
+  - `mint-has-no-route-to-the-fitted-general-circle-arm` is closed. The sphere general circle is the first uncovered class retired under the 3617 ruling.
+- The incidence/fidelity unit is dispatched (session_01QjnkkS1HoEHDzjjkW3CCWq, branch `pcert/certificate-incidence-fidelity`).
+
+## 2026-10-02 — 3759 delta review; 3812 sequencing
+
+- **The first delta reviewer never started.** It was dispatched with a short SHA as `source_revision`, and the session failed with `ref_not_found`. I re-dispatched it against the branch and the full SHA. Lesson: always give `create_session` a branch name or a full SHA.
+- **3759 delta review (comment 5951607360): merge with 3812, after one more pass.**
+  - All four mutants die.
+  - The 3733 reconciliation is clean.
+  - Both implementer deviations stand. On item 3, m10_9 was left red, which holds only if 3812 restores its pins. On item 6, the stored hull plus `RowInterval` is sound. A row widened by 2π cannot be built; a row shifted by 2π is caught by continuity, except at the wrap joint (MINOR-3).
+  - Fix list sent:
+    - certify the derived images of covered edges on an excused face (MINOR-2, a fix rather than a stated limit);
+    - check the wrap joint (MINOR-3);
+    - stale prose;
+    - `carry_rows` also runs `RowInterval`;
+    - file a row noting that check 5 is vacuous at rest.
+- **3812.** It carries part 2 and the literal walk branch (my ruling: a branch is structure, C4's "chosen once by the loop walk"). It must show the nine widening rows going green on its own head, which is the delta review's pre-merge check.
+  - `chaintol` stays red until `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin` lands.
+  - The trio (3759 + 3812 + the loop-decision unit) lands together, or chaintol is re-baselined with that row named. I'll decide when 3812's dual review is in.
+
+## 2026-10-02 — 3759 settled; 3812 dual review adjudicated
+
+- **3759 settled.** Both delta rounds are in. MINOR-A (a spurious discontinuity at gap position 0) is fixed at `e3d330393`, with a row covering every gap position and `revert()`. I accepted it on my own read: a small fix with its own row.
+- **3812 dual review, frozen head 47f6f723.** R1 (comment 5952460526): APPROVE-WITH-FIXES. R2 (comment 5953499653): NOT-MERGEABLE-AS-IS.
+  - **Correspondence:**
+    - Bilateral: `samples: 0` on point Interval; pin docs measured against the intermediate head; the narrowed dial-set gate; the `MAX_BRANCH_PERIODS` boundary; the `periodic_branch` class left at three sites; the duplicate unlogged door; the fuzz being f64-only and coverage-thin (R1 NOTE-6/S5 sits at NOTE, R2's at MAJOR).
+    - R1 only: the sphere twin refusing at Interval (MAJOR).
+    - R2 only: the frame premise unenforced over a box (MAJOR, a false accept); 4 of 12 mutants surviving, M8 unsound (MAJOR); CI red on the cut_cylinder sidecar (MAJOR); m10_9's bracket and pad refusing (a regression); stale work notes.
+  - The fix list is the union, with all four MAJORs blocking. A confirming review follows the fix pass.
+  - `m10_9`: fix the fillet-meridian radius term if it is a spelling question. Otherwise leave it as an asserted, disclosed regression at P0, like chaintol.
+- 2026-10-02 — Seam note from TANG: main is red on `bounds_census::every_sole_bracket_bound_door_is_in_the_roster` because `pcurve_cache::circle_image_envelope` (PR 3733) has no roster line. Filed as `circle-image-envelope-is-a-sole-bracket-door-missing-from-the-bounds-roster` (P0, E) on your slate; it reds every geom-core-touching PR. (TANG orchestrator)
+
+## 2026-10-02 — 3759 merged (82b52c36c), carrying 3812
+
+- **Merged** on a green head (025d8a0), after two more merges of main. The DUAL-REVIEW-LOG rows landed with it: DR-51 (3759, excluded under 6(e), one review truncated) and DR-52 (3812).
+- **Closed:** S331, `validate-pcurves-cannot-tell-…`, `validate-pcurves-never-recertifies-…`, `site-rows-leaves-an-off-chart-edge-silent`, `extrude-mints-no-pcurve-rows`, `pcurve-certificate-states-incidence-and-fidelity`, SYM's `pcurve-certificate-checks-widen-…` (its residue rowed), and `circle-image-envelope-is-a-sole-bracket-door-…` (fixed on main by 467d4b42f).
+- **Regressions that landed, each rowed:** chaintol's certified wall (the tip box about 1.6e6× worse) until `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`; M10-9's bracket and pad refusing (`fillet-meridian-radius-term-is-registered-only`, P0); the shallow-arc Interval grid (pctail's wide-arc row, given P2).
+- **Next:** the loop-decision unit, with a designer pair first (it touches C4's trim containment against the caller's ChartWindow); then the fillet-meridian P0.
+
+## 2026-10-03 — chart angular comparisons: designer pair, [ev] PR 3919
+
+- **Designer pair** dispatched on `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`, from main at 82b52c36c, with one problem statement and no candidate answers.
+  - They agreed on the core: check 5 and the caller's `ChartWindow` retire, and joints and closure state the integer branch and winding.
+  - They differed on three points: the pole joint, `chart_boundary`'s polygon, and spline charts. After one reconciliation round they converged (one designer moved on all three; they did not cross).
+- **[ev] PR 3919** rewords C4's domain-validity sentence and records DESIGN-FORK-LOG row 54's recommendation half.
+  - Provenance: the trim-window sentence was agent-written on 2026-09-03 (585b3422f, the docs-to-README sweep), and I found no ratification. PR 3781 left it untouched.
+  - Deviation: the blinding byte (87) was drawn after the reports came in, not at dispatch. This is recorded on `analysis/design-fork/pcert-chart-angles-2026-10-03`.
+  - My first commit on that branch overwrote README.md; the next two commits fixed it forward.
+- **Renders:** the nightly re-baselined the kernel, uv, mc and freecad cells after 3759 (e416e33de through a9732a08c).
+
+## 2026-10-03 — fillet-meridian: designer pair, not a fork; parked on PATHS 5b
+
+- I dispatched the pair with the byte drawn at dispatch (101, recorded on `analysis/design-fork/pcert-fillet-meridian-2026-10-03`).
+- Both designers came back with the same answer: the question is already ratified (D1, PR 3453), and the fix is PATHS 5b's fillet arm. So no `[ev]` PR goes out, and no fork-log row is written (protocol rule 1: only forks that go to Ev are rows).
+- The row is corrected and parked on `store-constructed-carriers`. I left a seam note in `work/paths/log.md` asking PATHS to rank 5b.
+- My call: don't take 5b into PCERT. It is PATHS' unit, already specced, and its fillet arm is the fix.
+
+## 2026-10-03 — Ev ruled on 3919; implementer dispatched
+
+- Ev approved PR 3919 ("sounds good! nice catch on 2"). Merged as c8ab2e37d. The fork-log row was renumbered 47 → 54 at the main merge, and Ev's decision and the A/B mapping were filled in.
+- The implementer is dispatched on `pcert/chart-angle-integers` from c8ab2e37d (session_016i8tmtwuCgNvRV9PXr5GHq). The brief is the C4 sentence plus 3919's two reports, and it lists the measurements owed in the PR body. The unit is cost H, so the dual-review pair runs on a frozen head once CI is green.
+
+## 2026-10-03 — PR 3945 dual review adjudicated
+
+- Frozen head 78e55c70. Both reviews are delivered: R1 (comment 5968113330) and R2 (comment 5968109956). Both verdicts are APPROVE-WITH-FIXES, and both report that lane isolation held.
+- **Correspondence pre-note (rule 7), written before the blinded coding returns:**
+  - **Bilateral MAJOR:** the sphere twin is decided with zero margin, so at K below about 4 the wrong sheet certifies or is stored shifted by τ. Both reproduced it, by different probes.
+  - **Bilateral MINOR:**
+    - surviving mutants on the near-pole path, the undecided skip, the winding bound, `identity()` ignoring the twin, and the `joint_arm` lever;
+    - stale `trim_containment` / continuity-margin prose;
+    - torax's either-or pin.
+  - **Unilateral, R2 only:**
+    - `kv` dropped (a surviving mutant);
+    - one predicate name for two questions;
+    - the `pin_branch` wrapper;
+    - the audit row's escape wording;
+    - mesh12 has no upper bound;
+    - the `lift_joint` doc matrix;
+    - the on-axis, off-surface lever (a note).
+  - **Unilateral, R1 only:**
+    - `chart_boundary` cites the 4ε bound for uncertified images;
+    - the gate test bypasses `singular_at`;
+    - two lever functions;
+    - the `loop_closes` combinations.
+  - **Tally candidates:** none, since the only MAJOR is bilateral. Expected tally contribution: 0.
+- **Fix list (the union) sent to the implementer:**
+  - the blocking fix for the twin, following B's design: nearest orbit point, with margin half the separation;
+  - the README re-word that follows from it;
+  - killing rows for every surviving mutant;
+  - the prose sweep;
+  - the minors.
+- Blinded coding dispatched (session_01JZy2Fs1EhBc7PrvXSvX4AE). The byte and mapping are recorded privately until merge.
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+
+## 2026-10-06 — 3945: re-port onto R
+
+- The usage cap stalled 3945 after its confirming review (APPROVE-WITH-FIXES, 0/2). Both MINORs are fixed locally at ae364e91.
+- Main meanwhile landed TOPO's R build (Ev's ruling on PR 4024: a stored per-half-edge joint element, `loop_lift`). That re-architected the code 3945 changes: 45 conflict hunks in `pcurves.rs`.
+- TOPO filed the coordination row on my slate. My call: 3945 lands second and re-ports onto R, with one decider and R's storage, not identity-at-every-joint.
+- The re-ported head gets a fresh dual pair. Most of the code under review will be new against 78e55c70, so a delta review would not cover it.
+
+## 2026-10-06 — PR 3945 round-2 dual review adjudicated (the re-port onto R)
+
+- Frozen head da1afd1f, a fresh pair because most of the code is new against 78e55c70. The later commit bbee7652 changes only a `work/` item.
+- Both reviews delivered: R1 (comment 6015903724) and R2 (comment 6014803528). Both verdicts are APPROVE-WITH-FIXES with no MAJOR. Isolation held: R1 read no comments, and R2 read only those before the cutoff. Both reproduced the `pinch_faces` ε=1e-6 red on main 62bdd557.
+- **Correspondence pre-note (rule 7), before the blinded coding returns.**
+  - Bilateral MINORs:
+    - `split_cache` turns a `decide_joint` refusal into a stored identity;
+    - near-pole orbit-point mutants survive (R1 MB/…, R2 m1);
+    - the README's C4 closure sentence is narrower than `Winding::closes`.
+  - Unilateral, R1 only:
+    - the further survivors: a Reset/Shift swap with the same deck, and the site mint's new-half vertex;
+    - `chart_boundary`'s `is_zero` leans on a winding the decider's docs concede can be off by one orbit step near a pole or a narrow cone apex;
+    - the unit's closure note is stale;
+    - NOTEs: claim 1 is overstated (kills, revert and graft write elements by algebra or copy), and `chaintol`'s rows 3–4 moved without being listed, with a guard that can't tell the predicate names apart.
+  - Unilateral, R2 only: `Reset` is written on an undecided reading on spline charts. That corrects my brief's premise; no code change.
+  - Tally candidates: none, since neither review raised a MAJOR.
+- The fix list (the union) has gone to the implementer. The blinded coder is session_01TeTFymE7xDPjooubHwkkPD; the byte is recorded privately.
+
+## 2026-10-07 — PR 3945 merged (4711ad4f): the chart's angle checks are integers, on R
+
+- **What landed:**
+  - Check 5 and the caller's `ChartWindow` are retired.
+  - One decider, `decide_joint`, decides each joint's deck element on TOPO's R storage. Tier 3 checks every stored element against it.
+  - On a sphere the deck element is one orbit integer in half periods, with a quarter period of room. On other surfaces it is whole periods.
+  - Poles are decided as 3-D incidence. `Reset` is written only on a decided incidence or an undecided spline gate.
+  - A room fence: `chart_boundary` builds only where every joint's winding was decided with room.
+  - `split_cache` and `turn_element` refuse rather than store a guess.
+  - `chaintol` is back to `[1.0, 0.370, 0.185, 0.111]`, with `dihedral_wedge` as its wall.
+- **Review:**
+  - Two concurrent pairs. Round 1 on 78e55c70 found a bilateral MAJOR: the zero-margin sphere twin. Round 2 on the R re-port, da1afd1f, found no MAJOR.
+  - Two confirming reviews, each APPROVE-WITH-FIXES 0/2, both fixed.
+  - DR-95, tally 0. It was renumbered from DR-94 at merge, because SSI #4104 took 94 first.
+- **Path:** the usage cap stalled the unit, and main landed R in the meantime. That forced the re-port, plus four merges of main, the last one combining our pins with CARVE #4187's cap orientation.
+- **Rows closed by the PR:**
+  - the unit itself;
+  - `at-rest-trim-containment-…`;
+  - the 3945/R coordination row.
+- **Left open:** TOPO's kill-straddle row, with a note appended.
+- **Next in PCERT:**
+  - `fillet-meridian-radius-term-is-registered-only` (P0) stays parked on PATHS 5b.
+  - pctail's wide-arc row is P2.
+- **Fillet-meridian P0 closed by PATHS 5b (#3774):** the filleted bracket and the pad now certify whole at M10-9's scale at every ε. So all three regressions disclosed at 3759/3812 are resolved:
+  - chaintol, by 3945;
+  - the bracket and the pad, by 5b;
+  - the shallow-arc grid stays as pctail's P2.
+- **Priorities set on the remaining slate.** The three C4 route rows (torus general circle, cone section, spline carrier) are P1, per Ev's 3617 ruling that every uncovered class gets a route wired. The spiric / no-fitted classes, the fitted-kind option and the line-seam refusal are P2. The torus general circle goes next, as the nearest analogue of the sphere route (3733).
+
+## 2026-10-07 — torus general circle: designer pair concurs, implementer dispatched
+
+- **Designers:** an Opus/Fable pair (byte 220, on `analysis/design-fork/pcert-torus-general-circle-2026-10-07`). Both recommend the same final state, so this is not a fork and gets no fork-log row.
+- **The geometry corrects the row's premise:**
+  - A ring torus holds only parallels, meridians and Villarceau circles.
+  - The class's "circle ⊥ the axis centred off it" lies on no torus; it only grazes the tube crest.
+  - A right circular cone holds no circle but its rims, so `UncoveredClass::ConeSection` is a grazer too.
+- **Adopted:**
+  - A Villarceau circle gets an exact closed-form image (a Kepler azimuth with the focus on the axis, and an affine minor angle), certified as `MapResidualClosedForm`.
+  - `Pcurve::ConeSection` is generalised into one focal-section image with one lemma. Opus leaned to a sibling variant; Fable to generalising. The orchestrator picked generalising, with a stop-and-report if any field would be meaningless for one instance.
+  - Torus incidence goes through the existing `ConicTorusHarmonics` (degree 2, not the issue's degree 4), then structural Villarceau gates.
+  - A grazer (on cone or torus) refuses typed.
+  - `UncoveredClass::TorusGeneralCircle` and `::ConeSection` are deleted.
+- **Rejected:** a fitted Hermite image for every band-close torus circle. It certifies at the fallback grade a curve that has a closed form, and it is conditional on the fitted door.
+- **Folded in:** the cone lane's schedule `Record::Verdict` is brought in line with C4's witness-lane cross-check.
+- **Implementer:** session_01Jf5pbwHG7dwojg183pt2vs, branch `pcert/torus-villarceau-route` from 9645b375. It is an H unit, so it gets a dual review.
+
+## 2026-10-07 — PR 4227 dual review (frozen head 64b7def7)
+
+- **The review pair:** two Opus reviewers ran concurrently. Both returned APPROVE-WITH-FIXES. The pre-note's tally candidates are none.
+- **The one MAJOR is in both reports:** the torus incidence test decides "off the torus" from an *upper* bound on the distance. So circles within band of a Villarceau circle get refused as `CarrierOffChart`.
+  - **Class finding:** the same one-sided idiom is in the cone's `pcurve_cone_chart_incident`. The sphere's test is to be checked.
+  - The fix pass decides Off only from a lower bound, and sweeps all three.
+- **Test gaps** (demonstrated by surviving mutants): five envelope terms and every Villarceau gate.
+- **Fix pass** is with the implementer: session_01Jf5pbwHG7dwojg183pt2vs.
+
+## 2026-10-07 — PR 4227 merged (65af3eca); spline-carrier designers dispatched
+
+- **4227 merged.** `Pcurve::FocalSection` covers both cone sections and Villarceau circles under one closed-form envelope. Incidence on the sphere, cone and torus is one-sided: Off is decided only from a sampled lower bound. A circle on a torus or cone that is in band but is none of its circles refuses as `CarrierGrazesChart`. `UncoveredClass::TorusGeneralCircle` and `::ConeSection` are retired.
+- **Rows:**
+  - Closed: the torus and cone route rows.
+  - Filed: `the-face-whole-excusal-has-no-fixture-on-an-analytic-chart`.
+  - Still open: the incidence issue, for its spline-carrier and no-fitted bullets.
+- **Review: DR-102.**
+  - The concurrent pair's only MAJOR was raised by both reviewers, so the tally is 0.
+  - A single confirming review followed the fix pass: 0 MAJOR, 3 MINOR.
+  - The row was renumbered twice at merge (DR-100, then DR-101), because main took both numbers while CI ran.
+- **Next P1, the spline-carrier route:** an Opus/Fable designer pair is running. The byte, 122, is on `analysis/design-fork/pcert-spline-carrier-route-2026-10-07`. Sessions: session_01QrKCiRg8fQ31Qwsdm8FQ2c and session_012cb8vsD3QyGVpV4oCTU2cZ.
+
+## 2026-10-07 — spline-carrier route: designers converge, [ev] PR 4261
+
+- **Round 1:** A recommended a Hermite fit on the curved charts and the affine net on the plane. B recommended the *projected image*, `ψ(C(t))`, exact on every analytic chart.
+- **Reconciliation:** each designer was shown the other's report. A moved to B's route. B adopted A's routed-verdict point and its reach correction.
+  - The orchestrator asked B to check its nearest-point claim on the cone. B found it false there by exactly 1/cos α (the cone's `v` was height), and moved the cone's `v` to the foot's coordinate on the generator.
+  - Converged, not crossed.
+- **Why it goes to Ev:** the route rewrites C4's `OnLocusHull` sentence, which Ev worded on PR 3781, and the sphere circle's Hermite sentence, which landed with 3733 without an `[ev]` review. PR 4261 carries the diff and fork-log row 85.
+- **Still Ev's:** A versus A′ (whether the sphere's general circle leaves the Hermite route); both designers lean A. The P1/P2 question is in the PR body.
+- **Off-question findings, filed:** `no-fitted-class-misuse-is-excused-by-not-owed`, `site-rows-derive-through-chart-pcurve-bypassing-the-routed-arm` and `on-locus-hull-is-named-for-charts-whose-metres-composite-refuses`. The excusal-fixture row's `m6_2` claim is corrected.
+
+## 2026-10-07 — PR 4268 merged (6f5c5224): the LINE seam carries its chart row's refusal
+
+- `line-seam-boundary-row-refusal-discarded-as-iso-unsupported` (P2) is closed. The LINE-seam arm now answers `ChartRow { source }`, as its sibling arms do.
+- **The sweep found the same discard in SSI's `Pass::curve`, which was fixed.** `SsiError` gains `ChartRow`, numbered in SSI's roster, and the fitted lane maps it through to pcert's `ChartRow`.
+- **A third site was filed for SSI** (P3): `ssi-one-arc-side-readers-discard-the-side-rows-refusal`.
+- **The test the brief asked for cannot exist:** a mismatched net cannot reach the arm. A source-preservation test stands in for it.
+- **Review:** orchestrator's read (an S unit, a one-line repair plus its sibling).
+- `[ev]` PR 4261 (spline-carrier route) is still awaiting Ev.
+
+## 2026-10-08 — Ev rules on 4261; merged (529a47bd); projected-image implementer dispatched
+
+- **Ev's question:** first asked whether the PR concerned the intensional description or the cache. Answered: the cache, and D2 is unchanged.
+- **Ev's ruling** ("ok all the recommendations sound good!"):
+  - the projected image goes on every analytic chart, with the sphere's general circle included (A);
+  - `OnLocusHull` and the Hermite route retire on analytic charts;
+  - the tube belongs to the edge's certificate;
+  - P1 is kept.
+- **Record:** fork-log row 89 is completed (renumbered from 85 at merge, because main took rows 85–88).
+- **Implementer:** session_01Ht23dQzhB1yisWXxau9tZF, on branch `pcert/projected-image` from 981fd34e. It is an H unit, with at most two PRs, and gets a dual review. It first establishes where the tube lives at rest.

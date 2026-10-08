@@ -36,7 +36,7 @@ fn seeds() -> Vec<BlendError> {
     let band = Band::new(1e-9, 1e-6).expect("a band");
     let decided = |predicate, m: f64, sign| ClassifiedMargin {
         predicate,
-        reading: MarginDiag::Value(m),
+        reading: MarginDiag::value(m),
         band,
         sign,
     };
@@ -56,13 +56,13 @@ fn seeds() -> Vec<BlendError> {
         BlendError::FaceClearanceUncertified {
             face: FaceKey::default(),
             margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
-            gap: MarginDiag::Value(0.2),
+            gap: MarginDiag::value(0.2),
             cross_chain: false,
         },
         BlendError::FaceClearanceUncertified {
             face: FaceKey::default(),
             margin: decided("fillet3_face_clearance", -1e-3, Sign::Negative),
-            gap: MarginDiag::Value(0.2),
+            gap: MarginDiag::value(0.2),
             cross_chain: true,
         },
         BlendError::TangentialEdge {
@@ -76,7 +76,7 @@ fn seeds() -> Vec<BlendError> {
         BlendError::ChainNotG1 {
             vertex: VertexKey::default(),
             margin: decided("fillet3_chain_g1", 1e-3, Sign::Positive),
-            arm: MarginDiag::Value(0.5),
+            arm: MarginDiag::value(0.5),
         },
         BlendError::ConvexitySignFlip {
             edge: EdgeKey::default(),
@@ -103,52 +103,52 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::Escalated {
             site: BlendSite::Chain,
+            decision: sweep::blend::BlendDecision::RingClearance,
             source: Indeterminate {
-                margin: MarginDiag::Value(0.0),
+                margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_ring_clearance"),
+                terminal_sliver: false,
             },
         },
         BlendError::Escalated {
             site: BlendSite::Chain,
+            decision: sweep::blend::BlendDecision::RadiusHeadroom,
             source: Indeterminate {
-                margin: MarginDiag::Value(0.0),
+                margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_radius_headroom"),
+                terminal_sliver: false,
             },
         },
-        // The site is the payload one level below the variant, and
-        // two of its three arms carry a field: a roster that samples
-        // only the fieldless one reports green over whatever the other
-        // two render.
         BlendError::Escalated {
             site: BlendSite::Link {
                 edge: EdgeKey::default(),
             },
+            decision: sweep::blend::BlendDecision::RingClearance,
             source: Indeterminate {
-                margin: MarginDiag::Value(0.0),
+                margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_ring_clearance"),
+                terminal_sliver: false,
             },
         },
         BlendError::Escalated {
             site: BlendSite::Joint {
                 vertex: VertexKey::default(),
             },
+            decision: sweep::blend::BlendDecision::ChainG1,
             source: Indeterminate {
-                margin: MarginDiag::Value(0.0),
+                margin: MarginDiag::value(0.0),
                 band,
                 predicate: Some("fillet3_chain_g1"),
+                terminal_sliver: false,
             },
         },
         BlendError::RepeatedEdge {
             edge: EdgeKey::default(),
         },
         BlendError::NonpositiveSize { size: 0.0 },
-        BlendError::UnsupportedBody {
-            solids: 2,
-            shells: 2,
-        },
         BlendError::UnsupportedChain {
             edge: EdgeKey::default(),
             detail: "a chain shape that is not built",
@@ -167,17 +167,19 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::RingClearance {
             face: FaceKey::default(),
+            chain: sweep::blend::Convexity::Convex,
             margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
+            bounded: false,
         },
         BlendError::Certify {
             site: "blend face pcurves",
-            source: topo::PcurveMintError::Corrupt,
+            source: topo::PcurveMintError::LoopNotClosed {
+                face: FaceKey::default(),
+            },
         },
         BlendError::Op {
             site: "strut mev",
-            source: topo::EulerOpError::StaleKey {
-                key: EntityId::Edge(EdgeKey::default()),
-            },
+            source: topo::EulerOpError::DescriptionNotAdjacent { edge: None },
         },
     ]
 }
@@ -279,7 +281,7 @@ fn verb_words_appear_only_where_a_disposition_covers_them() {
 #[test]
 fn a_nonpositive_radius_fillet_refuses_as_invalid_input() {
     let t = Tol::witness();
-    let body = cube(1.0, t);
+    let body = sweep::test_support::finished("body", cube(1.0, t), t);
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     for radius in [0.0, -0.1, f64::NAN] {
         let err = fillet_edges(&body, &edges, radius, t)

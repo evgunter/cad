@@ -8,11 +8,13 @@
 //! # Why the two spellings of an arc need it
 //!
 //! A sketch arc is pushed forward through `sin(s·θ)` and `−2·sin²(s·θ/2)`
-//! with `θ = 4·atan(bulge)` (`geom-brep`'s `SketchSegment::eval`), and
-//! its carrier is evaluated through `cos t`, `sin t` at
-//! `t = (i/8)·4·atan|bulge|` (`Curve3::circle_at` over the certifier's
-//! schedule). Held opaque, `sin(½·atan b)` and `cos(atan b)` are two
-//! unrelated indeterminates and the residual between the spellings is
+//! with `θ` the segment's stored sweep (`geom-brep`'s
+//! `SketchSegment::eval`), which the profile's lowering mints as
+//! `4·atan(bulge)`, and its carrier is evaluated through `cos t`,
+//! `sin t` at `t = (i/8)·σ·θ`, the span signed by the decided turn σ
+//! (`Curve3::circle_at` over the certifier's schedule). Held opaque,
+//! `sin(½·atan b)` and `cos(atan b)` are two unrelated indeterminates
+//! and the residual between the spellings is
 //! not the zero form anywhere the trig has not collapsed. Written in
 //! closed form both sides are rational functions of `X` and one
 //! `sqrt` atom, and rules A/B (`super::algebra`) close the ring.
@@ -56,23 +58,21 @@
 //! (`atan(X)/3` has no closed form this module states), or an atom
 //! over a poisoned argument, all stay opaque, which is the conservative
 //! direction. The certifier's schedule produces `q = i/2` and `i/4` for
-//! `i ∈ 0..=8` (`sample_param` at `θ = 4·atan|b|`, and the pushforward's
-//! `s·θ` and `s·θ/2` at `s = i/8`) plus the mid-parameter `2·atan|b|`;
+//! `i ∈ 0..=8` (`sample_param` at the span `σ·θ`, and the pushforward's
+//! `s·θ` and `s·θ/2` at `s = i/8`) plus the mid-parameter `σ·2·atan b`;
 //! the bounds hold those with room and nothing folds past them.
 //!
 //! The `sqrt` atoms this module mints are recorded like every other
 //! atom, so rule A reaches their squares, and they are keyed by their
 //! argument's form, so the two spellings of one arc mint ONE atom each
-//! — at a LITERAL bulge. At a bulge that is not `1` what stands is not
-//! this module's: at `bulge = 2` every trig atom folds and the residue
-//! is the carrier's `abs(signed_radius)` (which no rule squares away)
-//! over the coefficient ring's width (the odd half-multiples' closed
-//! forms freeze at `COEFF_BITS`); with the bulge a document PARAMETER
-//! `b`, the carrier's span `4·atan|b|` and the pushforward's `4·atan b`
-//! mint `sqrt(1 + abs(b)²)` and `sqrt(1 + b²)` — two atoms for one
-//! quantity, related only through the sign of `b`, which no value-free
-//! rule reads (`m10_10_evidence_interval` at `CAD_M10_10_DOC=r1_segment_boss`
-//! and the `r2_d_tab_*` documents; the pins in `m10_bulge_interval`).
+//! — at a literal bulge and at a parameter one alike, because the
+//! carrier's span is the pushforward's own sweep signed by a decided
+//! `Sign`, never `atan|b|`. At a bulge that is not `1` what stands is
+//! not this module's: at `bulge = 2` every trig atom folds and the
+//! residue is the carrier's `abs(signed_radius)` (which no rule squares
+//! away) over the coefficient ring's width (`m10_10_evidence_interval`
+//! at `CAD_M10_10_DOC=r1_segment_boss` and the `r2_d_tab_*` documents;
+//! the pins in `m10_bulge_interval`).
 //!
 //! **The second fold: `atan2(0, N) = 0` for an `N` non-negative by its
 //! syntax** (`manifest::nonneg`, which is where that predicate lives
@@ -115,7 +115,7 @@ use std::sync::Arc;
 
 use super::form::{Form, Poly, within};
 use super::rational::{Int, Rat};
-use super::{AtomInfo, INDET_PI, Session, SymOp, indet_atom};
+use super::{INDET_PI, Session, SymOp};
 
 /// The largest `|k|` in `q = k / 2ᵐ` this rule folds.
 pub(super) const MAX_MULTIPLE: i128 = 32;
@@ -301,19 +301,17 @@ fn fold_at_half_pi(op: SymOp, arg: &Form) -> Option<Form> {
 /// walk and "rule E is early-only" survives; this site has no walk
 /// flag of its own to check. A plain-walk caller of `fold` would break
 /// that, and there is none.
-fn sqrt_atom(arg: Form, sess: &mut Session) -> u128 {
+fn sqrt_atom(arg: Form, sess: &mut Session) -> Form {
     let arg = if sess.rules.common_factor {
         super::quotient::cancel(&arg)
     } else {
         arg
     };
-    let id = indet_atom(SymOp::Sqrt.tag(), 0, &[arg.digest()]);
-    sess.atoms.entry(id).or_insert_with(|| AtomInfo {
-        op: SymOp::Sqrt,
-        payload: 0,
-        args: [Some(Arc::new(arg)), None],
-    });
-    id
+    // Through rule G's door, like every other `sqrt` in the tier: a
+    // root this rule builds by hand and one the walk mints over the
+    // same argument have to be one atom, and the door is what makes
+    // that structural. `early = true` is this rule's own contract.
+    super::root::mint(arg, sess)
 }
 
 /// `c · p` for a small integer `c` — [`Poly::scaled`](super::form::Poly::scaled)
@@ -393,17 +391,25 @@ fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
     // φ = atan X, X = N / Dx: cos φ = Dx / (Dx·S), sin φ = N / (Dx·S)
     // with S = sqrt(1 + X²).
     let s = sqrt_atom(one.add(&x.mul(&x, budget)?, budget)?, sess);
-    let mut den = x.den.mul(&Poly::indet(s), budget)?;
-    let mut cn = x.den.clone();
-    let sn = x.num.clone();
+    let mut gated = x.gated || s.gated;
+    // The shared denominator stays ONE polynomial even when the root
+    // is a quotient: `C/(D·S)` with `S = Sn/Sd` is `C·Sd/(D·Sn)`, so a
+    // root with a denominator multiplies the numerators instead of
+    // splitting the representation (this function's header argues why
+    // one shared denominator is the whole of rule D's cost).
+    let mut den = x.den.mul(&s.num, budget)?;
+    let mut cn = x.den.mul(&s.den, budget)?;
+    let mut sn = x.num.mul(&s.den, budget)?;
     // ψ = φ / 2ᵐ, each halving on the positive branch (module docs):
     // c₂ = sqrt((1 + cos θ) / 2) = sqrt((D + C) / (2·D)), then
     // cos(θ/2) = (D + C) / (2·c₂·D), sin(θ/2) = S / (2·c₂·D).
     for _ in 0..m {
         let lifted = den.add(&cn)?;
         let c2 = sqrt_atom(Form::quotient(lifted.clone(), scaled(&den, 2)?), sess);
-        cn = lifted;
-        den = scaled(&den.mul(&Poly::indet(c2), budget)?, 2)?;
+        gated |= c2.gated;
+        cn = lifted.mul(&c2.den, budget)?;
+        sn = sn.mul(&c2.den, budget)?;
+        den = scaled(&den.mul(&c2.num, budget)?, 2)?;
     }
     // k·ψ by angle addition from (cos 0, sin 0) = (1, 0), every
     // multiple over Dᵏ.
@@ -422,7 +428,12 @@ fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
         cos: ck,
         sin: sk,
         den: dk,
-        gated: x.gated,
+        // Every form consumed, not only the argument's: rule G can
+        // return a GATED root (its side condition's certified source),
+        // and a closed form built over one is conditional on that read
+        // exactly as the root is. Inert while rule C's dial is off,
+        // and one dial from laundering a read into a theorem.
+        gated,
     })
 }
 
@@ -430,7 +441,7 @@ fn build_closed_forms(arg: &Form, sess: &mut Session) -> Option<Closed> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::sym::{SymBudget, SymRules};
+    use crate::sym::{AtomInfo, SymBudget, SymRules, indet_atom};
 
     fn budget() -> SymBudget {
         SymBudget {
@@ -442,14 +453,19 @@ mod tests {
     /// A bare session with the atoms `atan(x)` and `atan2(x, x)` in
     /// it, for the reader to look up.
     fn session_with(x: &Form, atan: u128, atan2: u128) -> Session {
-        let mut sess = Session::new(budget(), SymRules::all(), None);
+        let mut sess = Session::new(
+            budget(),
+            SymRules::all(),
+            crate::sym::SymRetry::none(),
+            None,
+        );
         for (id, op) in [(atan, SymOp::Atan), (atan2, SymOp::Atan2)] {
             sess.atoms.insert(
                 id,
                 AtomInfo {
                     op,
                     payload: 0,
-                    args: [Some(Arc::new(x.clone())), Some(Arc::new(x.clone()))],
+                    args: [Some(Arc::new(x.clone())), Some(Arc::new(x.clone())), None],
                 },
             );
         }

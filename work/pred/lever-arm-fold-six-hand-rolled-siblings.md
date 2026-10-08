@@ -84,3 +84,50 @@ its hand-rolled fold (the first bullet above). Each site's comment
 names the other. A consolidation would put the lever choice (which arm,
 given a second-order verdict) in one home beside `folded_lever_arm` and
 leave the role difference at the call sites.
+
+## Progress (SSI lever-arm lane)
+
+`geom-brep/ssi.rs`'s ℝ³ finisher now calls `folded_lever_arm`, and so does
+a site this row never counted: `ssi::system`'s `ImplicitPairR3::lever_arm`
+(the march's transversality arm), which folded the two curvature arms by
+hand and left the extent to the march. Both were concrete `f64` code, so
+their `.min` was the inherent `f64::min`, which drops a NaN operand — a
+NURBS operand's poison arm fell to the sibling's radius. That was the
+reason to move them, not just the duplication.
+
+**The two that remain are generic** (`T: Decide` in `contact_verify.rs`
+and `boolean/ops.rs`), so their `.min` resolves to `Real::min` and
+propagates poison already: a clippy `disallowed-methods` pass over
+`f64::min`/`f64::max` does not flag either. They are duplications only,
+not the poison-dropping class.
+
+## Progress (FUSE, PR 3889)
+
+Both generic sites are gone: `topo/boolean/ops.rs`'s rebuild walk now
+asks `geom_brep::must_carry_over_edge`, which levers through
+`tangent_second_order`, and `topo/boolean/contact_verify.rs`'s
+`tangent_locus_relation` calls `folded_lever_arm` (the same fold, the
+same bits). No hand-rolled copy of the fold is left. What remains of
+this row is its deeper half, `contact_tangent_opposed` as
+`classify_material_pairing`'s undisclosed twin, and the seventh
+spelling pair above (the parallelism fallback lever).
+
+
+## Evidence from CLEAVE (branch cleave/smooth-arms)
+
+Two sites still spell the fold or the margin in place, so the row is not
+done:
+
+- `geom-brep/src/ssi/march.rs`, the transversality gate
+  (`decide_positive("ssi_transversality_arm", ..)`), folds the extent
+  in place as `Real::min(sys.lever_arm(x), extent)`. For the ℝ³ system
+  the arm is `pair_lever_arm`'s.
+- `topo/src/boolean/contact_verify.rs`, `tangent_locus_relation`,
+  meters `Margin::sagitta(jet.kappa_rel.abs() - bounds.kappa_drift, arm)`
+  under its own predicate, `"contact_tangent_second_order"`. That is a
+  drift-widened sibling of `tangent_second_order`'s margin.
+
+`folded_lever_arm`'s and `tangent_second_order`'s docs
+(`crates/geom-brep/src/dihedral.rs`) used to say "two siblings remain
+(`contact_verify`, `ops`)" and "one remaining sibling (`validate`)".
+They now name these sites instead.

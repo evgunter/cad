@@ -1,9 +1,11 @@
 //! R2 review probe, adopted and converted to a pin: the BOOLEAN door
 //! (`topo::boolean_op_with`, the (Plane, Sphere) germ arm wired since
-//! M5 S13). Measured: every near-pole slab intersect refuses
-//! `CurvedPierceUnsupported` at every probed height, so this door
-//! cannot mint issue 896's guard state either. Part of the door
-//! enumeration whose single home is `step-import/tests/poleguard.rs`.
+//! M5 S13). Measured: a near-pole slab intersect whose cut lies within
+//! a few ε of the pole refuses, so this door cannot mint issue 896's
+//! guard state; one cut a macroscopic distance below it builds the
+//! sphere face the cut leaves, meets its closed form and meshes with
+//! the guard quiet. Part of the door enumeration whose single home is
+//! `step-import/tests/poleguard.rs`.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -16,19 +18,21 @@ use common::*;
 use geom_core::Tol;
 use topo::{BooleanDeclarations, BooleanOp, boolean_op_with};
 
-fn slab(y0: f64) -> topo::Body<f64> {
-    sweep::test_support::brick((-2.0, 2.0), (-2.0, y0), (0.0, 2.0), Tol::witness())
+fn slab(y0: f64) -> topo::AtRestBody<f64> {
+    let body = sweep::test_support::brick((-2.0, 2.0), (-2.0, y0), (0.0, 2.0), Tol::witness());
+    topo::test_support::finished("the slab", body, Tol::witness())
 }
 
 #[test]
 fn r2_bool_door_near_pole() {
     let eps = common::eps();
     let mut lines = vec![format!("eps = {eps:e}")];
+    let ball = topo::test_support::finished("the ball", ball(), Tol::witness());
     for rho in [0.9 * eps, 5.0 * eps, 1e-6, 1e-3, 0.1] {
         let y0 = (1.0f64 - rho * rho).sqrt();
         let r = boolean_op_with(
             BooleanOp::Intersect,
-            &ball(),
+            &ball,
             &slab(y0),
             &BooleanDeclarations::default(),
             topo::SweepStrategy::Realized,
@@ -49,6 +53,17 @@ fn r2_bool_door_near_pole() {
                     continue;
                 };
                 let b = bb.body.clone();
+                // The half ball `z ≥ 0` less the half of its cap above
+                // `y = y0`.
+                let h = 1.0 - y0;
+                let want = (4.0 / 3.0 - h * h * (3.0 - h) / 3.0) * core::f64::consts::PI / 2.0;
+                let got = topo::mass_properties(&b, Tol::witness())
+                    .unwrap_or_else(|e| panic!("rho={rho:.3e}: mass properties, got {e:?}"))
+                    .volume;
+                assert!(
+                    (got - want).abs() <= 1e-9,
+                    "rho={rho:.3e}: volume {got} against the closed form {want}"
+                );
                 let t = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                     mesh::tessellate(&b, 0.05, Tol::witness())
                 }));
@@ -75,12 +90,21 @@ fn r2_bool_door_near_pole() {
             }
         }
     }
-    for l in lines.iter().filter(|l| l.starts_with("rho=")) {
-        assert!(
-            l.contains("boolean refused"),
-            "the boolean door admitted a body — the issue-896 route question must be \
-             re-asked: {l}"
-        );
-    }
     println!("R2 BOOL DOOR\n{}", lines.join("\n"));
+    // The first two rows cut within 5ε of the pole: the door stays shut
+    // there. A row it admits meshes with the guard quiet.
+    for (i, l) in lines.iter().filter(|l| l.starts_with("rho=")).enumerate() {
+        if i < 2 {
+            assert!(
+                l.contains("boolean refused"),
+                "the boolean door admitted a body within the band of the pole — the \
+                 issue-896 route question must be re-asked: {l}"
+            );
+        } else {
+            assert!(
+                l.contains("boolean refused") || l.contains("guard QUIET"),
+                "a body the boolean door admitted does not mesh quietly: {l}"
+            );
+        }
+    }
 }

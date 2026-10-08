@@ -38,9 +38,19 @@ fn masquerading_surface() -> Surface<f64> {
 fn probe_s350_face_reach_returns_a_partially_poisoned_box() {
     let mut st = mvfs_state();
     st.body
-        .set_face_surface(st.face, FaceSurface::New(masquerading_surface()))
+        .set_face_surface(
+            st.face,
+            FaceSurface::New {
+                surface: masquerading_surface(),
+                sense: true,
+            },
+        )
         .unwrap();
-    let answer = face_reach(&st.body, st.face);
+    let answer = face_reach(
+        &st.body,
+        st.face,
+        Band::linear(geom_core::Tol::witness()).unwrap(),
+    );
     let Some((lo, hi)) = answer else {
         panic!("PROBE: face_reach answered None — S350's premise does not hold");
     };
@@ -62,9 +72,20 @@ fn probe_s350_face_reach_returns_a_partially_poisoned_box() {
 fn probe_s350_a_margin_against_the_partial_box_clears_a_pair() {
     let mut st = mvfs_state();
     st.body
-        .set_face_surface(st.face, FaceSurface::New(masquerading_surface()))
+        .set_face_surface(
+            st.face,
+            FaceSurface::New {
+                surface: masquerading_surface(),
+                sense: true,
+            },
+        )
         .unwrap();
-    let (olo, ohi) = face_reach(&st.body, st.face).expect("the partial box");
+    let (olo, ohi) = face_reach(
+        &st.body,
+        st.face,
+        Band::linear(geom_core::Tol::witness()).unwrap(),
+    )
+    .expect("the partial box");
     // An inner box far outside the outer's y extent: the census's
     // clearing direction.
     let ilo = Point3::new(0.0, 100.0, 0.0);
@@ -119,7 +140,13 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
     let run = |s: Surface<f64>| {
         let mut st = mvfs_state();
         st.body
-            .set_face_surface(st.face, FaceSurface::New(s))
+            .set_face_surface(
+                st.face,
+                FaceSurface::New {
+                    surface: s,
+                    sense: true,
+                },
+            )
             .unwrap();
         let mut marks = slotmap::SecondaryMap::new();
         crate::validate::tier3_local_checks_marked::<f64>(

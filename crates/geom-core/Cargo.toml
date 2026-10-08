@@ -88,8 +88,8 @@ num-traits = { workspace = true }
 # libm error pads, pure Rust over the same `libm` this crate already
 # carries, and a separate workspace root so its own gmp-backed
 # certification oracle never enters this graph. A NORMAL dependency. It
-# is also the differential oracle the
-# ring's default-lane tests read (`tests/ring_interval_differential.rs`).
+# is also the differential oracle `tests/interval_backend_differential.rs`
+# reads.
 interval-transcendentals = { workspace = true }
 # D9 addendum idiom 1 for a walk whose units decide through the funnel
 # (`k_stats::map_detached`): the map lives beside `detached` and

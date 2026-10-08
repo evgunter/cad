@@ -50,7 +50,7 @@ fn seam_edges(
         let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
             continue;
         };
-        if !matches!(c.description(), geom_brep::EdgeDescription::Chart(cc) if cc.seam) {
+        if !matches!(c.description(), geom_brep::EdgeDescription::Chart(cc) if cc.wrap) {
             continue;
         }
         let hp = body.get_half_edge(e.he_plus).unwrap();
@@ -297,26 +297,27 @@ fn r1_washer90_imports_the_true_region() {
     assert_eq!(seam_edges(&body).len(), 1, "washer90 seam count");
 }
 
-/// C2 attack, now the fix's pin (R1 fix pass, m2): a band whose
-/// surface u_ref is rotated 1e-4 rad leaves the rim vertices 1.6e-6 m
-/// off the seam azimuth — inside the mint's ε_in vertex budget
-/// (1e-5 m), outside ambient certification. The minted generator is
-/// D1's spatial statement of the u_ref half-plane, so adoption offers
-/// it ONLY as the seam chart image: certification fails and the
-/// import refuses typed with the ladder's own report — never the old
-/// silent MappedCurve downgrade that imported green with 3 of 4
-/// seams.
+/// C2 attack, now a wrap-edge row: a band whose surface `u_ref` is
+/// rotated 1e-4 rad leaves the rim vertices 1.6e-6 m off the `u_ref`
+/// azimuth — inside the mint's ε_in vertex budget, outside ambient
+/// certification. The minted generator runs through those vertices, and
+/// a wrap edge sits where the construction cut (D1), so it adopts as
+/// the wall's wrap edge there — never the old silent MappedCurve
+/// downgrade that imported with 3 of 4 seams: every generator is a wrap
+/// edge with both halves in its one wall, and the body passes tier 3.
 #[test]
-fn r1_off_uref_band_refuses_rather_than_downgrading_its_seam() {
-    let e = import_step(
+fn r1_off_uref_band_adopts_every_generator_as_a_wrap_edge() {
+    let Ok(StepImport::Solid { body, .. }) = import_step(
         &band("ftc11_uref_off.stp"),
         &ImportOptions::default(),
         Tol::witness(),
-    )
-    .unwrap_err();
-    let msg = e.to_string();
-    assert!(
-        msg.contains("no intensional description certifies") && msg.contains("seam"),
-        "expected the seam-only adoption refusal, got: {msg}"
-    );
+    ) else {
+        panic!("the off-u_ref band imports");
+    };
+    let wraps = seam_edges(&body);
+    assert_eq!(wraps.len(), 4, "one generator per band wall: {wraps:?}");
+    for (f_plus, f_minus, _) in &wraps {
+        assert_eq!(f_plus, f_minus, "a wrap edge's halves bound one face");
+    }
+    assert_eq!(topo::validate_geometric(&body, Tol::witness()), Ok(()));
 }

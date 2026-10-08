@@ -26,7 +26,10 @@ fn band() -> Band {
 }
 
 fn p(name: &str, lo: f64, hi: f64) -> Sym<Interval> {
-    Sym::param(ParamSymbol::of(name), Interval::from_bounds(lo, hi))
+    Sym::param(
+        ParamSymbol::new(test_utils::symbol_id(name)),
+        Interval::from_bounds(lo, hi),
+    )
 }
 
 fn lit(x: f64) -> Sym<Interval> {
@@ -34,7 +37,7 @@ fn lit(x: f64) -> Sym<Interval> {
 }
 
 fn sign_of(m: Sym<Interval>) -> Result<Sign, ()> {
-    m.sign_within(band()).map_err(|_| ())
+    m.sign_within(band()).map(|d| d.sign).map_err(|_| ())
 }
 
 /// **Clause 1 in front of rule A**: `sqrt(X)² − X` with `X` STRADDLING

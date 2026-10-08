@@ -24,8 +24,10 @@
 
 use crate::common;
 use common::{inserted, len, session_insert};
+use pncad::document::ExtrudeSide;
 
-use pncad::document::{Datum, Doc, Expr, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::NodeStanding;
+use pncad::document::{Datum, Doc, Formula, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, SurfaceKind, attribute};
 use pncad::select::{InterrogateError, all_faces, face_carrier_kind};
@@ -33,7 +35,7 @@ use viewer::session::{
     DatumSpec, DocSession, FaceFrameFault, FaceSelection, NodeKindWanted, ProfilePlane, Refusal,
     SessionOp, admits, face_frame_seat,
 };
-use viewer::{sketch, tree};
+use viewer::sketch;
 
 /// A 20 mm square box, 10 mm tall, through the document door — the
 /// body every row here picks a face on.
@@ -46,6 +48,7 @@ fn boxed(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     )
@@ -91,7 +94,7 @@ fn a7_the_viewer_takes_a_derived_frame_by_value() {
         !admits(Some(node), NodeKindWanted::Plane),
         "and only the frame seat"
     );
-    assert_eq!(tree::node_kind(node), "Datum frame (on face)");
+    assert_eq!(doc.spoken(frame).kind(), Some("Datum frame (on face)"));
     assert!(
         sketch::frames(&doc).contains(&frame),
         "the plane picker lists it"
@@ -298,11 +301,16 @@ fn the_gate_carries_the_interrogation_refusal() {
         node: cube,
         body: 0,
     };
-    assert_eq!(
-        face_frame_seat(session.landed_pair(), Some(&picked)),
-        Err(FaceFrameFault::Unresolved {
-            error: InterrogateError::NoSuchName
-        })
+    let seat = face_frame_seat(session.landed_pair(), Some(&picked));
+    assert!(
+        matches!(
+            seat,
+            Err(FaceFrameFault::Unresolved {
+                error: InterrogateError::NoSuchName,
+                ..
+            })
+        ),
+        "{seat:?}"
     );
 }
 
@@ -361,6 +369,10 @@ fn several_bodies_is_no_seat_for_a_face_frame() {
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
+    session.perform(SessionOp::SetLabel {
+        node: split,
+        label: Some(pncad::document::Label::new("halves").expect("a label")),
+    });
     session.pump();
     let face = face_where(&session, split, |kind, _| kind == SurfaceKind::Plane);
     let picked = FaceSelection {
@@ -368,10 +380,18 @@ fn several_bodies_is_no_seat_for_a_face_frame() {
         node: split,
         body: 0,
     };
-    assert_eq!(
-        face_frame_seat(session.landed_pair(), Some(&picked)),
-        Err(FaceFrameFault::NotOneBody { at: split }),
-        "the form declines it"
+    let seat = face_frame_seat(session.landed_pair(), Some(&picked));
+    assert!(
+        matches!(&seat, Err(FaceFrameFault::NotOneBody { at }) if at.id() == split),
+        "the form declines it: {seat:?}"
+    );
+    let said = seat
+        .as_ref()
+        .map_err(ToString::to_string)
+        .expect_err("refused");
+    assert!(
+        said.starts_with("Split \"halves\" ("),
+        "it names the split as labelled: {said}"
     );
     let refused = session.perform(SessionOp::AddDatum {
         datum: DatumSpec::FaceFrame {
@@ -382,11 +402,11 @@ fn several_bodies_is_no_seat_for_a_face_frame() {
     });
     assert!(
         matches!(
-            refused.refusal,
+            &refused.refusal,
             Some(Refusal::WrongNodeKind {
                 node,
                 wanted: NodeKindWanted::Body
-            }) if node == split
+            }) if node.id() == split
         ),
         "and so does the op door, if the form is bypassed: {:?}",
         refused.refusal
@@ -410,7 +430,7 @@ fn a_transform_of_a_pattern_is_no_seat_for_a_face_frame() {
         &doc,
         Node::Pattern {
             input: cube,
-            count: Expr::count(2),
+            count: Formula::count(2),
             kind: pncad::document::PatternKind::Linear {
                 direction: common::scl3([1.0, 0.0, 0.0]),
                 spacing: len(0.05),
@@ -420,12 +440,14 @@ fn a_transform_of_a_pattern_is_no_seat_for_a_face_frame() {
     );
     let (doc, placed) = inserted(
         &doc,
-        Node::Transform {
-            input: pattern,
-            translation: common::len3([0.0, 0.0, 0.001]),
-            rotation_axis: common::scl3([0.0, 0.0, 1.0]),
-            rotation_angle: common::ang(0.0),
-        },
+        Node::transform(
+            pattern,
+            pncad::document::Step::Rigid {
+                translation: common::len3([0.0, 0.0, 0.001]),
+                axis: common::scl3([0.0, 0.0, 1.0]),
+                angle: common::ang(0.0),
+            },
+        ),
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
@@ -436,10 +458,10 @@ fn a_transform_of_a_pattern_is_no_seat_for_a_face_frame() {
         node: placed,
         body: 0,
     };
-    assert_eq!(
-        face_frame_seat(session.landed_pair(), Some(&picked)),
-        Err(FaceFrameFault::NotOneBody { at: placed }),
-        "the transform's value is several bodies"
+    let seat = face_frame_seat(session.landed_pair(), Some(&picked));
+    assert!(
+        matches!(&seat, Err(FaceFrameFault::NotOneBody { at }) if at.id() == placed),
+        "the transform's value is several bodies: {seat:?}"
     );
 }
 
@@ -478,11 +500,15 @@ fn a_pick_whose_node_an_undo_took_away_is_refused_as_gone() {
         session.committed_doc().node(cube).is_none(),
         "the document no longer holds the node the pick names"
     );
-    assert_eq!(
-        face_frame_seat(session.landed_pair(), Some(&picked)),
-        Err(FaceFrameFault::Unresolved {
-            error: InterrogateError::NodeNotEvaluated { node: cube },
-        }),
-        "the face is gone, and that is what it is told"
+    let seat = face_frame_seat(session.landed_pair(), Some(&picked));
+    assert!(
+        matches!(
+            &seat,
+            Err(FaceFrameFault::Unresolved {
+                error: InterrogateError::Standing(NodeStanding::NotInDocument { node }),
+                ..
+            }) if *node == cube
+        ),
+        "the face is gone, and that is what it is told: {seat:?}"
     );
 }

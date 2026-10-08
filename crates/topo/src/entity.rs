@@ -167,12 +167,21 @@ new_key_type! {
     pub struct VertexKey;
 }
 
-/// A solid: a connected volume bounded by one or more shells.
+/// A solid: one piece of material (`docs/DESIGN.md`, "A solid is one
+/// piece of material") — its one outer shell and the void shells of the
+/// cavities in its material, which together bound that material and
+/// nothing else, so every point winds `0` or `1` (`validate_geometric`'s
+/// check 10).
 ///
-/// Multi-shell solids are constructible (a boolean's `A ∖ B` with `B`
+/// A body holds any number of solids. A boolean's `A ∖ B` with `B`
 /// strictly inside `A` yields an outer shell plus a reverted void
-/// shell). The outer-shell/cavity-shell distinction — which shell
-/// bounds material from outside versus which bound internal voids — is
+/// shell; a union of disjoint operands yields two solids, and so does
+/// an island inside a cavity, or two pieces that only touch. The verbs
+/// that build a result under one solid sort it into pieces before they
+/// return it ([`crate::pieces`]).
+///
+/// The outer-shell/cavity-shell distinction — which shell bounds
+/// material from outside versus which bound internal voids — is
 /// **not stored**: the shell list carries no designation and this
 /// structure does not enforce one. It is DERIVED from orientation
 /// wherever it is needed, by the sign of a shell's signed volume (the
@@ -269,21 +278,15 @@ pub struct Face {
     /// vector negated under the bit by hand can be, and
     /// `face_normal`'s tree-wide row is what stands against that.
     ///
-    /// **Writers (M5 S11).** An Euler operator mints `sense: true` on a
-    /// face it puts on a NEW surface (the material side is not op-level
-    /// knowledge — `mef` sees two chords, not the profile); a face that
-    /// inherits its parent's surface inherits that parent's sense with
-    /// it. Constructors attach the honest bit
-    /// through [`crate::Body::set_face_sense`] wherever the chart
-    /// normal points into material, decided from the profile's stored
-    /// winding/turn structure, never numerically: extrude's concave
-    /// arc walls, and a revolve's inward walls (bore cylinder, inward
-    /// cone, under-side plane annulus, concave sphere/torus band). The
-    /// remaining writer-to-be is curved [`crate::Body::revert`] (the
-    /// follow-on unit), which flips every face of a body at once.
-    /// Consumers are audited and threaded as of S10; the test-only
-    /// door [`crate::Body::flipped_face_sense_for_tests`] exercises
-    /// the *incoherent* single-face flip.
+    /// **Writers.** `mvfs` writes its caller's bit, and `mef`, `mfkrh`
+    /// and [`crate::Body::set_face_surface`] write the bit their
+    /// [`crate::FaceSurface`] spec resolves to
+    /// (`Body::resolve_face_surface`), so every construction that
+    /// charts a face states or derives its bit through those doors. [`crate::Body::revert`] flips every
+    /// face of a body at once, and [`crate::Body::set_face_sense`]
+    /// writes the bit on a chart that stands still. The test-only door
+    /// [`crate::Body::flipped_face_sense_for_tests`] exercises the
+    /// *incoherent* single-face flip.
     ///
     /// STEP alignment: this is exactly `advanced_face.same_sense`
     /// (ISO 10303-42 `face_surface`), which PR 13's exporter consumes
@@ -331,21 +334,13 @@ pub enum LoopBoundary {
     /// points back via [`HalfEdge::parent_loop`].
     Cycle {
         /// The cycle's anchor: the half-edge every walk of the cycle
-        /// starts at. Any member closes the cycle, and tier 1 asks
-        /// nothing more of it — but on a loop whose face carries
-        /// stored pcurve rows on a periodic chart the anchor is
-        /// load-bearing: the one-branch loop walk
-        /// (`crate::pcurves`, "The one-branch walk") pins every joint
-        /// of the cycle to its predecessor's exit, so a one-period
-        /// wrap of the chart's azimuth can be REPORTED only at the
-        /// closure — the joint between the cycle's last half-edge and
-        /// this one — and the stored rows are continuous in the
-        /// walk's order from here. A producer that reverses a cycle
-        /// therefore moves `first` to its source predecessor
-        /// (`crate::Body::revert`), which keeps that joint the
-        /// closure; a producer that re-anchors a minted loop anywhere
-        /// else owes a re-mint of its rows (the `Transfers` posture in
-        /// `crate::pcurves`).
+        /// starts at, and where a loop's lift starts
+        /// ([`crate::Body::loop_lift`]). Any member closes the cycle,
+        /// and nothing else asks more of it: a pcurve row is an image
+        /// and a joint element, each a function of edges and the chart
+        /// (`crate::pcurves`, "The loop walk"), so no stored byte
+        /// depends on which member is `first`, and a door may move it
+        /// freely.
         first: HalfEdgeKey,
     },
 }
@@ -412,6 +407,48 @@ pub struct Edge {
     pub he_minus: HalfEdgeKey,
     /// The curve this edge is a piece of (D2: edges reference curves).
     pub curve: CurveKey,
+}
+
+/// Which half of its edge a half-edge is, and the other half
+/// ([`Edge::claim`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Claim {
+    /// The half is `he_plus`, so it runs with the edge's intrinsic
+    /// direction and its carrier's parameter.
+    pub(crate) plus: bool,
+    /// The edge's other half.
+    pub(crate) mate: HalfEdgeKey,
+}
+
+impl Claim {
+    /// The [`Edge`] field holding [`Claim::mate`]: the label a read of
+    /// the mate through its edge names.
+    pub(crate) const fn mate_field(&self) -> &'static str {
+        if self.plus { "he_minus" } else { "he_plus" }
+    }
+}
+
+impl Edge {
+    /// **`he`'s place on this edge** — the one reading of the edge ↔
+    /// half-edge pairing, for the mate and for the direction alike.
+    /// `None` when neither slot holds `he` (a corrupt bijection): a
+    /// half the edge does not claim is neither its plus half nor its
+    /// minus half, and no caller may read it as one.
+    pub(crate) fn claim(&self, he: HalfEdgeKey) -> Option<Claim> {
+        if self.he_plus == he {
+            Some(Claim {
+                plus: true,
+                mate: self.he_minus,
+            })
+        } else if self.he_minus == he {
+            Some(Claim {
+                plus: false,
+                mate: self.he_plus,
+            })
+        } else {
+            None
+        }
+    }
 }
 
 /// A vertex: a point of the model where edges end (or a lone vertex of

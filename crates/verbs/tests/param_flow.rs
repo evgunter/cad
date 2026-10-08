@@ -33,6 +33,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Vec3};
 use sweep::Revolution;
@@ -43,6 +44,7 @@ use verbs::{
 };
 
 use crate::fixture::{disc, offset_disc, tol, x_axis, z_plane};
+use sweep::test_support::finished;
 
 /// Every scalar parameter in the vocabulary is named by exactly one
 /// flow row, on the verb it belongs to.
@@ -128,7 +130,7 @@ fn no_flow_row_repeats_a_field() {
 /// Which role families a record actually filled.
 fn minted(rec: &BlendNaming) -> BTreeSet<RoleFamily> {
     let mut out = BTreeSet::new();
-    if !rec.blends.is_empty() {
+    if !rec.blends.is_empty() || !rec.joined_blends.is_empty() {
         out.insert(RoleFamily::Blends);
     }
     if !rec.corners.is_empty() {
@@ -142,7 +144,7 @@ fn minted(rec: &BlendNaming) -> BTreeSet<RoleFamily> {
 
 fn record(verb: &Verb<f64>, operand: &Body<f64>) -> BlendNaming {
     let out = verb
-        .run(operand, tol())
+        .run(&sweep::test_support::at_rest(operand, tol()), tol())
         .expect("the fixture is inside the door");
     let VerbRecord::Blend(naming) = out.record else {
         panic!("a blend run produced another family's record");
@@ -241,6 +243,8 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
     let a = sweep::test_support::cube(1.0, tol());
     let map = Affine3::translation(Vec3::new(0.5, 0.5, 0.5));
     let b = topo::transform_rigid(&a, &map, tol()).expect("a translation is rigid");
+    let a = topo::AtRestBody::validate(a, tol()).expect("the unit cube is a finished body");
+    let b = topo::AtRestBody::validate(b, tol()).expect("the shifted cube is a finished body");
     let out = Verb::Boolean {
         op: BooleanOp::Union,
         declare: BooleanDeclarations::none(),
@@ -277,7 +281,8 @@ fn the_booleans_flow_is_empty_beside_a_real_record() {
 /// chamfer's, and the census above is what proves nothing was skipped.
 #[test]
 fn the_splits_flow_is_empty_beside_a_real_record() {
-    let cube = sweep::test_support::cube(1.0, tol());
+    let cube =
+        sweep::test_support::finished("the cube", sweep::test_support::cube(1.0, tol()), tol());
     let out = Verb::Split {
         plane: z_plane(0.5),
     }
@@ -317,7 +322,7 @@ fn the_shells_flow_is_empty_beside_a_real_record() {
         open: Vec::new(),
     }
     .run_shell(
-        &cube,
+        &finished("the cube", cube, tol()),
         tol(),
         <f64 as topo::AtRestPolicy>::shell_door().expect("f64 certifies"),
     )
@@ -384,14 +389,17 @@ fn only_profile_operand_verbs_declare_a_profile_edge_source() {
 /// the only thing a per-edge source can be attached through.
 #[test]
 fn the_sweeps_flow_names_the_wall_family_their_records_mint() {
-    let extruded = Verb::Extrude { distance: 1.0 }
-        .run_profile(&disc(0.5), tol())
-        .expect("the disc extrudes");
+    let extruded = Verb::Extrude {
+        distance: 1.0,
+        side: ExtrudeSide::Along,
+    }
+    .run_profile(&disc(0.5), tol())
+    .expect("the disc extrudes");
     let VerbRecord::Extrude(built) = extruded else {
         panic!("an extrude run produced another family's record");
     };
     assert!(
-        built.side_faces.iter().any(|loop_| !loop_.is_empty()),
+        built.side_faces().iter().any(|loop_| !loop_.is_empty()),
         "the extruded disc minted no side walls"
     );
 
@@ -405,7 +413,7 @@ fn the_sweeps_flow_names_the_wall_family_their_records_mint() {
         panic!("a revolve run produced another family's record");
     };
     assert!(
-        built.walls.iter().flatten().any(Option::is_some),
+        built.walls().iter().flatten().any(Option::is_some),
         "the revolved disc minted no walls"
     );
 

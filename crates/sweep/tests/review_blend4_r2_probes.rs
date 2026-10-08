@@ -23,6 +23,7 @@ use crate::common::cavity::{cavity_edges, vented_cavity};
 use geom::{Curve3, Surface};
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::blend::arms::corner_ball;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, Convexity, CornerConfig};
@@ -42,16 +43,26 @@ const R: f64 = 0.25;
 fn convex_carve() -> (Body<f64>, Vec<FaceKey>) {
     let body = cube(2.0, Tol::witness());
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let out = fillet_edges(&body, &edges, R, Tol::witness())
-        .expect("a cube's twelve convex edges fillet");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &edges,
+        R,
+        Tol::witness(),
+    )
+    .expect("a cube's twelve convex edges fillet");
     (out.body, out.corner_faces)
 }
 
 /// The all-concave carve: the vented cavity's twelve edges.
 fn concave_carve() -> (Body<f64>, Vec<FaceKey>) {
     let body = vented_cavity();
-    let out = fillet_edges(&body, &cavity_edges(&body), R, Tol::witness())
-        .expect("the cavity's twelve concave edges fillet");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &cavity_edges(&body),
+        R,
+        Tol::witness(),
+    )
+    .expect("the cavity's twelve concave edges fillet");
     (out.body, out.corner_faces)
 }
 
@@ -303,9 +314,16 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the L is a valid profile");
-    let bracket = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .expect("the bracket extrudes")
-        .body;
+    let bracket = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the bracket extrudes")
+    .body;
     let on_reflex = |q: Point3<f64>| (q.x - 1.0).abs() < 1e-12 && (q.y - 1.0).abs() < 1e-12;
     let reflex: Vec<EdgeKey> = bracket
         .edges()
@@ -333,8 +351,13 @@ fn r2_the_mixed_corner_refusals_count_is_two_of_three() {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(reflex.len(), 1, "the bracket's one reflex vertical edge");
-    let refused =
-        fillet_edges(&bracket, &reflex, 0.1, Tol::witness()).expect_err("a mixed corner refuses");
+    let refused = fillet_edges(
+        &sweep::test_support::at_rest(&bracket, Tol::witness()),
+        &reflex,
+        0.1,
+        Tol::witness(),
+    )
+    .expect_err("a mixed corner refuses");
     match refused.error {
         BlendError::UnsupportedCorner {
             corner: CornerConfig::MixedConvexity { convex },
@@ -391,12 +414,24 @@ fn r2_no_sliver_wedge_pose_is_silently_wrong_on_the_corner_path() {
             let profile = Profile::new(SketchPlane::xy(), vec![lp])
                 .validate(Tol::witness())
                 .expect("a triangle is a valid profile");
-            let prism = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-                .expect("the wedge prism extrudes")
-                .body;
+            let prism = extrude(
+                &profile,
+                Extrusion::Distance {
+                    depth: 1.0,
+                    side: ExtrudeSide::Along,
+                },
+                Tol::witness(),
+            )
+            .expect("the wedge prism extrudes")
+            .body;
             let edges: Vec<EdgeKey> = prism.edges().map(|(k, _)| k).collect();
             let pose = format!("thickness {thickness}, radius {radius}");
-            match fillet_edges(&prism, &edges, radius, Tol::witness()) {
+            match fillet_edges(
+                &sweep::test_support::at_rest(&prism, Tol::witness()),
+                &edges,
+                radius,
+                Tol::witness(),
+            ) {
                 Ok(out) => {
                     carved += 1;
                     assert_eq!(topo::validate(&out.body), Ok(()), "{pose}: tier 1");

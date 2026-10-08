@@ -92,12 +92,12 @@ use std::sync::Arc;
 
 use geom_core::interval::Interval;
 use geom_core::sym;
-use geom_core::{MarginDiag, Sym, SymCounts, Tol};
+use geom_core::{Sym, SymCounts, Tol};
 
 #[cfg(feature = "probe")]
 use crate::analysis::BoxAxis;
 use crate::analysis::{AnalyzedBox, MeasureUnavailable, ParamBox};
-use crate::doc::{Doc, ParamName};
+use crate::doc::Doc;
 use crate::eval::{
     CancelToken, ContentKey, EvalOptions, Evaluation, KeyHasher, NodeErrorKind, NodeResult,
     ProfileLift, evaluate,
@@ -105,6 +105,8 @@ use crate::eval::{
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
 use crate::resolve::{FlipSet, diff_verdicts};
+use crate::spoken::SpokenNode;
+use crate::var::VarId;
 // The two derived verdict forms live in one module (`resolve::vdiff`);
 // this driver is the strict form's certifying consumer, and names it at
 // `drive::` because that is where every consumer already reaches for it.
@@ -282,7 +284,27 @@ pub struct SymbolicDials {
     /// stood before the algebra, so the effect of each rule on a
     /// document is a measurement taken through this dial rather than
     /// an assumption.
+    ///
+    /// **That premise needs [`Self::retry`] at
+    /// [`geom_core::SymRetry::none`]**: a retry ladder is a second
+    /// rule set run into each side's refusals — its first attempt shuts
+    /// rule G — so a rules differential taken with it on both sides
+    /// reads a rule's cost as recovered. The suites' differentials take
+    /// their dials from one place that sets it so
+    /// (`editor-core/tests/m10_8_harness.rs`, `dials`).
     pub rules: geom_core::SymRules,
+    /// **The RETRY LADDER a refused decision may take**
+    /// ([`geom_core::SymRetry`]): the measured ladder by default
+    /// ([`DEFAULT_SYM_RETRY`] = [`geom_core::SymRetry::kept_atom`], whose
+    /// doc carries the cost against the line and the trade), and
+    /// [`geom_core::SymRetry::none`] is the tier making one attempt per
+    /// rung — exactly as it stood before SYM-9 — so what the ladder buys
+    /// a document is a differential taken through this dial.
+    ///
+    /// It can only ADD: a retry is asked only where every rung of the
+    /// first attempt declined, so no dial value here moves a decision
+    /// out of `symbolic_zero`, `sign_gated` or `registered`.
+    pub retry: geom_core::SymRetry,
 }
 
 /// The shipped term budget ([`SymbolicDials`]).
@@ -290,6 +312,69 @@ pub const DEFAULT_SYM_MAX_TERMS: usize = 4096;
 
 /// The shipped degree budget ([`SymbolicDials`]).
 pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
+
+/// **The shipped RETRY LADDER** ([`SymbolicDials::retry`]):
+/// [`geom_core::SymRetry::kept_atom`] — two kept-atom attempts, rule G
+/// shut and then rule A's `sqrt(X)² = X` shut, and no wider-ring
+/// attempt. It SHIPS ACROSS THE 1.6 s LINE as a disclosed trade, the way
+/// rule E did (`geom_core::sym`'s rule-E section).
+///
+/// **The cost, on the affordability line's own instrument** — one
+/// whole-box leaf (`m10_10_leaf_cost_with_and_without_the_algebra`),
+/// release, the fastest of three takes on a four-core box, the shipped
+/// rules at one attempt per rung against the same rules with a ladder:
+///
+/// | document (scale) | M10-9 | one attempt | `kept_atom` | rule-G mask alone | rule-A mask alone | what the ladder closes |
+/// | --- | --- | --- | --- | --- | --- | --- |
+/// | two-hole plate (`1e2·ε`) | 0.09 s | 0.35 s | 0.35 s | 0.38 s¹ | 0.38 s¹ | nothing |
+/// | R1's annulus (`1e1·ε`) | 0.06 s | 0.37 s | 0.38 s | 0.40 s¹ | 0.39 s¹ | nothing |
+/// | R2's filleted bracket (`1e1·ε`) | 0.28 s | 2.86 s | 3.88 s | 3.53 s | 3.25 s | 6 decisions, all `registered` (rule A's attempt) |
+/// | R2's link (`1e1·ε`) | 0.23 s | 17.28 s | 19.71 s | 18.94 s | 17.93 s | 12 decisions, all `symbolic_zero` (rule G's attempt) |
+/// | R2's rounded pad (`1e2·ε`) | 0.75 s | 131.3 s | 147.7 s | 144.0 s¹ | 139.2 s¹ | nothing |
+///
+/// ¹ One take, not three.
+///
+/// **The trade, on the balance.** The line is 1.6 s. The bracket, the
+/// link and the pad are over it at ONE attempt per rung — the shipped
+/// rules alone take the bracket to 10× and the link to 75× their M10-9
+/// leaf — and the ladder adds 1.0 s on the bracket (36 %), 2.4 s on the
+/// link (14 %) and 16 s on the pad (12.5 %). It takes no document from
+/// under the line to over it and changes no certification (every leaf
+/// above certifies whole with it and without it); with the decision read
+/// shut (`SymRules::without_the_reads`) the same columns move by less
+/// than the takes' spread, so the read is not what it costs. What it
+/// buys is the link's twelve theorems, ten of them exactly the ten
+/// rule G costs `carrier_on_surface_2` at one attempt per rung
+/// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`)
+/// — so the rule-G attempt pays back what the default rule G takes.
+///
+/// **The rule-A attempt is the WEAKER half and is named as such.** On
+/// the only document it acts on it buys six REGISTRATIONS and no theorem
+/// — decisions moved from `numeric` to a constructor's axiom — for about
+/// 0.4 s of the bracket's 1.0 s (rule-A mask alone 3.25 s against 2.86).
+/// It ships with the rule-G attempt on the same balance, disclosed here
+/// rather than dropped.
+///
+/// **The masks' order is a tie**: the other order recovers the same
+/// decisions on every measured document (the nominal replay, dev:
+/// bracket 1.47× against 1.44×, link 1.22× against 1.21×; the leaf:
+/// 3.88 against 3.76 s and 19.71 against 19.51 s, inside the takes'
+/// spread), so rule G's attempt — the one that buys theorems — goes
+/// first.
+///
+/// **One mask would not do**: rule A and rule G shut in ONE attempt
+/// keeps the bracket's six and recovers NONE of the link's twelve at
+/// the nominal (why is not executed; `geom_core::SymRetry::without`
+/// carries the hypothesis and what would confirm it).
+///
+/// **The wider ring is measured and not in the ladder**, which is the
+/// answer SYM-9 owes `work/sym/coefficient-ring-width-is-not-monotone-in-reach`:
+/// at 512 bits it recovers, predicate by predicate, no more than the
+/// kept-atom attempts do — the bracket's same six and eight of the
+/// link's twelve — at 4.50× the nominal replay on the bracket against
+/// the kept-atom ladder's 1.47×. At 1024 bits it recovers thirteen more
+/// on the bracket than the kept atom does, 19 in all, at 11.57×.
+pub const DEFAULT_SYM_RETRY: geom_core::SymRetry = geom_core::SymRetry::kept_atom();
 
 impl SymbolicDials {
     /// The tier off — the numeric-only replay, bit for bit.
@@ -313,7 +398,7 @@ impl SymbolicDials {
     /// certified-leaf consumer takes ([`crate::eval::LeafLane`]).
     pub(crate) fn lane(self) -> crate::eval::LeafLane {
         if self.enabled {
-            crate::eval::LeafLane::Symbolic(self.budget(), self.rules)
+            crate::eval::LeafLane::Symbolic(self.budget(), self.rules, self.retry)
         } else {
             crate::eval::LeafLane::Numeric
         }
@@ -328,6 +413,8 @@ impl Default for SymbolicDials {
             max_degree: DEFAULT_SYM_MAX_DEGREE,
             // The shipped atom-algebra set ([`geom_core::SymRules::shipped`]).
             rules: geom_core::SymRules::default(),
+            // The measured retry ladder ([`DEFAULT_SYM_RETRY`]).
+            retry: DEFAULT_SYM_RETRY,
         }
     }
 }
@@ -540,9 +627,43 @@ pub enum RefusalReason {
     MeasureRefused {
         /// The measure node that could not be taken.
         node: RecipeNodeId,
-        /// The engine's or the wiring's own class name for it.
-        class: &'static str,
+        /// Which refusal it was, typed.
+        class: MeasureRefusalClass,
     },
+}
+
+/// **Which measure refusal a smaller box cannot change**, as a type
+/// rather than a name.
+///
+/// The wiring's own arm and the clearance engine's refusal are two
+/// vocabularies, and one `&'static str` carrying both let a reader that
+/// wanted the arm match a string while nothing stopped the two
+/// colliding. The engine's typed refusal arrives at the measure layer
+/// already typed, and this is one hop further on, so it stays typed:
+/// `Clearance` holds the engine's own value.
+///
+/// [`Self::name`] is the serialized form, which is unchanged — the
+/// receipt reads only the name.
+#[derive(Debug, Clone, PartialEq)]
+pub enum MeasureRefusalClass {
+    /// The selection resolved to the wrong KIND of entity
+    /// ([`NodeErrorKind::MeasureSelectionKind`]).
+    SelectionKind,
+    /// The clearance engine refused, with its own refusal
+    /// ([`NodeErrorKind::MeasureClearanceRefused`]).
+    Clearance(crate::clearance::ClearanceRefusal),
+}
+
+impl MeasureRefusalClass {
+    /// The class's name in a receipt: the wiring's own for its arm, the
+    /// engine's own for the engine's.
+    #[must_use]
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::SelectionKind => "selection_kind",
+            Self::Clearance(r) => r.name(),
+        }
+    }
 }
 
 impl RefusalReason {
@@ -807,13 +928,13 @@ impl ParamBoxVerdict {
             self.receipt.splits,
             self.receipt.holds()
         );
-        let _ = writeln!(s, "witness_vector {:032x}", self.witness_vector.key().0);
+        let _ = writeln!(s, "witness_vector {:032x}", self.witness_vector.key());
         for leaf in &self.certified {
             let _ = writeln!(
                 s,
                 "certified {} key={:032x}",
                 render_box(&leaf.box_),
-                leaf.verdict_vector_key.0
+                leaf.verdict_vector_key
             );
         }
         for leaf in &self.refused {
@@ -867,6 +988,20 @@ impl ParamBoxVerdict {
                     self.decisions.registrations_contradicted
                 );
             }
+            // **How many of the discharges above a RETRY carried**
+            // (`geom_core::SymCounts::retried`, SYM-9), by the same
+            // present-only-when-nonzero rule: the ladder is entered
+            // only on a refusal, so a drive it closes nothing on
+            // serializes the line it serialized before the ladder
+            // existed. At the nominal it closes something on two of the
+            // five documents SYM-9 measured (R2's link and bracket).
+            //
+            // It is not a fourth discharge column: those three are
+            // where a retry's answer lands, and this says how many of
+            // them the second attempt is holding up.
+            if self.decisions.retried != 0 {
+                let _ = write!(s, " retried={}", self.decisions.retried);
+            }
             // The theorem channels' refusal column, by the same rule
             // again. **It costs no schema bump because there is no
             // schema to bump**: this text is written and never parsed.
@@ -898,8 +1033,9 @@ impl ParamBoxVerdict {
     /// the box's distributions, not of the verdict: a drive over a
     /// band-only box produces exactly the same masses as one over a
     /// uniform box, and only the box knows that none of them is a
-    /// probability ([`crate::report::MassBasis`]).
-    pub fn render(&self, analyzed: &AnalyzedBox) -> String {
+    /// probability ([`crate::report::MassBasis`]). Each variable a line
+    /// names is spoken from `doc`, the document the drive ran over.
+    pub fn render<P>(&self, doc: &crate::doc::Doc<P>, analyzed: &AnalyzedBox) -> String {
         use core::fmt::Write as _;
         let mut s = String::new();
         let r = self.receipt;
@@ -948,6 +1084,17 @@ impl ParamBoxVerdict {
                     d.registered
                 );
             }
+            // How many of the discharges named above a retry carried —
+            // a clause of its own and not a parenthesis on the last
+            // column, because a retry's zero lands in whichever column
+            // its rung writes (`geom_core::SymCounts::retried`).
+            if d.retried != 0 {
+                let _ = write!(
+                    s,
+                    "; {} of those discharges reached only by a second attempt",
+                    d.retried
+                );
+            }
             // A refusal is louder than a count: it says a constructor
             // stated something this box contradicts.
             if d.registrations_refused != 0 {
@@ -976,7 +1123,7 @@ impl ParamBoxVerdict {
         let _ = write!(
             s,
             "{}",
-            crate::report::MassBudget::of(&self.accounting, analyzed).render()
+            crate::report::MassBudget::of(&self.accounting, analyzed).render(doc)
         );
         s
     }
@@ -1103,8 +1250,9 @@ pub enum DriveRefusal {
     /// error; evaluating the document at `f64` hands back the error
     /// itself.
     WitnessDoesNotBuild {
-        /// The first node, in evaluation order, that did not build.
-        node: RecipeNodeId,
+        /// The first node, in evaluation order, that did not build,
+        /// spoken from the driven document.
+        node: SpokenNode,
         /// The node error's rendering.
         cause: String,
     },
@@ -1132,8 +1280,9 @@ pub enum DriveRefusal {
     /// is in the message: drive this document with
     /// [`SymbolicDials::off`].
     SymbolicClearanceUnsupported {
-        /// The measure node whose primitive has no lane.
-        node: RecipeNodeId,
+        /// The measure node whose primitive has no lane, spoken from
+        /// the driven document.
+        node: SpokenNode,
     },
 }
 
@@ -1142,9 +1291,8 @@ impl core::fmt::Display for DriveRefusal {
         match self {
             Self::WitnessDoesNotBuild { node, cause } => write!(
                 f,
-                "the witness build refuses at node {}: {cause} — there is no branch to certify \
-                 leaves against until the nominal document builds",
-                node.0
+                "the witness build refuses at {node}: {cause} — there is no branch to certify \
+                 leaves against until the nominal document builds"
             ),
             Self::NothingVaries => f.write_str(
                 "no parameter of this document declares a distribution, so the analyzed box has \
@@ -1152,10 +1300,9 @@ impl core::fmt::Display for DriveRefusal {
             ),
             Self::SymbolicClearanceUnsupported { node } => write!(
                 f,
-                "node {} measures a `min_clearance`, whose engine has no lane at the symbolic \
+                "{node} is a `min_clearance`, whose engine has no lane at the symbolic \
                  identity tier — drive with `DriveConfig {{ symbolic: SymbolicDials::off(), .. }}` \
-                 to get the numeric-only answer, or measure a closed form",
-                node.0
+                 to get the numeric-only answer, or measure a closed form"
             ),
         }
     }
@@ -1189,7 +1336,9 @@ pub fn drive(
     if config.symbolic.enabled
         && let Some(node) = clearance_measure(doc)
     {
-        return Err(DriveRefusal::SymbolicClearanceUnsupported { node });
+        return Err(DriveRefusal::SymbolicClearanceUnsupported {
+            node: doc.spoken(node),
+        });
     }
 
     // The WITNESS build: the document at its nominals, at f64, with the
@@ -1199,15 +1348,19 @@ pub fn drive(
     // bit (the lift's own differential pin), so this changes the build
     // it produces in no way and makes the two passes the same code.
     let witness: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &lane_opts(), tol);
-    if let Some(&node) = witness
+    if let Some(standing) = witness
         .order
         .iter()
-        .find(|id| !matches!(witness.nodes.get(id), Some(NodeResult::Ok(_))))
+        .find_map(|&id| witness.usable(id).err())
     {
+        let node = standing.node();
         let cause = witness
             .node_error(node)
-            .map_or_else(|| "not evaluated".to_owned(), |e| e.kind.to_string());
-        return Err(DriveRefusal::WitnessDoesNotBuild { node, cause });
+            .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc));
+        return Err(DriveRefusal::WitnessDoesNotBuild {
+            node: doc.spoken(node),
+            cause,
+        });
     }
     let witness_vector = Arc::new(certifying_vector(doc, &witness));
     let witness_key = witness_vector.key();
@@ -1395,7 +1548,7 @@ pub fn drive(
 /// The first `Measure` node reading a `min_clearance` primitive, if
 /// the document has one ([`DriveRefusal::SymbolicClearanceUnsupported`]).
 fn clearance_measure(doc: &Doc<ProfileProgram>) -> Option<RecipeNodeId> {
-    doc.order().iter().copied().find(|&id| {
+    doc.ids().iter().copied().find(|&id| {
         let Some(Node::Measure { expr, .. }) = doc.node(id) else {
             return false;
         };
@@ -1446,7 +1599,7 @@ pub(crate) fn lane_opts() -> EvalOptions {
 /// to reach it (the per-axis depth budget's currency).
 struct Box_ {
     box_: ParamBox,
-    depths: BTreeMap<ParamName, u32>,
+    depths: BTreeMap<VarId, u32>,
 }
 
 /// What one leaf's replay decided.
@@ -1504,12 +1657,17 @@ fn classify(
         ..lane_opts()
     };
     if symbolic.enabled {
-        let (leaf, counts) =
-            sym::with_session_memo(symbolic.budget(), symbolic.rules, memo, || {
+        let (leaf, counts) = sym::with_session_memo_retry(
+            symbolic.budget(),
+            symbolic.rules,
+            symbolic.retry,
+            memo,
+            || {
                 let leaf: Evaluation<Sym<Interval>> =
                     evaluate(doc, None, &CancelToken::new(), &opts, tol);
                 leaf
-            });
+            },
+        );
         return (
             classify_replay(
                 doc,
@@ -1598,17 +1756,22 @@ fn classify_replay<T: geom_core::Decide>(
     // `work/verdict/should-classify-replays-error-enum-arms-be-deleted.md`
     // holds. What HAS been discharged is the precondition the arms were
     // kept for: the log now carries the op-minted escalations too.
-    // ITERATION ORDER IS NODE ID, and where a leaf carries several
-    // refusing nodes that decides which one speaks: the FIRST
-    // indeterminacy in node-id order settles the leaf as a sliver or a
-    // bisect, and a definite structure flip at a later node never gets
-    // to argue. Deterministic (a `BTreeMap` walk, same in both
-    // schedules) but arbitrary — node id is a minting counter, not a
-    // ranking of causes. It is stated rather than defended because
-    // nothing downstream depends on which cause wins: every arm here
-    // is refused mass either way, and the receipt does not change.
+    // ITERATION ORDER IS THE LEAF'S EVALUATION ORDER, and where a leaf
+    // carries several refusing nodes that decides which one speaks: the
+    // FIRST indeterminacy in that order settles the leaf as a sliver or
+    // a bisect, and a definite structure flip at a later node never
+    // gets to argue. Deterministic (the schedule's order, the same in
+    // both schedules) and the node the author placed first where the
+    // DAG leaves a choice, but not a ranking of causes. It is stated
+    // rather than defended because nothing downstream depends on which
+    // cause wins: every arm here is refused mass either way, and the
+    // receipt does not change.
     let mut structure_flips = Vec::new();
-    for (&node, result) in &leaf.nodes {
+    for (node, result) in leaf
+        .order
+        .iter()
+        .filter_map(|&node| leaf.nodes.get(&node).map(|result| (node, result)))
+    {
         let (escalations, failure) = match result {
             NodeResult::Ok(v) => (&v.escalations, None),
             NodeResult::Failed(e) => (&e.escalations, Some(e)),
@@ -1730,34 +1893,21 @@ fn indeterminate(source: &geom_core::Indeterminate) -> LeafVerdict {
 
 /// The predicate name of an escalation whose enclosure sits WHOLLY
 /// inside the ambiguity band `(ε, Kε)` — the ratified terminal-sliver
-/// test — or `None` when refinement could still decide it.
+/// test, the classifier's own verdict
+/// ([`geom_core::Indeterminate::terminal_sliver`]) — or `None` when
+/// refinement could still decide it.
 ///
-/// The test is on the enclosure, both ends: an enclosure that reaches
-/// the coincidence threshold might enclose a genuine coincidence, and
-/// one that reaches past `escalate` might enclose a definite sign, so
-/// either way there is something narrowing could still resolve. Only an
-/// enclosure strictly between the two thresholds, on one side of zero,
-/// describes a quantity that IS in the band.
 /// **Crate-visible because the clearance engine's inner subdivision
-/// refuses by the same rule** ([`crate::clearance`]): a cell pair whose
-/// separation margin sits wholly inside the band is terminal for
-/// exactly this reason — interval enclosures shrink monotonically under
-/// subdivision, so a sub-cell's enclosure stays inside the band its
-/// parent's was inside. One home, so the two subdivisions cannot drift
-/// apart on what a sliver is.
+/// refuses by the same rule** ([`crate::clearance`]): one home, so the
+/// two subdivisions cannot drift apart on what a sliver is.
 pub(crate) fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
-    let MarginDiag::Enclosure { lo, hi } = source.margin else {
-        // A point margin (an `f64` lane) or an invalid one says nothing
-        // about a box.
-        return None;
-    };
-    let (zero, escalate) = (source.band.zero(), source.band.escalate());
-    let inside = (zero < lo && hi < escalate) || (-escalate < lo && hi < -zero);
-    inside.then_some(source.predicate.unwrap_or("<unnamed>"))
+    source
+        .terminal_sliver
+        .then_some(source.predicate.unwrap_or("<unnamed>"))
 }
 
 /// The D9 split: the axis of greatest relative width, ties to the
-/// lowest axis index, bisected at its midpoint.
+/// earliest-declared variable, bisected at its midpoint.
 ///
 /// # Errors
 ///
@@ -1771,7 +1921,7 @@ fn bisect(b: &Box_, root: &ParamBox, max_depth: u32) -> Result<(Box_, Box_), Bud
     if depth >= max_depth {
         return Err(BudgetKind::Depth { max_depth });
     }
-    let Some((lo, hi)) = b.box_.split(&axis) else {
+    let Some((lo, hi)) = b.box_.split(axis) else {
         return Err(BudgetKind::Resolution);
     };
     let mut depths = b.depths.clone();
@@ -1844,7 +1994,7 @@ fn add_mass(column: &mut Result<f64, MeasureUnavailable>, m: Result<f64, Measure
 /// the fold instead of rounding to a bit-exact zero).
 fn tail(analyzed: &AnalyzedBox) -> Result<f64, MeasureUnavailable> {
     let mut out = 0.0;
-    for name in analyzed.params().keys() {
+    for (name, _) in analyzed.in_order() {
         let t = match analyzed.axis_tail_mass(name) {
             Some(r) => r?,
             None => 0.0,
@@ -1890,16 +2040,16 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
     // population from the leaves it is supposed to describe: these are
     // the points the driver certified AROUND, and "around" is defined
     // by where it split.
-    let mid: BTreeMap<ParamName, BoxAxis> = box_
+    let mid: BTreeMap<VarId, BoxAxis> = box_
         .axes()
         .iter()
-        .map(|(n, a)| {
+        .map(|(&n, a)| {
             let m = a.midpoint();
-            (n.clone(), BoxAxis::Varying { lo: m, hi: m })
+            (n, BoxAxis::Varying { lo: m, hi: m })
         })
         .collect();
     let opts = EvalOptions {
-        param_box: Some(Arc::new(ParamBox::from_axes(mid))),
+        param_box: Some(Arc::new(ParamBox::from_axes_in(mid, box_.order()))),
         ..lane_opts()
     };
     // The replay runs at the SAME TIER the drive did (E12): with the
@@ -1909,27 +2059,32 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
     // driver's own population. Running it at bare `Probe` would report a
     // population the driver did not produce.
     if symbolic.enabled {
-        let _ = geom_core::sym::with_session_rules(symbolic.budget(), symbolic.rules, || {
-            let ev: Evaluation<Sym<geom_core::Probe>> =
-                evaluate(doc, None, &CancelToken::new(), &opts, tol);
-            ev
-        });
+        let _ = geom_core::sym::with_session_retry(
+            symbolic.budget(),
+            symbolic.rules,
+            symbolic.retry,
+            || {
+                let ev: Evaluation<Sym<geom_core::Probe>> =
+                    evaluate(doc, None, &CancelToken::new(), &opts, tol);
+                ev
+            },
+        );
         return;
     }
     let _: Evaluation<geom_core::Probe> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
 }
 
-/// A box's goldening rendering: `name=[lo_bits,hi_bits]` per axis, in
-/// name order, floats as exact bits.
+/// A box's goldening rendering: `id=[lo_bits,hi_bits]` per axis, in
+/// declaration order, every bit of the id and floats as exact bits.
 pub(crate) fn render_box(b: &ParamBox) -> String {
     use core::fmt::Write as _;
     let mut s = String::new();
-    for (name, axis) in b.axes() {
+    for (name, axis) in b.order().iter().filter_map(|n| Some((n, b.get(*n)?))) {
         let (lo, hi) = axis.span();
         let _ = write!(
             s,
             "{}=[{:016x},{:016x}] ",
-            name.0,
+            name.full(),
             lo.to_bits(),
             hi.to_bits()
         );
@@ -1945,7 +2100,7 @@ fn render_reason(r: &RefusalReason) -> String {
     match r {
         RefusalReason::SliverTerminal { predicate } => format!("sliver_terminal {predicate}"),
         RefusalReason::MeasureRefused { node, class } => {
-            format!("measure_refused {} {class}", node.0)
+            format!("measure_refused {} {}", node.full(), class.name())
         }
         RefusalReason::FlipCrossing { flipped } => {
             let mut s = String::from("flip_crossing");
@@ -1957,26 +2112,35 @@ fn render_reason(r: &RefusalReason) -> String {
                     let _ = write!(
                         s,
                         " {}:status:{:?}->{:?}",
-                        node.0, delta.old_status, delta.new_status
+                        node.full(),
+                        delta.old_status,
+                        delta.new_status
                     );
                 }
                 for f in &delta.flips {
                     let _ = write!(
                         s,
                         " {}:{}:{:?}->{:?}x{}",
-                        node.0, f.predicate, f.from, f.to, f.count
+                        node.full(),
+                        f.predicate,
+                        f.from,
+                        f.to,
+                        f.count
                     );
                 }
                 for d in &delta.diverged {
                     let _ = write!(
                         s,
                         " {}:{}:count {}->{}",
-                        node.0, d.predicate, d.old_count, d.new_count
+                        node.full(),
+                        d.predicate,
+                        d.old_count,
+                        d.new_count
                     );
                 }
             }
             for f in &flipped.structure {
-                let _ = write!(s, " {}:structure:{:?}", f.node.0, f.refusal.decision);
+                let _ = write!(s, " {}:structure:{:?}", f.node.full(), f.refusal.decision);
             }
             if flipped.is_empty() {
                 // The population engine's blind spot netted to nothing.
@@ -2002,7 +2166,7 @@ fn render_mass(m: &Result<f64, MeasureUnavailable>) -> String {
     match m {
         Ok(v) => format!("{:016x}", v.to_bits()),
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
-            format!("refused band:{}", param.0)
+            format!("refused band:{}", param.id().full())
         }
     }
 }
@@ -2079,23 +2243,24 @@ pub fn assertion_at(
 ///
 /// [`ClearanceRefusal`]: crate::clearance::ClearanceRefusal
 /// [`MinClearanceLane`]: crate::measure::MinClearanceLane
-fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<&'static str> {
+fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<MeasureRefusalClass> {
     match kind {
         // The selection resolved to the wrong KIND of entity. Document
         // structure; no parameter value moves it.
-        NodeErrorKind::MeasureSelectionKind { .. } => Some("selection_kind"),
+        NodeErrorKind::MeasureSelectionKind { .. } => Some(MeasureRefusalClass::SelectionKind),
         NodeErrorKind::MeasureClearanceRefused(r) => {
             use crate::clearance::ClearanceRefusal as C;
+            let engine = || Some(MeasureRefusalClass::Clearance(r.clone()));
             match r {
                 // Reached: which faces are in scope, whether the two
                 // scopes pair at all, and whether the carrier has an
                 // implementation are decided by the document's own
                 // topology and the engine's support table, not by the box.
-                C::EmptyScope | C::NoAdmittedPair | C::Unsupported { .. } => Some(r.name()),
+                C::EmptyScope | C::NoAdmittedPair | C::Unsupported { .. } => engine(),
                 // Not reached from `min_separation`. The bound and the
                 // run's tolerance are fixed for the whole drive, so no
                 // sub-box changes them either.
-                C::NotADistance { .. } | C::ToleranceHasNoBand => Some(r.name()),
+                C::NotADistance { .. } | C::ToleranceHasNoBand => engine(),
                 // Reached: an enclosure that did not evaluate over this
                 // box (NaI, or empty) may evaluate over a smaller one, so
                 // nothing proves it box-independent.

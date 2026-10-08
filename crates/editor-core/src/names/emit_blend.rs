@@ -75,7 +75,7 @@ use topo::{Body, EdgeKey, FaceKey, VertexKey};
 use super::canonical;
 use super::defer::{TieRows, put as put_row, upstream_name};
 use super::emit::{NamingError, check_total, ent, name1};
-use super::role::{EntityKind, RimSupport, RoleSeg, StableName};
+use super::role::{EntityKind, RimSupport, RoleSeg, StableName, edge_line};
 use super::table::{EntityKey, NameTable};
 use crate::node::RecipeNodeId;
 
@@ -101,8 +101,8 @@ pub(super) fn name_blend<T: geom_core::Real>(
     let up_e = |k: EdgeKey| up(EntityKey::Edge(k));
     let up_v = |k: VertexKey| up(EntityKey::Vertex(k));
 
-    // A band's identity: its closed chain's source names. A rim is a
-    // cycle with no first edge, so only the SET is covariant: the
+    // A band's identity: its chain's source names. A rim is a cycle
+    // with no first edge, so only the SET is covariant: the
     // canonical form sorts and deduplicates it (the N3 `Merged`
     // convention). A band face, its seam crossings and its slit all
     // carry the same set, which is what tells apart the crossings and
@@ -138,6 +138,18 @@ pub(super) fn name_blend<T: geom_core::Real>(
     for (f, e) in &rec.blends {
         let e = up_e(*e)?;
         put(EntityKey::Face(*f), RoleSeg::BlendFace(e.name), e.tied)?;
+    }
+    // An open band spanning several links joined on one support pair
+    // takes the chain's source edges as a set, as a closed rim's band
+    // does: the face is one entity of several edges, and the set is
+    // its birth data whichever link the walk met first.
+    for (f, edges) in &rec.joined_blends {
+        let (names, tied) = band_set(edges)?;
+        put(
+            EntityKey::Face(*f),
+            canonical::minted_segment(RoleSeg::BandFace(names)),
+            tied,
+        )?;
     }
     for (f, v) in &rec.corners {
         let v = up_v(*v)?;
@@ -179,6 +191,22 @@ pub(super) fn name_blend<T: geom_core::Real>(
             tied,
         )?;
     }
+    for (m, v) in &rec.mitres {
+        let v = up_v(*v)?;
+        put(
+            EntityKey::Edge(*m),
+            RoleSeg::Mitre { vertex: v.name },
+            v.tied,
+        )?;
+    }
+    for (foot, v) in &rec.turn_feet {
+        let v = up_v(*v)?;
+        put(
+            EntityKey::Vertex(*foot),
+            RoleSeg::TurnFoot { vertex: v.name },
+            v.tied,
+        )?;
+    }
     for (f, edges) in &rec.bands {
         let (names, tied) = band_set(edges)?;
         put(
@@ -211,7 +239,11 @@ pub(super) fn name_blend<T: geom_core::Real>(
         let (band, band_tied) = band_set(band)?;
         put(
             EntityKey::Vertex(*v),
-            canonical::minted_segment(RoleSeg::BandCross { edge: m.name, band }),
+            // A vertex cites the edge it lies on by its line (N2).
+            canonical::minted_segment(RoleSeg::BandCross {
+                edge: edge_line(&m.name),
+                band,
+            }),
             m.tied || band_tied,
         )?;
     }
@@ -323,13 +355,20 @@ mod tie_tests {
         let prof = profile::Profile::new(plane, vec![square])
             .validate(Tol::witness())
             .unwrap();
-        let built = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), Tol::witness())
-            .expect("a unit cube extrudes");
+        let built = sweep::extrude(
+            &prof,
+            sweep::Extrusion::Distance {
+                depth: 1.0_f64,
+                side: crate::ExtrudeSide::Along,
+            },
+            Tol::witness(),
+        )
+        .expect("a unit cube extrudes");
         let table = name_extrude(
-            RecipeNodeId(1),
+            RecipeNodeId::new(0, 1),
             &built,
             &crate::eval::ProfilePieces::numbered(
-                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+                &built.side_faces().iter().map(Vec::len).collect::<Vec<_>>(),
             ),
         )
         .expect("the extrude names");
@@ -385,13 +424,18 @@ mod tie_tests {
             ent(0, EntityKey::Edge(b)),
         );
 
-        let blended = sweep::blend::build::fillet_edges(&body, &edges, 0.125_f64, Tol::witness())
-            .expect("every edge of a cube blends");
+        let blended = sweep::blend::build::fillet_edges(
+            &sweep::test_support::at_rest(&body, Tol::witness()),
+            &edges,
+            0.125_f64,
+            Tol::witness(),
+        )
+        .expect("every edge of a cube blends");
         let rec = blended.naming.as_ref().expect("the surgery keeps records");
 
         let out = name_blend(
-            RecipeNodeId(2),
-            RecipeNodeId(1),
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 1),
             &planted,
             &blended.body,
             rec,
@@ -418,8 +462,14 @@ mod tie_tests {
         // same body, the same request, the untouched table — no tie
         // upstream, no tie downstream, and every row went through the
         // strict `insert`.
-        let clean = name_blend(RecipeNodeId(2), RecipeNodeId(1), &table, &blended.body, rec)
-            .expect("the untied table names as it always did");
+        let clean = name_blend(
+            RecipeNodeId::new(0, 2),
+            RecipeNodeId::new(0, 1),
+            &table,
+            &blended.body,
+            rec,
+        )
+        .expect("the untied table names as it always did");
         assert!(
             clean.iter().all(|(_, e)| matches!(e, Entry::Unique(_))),
             "an untied operand must produce no tied rows"
@@ -428,16 +478,20 @@ mod tie_tests {
         // The chamfer emitter is the same translation under a
         // different minting id, so the deferral reaches it by
         // construction — asserted, not assumed.
-        let chamfered =
-            sweep::blend::build::chamfer_edges(&body, &edges, 0.125_f64, Tol::witness())
-                .expect("every edge of a cube chamfers");
+        let chamfered = sweep::blend::build::chamfer_edges(
+            &sweep::test_support::at_rest(&body, Tol::witness()),
+            &edges,
+            0.125_f64,
+            Tol::witness(),
+        )
+        .expect("every edge of a cube chamfers");
         let crec = chamfered
             .naming
             .as_ref()
             .expect("the surgery keeps records");
         let cout = crate::names::name_chamfer(
-            RecipeNodeId(3),
-            RecipeNodeId(1),
+            RecipeNodeId::new(0, 3),
+            RecipeNodeId::new(0, 1),
             &planted,
             &chamfered.body,
             crec,
@@ -464,8 +518,8 @@ mod tie_tests {
             "a tied entry with one member is a narrowing bug: {cwidths:?}"
         );
         let cclean = crate::names::name_chamfer(
-            RecipeNodeId(3),
-            RecipeNodeId(1),
+            RecipeNodeId::new(0, 3),
+            RecipeNodeId::new(0, 1),
             &table,
             &chamfered.body,
             crec,

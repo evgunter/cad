@@ -2,7 +2,7 @@
 //!
 //! # The ValuePayload exposure inventory (a reported FORK)
 //!
-//! `ValuePayload` has seven variants. The bindings project them as:
+//! The bindings project `ValuePayload`'s geometry variants as:
 //!
 //! | variant        | exposure |
 //! |----------------|----------|
@@ -12,21 +12,14 @@
 //! | `Instances`    | full — a list of bodies |
 //! | `Datum`        | full — typed plane / axis / point with `Length` coordinates |
 //! | `Profile`      | KIND ONLY — sketch geometry does not ship to Python before the v2 switch |
-//! | `Declarations` | KIND ONLY — the naming projection is deferred, not blocked |
 //!
-//! The two kind-only rows are SCOPE decisions, not capability limits.
-//! Being precise about which, because the distinction is load-bearing:
-//!
-//! * `ValidatedProfile::plane()`/`loops()` DO exist and `profile` is
-//!   wholesale re-exported — this very module's sibling uses
-//!   `pncad::profile` to build sketches. Projecting a profile back to
-//!   Python is therefore perfectly possible; it is **ruled out**:
-//!   Python never ships the opaque-profile intermediate state.
-//!   Sketch read-back belongs with the v2 program representation.
-//! * `StableName` is likewise prelude-curated with public fields, so
-//!   Declarations is reachable too. It is deferred because the
-//!   naming/selection projection is a design subject of its own, and
-//!   binding a provisional shape here would fork it.
+//! The kind-only row is a SCOPE decision, not a capability limit.
+//! `ValidatedProfile::plane()`/`loops()` DO exist and `profile` is
+//! wholesale re-exported — this very module's sibling uses
+//! `pncad::profile` to build sketches. Projecting a profile back to
+//! Python is therefore perfectly possible; it is **ruled out**: Python
+//! never ships the opaque-profile intermediate state. Sketch read-back
+//! belongs with the v2 program representation.
 
 use std::sync::Arc;
 
@@ -65,12 +58,12 @@ fn inner_kind(py: Python<'_>, kind: &d::NodeErrorKind) -> Py<PyAny> {
 /// any future one, because no raise of this class can be written
 /// without naming a variant of the enum.
 ///
-/// `kind`, `inner_kind`, `through` and `finding` are ALWAYS present on
-/// the exception — `None` where the reason has no failing kind, no
-/// arm under that kind, no poisoning ancestor, or no refusal-menu
-/// payload — so stub-guided code can read them without an
-/// `AttributeError` trap — a stub that over-promises is worse than one
-/// that says `None`.
+/// `kind`, `inner_kind`, `through`, `finding` and `document` are ALWAYS
+/// present on the exception — `None` where the reason has no failing
+/// kind, no arm under that kind, no poisoning ancestor, no refusal-menu
+/// payload, or the node is the evaluated document's own — so
+/// stub-guided code can read them without an `AttributeError` trap — a
+/// stub that over-promises is worse than one that says `None`.
 fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -88,6 +81,7 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
             ("inner_kind", py.None().into_any()),
             ("through", py.None().into_any()),
             ("finding", py.None().into_any()),
+            ("document", py.None().into_any()),
         ],
     )
 }
@@ -100,18 +94,57 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node
 /// is the arm of the kernel refusal that door holds, `None` where that
 /// refusal has no arms. Two enums, two discriminants, each projected
 /// where it lives.
-fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
+///
+/// A refusal that CARRIES another node's (a part whose root failed or
+/// was poisoned, a mate whose placer's row cannot state its refusal)
+/// never quotes it in its message; the carried refusal crosses typed, as this exception's
+/// `__cause__` ([`with_carried`]).
+///
+/// The message speaks the node from `doc`, the document the evaluation
+/// is OF ([`Evaluation`]'s captured `doc`), so a label set after
+/// `evaluate` shows on the next evaluation, and each name within its
+/// table in `evaluation`, the one that raised it; `node` crosses as
+/// the id.
+fn node_failure(
+    py: Python<'_>,
+    doc: &d::ProfileDoc,
+    evaluation: &d::Evaluation<f64>,
+    node: NodeId,
+    error: &d::NodeError,
+) -> PyErr {
+    let err = refused(py, node, &error.kind, error.spoken(doc, evaluation), None);
+    with_carried(py, err, error.kind.carried_chain(), Some(doc))
+}
+
+/// [`node_failure`]'s one exception, over a kind, its rendering and the
+/// document its node is in (`None` for the evaluated document's own),
+/// with no cause: what one level of a carried chain is.
+pub(crate) fn refused(
+    py: Python<'_>,
+    node: NodeId,
+    kind: &d::NodeErrorKind,
+    message: String,
+    document: Option<&d::DocRef>,
+) -> PyErr {
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
         Err(failed) => return failed,
+    };
+    let document = match document {
+        Some(doc_ref) => match super::store::DocRef(*doc_ref).into_pyobject(py) {
+            Ok(bound) => bound.unbind().into_any(),
+            Err(failed) => return failed,
+        },
+        None => py.None().into_any(),
     };
     // The refusal MENU: an undeclared-contact
     // refusal carries its candidate declaration as a typed
     // `FlushFinding` on the exception — the same value shape
     // `Evaluation.find_flush_candidates` answers with, ready for
-    // `Node.declare`/`Doc.declare`. `None` on every other kind.
-    let finding = match &error.kind {
-        d::NodeErrorKind::UndeclaredContact { finding, .. } => {
+    // `Node.boolean`'s `declare=` or `Doc.declare`. `None` on every
+    // other kind.
+    let finding = match kind {
+        d::NodeErrorKind::UndeclaredCoincidence { finding, .. } => {
             match super::flush::FlushFinding((**finding).clone()).into_pyobject(py) {
                 Ok(bound) => bound.unbind().into_any(),
                 Err(failed) => return failed,
@@ -121,29 +154,112 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     };
     typed_err(
         py,
-        ErrorClass::Evaluation(EvalReason::NodeFailed),
-        error.to_string(),
+        ErrorClass::Evaluation(EvalReason::Standing(d::NodeStanding::Failed {
+            node: node.0,
+        })),
+        message,
         &[
             ("node", node_obj),
             (
                 "kind",
-                PyString::new(py, node_error_tag(&error.kind))
+                PyString::new(py, node_error_tag(kind.class()))
                     .unbind()
                     .into_any(),
             ),
-            ("inner_kind", inner_kind(py, &error.kind)),
+            ("inner_kind", inner_kind(py, kind)),
             ("through", py.None().into_any()),
             ("finding", finding),
+            ("document", document),
         ],
     )
+}
+
+/// **`chain` as `err`'s `__cause__`** ([`carried_cause`]).
+pub(crate) fn with_carried(
+    py: Python<'_>,
+    err: PyErr,
+    chain: d::CarriedChain<'_>,
+    here: Option<&d::ProfileDoc>,
+) -> PyErr {
+    if let Some(cause) = carried_cause(py, chain, here) {
+        err.set_cause(py, Some(cause));
+    }
+    err
+}
+
+/// The most `EvaluationError`s a carried chain links as `__cause__`s.
+///
+/// CPython 3.11's default excepthook prints a cause chain by recursing
+/// once per link and gives up at the recursion limit (1000 by default):
+/// it prints `lost sys.stderr` and no traceback at all, from 999
+/// linked exceptions up. A part refusal carries up to 1024 levels (the
+/// kernel's nesting bound), so the binding links at most this many and
+/// folds the rest into the last one (see [`carried_cause`]), leaving
+/// the recursion limit ample room however deep the frame that prints.
+pub(crate) const LINKED_LEVELS: usize = 256;
+
+/// **A carried chain, typed**: one `EvaluationError` per level of the
+/// kernel's chain ([`d::NodeErrorKind::carried_chain`]), each raised
+/// for its node as [`node_failure`] raises one and each the `__cause__`
+/// of the level above, so a part inside a part is a chain of causes,
+/// one per document. A level's `node` is in the id space of its
+/// `document`, the part's `DocRef`, or `None` for the evaluated
+/// document's own. `None` for a chain with no level.
+///
+/// A chain deeper than [`LINKED_LEVELS`] links that many: the last is
+/// raised for the deepest level, the node that refused, and its message
+/// is every level it stands for, one line each, deepest first — the
+/// order CPython prints a cause chain in. So the printed traceback
+/// still has one line per document level.
+pub(crate) fn carried_cause(
+    py: Python<'_>,
+    chain: d::CarriedChain<'_>,
+    here: Option<&d::ProfileDoc>,
+) -> Option<PyErr> {
+    let levels: Vec<d::CarriedLevel<'_>> = chain.collect();
+    let line = |level: &d::CarriedLevel<'_>| match here {
+        Some(doc) => level.line_in(doc),
+        None => level.line(),
+    };
+    let (linked, folded) = levels.split_at(levels.len().min(LINKED_LEVELS).saturating_sub(1));
+    let raise = |level: &d::CarriedLevel<'_>, message: String| {
+        refused(
+            py,
+            NodeId(level.node),
+            level.refusal.kind(),
+            message,
+            level.document.doc_ref(),
+        )
+    };
+    let deepest = folded.last()?;
+    let lines: Vec<String> = folded.iter().rev().map(line).collect();
+    let innermost = raise(deepest, lines.join("\n"));
+    Some(linked.iter().rev().fold(innermost, |inner, level| {
+        let err = raise(level, line(level));
+        err.set_cause(py, Some(inner));
+        err
+    }))
 }
 
 /// Raise `EvaluationError` for a POISONED node: `through` names the
 /// nearest failed ancestor, `kind` tags its root cause (present
 /// whenever the evaluation's own invariant holds — fail-honest, so a
-/// broken hop yields no `kind` rather than a wrong one).
-fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::NodeError>) -> PyErr {
-    let objs = (node.into_pyobject(py), through.into_pyobject(py));
+/// broken hop yields no `kind` rather than a wrong one). A root cause
+/// that carries a refusal hands it on as `__cause__`, as
+/// [`node_failure`] does.
+fn poisoning(
+    py: Python<'_>,
+    doc: &d::ProfileDoc,
+    evaluation: &d::Evaluation<f64>,
+    node: d::RecipeNodeId,
+    through: d::RecipeNodeId,
+    root: Option<&d::NodeError>,
+) -> PyErr {
+    let standing = d::NodeStanding::Poisoned { node, through };
+    let objs = (
+        NodeId(node).into_pyobject(py),
+        NodeId(through).into_pyobject(py),
+    );
     let (node_obj, through_obj) = match objs {
         (Ok(n), Ok(t)) => (n.unbind().into_any(), t.unbind().into_any()),
         (Err(failed), _) | (_, Err(failed)) => return failed,
@@ -152,32 +268,41 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         ("node", node_obj),
         ("through", through_obj),
         ("finding", py.None().into_any()),
+        ("document", py.None().into_any()),
     ];
-    // The message is the root cause's `Display` prose: the node
-    // never ran, so the honest sentence names the ancestor's problem.
+    // The node never ran, so the standing's sentence is followed by
+    // the ancestor's own problem.
     let message = match root {
         Some(error) => {
             fields.push((
                 "kind",
-                PyString::new(py, node_error_tag(&error.kind))
+                PyString::new(py, node_error_tag(error.kind.class()))
                     .unbind()
                     .into_any(),
             ));
             fields.push(("inner_kind", inner_kind(py, &error.kind)));
-            format!("never ran — poisoned by failed ancestor: {error}")
+            format!(
+                "{}; the failure there: {}",
+                standing.spoken(doc),
+                error.spoken(doc, evaluation)
+            )
         }
         None => {
             fields.push(("kind", py.None().into_any()));
             fields.push(("inner_kind", py.None().into_any()));
-            format!("never ran — poisoned through node {}", through.0.0)
+            standing.spoken(doc)
         }
     };
-    typed_err(
+    let err = typed_err(
         py,
-        ErrorClass::Evaluation(EvalReason::Poisoned),
+        ErrorClass::Evaluation(EvalReason::Standing(standing)),
         message,
         &fields,
-    )
+    );
+    match root {
+        Some(error) => with_carried(py, err, error.kind.carried_chain(), Some(doc)),
+        None => err,
+    }
 }
 
 /// Bulk mass properties of a body, in canonical units.
@@ -577,12 +702,15 @@ impl Body {
 ///   (`"vertex_on_face"`, `"edge_edge_cross"`, …). The branch that
 ///   matters: an `"edge_face_pierce"` is interpenetration and cannot
 ///   be declared, while an `"edge_edge_overlap"` can be.
-/// * `stale_kind` — which declared record the census could not
-///   confirm (`"vertex_vertex"`, `"vertex_on_face"`, `"curve_locus"`,
-///   `"patch"`). The granularity is which record to withdraw or
-///   re-seat; withdrawing another one leaves the refusal standing.
-/// * `ring_contact_kind` — how a ring meets its face's own outer loop
-///   (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
+/// * `stale_kind` — which contact record the census could not confirm
+///   (`"vertex_vertex"`, `"vertex_on_face"`, `"vertex_on_edge"`,
+///   `"edge_edge"`, `"curve_locus"`, `"patch"`). A record a declaration
+///   made is withdrawn or re-seated at that granularity; withdrawing
+///   another one leaves the refusal standing. `"vertex_on_edge"` and
+///   `"edge_edge"` are records an op wrote, never a declaration: a stale
+///   one is the op's defect, with nothing to withdraw.
+/// * `ring_contact_kind` — how a ring meets its face's own outer loop,
+///   or another ring of that face (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
 ///   `"edge_along_edge"`, `"edge_edge_point"`, `"circle_circle"`).
 ///   The word says where the ring has to move: a shared position one
 ///   vertex clears, a shared arc no single move separates, or a
@@ -628,7 +756,8 @@ impl ValidationFinding {
         self.0.stale_kind
     }
 
-    /// How a ring meets its face's own outer loop.
+    /// How a ring meets its face's own outer loop, or another ring of
+    /// that face.
     #[getter]
     fn ring_contact_kind(&self) -> Option<&'static str> {
         self.0.ring_contact_kind
@@ -1077,7 +1206,7 @@ pub(crate) struct Evaluation {
     /// HERE because the answer must be as of the same document the
     /// evaluation is of; threading the doc back in per query would
     /// let the two drift.
-    params: d::ParamEnv<f64>,
+    params: d::VarEnv<f64>,
     /// The document the evaluation ran on, captured at `evaluate` for
     /// the same reason [`Self::params`] is — and this is the whole of
     /// what the kernel's `RunCtx` is: a run is a (document,
@@ -1092,7 +1221,10 @@ pub(crate) struct Evaluation {
     /// caller ask this evaluation about a document it is not of, and
     /// answer confidently against the wrong recipe. Pairing the two
     /// here makes that unspellable.
-    doc: d::ProfileDoc,
+    ///
+    /// Shared, so a report taken of the pair keeps the document it
+    /// speaks from without a copy of it.
+    doc: Arc<d::ProfileDoc>,
     /// The document's gathered product, materialized on the first ask
     /// and kept for every later one
     /// ([`crate::product_memo`], which holds the whole of the reasoning).
@@ -1106,6 +1238,18 @@ pub(crate) struct Evaluation {
 }
 
 impl Evaluation {
+    /// The document this evaluation is of: the one a refusal raised
+    /// from it speaks its nodes from.
+    pub(crate) fn doc(&self) -> &d::ProfileDoc {
+        &self.doc
+    }
+
+    /// [`Self::doc`], shared: what a report taken of this pair keeps to
+    /// speak from.
+    pub(crate) fn doc_shared(&self) -> Arc<d::ProfileDoc> {
+        Arc::clone(&self.doc)
+    }
+
     /// The (document, evaluation) pair and the memo over it, as the
     /// arguments [`crate::product_memo`]'s doors take.
     pub(crate) fn gathered<T>(
@@ -1127,49 +1271,49 @@ impl Evaluation {
 impl Evaluation {
     /// The node's successful value.
     ///
-    /// A node that produced NO value raises with the REAL typed cause
-    /// — never a placeholder:
-    /// `reason` is `"node_failed"` or `"poisoned"`, `kind` is the
-    /// `NodeErrorKind`'s stable tag, a poisoning carries `through`,
-    /// and the message renders the kernel's own `NodeError`.
+    /// A node that produced NO value raises under its standing, with
+    /// the REAL typed cause — never a placeholder: `reason` is
+    /// `"node_failed"` or `"poisoned"`, `kind` is the `NodeErrorKind`'s
+    /// stable tag, a poisoning carries `through`, and the message is
+    /// the kernel's own `NodeError` (a failed node) or the standing's
+    /// sentence followed by it (a poisoned one).
     ///
-    /// A node with no ENTRY at all is two different states and they
-    /// are kept apart: `unknown_node` for an id this document does
-    /// not have, and `node_not_evaluated` — the standing ladder's own
-    /// spelling, shared with `ReadbackError` and `HitTestError` — for
-    /// a live node that this run never reached. The second arm exists
-    /// because [`super::value::evaluate`]'s `cancel=` made it
-    /// reachable: a canceled run holds the completed PREFIX, and every
-    /// node past it is in [`Self::order`] with no result. Before that
-    /// keyword the arm was unreachable and the door said "no such
-    /// node" for both, which was true only because the false case
-    /// could not arise.
+    /// A node with no ENTRY at all is two states, kept apart:
+    /// `unknown_node` for an id this document does not have, and
+    /// `node_not_evaluated` for a node a canceled run never reached.
     fn value(&self, py: Python<'_>, node: &NodeId) -> PyResult<Value> {
-        match self.inner.result(node.0) {
-            Some(d::NodeResult::Ok(node_value)) => Ok(Value {
-                payload: node_value.payload.clone(),
-                contacts: Arc::clone(&node_value.contacts),
-                node: *node,
-            }),
-            Some(d::NodeResult::Failed(error)) => Err(node_failure(py, *node, error)),
-            Some(d::NodeResult::Poisoned { through }) => {
-                let root = self.inner.node_error(node.0);
-                Err(poisoning(py, *node, NodeId(*through), root))
+        let standing = match self.inner.usable(node.0) {
+            Ok(node_value) => {
+                return Ok(Value {
+                    payload: node_value.payload.clone(),
+                    contacts: Arc::clone(&node_value.contacts),
+                    node: *node,
+                });
             }
-            None if self.inner.order.contains(&node.0) => Err(eval_err(
+            Err(standing) => standing,
+        };
+        // `node_error` answers a failed node's own error and a poisoned
+        // one's nearest failed ancestor's.
+        let root = self.inner.node_error(node.0);
+        Err(match (standing, root) {
+            (d::NodeStanding::Failed { .. }, Some(error)) => {
+                node_failure(py, &self.doc, &self.inner, *node, error)
+            }
+            (d::NodeStanding::Poisoned { node, through }, root) => {
+                poisoning(py, &self.doc, &self.inner, node, through, root)
+            }
+            (
+                d::NodeStanding::Failed { .. }
+                | d::NodeStanding::NotEvaluated { .. }
+                | d::NodeStanding::NotInDocument { .. },
+                _,
+            ) => eval_err(
                 py,
-                "this evaluation never reached the node: it was canceled first, \
-                 and holds the completed prefix only",
-                EvalReason::NodeNotEvaluated,
+                standing.spoken(&self.doc),
+                EvalReason::Standing(standing),
                 *node,
-            )),
-            None => Err(eval_err(
-                py,
-                "no such node in the evaluated document",
-                EvalReason::UnknownNode,
-                *node,
-            )),
-        }
+            ),
+        })
     }
 
     /// **Whether this run was CANCELED** — the Python shape of the
@@ -1306,7 +1450,12 @@ impl Evaluation {
             tol,
         ) {
             Ok(found) => names(py, found),
-            Err(refusal) => Err(super::select::select_refusal(py, &refusal)),
+            Err(refusal) => Err(super::select::select_refusal(
+                py,
+                &refusal,
+                &self.doc,
+                &self.inner,
+            )),
         }
     }
 
@@ -1338,7 +1487,7 @@ impl Evaluation {
         let name = super::doc::name_from_text(name)?;
         pncad::select::face_frame(&self.inner, node.0, &name)
             .map(super::readback::Pose)
-            .map_err(|err| super::readback::readback_err(py, &err))
+            .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
 
     /// **Where is the edge I selected?** — the named edge's certified
@@ -1360,7 +1509,7 @@ impl Evaluation {
         let name = super::doc::name_from_text(name)?;
         pncad::select::edge_frame(&self.inner, node.0, &name)
             .map(super::readback::Pose)
-            .map_err(|err| super::readback::readback_err(py, &err))
+            .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
 
     /// **Where is the vertex I selected?** — the named vertex's
@@ -1377,7 +1526,7 @@ impl Evaluation {
         let name = super::doc::name_from_text(name)?;
         pncad::select::vertex_position(&self.inner, node.0, &name)
             .map(lengths)
-            .map_err(|err| super::readback::readback_err(py, &err))
+            .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
 
     /// **What KIND of surface carries the face I selected?** — the
@@ -1407,7 +1556,7 @@ impl Evaluation {
         let name = super::doc::name_from_text(name)?;
         pncad::select::face_carrier_kind(&self.inner, node.0, &name)
             .map(super::select::surface_kind)
-            .map_err(|err| super::readback::readback_err(py, &err))
+            .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
 
     /// **How does this name resolve — uniquely, or as a tie?** The
@@ -1430,7 +1579,7 @@ impl Evaluation {
         let name = super::doc::name_from_text(name)?;
         pncad::select::denotation(&self.inner, node.0, &name)
             .map(super::readback::Denotation)
-            .map_err(|err| super::readback::readback_err(py, &err))
+            .map_err(|err| super::readback::readback_err(py, &err, &self.doc))
     }
 
     /// **Does this STORED name still denote, in THIS evaluation?** —
@@ -1466,6 +1615,8 @@ impl Evaluation {
                 },
                 &name,
             ),
+            &self.doc,
+            &self.inner,
         )
     }
 
@@ -1515,19 +1666,22 @@ impl Evaluation {
     /// verify-at-use.
     ///
     /// Findings come back in canonical order and are only ever
-    /// DEFINITE values — inspect them, then `Node.declare` /
-    /// `Doc.declare` / `Doc.declare_all` turn the inspected findings
-    /// into the `Declare` node `Node.boolean`'s `declare=` consumes.
+    /// DEFINITE values — inspect them, then hand the inspected
+    /// findings to `Node.boolean`'s `declare=`, or to `Doc.declare` /
+    /// `Doc.declare_all` on the live boolean or union.
     /// Detection and declaration are separate doors ON PURPOSE (the
-    /// ruled no-fusion boundary). Like `select`, the query answers
-    /// EMPTY if either node has no value in this evaluation.
+    /// ruled no-fusion boundary).
     ///
     /// Raises `SelectRefusal`, typed, exactly where the Rust door
-    /// refuses: a pair whose verify-door margin is inside the
+    /// refuses: either node with no value in this evaluation
+    /// (`reason="node_has_no_value"`, its standing in the message), a
+    /// pair whose verify-door margin is inside the
     /// ambiguity band (`reason="pair_in_band"` — neither reported nor
     /// silently dropped), a tied name whose candidates disagree
     /// (`"tied_disagrees"`), an unreadable name-table entry
-    /// (`"unreadable"`), and an ambient tolerance admitting no band at
+    /// (`"unreadable"`), a matched pair the kernel classifies as
+    /// distinct (`"distinct_finding"`, a kernel defect), and an
+    /// ambient tolerance admitting no band at
     /// all under the constructor's own word (`reason="empty"` when K·ε
     /// collapsed back onto ε, `"invalid_value"` when it overflowed).
     fn find_flush_candidates(
@@ -1542,7 +1696,12 @@ impl Evaluation {
                 .into_iter()
                 .map(super::flush::FlushFinding)
                 .collect()),
-            Err(refusal) => Err(super::select::select_refusal(py, &refusal)),
+            Err(refusal) => Err(super::select::select_refusal(
+                py,
+                &refusal,
+                &self.doc,
+                &self.inner,
+            )),
         }
     }
 
@@ -1635,7 +1794,20 @@ impl Evaluation {
             uncertainty_m: uncertainty.map(|u| u.0.meters()).or(defaults.uncertainty_m),
         };
         pncad::export::step_for_node(&self.inner, node.0, &options, tol)
-            .map_err(|err| export_err(py, *node, &err))
+            .map_err(|err| export_err(py, *node, &err, &self.doc))
+    }
+
+    /// Whether `node`'s value lives in an **unplaced group's own
+    /// space** (A11 (2)): `(root, cause)` — the group, by its root, and
+    /// `no_offset` or `dead_gauge` — or `None` for a node in the world.
+    /// An unplaced group evaluates in its own frame; the product gathers
+    /// only the world, and nothing outside the group is compared with
+    /// it.
+    fn unplaced(&self, node: &NodeId) -> Option<(NodeId, &'static str)> {
+        self.inner
+            .unplaced
+            .get(&node.0)
+            .map(|(root, cause)| (NodeId(*root), crate::tags::unplaced_tag(cause)))
     }
 
     fn __repr__(&self) -> String {
@@ -1645,9 +1817,18 @@ impl Evaluation {
 
 /// Raise `ExportError` mirroring the Rust door's refusal: `variant`
 /// is the arm's stable tag, `node` rides along, a poisoning adds
-/// `through` and a wrong-kind value adds `kind`. The message is the
-/// door's own `Display`.
-fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) -> PyErr {
+/// `through`, a wrong-kind value adds `kind`, and an unplaced export
+/// adds `parts` — each unplaced part as `(node, root, cause)`, the
+/// cause [`crate::tags::unplaced_tag`]'s word, and a group in a part
+/// below as `(instance, root, cause)`, the instance it arrived through
+/// and its root in the part's own ids. The message is the door's own
+/// sentence, its nodes spoken from the evaluated document.
+fn export_err(
+    py: Python<'_>,
+    node: NodeId,
+    err: &pncad::export::ExportError,
+    doc: &d::ProfileDoc,
+) -> PyErr {
     use pncad::export::ExportError as E;
     let node_obj = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
@@ -1663,12 +1844,13 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
         ("node", node_obj),
         ("through", py.None().into_any()),
         ("kind", py.None().into_any()),
+        ("parts", py.None().into_any()),
     ];
     match err {
-        E::Poisoned { through, .. } => match NodeId(*through).into_pyobject(py) {
-            Ok(bound) => fields[2] = ("through", bound.unbind().into_any()),
-            Err(failed) => return failed,
-        },
+        E::Standing(standing) => {
+            let [_, through] = super::standing_fields(py, *standing);
+            fields[2] = ("through", through);
+        }
         E::NotABody { kind, .. } => {
             fields[3] = ("kind", PyString::new(py, kind).unbind().into_any());
         }
@@ -1676,13 +1858,44 @@ fn export_err(py: Python<'_>, node: NodeId, err: &pncad::export::ExportError) ->
         // product roots, not this call's node, so it adds no field
         // here. The arm is spelled out because the match
         // is exhaustive on purpose — the tripwire, not a wildcard.
-        E::UnknownNode { .. }
-        | E::NodeFailed { .. }
-        | E::EmptyBoolean { .. }
-        | E::Step(_)
-        | E::Product(_) => {}
+        E::EmptyBoolean { .. } | E::Step(_) | E::Product(_) => {}
+        // A group below: the instance it arrived through, its root in
+        // the part's own id space, and its cause; the whole route is in
+        // the message.
+        E::UnplacedBelow { groups } => {
+            let listed: Vec<(NodeId, NodeId, &'static str)> = groups
+                .iter()
+                .map(|row| {
+                    (
+                        NodeId(row.route.through),
+                        NodeId(row.group),
+                        crate::tags::unplaced_tag(&row.cause),
+                    )
+                })
+                .collect();
+            match listed.into_pyobject(py) {
+                Ok(bound) => fields[4] = ("parts", bound.unbind().into_any()),
+                Err(failed) => return failed,
+            }
+        }
+        E::Unplaced { parts } => {
+            let listed: Vec<(NodeId, NodeId, &'static str)> = parts
+                .iter()
+                .map(|(part, root, cause)| {
+                    (
+                        NodeId(*part),
+                        NodeId(*root),
+                        crate::tags::unplaced_tag(cause),
+                    )
+                })
+                .collect();
+            match listed.into_pyobject(py) {
+                Ok(bound) => fields[4] = ("parts", bound.unbind().into_any()),
+                Err(failed) => return failed,
+            }
+        }
     }
-    typed_err(py, ErrorClass::Export, err.to_string(), &fields)
+    typed_err(py, ErrorClass::Export, err.spoken(doc), &fields)
 }
 
 /// **A boundary-graph census**: what one region contributes to the
@@ -2339,8 +2552,8 @@ pub(crate) fn evaluate(
     let inner = py.detach(|| d::evaluate::<f64>(recipe, memo, &token, &opts, tol));
     Evaluation {
         inner,
-        params: doc.inner.param_env::<f64>(),
-        doc: doc.inner.clone(),
+        params: doc.inner.var_env::<f64>(),
+        doc: Arc::new(doc.inner.clone()),
         product: crate::product_memo::ProductMemo::default(),
     }
 }

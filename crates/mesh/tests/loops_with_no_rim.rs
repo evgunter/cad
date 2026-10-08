@@ -48,8 +48,9 @@ use crate::common;
 use common::witness_bodies::one_circle_cut;
 use common::{ball, sphere_wedge};
 use core::f64::consts::PI;
+use geom::SurfaceKind;
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, SurfaceKind};
+use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Point3, Tol, Vec3};
 use topo::{Body, FaceSurface, MefSite, MevSite};
 
@@ -95,9 +96,15 @@ fn one_seam_sphere() -> Body<f64> {
     let tol = Tol::witness();
     let seam = meridian_from_the_pole();
     let mut body = Body::<f64>::new();
-    let start = body.mvfs(seam.eval(0.0)).unwrap();
-    body.set_face_surface(start.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
+    let start = body.mvfs(seam.eval(0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     body.mev(
         MevSite::Lone {
             r#loop: start.r#loop,
@@ -117,9 +124,15 @@ fn sphere_slit_on_two_coincident_edges() -> Body<f64> {
     let tol = Tol::witness();
     let seam = meridian_from_the_pole();
     let mut body = Body::<f64>::new();
-    let start = body.mvfs(seam.eval(0.0)).unwrap();
-    body.set_face_surface(start.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
+    let start = body.mvfs(seam.eval(0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     let m = body
         .mev(
             MevSite::Lone {
@@ -177,9 +190,15 @@ fn one_seam_cylinder() -> Body<f64> {
         u_ref: x_axis(),
     };
     let mut body = Body::<f64>::new();
-    let start = body.mvfs(Point3::new(1.0, 0.0, 0.0)).unwrap();
-    body.set_face_surface(start.face, FaceSurface::New(cyl))
-        .unwrap();
+    let start = body.mvfs(Point3::new(1.0, 0.0, 0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: cyl,
+            sense: true,
+        },
+    )
+    .unwrap();
     body.mev(
         MevSite::Lone {
             r#loop: start.r#loop,
@@ -202,9 +221,15 @@ fn one_seam_cone() -> Body<f64> {
         u_ref: x_axis(),
     };
     let mut body = Body::<f64>::new();
-    let start = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
-    body.set_face_surface(start.face, FaceSurface::New(cone))
-        .unwrap();
+    let start = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
+    body.set_face_surface(
+        start.face,
+        FaceSurface::New {
+            surface: cone,
+            sense: true,
+        },
+    )
+    .unwrap();
     body.mev(
         MevSite::Lone {
             r#loop: start.r#loop,
@@ -221,7 +246,7 @@ fn one_seam_cone() -> Body<f64> {
 /// `tessellate`'s fold answers for when several refuse.
 fn first_face_on(body: &Body<f64>, kind: SurfaceKind) -> topo::FaceKey {
     body.faces()
-        .find(|(_, f)| SurfaceKind::of(body.get_surface(f.surface).unwrap()) == kind)
+        .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == kind)
         .map(|(fk, _)| fk)
         .expect("the body carries a face of that kind")
 }
@@ -233,7 +258,7 @@ fn doors(body: &Body<f64>, kind: SurfaceKind) -> (bool, bool) {
     let band = Band::linear(Tol::witness()).unwrap();
     let (_, f) = body
         .faces()
-        .find(|(_, f)| SurfaceKind::of(body.get_surface(f.surface).unwrap()) == kind)
+        .find(|(_, f)| body.get_surface(f.surface).unwrap().kind() == kind)
         .expect("the body carries a face of that kind");
     let surface = body.get_surface(f.surface).unwrap();
     let (outer, _) = topo::props::loop_edges(body, f.outer).unwrap();
@@ -344,10 +369,10 @@ fn a_rim_free_loop_that_turns_at_a_pole_along_its_own_edge_refuses_single_column
 /// are continuations, the loop opens one iso side, and the guard refuses
 /// it. The residue is the sphere's and the cone's.
 ///
-/// Both profiles are pinned. The assertions-off answer is the one that
-/// matters — `Ok` with two empty patches, and `check_mesh` naming it
-/// (`NoTriangles`, since TESS-4) while `tessellate` does not run
-/// `check_mesh` in any build.
+/// The two edges' chord points land on one point of the chart, two mesh
+/// ids on one CDT handle, and the curved lane refuses that typed
+/// ([`mesh::TessellateError::PinchWedge`]) in every profile, before the
+/// zero-width walk can mesh as a hole or panic at the census.
 #[test]
 fn two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers() {
     let tol = Tol::witness();
@@ -383,20 +408,7 @@ fn two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers() {
             mesh::validate::check_mesh(m).map_err(|e| format!("{e:?}"))
         ),
     };
-    // The cross-face census is a `debug_assert`, so which of the two the
-    // caller sees is a profile setting and both are the same defect. The
-    // second arm compiles only where debug assertions are OFF, which no
-    // profile this workspace builds produces (the root `Cargo.toml` sets
-    // `debug-assertions = true` on release), so CI never runs it: its
-    // expectation was measured under
-    // `CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=false` by hand and is the half
-    // of this defect a shipping build would show — silently.
-    let want = if cfg!(debug_assertions) {
-        "panic: chord segment"
-    } else {
-        "Ok: patches [0, 0], check_mesh Err(\"NoTriangles\")"
-    };
-    assert_eq!(said, want);
+    assert!(said.starts_with("refused: PinchWedge"), "{said}");
 }
 
 /// **The member another door owns.** The sphere cut along a whole great

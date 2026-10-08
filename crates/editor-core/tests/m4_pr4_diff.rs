@@ -15,6 +15,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     BooleanOp, CancelToken, DocEdit, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId,
@@ -58,6 +59,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -76,24 +78,26 @@ fn slide_union(tx: f64) -> Slide {
     let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, transform) = insert(
         doc,
-        Node::Transform {
-            input: b0,
-            translation: [len(tx), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            b0,
+            editor_core::Step::Rigid {
+                translation: [len(tx), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
     );
-    // M4 PR 5: the sliding overlap's flush planes are declared.
+    // The sliding overlap's flush planes are declared on the union.
     // The B side is read at the TRANSFORM, the boolean's operand;
     // a transform carries `b0`'s names verbatim (N1).
-    let (doc, decl) = fixture::declare_x_offset_flush_at(doc, (a, a), (transform, b0));
+    let decl = fixture::declare_x_offset_flush_at(&doc, (a, a), (transform, b0));
     let (doc, union) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
             a,
             b: transform,
-            declare: Some(decl),
+            declare: decl,
         },
     );
     Slide {
@@ -110,6 +114,7 @@ fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
             node: s.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
             expr: len(tx),
+            fresh: Vec::new(),
         },
     );
     doc
@@ -184,7 +189,7 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
         doc,
         Node::Pattern {
             input: body,
-            count: editor_core::Expr::count(3),
+            count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -197,7 +202,8 @@ fn structural_count_edit_surfaces_as_divergence_not_fake_flips() {
         DocEdit::SetStructuralParam {
             node: pattern,
             slot: SlotId::Count,
-            expr: editor_core::Expr::count(2),
+            expr: editor_core::Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -235,6 +241,7 @@ fn failure_transitions_surface_as_status_rows() {
             node: plane,
             slot: SlotId::Normal(editor_core::Axis3::Z),
             expr: scl(0.0),
+            fresh: Vec::new(),
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -265,7 +272,7 @@ fn parallel_schedule_preserves_verdict_logs() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let seq = run(&doc, None);

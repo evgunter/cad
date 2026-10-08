@@ -30,14 +30,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use editor_core::{BooleanOp, Node, ProfileProgram, RecipeNodeId};
+use editor_core::AuthoredNode;
+use editor_core::{BooleanOp, Node, RecipeNodeId};
 
-fn boolean(op: BooleanOp) -> Node<ProfileProgram> {
+fn boolean(op: BooleanOp) -> AuthoredNode {
     Node::Boolean {
         op,
-        a: RecipeNodeId(1),
-        b: RecipeNodeId(2),
-        declare: None,
+        a: RecipeNodeId::new(0, 1),
+        b: RecipeNodeId::new(0, 2),
+        declare: Vec::new(),
     }
 }
 
@@ -52,9 +53,15 @@ fn the_operation_rides_the_wire_as_its_variant_name() {
     // given a spelling — the one tie the compiler can carry.
     let expected = |op: BooleanOp| -> &'static str {
         match op {
-            BooleanOp::Union => r#"{"Boolean":{"op":"Union","a":1,"b":2,"declare":null}}"#,
-            BooleanOp::Intersect => r#"{"Boolean":{"op":"Intersect","a":1,"b":2,"declare":null}}"#,
-            BooleanOp::Subtract => r#"{"Boolean":{"op":"Subtract","a":1,"b":2,"declare":null}}"#,
+            BooleanOp::Union => {
+                r#"{"Boolean":{"op":"Union","a":"0:0000000000000001","b":"0:0000000000000002","declare":[]}}"#
+            }
+            BooleanOp::Intersect => {
+                r#"{"Boolean":{"op":"Intersect","a":"0:0000000000000001","b":"0:0000000000000002","declare":[]}}"#
+            }
+            BooleanOp::Subtract => {
+                r#"{"Boolean":{"op":"Subtract","a":"0:0000000000000001","b":"0:0000000000000002","declare":[]}}"#
+            }
         }
     };
     for &op in BooleanOp::ALL {
@@ -69,7 +76,7 @@ fn every_operation_round_trips() {
     for &op in BooleanOp::ALL {
         let node = boolean(op);
         let text = serde_json::to_string(&node).unwrap();
-        let back: Node<ProfileProgram> = serde_json::from_str(&text).unwrap();
+        let back: AuthoredNode = serde_json::from_str(&text).unwrap();
         assert_eq!(back, node, "{op:?} did not survive the round trip");
     }
 }
@@ -78,8 +85,8 @@ fn every_operation_round_trips() {
 /// reading as some other operation.
 #[test]
 fn an_unknown_operation_spelling_refuses() {
-    let text = r#"{"Boolean":{"op":"Xor","a":1,"b":2,"declare":null}}"#;
-    let err = serde_json::from_str::<Node<ProfileProgram>>(text)
+    let text = r#"{"Boolean":{"op":"Xor","a":"0:0000000000000001","b":"0:0000000000000002","declare":[]}}"#;
+    let err = serde_json::from_str::<AuthoredNode>(text)
         .expect_err("an unknown operation spelling must refuse");
     assert!(
         err.to_string().contains("Xor"),
@@ -94,7 +101,7 @@ fn an_unknown_operation_spelling_refuses() {
 /// fix" from undoing it unnoticed.
 #[test]
 fn the_map_form_of_a_variant_is_refused() {
-    let text = r#"{"Boolean":{"op":{"Union":null},"a":1,"b":2,"declare":null}}"#;
-    serde_json::from_str::<Node<ProfileProgram>>(text)
+    let text = r#"{"Boolean":{"op":{"Union":null},"a":"0:0000000000000001","b":"0:0000000000000002","declare":[]}}"#;
+    serde_json::from_str::<AuthoredNode>(text)
         .expect_err("the operation rides the wire as a string, never as a one-key map");
 }

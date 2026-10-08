@@ -45,9 +45,9 @@ is worth reading before the swap: if a face were (invalidly) listed by
 two shells, the scan answers with the first in arena order and the
 back-pointer answers with the one the face names. On a body that
 validates there is no such face; on one that does not, the refusal
-`corrupt("re-cut representative face has no shell")` would become
-`StaleKey`-shaped instead, which is a posture change and not a
-mechanical substitution.
+`corrupt("re-cut representative face has no shell")` would become a
+panic naming the face's dangling `shell` link (D2 row 4) instead, which
+is a posture change and not a mechanical substitution.
 
 **Not a member of the face → shell → solid class** — it stops at the
 shell, and it is the only site in the tree that spells this hop the

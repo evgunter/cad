@@ -154,14 +154,8 @@ fn rational_quadratic_circle_matches_analytic_circle() {
         let (p, p1, p2) = oracle_cd(&n, t);
         let d = Vec3::new(p[0] - c.x, p[1] - c.y, p[2] - c.z); // (P − center)
         let (px, py) = (d.dot(x), d.dot(y));
-        let (vx, vy) = (
-            Vec3::new(p1[0], p1[1], p1[2]).dot(x),
-            Vec3::new(p1[0], p1[1], p1[2]).dot(y),
-        );
-        let (axx, ayy) = (
-            Vec3::new(p2[0], p2[1], p2[2]).dot(x),
-            Vec3::new(p2[0], p2[1], p2[2]).dot(y),
-        );
+        let (vx, vy) = (Vec3::from_array(p1).dot(x), Vec3::from_array(p1).dot(y));
+        let (axx, ayy) = (Vec3::from_array(p2).dot(x), Vec3::from_array(p2).dot(y));
         let theta = py.atan2(px);
         let denom = px * px + py * py;
         let num = px * vy - py * vx;
@@ -229,16 +223,11 @@ fn bezier_special_case_matches_binomial_closed_form() {
         let p = c3.eval(t);
         close3(
             p - Point3::origin(),
-            Vec3::new(e[0], e[1], e[2]),
+            Vec3::from_array(e),
             1e-13,
             "bezier eval",
         );
-        close3(
-            c3.deriv(t),
-            Vec3::new(de[0], de[1], de[2]),
-            1e-12,
-            "bezier deriv",
-        );
+        close3(c3.deriv(t), Vec3::from_array(de), 1e-12, "bezier deriv");
         let p2 = c2.eval(t);
         close(p2.x, e[0], 1e-13, "bezier2 x");
         close(p2.y, e[1], 1e-13, "bezier2 y");

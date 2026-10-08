@@ -2,11 +2,14 @@
 id: torus-onto-the-subtract-and-intersect-roster
 kind: issue
 title: Torus onto revert_arm_exists: subtract and intersect still refuse a torus operand at the front door
-status: open
+status: closed
 opened: 2026-09-25
 priority: P2
-cost: D
+cost: M
+branch: germ/torus-subtract-intersect
+pr: 3416
 refs: [torus-operand-gate-admission, torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
+closed: 2026-09-29
 ---
 
 ## What
@@ -73,3 +76,24 @@ It was parked on the interior-loop row, which the section certificate
 extends a wrong answer to ∖ and ∩. The admission's own measurement is
 still owed: re-run the shapes above with `Torus` on the roster, against
 the certificate.
+
+## Admitted (2026-09-29)
+
+Re-measured with `Torus` on `revert_arm_exists`, against the section
+certificate, at the witness, `1e-6` and `1e-12` rows: ∖ in both
+operand orders and ∩ over every shape above, the corner bar, the
+MATE-7a fixtures declared and undeclared, the cylinder-handled
+dumbbell, and 60 seeded random rods through the tube. Every body
+returned was checked against its operands (volume identities, tier 3,
+`point_in_solid` on a grid against both); none was wrong, so the torus
+is on the roster.
+
+What answers: the cube in the hole, the pin-only bracket and the wedge
+clear of the carrier, in closed form (`germ_torus_doors`,
+`germ_interior_oval`). The donut in a big cube answered already. What
+refuses does so where ∪ does: the bars at the sagitta charge or the
+pierce door, the slab at R-loop, two tori and the grazing cylinder at
+R-reach, the declared dumbbell, socket and peg and coincident pair at
+R-tan, the chain and the kissing pair at the rim routing, and every
+undeclared torus pair at the crossing layer. The half donut with the
+bracket refuses at the guard (R-loop) under every op.

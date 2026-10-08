@@ -1,5 +1,7 @@
-//! **The census over `Display` impls that render a payload through
-//! `Debug`** — the mechanical half of the prose gate.
+//! **The census over `Display` and `Say` impls that render a payload
+//! through `Debug`** — the mechanical half of the prose gate. A
+//! sentence written over a speaker (`editor_core::spoken::Say`) is its
+//! type's `Display`, said by tag, so it is read the same way.
 //!
 //! [`crate::errors::reads_as_prose`] rejects the field-brace
 //! fingerprint `" { "`, and [`crate::py::typed_err`] asserts it on
@@ -25,8 +27,8 @@
 //! down.
 //!
 //! So this guard samples nothing. It reads the SITE: every
-//! `{binding:?}` in every format string inside every `impl Display` in
-//! the tree, resolved to the field type the binding is declared at,
+//! `{binding:?}` in every format string inside every `impl Display`
+//! and `impl Say` in the tree, resolved to the field type the binding is declared at,
 //! and asked whether that type's `Debug` can carry the fingerprint. A
 //! site is flagged for the type it renders, never for a value someone
 //! thought to construct, so a variant nobody sampled is not a variant
@@ -1329,19 +1331,25 @@ fn clone_variant(variant: &VariantShape) -> VariantShape {
     }
 }
 
-/// Every `Debug` rendering inside every `impl Display` in the tree.
+/// Every `Debug` rendering inside every `impl Display` and `impl Say`
+/// in the tree.
 fn census(sources: &[Source]) -> Vec<Site> {
     let types = type_table(sources);
     let mut out = Vec::new();
     for source in sources {
         let (code, text) = (&source.code, &source.text);
         let module = module_path(&source.file);
-        for (found, _) in code.match_indices("Display for ") {
+        // A sentence written over a speaker (`spoken::Say`) is that
+        // type's `Display`, said by tag.
+        let impls = code
+            .match_indices("Display for ")
+            .chain(code.match_indices("Say for "));
+        for (found, head) in impls {
             let window = found.saturating_sub(200);
             if !code[window..found].contains("impl") {
                 continue;
             }
-            let Some((display_type, after)) = ident_at(code, found + "Display for ".len()) else {
+            let Some((display_type, after)) = ident_at(code, found + head.len()) else {
                 continue;
             };
             let Some(open) = code[after..].find('{').map(|o| after + o) else {
@@ -1698,15 +1706,7 @@ fn local_binding_span(
 /// The count is part of the key. Without it a Display impl rendering
 /// one binding at several sites collapses to one row, and repairing
 /// some of them leaves the guard green over the rest.
-const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[(
-    "crates/topo/src/boolean/voids.rs",
-    "VoidInsertError",
-    "e",
-    1,
-    "`RevertError` carries struct variants. Found BY this census; \
-     reachability into `typed_err` not traced, so severity is undecided and \
-     the site is disclosed rather than claimed",
-)];
+const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[];
 
 /// The blind spot, written down WITH ITS REASON.
 ///
@@ -1732,7 +1732,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ProgramFault",
         "verb",
         1,
-        "`profile::Verb` resolves to its declaration in a `macro_rules!` body,\
+        "`profile::Verb` resolves to its declaration in a `macro_rules!` body, \
          which the shared lexer does not expand, so its shape is unreadable",
     ),
     (
@@ -1740,7 +1740,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "IsoRowError",
         "u",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1748,7 +1748,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "OffsetError",
         "realized",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1756,7 +1756,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "OffsetError",
         "realized_minor",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1771,7 +1771,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ReplayError",
         "verb",
         1,
-        "the binding is introduced by a pattern NESTED inside the field pattern\
+        "the binding is introduced by a pattern NESTED inside the field pattern \
          this census reads — `verb: Some(verb)` — so no declared type reaches it",
     ),
     (
@@ -1779,37 +1779,30 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "StepImportError",
         "e",
         1,
-        "the binding is a closure parameter — `errors.iter().map(|e| ..)` — not a\
+        "the binding is a closure parameter — `errors.iter().map(|e| ..)` — not a \
          match binding, and this census types patterns and fields",
-    ),
-    (
-        "crates/topo/src/boolean/mod.rs",
-        "BooleanError",
-        POSITIONAL,
-        1,
-        "a positional `{:?}` over an expression this census does not type",
     ),
     (
         "crates/topo/src/flush.rs",
         "FlushRefusal",
         POSITIONAL,
-        2,
+        4,
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
-        "e",
-        1,
-        "an inner arm — `match edge { Some(e) => .. }` — whose pattern names no\
-         variant path, so this census reads no field type from it",
+        "gap",
+        4,
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/topo/src/replace_face.rs",
         "ReplaceFaceError",
-        "gap",
-        3,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "offset",
+        1,
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1817,7 +1810,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ReplaceFaceError",
         "shift",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1825,7 +1818,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ReplaceFaceError",
         "station_max",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1833,23 +1826,30 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ReplaceFaceError",
         "station_min",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
-        "crates/topo/src/replace_face.rs",
-        "ReplaceFaceError",
-        "v_max",
+        "crates/topo/src/shell.rs",
+        "AsShelled",
+        POSITIONAL,
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "a positional `{:?}` over an expression this census does not type",
+    ),
+    (
+        "crates/topo/src/shell.rs",
+        "AsShelled",
+        "realized",
+        1,
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
-        "crates/topo/src/replace_face.rs",
-        "ReplaceFaceError",
-        "v_min",
+        "crates/topo/src/shell.rs",
+        "AsShelled",
+        "realized_minor",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1857,7 +1857,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ShellError",
         "gap",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1865,7 +1865,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ShellError",
         "needed",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1873,7 +1873,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "ShellError",
         "thickness",
         1,
-        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
+        "the `Real` scalar parameter: `Interval` wraps a named-field struct, so \
          this renders a brace at `Interval` and prose at `f64`",
     ),
     (
@@ -1881,7 +1881,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "SplitReduceError",
         "u",
         1,
-        "the binding is introduced by a pattern NESTED inside the field pattern\
+        "the binding is introduced by a pattern NESTED inside the field pattern \
          this census reads — `endpoints: (u, v)` — so no declared type reaches it",
     ),
     (
@@ -1889,7 +1889,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "SplitReduceError",
         "v",
         1,
-        "the binding is introduced by a pattern NESTED inside the field pattern\
+        "the binding is introduced by a pattern NESTED inside the field pattern \
          this census reads — `endpoints: (u, v)` — so no declared type reaches it",
     ),
 ];

@@ -6,6 +6,7 @@
 use core::ops::{Add, Div, Mul, Neg, Sub};
 
 use crate::interval::{DInterval, Decoration};
+use crate::ops::{lower_of, upper_of};
 use crate::round::{add_hi, add_lo, div_hi, div_lo, mul_hi, mul_lo, sub_hi, sub_lo};
 
 impl Add for DInterval {
@@ -61,8 +62,12 @@ impl Mul for DInterval {
             mul_hi(self.hi, rhs.lo),
             mul_hi(self.hi, rhs.hi),
         ];
-        let lo = l.into_iter().fold(f64::INFINITY, f64::min);
-        let hi = h.into_iter().fold(f64::NEG_INFINITY, f64::max);
+        let lo = l
+            .into_iter()
+            .fold(f64::INFINITY, |a, b| lower_of(a, b, f64::min));
+        let hi = h
+            .into_iter()
+            .fold(f64::NEG_INFINITY, |a, b| upper_of(a, b, f64::max));
         Self::make(lo, hi, dec)
     }
 }
@@ -106,8 +111,10 @@ impl Div for DInterval {
                 div_hi(self.hi, rhs.hi),
             ];
             (
-                l.into_iter().fold(f64::INFINITY, f64::min),
-                h.into_iter().fold(f64::NEG_INFINITY, f64::max),
+                l.into_iter()
+                    .fold(f64::INFINITY, |a, b| lower_of(a, b, f64::min)),
+                h.into_iter()
+                    .fold(f64::NEG_INFINITY, |a, b| upper_of(a, b, f64::max)),
             )
         };
         Self::make(lo, hi, dec)

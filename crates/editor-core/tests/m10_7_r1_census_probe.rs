@@ -17,14 +17,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
-    ParamName, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym,
+    CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Formula, FreeVar, LoopProgram,
+    Node, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym, VarName,
     evaluate,
 };
 use fixture::{Recorder, len, scl, xy_frame};
@@ -39,9 +40,9 @@ use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
 /// the chain vocabulary. `Err` carries the door's refusal.
 fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::new("w"),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("w"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 2.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -49,16 +50,16 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
                 lo: -half,
                 hi: half,
             }),
-        },
+        }),
     });
-    let w = || Expr::param(ParamName::new("w"), Dimension::Length);
+    let w = || Formula::named(VarName::from_static("w"), Dimension::Length);
     let plane = r.insert(xy_frame());
-    let pt = |x: Expr, y: Expr| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
+    let pt = |x: Formula, y: Formula| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
     let profile = Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
-            pt(Expr::div(w(), scl(2.0)).unwrap(), len(0.0)),
+            pt(Formula::div(w(), scl(2.0)).unwrap(), len(0.0)),
             pt(w(), len(0.0)),
             pt(w(), len(1.0)),
             pt(len(0.0), len(1.0)),
@@ -68,7 +69,10 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     });
     let applied = editor_core::apply(
         &r.doc,
-        &DocEdit::InsertNode { node: profile },
+        &DocEdit::InsertNode {
+            node: Box::new(profile),
+            fresh: Vec::new(),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
@@ -79,6 +83,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
     Ok(r.doc)
 }
@@ -89,7 +94,7 @@ fn split_at_point(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static 
         ParamBox::of(&analyzed)
             .axes()
             .keys()
-            .map(|n| (n.clone(), BoxAxis::Fixed))
+            .map(|n| (*n, BoxAxis::Fixed))
             .collect(),
     );
     let opts = EvalOptions {
@@ -181,7 +186,7 @@ fn r1_parametric_chain_at_a_point_box() {
                 ParamBox::of(&analyzed)
                     .axes()
                     .keys()
-                    .map(|n| (n.clone(), BoxAxis::Fixed))
+                    .map(|n| (*n, BoxAxis::Fixed))
                     .collect(),
             )
         } else {

@@ -150,13 +150,15 @@
 
 use geom_core::Bounds;
 use geom_core::interval::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::algebra::{self, GridSkip, SLIVER_CLEARANCE_ULPS};
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{KnotVector, Span};
 use geom_core::{Band, Decide, InfSpeed, Margin, Sign};
 
-use super::PropsError;
+use super::{PropsCheck, PropsError};
+use crate::offset_meters::mig;
 
 /// The initial piece count of the composite rule (round 0).
 const QUAD_INIT_PIECES: usize = 16;
@@ -165,7 +167,7 @@ const QUAD_INIT_PIECES: usize = 16;
 const QUAD_MAX_ROUNDS: usize = 12;
 /// Convergence target as a multiple of ε, metered as the mean boundary
 /// displacement `width(flux)/(3·area)` (module docs: why not 1·ε).
-const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
+pub(super) const QUAD_TARGET_LEN_FACTOR: f64 = 1024.0;
 
 /// **The rounds one call of a face lane runs** — the schedule's
 /// refinement made addressable, so a caller whose certification is
@@ -354,7 +356,7 @@ fn pt(x: f64) -> Interval {
 /// `1 − s²/2 + s⁴/24 − s⁶/720 ≤ cos s ≤ … + s⁸/40320` (truncations of
 /// an alternating series with decreasing terms — decreasing needs
 /// s² ≤ 56, ample here; both ends formed in certification arithmetic so their own
-/// rounding is outward). Poison outside the domain.
+/// rounding is outward). Refused outside the domain.
 /// **Safe by construction, and that is why the re-mint below needs no
 /// refusal**: every operand is `pt` of a finite `f64` and every
 /// divisor is a nonzero exact point, so no step can leave a domain
@@ -362,7 +364,7 @@ fn pt(x: f64) -> Interval {
 /// they say. The same argument covers [`sin_step`].
 fn cos_step(s: f64) -> Interval {
     if s.is_nan() || s.abs() > 1.5 {
-        return Interval::poison();
+        return Interval::refused();
     }
     let s2 = pt(s).sqr();
     let s4 = s2.sqr();
@@ -377,7 +379,7 @@ fn cos_step(s: f64) -> Interval {
 /// by oddness for s < 0.
 fn sin_step(s: f64) -> Interval {
     if s.is_nan() || s.abs() > 1.5 {
-        return Interval::poison();
+        return Interval::refused();
     }
     let a = s.abs();
     let a1 = pt(a);
@@ -418,7 +420,7 @@ fn trig_at(base: (Interval, Interval), off: f64) -> (Interval, Interval) {
         return base;
     }
     if !off.is_finite() {
-        return (Interval::poison(), Interval::poison());
+        return (Interval::refused(), Interval::refused());
     }
     let mut seed = off;
     let mut k = 0u32;
@@ -445,18 +447,18 @@ fn trig_at(base: (Interval, Interval), off: f64) -> (Interval, Interval) {
 /// d ≤ π; larger spans fall back to the whole circle).
 fn trig_over(base: (Interval, Interval), off: f64, d: f64) -> (Interval, Interval) {
     if d.is_nan() || d < 0.0 || !off.is_finite() {
-        return (Interval::poison(), Interval::poison());
+        return (Interval::refused(), Interval::refused());
     }
     if d > 3.0 {
         let full = Interval::from_bounds(-1.0, 1.0);
         return (full, full);
     }
     let at = trig_at(base, off);
-    // The `.max`/`.min` below are NOT the poison-swallowing shape
+    // The `.max`/`.min` below are NOT the refusal-swallowing shape
     // `Interval::clamped_to` exists for: `d` is a finite nonnegative
     // f64 by the guard above, so this certification arithmetic cannot produce
-    // poison and there is no NaN for `f64::max` to absorb. `base` is the
-    // operand that can be poison, and it reaches only `trig_at`/`rotate`,
+    // a refusal and there is no NaN for `f64::max` to absorb. `base` is the
+    // operand that can be refused, and it reaches only `trig_at`/`rotate`,
     // which clamp through `clamped_to`.
     let ch = {
         let lo = (pt(1.0) - pt(d).sqr() / pt(2.0)).lo().max(-1.0);
@@ -500,7 +502,7 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Int
     let (a, b) = (mid(e.t0), mid(e.t1));
     let span = b - a;
     if !(span.is_finite() && span >= 0.0) || pieces == 0 {
-        return Interval::poison();
+        return Interval::refused();
     }
     let du = e.u.deriv();
     let dv = e.v.deriv();
@@ -519,7 +521,7 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Int
     // Per-piece spread: midpoint ± h/2 (the interval rotation of
     // `trig_over`, midpoint-anchored).
     // `h` is finite by the `span`/`pieces` guard above, so — as in
-    // `trig_over` — the `.max`/`.min` here operate on poison-free ring
+    // `trig_over` — the `.max`/`.min` here operate on refusal-free ring
     // arithmetic and are not the `clamped_to` hazard.
     let h2 = h * 0.5;
     let spread_c = if h2 <= 1.5 {
@@ -637,9 +639,10 @@ fn classify_len<T: Decide>(
     name: &'static str,
     margin: Margin<f64>,
     band: Band,
+    check: PropsCheck,
 ) -> Result<Sign, PropsError> {
     geom_core::k_stats::decide(name, margin.lift::<T>(), band)
-        .map_err(|cause| PropsError::Escalated { cause })
+        .map_err(|cause| PropsError::Escalated { cause, check })
 }
 
 /// The convergence meter: the flux enclosure's width expressed as the
@@ -713,7 +716,7 @@ fn displacement_len(width: f64, area: Interval) -> Result<f64, PropsError> {
     // face's extent at all.
     if !width.is_finite() || !denom.is_finite() {
         return Err(PropsError::QuadratureUnsupported {
-            what: "a quadrature enclosure with a non-finite width or area (a poisoned \
+            what: "a quadrature enclosure with a non-finite width or area (a refused \
                    bracket) — the convergence meter has no honest length to report, \
                    and a refusal carrying a non-finite width would misstate the \
                    enclosure",
@@ -844,6 +847,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
             "props_quad_converged",
             Margin::of(target_len - width_len),
             band,
+            PropsCheck::Converged,
         )? == Sign::Positive
         {
             // Face-extent gate on the CONVERGED enclosure: the area
@@ -855,6 +859,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perim),
                 band,
+                PropsCheck::Extent,
             )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
@@ -886,7 +891,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
 /// ring so its rounding is outward, matching `deriv_coeff`).
 fn bspline_eval_ring(kv: &KnotVector, coeffs: &[Interval], t: f64) -> Interval {
     if coeffs.len() != kv.control_count() || !t.is_finite() {
-        return Interval::poison();
+        return Interval::refused();
     }
     let p = kv.degree();
     let u = kv.knots();
@@ -910,15 +915,15 @@ fn bspline_eval_ring(kv: &KnotVector, coeffs: &[Interval], t: f64) -> Interval {
 
 /// Hull of a scalar B-spline over `[lo, hi]`: `coeffs` minted as
 /// `kv`'s, then the hull of the active spans' coefficient hulls
-/// (conservative to span granularity). Poison when the mint refuses
+/// (conservative to span granularity). A refusal when the mint refuses
 /// the pair — a count the ladder's own structure never produces, kept
 /// as the answer a bound gives for structure it cannot license.
 fn range_hull(kv: &KnotVector, coeffs: &[Interval], lo: f64, hi: f64) -> Interval {
     let Some(pair) = kv.with_coeffs(coeffs) else {
-        return Interval::poison();
+        return Interval::refused();
     };
     let (s0, s1) = kv.span_range(lo, hi);
-    let mut acc = Interval::poison();
+    let mut acc = Interval::refused();
     let mut seeded = false;
     for index in s0.index()..=s1.index() {
         // Emptiness check and window construction are one step.
@@ -990,7 +995,7 @@ impl DerivLadder {
             // constants): the whole-domain coefficient hull is a sound
             // range bound for any sub-interval.
             Some((None, q)) => {
-                let mut acc = Interval::poison();
+                let mut acc = Interval::refused();
                 for (n, c) in q.iter().enumerate() {
                     acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
                 }
@@ -1115,6 +1120,21 @@ const QUAD2_HULL_BLOCKS: usize = 8;
 /// a face the last round provably cannot certify is refused after
 /// round 0 ([`last_round_refuses`]).
 const QUAD2_RATIONAL_MAX_ROUNDS: usize = 7;
+
+/// **The last round every lane's schedule reaches** — the round a
+/// caller entering faces of several lanes one [`RoundWindow::at`] at a
+/// time may ask for without knowing which lane a face takes. Each lane
+/// asserts that a window it is handed starts inside its own schedule;
+/// this is the shortest of them, and the compile-time check below keeps
+/// it so.
+pub const LAST_ROUND_EVERY_LANE_RUNS: usize = QUAD2_MAX_ROUNDS;
+
+const _: () = assert!(
+    LAST_ROUND_EVERY_LANE_RUNS <= QUAD_MAX_ROUNDS
+        && LAST_ROUND_EVERY_LANE_RUNS <= QUAD2_MAX_ROUNDS
+        && LAST_ROUND_EVERY_LANE_RUNS <= QUAD2_RATIONAL_MAX_ROUNDS
+        && LAST_ROUND_EVERY_LANE_RUNS <= TRIM_MAX_ROUNDS
+);
 /// Cells per axis of BOTH patch lanes' area pass (fixed, D9). The
 /// shared [`area_midpoint_taylor`] rule is O(h), so the resolution sets
 /// the area's honest width directly.
@@ -1151,23 +1171,6 @@ fn rv_cross(a: RVec3, b: RVec3) -> RVec3 {
 
 fn rv_dot(a: RVec3, b: RVec3) -> Interval {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-
-/// Sound enclosure of `√x` for a nonnegative-by-construction `x`
-/// (component squares summed): correctly rounded `f64` sqrt widened
-/// one ulp outward; a spurious negative low (impossible here — inputs
-/// go through [`Interval::sqr`]) clamps to zero, the safe
-/// direction for a magnitude.
-fn sqrt_enclosure(x: Interval) -> Interval {
-    // The early-out is what makes the `.max(0.0)` clamps below safe: past
-    // it the endpoints are non-NaN, so no `f64::max` can absorb poison
-    // into a plausible magnitude. Callers do pass poisonable sums.
-    if !x.is_certified() {
-        return x;
-    }
-    let lo = x.lo().max(0.0).sqrt();
-    let hi = x.hi().max(0.0).sqrt();
-    Interval::from_bounds(lo.next_down().max(0.0), hi.next_up())
 }
 
 /// Widens both ends by a nonnegative pad (the honesty-pad fold).
@@ -1247,7 +1250,7 @@ fn raw_span(knots: &[f64], degree: usize, count: usize, t: f64) -> usize {
 /// In-span de Boor on a raw knot slice (the [`Dir::Raw`] evaluator).
 fn raw_eval(knots: &[f64], degree: usize, coeffs: &[Interval], t: f64) -> Interval {
     if coeffs.len() < degree + 1 || knots.len() < coeffs.len() + degree + 1 || !t.is_finite() {
-        return Interval::poison();
+        return Interval::refused();
     }
     let span = raw_span(knots, degree, coeffs.len(), t);
     let mut d: Vec<Interval> = (0..=degree).map(|j| coeffs[span - degree + j]).collect();
@@ -1267,13 +1270,13 @@ fn raw_eval(knots: &[f64], degree: usize, coeffs: &[Interval], t: f64) -> Interv
 /// [`range_hull`] uses).
 fn raw_range_hull(knots: &[f64], degree: usize, coeffs: &[Interval], lo: f64, hi: f64) -> Interval {
     if coeffs.len() < degree + 1 {
-        return Interval::poison();
+        return Interval::refused();
     }
     let (s0, s1) = (
         raw_span(knots, degree, coeffs.len(), lo),
         raw_span(knots, degree, coeffs.len(), hi),
     );
-    let mut acc = Interval::poison();
+    let mut acc = Interval::refused();
     let mut seeded = false;
     for span in s0..=s1 {
         for j in 0..=degree {
@@ -1297,7 +1300,7 @@ fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[Interval]) -> Vec<Interval>
     (0..coeffs.len() - 1)
         .map(|i| {
             let (Some(&a), Some(&b)) = (knots.get(i + degree + 1), knots.get(i + 1)) else {
-                return Interval::poison();
+                return Interval::refused();
             };
             // `knots[i+1] == knots[i+degree+1]` marks a DEGENERATE
             // (empty) span — the derivative has no coefficient there
@@ -1336,7 +1339,7 @@ impl Dir {
 fn bspline_eval_ring_in_span(coeffs: &[Interval], span: Span<'_>, t: Interval) -> Interval {
     let kv = span.knots();
     if coeffs.len() != kv.control_count() {
-        return Interval::poison();
+        return Interval::refused();
     }
     let p = kv.degree();
     let u = kv.knots();
@@ -1383,7 +1386,7 @@ impl PatchGrid {
             nu,
             nv,
             // Entrywise off the row-major control net, so a net that
-            // does not fill the declared extent poisons the SLOTS it
+            // does not fill the declared extent refuses the SLOTS it
             // does not reach rather than the whole grid: a shape this
             // grid cannot index is one caller's error, not a reason to
             // refuse every hull the other cells could have answered.
@@ -1391,7 +1394,7 @@ impl PatchGrid {
                 TensorNet::from_fn(nu, nv, |i, j| {
                     control
                         .get(i * nv + j)
-                        .map_or_else(Interval::poison, |c| c[k])
+                        .map_or_else(Interval::refused, |c| c[k])
                 })
             }),
         }
@@ -1450,7 +1453,7 @@ impl PatchGrid {
             }
             Dir::Const { .. } => return None,
         };
-        // A step that does not answer `nu - 1` coefficients poisons its
+        // A step that does not answer `nu - 1` coefficients refuses its
         // line (`TensorNet::diff_u`). Unreachable from here and kept as
         // a guard: `raw_deriv` answers `n - 1` for every degree >= 1,
         // which `Dir`'s own construction guarantees, and it fills a
@@ -1497,7 +1500,7 @@ impl PatchGrid {
             }
             Dir::Const { .. } => return None,
         };
-        // Poison on a wrong-length step, per [`PatchGrid::deriv_u`].
+        // Refused on a wrong-length step, per [`PatchGrid::deriv_u`].
         let ch = core::array::from_fn(|k| self.ch[k].diff_v(&take));
         Some(Self {
             du: self.du.clone(),
@@ -1526,7 +1529,7 @@ impl PatchGrid {
                         coeffs
                             .get(span.saturating_sub(*degree) + j)
                             .copied()
-                            .unwrap_or_else(Interval::poison)
+                            .unwrap_or_else(Interval::refused)
                     })
                     .collect();
                 for r in 1..=*degree {
@@ -1534,7 +1537,7 @@ impl PatchGrid {
                         let i = span - *degree + j;
                         let (Some(&ka), Some(&kb)) = (knots.get(i + *degree + 1 - r), knots.get(i))
                         else {
-                            return Interval::poison();
+                            return Interval::refused();
                         };
                         let alpha = (*t - pt(kb)) / (pt(ka) - pt(kb));
                         d[j] = (pt(1.0) - alpha) * d[j - 1] + alpha * d[j];
@@ -2097,7 +2100,7 @@ fn fold_terms(terms: &[(Interval, RVec3)]) -> RVec3 {
 
 /// An upper bound on `|v|` (2-norm) of a bracketed 3-vector.
 fn norm_hi(v: RVec3) -> f64 {
-    hi_or_refuse(sqrt_enclosure(v[0].sqr() + v[1].sqr() + v[2].sqr()))
+    hi_or_refuse((v[0].sqr() + v[1].sqr() + v[2].sqr()).sqrt())
 }
 
 /// Componentwise sum of two bracketed 3-vectors.
@@ -2204,7 +2207,7 @@ pub fn boundary_chord_perimeter_lo(
     for i in 0..pts.len() {
         let (a, b) = (pts[i], pts[(i + 1) % pts.len()]);
         let d = [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-        p = p + sqrt_enclosure(d[0].sqr() + d[1].sqr() + d[2].sqr());
+        p = p + (d[0].sqr() + d[1].sqr() + d[2].sqr()).sqrt();
     }
     lo_or_refuse(p).max(0.0)
 }
@@ -2319,7 +2322,7 @@ pub fn boundary_chord_perimeter_lo(
 fn area_gauge_ok(area: Interval, perimeter_lo: f64) -> bool {
     let width = area.width();
     // A certified return whose width is not a number is the clearest
-    // form of the bug this tripwire is for — and so is a poisoned
+    // form of the bug this tripwire is for — and so is a NaN
     // PERIMETER. The two are the same signal and get the same answer:
     // falling back to the relative arm on a NaN denominator would
     // quietly turn a bug into a softer test.
@@ -2386,7 +2389,7 @@ fn area_gauge_ok(area: Interval, perimeter_lo: f64) -> bool {
 /// useful thing, that the displacement it reports is never LARGER
 /// than the truth, so a fire is never an artifact of the denominator.
 ///
-/// A non-finite chord bound is not backstopped: that is a poisoned
+/// A non-finite chord bound is not backstopped: that is a refused
 /// enclosure, the bug signal itself, and it propagates so the
 /// assertion fires.
 fn area_gauge_denominator(perimeter_lo: f64, perimeter_caller: f64) -> f64 {
@@ -2412,7 +2415,7 @@ fn area_gauge_failure_message(area: Interval, denominator: f64) -> String {
                 not that the face is hard. `area_gauge_ok` carries the calibration.";
     if !width.is_finite() || !denominator.is_finite() {
         return format!(
-            "{head}\nARM: poisoned — width {width} over denominator {denominator}. A \
+            "{head}\nARM: refused — width {width} over denominator {denominator}. A \
              non-finite value at a certified return is the bug signal itself."
         );
     }
@@ -2602,7 +2605,11 @@ fn refine_dir(
     nv: usize,
     along_u: bool,
 ) -> Option<(KnotVector, Vec<RVec3>, usize)> {
-    let poison = [Interval::poison(), Interval::poison(), Interval::poison()];
+    let refused = [
+        Interval::refused(),
+        Interval::refused(),
+        Interval::refused(),
+    ];
     let count = kv.control_count();
     if count == 0 || nv == 0 {
         return None;
@@ -2639,7 +2646,7 @@ fn refine_dir(
         .collect();
     for plan in &plans {
         for line in &mut cur {
-            *line = plan.apply_points(line, poison, ring_lerp);
+            *line = plan.apply_points(line, refused, ring_lerp);
         }
         cur_kv = plan.knots().clone();
     }
@@ -2649,7 +2656,7 @@ fn refine_dir(
     } else {
         (other, new_count)
     };
-    let mut out = vec![poison; rows * cols];
+    let mut out = vec![refused; rows * cols];
     for (j, line) in cur.iter().enumerate() {
         for (i, p) in line.iter().enumerate() {
             let idx = if along_u { i * cols + j } else { j * cols + i };
@@ -2907,7 +2914,7 @@ fn block_cell_sums(cuts: &[f64], edges: &[f64]) -> Vec<(f64, f64)> {
 ///
 /// `hulls(bu, bv)` yields a block's `(hull_uu, Some(hull_vv))`, or
 /// `(hull_uu, None)` where the v integral is exact and carries no
-/// v remainder. A poisoned hull poisons the remainder term of every
+/// v remainder. A refused hull refuses the remainder term of every
 /// round that reads it, so round 0 refuses `QuadratureUnsupported`
 /// before the exit is consulted; the NaN this function would then
 /// return is never read (and [`displacement_len`] would refuse it
@@ -2962,7 +2969,8 @@ fn last_round_refuses<T: Decide>(last_round_len: f64, target_len: f64, band: Ban
         classify_len::<T>(
             "props_quad_last_round",
             Margin::of(target_len - last_round_len),
-            band
+            band,
+            PropsCheck::Converged
         ),
         Ok(Sign::Negative)
     )
@@ -2997,7 +3005,7 @@ fn last_round_refuses<T: Decide>(last_round_len: f64, target_len: f64, band: Ban
 /// new geometry. Weights are `f64` structure and strictly positive
 /// (checked exactly, C6), so `w`'s control hull excludes zero on every
 /// cell and interval arithmetic division is defined; a hull that does not is
-/// poison, and poison refuses typed rather than answering wide.
+/// refused, and the refusal is typed rather than a wide answer.
 ///
 /// # The rule, the remainder, and why there is no exact lane
 ///
@@ -3285,7 +3293,7 @@ fn rational_patch_face<T: Decide>(
             let m = (Collapse::At(b.umid), Collapse::At(b.vmid));
             let cm = a.cross_num(&w, m.0, m.1);
             let wm = w.chan(m.0, m.1);
-            let g_mid = sqrt_enclosure(cm[0].sqr() + cm[1].sqr() + cm[2].sqr()) / wm.powi(3);
+            let g_mid = (cm[0].sqr() + cm[1].sqr() + cm[2].sqr()).sqrt() / wm.powi(3);
             let wh = w.chan(over.0, over.1);
             let wh_lo = lo_or_refuse(wh);
             if wh_lo <= 0.0 || !wh_lo.is_finite() {
@@ -3303,7 +3311,7 @@ fn rational_patch_face<T: Decide>(
                 g_mid,
                 g_u: pad_d(a.cross_num_u(&w, over.0, over.1), w.chan_u(over.0, over.1)),
                 g_v: pad_d(a.cross_num_v(&w, over.0, over.1), w.chan_v(over.0, over.1)),
-                g_hull: sqrt_enclosure(ch[0].sqr() + ch[1].sqr() + ch[2].sqr()) / wh.powi(3),
+                g_hull: (ch[0].sqr() + ch[1].sqr() + ch[2].sqr()).sqrt() / wh.powi(3),
             })
         },
     )?;
@@ -3422,7 +3430,7 @@ fn rational_patch_face<T: Decide>(
         let flux = widen(flux, boundary_defect * p_bound);
         if !flux.is_certified() || !area.is_certified() {
             return Err(PropsError::QuadratureUnsupported {
-                what: "a rational patch enclosure poisoned (a weight hull straddling \
+                what: "a rational patch enclosure refused (a weight hull straddling \
                        zero, or a non-finite net) — refusing rather than answering wide",
             });
         }
@@ -3431,12 +3439,14 @@ fn rational_patch_face<T: Decide>(
             "props_quad_converged",
             Margin::of(target_len - width_len),
             band,
+            PropsCheck::Converged,
         )? == Sign::Positive
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
+                PropsCheck::Extent,
             )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
@@ -3447,7 +3457,7 @@ fn rational_patch_face<T: Decide>(
         // This round did not certify. The last-round bound is loop-
         // invariant, so it is asked ONCE, after round 0
         // ([`last_round_refuses`]): after, not before, so that every
-        // refusal round 0 raises (poison, a degenerate lever, an
+        // refusal round 0 raises (a refused enclosure, a degenerate lever, an
         // in-band escalation) is raised first, in the order it always
         // was, and so the ledger meters the bound's margin once per
         // face. A refusal here is the schedule's own ending, reached
@@ -3719,12 +3729,12 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
                 rv_cross(h_su, grid_vec(svv.as_ref(), over.0, over.1)),
             );
             Ok(AreaCell {
-                g_mid: sqrt_enclosure(cm[0].sqr() + cm[1].sqr() + cm[2].sqr()),
+                g_mid: (cm[0].sqr() + cm[1].sqr() + cm[2].sqr()).sqrt(),
                 g_u: norm_hi(d_u),
                 g_v: norm_hi(d_v),
                 g_hull: {
                     let c = rv_cross(h_su, h_sv);
-                    sqrt_enclosure(c[0].sqr() + c[1].sqr() + c[2].sqr())
+                    (c[0].sqr() + c[1].sqr() + c[2].sqr()).sqrt()
                 },
             })
         },
@@ -3749,12 +3759,14 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
             "props_quad_converged",
             Margin::of(target_len - width_len),
             band,
+            PropsCheck::Converged,
         )? == Sign::Positive
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
+                PropsCheck::Extent,
             )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
@@ -3832,12 +3844,14 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
             "props_quad_converged",
             Margin::of(target_len - width_len),
             band,
+            PropsCheck::Converged,
         )? == Sign::Positive
         {
             match classify_len::<T>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
+                PropsCheck::Extent,
             )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
@@ -4037,7 +4051,7 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
         }
     }
     let plans = geom_core::spline::algebra::refine_plan(kv, &img.weights, &add).ok()?;
-    let poison = (Interval::poison(), Interval::poison());
+    let refused = (Interval::refused(), Interval::refused());
     // [`ring_lerp`]'s association, two channels instead of three: the
     // rounding of the ARITHMETIC lands outward in the brackets, which
     // is what makes a refined bracket an enclosure. It is written out
@@ -4049,7 +4063,7 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
     };
     let mut ctl = img.control.clone();
     for plan in &plans {
-        ctl = plan.apply_points(&ctl, poison, lerp);
+        ctl = plan.apply_points(&ctl, refused, lerp);
     }
     if ctl.len() < p + 1 || !(ctl.len() - 1).is_multiple_of(p) {
         return None;
@@ -4108,19 +4122,9 @@ fn block_box(block: &[RPt2]) -> (Interval, Interval) {
 /// direction answers `0`, which is the refusing direction wherever
 /// this is read.
 fn norm_lo(v: RVec3) -> f64 {
-    let comp = |x: Interval| -> f64 {
-        if !x.is_certified() {
-            return 0.0;
-        }
-        if x.lo() > 0.0 {
-            x.lo()
-        } else if x.hi() < 0.0 {
-            -x.hi()
-        } else {
-            0.0
-        }
-    };
-    (comp(v[0]).powi(2) + comp(v[1]).powi(2) + comp(v[2]).powi(2)).sqrt()
+    let comp = |x: Interval| Interval::point(mig(x));
+    let root = (comp(v[0]).sqr() + comp(v[1]).sqr() + comp(v[2]).sqr()).sqrt();
+    if !root.is_certified() { 0.0 } else { root.lo() }
 }
 
 /// One piece of the chord polygon: its chord, and — for a `General`
@@ -4300,6 +4304,7 @@ fn piece_monotone<T: Decide>(
         "props_trim_piece_monotone",
         Margin::metered(span, InfSpeed::new(rate)),
         band,
+        PropsCheck::Inventory,
     )
 }
 
@@ -4466,7 +4471,7 @@ fn area_at(
     cv: Collapse<'_>,
 ) -> Interval {
     let c = rv_cross(grid_vec(su, cu, cv), grid_vec(sv, cu, cv));
-    sqrt_enclosure(c[0].sqr() + c[1].sqr() + c[2].sqr())
+    (c[0].sqr() + c[1].sqr() + c[2].sqr()).sqrt()
 }
 
 /// The area integrand's CELL reading over one chart rectangle: the
@@ -4503,7 +4508,7 @@ fn area_cell(
         rv_cross(h_su, grid_vec(svv, u, v)),
     );
     (
-        sqrt_enclosure(c[0].sqr() + c[1].sqr() + c[2].sqr()),
+        (c[0].sqr() + c[1].sqr() + c[2].sqr()).sqrt(),
         norm_hi(d_u),
         norm_hi(d_v),
     )
@@ -4798,8 +4803,8 @@ fn chord_polygon_area(
 /// enclosure of the trim region, so a hull over it contains every
 /// cell's own.
 fn trim_box(chords: &[TrimChord]) -> (Interval, Interval) {
-    let mut bu = Interval::poison();
-    let mut bv = Interval::poison();
+    let mut bu = Interval::refused();
+    let mut bv = Interval::refused();
     let mut seeded = false;
     let mut take = |p: RPt2| {
         if seeded {
@@ -4936,7 +4941,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     // fixed-resolution midpoint rule is a pad that does not shrink with
     // the cell, which is how an ordinary curved chart came out
     // `DegenerateFace`.
-    let sup_g = sqrt_enclosure(cross[0].sqr() + cross[1].sqr() + cross[2].sqr());
+    let sup_g = (cross[0].sqr() + cross[1].sqr() + cross[2].sqr()).sqrt();
     // The chart's own metric RATE, bounded above over the trim box:
     // the door crosses each cell's chart variation to metres with it
     // rather than taking a caller's length (`TrimChord`'s docs, and
@@ -5025,7 +5030,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
                 grid_vec(sv.as_ref(), ov.0, ov.1),
             );
             lune_f += a * rv_dot(hs, hc).mag();
-            lune_g += a * sqrt_enclosure(hc[0].sqr() + hc[1].sqr() + hc[2].sqr()).mag();
+            lune_g += a * (hc[0].sqr() + hc[1].sqr() + hc[2].sqr()).sqrt().mag();
         }
         let winding = polygon_winding(&cells);
         let (flux_raw, sliver) =
@@ -5082,6 +5087,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
             "props_quad_converged",
             Margin::of(target_len - width_len),
             band,
+            PropsCheck::Converged,
         )? == Sign::Positive
         {
             // The perimeter this gate levers by is the DOOR's, derived
@@ -5093,6 +5099,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
                 "props_quad_face_extent",
                 Margin::over_lever(lo_or_refuse(area), perimeter),
                 band,
+                PropsCheck::Extent,
             )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
@@ -5215,14 +5222,14 @@ mod tests {
                 );
                 EpsPosture::Budget
             }
-            Err(PropsError::Escalated { cause }) => {
+            Err(PropsError::Escalated { cause, .. }) => {
                 assert_eq!(
                     cause.predicate,
                     Some("props_quad_converged"),
                     "{row}: only the convergence predicate may escalate here: {cause:?}"
                 );
                 assert!(
-                    matches!(cause.margin, geom_core::MarginDiag::Value(m) if m.is_finite()),
+                    matches!(cause.margin.diagnostic_f64_for_error_text(), geom_core::ErrorTextReading::Value(m) if m.is_finite()),
                     "{row}: the escalation must carry a finite in-band margin: {cause:?}"
                 );
                 EpsPosture::Escalated
@@ -6014,11 +6021,10 @@ mod tests {
                 let s = kahan_dense_oracle(&e.u, &e.v, e.t0.lo(), e.t1.hi(), 400_000);
                 truth += if e.forward { s } else { -s };
             }
-            // Two honest outcomes, ε-dependent (the FitSampleBudget
-            // precedent): a converged enclosure MUST contain the
-            // oracle; at tight ε (1e-12 drives the target to ~1e-9 m
-            // while the sliver's ring-arithmetic floor sits above it)
-            // the TYPED budget refusal is the correct answer — never a
+            // Two honest outcomes, ε-dependent: a converged enclosure
+            // MUST contain the oracle; at tight ε (1e-12 drives the
+            // target to ~1e-9 m while the sliver's ring-arithmetic floor
+            // sits above it) the TYPED budget refusal is the correct answer — never a
             // silently wide bracket, never a silent skip.
             match cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &edges, eps, band) {
                 Ok(out) => {
@@ -6889,7 +6895,7 @@ mod tests {
             general(&[(0.0, 1.0), (0.0, 1.0 + 40.0 * eps), (0.0, 0.0)], 0.0),
         ];
         match trimmed(&ku, &kvv, &control, &w, &chords, RoundWindow::SCHEDULE) {
-            Err(PropsError::Escalated { cause }) => {
+            Err(PropsError::Escalated { cause, .. }) => {
                 assert!(
                     cause
                         .predicate

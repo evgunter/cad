@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-15
 priority: P0
 cost: H
+refs: [a-reflected-loft-placement-evades-both-normal-checks]
 ---
 
 ## What
@@ -52,8 +53,34 @@ without arithmetic — a property a stored frame would have to keep.
 `crates/profile/src/lib.rs` (`SketchPlane`, `new`, `from_frame`, the
 four accessors); `crates/geom-core/src/linalg/ortho_frame.rs` for the
 witness. The ruling is
-`work/scalar/unit-vector-invariants-carried-as-prose.md` §RATIFIED.
+SCALAR's `unit-vector-invariants-carried-as-prose` (ruled on PR 2457; `docs/doc-ledger/scalar-leaves-the-tracker.md`) §RATIFIED.
 
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to PATHS (opened at this exit as S-BOOL's successor for the profile lattice) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## A consequence downstream: the sweep caps (CARVE, 2026-10-06)
+
+Added by CARVE's cap-orientation unit (PR 4187) rather than filed as a
+second row, since the root is this one. `sweep`'s `cap_plane` (in
+`crates/sweep/src/swept.rs`) orients every sweep cap by comparing
+Newell's normal with the placement's `c2`, signed by the region's
+validated winding, under the decision `cap_plane_orientation`. That is
+sound only for a rigid, right-handed placement, and nothing at the
+public door decides one:
+
+- **Measured by the PR 4187 reviewer.** A `SketchPlane::new` placement
+  whose `c2` is `(1, 0, tilt)` reaches the decision. Tilt `1e-9`
+  escalates (`CapPlaneError::Orientation`); tilt `≤ 1e-10` decides
+  `Zero` (`CapPlaneError::EdgeOn`). Both render the kernel-defect
+  ending, though the cause is the caller's frame.
+- **A reflected placement** (`c2 = −c0 × c1`) is not refused by the
+  decision: "counterclockwise in the sketch" then reads as clockwise
+  about `c2`, so `cap_plane` would flip a cap Newell had right
+  (traced, not measured). The sibling on the loft's own placements is
+  CARVE's
+  `a-reflected-loft-placement-evades-both-normal-checks`.
+
+The fix this row describes (store the frame witness; make `new` decide
+or go) removes the precondition `cap_plane` states. Until then the
+precondition is documented at `cap_plane` and cites this row.

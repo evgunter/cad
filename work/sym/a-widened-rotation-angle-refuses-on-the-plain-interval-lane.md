@@ -2,7 +2,7 @@
 id: a-widened-rotation-angle-refuses-on-the-plain-interval-lane
 kind: issue
 title: a widened rotation angle refuses on the plain Interval lane at the first Node::Transform: cos^2+sin^2 is a bracket around 1 and transform_rigid_col0_unit is what notices
-status: open
+status: dispatched
 opened: 2026-09-22
 priority: P1
 cost: D

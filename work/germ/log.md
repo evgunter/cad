@@ -373,3 +373,66 @@ into #3383 as soon as it exists. (CONTACT orchestrator)
 **Filed on CONTACT:** the torus box check passes an L-shaped face.
 
 **Merge of main:** composed `SectionPath::scope` with PR 3406. The orchestrator merged main again after PR 3375; a module-order slip in that merge's `all.rs` resolution turned lint red, fixed in `d777dd2c7`.
+
+## 2026-09-29 — the saddle witness picks its side by a frame decision (PR 3421)
+
+- **The change:** `copysign(1, δ)` is replaced by `section_cylinder_pair_side`. A positive or negative δ picks the ruling; zero or undecided refuses R-tan.
+- **Census:** the site leaves the copysign census and the manifest, moved together.
+- **Rows:** the saddle rows reach the branch at δ₀ = +1.3 only, so a new verdict row covers both signs on both sides, and the flip mutant turns it red.
+- **Tier:** orchestrator read. Merged on hosted green.
+
+## 2026-09-29 — the torus joins ∖ and ∩ (PR 3416, DR-19)
+
+- **Measured before admitting:** no wrong body under either order of ∖ or under ∩.
+  - Newly answered, in closed form: the cube in the hole, the pin-only bracket, the wedge.
+  - Everything else refuses at ∪'s door; the half donut and the bracket refuse at the guard.
+- **Dual review:** both APPROVE-WITH-FIXES, no MAJOR, 0 wrong over both batteries. R2 also ran the merge preview carrying PR 3395's sphere × torus move. The tally is unchanged, and the pair does not advance the count.
+- **Fix pass:** the stale demo prose, the invariants, one helper home, and the seeded rod sweep committed as a row.
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+- 2026-09-29 — Seam note from TOPO: PR 3493 (branch `topo/route-refusal-subjects`) routes the Boolean's escalated and contradicted refusals by closed decision types (D4 ¶1 (i), PR 3352). `sectors.rs` wraps `SectorFault::Rung { rung, diag }` as `BooleanDecision::Corner(rung)` and its other escalations as `BooleanDecision::Coincidence`. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: In PR 3513 (branch `topo/every-escalation-names-its-decision`), `SectionError::RadiusEscalated { radius: SectionRadius, diag }` in `geom-brep/src/intersect.rs` covers the `cs_*_radius` and `coc_cylinder_radius` guards (route_pose forwards it); `sectors.rs`'s lever-arm and pierce-curvature escalations route to their own `BooleanDecision`s, and its side, overlap and bisector escalations to `BooleanDecision::Proximity`, which offers no declaration. The other operand guards are filed at `work/issues/section-arm-guards-escalate-untyped-and-certify-reads-the-dihedral-arm-as-transversality.md`. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: In PR 3513's second fix pass (branch `topo/every-escalation-names-its-decision`), `crates/topo/src/boolean/sectors.rs`: every coincidence escalation states what its door read (`DeclarationRead`), `parallel_same`'s sense reading is `sectors::direction_sense` (`BooleanDecision::DirectionSense`, its decided zero refusing with its margin), `bisector_zero_refusal` is `BooleanDecision::BisectorSide`, and `tangent_relative_side`'s reading is `Coincide::TangentSide`; two unit rows join its tests. (TOPO implementer)
+
+- 2026-10-01 — Seam note from PROPS (`props/recourse-grammar`, the last unit of that program): the D4 ¶1 (i) recourse GRAMMAR moved in `geom-core`, so refusal text changed across the tree. `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and `SPLIT_PLANE_RECOURSE` lost their unvalued `", or lower the tolerance"` tail and are now the LEVERS alone; `DEFINITE_COINCIDENCE_RECOURSE` retired into `COINCIDENCE_RECOURSE` (with the tail gone the two were one string). The valued conditional arm has one home, `geom_core::Indeterminate::ending(levers)`, composed through `MarginDiag::sized_recourse`: a site that holds an escalation gets "Recourse: {levers}, or, if this size is intended, tighten the tolerance below {m/K} m", and loses the offer exactly where the margin gives no value. `Indeterminate`'s own `Display` (and `under`) therefore renders a LABELLED recourse now, with each margin kind's first lever folded inside it, so `test_utils::refusal::recourse_markers` counts 1 where it counted 0. `MarginDiag`'s invalid rendering says "NaN or a refused enclosure", not "poisoned". Assertions written as `contains(COINCIDENCE_RECOURSE)` followed the constants; literal pins of "lower the tolerance" did not and were re-baselined. (PROPS implementer)
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.

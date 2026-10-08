@@ -2,11 +2,15 @@
 id: validate-pcurves-never-recertifies-a-face-it-finds-incomplete
 kind: issue
 title: validate_pcurves skips its re-certification and continuity passes on any face missing a row, so a stale row on an incomplete face is never measured
-status: open
+status: closed
 opened: 2026-09-13
 refs: [S331]
 priority: P0
-cost: D
+cost: M
+parent: S331
+branch: pcert/at-rest-rows-mandatory
+closed: 2026-10-02
+pr: 3759
 ---
 
 
@@ -35,10 +39,16 @@ re-certified, and would not have been however wrong it was.
 module docs rest the whole `Neither` posture on this backstop — "the
 tier-3 pcurve pass catches a stale row LOUD — it re-certifies against
 the current carrier/surface/window and fails". The ops that stale a row
-in CONTENT are frequently the same ops that mint a rowless half-edge
-into the same face (`mev`/`mef`/`mekr`, and `split_edge` before TOPO's
-fix), so the incompleteness that fires `MissingCache` is exactly the
-state that switches the re-certification off. The body is still
+in CONTENT were frequently the same ops that minted a rowless half-edge
+into the same face (`mev`/`mef`/`mekr` before TOPO's
+`half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`,
+`split_edge` before its own fix), so the incompleteness that fires
+`MissingCache` was exactly the state that switched the re-certification
+off. Those three now re-mint a complete face they touch. The doors that
+still leave a face half-minted are the ones
+`PcurveMintError::MissingCache`'s docs list (`kfmrh`, `ring_move`,
+`kef`'s same-chart merge, the chart-change drops, `mev_null`,
+`split_edge`'s fitted frontier), and on those the switch-off stands. The body is still
 refused, so this is a wrong REASON rather than a vacuous green — but it
 means the module's safety claim is not the one the code makes.
 
@@ -46,3 +56,7 @@ Whether the fix is to run pass 2 over the rows that ARE present (with a
 window hulled from those rows, as pass 1 already builds it) or to state
 the narrower claim at the entry is this program's call. Sibling row on
 the neighbouring question of what an at-rest absence may claim: `S331`.
+
+## Closed
+
+Closed by PR 3759 (`pcert/at-rest-rows-mandatory`, merged 82b52c36c): on every curved chart a face's pcurve rows are mandatory at rest (C4). Tier 3 dry-mints a rowless face and reports `Unminted` or the derivation's refusal, re-certifies and continuity-checks a half-minted face's stored rows like a complete one's (with `RowInterval`), reads an excused face whole before excusing it, and `sweep::extrude` closes with `topo::mint_pcurves`. Residue has its own rows: the four uncovered-class `mint-has-no-route-*` rows and `at-rest-trim-containment-checks-against-the-stored-hull`.

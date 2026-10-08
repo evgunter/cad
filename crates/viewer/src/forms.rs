@@ -40,7 +40,6 @@
 use pncad::document::{BooleanOp, Dimension, MatePrimitive};
 use pncad::profile::{ArcMode, TargetKind};
 use pncad::quantity::UnitDef;
-use pncad::select::SplitHalf;
 
 use crate::props;
 use crate::session::DatumSpec;
@@ -73,9 +72,7 @@ vocabulary! {
 /// declaration publishes `BooleanOp::ALL`, and the form draws one
 /// button per entry of it. A fourth operation therefore arrives in
 /// this form with no MEMBERSHIP edit here — it gets its button from
-/// the kernel's list — and it cannot arrive silently either, because
-/// it has no word until this match is given one, which is a compile
-/// error and not a missing button.
+/// the kernel's list, and its word from this match.
 ///
 /// **The order is `ALL`'s**, which is the kernel's declaration order,
 /// and the type's own doc says that order carries no meaning. The form
@@ -93,8 +90,8 @@ pub(crate) fn boolean_op_label(op: BooleanOp) -> &'static str {
 vocabulary! {
     /// The add-datum form's kind choice — one form, and **every arm of
     /// [`crate::session::DatumSpec`]**. An enum rather than an index
-    /// into a label list, so every consumer matches exhaustively and a
-    /// new kind cannot leave a silent wildcard arm behind.
+    /// into a label list, because a consumer can match an enum and name
+    /// every kind, and cannot do that with an index.
     ///
     /// Two kinds need a PICK as well as numbers, and they pick from
     /// different places. `AxisInPlane`'s frame is a document node,
@@ -192,6 +189,22 @@ impl DatumKindChoice {
             Self::Plane | Self::Frame | Self::Axis | Self::Point => None,
         }
     }
+
+    /// **The kind noun of the node this choice creates** —
+    /// `node_kind_noun`'s word for it, which the form's proposed label
+    /// counts by ([`crate::tree::proposed_label`]).
+    /// `drafts::tests::each_datum_choices_noun_is_the_kind_of_the_node_it_commits`
+    /// holds each to the node the form commits.
+    pub(crate) fn noun(self) -> &'static str {
+        match self {
+            Self::Plane => "Datum plane",
+            Self::Frame => "Datum frame",
+            Self::FaceFrame => "Datum frame (on face)",
+            Self::Axis => "Datum axis",
+            Self::AxisInPlane => "Datum axis (in sketch)",
+            Self::Point => "Datum point",
+        }
+    }
 }
 
 partial_mirror! {
@@ -228,24 +241,7 @@ vocabulary! {
     pub(crate) const ALL;
 }
 
-/// The word the part form shows for a half of the KERNEL's
-/// [`SplitHalf`], whose `ALL` the radio row offers.
-///
-/// **A match, not a table**, for the reason [`boolean_op_label`] is:
-/// the enum is declared in `topo`, so no list written here can be
-/// projected from its declaration — but it publishes `SplitHalf::ALL`,
-/// and the form draws one button per entry. A third half would arrive
-/// with no membership edit here and could not arrive silently, because
-/// it has no word until this match gives it one.
-///
-/// The words are the kernel's own sides — the plane's normal decides
-/// which is which, and the form does not paraphrase that.
-pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
-    match half {
-        SplitHalf::Above => "above",
-        SplitHalf::Below => "below",
-    }
-}
+pub(crate) use crate::tree::split_half_label;
 
 vocabulary! {
     /// The add-profile form's loop choice: the two templates, or a PATH
@@ -275,8 +271,8 @@ vocabulary! {
 ///
 /// **A match, not a table**, for the reason [`boolean_op_label`] is
 /// one: a mode the vocabulary gains reaches the picker from
-/// `ArcMode::ALL` with no membership edit here, and has no word until
-/// this match gives it one — a compile error, not a missing option.
+/// `ArcMode::ALL` with no membership edit here, and its word from
+/// this match.
 /// The verbs need no such function: `profile::Verb`'s own `Display`
 /// is the authoring spelling, declared on the transition table's row.
 pub(crate) fn arc_mode_label(mode: ArcMode) -> &'static str {
@@ -299,39 +295,6 @@ pub(crate) fn target_kind_label(kind: TargetKind) -> &'static str {
         TargetKind::StartArriving => "Start, arriving tangent",
     }
 }
-
-/// **Whether a path editor may change its program's SHAPE** — the
-/// verbs, their order and number, each arc's mode, side and winding,
-/// each target's form, a split circle's count — or only its numbers.
-///
-/// The add-profile form's editor is one editor with two doors. Opened
-/// on nothing it authors a new node and every control is live
-/// ([`ShapeEdits::Free`]). Opened on a committed profile it commits as
-/// slot writes, and the document's edit vocabulary writes a program's
-/// ARGUMENTS and has no door that rewrites its shape, so the controls
-/// that would are shown and not taken ([`ShapeEdits::Locked`], said
-/// as [`SHAPE_LOCKED`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum ShapeEdits {
-    /// Every control is live.
-    Free,
-    /// The shape controls are drawn disabled.
-    Locked,
-}
-
-impl ShapeEdits {
-    /// Whether the shape controls take input.
-    pub(crate) fn free(self) -> bool {
-        self == Self::Free
-    }
-}
-
-/// What a locked editor says about its greyed controls — above the
-/// list, and on the disabled hover of each step row's glyph controls,
-/// under what that control would have done.
-pub(crate) const SHAPE_LOCKED: &str = "the numbers are editable here; the shape (the steps, \
-     their verbs and order, arc modes, sides and targets) is not — the document has no edit that \
-     rewrites a committed profile's program";
 
 /// The fewest subdivisions the `circle_split` count field offers —
 /// the kernel's own floor (`profile::Step::CircleSplit`'s `n`, which
@@ -412,8 +375,8 @@ pub(crate) fn drag_tick(dimension: Dimension) -> f64 {
 /// gesture made a thousand times coarser by a change of notation.
 ///
 /// **The two panel fields this answers for are the SLOT field
-/// (`ViewerBehavior::slot_value_ui`) and the DOCUMENT PARAMETER's
-/// (`ViewerBehavior::properties_ui`'s `Selection::Param` arm)** — the
+/// (`ViewerBehavior::slot_value_ui`) and the DOCUMENT VARIABLE's
+/// (`ViewerBehavior::properties_ui`'s `Selection::Variable` arm)** — the
 /// two a user drags to move the same kind of number. It is not the
 /// creation forms' answer: those hold canonical drafts and pick their
 /// tick from the four constants by hand at each field
@@ -437,10 +400,10 @@ pub struct FieldWriting {
 impl FieldWriting {
     /// How a field of `dimension` whose value remembers `stored` is
     /// written. `stored` is the row's own `unit` — the fact the
-    /// document carries, before [`props::rendering_unit`] chooses what
-    /// a value that remembers nothing reads as.
-    pub fn of(dimension: Dimension, stored: Option<UnitDef>) -> Self {
-        let unit = props::rendering_unit(dimension, stored);
+    /// document carries, before [`props::rendering_unit`] reads a value
+    /// that remembers nothing in the working `notation`.
+    pub fn of(dimension: Dimension, stored: Option<UnitDef>, notation: props::Notation) -> Self {
+        let unit = props::rendering_unit(dimension, stored, notation);
         // A COUNT field steps by one whatever it is written in: what it
         // holds is a count, and a tenth of an instance is not a value
         // it can take. Read off the dimension and not off a
@@ -490,8 +453,7 @@ impl FieldWriting {
 /// forces (`crates/viewer/src/vocab.rs` declares the macro) is that
 /// every [`MatePrimitive`] variant is either offered at a seat of this
 /// list or named below as deliberately absent, with the reason it is
-/// absent. A primitive added to the kernel enum is neither until
-/// someone writes one of the two, and the build says so.
+/// absent.
 pub(crate) const MATE_PRIMITIVES: [(MatePrimitive, &str); 3] = [
     (MatePrimitive::FrameCoincidence, "frame coincidence"),
     (MatePrimitive::Coaxial, "coaxial"),

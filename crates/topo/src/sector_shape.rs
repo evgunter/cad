@@ -154,11 +154,11 @@
 
 use geom_brep::OutwardNormal;
 use geom_core::{
-    Band, Decide, Indeterminate, Margin, MarginDiag, Point3, Real, Sign, Vec3, is_finite_length,
+    Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3, is_finite_length,
     is_underflowed_length,
 };
 
-use crate::validate::decide;
+use crate::validate::{decide, decide_negative, decide_positive};
 
 /// Rung 1's K name: the metering arm is positive.
 ///
@@ -173,8 +173,53 @@ const SECTOR_ARM: &str = "sector_arm";
 const SECTOR_REFLEX: &str = "sector_reflex";
 
 /// Rung 3's K name: the straight/spike disambiguation (`cos θ` levered
-/// at the arm), reached only when rung 2 is not definitely signed.
+/// at the arm, so a straight corner reads NEGATIVE), reached only when
+/// rung 2 is not definitely signed. `boolean::refusal_routes`' sized
+/// recourse reads that sign.
 const SECTOR_STRAIGHT: &str = "sector_straight";
+
+/// What each rung decides, in the words a flip report states
+/// (`boolean::decision_words`).
+pub(crate) fn rung_words(predicate: &str) -> Option<&'static str> {
+    Some(match predicate {
+        SECTOR_ARM => SectorRung::Arm.subject(),
+        SECTOR_REFLEX => "whether a corner is convex or reflex",
+        SECTOR_STRAIGHT => SectorRung::Straight { full_circle: false }.subject(),
+        _ => return None,
+    })
+}
+
+/// Which rung of [`sector_shape`] refused: the refusal's words and what
+/// the rung passes on. Rung 2 (convexity) never refuses, since an
+/// undecided reading of it falls through to rung 3.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(strum::EnumDiscriminants))]
+#[cfg_attr(
+    test,
+    strum_discriminants(name(SectorRungKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
+pub enum SectorRung {
+    /// Rung 1: the metering arm is a positive length.
+    Arm,
+    /// Rung 3: the corner is straight, not a spike.
+    Straight {
+        /// The two bounds are one orbit half-edge (a strut vertex),
+        /// where a reading of θ ≈ 0 or ≈ 2π is legitimate too.
+        full_circle: bool,
+    },
+}
+
+impl SectorRung {
+    /// What the rung decides, as a clause with no colon or dash of its
+    /// own.
+    #[must_use]
+    pub const fn subject(self) -> &'static str {
+        match self {
+            Self::Arm => "whether a corner's edges are long enough to measure its angle over",
+            Self::Straight { .. } => "whether a corner is straight or folds back on itself",
+        }
+    }
+}
 
 /// Why [`sector_shape`] refused.
 ///
@@ -203,8 +248,13 @@ pub(crate) enum SectorFault {
     /// (non-positive) arm. That is true of the arithmetic and false of
     /// the input, whose recourse is the overflow end's — scale.
     UnderflowedChord,
-    /// A rung refused or escalated, named by the rung inside.
-    Rung(Indeterminate),
+    /// A rung refused or escalated.
+    Rung {
+        /// Which rung.
+        rung: SectorRung,
+        /// The rung's diagnostics, named by the rung.
+        diag: Indeterminate,
+    },
 }
 
 /// What the sector-shape rungs decided about one corner.
@@ -299,10 +349,11 @@ pub(crate) struct SectorShape<T: Real> {
 /// length is not a finite number;
 /// [`SectorFault::UnderflowedChord`] when either underflowed out of
 /// the format; otherwise [`SectorFault::Rung`]
-/// named by the rung that produced it — a `decide` escalation passed
-/// through unchanged, or a [`MarginDiag::Invalid`] diagnostic when a
-/// definite verdict is one this predicate does not admit
-/// (non-positive arm; a spike between distinct edges). Each lane
+/// named by the rung that produced it — the funnel's escalation, which
+/// for a definite verdict the rung does not admit (non-positive arm; a
+/// spike between distinct edges) is the gate's rejection from
+/// [`decide_positive`] or [`decide_negative`], carrying the decided
+/// margin, on the frame's log. Each lane
 /// wraps this in its own error type — the two wrappings are the only
 /// thing that was ever genuinely per-lane here.
 pub(crate) fn sector_shape<T: Decide>(
@@ -325,11 +376,7 @@ pub(crate) fn sector_shape<T: Decide>(
         return Err(SectorFault::UnderflowedChord);
     }
     let arm = norm_own.min(norm_next);
-    match decide(SECTOR_ARM, Margin::of(arm), band) {
-        Ok(Sign::Positive) => {}
-        Ok(_) => return Err(invalid(band, SECTOR_ARM)),
-        Err(diag) => return Err(SectorFault::Rung(diag)),
-    }
+    decide_positive(SECTOR_ARM, Margin::of(arm), band).map_err(refused(SectorRung::Arm))?;
     let (unit_own, unit_next) = (dir_own.normalize(), dir_next.normalize());
     // Wideness: sin θ = (b̂ × â)·n metered at the arm. Positive ⇒
     // convex; negative ⇒ reflex; zero-band ⇒ disambiguate by cosine
@@ -354,18 +401,19 @@ pub(crate) fn sector_shape<T: Decide>(
             // summation order — bit-identical under the same scalar
             // scope as above, not for every `T: Real` unconditionally.
             let straight_margin = Margin::levered(unit_own.dot(unit_next), arm);
-            match decide(SECTOR_STRAIGHT, straight_margin, band) {
-                // θ ≈ π: 90° into the interior is valid throughout the
-                // band.
-                Ok(Sign::Negative) => Some(n.cross(unit_next)),
-                // θ ≈ 0 or ≈ 2π on a one-edge orbit: the legitimate
-                // full-circle sector, same device.
-                Ok(Sign::Positive | Sign::Zero) if full_circle => Some(n.cross(unit_next)),
-                // A spike corner between two distinct edges: refuse,
-                // never guess an interior direction.
-                Ok(Sign::Positive | Sign::Zero) => return Err(invalid(band, SECTOR_STRAIGHT)),
-                Err(diag) => return Err(SectorFault::Rung(diag)),
+            let rung = SectorRung::Straight { full_circle };
+            if full_circle {
+                // A one-edge orbit admits every definite reading: θ ≈ π,
+                // or θ ≈ 0 / ≈ 2π, the legitimate full-circle sector.
+                decide(SECTOR_STRAIGHT, straight_margin, band).map_err(refused(rung))?;
+            } else {
+                // Between two distinct edges only θ ≈ π (a negative
+                // `cos θ`) is a corner; a spike has no interior
+                // direction to guess.
+                decide_negative(SECTOR_STRAIGHT, straight_margin, band).map_err(refused(rung))?;
             }
+            // 90° into the interior, valid throughout the band.
+            Some(n.cross(unit_next))
         }
     };
     Ok(SectorShape {
@@ -376,20 +424,11 @@ pub(crate) fn sector_shape<T: Decide>(
     })
 }
 
-/// The diagnostic for a definite verdict this predicate does not admit
-/// — spelled identically in both lanes before the merge.
-///
-/// The home is `impl Indeterminate` in
-/// `geom-core/src/predicate.rs:724`. Unifying it is a public-API
-/// addition plus a four-crate sweep — deliberately not folded into the
-/// unit that shared these rungs, and recorded here so the next pass
-/// finds the home rather than the method.
-fn invalid(band: Band, predicate: &'static str) -> SectorFault {
-    SectorFault::Rung(Indeterminate {
-        margin: MarginDiag::Invalid,
-        band,
-        predicate: Some(predicate),
-    })
+/// A rung's escalation, as the fault naming that rung. The escalation
+/// is the funnel's — an in-band margin, or a definite verdict the
+/// rung's gate does not admit — so it is on the frame's log already.
+fn refused(rung: SectorRung) -> impl FnOnce(Indeterminate) -> SectorFault {
+    move |diag| SectorFault::Rung { rung, diag }
 }
 
 /// **A point's signed distance from a plane, in metres**: `q` against
@@ -407,10 +446,33 @@ pub(crate) fn plane_offset<T: Real>(origin: Point3<T>, normal: Vec3<T>, q: Point
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use geom_core::Tol;
+    use geom_core::{ErrorTextReading, Tol};
 
     fn band() -> Band {
         Band::linear(Tol::witness()).unwrap()
+    }
+
+    /// A rung refusal as `(rung, predicate, the margin's reading, the
+    /// sign its gate rejected)`, so a row compares against the payload
+    /// rather than against the code under test; `None` for any other
+    /// fault.
+    fn gate_refusal(
+        fault: Option<SectorFault>,
+    ) -> Option<(
+        SectorRung,
+        Option<&'static str>,
+        ErrorTextReading,
+        Option<Sign>,
+    )> {
+        match fault? {
+            SectorFault::Rung { rung, diag } => Some((
+                rung,
+                diag.predicate,
+                diag.margin.diagnostic_f64_for_error_text(),
+                diag.margin.rejected_sign(),
+            )),
+            _ => None,
+        }
     }
 
     /// `Vec3` carries no `PartialEq`; these rows want BIT equality, not
@@ -483,17 +545,18 @@ mod tests {
     fn spike_between_distinct_edges_refuses_named() {
         let e = shape(Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), false)
             .expect_err("a spike has no valid interior direction");
-        // LITERAL pins, restored across the `SectorFault` boundary.
-        // `assert_eq!(e, invalid(band(), "sector_straight"))` reads
-        // shorter and says less: `invalid` is production code thirty
-        // lines up, so that form compares the thing under test against
-        // itself and stays green if it starts emitting a different
-        // `MarginDiag`.
-        let SectorFault::Rung(e) = e else {
+        let SectorFault::Rung { diag: e, .. } = e else {
             panic!("a spike is a rung refusal, not a chord-length one: {e:?}");
         };
         assert_eq!(e.predicate, Some("sector_straight"));
-        assert_eq!(e.margin, MarginDiag::Invalid);
+        assert_eq!(
+            (
+                e.margin.diagnostic_f64_for_error_text(),
+                e.margin.rejected_sign()
+            ),
+            (ErrorTextReading::Value(1.0), Some(Sign::Positive)),
+            "the decided cos θ · arm"
+        );
         assert_eq!(e.band, band());
     }
 
@@ -505,8 +568,8 @@ mod tests {
     /// shapes** — four chord pairs × `full_circle`. Every row was
     /// executed: all eight refused identically, as
     /// `Rung(Indeterminate { margin: Invalid, band, predicate:
-    /// Some("sector_arm") })` — this body's own [`invalid`] spike
-    /// refusal, which says the arm is non-positive and offers the
+    /// Some("sector_arm") })` — the arm gate's refusal, which says the
+    /// arm is non-positive and offers the
     /// band. Both halves are false of the input: the chord is not
     /// short, it is unmeasurable, and no band reaches a squared norm
     /// of zero.
@@ -551,15 +614,25 @@ mod tests {
         // still the arm rung's, not this one's: 1e-12 squares to 1e-24,
         // which the format holds.
         assert_eq!(
-            shape(Vec3::new(0.0, 1e-12, 0.0), Vec3::new(0.0, 3.0, 0.0), false).err(),
-            Some(invalid(band(), SECTOR_ARM))
+            gate_refusal(shape(Vec3::new(0.0, 1e-12, 0.0), Vec3::new(0.0, 3.0, 0.0), false).err()),
+            Some((
+                SectorRung::Arm,
+                Some(SECTOR_ARM),
+                ErrorTextReading::Value(1e-12),
+                Some(Sign::Zero)
+            ))
         );
         // And the zero chord is not an underflowed one: it has no
         // direction to recover, so its witness is zero too and the
         // predicate's two ratios are both poison.
         assert_eq!(
-            shape(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 3.0, 0.0), false).err(),
-            Some(invalid(band(), SECTOR_ARM))
+            gate_refusal(shape(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 3.0, 0.0), false).err()),
+            Some((
+                SectorRung::Arm,
+                Some(SECTOR_ARM),
+                ErrorTextReading::Value(0.0),
+                Some(Sign::Zero)
+            ))
         );
     }
 
@@ -575,8 +648,8 @@ mod tests {
     /// | chords (own / next) | `full_circle` clear | `full_circle` set |
     /// |---|---|---|
     /// | `1e200` / `1e200` | rung 3 escalation | rung 3 escalation |
-    /// | finite / `1e200` | rung 3 `invalid` | **`Ok`, bisector `(0,0,0)`** |
-    /// | `1e200` / finite | rung 3 `invalid` | **`Ok`, bisector `(-1,0,0)`** |
+    /// | finite / `1e200` | rung 3 spike refusal | **`Ok`, bisector `(0,0,0)`** |
+    /// | `1e200` / finite | rung 3 spike refusal | **`Ok`, bisector `(-1,0,0)`** |
     /// | `NaN` / finite | rung 1 escalation | rung 1 escalation |
     ///
     /// **Two shapes returned `Ok`, not one, and the second is the
@@ -606,14 +679,11 @@ mod tests {
     /// The six loud shapes were loud in two different ways, neither
     /// of which names the chord or a recourse that could work: the
     /// two `NaN` rows and the two `1e200`/`1e200` rows are `decide`
-    /// ESCALATIONS (a poisoned margin, `MarginDiag::Invalid`), while
+    /// ESCALATIONS (a poisoned margin, `MarginKind::Invalid`), while
     /// the two single-overflow rows with `full_circle` clear are this
-    /// body's own [`invalid`] spike refusal. Those two OUTCOMES are
-    /// indistinguishable by value — an escalation carrying
-    /// `MarginDiag::Invalid` and an `invalid(band, p)` compare equal —
-    /// which is why the rows below pin the two fields literally
-    /// instead of comparing against [`invalid`], which is production
-    /// code in this same file.
+    /// straightness gate's spike refusal. Those two OUTCOMES were
+    /// indistinguishable by value — both carried `MarginKind::Invalid`
+    /// under the rung's name.
     ///
     /// The `full_circle` flag is carried through every row because it
     /// is what separates the silent shapes from the loud ones: a row
@@ -660,12 +730,88 @@ mod tests {
         let e = shape(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), false)
             .expect_err("a collapsed chord cannot meter the corner");
         // Literal pins, for the reason spelled out on the spike row.
-        let SectorFault::Rung(e) = e else {
+        let SectorFault::Rung { diag: e, .. } = e else {
             panic!("a collapsed chord has a finite length: {e:?}");
         };
         assert_eq!(e.predicate, Some("sector_arm"));
-        assert_eq!(e.margin, MarginDiag::Invalid);
+        assert_eq!(
+            (
+                e.margin.diagnostic_f64_for_error_text(),
+                e.margin.rejected_sign()
+            ),
+            (ErrorTextReading::Value(0.0), Some(Sign::Zero)),
+            "the decided arm"
+        );
         assert_eq!(e.band, band());
+    }
+
+    /// **A rung's refusal of a definite verdict is on the frame's
+    /// escalation log**, beside that verdict: the funnel mints it, so a
+    /// bracket around the call holds exactly the escalation the caller
+    /// receives. One row per gate — a collapsed chord at the arm rung,
+    /// a spike between distinct edges at the straightness rung.
+    /// **The straightness margin's sign is the recourse's polarity.** A
+    /// corner whose bounds are too short to read decides `sector_straight`
+    /// in band; the Boolean's ending offers a tighter tolerance exactly
+    /// when a tighter one would decide the corner PASSING — a negative
+    /// `cos θ`, a straight corner — and nothing on the spike side, where
+    /// no tolerance makes it pass. Flipping the metered sign here reds
+    /// this row while the ending table still reads `Negative`.
+    #[test]
+    fn a_straight_corner_offers_to_tighten_and_a_spike_does_not() {
+        // Arm just past the escalation band, so `sin θ` and `cos θ` at
+        // 45° off either axis both land in band.
+        let arm = 1.2 * band().escalate();
+        let next = Vec3::new(arm, 0.0, 0.0);
+        for (theta_deg, offers) in [(135.0_f64, true), (45.0, false)] {
+            let theta = theta_deg.to_radians();
+            let own = Vec3::new(arm * theta.cos(), arm * theta.sin(), 0.0);
+            let Err(SectorFault::Rung { rung, diag }) = shape(own, next, false) else {
+                panic!("{theta_deg}°: an in-band corner is a rung refusal");
+            };
+            assert_eq!(
+                rung,
+                SectorRung::Straight { full_circle: false },
+                "{theta_deg}°"
+            );
+            let text = crate::boolean::refusal_routes::BooleanDecision::Corner(rung).render(&diag);
+            assert_eq!(
+                text.contains("tighten the tolerance"),
+                offers,
+                "{theta_deg}°: {text}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_gate_refusal_is_the_funnels_escalation() {
+        for (own, next, rung) in [
+            (
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(0.0, 0.0, 0.0),
+                SECTOR_ARM,
+            ),
+            (
+                Vec3::new(1.0, 0.0, 0.0),
+                Vec3::new(1.0, 0.0, 0.0),
+                SECTOR_STRAIGHT,
+            ),
+        ] {
+            let bracket = geom_core::k_stats::Bracket::open();
+            let got = shape(own, next, false);
+            let recorded = bracket.finish();
+            let Err(SectorFault::Rung { diag, .. }) = got else {
+                panic!("{rung}: a gate refusal, not {got:?}");
+            };
+            assert_eq!(diag.predicate, Some(rung), "{rung}: named by its rung");
+            let logged: Vec<Indeterminate> =
+                recorded.escalations.iter().map(|e| e.source).collect();
+            assert_eq!(
+                logged,
+                vec![diag],
+                "{rung}: the refusal is the logged escalation"
+            );
+        }
     }
 
     /// **The anti-re-fork row.** The three sector-shape K names are

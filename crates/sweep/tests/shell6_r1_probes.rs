@@ -28,6 +28,7 @@ use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::{
     ArcSweep, Profile, ProfileLoop, SketchPlane, bulge_from_center, test_support::bulge_loop,
 };
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
 
@@ -153,9 +154,13 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
             (v0 - frustum_volume(r0, r1, H)).abs() <= 1e-15,
             "{what}: operand volume"
         );
-        let hollow = topo::shell(&body, T, Tol::witness())
-            .unwrap_or_else(|e| panic!("{what}: shell refused: {e}"))
-            .body;
+        let hollow = topo::shell(
+            &finished("the operand", body.clone(), Tol::witness()),
+            T,
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("{what}: shell refused: {e}"))
+        .body;
         assert_eq!(
             topo::validate_geometric(&hollow, Tol::witness()),
             Ok(()),
@@ -175,7 +180,11 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
         // A thick request: what does a user get when the wall would
         // reach its own apex?
         for t in [0.03, 0.04] {
-            match topo::shell(&body, t, Tol::witness()) {
+            match topo::shell(
+                &finished("the operand", body.clone(), Tol::witness()),
+                t,
+                Tol::witness(),
+            ) {
                 Ok(s) => println!(
                     "[r1] {what} t={t}: shell BUILT, cavity {} (closed form {})",
                     v0 - volume(&s.body),
@@ -190,14 +199,14 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
             let mut work = body.clone();
             let got = topo::replace_faces_offset(&mut work, &group, d, Tol::witness());
             match &got {
-                Ok(()) => println!(
+                Ok(_) => println!(
                     "[r1] {what} per-chart d={d}: BUILT, volume {}",
                     volume(&work)
                 ),
                 Err(e) => println!("[r1] {what} per-chart d={d}: {}: {e}", name(e)),
             }
             assert!(
-                matches!(got, Err(ReplaceFaceError::ReanchorOffCarrier { .. })),
+                crate::common::cone_nappe::rim_refusal_gap(&got).is_some(),
                 "{what} d={d}: {got:?}"
             );
         }
@@ -234,10 +243,16 @@ fn reanchor_cone(body: &mut Body<f64>, group: &[FaceKey], apex_y: f64) -> Surfac
         u_ref,
     };
     let key = body
-        .set_face_surface(group[0], topo::FaceSurface::New(surface.clone()))
+        .set_face_surface(
+            group[0],
+            topo::FaceSurface::New {
+                surface: surface.clone(),
+                sense: true,
+            },
+        )
         .expect("re-anchor");
     for &f in &group[1..] {
-        body.set_face_surface(f, topo::FaceSurface::Shared(key))
+        body.set_face_surface(f, topo::FaceSurface::Shared { key, sense: true })
             .expect("share");
     }
     surface
@@ -353,7 +368,7 @@ fn r1_per_chart_cone_offset_reachability_attack() {
             let mut work = body.clone();
             let got = topo::replace_faces_offset(&mut work, &group, d, Tol::witness());
             match &got {
-                Ok(()) => {
+                Ok(_) => {
                     let v1 = volume(&work);
                     let tier3 = topo::validate_geometric(&work, Tol::witness());
                     let minted = cone_of(&work, cone_faces(&work)[0]);

@@ -261,3 +261,7 @@ left open with this recorded rather than closed behind a seam.
 
 One contained redundancy found on the way is filed on its own:
 `work/view/scene-mesh-carries-an-identity-index-buffer.md`.
+
+## A fourth frame-thread evaluation (AUTHOR, 2026-09-30)
+
+Found by a designer on AUTHOR's boolean-judge fork (#3587). `session::probe` evaluates a candidate document synchronously on the frame thread through `evalseam::evaluate_beside`, once per sample, with a `CancelToken` nothing can set. It is the range probe's other caller of that door. The boolean door is the first, and #3587 would retire it. This row lists three UI-thread hits and not this one. (AUTHOR orchestrator)

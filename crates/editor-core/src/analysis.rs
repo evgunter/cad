@@ -19,11 +19,12 @@
 //!
 //! **Distributions are opt-in, and the analysis varies exactly what
 //! the user declared variable.** A continuous parameter with NO
-//! distribution is FIXED: its analyzed interval has width zero at the
-//! nominal and it contributes mass 1. That is a modelling statement,
-//! not a fallback — nothing here guesses a spread for a parameter
-//! whose author did not state one. `Count` parameters are structural
-//! and are not box axes at all (E0's term hygiene).
+//! distribution is FIXED: it is no axis at all (VARIABLES-DESIGN VR8,
+//! [`is_axis`]) but a constant of every lane, read at its nominal.
+//! That is a modelling statement, not a fallback — nothing here
+//! guesses a spread for a parameter whose author did not state one.
+//! `Count` parameters are structural and are not box axes either (E0's
+//! term hygiene).
 //!
 //! **The analyzed box is the analysis's knob, not the distribution's
 //! property** (E2). A [`Normal`](Distribution::Normal) has unbounded
@@ -54,8 +55,10 @@
 use std::collections::BTreeMap;
 
 use crate::distribution::Distribution;
-use crate::doc::{Doc, DocParam, ParamName};
+use crate::doc::{Doc, FreeVar};
 use crate::expr::Dimension;
+use crate::spoken::SpokenVar;
+use crate::var::VarId;
 
 /// The ±3σ convention: the default share of a parameter's mass the
 /// analyzed box is asked to cover, per parameter.
@@ -180,28 +183,73 @@ impl AnalyzedParam {
     }
 }
 
-/// The analyzed box: one axis per CONTINUOUS document parameter, in
-/// name order. Derived, never stored.
-#[derive(Debug, Clone, PartialEq, Default)]
+/// The analyzed box: one axis per TOLERANCED variable ([`is_axis`]),
+/// in id order (VR8: the axes are keyed by identity, so a rename moves
+/// none). Derived, never stored.
+///
+/// Equality is the axes' alone: the spoken forms beside them are how a
+/// refusal names a variable, and a rename — which moves no axis — must
+/// move no equality either.
+#[derive(Debug, Clone, Default)]
 pub struct AnalyzedBox {
-    params: BTreeMap<ParamName, AnalyzedParam>,
+    params: BTreeMap<VarId, AnalyzedParam>,
+    /// The axes in the document's DECLARATION order
+    /// ([`crate::Doc::free_vars`], id order): the order they are listed,
+    /// drawn and tie-broken in.
+    order: Vec<VarId>,
+    /// Each axis's variable as the document it was taken of speaks it,
+    /// for the refusals that name one. Not part of the box's identity.
+    spoken: BTreeMap<VarId, SpokenVar>,
+}
+
+impl PartialEq for AnalyzedBox {
+    fn eq(&self, other: &Self) -> bool {
+        // Exhaustive, so a field added to the box must say whether it
+        // is identity; the spoken forms are not.
+        let Self {
+            params,
+            order,
+            spoken: _,
+        } = self;
+        *params == other.params && *order == other.order
+    }
 }
 
 impl AnalyzedBox {
-    /// The axes, by parameter name.
-    pub fn params(&self) -> &BTreeMap<ParamName, AnalyzedParam> {
+    /// The axes, by variable.
+    pub fn params(&self) -> &BTreeMap<VarId, AnalyzedParam> {
         &self.params
     }
 
-    /// One axis, by name.
-    pub fn get(&self, name: &ParamName) -> Option<&AnalyzedParam> {
-        self.params.get(name)
+    /// One axis.
+    pub fn get(&self, var: VarId) -> Option<&AnalyzedParam> {
+        self.params.get(&var)
+    }
+
+    /// The axis `var` as the document it was taken of speaks it.
+    pub fn spoken(&self, var: VarId) -> SpokenVar {
+        self.spoken
+            .get(&var)
+            .cloned()
+            .unwrap_or_else(|| SpokenVar::new(var, None))
+    }
+
+    /// The axes in declaration order.
+    pub fn order(&self) -> &[VarId] {
+        &self.order
+    }
+
+    /// Every axis, in declaration order.
+    pub fn in_order(&self) -> impl Iterator<Item = (VarId, &AnalyzedParam)> {
+        self.order
+            .iter()
+            .filter_map(|&id| Some((id, self.params.get(&id)?)))
     }
 
     /// The axes that actually vary — the box's non-degenerate
-    /// dimensions.
-    pub fn varying(&self) -> impl Iterator<Item = (&ParamName, &AnalyzedParam)> {
-        self.params.iter().filter(|(_, p)| !p.offsets.is_fixed())
+    /// dimensions — in declaration order.
+    pub fn varying(&self) -> impl Iterator<Item = (VarId, &AnalyzedParam)> {
+        self.in_order().filter(|(_, p)| !p.offsets.is_fixed())
     }
 
     /// The tail mass of ONE named axis: what this box's own interval
@@ -217,13 +265,16 @@ impl AnalyzedBox {
     /// doors stay, because a driver pricing a leaf is asking about an
     /// interval that is deliberately NOT the analyzed one.
     ///
-    /// An unannotated axis is FIXED and its tail is `0.0` — the
-    /// analysis is not leaving anything out, because nothing was
-    /// declared to vary.
-    pub fn axis_tail_mass(&self, name: &ParamName) -> Option<Result<f64, MeasureUnavailable>> {
-        let axis = self.params.get(name)?;
+    /// A parameter with no tolerance is no axis of the box
+    /// [`analyzed_box`] derives (VR8), so this answers `None` for it.
+    /// `analyzed_box` builds no axis without a distribution; the `0.0`
+    /// arm answers a box assembled otherwise, whose distribution-less
+    /// axis is FIXED — nothing was declared to vary, so no tail is left
+    /// out.
+    pub fn axis_tail_mass(&self, var: VarId) -> Option<Result<f64, MeasureUnavailable>> {
+        let axis = self.params.get(&var)?;
         Some(match axis.distribution {
-            Some(dist) => tail_mass(name, &dist, &axis.offsets),
+            Some(dist) => tail_mass(&self.spoken(var), &dist, &axis.offsets),
             None => Ok(0.0),
         })
     }
@@ -233,14 +284,15 @@ impl AnalyzedBox {
     /// [`Self::axis_tail_mass`] gives, for the E5 RSS column. `None` if
     /// the document has no such continuous parameter.
     ///
-    /// An unannotated axis is FIXED — a point mass at its nominal — and
-    /// its standard deviation is exactly `0.0`: the typed spelling of
-    /// "a fixed parameter carries a measure and spreads nothing", so an
-    /// RSS over it is available and it contributes no term.
-    pub fn axis_std_deviation(&self, name: &ParamName) -> Option<Result<f64, MeasureUnavailable>> {
-        let axis = self.params.get(name)?;
+    /// A parameter with no tolerance is no axis of the box
+    /// [`analyzed_box`] derives (VR8), and `analyzed_box` builds no axis
+    /// without a distribution. The `0.0` arm answers a box assembled
+    /// otherwise, whose distribution-less axis is FIXED — a point mass
+    /// at its nominal that spreads nothing, so it adds no RSS term.
+    pub fn axis_std_deviation(&self, var: VarId) -> Option<Result<f64, MeasureUnavailable>> {
+        let axis = self.params.get(&var)?;
         Some(match axis.distribution {
-            Some(dist) => std_deviation(name, &dist),
+            Some(dist) => std_deviation(&self.spoken(var), &dist),
             None => Ok(0.0),
         })
     }
@@ -250,17 +302,18 @@ impl AnalyzedBox {
     /// [`Self::axis_tail_mass`] gives, for the leaf-pricing door.
     /// `None` if the document has no such continuous parameter.
     ///
-    /// An unannotated axis is a point mass at its nominal, so it
-    /// answers `1.0` for any `sub` containing offset zero and `0.0`
-    /// otherwise.
+    /// A parameter with no tolerance is no axis of the box
+    /// [`analyzed_box`] derives (VR8). An axis built with no
+    /// distribution is a point mass at its nominal, so it answers `1.0`
+    /// for any `sub` containing offset zero and `0.0` otherwise.
     pub fn axis_box_mass(
         &self,
-        name: &ParamName,
+        var: VarId,
         sub: (f64, f64),
     ) -> Option<Result<f64, MeasureUnavailable>> {
-        let axis = self.params.get(name)?;
+        let axis = self.params.get(&var)?;
         Some(match axis.distribution {
-            Some(dist) => box_mass(name, &dist, sub),
+            Some(dist) => box_mass(&self.spoken(var), &dist, sub),
             None => Ok(if sub.0 <= 0.0 && 0.0 <= sub.1 {
                 1.0
             } else {
@@ -270,23 +323,41 @@ impl AnalyzedBox {
     }
 }
 
+/// **Whether a free variable is an analysis axis** (VR8): a continuous
+/// variable that carries a tolerance — a band or a distribution. A
+/// variable with none is a constant in every analysis lane: the box,
+/// the dual seeds of a stackup, the symbolic lane, Monte Carlo and the
+/// stackup's entries all read it at its nominal. Named or anonymous
+/// alike: what makes a variable vary is its tolerance, not its name.
+/// A query that names a variable itself ([`var_env_over`]'s box, a
+/// [`seed_env`] seed, `range`) widens it whatever it carries.
+pub fn is_axis(free: &FreeVar) -> bool {
+    matches!(
+        free,
+        FreeVar::Continuous {
+            distribution: Some(_),
+            ..
+        }
+    )
+}
+
 /// The analyzed box of a document under a policy (E1's first
 /// consumable).
 ///
-/// Per continuous parameter: the bounded support for
+/// Per axis ([`is_axis`]): the bounded support for
 /// [`Band`](Distribution::Band),
 /// [`Uniform`](Distribution::Uniform) and
 /// [`TruncatedNormal`](Distribution::TruncatedNormal); the symmetric
-/// quantile interval `±z·sigma` for [`Normal`](Distribution::Normal);
-/// and [`OffsetInterval::FIXED`] for a parameter with no distribution.
-/// `Count` parameters are not axes.
+/// quantile interval `±z·sigma` for [`Normal`](Distribution::Normal).
+/// A variable with no tolerance is no axis, and neither is a `Count`
+/// parameter: both are constants of the analysis.
 pub fn analyzed_box<P>(doc: &Doc<P>, policy: &AnalysisPolicy) -> AnalyzedBox {
     let z = quantile_z(policy.quantile_mass());
-    let params = doc
-        .params()
-        .iter()
-        .filter_map(|(name, p)| match *p {
-            DocParam::Continuous {
+    let params: BTreeMap<VarId, AnalyzedParam> = doc
+        .free_vars()
+        .filter(|(_, p)| is_axis(p))
+        .filter_map(|(id, p)| match *p {
+            FreeVar::Continuous {
                 dim,
                 value,
                 // Presentation metadata: it enters no evaluation, no
@@ -295,6 +366,8 @@ pub fn analyzed_box<P>(doc: &Doc<P>, policy: &AnalysisPolicy) -> AnalyzedBox {
                 distribution,
             } => {
                 let offsets = match distribution {
+                    // Not reached: `is_axis` admitted only a toleranced
+                    // variable. Kept total rather than asserted.
                     None => OffsetInterval::FIXED,
                     // The bounded forms ARE their own analyzed
                     // interval: the box is the support, and no mass
@@ -313,7 +386,7 @@ pub fn analyzed_box<P>(doc: &Doc<P>, policy: &AnalysisPolicy) -> AnalyzedBox {
                     },
                 };
                 Some((
-                    name.clone(),
+                    id,
                     AnalyzedParam {
                         dim,
                         nominal: value,
@@ -322,10 +395,20 @@ pub fn analyzed_box<P>(doc: &Doc<P>, policy: &AnalysisPolicy) -> AnalyzedBox {
                     },
                 ))
             }
-            DocParam::Count { .. } => None,
+            FreeVar::Count { .. } => None,
         })
         .collect();
-    AnalyzedBox { params }
+    let spoken = params.keys().map(|&id| (id, doc.spoken_var(id))).collect();
+    let order = doc
+        .free_vars()
+        .map(|(id, _)| id)
+        .filter(|id| params.contains_key(id))
+        .collect();
+    AnalyzedBox {
+        params,
+        order,
+        spoken,
+    }
 }
 
 /// **A scalar that can carry a parameter-box axis** — the door INTO the
@@ -349,23 +432,20 @@ pub trait AxisScalar: geom_core::Real {
     /// when this scalar cannot represent it.
     fn axis(lo: f64, hi: f64) -> Option<Self>;
 
-    /// The same axis, with the PARAMETER'S NAME in hand — the door
-    /// [`param_env_over`] calls (E12).
+    /// The same axis, with the VARIABLE'S IDENTITY in hand — the door
+    /// [`var_env_over`] calls (E12).
     ///
     /// The default DELEGATES to [`AxisScalar::axis`] and discards the
-    /// name, so every existing scalar is unaffected by this seam: `f64`,
+    /// id, so every existing scalar is unaffected by this seam: `f64`,
     /// `Probe`, `Interval` and `Dual<T>` bind exactly the value they
     /// bound before, bit for bit. The one implementor that overrides it
     /// is `geom_core::Sym<T>`, whose whole business is that a parameter
-    /// occurrence is a NAMED symbol rather than an anonymous enclosure —
-    /// two occurrences of one parameter have to be one indeterminate,
-    /// and only the name can say that they are.
-    ///
-    /// The name is a `&ParamName` rather than a `&str` because the
-    /// caller has one and the identity being carried is the document's,
-    /// not a string's.
-    fn axis_named(name: &ParamName, lo: f64, hi: f64) -> Option<Self> {
-        let _ = name;
+    /// occurrence is an IDENTIFIED symbol rather than an anonymous
+    /// enclosure — two occurrences of one variable have to be one
+    /// indeterminate, and only the identity can say that they are
+    /// (VR8: a name is not an identity, so a rename moves no symbol).
+    fn axis_of(var: VarId, lo: f64, hi: f64) -> Option<Self> {
+        let _ = var;
         Self::axis(lo, hi)
     }
 }
@@ -403,7 +483,7 @@ impl AxisScalar for geom_core::Interval {
 }
 
 /// **The symbolic tier binds the axis as a SYMBOL** — the one door that
-/// introduces an indeterminate ([`AxisScalar::axis_named`]).
+/// introduces an indeterminate ([`AxisScalar::axis_of`]).
 ///
 /// The value channel is the base scalar's own offset enclosure, so the
 /// numbers are the ones an un-wrapped run would carry; what is added is
@@ -435,11 +515,12 @@ where
         T::axis(lo, hi).map(geom_core::Sym::opaque)
     }
 
-    fn axis_named(name: &ParamName, lo: f64, hi: f64) -> Option<Self> {
+    fn axis_of(var: VarId, lo: f64, hi: f64) -> Option<Self> {
         // The bracket goes with the value: it is the one value the
         // symbolic tier reads (rule C's sign read, `geom_core::sym`).
-        T::axis(lo, hi)
-            .map(|v| geom_core::Sym::param_over(geom_core::ParamSymbol::of(&name.0), v, lo, hi))
+        T::axis(lo, hi).map(|v| {
+            geom_core::Sym::param_over(geom_core::ParamSymbol::new(var.0.digest()), v, lo, hi)
+        })
     }
 }
 
@@ -540,42 +621,56 @@ where
 /// axis).
 #[derive(Debug, Clone, PartialEq)]
 pub enum SeedError {
-    /// The seed names a parameter the document does not carry.
-    UnknownParam {
-        /// The unmatched name.
-        param: ParamName,
+    /// The seed names a variable the document does not hold.
+    UnknownVar {
+        /// The unmatched variable.
+        var: SpokenVar,
     },
-    /// The seed names a `Count` parameter. Structural parameters are
+    /// The seed names a `Count` variable. Structural parameters are
     /// fixed under any error analysis (E11.3): there is no derivative
     /// axis to seed, and refusing is the typed spelling of that.
-    CountParam {
-        /// The structural name.
-        param: ParamName,
+    CountVar {
+        /// The structural variable.
+        var: SpokenVar,
+    },
+    /// The seed names a variable that is not free: a defined one, whose
+    /// derivative is the pushforward of its inputs' (VR3), or an
+    /// operation's output (D10). Neither has an axis of its own: seed a
+    /// free variable it is a function of.
+    SeedOnNonFreeVar {
+        /// The variable.
+        var: SpokenVar,
     },
     /// The evaluation scalar carries no tangent channel — a seeded
     /// `f64` (or `Interval`) evaluation would be a sensitivity question
     /// with the seed silently dropped, so it refuses instead.
     TangentUnrepresentable {
-        /// The parameter that was asked for.
-        param: ParamName,
+        /// The variable that was asked for.
+        var: SpokenVar,
     },
 }
 
 impl core::fmt::Display for SeedError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::UnknownParam { param } => write!(
+            Self::UnknownVar { var } => write!(
                 f,
-                "the seed names {param}, which is not a parameter of this document"
+                "the seed names {var}, which is not a variable of this document"
             ),
-            Self::CountParam { param } => write!(
+            Self::CountVar { var } => write!(
                 f,
-                "the seed names {param}, a Count parameter — structural parameters are fixed \
+                "the seed names {var}, a Count parameter — structural parameters are fixed \
                  under any error analysis and carry no derivative axis"
             ),
-            Self::TangentUnrepresentable { param } => write!(
+            Self::SeedOnNonFreeVar { var } => write!(
                 f,
-                "parameter {param} is seeded and this evaluation scalar carries no tangent \
+                "the seed names {var}, which is not a free variable and so is no axis of its \
+                 own: a defined variable's derivative is its inputs' pushforward, and an \
+                 operation's output is a value its operation gives; seed a free variable"
+            ),
+            Self::TangentUnrepresentable { var } => write!(
+                f,
+                "parameter {var} is seeded and this evaluation scalar carries no tangent \
                  channel — a sensitivity pass needs a dual"
             ),
         }
@@ -587,8 +682,8 @@ impl core::fmt::Display for SeedError {
 /// other binding — unseeded parameters and, through `T::from_f64`,
 /// every literal — keeps tangent zero by construction.
 ///
-/// The environment is whichever door built it ([`crate::Doc::param_env`]
-/// or [`param_env_over`]), so seeding composes with the parameter box
+/// The environment is whichever door built it ([`crate::Doc::var_env`]
+/// or [`var_env_over`]), so seeding composes with the parameter box
 /// by doing nothing besides the one tangent write. **One seed per
 /// environment is the caller's obligation, not this door's check**
 /// (E4: n parameters ⇒ n independent passes): an environment records
@@ -604,34 +699,33 @@ impl core::fmt::Display for SeedError {
 /// [`SeedError`], checked against the DOCUMENT first so an unknown or
 /// structural name refuses identically at every scalar, and the
 /// per-scalar capability refusal comes only after the name is real.
-pub fn seed_env<T: SeedScalar, P>(
+pub fn seed_env<T: SeedScalar + geom_core::predicate::Decide, P>(
     doc: &Doc<P>,
-    mut env: crate::expr::ParamEnv<T>,
-    seed: &ParamName,
-) -> Result<crate::expr::ParamEnv<T>, SeedError> {
-    match doc.params().get(seed) {
-        None => Err(SeedError::UnknownParam {
-            param: seed.clone(),
-        }),
-        Some(DocParam::Count { .. }) => Err(SeedError::CountParam {
-            param: seed.clone(),
-        }),
-        Some(DocParam::Continuous { .. }) => {
+    mut env: crate::expr::VarEnv<T>,
+    seed: VarId,
+) -> Result<crate::expr::VarEnv<T>, SeedError> {
+    let spoken = doc.spoken_var(seed);
+    if doc.var(seed).is_some_and(|v| v.free().is_none()) {
+        return Err(SeedError::SeedOnNonFreeVar { var: spoken });
+    }
+    match doc.free(seed) {
+        None => Err(SeedError::UnknownVar { var: spoken }),
+        Some(FreeVar::Count { .. }) => Err(SeedError::CountVar { var: spoken }),
+        Some(FreeVar::Continuous { .. }) => {
             // Both environment doors bind every document parameter, so
             // a continuous document parameter always has a continuous
-            // binding; answering `UnknownParam` on a broken pairing (a
+            // binding; answering `UnknownVar` on a broken pairing (a
             // caller's env built from a different document) is
             // fail-honest, never a wrong number.
             let Some(crate::expr::ParamValue::Continuous { value, .. }) =
-                env.bindings.get_mut(seed)
+                env.bindings.get_mut(&seed)
             else {
-                return Err(SeedError::UnknownParam {
-                    param: seed.clone(),
-                });
+                return Err(SeedError::UnknownVar { var: spoken });
             };
-            *value = T::seed(*value).ok_or_else(|| SeedError::TangentUnrepresentable {
-                param: seed.clone(),
-            })?;
+            *value = T::seed(*value).ok_or(SeedError::TangentUnrepresentable { var: spoken })?;
+            // The defined variables re-bind over the seeded input, so
+            // each carries its derivative: the pushforward.
+            doc.bind_definitions(&mut env);
             Ok(env)
         }
     }
@@ -701,14 +795,18 @@ impl BoxAxis {
 }
 
 /// A sub-box of the [`AnalyzedBox`]: one [`BoxAxis`] per continuous
-/// document parameter, in name order. Derived, never stored.
+/// document variable, listed in the analyzed box's DECLARATION order
+/// (its split tie-break reads that order). Derived, never stored.
 ///
 /// The root box is [`ParamBox::of`] an analyzed box; every other box is
 /// a [`ParamBox::split`] descendant of one. `Count` parameters are not
 /// axes (E0's term hygiene) and never appear here.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct ParamBox {
-    axes: BTreeMap<ParamName, BoxAxis>,
+    axes: BTreeMap<VarId, BoxAxis>,
+    /// The axes in declaration order — [`AnalyzedBox::order`], carried
+    /// to every split descendant.
+    order: Vec<VarId>,
 }
 
 /// A box that cannot be turned into an environment.
@@ -717,8 +815,8 @@ pub enum ParamBoxError {
     /// The box names a parameter the document does not carry as a
     /// continuous parameter.
     UnknownParam {
-        /// The unmatched name.
-        param: ParamName,
+        /// The unmatched variable.
+        param: SpokenVar,
     },
     /// The evaluation scalar cannot represent this axis — an `f64` (or
     /// `Probe`) build asked to run over a box with width in it. Refused
@@ -726,7 +824,7 @@ pub enum ParamBoxError {
     /// different question in the same shape.
     AxisUnrepresentable {
         /// The axis that does not fit the scalar.
-        param: ParamName,
+        param: SpokenVar,
         /// The lower offset asked for.
         lo: f64,
         /// The upper offset asked for.
@@ -739,8 +837,8 @@ impl core::fmt::Display for ParamBoxError {
         match self {
             Self::UnknownParam { param } => write!(
                 f,
-                "the parameter box names {param}, which is not a continuous parameter of this \
-                 document"
+                "the parameter box names {param}, which is not a free continuous variable of \
+                 this document"
             ),
             Self::AxisUnrepresentable { param, lo, hi } => write!(
                 f,
@@ -753,12 +851,13 @@ impl core::fmt::Display for ParamBoxError {
 
 impl ParamBox {
     /// The root box of an analyzed box: every axis at its full analyzed
-    /// offsets, and every unannotated parameter [`BoxAxis::Fixed`].
+    /// offsets, and every axis with zero width [`BoxAxis::Fixed`] (a
+    /// parameter with no tolerance is no axis, [`is_axis`]).
     pub fn of(analyzed: &AnalyzedBox) -> Self {
         let axes = analyzed
             .params()
             .iter()
-            .map(|(name, p)| {
+            .map(|(&id, p)| {
                 let axis = if p.offsets.is_fixed() {
                     BoxAxis::Fixed
                 } else {
@@ -767,40 +866,67 @@ impl ParamBox {
                         hi: p.offsets.hi,
                     }
                 };
-                (name.clone(), axis)
+                (id, axis)
             })
             .collect();
-        Self { axes }
+        Self {
+            axes,
+            order: analyzed.order().to_vec(),
+        }
     }
 
     /// A box from explicit axes — the door for a box that is not a
     /// [`Self::split`] descendant of an analyzed box (the driver's
-    /// degenerate midpoint box, for one).
-    pub fn from_axes(axes: BTreeMap<ParamName, BoxAxis>) -> Self {
-        Self { axes }
+    /// degenerate midpoint box, for one). Its axes are ordered as
+    /// `order` lists them; an axis `order` leaves out follows, by id.
+    pub fn from_axes_in(axes: BTreeMap<VarId, BoxAxis>, order: &[VarId]) -> Self {
+        let mut listed: Vec<VarId> = order
+            .iter()
+            .copied()
+            .filter(|id| axes.contains_key(id))
+            .collect();
+        listed.extend(axes.keys().copied().filter(|id| !order.contains(id)));
+        Self {
+            axes,
+            order: listed,
+        }
     }
 
-    /// The axes, by parameter name.
-    pub fn axes(&self) -> &BTreeMap<ParamName, BoxAxis> {
+    /// [`Self::from_axes_in`] with no order given: the axes by id. For a
+    /// box of one axis, or one whose split order does not matter.
+    pub fn from_axes(axes: BTreeMap<VarId, BoxAxis>) -> Self {
+        Self::from_axes_in(axes, &[])
+    }
+
+    /// The axes in declaration order.
+    pub fn order(&self) -> &[VarId] {
+        &self.order
+    }
+
+    /// The axes, by variable.
+    pub fn axes(&self) -> &BTreeMap<VarId, BoxAxis> {
         &self.axes
     }
 
-    /// One axis, by name.
-    pub fn get(&self, name: &ParamName) -> Option<&BoxAxis> {
-        self.axes.get(name)
+    /// One axis.
+    pub fn get(&self, var: VarId) -> Option<&BoxAxis> {
+        self.axes.get(&var)
     }
 
-    /// The axes that vary — the box's non-degenerate dimensions.
-    pub fn varying(&self) -> impl Iterator<Item = (&ParamName, f64, f64)> {
-        self.axes.iter().filter_map(|(n, a)| match *a {
-            BoxAxis::Fixed => None,
-            BoxAxis::Varying { lo, hi } => Some((n, lo, hi)),
-        })
+    /// The axes that vary — the box's non-degenerate dimensions — in
+    /// declaration order.
+    pub fn varying(&self) -> impl Iterator<Item = (VarId, f64, f64)> + '_ {
+        self.order
+            .iter()
+            .filter_map(|&n| match *self.axes.get(&n)? {
+                BoxAxis::Fixed => None,
+                BoxAxis::Varying { lo, hi } => Some((n, lo, hi)),
+            })
     }
 
     /// The DETERMINISTIC split axis (D9): the varying axis of greatest
     /// width RELATIVE to `root`'s width on that axis, ties broken to the
-    /// lowest axis index — which is name order, the order every box
+    /// EARLIEST-DECLARED variable, the least id — the order every box
     /// iterates in. `None` when nothing varies.
     ///
     /// Relative rather than absolute because axes carry different
@@ -809,8 +935,8 @@ impl ParamBox {
     /// widest would subdivide one axis forever. Relative width is
     /// dimensionless and is 1 on every axis of the root box, so the
     /// recursion refines the box uniformly.
-    pub fn split_axis(&self, root: &Self) -> Option<ParamName> {
-        let mut best: Option<(ParamName, f64)> = None;
+    pub fn split_axis(&self, root: &Self) -> Option<VarId> {
+        let mut best: Option<(VarId, f64)> = None;
         for (name, lo, hi) in self.varying() {
             let full = root.get(name).map_or(0.0, BoxAxis::width);
             // A varying axis of a box whose root axis is degenerate has
@@ -821,10 +947,10 @@ impl ParamBox {
             } else {
                 hi - lo
             };
-            // STRICTLY greater keeps the tie on the earlier name, which
+            // STRICTLY greater keeps the tie on the earlier axis, which
             // is the tie-break the rule names.
             if best.as_ref().is_none_or(|(_, b)| rel > *b) {
-                best = Some((name.clone(), rel));
+                best = Some((name, rel));
             }
         }
         best.map(|(n, _)| n)
@@ -838,8 +964,8 @@ impl ParamBox {
     /// The midpoint is `0.5 * (lo + hi)`, a pure function of the two
     /// endpoints, so the same box splits into the same two halves on
     /// every machine and in every schedule (D9).
-    pub fn split(&self, name: &ParamName) -> Option<(Self, Self)> {
-        let BoxAxis::Varying { lo, hi } = *self.axes.get(name)? else {
+    pub fn split(&self, name: VarId) -> Option<(Self, Self)> {
+        let BoxAxis::Varying { lo, hi } = *self.axes.get(&name)? else {
             return None;
         };
         let mid = BoxAxis::Varying { lo, hi }.midpoint();
@@ -848,10 +974,8 @@ impl ParamBox {
         }
         let mut a = self.clone();
         let mut b = self.clone();
-        a.axes
-            .insert(name.clone(), BoxAxis::Varying { lo, hi: mid });
-        b.axes
-            .insert(name.clone(), BoxAxis::Varying { lo: mid, hi });
+        a.axes.insert(name, BoxAxis::Varying { lo, hi: mid });
+        b.axes.insert(name, BoxAxis::Varying { lo: mid, hi });
         Some((a, b))
     }
 
@@ -868,7 +992,7 @@ impl ParamBox {
         for (name, axis) in &self.axes {
             m *= match *axis {
                 BoxAxis::Fixed => 1.0,
-                BoxAxis::Varying { lo, hi } => match analyzed.axis_box_mass(name, (lo, hi)) {
+                BoxAxis::Varying { lo, hi } => match analyzed.axis_box_mass(*name, (lo, hi)) {
                     Some(r) => r?,
                     // AN AXIS `analyzed` DOES NOT CARRY PRICES ZERO,
                     // and that is a contract on the caller rather than
@@ -921,55 +1045,78 @@ impl ParamBox {
 ///
 /// Each axis binds `nominal + [lo, hi]`, formed in the scalar's own
 /// arithmetic so the enclosure rounds outward; `Count` parameters bind
-/// exactly as [`Doc::param_env`] binds them (they are structural, never
-/// axes). A parameter the box does not name binds its nominal.
+/// exactly as [`Doc::var_env`] binds them (they are structural, never
+/// axes). A toleranced parameter the box does not name binds its
+/// nominal as an axis of no width; a parameter with no tolerance the
+/// box does not name is no axis ([`is_axis`]) and binds its nominal as
+/// a constant, as [`Doc::var_env`] binds it — so the symbolic lane
+/// reads it as a number, not a symbol.
 ///
 /// # Errors
 ///
 /// [`ParamBoxError::UnknownParam`] when the box names a parameter the
 /// document does not have; [`ParamBoxError::AxisUnrepresentable`] when
 /// `T` cannot carry a widened axis.
-pub fn param_env_over<T: AxisScalar, P>(
+pub fn var_env_over<T: AxisScalar + geom_core::predicate::Decide, P>(
     doc: &Doc<P>,
     box_: &ParamBox,
-) -> Result<crate::expr::ParamEnv<T>, ParamBoxError> {
-    for name in box_.axes.keys() {
-        if !matches!(doc.params().get(name), Some(DocParam::Continuous { .. })) {
+) -> Result<crate::expr::VarEnv<T>, ParamBoxError> {
+    for &id in box_.axes.keys() {
+        if !matches!(doc.free(id), Some(FreeVar::Continuous { .. })) {
             return Err(ParamBoxError::UnknownParam {
-                param: name.clone(),
+                param: doc.spoken_var(id),
             });
         }
     }
     let mut bindings = BTreeMap::new();
-    for (name, p) in doc.params() {
+    for (id, p) in doc.free_vars() {
+        // Bound by id, as `Doc::var_env` binds it: the two environment
+        // doors read one iteration base.
         let v = match *p {
-            DocParam::Continuous { dim, value, .. } => {
-                let (lo, hi) = box_.get(name).map_or((0.0, 0.0), BoxAxis::span);
-                // The NAMED door (E12): a scalar that tracks parameter
-                // occurrences symbolically needs to know which parameter
-                // this is; every other scalar's default discards the
-                // name and binds exactly what it bound before.
-                let offset = T::axis_named(name, lo, hi).ok_or_else(|| {
-                    ParamBoxError::AxisUnrepresentable {
-                        param: name.clone(),
+            FreeVar::Continuous { dim, value, .. } if box_.get(id).is_none() && !is_axis(p) => {
+                crate::expr::ParamValue::Continuous {
+                    dim,
+                    value: T::from_f64(value),
+                }
+            }
+            FreeVar::Continuous { dim, value, .. } => {
+                let (lo, hi) = box_.get(id).map_or((0.0, 0.0), BoxAxis::span);
+                // The IDENTIFIED door (E12): a scalar that tracks
+                // parameter occurrences symbolically needs to know which
+                // variable this is; every other scalar's default
+                // discards the id and binds exactly what it bound before.
+                let offset =
+                    T::axis_of(id, lo, hi).ok_or_else(|| ParamBoxError::AxisUnrepresentable {
+                        param: doc.spoken_var(id),
                         lo,
                         hi,
-                    }
-                })?;
+                    })?;
                 crate::expr::ParamValue::Continuous {
                     dim,
                     value: T::from_f64(value) + offset,
                 }
             }
-            DocParam::Count { value } => crate::expr::ParamValue::Count(value),
+            FreeVar::Count { value } => crate::expr::ParamValue::Count(value),
         };
-        bindings.insert(name.clone(), v);
+        bindings.insert(id, v);
     }
-    Ok(crate::expr::ParamEnv { bindings })
+    let mut env = crate::expr::VarEnv {
+        bindings,
+        refused: BTreeMap::new(),
+        written: std::collections::BTreeSet::new(),
+    };
+    // A defined variable is no axis: it binds its definition over the
+    // widened inputs, so it carries their enclosure.
+    doc.bind_definitions(&mut env);
+    Ok(env)
 }
 
 /// Why a mass could not be computed.
-#[derive(Debug, Clone, PartialEq)]
+///
+/// Equality is the variable's identity alone: the spoken form is how
+/// the refusal names it, and a rename moves no mass, so it moves no
+/// equality either (the [`AnalyzedBox`] rule).
+#[derive(Debug, Clone)]
 pub enum MeasureUnavailable {
     /// The parameter carries a [`Band`](Distribution::Band): limits
     /// without a shape. "I know the limits but not the shape" is real
@@ -977,9 +1124,31 @@ pub enum MeasureUnavailable {
     /// (E2) — so anything needing a measure over this parameter
     /// refuses, naming it.
     BandHasNoMeasure {
-        /// The parameter whose band blocked the pricing.
-        param: ParamName,
+        /// The variable whose band blocked the pricing.
+        param: SpokenVar,
     },
+}
+
+impl PartialEq for MeasureUnavailable {
+    fn eq(&self, other: &Self) -> bool {
+        let (Self::BandHasNoMeasure { param: a }, Self::BandHasNoMeasure { param: b }) =
+            (self, other);
+        a.id() == b.id()
+    }
+}
+
+impl MeasureUnavailable {
+    /// This refusal with its variable spoken again from `doc`, a later
+    /// version of the document it was raised over
+    /// ([`SpokenVar::respoken`]).
+    #[must_use]
+    pub fn respoken<P>(&self, doc: &crate::doc::Doc<P>) -> Self {
+        match self {
+            Self::BandHasNoMeasure { param } => Self::BandHasNoMeasure {
+                param: param.respoken(doc),
+            },
+        }
+    }
 }
 
 impl core::fmt::Display for MeasureUnavailable {
@@ -1004,7 +1173,7 @@ impl core::fmt::Display for MeasureUnavailable {
 /// interval refuses: how much of it escapes is precisely what a band
 /// does not say.
 pub fn tail_mass(
-    param: &ParamName,
+    param: &SpokenVar,
     dist: &Distribution,
     analyzed: &OffsetInterval,
 ) -> Result<f64, MeasureUnavailable> {
@@ -1020,7 +1189,7 @@ pub fn tail_mass(
 /// it entirely (mass 0) — the two answers that hold for every measure
 /// on the band.
 pub fn box_mass(
-    param: &ParamName,
+    param: &SpokenVar,
     dist: &Distribution,
     sub: (f64, f64),
 ) -> Result<f64, MeasureUnavailable> {
@@ -1056,7 +1225,7 @@ pub fn box_mass(
 /// a shape cannot be sampled, and promoting one to uniform is the E2
 /// violation this whole module refuses.
 pub fn sample_offset(
-    param: &ParamName,
+    param: &SpokenVar,
     dist: &Distribution,
     u: f64,
 ) -> Result<f64, MeasureUnavailable> {
@@ -1135,7 +1304,7 @@ fn std_normal_quantile(u: f64) -> f64 {
 /// normal's σ is about the truncated law's OWN mean — under asymmetric
 /// truncation that mean is off the nominal, and the advisory RSS
 /// consumes the spread, not the shift.
-pub fn std_deviation(param: &ParamName, dist: &Distribution) -> Result<f64, MeasureUnavailable> {
+pub fn std_deviation(param: &SpokenVar, dist: &Distribution) -> Result<f64, MeasureUnavailable> {
     match *dist {
         Distribution::Band { .. } => Err(MeasureUnavailable::BandHasNoMeasure {
             param: param.clone(),
@@ -1177,7 +1346,7 @@ fn std_normal_pdf(x: f64) -> f64 {
 
 /// The shared kernel of both mass doors: `P(offset ∈ [lo, hi])`.
 fn interval_mass(
-    param: &ParamName,
+    param: &SpokenVar,
     dist: &Distribution,
     (lo, hi): (f64, f64),
 ) -> Result<f64, MeasureUnavailable> {
@@ -1249,7 +1418,7 @@ fn interval_mass(
 /// is still real mass outside the interval. Every arm below therefore
 /// sums the pieces that lie outside.
 fn exterior_mass(
-    param: &ParamName,
+    param: &SpokenVar,
     dist: &Distribution,
     (lo, hi): (f64, f64),
 ) -> Result<f64, MeasureUnavailable> {

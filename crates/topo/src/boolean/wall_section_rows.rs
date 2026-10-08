@@ -453,7 +453,6 @@ fn the_window_construction_sites_are_the_ones_listed() {
             "point_on_cone_in_face",
             "point_on_torus_in_face",
             // restated
-            "point_on_sphere_in_face",
             "sphere_chart_trim",
             "cone_trimmed_window",
             "torus_face_windows",

@@ -3,7 +3,8 @@
 //! wall is a meridian arc about a centre OFF the axis), the klein elbow
 //! (a disc swept a quarter turn about an axis off its centre), and the
 //! tour's sectioned vessel with the cavity the axial door carves in it
-//! (a partial revolve whose rims mint as spirics).
+//! (a partial revolve whose rims mint as spirics); and the one reader
+//! of the door the elbow's hollow stops at ([`props_door`]).
 //!
 //! A row that hollows one of these and a row that asks `point_in_solid`
 //! of it are about each other only while they build THE SAME BODY
@@ -30,7 +31,7 @@ use profile::path::{Open, Start};
 use profile::{ArcSweep, Center, Profile, ProfileLoop, SketchPlane};
 use sweep::test_support::revolved_about_y;
 use sweep::{Revolution, RevolveAxis, revolve};
-use topo::Body;
+use topo::{Body, FaceKey, ShellError};
 
 use super::bulge;
 use super::charts::hollow_moves;
@@ -171,4 +172,25 @@ pub fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
     )
     .expect("the vessel's corners solve and its rims mint");
     (quarter, cavity)
+}
+
+/// **The door the klein elbow's hollow stops at**: tier 3's check 7
+/// refusing the assembled thin solid because one face's volume flux
+/// is not computable — the face and the props refusal, or `None` for
+/// any other refusal. A spiric-bounded cap's loop area is an elliptic
+/// integral (`Unimplemented`), the sectioned vessel's door too.
+pub fn props_door(e: &ShellError<f64>) -> Option<(FaceKey, geom_brep::PropsError)> {
+    let ShellError::NotValid { errors } = e else {
+        return None;
+    };
+    let [
+        topo::ValidationError::VolumeUncomputable {
+            source: topo::MassPropsError::Face { face, source },
+            ..
+        },
+    ] = &errors[..]
+    else {
+        return None;
+    };
+    Some((*face, source.clone()))
 }

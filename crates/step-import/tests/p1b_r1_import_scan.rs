@@ -15,7 +15,6 @@
 use crate::common;
 use common::{SOLID_FIXTURES, import_body};
 
-use geom_brep::EdgeDescription;
 use topo::CurveGeom;
 
 #[test]
@@ -26,12 +25,9 @@ fn no_committed_fixture_imports_with_a_scaffold_at_rest() {
         let scaffolds: Vec<_> = body
             .edges()
             .filter(|(_, e)| {
-                matches!(
-                    body.get_curve_geom(e.curve)
-                        .and_then(CurveGeom::certified)
-                        .map(topo::EdgeCurve::description),
-                    Some(EdgeDescription::Scaffold(_))
-                )
+                body.get_curve_geom(e.curve)
+                    .and_then(CurveGeom::certified)
+                    .is_some_and(|c| c.description().is_scaffold())
             })
             .map(|(k, _)| k)
             .collect();

@@ -14,7 +14,9 @@ use sweep::Extruded;
 use topo::{Body, EdgeKey, VertexKey};
 
 use super::emit::{NamingError, Rim, RimShare, edge_ends, ent, name1, rim_between};
-use super::role::{CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, RoleSeg};
+use super::role::{
+    CapEnd, EntityKind, MeridianEnd, PieceRun, ProfileEdgeRef, ProfileVertexRef, RoleSeg,
+};
 use super::table::{EntityKey, NameTable};
 use crate::eval::ProfilePieces;
 use crate::node::RecipeNodeId;
@@ -37,7 +39,7 @@ const UNRESOLVED: NamingError = NamingError::Emission {
 ///
 /// The same shape as [`UNRESOLVED`] and the same word for the same
 /// reason. **The premise, stated exactly**: this emitter builds
-/// nothing — `sweep` does — and [`name_swept_topology`] takes the body
+/// nothing — `sweep` does — and [`name_loft_topology`] takes the body
 /// and the key lists as independent parameters with nothing in the
 /// signature tying them. What makes the refusal a bug report is that
 /// every caller passes a body and a bundle from ONE mint, which is true
@@ -76,60 +78,45 @@ fn vertex_at(pieces: &ProfilePieces, l: usize, v: usize) -> Result<ProfileVertex
     pieces.vertex(l, v).ok_or(NO_PIECE)
 }
 
-/// **How a swept solid's per-position roles are spelled**: an
-/// extrusion's by its one profile's pieces, a loft's walls and seams by
-/// every section's piece at that position and its caps' rims and
+/// **How a loft's per-position roles are spelled**: its walls and seams
+/// by every section's piece at that position, its caps' rims and
 /// vertices by the end section's own (`RoleSeg::LoftWall`,
-/// `RoleSeg::LoftSeam`).
-enum Swept<'a> {
-    /// One profile.
-    Extrude(&'a ProfilePieces),
-    /// One profile per section, first to last.
-    Loft(&'a [ProfilePieces]),
-}
+/// `RoleSeg::LoftSeam`). One profile per section, first to last.
+struct Sections<'a>(&'a [ProfilePieces]);
 
-impl Swept<'_> {
+impl Sections<'_> {
     /// The profile a cap end lies on.
     fn end(&self, end: CapEnd) -> Result<&ProfilePieces, NamingError> {
-        match self {
-            Self::Extrude(p) => Ok(p),
-            Self::Loft(sections) => match end {
-                CapEnd::Start => sections.first(),
-                CapEnd::End => sections.last(),
-            }
-            .ok_or(NO_PIECE),
+        match end {
+            CapEnd::Start => self.0.first(),
+            CapEnd::End => self.0.last(),
         }
+        .ok_or(NO_PIECE)
     }
 
     /// The wall at canonical segment `k` of loop `l`.
     fn wall(&self, l: usize, k: usize) -> Result<RoleSeg, NamingError> {
-        match self {
-            Self::Extrude(p) => Ok(RoleSeg::Lateral(edge_at(p, l, k)?)),
-            Self::Loft(sections) => Ok(RoleSeg::LoftWall(
-                sections
-                    .iter()
-                    .map(|p| edge_at(p, l, k))
-                    .collect::<Result<_, _>>()?,
-            )),
-        }
+        Ok(RoleSeg::LoftWall(
+            self.0
+                .iter()
+                .map(|p| edge_at(p, l, k))
+                .collect::<Result<_, _>>()?,
+        ))
     }
 
     /// The wall–wall edge at canonical vertex `v` of loop `l`.
     fn strut(&self, l: usize, v: usize) -> Result<RoleSeg, NamingError> {
-        match self {
-            Self::Extrude(p) => Ok(RoleSeg::LateralEdge(vertex_at(p, l, v)?)),
-            Self::Loft(sections) => Ok(RoleSeg::LoftSeam(
-                sections
-                    .iter()
-                    .map(|p| vertex_at(p, l, v))
-                    .collect::<Result<_, _>>()?,
-            )),
-        }
+        Ok(RoleSeg::LoftSeam(
+            self.0
+                .iter()
+                .map(|p| vertex_at(p, l, v))
+                .collect::<Result<_, _>>()?,
+        ))
     }
 
     /// The rim where the wall at `(l, k)` meets the cap at `end`.
     fn rim(&self, end: CapEnd, l: usize, k: usize) -> Result<RoleSeg, NamingError> {
-        Ok(RoleSeg::RimEdge(end, edge_at(self.end(end)?, l, k)?))
+        Ok(RoleSeg::RimEdge(end, edge_at(self.end(end)?, l, k)?.into()))
     }
 
     /// The cap vertex at `end` over canonical vertex `v` of loop `l`.
@@ -140,37 +127,100 @@ impl Swept<'_> {
 
 /// Names every boundary entity of an extrusion (spec D2's extrude
 /// vocabulary): caps, laterals, rims, struts, cap vertices, and the
-/// output body.
+/// output body. A lateral and its two rims are named by its run of
+/// pieces (N1, "Swept walls over a run"); a strut and its two cap
+/// vertices exist at a run's leading vertex only.
 pub(crate) fn name_extrude<T: Decide>(
     node: RecipeNodeId,
     built: &Extruded<T>,
     pieces: &ProfilePieces,
 ) -> Result<Arc<NameTable>, NamingError> {
-    name_swept_topology(
-        node,
-        &Swept::Extrude(pieces),
-        &built.body,
-        built.top,
-        built.bottom,
-        &built.side_faces,
-        &built.strut_edges,
-    )
+    let body = &built.body;
+    let mut t = NameTable::new();
+    t.insert(
+        name1(EntityKind::Body, node, RoleSeg::OutputBody),
+        ent(0, EntityKey::Body),
+    )?;
+    for (end, face) in [(CapEnd::End, built.top), (CapEnd::Start, built.bottom)] {
+        t.insert(
+            name1(EntityKind::Face, node, RoleSeg::Cap(end)),
+            ent(0, EntityKey::Face(face)),
+        )?;
+    }
+    for (l, walls) in built.walls.iter().enumerate() {
+        // A wall's segments are canonical; the vertex the sweep starts
+        // each at is `Extruded::start_vertex` (the reversal's one home).
+        let n: usize = walls.iter().map(|w| w.segments.len()).sum();
+        let vertex = |c: usize| built.start_vertex(n, c);
+        for wall in walls {
+            let run: &[usize] = &wall.segments;
+            t.insert(
+                name1(
+                    EntityKind::Face,
+                    node,
+                    RoleSeg::Lateral(pieces.run(l, run).ok_or(NO_PIECE)?),
+                ),
+                ent(0, EntityKey::Face(wall.face)),
+            )?;
+            let Some(&lead) = wall.segments.first() else {
+                return Err(NamingError::Emission {
+                    what: "an extruded wall sweeps no segment",
+                });
+            };
+            t.insert(
+                name1(
+                    EntityKind::Edge,
+                    node,
+                    RoleSeg::LateralEdge(vertex_at(pieces, l, vertex(lead))?),
+                ),
+                ent(0, EntityKey::Edge(wall.strut)),
+            )?;
+            let strut = edge_ends(body, wall.strut)?;
+            for (end, rim) in [
+                (CapEnd::End, wall.top_rim),
+                (CapEnd::Start, wall.bottom_rim),
+            ] {
+                t.insert(
+                    name1(
+                        EntityKind::Edge,
+                        node,
+                        RoleSeg::RimEdge(end, pieces.run(l, run).ok_or(NO_PIECE)?),
+                    ),
+                    ent(0, EntityKey::Edge(rim)),
+                )?;
+                // The run's cap vertex is where its strut meets its rim.
+                let vtx =
+                    common_vertex(strut, edge_ends(body, rim)?).ok_or(NamingError::Emission {
+                        what: "extrude cap vertex: a wall's rim shares no endpoint with its strut",
+                    })?;
+                t.insert(
+                    name1(
+                        EntityKind::Vertex,
+                        node,
+                        RoleSeg::CapVertex(end, vertex_at(pieces, l, vertex(lead))?),
+                    ),
+                    ent(0, EntityKey::Vertex(vtx)),
+                )?;
+            }
+        }
+    }
+    super::emit::check_total(&t, body, 0)?;
+    Ok(Arc::new(t))
 }
 
-/// Names every boundary entity of a loft body (M6-3): the Lofted
-/// bundle is the Extruded one with seam edges where the struts were,
-/// so the SAME combinatorial zip applies — caps, walls, rims, seams,
-/// cap vertices, output body — with a wall and a seam named by the
-/// pieces the skin paired, one per section (`sections`, first to
-/// last).
+/// Names every boundary entity of a loft body (M6-3): caps, walls,
+/// rims, seams, cap vertices, output body, by the combinatorial zip
+/// below — one wall per corresponding segment pair, each meeting each
+/// cap along one rim — with a wall and a seam named by the pieces the
+/// skin paired, one per section (`sections`, first to last).
 pub(crate) fn name_loft<T: Decide>(
     node: RecipeNodeId,
     built: &sweep::Lofted<T>,
     sections: &[ProfilePieces],
 ) -> Result<Arc<NameTable>, NamingError> {
-    name_swept_topology(
+    name_loft_topology(
         node,
-        &Swept::Loft(sections),
+        &Sections(sections),
         &built.body,
         built.top,
         built.bottom,
@@ -179,12 +229,11 @@ pub(crate) fn name_loft<T: Decide>(
     )
 }
 
-/// The shared swept-solid zip (extrude and loft produce the same
-/// combinatorial shape: two caps, per-(loop, segment) walls, per-
-/// (loop, vertex) lateral edges).
-fn name_swept_topology<T: Decide>(
+/// The loft's zip: two caps, per-(loop, segment) walls, per-(loop,
+/// vertex) seam edges, each wall meeting each cap along one rim.
+fn name_loft_topology<T: Decide>(
     node: RecipeNodeId,
-    swept: &Swept<'_>,
+    swept: &Sections<'_>,
     body: &Body<T>,
     end_cap: topo::FaceKey,
     start_cap: topo::FaceKey,
@@ -257,17 +306,22 @@ fn name_swept_topology<T: Decide>(
 }
 
 /// Names every boundary entity of a revolution (spec D2: the M2
-/// band/pole/seam taxonomy, read off the `Revolved` maps).
+/// band/pole/seam taxonomy, read off the `Revolved` maps). A wall, its
+/// π twin and its meridians are named by the wall's run of pieces (N1,
+/// "Swept walls over a run"); an on-axis run's one axis edge likewise.
 ///
-/// Vertex resolution: off-axis meridian vertices anchor as
-/// rim ∩ meridian endpoint intersections, then eliminate along the
-/// meridian chains (an edge with one resolved endpoint resolves the
-/// other); on-axis (pole) vertices are LOOKED UP in the sweep's
-/// `poles` export — a construction record, since the builders know
-/// each pole by the operator that minted it. A pole absent from the
-/// export is a vertex the sweep deleted (the full case's omitted axis
-/// run), so nothing is named for it; had one been wrongly omitted,
-/// `check_total` would catch the unnamed body vertex.
+/// Vertex resolution: a partial revolve's off-axis meridian vertices
+/// are the two ends of the rim there, each the one it shares with a
+/// meridian of that chain (a station has no rim and no entity); a full
+/// wire's are
+/// the two ends of each half-period rim, the seam one shared with an
+/// angle-0 meridian beside it. On-axis (pole) vertices are LOOKED UP in
+/// the sweep's `poles` export — a construction record, since the
+/// builders know each pole by the operator that minted it. A pole
+/// absent from the export is a vertex the sweep deleted (the full
+/// case's omitted axis run, a plane disc's centre), so nothing is named
+/// for it; had one been wrongly omitted, `check_total` would catch the
+/// unnamed body vertex.
 pub(crate) fn name_revolve<T: Decide>(
     node: RecipeNodeId,
     built: &sweep::Revolved<T>,
@@ -279,7 +333,6 @@ pub(crate) fn name_revolve<T: Decide>(
         name1(EntityKind::Body, node, RoleSeg::OutputBody),
         ent(0, EntityKey::Body),
     )?;
-    let pe = |l: usize, s: usize| edge_at(pieces, l, s);
     let pv = |l: usize, v: usize| vertex_at(pieces, l, v);
     let insert_face = |t: &mut NameTable, seg: RoleSeg, f| {
         t.insert(
@@ -300,12 +353,22 @@ pub(crate) fn name_revolve<T: Decide>(
         )
     };
 
-    for (l, segs) in built.walls.iter().enumerate() {
-        for (s, wall) in segs.iter().enumerate() {
-            if let Some(f) = wall {
-                insert_face(&mut t, RoleSeg::Band(pe(l, s)?), *f)?;
-            }
+    // Each wall's run, as its pieces and its first canonical segment
+    // (where the per-segment maps hold the run's one meridian and twin).
+    let mut runs: Vec<Vec<(usize, PieceRun)>> = Vec::with_capacity(built.bands.len());
+    for (l, bands) in built.bands.iter().enumerate() {
+        let mut lr = Vec::with_capacity(bands.len());
+        for band in bands {
+            let run = pieces.run(l, &band.segments).ok_or(NO_PIECE)?;
+            let Some(&first) = band.segments.first() else {
+                return Err(NamingError::Emission {
+                    what: "a revolved wall sweeps no segment",
+                });
+            };
+            insert_face(&mut t, RoleSeg::Band(run.clone()), band.face)?;
+            lr.push((first, run));
         }
+        runs.push(lr);
     }
     for (l, vs) in built.rims.iter().enumerate() {
         for (v, rim) in vs.iter().enumerate() {
@@ -325,59 +388,85 @@ pub(crate) fn name_revolve<T: Decide>(
             insert_face(&mut t, RoleSeg::RevolveCap(MeridianEnd::Start), *start_cap)?;
             insert_face(&mut t, RoleSeg::RevolveCap(MeridianEnd::End), *end_cap)?;
             for (l, (ss, es)) in start_meridians.iter().zip(end_meridians).enumerate() {
-                for (s, (&se, &ee)) in ss.iter().zip(es).enumerate() {
-                    if se == ee {
-                        // The shared axis edge of an on-axis segment.
-                        insert_edge(&mut t, RoleSeg::AxisEdge(pe(l, s)?), se)?;
+                // Each run's one meridian (or axis edge) is held at
+                // every segment of the run: name it once, by the run.
+                let n = ss.len();
+                let mut named = vec![false; n];
+                for s in 0..n {
+                    if named[s] {
+                        continue;
+                    }
+                    let held: Vec<usize> = (0..n).filter(|&k| ss[k] == ss[s]).collect();
+                    let run = pieces.run(l, &held).ok_or(NO_PIECE)?;
+                    for &k in &held {
+                        named[k] = true;
+                    }
+                    if ss[s] == es[s] {
+                        // The shared axis edge of an on-axis run.
+                        insert_edge(&mut t, RoleSeg::AxisEdge(run.clone()), ss[s])?;
                     } else {
-                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Start, pe(l, s)?), se)?;
-                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::End, pe(l, s)?), ee)?;
+                        insert_edge(
+                            &mut t,
+                            RoleSeg::Meridian(MeridianEnd::Start, run.clone()),
+                            ss[s],
+                        )?;
+                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::End, run), es[s])?;
                     }
                 }
                 let rims = &built.rims[l];
-                let start = resolve_chain(body, ss, rims)?;
-                let end = resolve_chain(body, es, rims)?;
                 for v in 0..rims.len() {
-                    if rims[v].is_some() {
+                    if let Some(p) = built.poles[l][v] {
+                        // Pole: the same physical vertex in both chains.
+                        insert_vertex(&mut t, RoleSeg::Pole(pv(l, v)?), p)?;
+                    } else if let Some(rim) = rims[v] {
+                        // Off-axis: the rim's two ends, each the one a
+                        // meridian of its chain beside it shares.
+                        let ends = edge_ends(body, rim)?;
+                        let beside = |chain: &[EdgeKey]| -> Result<VertexKey, NamingError> {
+                            [chain[(v + n - 1) % n], chain[v]]
+                                .iter()
+                                .map(|&m| Ok(common_vertex(ends, edge_ends(body, m)?)))
+                                .collect::<Result<Vec<_>, NamingError>>()?
+                                .into_iter()
+                                .flatten()
+                                .next()
+                                .ok_or(UNRESOLVED)
+                        };
                         insert_vertex(
                             &mut t,
                             RoleSeg::MeridianVertex(MeridianEnd::Start, pv(l, v)?),
-                            start[v].ok_or(UNRESOLVED)?,
+                            beside(ss)?,
                         )?;
                         insert_vertex(
                             &mut t,
                             RoleSeg::MeridianVertex(MeridianEnd::End, pv(l, v)?),
-                            end[v].ok_or(UNRESOLVED)?,
+                            beside(es)?,
                         )?;
-                    } else if let Some(p) = built.poles[l][v] {
-                        // Pole: the same physical vertex in both chains.
-                        insert_vertex(&mut t, RoleSeg::Pole(pv(l, v)?), p)?;
                     }
                 }
             }
         }
         sweep::RevolvedKind::Full {
+            wire,
             meridians,
             pi_walls,
             pi_meridians,
             pi_rims,
         } => {
-            let wire = pi_walls.iter().any(Option::is_some);
-            for (l, ms) in meridians.iter().enumerate() {
-                for (s, m) in ms.iter().enumerate() {
-                    if let Some(e) = m {
-                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Seam, pe(l, s)?), *e)?;
+            for (l, lr) in runs.iter().enumerate() {
+                for (first, run) in lr {
+                    if let Some(e) = meridians[l][*first] {
+                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Seam, run.clone()), e)?;
                     }
-                }
-            }
-            for (s, w) in pi_walls.iter().enumerate() {
-                if let Some(f) = w {
-                    insert_face(&mut t, RoleSeg::BandPi(pe(0, s)?), *f)?;
-                }
-            }
-            for (s, m) in pi_meridians.iter().enumerate() {
-                if let Some(e) = m {
-                    insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Pi, pe(0, s)?), *e)?;
+                    if l > 0 {
+                        continue;
+                    }
+                    if let Some(f) = pi_walls[*first] {
+                        insert_face(&mut t, RoleSeg::BandPi(run.clone()), f)?;
+                    }
+                    if let Some(e) = pi_meridians[*first] {
+                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Pi, run.clone()), e)?;
+                    }
                 }
             }
             for (v, r) in pi_rims.iter().enumerate() {
@@ -386,60 +475,56 @@ pub(crate) fn name_revolve<T: Decide>(
                 }
             }
             let rims = &built.rims[0];
-            if wire {
-                let seam_chain: Vec<_> = meridians[0].clone();
-                let pi_chain: Vec<_> = pi_meridians.clone();
-                let seam = resolve_chain_opt(body, &seam_chain, rims)?;
-                let pi = resolve_chain_opt(body, &pi_chain, rims)?;
-                for v in 0..rims.len() {
-                    if rims[v].is_some() {
+            if *wire {
+                // A half-period rim runs from its seam copy (angle 0) to
+                // its π copy; the seam end is the one an angle-0
+                // meridian beside it shares — a plane wall has none, but
+                // a wire vertex is never between two plane walls (they
+                // would be one run).
+                let n = rims.len();
+                let seam_chain = &meridians[0];
+                for v in 0..n {
+                    if let Some(rim) = rims[v] {
+                        let ends = edge_ends(body, rim)?;
+                        let beside = [seam_chain[(v + n - 1) % n], seam_chain[v]];
+                        let seam = beside
+                            .iter()
+                            .flatten()
+                            .map(|m| Ok(common_vertex(ends, edge_ends(body, *m)?)))
+                            .collect::<Result<Vec<_>, NamingError>>()?
+                            .into_iter()
+                            .flatten()
+                            .next()
+                            .ok_or(UNRESOLVED)?;
+                        let pi = if ends.0 == seam { ends.1 } else { ends.0 };
                         insert_vertex(
                             &mut t,
                             RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(0, v)?),
-                            seam[v].ok_or(UNRESOLVED)?,
+                            seam,
                         )?;
                         insert_vertex(
                             &mut t,
                             RoleSeg::MeridianVertex(MeridianEnd::Pi, pv(0, v)?),
-                            pi[v].ok_or(UNRESOLVED)?,
+                            pi,
                         )?;
                     } else if let Some(p) = built.poles[0][v] {
                         insert_vertex(&mut t, RoleSeg::Pole(pv(0, v)?), p)?;
                     }
                 }
-            } else {
-                // Lamina: full-period rim self-loops — the rim's
-                // (doubled) endpoint IS the meridian vertex.
-                for (v, r) in rims.iter().enumerate() {
-                    let e = r.ok_or(NamingError::Emission {
-                        what: "lamina full revolve with an on-axis vertex",
-                    })?;
-                    let (a, b) = edge_ends(body, e)?;
-                    if a != b {
-                        return Err(NamingError::Emission {
-                            what: "lamina rim is not a self-loop",
-                        });
-                    }
-                    insert_vertex(
-                        &mut t,
-                        RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(0, v)?),
-                        a,
-                    )?;
-                }
             }
-            // Hole loops (a holed full revolve's cavity shells) are
-            // always lamina-shaped, off-axis by validated containment:
-            // every rim is a full-period self-loop whose (doubled)
-            // endpoint is the meridian vertex.
-            for l in 1..built.rims.len() {
+            // Lamina rims (the outer loop off the axis, and every hole
+            // loop of a holed full revolve — its cavity shells, off-axis
+            // by validated containment): full-period self-loops whose
+            // (doubled) endpoint IS the meridian vertex. A station has
+            // no rim and no entity.
+            let lamina = if *wire { 1 } else { 0 };
+            for l in lamina..built.rims.len() {
                 for (v, r) in built.rims[l].iter().enumerate() {
-                    let e = r.ok_or(NamingError::Emission {
-                        what: "full-revolve hole with an on-axis vertex",
-                    })?;
-                    let (a, b) = edge_ends(body, e)?;
+                    let Some(e) = r else { continue };
+                    let (a, b) = edge_ends(body, *e)?;
                     if a != b {
                         return Err(NamingError::Emission {
-                            what: "hole cavity rim is not a self-loop",
+                            what: "a lamina full revolve's rim is not a self-loop",
                         });
                     }
                     insert_vertex(
@@ -456,64 +541,6 @@ pub(crate) fn name_revolve<T: Decide>(
     Ok(Arc::new(t))
 }
 
-/// Resolves the per-vertex copies along one meridian chain (chain
-/// edge `s` runs between the copies of profile vertices `s` and
-/// `s + 1`, cyclically): off-axis vertices anchor by rim ∩ meridian
-/// endpoint intersection, the rest by elimination to fixpoint.
-fn resolve_chain_opt<T: Decide>(
-    body: &Body<T>,
-    chain: &[Option<EdgeKey>],
-    rims: &[Option<EdgeKey>],
-) -> Result<Vec<Option<VertexKey>>, NamingError> {
-    let n = chain.len();
-    if n != rims.len() || n < 2 {
-        return Err(NamingError::Emission {
-            what: "revolve chain/rim length mismatch",
-        });
-    }
-    let mut out: Vec<Option<VertexKey>> = vec![None; n];
-    for v in 0..n {
-        if let (Some(rim), Some(m)) = (rims[v], chain[v]) {
-            out[v] = common_vertex(edge_ends(body, rim)?, edge_ends(body, m)?);
-        }
-    }
-    // Elimination to fixpoint: an edge with one resolved endpoint
-    // resolves the other (bounded by n rounds).
-    for _ in 0..n {
-        let mut progressed = false;
-        for s in 0..n {
-            let Some(e) = chain[s] else { continue };
-            let (a, b) = edge_ends(body, e)?;
-            let s1 = (s + 1) % n;
-            match (out[s], out[s1]) {
-                (Some(k), None) => {
-                    out[s1] = Some(if a == k { b } else { a });
-                    progressed = true;
-                }
-                (None, Some(k)) => {
-                    out[s] = Some(if a == k { b } else { a });
-                    progressed = true;
-                }
-                _ => {}
-            }
-        }
-        if !progressed {
-            break;
-        }
-    }
-    Ok(out)
-}
-
-/// [`resolve_chain_opt`] over a total chain (partial revolve).
-fn resolve_chain<T: Decide>(
-    body: &Body<T>,
-    chain: &[EdgeKey],
-    rims: &[Option<EdgeKey>],
-) -> Result<Vec<Option<VertexKey>>, NamingError> {
-    let opts: Vec<Option<EdgeKey>> = chain.iter().copied().map(Some).collect();
-    resolve_chain_opt(body, &opts, rims)
-}
-
 /// The unique vertex two endpoint pairs share (`None` when disjoint
 /// or when both endpoints coincide — callers treat as an emission
 /// inconsistency).
@@ -527,5 +554,72 @@ pub(crate) fn common_vertex(
         (true, false) => Some(a.0),
         (false, true) => Some(a.1),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use core::f64::consts::TAU;
+
+    use geom_core::{Arc2, Point2, Tol};
+    use profile::{Profile, ProfileLoop, RawLoop, Segment, SketchPlane};
+
+    use super::*;
+    use crate::eval::ProfilePieces;
+
+    /// A one-segment circle about `(cx, 0)` of radius `r` (D1's full
+    /// turn), its vertex at carrier angle 0.
+    fn circle(cx: f64, r: f64) -> ProfileLoop<f64> {
+        RawLoop::new([(
+            Point2::new(cx + r, 0.0),
+            Segment::Arc(Arc2 {
+                centre: Point2::new(cx, 0.0),
+                radius: r,
+                sweep: TAU,
+            }),
+        )])
+    }
+
+    fn node() -> RecipeNodeId {
+        RecipeNodeId::new(0, test_utils::refusal::tagged(1))
+    }
+
+    /// **A one-segment loop's revolve and loft are named whole**: the
+    /// one meridian chain of a part turn is one self-loop at the loop's
+    /// one vertex (`name_revolve` reads the rim end that self-loop
+    /// shares, through `common_vertex`), so each wedge cap's copy of
+    /// that vertex is named; the full turn and the loft
+    /// name their one wall, its wrap edge and its vertices. Every table
+    /// is total over its body (`check_total`).
+    #[test]
+    fn a_one_segment_loop_revolves_and_lofts_to_named_bodies() {
+        let profile = Profile::new(SketchPlane::<f64>::xy(), vec![circle(3.0, 0.5)])
+            .validate(Tol::witness())
+            .unwrap();
+        let axis = sweep::RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: geom_core::Vec2::new(0.0, 1.0),
+        };
+        let pieces = ProfilePieces::numbered(&[1]);
+        for turn in [
+            sweep::Revolution::Partial(1.25),
+            sweep::Revolution::Partial(-1.25),
+            sweep::Revolution::Full,
+        ] {
+            let built = sweep::revolve(&profile, axis, turn, Tol::witness()).unwrap();
+            name_revolve(node(), &built, &pieces)
+                .unwrap_or_else(|e| panic!("{turn:?}: the revolve is named: {e:?}"));
+        }
+        let section = vec![circle(0.0, 1.0)];
+        let lofted = sweep::loft_body::<f64>(
+            &[section.clone(), section],
+            &sweep::test_support::stacked_at(&[0.0, 2.0]),
+            1,
+            Tol::witness(),
+        )
+        .unwrap();
+        name_loft(node(), &lofted, &[pieces.clone(), pieces])
+            .unwrap_or_else(|e| panic!("the loft is named: {e:?}"));
     }
 }

@@ -25,15 +25,17 @@ fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
 /// arithmetic; the sort happens in a genuinely rotated frame.
 fn tilted<T: geom_core::Decide>() -> SplitPlane<T> {
     let s = std::f64::consts::FRAC_1_SQRT_2;
-    SplitPlane {
-        origin: Point3::new(T::from_f64(2.0), T::from_f64(0.0), T::from_f64(0.0)),
-        normal: Vec3::new(T::from_f64(s), T::from_f64(s), T::from_f64(0.0)),
-    }
+    topo::test_support::split_plane(
+        Point3::new(T::from_f64(2.0), T::from_f64(0.0), T::from_f64(0.0)),
+        Vec3::new(T::from_f64(s), T::from_f64(s), T::from_f64(0.0)),
+        geom_core::Tol::witness(),
+    )
 }
 
 #[test]
 fn tilted_plane_f64_and_replay() {
     let fx = brick::<f64>((0.0, 4.0), (0.0, 4.0), (0.0, 1.0), Tol::witness());
+    let fx = topo::test_support::finished("the fx", fx, Tol::witness());
     let r = split(&fx, &tilted(), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
@@ -65,6 +67,7 @@ fn tilted_plane_interval_agrees_or_refuses_typed() {
         (0.0, 1.0),
         geom_core::Tol::witness(),
     );
+    let fx64 = topo::test_support::finished("the fx64", fx64, Tol::witness());
     let r64 = split(&fx64, &tilted(), Tol::witness()).unwrap();
     let census64 = |b: &Body<f64>| (b.faces().count(), b.edges().count(), b.vertices().count());
     let c_above = census64(body_of(&r64.above));
@@ -76,6 +79,7 @@ fn tilted_plane_interval_agrees_or_refuses_typed() {
         (0.0, 1.0),
         geom_core::Tol::witness(),
     );
+    let fx = topo::test_support::finished("the fx", fx, Tol::witness());
     match split(&fx, &tilted::<Interval>(), Tol::witness()) {
         Ok(r) => {
             let census =
@@ -101,12 +105,16 @@ fn orientation_flip_swaps_sides_only() {
         1.0,
         Tol::witness(),
     );
-    let plane = |sy: f64| SplitPlane {
-        origin: Point3::new(0.0, 1.0, 0.0),
-        normal: Vec3::new(0.0, sy, 0.0),
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let plane = |sy: f64| {
+        topo::test_support::split_plane(
+            Point3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, sy, 0.0),
+            geom_core::Tol::witness(),
+        )
     };
-    let r1 = split(&fx.body, &plane(1.0), Tol::witness()).unwrap();
-    let r2 = split(&fx.body, &plane(-1.0), Tol::witness()).unwrap();
+    let r1 = split(&operand, &plane(1.0), Tol::witness()).unwrap();
+    let r2 = split(&operand, &plane(-1.0), Tol::witness()).unwrap();
     let vol = |p: &SplitPart<f64>| mass_properties(body_of(p), Tol::witness()).unwrap().volume;
     assert!((vol(&r1.above) - vol(&r2.below)).abs() < 1e-12);
     assert!((vol(&r1.below) - vol(&r2.above)).abs() < 1e-12);

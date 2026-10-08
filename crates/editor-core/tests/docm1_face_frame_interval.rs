@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ExtrudeSide;
 use std::sync::Arc;
 
 use crate::corpus;
@@ -15,9 +16,9 @@ use crate::fixture::{self, Recorder, ang, len, scl};
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::{
-    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, DocParam, EvalOptions,
-    Evaluation, Expr, Node, NodeError, NodeErrorKind, NodeResult, ParamName, ProfileDoc,
-    ProfileLift, RecipeNodeId, RoleSeg, UnitSym, ValuePayload, evaluate,
+    CancelToken, CapEnd, Datum, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
+    FreeVar, Node, NodeError, NodeErrorKind, NodeResult, ProfileDoc, ProfileLift, RecipeNodeId,
+    RoleSeg, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Interval, Tol, UnitVec3};
 use topo::{DatumValue, validate_closed};
@@ -47,7 +48,7 @@ fn a_profile_on_a_derived_frame_is_placed_at_the_lane_scalar_under_every_lift() 
     let boss = cd.result.expect("the boss");
     let frame = cd
         .doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|id| matches!(cd.doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
@@ -95,7 +96,7 @@ fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
     let (doc, loft) = lofted_on_face_frame();
     let ev = run(&doc, None, &EvalOptions::default());
     let frame = doc
-        .order()
+        .ids()
         .iter()
         .copied()
         .find(|id| matches!(doc.node(*id), Some(Node::Datum(Datum::FaceFrame { .. }))))
@@ -139,9 +140,9 @@ fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
 /// `m10_3_driver_interval.rs` documents).
 fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::new("lift"),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("lift"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 0.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -149,7 +150,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
                 lo: -width,
                 hi: width,
             }),
-        },
+        }),
     });
     let (plane, profile) = r.profile_keeping(
         [0.0, 0.0, 0.0],
@@ -161,17 +162,20 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(1.0),
+        side: ExtrudeSide::Along,
     });
-    let lifted = r.insert(Node::Transform {
-        input: cube,
-        translation: [
-            len(0.0),
-            len(0.0),
-            Expr::param(ParamName::new("lift"), Dimension::Length),
-        ],
-        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: ang(0.0),
-    });
+    let lifted = r.insert(Node::transform(
+        cube,
+        editor_core::Step::Rigid {
+            translation: [
+                len(0.0),
+                len(0.0),
+                Formula::named(VarName::from_static("lift"), Dimension::Length),
+            ],
+            axis: [scl(0.0), scl(0.0), scl(1.0)],
+            angle: ang(0.0),
+        },
+    ));
     // A rigid transform keeps its input's name table verbatim, so the
     // cap is still named by the extrude that minted it.
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
@@ -249,9 +253,9 @@ fn an_interval_extrude_of_a_widened_height() {
     let e = Tol::witness().eps();
     let at = |width: f64| -> bool {
         let mut r = Recorder::new();
-        r.push(DocEdit::SetDocParam {
-            name: ParamName::new("hh"),
-            value: DocParam::Continuous {
+        r.push(DocEdit::DeclareVar {
+            name: VarName::from_static("hh"),
+            def: editor_core::VarDecl::Free(FreeVar::Continuous {
                 dim: Dimension::Length,
                 value: 1.0,
                 display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -263,7 +267,7 @@ fn an_interval_extrude_of_a_widened_height() {
                 } else {
                     None
                 },
-            },
+            }),
         });
         let profile = r.profile(
             [0.0, 0.0, 0.0],
@@ -273,7 +277,8 @@ fn an_interval_extrude_of_a_widened_height() {
         );
         r.insert(Node::Extrude {
             profile,
-            distance: Expr::param(ParamName::new("hh"), Dimension::Length),
+            distance: Formula::named(VarName::from_static("hh"), Dimension::Length),
+            side: ExtrudeSide::Along,
         });
         let doc = r.doc;
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
@@ -316,9 +321,9 @@ fn an_interval_extrude_of_a_widened_height() {
 fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     let width = Tol::witness().eps() / 10.0;
     let mut r = Recorder::new();
-    r.push(DocEdit::SetDocParam {
-        name: ParamName::new("h"),
-        value: DocParam::Continuous {
+    r.push(DocEdit::DeclareVar {
+        name: VarName::from_static("h"),
+        def: editor_core::VarDecl::Free(FreeVar::Continuous {
             dim: Dimension::Length,
             value: 1.0,
             display_unit: UnitSym::canonical_for(Dimension::Length),
@@ -326,7 +331,7 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
                 lo: -width,
                 hi: width,
             }),
-        },
+        }),
     });
     let profile = r.profile(
         [0.0, 0.0, 0.0],
@@ -336,7 +341,8 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     );
     let cube = r.insert(Node::Extrude {
         profile,
-        distance: Expr::param(ParamName::new("h"), Dimension::Length),
+        distance: Formula::named(VarName::from_static("h"), Dimension::Length),
+        side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
         at: cube,

@@ -164,6 +164,39 @@ pub enum SymRegistration {
     Unwitnessed,
 }
 
+impl SymRegistration {
+    /// **What a registrant does with the door's answer**, by arm, in
+    /// one place for every registrant.
+    ///
+    /// - [`SymRegistration::Contradicted`] is the EXACT witness's proof
+    ///   that `what` is false on the values the registrant built, and is
+    ///   loud: either the registrant's theorem is false for the
+    ///   configuration it was handed, or an upstream enclosure does not
+    ///   contain its real. Live in release (the arm's own doc).
+    /// - [`SymRegistration::Disputed`] is an inexact witness's refusal,
+    ///   counted in the session's receipt and never asserted on.
+    /// - Every other arm is a record, a no-op, or nothing to record, and
+    ///   none of them is a defect.
+    ///
+    /// Exhaustive by hand, so a new arm is a compile error here.
+    pub fn handle(self, what: &str) {
+        match self {
+            Self::Contradicted => debug_assert!(
+                !matches!(self, Self::Contradicted),
+                "the EXACT witness separated {what}: either the registrant's theorem is \
+                 false for the configuration it was handed, or an upstream enclosure does \
+                 not contain its real"
+            ),
+            Self::Disputed
+            | Self::Recorded
+            | Self::Already
+            | Self::Witnessed
+            | Self::Unwitnessed
+            | Self::Cyclic => {}
+        }
+    }
+}
+
 /// **What a comparison at this scalar PROVES** — the property that
 /// decides, per lane scalar, whether a disagreement between the value
 /// channel and a symbolic form is a soundness defect or a dispute.
@@ -267,6 +300,15 @@ pub trait Real:
     /// at every `impl Real` in the tree: `Exact` ⇔ a separated pair is
     /// refused `Contradicted`, `Inexact` ⇔ `Disputed`.
     const WITNESS: Witness;
+
+    /// **This scalar's name, as a refusal names it** — prose written to
+    /// sit inside "at the … scalar" (`"interval"`, `"dual"`), and the
+    /// one home for it: every refusal that names the scalar it ran at
+    /// reads it off its own type parameter, so two refusals cannot
+    /// spell one scalar two ways. Declared, never defaulted,
+    /// so a new scalar is asked by the compiler; a wrapper states its
+    /// own name rather than composing its base's.
+    const NAME: &'static str;
 
     /// Embeds an `f64` exactly (a point interval, a constant dual number).
     fn from_f64(x: f64) -> Self;
@@ -515,9 +557,12 @@ pub trait Real:
     ///   the certified-tier analogue of `abs`'s straddle hull).
     fn floor(self) -> Self;
 
-    /// The value with `self`'s magnitude and `sign`'s sign — the
-    /// branchless sign-transfer primitive (needed by the Pixar
-    /// orthonormal-basis construction, `Vec3::orthonormal_basis`).
+    /// The value with `self`'s magnitude and `sign`'s sign — sign
+    /// transfer where the sign is a genuinely signed quantity. It is
+    /// NOT the way to choose between two candidates: the enclosure arm
+    /// must hull at any zero-containing sign, so a choice keyed on it
+    /// hulls wherever the quantity it reads can be zero
+    /// ([`Real::select_le_zero`] is that door).
     ///
     /// **Poison propagates through BOTH arguments** — deliberately
     /// stricter than IEEE 754 `copySign`, which is a non-arithmetic bit
@@ -546,6 +591,66 @@ pub trait Real:
     ///   poisons the tangent to the entire line (the jump in `sign` has
     ///   unbounded slope).
     fn copysign(self, sign: Self) -> Self;
+
+    /// **The value-level decision door**: `when_le` if `self ≤ 0`, else
+    /// `when_gt` — a two-way selection keyed on the sign of a
+    /// difference, with the TIE (`self == 0`) on the `when_le` side.
+    ///
+    /// This is how comparison-free evaluation code picks between two
+    /// candidate computations. It is a *value* operation, not control
+    /// flow — it returns `Self`, so it cannot drive a branch, and no
+    /// topology-determining question passes through it (those go to a
+    /// named predicate, per Q1). Its consumer is
+    /// [`crate::Vec3::orthonormal_basis`], which chooses which world
+    /// axis to cross the normal with.
+    ///
+    /// **The tie is keyed on the VALUE zero, never on a zero's sign
+    /// bit** — `-0.0 ≤ 0` and `+0.0 ≤ 0` take the same arm. That is
+    /// what makes the tie decidable over an enclosure: a point
+    /// enclosure `[0, 0]` names one real, the tie-break is the same for
+    /// every point of it, so `Interval` DECIDES there. This is exactly
+    /// what [`Real::copysign`] cannot do — its zero-containing arm must
+    /// hull at a POINT zero, because an `f64` zero's sign bit is
+    /// invisible in an enclosure and a one-sided choice would fail to
+    /// contain an `f64` replay that saw `-0.0`. A construction that
+    /// spells a choice as `copysign` on the difference is therefore a
+    /// branch in disguise that hulls where a decision exists; this door
+    /// is the one that does not.
+    ///
+    /// **Poison: `self` propagates; a candidate propagates only where
+    /// it is read.** A poisoned decision value poisons the result — the
+    /// choice is unknown, and picking an arm would launder it. A
+    /// poisoned CANDIDATE poisons the result only when that candidate
+    /// is selected, or when both are (the straddle arm below). The
+    /// asymmetry is deliberate and load-bearing: the door exists to
+    /// pick the well-conditioned member of a candidate set whose other
+    /// members are degenerate at exactly the input being chosen away
+    /// from — `orthonormal_basis` at `n = ±e_z` evaluates
+    /// `normalize(e_z × n)`, which is `normalize(0)`, all poison, and
+    /// the axis order is what guarantees it is never the one read.
+    ///
+    /// Per-instantiation semantics:
+    ///
+    /// - `f64`: the IEEE comparison `self <= 0.0` behind the poison
+    ///   guard — a total order, exact and bit-deterministic (D9).
+    /// - `Interval`: DECIDED when the comparison holds for every point
+    ///   of the enclosure — `hi ≤ 0` (which includes the point tie
+    ///   `[0, 0]`) selects `when_le`, `lo > 0` selects `when_gt` — with
+    ///   the decoration capped by the deciding enclosure's (the choice
+    ///   is only as trustworthy as the enclosure that made it).
+    ///   UNDECIDED (`lo ≤ 0 < hi`, necessarily of positive width) is
+    ///   the **hull of both candidates**, decoration capped at `Def`:
+    ///   the question is real at every point of the box and the honest
+    ///   answer is both branches, never `Trv`, never empty
+    ///   (`docs/DUAL-DESIGN.md` DL6). The hull is what buys the
+    ///   enclosure property: an `f64` value inside the decision's
+    ///   enclosure lands on one of the two arms, and both are enclosed.
+    /// - `Dual<T>`: value channel is `T`'s door verbatim (the
+    ///   value-channel bit-identity contract); the tangent follows the
+    ///   chosen candidate's, ties keeping the tie-break's choice (the
+    ///   `min`/`max` kink convention), and hulls both tangents wherever
+    ///   the value channel hulls.
+    fn select_le_zero(self, when_le: Self, when_gt: Self) -> Self;
 
     /// Range reduction into one period: `self − period·floor(self/period)`
     /// — for `period > 0`, the representative of `self` modulo `period`
@@ -731,10 +836,9 @@ pub trait Real:
 /// it to put this one before — and closing it is not this predicate's
 /// job as things stand. Known instances, and the count is a floor
 /// rather than a total because nothing sweeps for them:
-/// `editor-core`'s `clearance::chart_frame` (a bracket read of the
-/// normalized OUTPUT) and `geom-brep`'s `enters::enters_material`,
-/// which decides a caller-supplied arm and then normalizes a `dir`
-/// whose own length is never asked about — a `pub` door. Filed as
+/// `geom-brep`'s `enters::enters_material`, which decides a
+/// caller-supplied arm and then normalizes a `dir` whose own length is
+/// never asked about — a `pub` door. Filed as
 /// `work/fix/normalize-without-the-length-question-two-more-sites`.
 pub fn is_finite_length<T: Real>(x: T) -> bool {
     #[allow(clippy::eq_op)]
@@ -917,7 +1021,7 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
 /// on the prune/report side — vacuously and checkably: the file
 /// contains no [`Bounds`] read at all. No `lo`, no `hi`, no
 /// comparison; the bound appears exactly once, as an INLINE bound on
-/// the `impl<T: Decide + Bounds + PcurveFittedLane> Verb<T>` header
+/// the `impl<T: Decide + Bounds + AtRestPolicy> Verb<T>` header
 /// (not a `where` clause — the earlier wording of this entry said
 /// `where`-position and was simply wrong about the syntax), purely so
 /// the callee's bound is satisfiable. Nothing there decides anything,
@@ -939,7 +1043,7 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
 /// **On the second — the WEAKEST bound that works, with the next
 /// tighter one shown failing.** Dropping [`Bounds`] does not compile:
 /// the callees require it. The next tighter bound,
-/// `Decide + `[`CertifiedBounds`]` + PcurveFittedLane`, compiles in
+/// `Decide + `[`CertifiedBounds`]` + AtRestPolicy`, compiles in
 /// this crate and BREAKS its caller — `editor_core::eval::wire`'s
 /// blend lowering runs beneath `evaluate<T>`, a mixed pass
 /// instantiated at [`Dual`](crate::Dual) by the dual corpus, and no
@@ -959,7 +1063,7 @@ pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
 /// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02
 /// certified at-rest entry), and a bound that names the callee's
 /// rights cannot be merged into the first header: the paragraph above
-/// records that tightening `Decide + Bounds + PcurveFittedLane` to a
+/// records that tightening `Decide + Bounds + AtRestPolicy` to a
 /// certifying bound breaks `editor_core::eval::wire`'s
 /// `Dual`-instantiated blend lowering. That right is now a VALUE the
 /// caller passes — `topo::ShellDoor`, whose one constructor carries
@@ -1144,6 +1248,54 @@ pub mod bounds_allowlist {
     //! door, said plainly so the next ride is argued rather than
     //! inherited.
     //!
+    //! `topo::boolean::carrier_touch` — the crossing layer's reading of a
+    //! root set its door could not settle, against the face — falls under
+    //! this entry on the same terms. It bisects an edge's span, reading a
+    //! piece's half-length bracket only to stop bisecting (the subdivision
+    //! driver), and it prunes the face's boundary edges by their certified
+    //! `edge_box` against a touch's ball before a distance bound is decided
+    //! (the box constructors' pruning side). Its verdicts are `Decide`
+    //! calls, the second-order bound's premise among them, with one
+    //! exception: `edge_clear_of_ball` answers clear at once when the
+    //! edge's box misses the ball's, a terminal `Bounds` grant. It is the
+    //! grant the box constructors' pruning makes, in the disjointness
+    //! direction the #571 rule allows: a box miss can only clear an edge
+    //! of the ball, never place one in it. The weakest bound that works
+    //! is `Decide + Bounds`: sole `Decide` reads no box and drives no
+    //! bisection, and sole `Bounds` decides nothing. The next tighter,
+    //! `Decide + CertifiedBounds`, does not survive the public boolean.
+    //! Carried up through every caller (`curved_face_arm`,
+    //! `wall_crossing`, `settle_deferred`, `sweep_direction`, `ops`'
+    //! entries and `boolean_reduce`), each signature compiles. The first
+    //! failure is `Dual64: CertifiedEnclosure` where the public boolean is
+    //! instantiated at a dual (`crates/topo/tests/inside_out_operand.rs`),
+    //! and a dual has no certified enclosure to give. Three of `reduce`'s
+    //! crossing-layer functions (`curved_face_arm`, `wall_crossing`,
+    //! `settle_deferred`) carry the bound as a reachability ride to it and
+    //! read no bracket of their own.
+    //!
+    //! `topo::validate`'s `ring_pairs` — check 9's broad phase over the
+    //! rings of one face — falls under this entry on the same terms as
+    //! `census::Trees`: it boxes each ring through the certified box
+    //! constructor (`edge_box`, hulled over the ring's edges at the sweep
+    //! pad), builds the C10 tree over those boxes and drives its queries,
+    //! deciding nothing; the contact arms that follow decide every pair the
+    //! boxes do not clear, through `Decide`. Its one box-level answer is
+    //! the pruning grant, in the disjointness direction the #571 rule
+    //! allows: a box miss can only clear a pair, never make one meet. The
+    //! weakest bound that works is `Decide + Bounds`: sole `Decide` reads
+    //! no box, and sole `Bounds` cannot call the arms. It reads no bound
+    //! its callers do not already carry (`tier3_local_checks_marked`, under
+    //! the at-rest validator's own entry).
+    //!
+    //! `topo::face_boxes` — `FaceBoxes::of`, the blend's candidate prune
+    //! for predicate 2's reach meter — falls under this entry on the
+    //! census's terms: it boxes every face through `face_box` and builds
+    //! the C10 tree, deciding nothing. Sole `Bounds` fails (`face_box`'s
+    //! cylinder rule decides the axis length through the funnel) and sole
+    //! `Decide` fails (the boxes are `f64` brackets, read through
+    //! `Bounds::lo`/`hi`).
+    //!
     //! `Separation::of`, `Separation::certify` and `image` carry **no**
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure), and their box NON-overlap answer is a GRANT
     //! (`certify`'s own doc: *"`Ok(())` is the certificate"*, and
@@ -1201,9 +1353,11 @@ pub mod bounds_allowlist {
     //! Re-scoped 2026-09-05 (FILLET-SPLIT, under Ev's ruling on PR 1916 that
     //! a move with no design implication needs no ask): the two open bands'
     //! carves left `surgery.rs` for `blend/open/planar.rs` and
-    //! `blend/open/ruled.rs` unchanged, so this one seam is now spelled
-    //! over five files — the file list is the entry's spelling, the seam is
-    //! the ratified thing, and nothing about its scope was extended.
+    //! `blend/open/ruled.rs` unchanged, and the cut-off both open bands
+    //! end in later left `ruled.rs` for `blend/open/end_face.rs`, so this
+    //! one seam is now spelled over six files — the file list is the
+    //! entry's spelling, the seam is the ratified thing, and nothing about
+    //! its scope was extended.
     //!
     //! It is the one allowlisted seam with **no refusing lane**, and the
     //! written reason it needs none is the delegation rule below: every
@@ -1238,9 +1392,16 @@ pub mod bounds_allowlist {
     //! `ssi_hull_sup`, `ssi_tube_transversality`, `pcurve_*` funnel margins)
     //! and consuming certification enclosures (limb 2 a control-hull bound, limb 3 a
     //! box-chain enclosure). Its refusing side is **not** empty:
-    //! `PcurveFittedLane` certifies at `f64`, [`Probe`](crate::Probe) and the
-    //! interval scalar and refuses at [`Dual`](crate::Dual), dual bodies
-    //! really validating and really not holding a fitted cache.
+    //! the fitted door (`geom_brep::FittedLane`, answered by
+    //! `topo::AtRestPolicy::fitted_lane`) is held at `f64`,
+    //! [`Probe`](crate::Probe), the interval scalar and `Sym` over any of
+    //! them, and absent at [`Dual`](crate::Dual), dual bodies really
+    //! validating and really not holding a fitted cache. That door's module, `geom_brep::fitted_lane`,
+    //! is the fitted lane's own seam and not a widening of it: its
+    //! constructor (`FittedLane::certified`) and that constructor's
+    //! pointer-identity helper carry the certification RIGHT the value
+    //! stands for, hold the three `pcurve_cache` bodies by pointer, and read
+    //! no bracket.
     //! `geom_brep::ssi::enclose` is deliberately absent: the enclosure machinery
     //! decides nothing and takes the sole bound the rule already allows.
     //!
@@ -1249,11 +1410,12 @@ pub mod bounds_allowlist {
     //! extension of M6-2: it DELEGATES to the already-listed `certify_rung3`
     //! door with a **declared** carrier instead of a marched one, inheriting
     //! that door's signature rather than widening the rule's reach. It
-    //! is what keeps `Bounds` off `topo`'s DEFAULT doors: the lane is a
-    //! SEPARATE door whose own impl block carries the lane bound
-    //! (`Body::set_edge_curve_nurbs_lane`), with `_via(…, f)` parameterising
-    //! the shared machinery. Injection moves a bound onto a narrower
-    //! signature; it does not remove one.
+    //! is what keeps `Bounds` off `topo`'s doors: the lane is a sealed
+    //! VALUE (`geom_brep::NurbsLane`) whose one constructor carries the
+    //! lane bound, handed to the shared machinery as `_via(…, lane)`'s
+    //! argument, and `topo`'s doors read it off the scalar's policy
+    //! (`AtRestPolicy::nurbs_lane`). Injection moves a bound onto a
+    //! narrower signature; it does not remove one.
     //!
     //! **2026-09-02, amending the entry above rather than adding a row — the
     //! lane's split is a BOUND, not a trait.** This lane's static split was
@@ -1261,11 +1423,10 @@ pub mod bounds_allowlist {
     //! refusing `Dual` one. The trait is deleted: the shared certified body
     //! is the free function `geom_brep::plane_nurbs_limbs`, at
     //! `Decide + `[`Bounds`](super::Bounds)` + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
-    //! exactly as before, and the two DOORS that name it carry
-    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds) —
-    //! `geom_brep::certify`'s `certify_nurbs_lane`/`recertify_nurbs_lane`
-    //! impl block and `topo::euler`'s `set_edge_curve_nurbs_lane` door. Both
-    //! files join this allowlist for that reason and no other; the
+    //! exactly as before, and the one DOOR that names it carries
+    //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds) — the lane's
+    //! sealed value, `geom_brep::certify`'s `NurbsLane::certified`. That
+    //! file joins this allowlist for that reason and no other; the
     //! per-file scope consequence is real and is the price of writing the
     //! obligation where a grep can read it, which is the whole point of
     //! retiring the trait name. **The compound is forced rather than
@@ -1277,15 +1438,19 @@ pub mod bounds_allowlist {
     //! strictness**: a dual reached the trait and got
     //! `PlaneNurbsRefusal::LaneUnsupported` at run time; now it cannot form
     //! the call, and the refusal variant is retired with the impl that raised
-    //! it. **What a mixed pass does instead** is take the lane as an
-    //! ARGUMENT: `topo::validate`'s check 2 re-certifies through
-    //! `EdgeCurve::recertify_via`, whose `Option<NurbsLane>` every door
+    //! it. **What a mixed pass does instead**: `geom_brep`'s
+    //! `certify_via`/`recertify_via` take `Option<NurbsLane>` as the
+    //! shared body's argument — `NurbsLane` a sealed value whose one
+    //! constructor carries the bound above — and `topo`'s operations
+    //! fill it from the scalar's policy (`AtRestPolicy::nurbs_lane`,
+    //! `None` at a dual). The validators keep their shape: check 2
+    //! re-certifies through `recertify_via`, whose argument every door
     //! bounded on the certification right fills (`validate_geometric`,
     //! `validate_pseudomanifold`, `contact_marks` and their certificate and
     //! declared forms) and every `_structural` door leaves empty — the M7-8
-    //! class is then not re-derived
-    //! and, being outside those doors' rights, not reported either
-    //! (`EdgeCurve::needs_nurbs_lane` is where that question is asked).
+    //! class is then not re-derived and, being outside those doors'
+    //! rights, not reported either (the lane's absence is its own
+    //! refusal, `CertifyError::NurbsLaneNotSupplied`).
     //! **The symbolic tier needs no arm of its own and gains none**:
     //! `Sym<T>` implements [`Bounds`](super::Bounds),
     //! [`CertifiedEnclosure`](super::CertifiedEnclosure) and
@@ -1581,6 +1746,8 @@ impl Real for f64 {
     /// dispute rather than a defect.
     const WITNESS: Witness = Witness::Inexact;
 
+    const NAME: &'static str = "f64";
+
     /// The identity — every `f64` embeds as itself, exactly.
     fn from_f64(x: f64) -> Self {
         x
@@ -1795,6 +1962,23 @@ impl Real for f64 {
             f64::NAN
         } else {
             f64::copysign(self, sign)
+        }
+    }
+
+    /// The IEEE comparison `self <= 0.0` behind the trait's poison
+    /// guard: a NaN decision cannot choose, so it poisons. Both signed
+    /// zeros take the `when_le` arm (`-0.0 <= 0.0` is true in IEEE
+    /// 754), which is what makes the tie sign-blind. An unread
+    /// candidate's NaN does not propagate — the trait docs give the
+    /// reason. Raw comparison is allowed inside scalar implementations
+    /// (Q1), as in [`Real::min`].
+    fn select_le_zero(self, when_le: Self, when_gt: Self) -> Self {
+        if self.is_nan() {
+            f64::NAN
+        } else if self <= 0.0 {
+            when_le
+        } else {
+            when_gt
         }
     }
 }
@@ -2097,6 +2281,36 @@ mod tests {
         assert!(<f64 as Real>::copysign(3.0, f64::NAN).is_nan());
         // Contrast: the IEEE bit operation launders the NaN sign.
         assert_eq!(f64::copysign(3.0, f64::NAN).abs(), 3.0);
+    }
+
+    /// The door at `f64`: a total order, sign-blind at the tie, and
+    /// poisoned only by the decision.
+    #[test]
+    fn select_le_zero_is_a_total_order_with_a_sign_blind_tie() {
+        let sel = <f64 as Real>::select_le_zero;
+        assert_eq!(sel(-1.0, 7.0, 9.0), 7.0);
+        assert_eq!(sel(1.0, 7.0, 9.0), 9.0);
+        // The tie takes `when_le`, and BOTH zeros are the same tie —
+        // this is the whole difference from `copysign`, which reads the
+        // zero's sign bit.
+        assert_eq!(sel(0.0, 7.0, 9.0), 7.0);
+        assert_eq!(sel(-0.0, 7.0, 9.0), 7.0);
+        assert_eq!(<f64 as Real>::copysign(1.0, -0.0), -1.0);
+        // Totality on the extremes; ±∞ is not poison.
+        assert_eq!(sel(f64::NEG_INFINITY, 7.0, 9.0), 7.0);
+        assert_eq!(sel(f64::INFINITY, 7.0, 9.0), 9.0);
+        assert_eq!(sel(f64::MIN_POSITIVE, 7.0, 9.0), 9.0);
+        assert_eq!(sel(-5.0e-324, 7.0, 9.0), 7.0);
+        // The chosen arm is returned BITWISE — a selection, not an
+        // arithmetic combination.
+        assert_eq!(sel(-1.0, -0.0, 9.0).to_bits(), (-0.0f64).to_bits());
+        // A poisoned decision cannot choose. An UNREAD candidate's
+        // poison does not propagate: that is what lets a construction
+        // select away from a degenerate branch.
+        assert!(sel(f64::NAN, 7.0, 9.0).is_nan());
+        assert_eq!(sel(-1.0, 7.0, f64::NAN), 7.0);
+        assert_eq!(sel(1.0, f64::NAN, 9.0), 9.0);
+        assert!(sel(-1.0, f64::NAN, 9.0).is_nan());
     }
 
     #[test]

@@ -236,17 +236,23 @@ fn tier2_strut_scan_echoes_on_dangling_start() {
 /// row is the only other reader; this table stays this guard's.
 pub(crate) const ALLOWED: &[(&str, &str)] = &[
     // ---- Sugar: delegates to an asserting operator. ----
-    ("mev_line", "derives the spec, then calls `mev`"),
-    ("mef_chord", "derives the spec, then calls `mef`"),
-    ("mekr_chord", "derives the spec, then calls `mekr`"),
-    ("mfkrh_plug", "calls `mfkrh` with a placeholder surface"),
     (
         "insert_void",
         "calls `insert_voids` with the one destination as a slice — same body, same assertion",
     ),
     (
-        "set_edge_curve_nurbs_lane",
-        "`set_edge_curve` with the NURBS certifier injected — same body, same assertion",
+        "insert_voids",
+        "refuses a hollow cavity before any mutation, then calls `insert_hollow_voids` — same \
+         body, same assertion",
+    ),
+    (
+        "graft_disjoint",
+        "checks the source holds one solid, then calls `graft_disjoint_all` — same body, \
+         same assertion",
+    ),
+    (
+        "graft_disjoint_all",
+        "returns `graft_disjoint_all_keyed`'s solids — same body, same assertion",
     ),
     // ---- Pipelines composed of asserting operators. ----
     (
@@ -257,6 +263,37 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "replace_face_offset",
         "the one-face spelling of `replace_faces_offset`, which it calls",
     ),
+    (
+        "merge_unjoined",
+        "test support: calls `merge_coplanar_faces_unjoined`, which runs \
+         `merge_coplanar_faces_staged` and asserts tier 1 through its surgery scope",
+    ),
+    (
+        "join_edges",
+        "stages `kev_describing` kills on a clone, each asserting the tier-1 postcondition \
+         (the planar arm's re-description writes a curve and no topology), re-mints the \
+         clone's pcurves, then adopts the clone",
+    ),
+    (
+        "merge_coplanar_faces_declared",
+        "runs `merge_coplanar_faces_staged`, which asserts tier 1 through its surgery \
+         scope and runs `join_edges` on its staging clone before adopting it",
+    ),
+    (
+        "replace_faces_offset",
+        "runs `replace_faces_offset_staged`, whose asserting door works on a staging clone \
+         that `join_edges` finishes before it is adopted",
+    ),
+    (
+        "offset_planes_together",
+        "runs `offset_planes_together_staged`, whose asserting door works on a staging clone \
+         that `join_edges` finishes before it is adopted",
+    ),
+    (
+        "offset_charts_together",
+        "runs `offset_charts_together_staged`, whose asserting door works on a staging clone \
+         that `join_edges` finishes before it is adopted",
+    ),
     // ---- Setters declaring the tier-1 postcondition. ----
     (
         "set_face_surface",
@@ -265,8 +302,19 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          surgery scope",
     ),
     (
-        "set_face_surface_and_sense",
-        "calls `set_face_surface`, which declares the postcondition, then writes one `bool`",
+        "set_face_surface_unvouched_for_tests",
+        "the failure-injection twin of `set_face_surface`: the same door run inside \
+         `lifting_rechart_refusals_for_tests`, so the same postcondition",
+    ),
+    (
+        "lifting_rechart_refusals_for_tests",
+        "a failure-injection scope that writes nothing itself: every door its closure \
+         calls declares its own postcondition",
+    ),
+    (
+        "set_face_surfaces_describing",
+        "declares the tier-1 postcondition directly, on `set_face_surface`'s terms: its \
+         swaps and re-descriptions can orphan keys",
     ),
     (
         "set_edge_curve",
@@ -307,6 +355,11 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "plant_ring_face",
         "plants a ring face through `mev_line`, `kemr` and `mef_chord` and writes no arena \
          itself — every mutation is one of those, each asserting",
+    ),
+    (
+        "plant_disc_face",
+        "plants a disc face through `mev_line`, `kemr` and `mef` and writes no arena itself — \
+         every mutation is one of those, each asserting",
     ),
     (
         "drill_hole",
@@ -353,8 +406,20 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "set_surface_field_source",
         "ParamSource metadata, no arena key (a per-field side record beside the surface)",
     ),
+    (
+        "set_surface_axis_source",
+        "axis-channel metadata, no arena key (a per-component side record beside the surface)",
+    ),
     ("attach_pcurve", "pcurve cache; coherence is tier 3's"),
     ("detach_pcurve", "pcurve cache; coherence is tier 3's"),
+    (
+        "attach_joint",
+        "pcurve joint element; coherence is tier 3's",
+    ),
+    (
+        "detach_joint",
+        "pcurve joint element; coherence is tier 3's",
+    ),
     ("mint_pcurves", "pcurve caches only; no topology touched"),
     (
         "mint_pcurves_of",
@@ -365,29 +430,6 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "null-face annotation; tier 2 bans it at rest, tier 1 does not see it",
     ),
     ("clear_null_face_pair", "removes that annotation"),
-    // ---- The exception. Not a waiver: a recorded hole. ----
-    (
-        "graft_disjoint",
-        "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
-    ),
-    (
-        "graft_disjoint_all",
-        "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
-    ),
-    (
-        "graft_disjoint_all_keyed",
-        "RAW TRANSPLANT, and the one door that does NOT preserve tier 1: it mints an \
-         empty destination solid per source solid before transplanting, and a refusal \
-         raised mid-transplant leaves `dst` partially written (its own docs: spent, \
-         never resumable). An empty solid IS `SolidWithoutShells`, a tier-1 error. A \
-         caller that discards the `Err` can fire a later operator's postcondition from \
-         API MISUSE rather than a kernel bug — the state class D9's footnote says \
-         cannot occur. Open as S14; this entry records it, it does not excuse it.",
-    ),
-    (
-        "graft_disjoint_all_onto_keyed",
-        "RAW TRANSPLANT — see `graft_disjoint_all_keyed`",
-    ),
 ];
 
 /// **The closure property the module docs of [`crate::euler`] and D9's
@@ -411,10 +453,8 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
 /// pipelines composed of asserting operators; setters declaring the
 /// tier-1 postcondition themselves (which, like an operator's, is
 /// swept at the door rather than at the write); and setters writing
-/// fields tier 1 does not constrain. The fifth kind has exactly one member and is the
-/// finding that produced this test — `instance`'s grafts do NOT
-/// preserve tier 1 on their failure path, which their own docs
-/// concede, and which is open as S14.
+/// fields tier 1 does not constrain. There is no fifth kind: a door
+/// that does not preserve tier 1 is a finding, not an entry.
 ///
 /// Stale entries are caught in both directions: an entry naming a door
 /// that no longer exists, or one that has since started asserting,
@@ -428,9 +468,10 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
 /// blind-spot list; this guard does not restate either.
 ///
 /// **"Declares the postcondition" is a read of code, not of prose.**
-/// The needle is `assert_euler_postcondition(`, with the paren, over a
-/// body whose comments and literals are blanked — a bare name would be
-/// satisfied by a `use` line. This guard used a raw `body.contains`,
+/// The needle is `assert_euler_postcondition` as a name the door
+/// reaches ([`crate::source_walk::MutationDoor::names`]), over a body
+/// whose comments, literals and `use` declarations are blanked. This
+/// guard used a raw `body.contains`,
 /// and a planted door whose body only *mentioned* the call in a
 /// comment was counted as asserting it, in both this guard and the
 /// pcurve one, both green.
@@ -480,7 +521,7 @@ fn every_public_mutation_path_preserves_tier1() {
                 scoped.push(door.site());
             }
             SurgeryPosture::NoScope => {
-                if door.code_contains("assert_euler_postcondition(") {
+                if door.names("assert_euler_postcondition") {
                     asserting.push(door.site());
                 } else if ALLOWED.iter().any(|(n, _)| *n == door.name) {
                     listed.push(door.name);
@@ -537,15 +578,20 @@ fn every_public_mutation_path_preserves_tier1() {
          stopped asserting — a finding — or the source read lost the call.",
     );
     // The second needle's own pin, for the same reason: a lexing gap
-    // that erased `sweep_and_close(` from every scoped door would move
+    // that erased `sweep_and_close` from every scoped door would move
     // them all to `unlisted` and red — but one that erased
-    // `begin_surgery(` too would move them to `asserting`/`unlisted`
-    // silently. This names a door the walk must see as scoped.
+    // `begin_surgery` too would move them to `asserting`/`unlisted`
+    // silently. The merge is the door whose scope composes tens of ring
+    // surgeries; since its public spellings end with the join, the
+    // scope sits one call down, in `merge_coplanar_faces_staged`,
+    // which the walk (public doors only) does not visit, so the pin
+    // reads that body's source directly.
+    let staged = crate::source_walk::fn_body("merge_faces", "merge_coplanar_faces_staged");
     assert!(
-        scoped
-            .iter()
-            .any(|s| s.ends_with("::merge_coplanar_faces_declared")),
-        "`merge_coplanar_faces_declared` no longer reads as opening and closing a surgery \
+        staged
+            .as_deref()
+            .is_some_and(|b| b.contains("begin_surgery") && b.contains("sweep_and_close")),
+        "`merge_coplanar_faces_staged` no longer reads as opening and closing a surgery \
          scope. Either the door stopped scoping — a finding, it composes tens of ring \
          surgeries — or the source read lost the calls.",
     );

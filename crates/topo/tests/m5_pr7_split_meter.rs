@@ -19,7 +19,7 @@
 
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
-use geom_brep::ssi::{self, SsiDomain, SsiError};
+use geom_brep::ssi::{self, SsiDomain};
 use geom_brep::{EdgeCurve, EdgeCurveSpec};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
@@ -70,10 +70,8 @@ fn a_nurbs_carrier_under_a_conventional_description_still_refuses() {
 }
 
 /// One certified rung-3 branch of the PR 7 planted fixture (the offset
-/// cylinder threading the unit sphere), or `None` when this ε's sample
-/// demand exceeds the named fit budget — the same typed-refusal gate
-/// the SSI suite stands down on (never an ε literal).
-fn ssi_branch_or_budget() -> Option<ssi::SsiBranch> {
+/// cylinder threading the unit sphere).
+fn ssi_branch() -> ssi::SsiBranch {
     let sph = Surface::Sphere {
         center: Point3::new(0.0, 0.0, 0.0),
         radius: 1.0,
@@ -93,8 +91,7 @@ fn ssi_branch_or_budget() -> Option<ssi::SsiBranch> {
         floor_scale: 1.0,
     };
     match ssi::cylinder_sphere_ssi(&cyl, &sph, slab, Band::linear(Tol::witness()).unwrap()) {
-        Ok(out) => Some(out.branches.into_iter().next().expect("two loops")),
-        Err(SsiError::FitSampleBudget { .. }) => None,
+        Ok(out) => out.branches.into_iter().next().expect("two loops"),
         Err(e) => panic!("the planted fixture: {e}"),
     }
 }
@@ -109,12 +106,11 @@ type Rung3Scaffold = (
 );
 
 /// A scaffold body holding one certified rung-3 edge (the open half of
-/// the fixture's small loop, `Intersection { cylinder, sphere }`), or
-/// `None` on the budget refusal. The second `mvfs` seed exists only to
-/// anchor the cylinder surface so both description keys resolve
-/// through the public attach door.
-fn body_with_rung3_edge() -> Option<Rung3Scaffold> {
-    let branch = ssi_branch_or_budget()?;
+/// the fixture's small loop, `Intersection { cylinder, sphere }`). The
+/// second `mvfs` seed exists only to anchor the cylinder surface so both
+/// description keys resolve through the public attach door.
+fn body_with_rung3_edge() -> Rung3Scaffold {
+    let branch = ssi_branch();
     let Curve3::Nurbs(ref loop_carrier) = branch.carrier else {
         panic!("a rung-3 carrier is a NURBS curve")
     };
@@ -137,28 +133,34 @@ fn body_with_rung3_edge() -> Option<Rung3Scaffold> {
     let (p0, p1) = (carrier.eval(h0), carrier.eval(h1));
 
     let mut body = topo::Body::<f64>::new();
-    let seed = body.mvfs(p0).unwrap();
+    let seed = body.mvfs(p0, true).unwrap();
     let sph = body
         .set_face_surface(
             seed.face,
-            topo::FaceSurface::New(Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
-                radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            topo::FaceSurface::New {
+                surface: Surface::Sphere {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    radius: 1.0,
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
-    let anchor = body.mvfs(p1).unwrap();
+    let anchor = body.mvfs(p1, true).unwrap();
     let cyl = body
         .set_face_surface(
             anchor.face,
-            topo::FaceSurface::New(Surface::Cylinder {
-                origin: Point3::new(0.03, 0.0, 0.0),
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                radius: 0.08,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            topo::FaceSurface::New {
+                surface: Surface::Cylinder {
+                    origin: Point3::new(0.03, 0.0, 0.0),
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    radius: 0.08,
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let mid = h0 + (h1 - h0) * 0.5;
@@ -183,7 +185,7 @@ fn body_with_rung3_edge() -> Option<Rung3Scaffold> {
             Tol::witness(),
         )
         .expect("the kernel's first rung-3 edge at rest certifies");
-    Some((body, made.edge, carrier, (h0, h1)))
+    (body, made.edge, carrier, (h0, h1))
 }
 
 #[test]
@@ -192,9 +194,7 @@ fn the_end_to_end_nurbs_split_row() {
     // certified into a body through the ordinary gate, split by
     // `split_edge`, both children re-certified — the kernel's first
     // rung-3 edge at rest, split at rest.
-    let Some((mut body, edge, carrier, (h0, h1))) = body_with_rung3_edge() else {
-        return; // typed FitSampleBudget refusal at this ε — its own row pins it
-    };
+    let (mut body, edge, carrier, (h0, h1)) = body_with_rung3_edge();
 
     // Split at an interior parameter: both children re-certify
     // (their witnesses re-minted at their own mid-parameters), the
@@ -228,9 +228,7 @@ fn a_split_at_the_endpoint_band_escalates_or_refuses_in_metres() {
     // The meter's other face: a parameter distance whose metred span
     // is NOT definitely positive must refuse/escalate, scaled from
     // the resolved band (multi-ε honesty) — never accepted.
-    let Some((mut body, edge, carrier, (h0, _h1))) = body_with_rung3_edge() else {
-        return;
-    };
+    let (mut body, edge, carrier, (h0, _h1)) = body_with_rung3_edge();
     // A split parameter whose distance-to-endpoint, METERED through
     // the certified speed bound, sits inside the band: place it from
     // the band the run resolved, through the carrier's own meter.
@@ -319,27 +317,33 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
     let (p0, p1) = (carrier.eval(h0), carrier.eval(h1));
 
     let mut body = topo::Body::<f64>::new();
-    let seed = body.mvfs(p0).unwrap();
+    let seed = body.mvfs(p0, true).unwrap();
     let sph = body
         .set_face_surface(
             seed.face,
-            topo::FaceSurface::New(Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
-                radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            topo::FaceSurface::New {
+                surface: Surface::Sphere {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    radius: 1.0,
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
-    let anchor = body.mvfs(p1).unwrap();
+    let anchor = body.mvfs(p1, true).unwrap();
     let plane = body
         .set_face_surface(
             anchor.face,
-            topo::FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            topo::FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    normal: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let mid = h0 + (h1 - h0) * 0.5;
@@ -417,27 +421,33 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
     // whose METERED distance-to-endpoint sits inside the band still
     // refuses, on the rational arm exactly as on the integral one.
     let mut body2 = topo::Body::<f64>::new();
-    let seed2 = body2.mvfs(p0).unwrap();
+    let seed2 = body2.mvfs(p0, true).unwrap();
     let sph2 = body2
         .set_face_surface(
             seed2.face,
-            topo::FaceSurface::New(Surface::Sphere {
-                center: Point3::new(0.0, 0.0, 0.0),
-                radius: 1.0,
-                axis: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            topo::FaceSurface::New {
+                surface: Surface::Sphere {
+                    center: Point3::new(0.0, 0.0, 0.0),
+                    radius: 1.0,
+                    axis: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
-    let anchor2 = body2.mvfs(p1).unwrap();
+    let anchor2 = body2.mvfs(p1, true).unwrap();
     let plane2 = body2
         .set_face_surface(
             anchor2.face,
-            topo::FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, 0.0, 0.0),
-                normal: Vec3::new(0.0, 0.0, 1.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            topo::FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, 0.0, 0.0),
+                    normal: Vec3::new(0.0, 0.0, 1.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .unwrap();
     let made2 = body2

@@ -21,6 +21,7 @@
 #![allow(clippy::panic)]
 
 use crate::common;
+use pncad::document::ExtrudeSide;
 
 use std::collections::BTreeMap;
 
@@ -30,7 +31,7 @@ use viewer::tree;
 
 /// Depth by node id, for a document read without an evaluation.
 fn depths(doc: &Doc<ProfileProgram>) -> BTreeMap<RecipeNodeId, usize> {
-    tree::rows(doc, None)
+    tree::rows(doc, None, &viewer::parts::PartFiles::default())
         .into_iter()
         .map(|row| (row.id, row.depth))
         .collect()
@@ -49,6 +50,7 @@ fn plate(
         Node::Extrude {
             profile,
             distance: common::len(0.01),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
@@ -89,7 +91,7 @@ fn a_chain_of_booleans_stays_at_one_level_however_long_it_gets() {
                 op: BooleanOp::Subtract,
                 a: accumulated,
                 b: tool,
-                declare: None,
+                declare: Vec::new(),
             },
             tol,
         );
@@ -140,7 +142,7 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
             op: BooleanOp::Union,
             a: tool_a,
             b: tool_b,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -151,7 +153,7 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
             op: BooleanOp::Subtract,
             a: base,
             b: compound_tool,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -163,4 +165,65 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
         Some(&2),
         "one past the branch it consumes, not one past its own line"
     );
+}
+
+/// **A measure's row reads the landed run, as every row's badge
+/// does**: while the document has moved past the landed evaluation,
+/// the row shows what that run measured on the document it ran over,
+/// and the new value arrives with the run that measures it.
+///
+/// Red if the tree blanks a value while a run is outstanding, or keeps
+/// the old one once the new run has landed.
+#[test]
+fn a_measure_row_shows_the_landed_value_until_the_next_run_lands() {
+    use pncad::document::{Dimension, Formula, FreeVar, MeasureExpr, VarName};
+    use viewer::props::{Computed, SlotValue};
+    use viewer::session::{DocSession, SessionOp};
+    use viewer::tree::Readout;
+
+    let tol = Tol::witness();
+    let gap = VarName::from_static("gap");
+    let mut doc = common::declared(
+        "measure-landed",
+        &gap,
+        FreeVar::continuous(Dimension::Length, 0.01),
+        tol,
+    );
+    let measure = common::insert_into(
+        &mut doc,
+        Node::measure(
+            MeasureExpr::value(Formula::named(gap.clone(), Dimension::Length)),
+            Vec::new(),
+        )
+        .expect("a value measure references nothing"),
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let measured = |session: &DocSession| {
+        common::row_of(&session.tree_rows(), measure)
+            .readout
+            .clone()
+    };
+    let reading = |metres| {
+        Some(Readout::Value(Computed {
+            canonical: metres,
+            dimension: Dimension::Length,
+        }))
+    };
+    let landed = reading(0.01);
+    assert_eq!(measured(&session), landed);
+
+    session.perform(SessionOp::SetVariable {
+        var: common::var_of(session.committed_doc(), gap.as_str()),
+        value: SlotValue::Continuous(0.012),
+    });
+    assert!(session.busy(), "the premise: the document has moved on");
+    assert_eq!(
+        measured(&session),
+        landed,
+        "the row is the landed picture's until the next one lands"
+    );
+    session.pump();
+    assert_eq!(measured(&session), reading(0.012));
 }

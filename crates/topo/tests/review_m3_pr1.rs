@@ -179,7 +179,7 @@ fn plant_detached_box(
         .unwrap();
     body.mef_chord(chord(e_dd.he_minus, f_front.he_plus), Tol::witness())
         .unwrap();
-    body.mfkrh_plug(planted.ring).unwrap().face
+    body.mfkrh_plug(planted.ring, true).unwrap().face
 }
 
 /// [`common::declined_cube`] at `f64`, reduced to the two things this
@@ -276,7 +276,7 @@ fn movefac_empty_outer_face_is_own_component() {
         .unwrap();
     let planted = body.kemr(strut.he_plus, strut.he_minus).unwrap();
     // Promote the EMPTY ring directly: an empty-outer face, detached.
-    let lone_face = body.mfkrh_plug(planted.ring).unwrap().face;
+    let lone_face = body.mfkrh_plug(planted.ring, true).unwrap().face;
     assert_eq!(validate(&body), Ok(()));
     let errs = validate_closed(&body).unwrap_err();
     let pass11 = errs
@@ -425,7 +425,7 @@ fn null_scaffold_fail_loud_audit() {
     assert_eq!(dump(&cube.body), before);
     // Door 6: revert carries the scaffold through UNCHANGED (still
     // typed scaffolding on the other side, still refused at rest).
-    let reverted = cube.body.revert().unwrap();
+    let reverted = cube.body.revert();
     assert!(
         reverted
             .get_curve_geom(created.curve)
@@ -493,8 +493,8 @@ fn split_edge_double_split_preserves_tier3_and_volume() {
 }
 
 /// TARGET 3: Intersection-description splits re-mint each child's
-/// witness BITWISE as that child's certification mid-sample
-/// carrier(t_a + (t_b - t_a)/2) - derived independently here.
+/// witness BITWISE as that child's mid-parameter point
+/// carrier((t_a + t_b)/2) - derived independently here.
 #[test]
 fn split_edge_intersection_witness_bitwise_remint() {
     let mut cube = geometric_cube::<f64>(Tol::witness());
@@ -525,9 +525,9 @@ fn split_edge_intersection_witness_bitwise_remint() {
         let topo::EdgeDescription::Intersection { witness, s1, s2 } = *child.description() else {
             panic!("child lost its Intersection description");
         };
-        // Independent derivation of the mid-sample: t_a + (t_b - t_a) *
-        // (4/8), the certification schedule's middle sample.
-        let expected = parent.carrier().eval(ta + (tb - ta) * 0.5);
+        // Independent derivation of the mid-parameter: (t_a + t_b) / 2,
+        // the point the witness pin reads.
+        let expected = parent.carrier().eval((ta + tb) * 0.5);
         assert_eq!(
             (
                 witness.x.to_bits(),
@@ -539,7 +539,7 @@ fn split_edge_intersection_witness_bitwise_remint() {
                 expected.y.to_bits(),
                 expected.z.to_bits()
             ),
-            "witness is not the bitwise mid-sample"
+            "witness is not the bitwise mid-parameter point"
         );
         // Children keep the parent's surface keys.
         let topo::EdgeDescription::Intersection { s1: p1, s2: p2, .. } = *parent.description()
@@ -572,7 +572,7 @@ fn split_edge_interiority_band_edges() {
     ] {
         let err = cube.body.split_edge(edge, t, Tol::witness()).unwrap_err();
         assert!(
-            matches!(err, EulerOpError::SplitParamNotInterior { edge: e } if e == edge),
+            matches!(err, EulerOpError::SplitParamNotInterior { edge: e, .. } if e == edge),
             "t = {t}: expected SplitParamNotInterior, got {err:?}"
         );
         assert_eq!(dump(&cube.body), before, "refusal at t = {t} mutated");
@@ -589,6 +589,41 @@ fn split_edge_interiority_band_edges() {
     let t_ok = 20.0 * eps;
     cube.body.split_edge(edge, t_ok, Tol::witness()).unwrap();
     assert_eq!(validate_geometric(&cube.body, Tol::witness()), Ok(()));
+}
+
+/// The parent key survives as the FIRST child (original start → new
+/// vertex) and `new_edge` is the SECOND (new vertex → original end),
+/// read off the keys alone.
+#[test]
+fn split_edge_parent_key_keeps_the_start_side() {
+    let mut cube = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut cube.body, Tol::witness());
+    let edge = cube.mevs[0].edge;
+    let ends = |body: &Body<f64>, e: topo::EdgeKey| {
+        let data = body.get_edge(e).unwrap();
+        let start = body.get_half_edge(data.he_plus).unwrap().start;
+        let end = body.half_edge_end(data.he_plus).unwrap();
+        (start, end)
+    };
+    let (u, v) = ends(&cube.body, edge);
+    assert_ne!(u, v, "fixture edge must have distinguishable ends");
+    let created = cube.body.split_edge(edge, 0.5, Tol::witness()).unwrap();
+    let w = created.vertex;
+    assert_eq!(
+        ends(&cube.body, edge),
+        (u, w),
+        "parent key must keep the start side: original start -> new vertex"
+    );
+    assert_eq!(
+        ends(&cube.body, created.new_edge),
+        (w, v),
+        "new_edge must take the end side: new vertex -> original end"
+    );
+    assert_eq!(
+        cube.body.get_edge(created.new_edge).unwrap().he_plus,
+        created.he_plus,
+        "created.he_plus must be new_edge's plus half"
+    );
 }
 
 /// TARGET 4: revert posture on a body WITH a ring and split edges (the
@@ -610,7 +645,7 @@ fn revert_on_split_body_involution_and_posture() {
     let vol = topo::mass_properties(&cube.body, Tol::witness())
         .unwrap()
         .volume;
-    let reverted = cube.body.revert().unwrap();
+    let reverted = cube.body.revert();
     // Source untouched (functional, both-results-free).
     assert_eq!(dump(&cube.body), original);
     // Tier-2 currency; tier 3 EXACTLY NegativeVolume.
@@ -627,10 +662,10 @@ fn revert_on_split_body_involution_and_posture() {
         .volume;
     assert_eq!(rvol.to_bits(), (-vol).to_bits());
     // Bitwise involution + determinism.
-    assert_eq!(dump(&reverted.revert().unwrap()), original);
-    assert_eq!(dump(&cube.body.revert().unwrap()), dump(&reverted));
+    assert_eq!(dump(&reverted.revert()), original);
+    assert_eq!(dump(&cube.body.revert()), dump(&reverted));
     // Double-revert of the REVERTED body too (involution both ways).
-    let twice = reverted.revert().unwrap().revert().unwrap();
+    let twice = reverted.revert().revert();
     assert_eq!(dump(&twice), dump(&reverted));
 }
 
@@ -761,7 +796,10 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
                 he2: e_rs.he_minus,
             },
             line(pp, ps),
-            FaceSurface::New(top_plane.clone()),
+            FaceSurface::New {
+                surface: top_plane.clone(),
+                sense: true,
+            },
             Tol::witness(),
         )
         .unwrap();
@@ -803,7 +841,10 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
             .mef(
                 MefSite::Chords { he1, he2 },
                 spec,
-                FaceSurface::New(top_plane.clone()),
+                FaceSurface::New {
+                    surface: top_plane.clone(),
+                    sense: true,
+                },
                 Tol::witness(),
             )
             .unwrap();
@@ -816,7 +857,13 @@ fn annulus_top_cube() -> (common::CubeOps<f64>, topo::FaceKey, [topo::VertexKey;
         u_ref: Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
     };
     cube.body
-        .set_face_surface(center, FaceSurface::New(numeric_plane))
+        .set_face_surface(
+            center,
+            FaceSurface::New {
+                surface: numeric_plane,
+                sense: true,
+            },
+        )
         .unwrap();
     // Tier 2 (chord-line descriptions are not intrinsic, so tier 3's
     // TransverseNotIntrinsic applies by design; the coplanar plateau
@@ -947,13 +994,13 @@ fn merge_coplanar_annulus_makes_ring_and_spares_numeric_center() {
     // reach for chord-line descriptions - TransverseNotIntrinsic - so
     // the volume sign carries the complement witness here).
     let original = dump(&cube.body);
-    let reverted = cube.body.revert().unwrap();
+    let reverted = cube.body.revert();
     assert_eq!(validate_closed(&reverted), Ok(()));
     let rvol = topo::mass_properties(&reverted, Tol::witness())
         .unwrap()
         .volume;
     assert_eq!(rvol.to_bits(), (-vol1).to_bits());
-    assert_eq!(dump(&reverted.revert().unwrap()), original);
+    assert_eq!(dump(&reverted.revert()), original);
 }
 
 /// TARGET 6/8: sharper numeric-coincidence teeth than the shipped
@@ -998,7 +1045,10 @@ fn merge_coplanar_uref_and_signed_zero_teeth() {
             .mef(
                 MefSite::Chords { he1, he2 },
                 line(pa, pc),
-                FaceSurface::New(variant),
+                FaceSurface::New {
+                    surface: variant,
+                    sense: true,
+                },
                 Tol::witness(),
             )
             .unwrap();
@@ -1135,12 +1185,21 @@ fn merge_coplanar_nan_payload_debug_collision() {
         .mef(
             MefSite::Chords { he1, he2 },
             line(pa, pc),
-            FaceSurface::New(nan_plane(0x7ff8_0000_0000_0001)),
+            FaceSurface::New {
+                surface: nan_plane(0x7ff8_0000_0000_0001),
+                sense: true,
+            },
             Tol::witness(),
         )
         .unwrap();
     cube.body
-        .set_face_surface(top, FaceSurface::New(nan_plane(0x7ff8_0000_0000_0002)))
+        .set_face_surface(
+            top,
+            FaceSurface::New {
+                surface: nan_plane(0x7ff8_0000_0000_0002),
+                sense: true,
+            },
+        )
         .unwrap();
     let _ = split;
     // Tier 2 (structural) passes: the gate merge_coplanar_faces runs.
@@ -1175,7 +1234,13 @@ fn merge_coplanar_full_plateau_atomicity() {
         Tol::witness(),
     );
     cube.body
-        .set_face_surface(center, FaceSurface::New(top_plane))
+        .set_face_surface(
+            center,
+            FaceSurface::New {
+                surface: top_plane,
+                sense: true,
+            },
+        )
         .unwrap();
     // Re-stamp: the center's replacement surface joins the shared
     // source (the M4 PR 5 form of "declared-equal center").

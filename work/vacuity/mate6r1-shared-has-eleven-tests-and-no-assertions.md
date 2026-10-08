@@ -41,7 +41,7 @@ row that now owns the claim (S-TCOST's keep-out).
 
 ## The class, not the instance
 
-Three suites ride the shared `PART_BODY` with nothing that can see it
+Three suites rode the shared `PART_BODY` with nothing that can see it
 move. Under a planted mutation (`PART_BODY` = `RecipeNodeId(3)`) on the
 tree BEFORE the shared store's guard landed, each went **zero rows red**:
 
@@ -56,11 +56,12 @@ nothing**, a header that says the differential property "is spent", and
 one row red under the mutation. Same class, same directory, found by
 the same method.
 
-`PartStore::insert` now refuses a document whose body is not at
-`PART_BODY`, so the mutation above goes red in 224 rows rather than
-none — but that guard checks the CONSTANT against the builders, not
-these suites' printed answers against anything. The rows below are
-still unguarded.
+The shared constant is gone: each suite's part builder now hands back
+the body it minted, and `in_part` takes it
+(`part-suites-name-every-parts-body-by-one-constant`). That removes
+the coupling the mutation probed, not the gap it exposed — nothing
+checks these suites' printed answers against anything, and the rows
+below are still unguarded.
 
 `crates/editor-core/tests/mate1_r1_probes.rs` carried the same
 `RecipeNodeId(1)` spelling and does assert, but only over

@@ -94,6 +94,8 @@
 //! the shapes are compile-time constants. No `Vec`, no allocation, no
 //! input-dependent index anywhere.
 
+use crate::real::Real;
+
 /// One-sided Jacobi sweeps, **fixed** (D9: the operation count is a
 /// function of the shape, never of the values). Twelve sweeps is far
 /// past convergence for the 2×2 and 3×3 triangular factors this module
@@ -272,33 +274,20 @@ impl<const M: usize, const N: usize> Svd<M, N> {
     /// NaN if any singular value is NaN, which is the honest reading of
     /// a poisoned input: every downstream band test then fails.
     pub fn sigma_min(&self) -> f64 {
-        let mut acc = f64::INFINITY;
-        for s in self.sigma.iter() {
-            // NaN-propagating: `f64::min` deliberately *swallows* NaN
-            // (returns the other operand), which is exactly wrong for a
-            // certificate-facing reading — a poisoned singular value
-            // must fail every band, not hide behind its neighbour.
-            acc = if s.is_nan() || acc.is_nan() {
-                f64::NAN
-            } else {
-                acc.min(*s)
-            };
-        }
-        acc
+        // `Real::min`, not the inherent `f64::min`, which swallows NaN
+        // and would let a poisoned singular value hide behind its
+        // neighbour.
+        self.sigma
+            .iter()
+            .fold(f64::INFINITY, |acc, &s| Real::min(acc, s))
     }
 
     /// The largest singular value — the natural **lever arm** for a
     /// dimensionless band on [`Svd::sigma_min`]. Folded ascending (D9).
     pub fn sigma_max(&self) -> f64 {
-        let mut acc = f64::NEG_INFINITY;
-        for s in self.sigma.iter() {
-            acc = if s.is_nan() || acc.is_nan() {
-                f64::NAN
-            } else {
-                acc.max(*s)
-            };
-        }
-        acc
+        self.sigma
+            .iter()
+            .fold(f64::NEG_INFINITY, |acc, &s| Real::max(acc, s))
     }
 
     /// The null direction: the last right singular vector, unit-length
@@ -659,5 +648,29 @@ mod tests {
             s1.null_direction().map(f64::to_bits),
             s2.null_direction().map(f64::to_bits)
         );
+    }
+
+    /// One poisoned singular value among finite ones poisons both
+    /// folds, in every position. A whole-input NaN poisons every value
+    /// at once and cannot tell a NaN-dropping fold (the inherent
+    /// `f64::min`/`max`) from a propagating one; this row can.
+    #[test]
+    fn one_nan_singular_value_poisons_both_folds_in_every_position() {
+        let base = Svd3x4::new([
+            [2.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 3.0, 0.0],
+        ]);
+        assert!(
+            base.sigma().iter().all(|s| s.is_finite()),
+            "{:?}",
+            base.sigma()
+        );
+        for k in 0..3 {
+            let mut poisoned = base;
+            poisoned.sigma[k] = f64::NAN;
+            assert!(poisoned.sigma_min().is_nan(), "sigma_min, NaN at {k}");
+            assert!(poisoned.sigma_max().is_nan(), "sigma_max, NaN at {k}");
+        }
     }
 }

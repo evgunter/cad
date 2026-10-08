@@ -43,6 +43,7 @@ use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
 use sweep::blend::BlendError;
 use sweep::chamfer::chamfer_edges;
 use sweep::{Extrusion, extrude};
@@ -57,9 +58,16 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a convex polygon validates");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("the prism extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the prism extrudes")
+    .body
 }
 
 /// **The material oracle**: on a CONVEX body, every face's sensed
@@ -69,12 +77,7 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
 /// `validate_geometric`'s internals; a single flipped sense bit or a
 /// wrongly-folded chart normal reddens it.
 fn assert_every_face_outward(body: &Body<f64>) {
-    let pts: Vec<Point3<f64>> = body
-        .vertices()
-        .filter_map(|(k, _)| body.get_vertex(k))
-        .filter_map(|v| body.get_point(v.point))
-        .copied()
-        .collect();
+    let pts: Vec<Point3<f64>> = body.vertex_points().map(|(_, p)| p).collect();
     let n = pts.len() as f64;
     let interior = Point3::new(
         pts.iter().map(|p| p.x).sum::<f64>() / n,
@@ -147,8 +150,13 @@ fn a_general_box_matches_an_independent_closed_form() {
         );
         let d = rng.range(0.02, 0.2) * a.min(b).min(c);
         let pad = prism(&[(0.0, 0.0), (a, 0.0), (a, b), (0.0, b)], c);
-        let out = chamfer_edges(&pad, &query::all_edges(&pad), d, Tol::witness())
-            .unwrap_or_else(|e| panic!("a {a}×{b}×{c} box chamfers at {d}: {e}"));
+        let out = chamfer_edges(
+            &sweep::test_support::at_rest(&pad, Tol::witness()),
+            &query::all_edges(&pad),
+            d,
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("a {a}×{b}×{c} box chamfers at {d}: {e}"));
         assert_chamfer_shape(&out.body, (24, 48, 26));
         assert_every_face_outward(&out.body);
         // Deliberately NOT `common::oracles::chamfered_cube_volume`:
@@ -208,8 +216,13 @@ fn a_skewed_wedge_chamfers_with_every_face_outward() {
         // Setback small against every feature so the request is
         // honestly grantable.
         let d = 0.02 * base.min(h).min(t);
-        let out = chamfer_edges(&body, &query::all_edges(&body), d, Tol::witness())
-            .unwrap_or_else(|e| panic!("the wedge chamfers at {d}: {e}"));
+        let out = chamfer_edges(
+            &sweep::test_support::at_rest(&body, Tol::witness()),
+            &query::all_edges(&body),
+            d,
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("the wedge chamfers at {d}: {e}"));
         assert_chamfer_shape(&out.body, (18, 36, 20));
         assert_every_face_outward(&out.body);
         let props = topo::mass_properties(&out.body, Tol::witness()).expect("props");
@@ -252,12 +265,25 @@ fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a rectangle validates");
-    let pad = extrude(&profile, Extrusion::Distance(Probe(1.0)), Tol::witness())
-        .expect("the pad extrudes")
-        .body;
+    let pad = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: Probe(1.0),
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the pad extrudes")
+    .body;
     let edges: Vec<EdgeKey> = pad.edges().map(|(k, _)| k).collect();
     k_stats::start_recording();
-    chamfer_edges(&pad, &edges, Probe(0.1), Tol::witness()).expect("the pad chamfers");
+    chamfer_edges(
+        &sweep::test_support::at_rest(&pad, Tol::witness()),
+        &edges,
+        Probe(0.1),
+        Tol::witness(),
+    )
+    .expect("the pad chamfers");
     let samples = k_stats::take_samples();
     // The construction also meters the certification predicates
     // (carrier_*, witness_*, dihedral_*) — real questions of the
@@ -339,29 +365,20 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
         )
         .expect("the ball translates")
     };
-    let dimpled = {
-        use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
-        boolean_op_with(
-            BooleanOp::Subtract,
-            &cube,
-            &ball,
-            &BooleanDeclarations::none(),
-            SweepStrategy::Realized,
-            Tol::witness(),
-        )
-        .expect("the dimple subtracts")
-        .body()
-        .expect("a body")
-        .body
-        .clone()
-    };
+    let dimpled =
+        sweep::test_support::realized(topo::BooleanOp::Subtract, &cube, &ball, Tol::witness());
     let surviving: Vec<EdgeKey> = box_edges
         .into_iter()
         .filter(|k| dimpled.get_edge(*k).is_some())
         .collect();
     assert_eq!(surviving.len(), 12, "every box edge survives the dimple");
-    let out = chamfer_edges(&dimpled, &surviving, d, Tol::witness())
-        .expect("the dimpled spacer's twelve edges chamfer around its ring");
+    let out = chamfer_edges(
+        &sweep::test_support::at_rest(&dimpled, Tol::witness()),
+        &surviving,
+        d,
+        Tol::witness(),
+    )
+    .expect("the dimpled spacer's twelve edges chamfer around its ring");
     assert_eq!(topo::validate(&out.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&out.body), Ok(()), "tier 2");
     assert_eq!(
@@ -414,7 +431,12 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
     // pairs are all adjacent and skipped. The row asserts the
     // contract, not the arm, so a future widening that grants this
     // request stays green only by staying valid.
-    match chamfer_edges(&body, &query::all_edges(&body), d, Tol::witness()) {
+    match chamfer_edges(
+        &sweep::test_support::at_rest(&body, Tol::witness()),
+        &query::all_edges(&body),
+        d,
+        Tol::witness(),
+    ) {
         Err(e) => {
             // Typed refusal is an honest answer; assert it is one of
             // the verb's own documented arms, not a panic elsewhere.
@@ -461,7 +483,11 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
 /// quantity of the body and takes no K-corpus row.
 #[test]
 fn a_nonpositive_setback_refuses_as_invalid_input() {
-    let pad = prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0);
+    let pad = sweep::test_support::finished(
+        "pad",
+        prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0),
+        Tol::witness(),
+    );
     let edges = query::all_edges(&pad);
     for d in [0.0, -0.1] {
         let err = chamfer_edges(&pad, &edges, d, Tol::witness())
@@ -482,14 +508,11 @@ fn a_nonpositive_setback_refuses_as_invalid_input() {
 /// all-CONVEX-edges request (the concave inner edge deliberately left
 /// out) still refuses, and this row pins WHAT it refuses with. The two
 /// requested cap edges flanking the omitted inner edge meet at its end
-/// vertices as two-link junctions, so the battery's chain-G1 predicate
-/// reaches the request before any coverage door does and the consumer
-/// reads `ChainNotG1` — "supply a tangent-continuous chain, or split
-/// the request at the tangent break" — although splitting at the break
-/// refuses again (run-out), so the recourse leads nowhere on this
-/// body. A refusal that is TRUE but points at chain smoothness when
-/// the situation is v1's all-or-nothing corner coverage: recorded as a
-/// review finding; the pin keeps the verdict decided and visible.
+/// vertices as two-link junctions; chain G1 reads a definite turn there
+/// and breaks the chain, and the corner predicate refuses each such
+/// vertex for its configuration: two convex edges and the omitted
+/// concave one are not one convexity, so it is `MixedConvexity` before
+/// it is a turn.
 #[test]
 fn the_brackets_best_convex_request_still_refuses_typed() {
     let bracket = prism(
@@ -526,11 +549,21 @@ fn the_brackets_best_convex_request_still_refuses_typed() {
         query::all_edges(&bracket).len() - 1,
         "one edge out"
     );
-    let err = chamfer_edges(&bracket, &edges, 0.05, Tol::witness())
-        .expect_err("a corner with an unrequested edge cannot be patched");
+    let err = chamfer_edges(
+        &sweep::test_support::at_rest(&bracket, Tol::witness()),
+        &edges,
+        0.05,
+        Tol::witness(),
+    )
+    .expect_err("a corner with an unrequested edge cannot be patched");
     assert!(
-        matches!(err.error, BlendError::ChainNotG1 { .. }),
-        "today's decided answer is the chain-G1 kink at the omitted edge's ends \
-         (see the row doc for why that framing is itself a finding): {err:?}"
+        matches!(
+            err.error,
+            BlendError::UnsupportedCorner {
+                corner: sweep::blend::CornerConfig::MixedConvexity { convex: 2 },
+                ..
+            }
+        ),
+        "the omitted edge's ends are mixed-convexity vertices: {err:?}"
     );
 }

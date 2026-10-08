@@ -23,7 +23,7 @@ use super::{
     Discharge, INDET_PI, ParamSymbol, SESSION, Session, SymId, SymOp, early_form, indet_param,
     plain_form,
 };
-use crate::predicate::{Indeterminate, MarginDiag, Sign};
+use crate::predicate::{Decided, Indeterminate, Sign};
 
 /// How one decision at the symbolic scalar came out.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -140,11 +140,11 @@ pub fn explain_render_chars(chars: usize) {
     RENDER_CHARS.set(chars);
 }
 
-/// Registers a parameter's NAME for rendering, on this thread.
-pub fn name_param(name: &str) {
+/// Registers the NAME `symbol` renders as, on this thread.
+pub fn name_param(symbol: ParamSymbol, name: &str) {
     NAMES.with(|n| {
         n.borrow_mut()
-            .insert(indet_param(ParamSymbol::of(name).0), name.to_owned());
+            .insert(indet_param(symbol.0), name.to_owned());
     });
 }
 
@@ -156,7 +156,7 @@ pub(super) fn active() -> bool {
 /// the tier answered it, if it did: an unconditional theorem, or one
 /// gated on a clause-3 sign read (rule C).
 pub(super) fn record(
-    numeric: &Result<Sign, Indeterminate>,
+    numeric: &Result<Decided, Indeterminate>,
     symbolic: Option<Discharge>,
     rendered: Option<Rendered>,
     enclosure: Option<(f64, f64)>,
@@ -168,9 +168,14 @@ pub(super) fn record(
         (Some(Discharge::Theorem), _) => ShapeOutcome::Theorem,
         (Some(Discharge::SignGated), _) => ShapeOutcome::SignGated,
         (Some(Discharge::Registered), _) => ShapeOutcome::Registered,
-        (None, Ok(Sign::Zero)) => ShapeOutcome::NumericZero,
-        (None, Ok(s)) => ShapeOutcome::Definite(*s),
-        (None, Err(e)) if matches!(e.margin, MarginDiag::Invalid) => ShapeOutcome::Invalid,
+        (
+            None,
+            Ok(Decided {
+                sign: Sign::Zero, ..
+            }),
+        ) => ShapeOutcome::NumericZero,
+        (None, Ok(Decided { sign, .. })) => ShapeOutcome::Definite(*sign),
+        (None, Err(e)) if e.margin.is_invalid() => ShapeOutcome::Invalid,
         (None, Err(_)) => ShapeOutcome::Indeterminate,
     };
     let (form, early_form, sizes, explain) = match rendered {
@@ -402,6 +407,7 @@ fn render_indet(sess: &Session, id: u128, depth: usize) -> String {
             SymOp::Min => "min",
             SymOp::Max => "max",
             SymOp::Copysign => "copysign",
+            SymOp::Select => "select",
             _ => "?",
         };
         if depth >= DEPTH {

@@ -48,13 +48,13 @@ pub fn interactive(tol: Tol) -> Result<ProfileDoc, WorkspaceError> {
     Ok(ProfileDoc::empty(random_document_id()?, tol))
 }
 
-/// An empty document whose identity is derived from `label` — the
+/// An empty document whose identity is derived from `seed` — the
 /// deterministic spelling, for callers whose saves must reproduce
 /// byte for byte.
 ///
-/// Two documents authored under the SAME label are the same part, by
+/// Two documents authored under the SAME seed are the same part, by
 /// construction. That is the point of the door, and it is why it is
 /// not the default.
-pub fn derived(label: &str, tol: Tol) -> ProfileDoc {
-    ProfileDoc::empty_derived(label, tol)
+pub fn derived(seed: &str, tol: Tol) -> ProfileDoc {
+    ProfileDoc::empty_derived(seed, tol)
 }

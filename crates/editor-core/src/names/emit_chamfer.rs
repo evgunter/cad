@@ -28,12 +28,14 @@
 //!
 //! # What a chamfer's records actually carry
 //!
-//! `blends` are the flat strips, `corners` the planar patches, and
-//! `bands` is empty: a chamfer has no closed-chain band, so the rim
-//! roles (`BandFace`, `BandTrim`, `BandFoot`, `BandCross`, `BandCut`,
-//! `BandSlit`) simply have no rows to translate. That is a fact about
-//! the surgery's output, not a branch here — the shared translation
-//! iterates whatever rows it is given.
+//! `blends` are the flat strips, `joined_blends` the strips carved
+//! across joints (named `BandFace` of their chain's edges, as the
+//! fillet's are), `corners` the planar patches, and `bands` is empty: a
+//! chamfer has no closed-chain band, so the rim roles (`BandTrim`,
+//! `BandFoot`, `BandCross`, `BandCut`, `BandSlit`) simply have no rows
+//! to translate. That is a fact about the surgery's output, not a
+//! branch here — the shared translation iterates whatever rows it is
+//! given.
 //!
 //! # Ties
 //!

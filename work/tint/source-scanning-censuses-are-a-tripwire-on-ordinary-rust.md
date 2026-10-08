@@ -122,7 +122,9 @@ The lane renamed its constructor to `product_unavailable` rather than
 patch a scanner in another program's file (it is a better name beside
 `separation_unavailable` anyway, and it matches the published tag). So
 nothing is fixed: **the tripwire is still armed** for the next person
-who names anything `product` in `checks.rs`.
+who names anything `product` in `checks.rs`. (`product_unavailable` is
+gone since PR 3794: `ChecksError::Product` now carries the refusal
+whole and the door builds the arm in place.)
 
 Worth recording for this row's argument specifically: the row's
 existing instances are censuses that scan a *declaration* grammar. This
@@ -131,6 +133,23 @@ cannot tell a call from a declaration, a definition, a doc comment or a
 string. That is a second grammar with the same failure mode, and it
 suggests the row's subject is source-text counting as such rather than
 any particular parser's gaps.
+
+## A second firing (2026-10-02, PR 3794)
+
+`docm5_subject.rs`'s `nothing_clones_or_shares_the_product` matches
+`"Arc<Product"`, `"Clone for Product"` and
+`"#[derive(Debug, Clone)]\npub struct Product"` in the code view of
+`checks.rs`, `assembly.rs` and `product.rs`. PR 3794's lane added a
+shared gather refusal, `ProductRefusal(Arc<ProductError>)`, which
+clones a pointer to the gather's ERROR and shares nothing of the
+product. All three needles hit on the `Product` prefix of
+`ProductError` and `ProductRefusal`, and the row went red for code
+it does not govern. The lane narrowed each needle to end at the
+generic's `<` (`Arc<Product<`, `Clone for Product<`,
+`pub struct Product<`). That is the same failure mode as the instance
+above: a prefix of a name read as the name. The narrowed needles are
+still prefixes, so a type spelled `Product<…>` in another sense would
+trip them again.
 
 ## Re-derived (2026-09-15, lane C)
 

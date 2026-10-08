@@ -29,14 +29,12 @@ is no way through` marker (zero to `test_utils::refusal::recourse_markers`):
   (`:1801`), `ZipCorrespondence` (`:1804`), each a "(kernel bug)" tag,
   and `ResultInvalid` (`:1810`, "— kernel bug, no invalid body is
   returned").
-- `topo::BooleanError::ScaffoldingOperand` (`boolean/mod.rs:1564`):
-  "This is a bug in whatever produced that body; please report it".
-  Not folded onto `KERNEL_DEFECT_ENDING`, because "kernel defect" is
-  not established: `Body::mev_null` is public, so an API caller can
-  hand the Boolean a body left mid-surgery. The ending still carries no
-  marker. Its repair has to decide whose defect it names (a dead end
-  that does not claim the kernel, or a repair for the caller who
-  produced the body).
+- `topo::BooleanError::ScaffoldingOperand`: decided by CLEAVE's
+  `a-strut-bearing-operand-passes-the-boolean-gates-and-refuses-at-the-join`.
+  The operand gate now refuses on tier 2's own verdict (a strut, an
+  empty loop or a null edge left by a public Euler op is the caller's
+  unfinished edit), so the text ends in a caller recourse ("finish that
+  edit first"), not a report. Off this list.
 - `topo::props::MassPropsError::RingOnCurvedFace`
   (`crates/topo/src/props.rs:234`): "report this rather than repairing
   a body", behind a `mass properties:` prefix.

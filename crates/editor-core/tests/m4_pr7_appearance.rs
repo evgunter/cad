@@ -6,11 +6,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
+use editor_core::NodeStanding;
 use editor_core::{
     AppearanceLossCause, Attr, AttrKind, BooleanOp, CancelToken, CapEnd, Dimension, DocEdit,
-    DocParam, EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Expr, Node, ParamName,
-    PatternKind, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, StableName, evaluate,
+    EditError, EntityKey, EntityKind, EvalOptions, Evaluation, Formula, FreeVar, Node, PatternKind,
+    ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SpokenName, StableName, VarName, evaluate,
 };
 use fixture::{DEPTH, desc, die, insert, len, minted, on_frame, scl, square, step};
 use geom_core::Tol;
@@ -63,6 +65,7 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -108,7 +111,7 @@ fn set_appearance_validates_and_applies_purely() {
     let edge = minted(
         EntityKind::Edge,
         ext,
-        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, ext, 0, 0)),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, ext, 0, 0).into()),
     );
     assert_eq!(
         doc.apply(
@@ -120,13 +123,15 @@ fn set_appearance_validates_and_applies_purely() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::AppearanceWrongKind { name: edge }
+        EditError::AppearanceWrongKind {
+            name: doc.spoken_name(&edge)
+        }
     );
 
     // A never-existed node id: typed refusal at the edit door.
     let bogus = minted(
         EntityKind::Face,
-        RecipeNodeId(999),
+        RecipeNodeId::new(0, 999),
         RoleSeg::Cap(CapEnd::End),
     );
     assert_eq!(
@@ -139,7 +144,9 @@ fn set_appearance_validates_and_applies_purely() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::AppearanceNamesMissingNode { name: bogus }
+        EditError::AppearanceNamesMissingNode {
+            name: SpokenName::absent(bogus)
+        }
     );
 }
 
@@ -166,7 +173,7 @@ fn multi_attribute_per_entity_and_clear_semantics() {
         )
         .unwrap_err(),
         EditError::AppearanceNotSet {
-            name: body.clone(),
+            name: doc.spoken_name(&body),
             kind: AttrKind::Color,
         }
     );
@@ -174,12 +181,16 @@ fn multi_attribute_per_entity_and_clear_semantics() {
     // Three kinds coexist on one name.
     let doc = set(doc, body.clone(), red());
     let doc = set(doc, body.clone(), Attr::Visibility(false));
-    let doc = set(doc, body.clone(), Attr::Label("housing".into()));
+    let doc = set(
+        doc,
+        body.clone(),
+        Attr::Label(editor_core::Label::new("housing").unwrap()),
+    );
     let attrs = doc.appearance_of(&body).unwrap();
     assert_eq!(attrs.attrs.len(), 3);
     assert_eq!(
         attrs.attrs.get(&AttrKind::Label),
-        Some(&Attr::Label("housing".into()))
+        Some(&Attr::Label(editor_core::Label::new("housing").unwrap()))
     );
 
     // Same-kind set replaces (one slot per kind).
@@ -240,6 +251,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
         Node::Extrude {
             profile: p,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
@@ -248,33 +260,37 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
     // diff: appearance-only change is reported, and only it.
     let d = doc2.diff(&doc3);
     assert!(d.appearance_changed);
-    assert!(d.nodes.is_empty() && d.params.is_empty() && !d.metadata_changed);
+    assert!(d.nodes.is_empty() && d.vars.is_empty() && !d.metadata_changed);
     assert!(!d.is_empty());
 
     // Replay from empty reproduces the appearance bit-identically.
-    let edits = vec![
+    let edits = [
         // The frame first: the profile names it, so a replay that
         // skipped it would insert a profile with an unresolved input.
         DocEdit::InsertNode {
-            node: doc3.node(plane).unwrap().clone(),
+            node: Box::new(editor_core::test_support::as_written(
+                &doc3,
+                doc3.node(plane).unwrap(),
+            )),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
-            node: crate::fixture::as_authored(doc3.node(p).unwrap()),
+            node: Box::new(crate::fixture::as_authored(&doc3, doc3.node(p).unwrap())),
+            fresh: Vec::new(),
         },
         DocEdit::InsertNode {
-            node: doc3.node(ext).unwrap().clone(),
+            node: Box::new(editor_core::test_support::as_written(
+                &doc3,
+                doc3.node(ext).unwrap(),
+            )),
+            fresh: Vec::new(),
         },
         DocEdit::SetAppearance {
             name: cap,
             attr: red(),
         },
     ];
-    let replayed = ProfileDoc::replay(
-        doc3.id(),
-        &editor_core::LoggedEdit::bare_all(&edits),
-        Tol::witness(),
-    )
-    .unwrap();
+    let replayed = ProfileDoc::replay(doc3.id(), &edits, Tol::witness()).unwrap();
     assert!(replayed.bit_eq(&doc3));
 }
 
@@ -295,7 +311,11 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
                 .then(|| n.clone())
         })
         .expect("final die table has a unique face");
-    let doc = set(d.doc, body.clone(), Attr::Label("die".into()));
+    let doc = set(
+        d.doc,
+        body.clone(),
+        Attr::Label(editor_core::Label::new("die").unwrap()),
+    );
     let doc = set(doc, face.clone(), red());
 
     let ev1 = run(&doc);
@@ -317,9 +337,10 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
     // dyadic, still-shallow pip depth).
     let (doc2, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::new("pip_depth"),
-            value: DocParam::continuous(Dimension::Length, DEPTH * 1.5),
+        DocEdit::DefineVar {
+            var: VarName::from_static("pip_depth").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, DEPTH * 1.5)),
+            fresh: Vec::new(),
         },
     );
     let ev2 = rerun(&doc2, &ev1);
@@ -361,12 +382,14 @@ fn transform_pass_through_carries_the_attribute_downstream() {
     );
     let (doc, moved) = insert(
         doc,
-        Node::Transform {
-            input: ext,
-            translation: [len(4.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
+        Node::transform(
+            ext,
+            editor_core::Step::Rigid {
+                translation: [len(4.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        ),
     );
     let cap = minted(EntityKind::Face, ext, RoleSeg::Cap(CapEnd::End));
     let doc = set(doc, cap.clone(), red());
@@ -446,13 +469,14 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
             node: ext,
             slot: editor_core::SlotId::Distance,
             expr: len(0.0),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
     assert_eq!(ev.appearance.losses.len(), 1);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::TargetFailed { node: ext }
+        AppearanceLossCause::Indeterminate(NodeStanding::Failed { node: ext })
     );
     // Repair the parameter: the attribute resolves again, unchanged —
     // it was never dropped.
@@ -462,6 +486,7 @@ fn failed_target_node_is_a_typed_indeterminate_loss() {
             node: ext,
             slot: editor_core::SlotId::Distance,
             expr: len(1.0),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -481,7 +506,7 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     // Attribute a UNION-minted face name (node = the boolean).
@@ -507,13 +532,17 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
             node: a,
             slot: editor_core::SlotId::Distance,
             expr: len(0.0),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
     assert_eq!(ev.appearance.losses.len(), 1);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::TargetPoisoned { through: a }
+        AppearanceLossCause::Indeterminate(NodeStanding::Poisoned {
+            node: uni,
+            through: a
+        })
     );
 }
 
@@ -530,7 +559,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
         doc,
         Node::Pattern {
             input: ext,
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
                 spacing: len(2.0),
@@ -560,7 +589,8 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: editor_core::SlotId::Count,
-            expr: Expr::count(2),
+            expr: Formula::count(2),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc);
@@ -580,7 +610,8 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
         DocEdit::SetStructuralParam {
             node: pat,
             slot: editor_core::SlotId::Count,
-            expr: Expr::count(3),
+            expr: Formula::count(3),
+            fresh: Vec::new(),
         },
     );
     assert!(run(&doc).appearance.is_lossless());
@@ -613,6 +644,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
         Node::Extrude {
             profile: p,
             distance: len(2.0),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, sub) = insert(
@@ -621,7 +653,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
             op: BooleanOp::Subtract,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     (doc, sub)
@@ -663,17 +695,19 @@ fn ambiguous_loss_is_deduplicated_across_carrying_tables() {
     // Review A2 (adapted from the reviewer's transform-duplicate
     // probe): a tied name passed through a Transform appears in TWO
     // tables; the loss report stays per-name — exactly ONE Ambiguous
-    // row, `at` = the first carrying node in id order (the subtract),
-    // the rest derivable by table lookup.
+    // row, `at` = the first carrying node in evaluation order, the rest
+    // derivable by table lookup.
     let (doc, sub) = tie_fixture();
     let (doc, _moved) = insert(
         doc,
-        Node::Transform {
-            input: sub,
-            translation: [len(10.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: fixture::ang(0.0),
-        },
+        Node::transform(
+            sub,
+            editor_core::Step::Rigid {
+                translation: [len(10.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: fixture::ang(0.0),
+            },
+        ),
     );
     let ev = run(&doc);
     let tied = tied_name(&ev, sub);
@@ -717,7 +751,7 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
             op: BooleanOp::Union,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
     );
     let cap = minted(EntityKind::Face, a, RoleSeg::Cap(CapEnd::End));
@@ -750,6 +784,6 @@ fn canceled_run_reports_not_evaluated_not_vanished() {
     assert_eq!(ev.appearance.losses.len(), 1);
     assert_eq!(
         ev.appearance.losses[0].cause,
-        AppearanceLossCause::TargetNotEvaluated
+        AppearanceLossCause::Indeterminate(NodeStanding::NotEvaluated { node: ext })
     );
 }

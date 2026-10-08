@@ -39,3 +39,15 @@ holds every stored profile and the folded slot rows go away. The held
 state then needs an argument's expression beside its number, and
 `sketch::program_edits` must leave a driven argument whose value has
 not moved unwritten, which it already does by comparing values.
+
+## 2026-09-29 — `program_edits` is gone (AUTH-6)
+
+AUTH-6 (`author/profile-reshape`) retired `sketch::program_edits`. The
+edit door now commits one `DocEdit::SetProgram`. The duty named above
+belongs to `session.rs`'s `carry_unmoved` now: every argument of a
+kept step that has not moved is written as the document holds it, so it
+keeps its expression and its notation. A kept step's driven argument
+that the program does not hold unmoved refuses `DrivenByExpression`
+(`profile_edit::a_kept_driven_argument_is_not_written_over`). The held
+state still has no expression beside a number, so this row's work is
+unchanged.

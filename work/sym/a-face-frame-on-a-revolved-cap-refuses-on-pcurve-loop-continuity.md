@@ -84,3 +84,15 @@ program that claims point 1 should take the row.
 `crates/editor-core/tests/m10_derived_frame_tilted_interval.rs`,
 `sym5_the_reach_on_documents_the_unit_did_not_build`, case
 `tiltV revolved-cap` (`CAD_SYM5_CASES="tiltV revolved-cap"`).
+
+## The refusing decision is retired (2026-10-03, unmeasured since)
+
+PCERT's `pcurve-loop-decisions-state-a-3d-identity-plus-a-branch-margin`
+retires `pcurve_loop_continuity` on every analytic chart: a joint now
+states its deck element (`pcurve_loop_branch`, an integer decided with
+half a period of room at the vertex's own lever), and its 3-D
+coincidence follows from the rows' envelopes and the endpoint pinning.
+The revolve's wall here is a cylinder-family chart, so the refusal
+above cannot recur under its name. Not re-run: the row needs the
+SYM-5 e2e document rebuilt, and what refuses next (if anything) is
+this item's to measure.
