@@ -167,7 +167,8 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
 }
 
 /// With its caps derived, the curved loft's shell moves on to the walls
-/// and refuses at the first one's offset fit, at the run's ε.
+/// and refuses at the first one: its offset fit at the default ε, its
+/// fitted edge with the cap where the fit certifies.
 #[test]
 fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     let body = twisted_loft(0.3);
@@ -184,9 +185,15 @@ fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
         is_spline_wall(&nurbs_walls(&body), *face),
         "the refusing face is not a wall: {e}"
     );
+    // Which wall door answers first depends on ε: the fit's budget at
+    // the default ε, and at a looser one the fitted wall's own edge with
+    // the cap (a plane × fitted-surface section C5 does not route).
     assert!(
-        matches!(error.as_ref(), ReplaceFaceError::Fit { .. }),
-        "expected the wall's offset fit to refuse, got {e}"
+        matches!(
+            error.as_ref(),
+            ReplaceFaceError::Fit { .. } | ReplaceFaceError::FittedBoundaryUnsupported { .. }
+        ),
+        "expected the wall's offset fit or its fitted boundary to refuse, got {e}"
     );
 }
 

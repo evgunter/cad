@@ -622,11 +622,7 @@ fn plane_wall_section(
                 let Curve3::Nurbs(c) = branch.carrier else {
                     continue;
                 };
-                let (lo, hi) = c.domain();
-                let Ok(foot) = c.project_from_seed(mid, 0.5 * (lo + hi)) else {
-                    continue;
-                };
-                let r = c.eval(foot.t).distance(mid);
+                let (_, r) = nearest_sample(&c, mid);
                 if best.as_ref().is_none_or(|(_, rb)| r < *rb) {
                     best = Some(((*c).clone(), r));
                 }
@@ -639,13 +635,8 @@ fn plane_wall_section(
     };
     // Its sense: the old carrier's, read where the section passes
     // nearest the old middle.
-    let (lo, hi) = carrier.domain();
-    let Ok(foot) = carrier.project_from_seed(mid, 0.5 * (lo + hi)) else {
-        return Ok(Err(SectionVerdict::Unsupported {
-            what: "the old edge's middle has no foot on the section",
-        }));
-    };
-    let along = carrier.deriv(foot.t);
+    let (at, _) = nearest_sample(&carrier, mid);
+    let along = carrier.deriv(at);
     let cosine = along.dot(tangent) / (along.norm() * tangent.norm());
     Ok(
         match decide("offset_section_sense", Margin::of(cosine), band)? {
@@ -661,6 +652,21 @@ fn plane_wall_section(
             }),
         },
     )
+}
+
+/// The parameter of `c`'s sample nearest `p` on a fixed schedule, and
+/// its distance: which branch an old edge's middle is beside, and the
+/// sense there, are coarse questions a schedule answers without a
+/// projection that may not settle.
+fn nearest_sample(c: &NurbsCurve3<f64>, p: Point3<f64>) -> (f64, f64) {
+    const SAMPLES: u32 = 64;
+    let (lo, hi) = c.domain();
+    (0..=SAMPLES)
+        .map(|i| {
+            let t = lo + (hi - lo) * f64::from(i) / f64::from(SAMPLES);
+            (t, c.eval(t).distance(p))
+        })
+        .fold((lo, f64::INFINITY), |a, b| if b.1 < a.1 { b } else { a })
 }
 
 /// The wall's row the plane holds, where the wall's control rows are
