@@ -1271,10 +1271,17 @@ reads what was written.
 **Spaces and placement.** A part has no location. A **space** is a set
 of copies related to one another; a part is born in its own space. A
 **placement** is the bundle of mates that pins one copy of a part
-relative to others: two placements of a part are two copies, and a mate
-added to a pinned copy refuses as an overconstraint, decided by
-subgroup algebra (A11 (1)) without measuring. A mate places and never
-checks. The **world** is one undeletable frame that copies may be
+relative to others: two placements of a part are two copies. A
+placement is admitted by structure, never by value: subgroup algebra
+counts which of a mate's equations the bundle's other mates already
+fix, and the coincidence door decides whether each such equation holds
+structurally; a mate that fixes nothing new, or one with an
+already-fixed equation the door does not prove, refuses as an
+overconstraint (A11 (1)), without measuring, pinned or not. A mate
+places and never checks. A placed copy's frame is not a variable: its
+bundle is a set of equations the coincidence door reads as rewrite
+rules, so a mate-placed face, and every carrier built on it, is
+structural. The **world** is one undeletable frame that copies may be
 related to like a part; export reads its coordinates and nothing else
 does. Construction never reads the world; a document builds in a frame
 of its own. The kernel computes each space in the frame of its earliest
