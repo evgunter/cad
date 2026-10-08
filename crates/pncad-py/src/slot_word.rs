@@ -102,6 +102,7 @@ pub fn slot_from_word(word: &str) -> Option<SlotId> {
         "measure" => SlotId::Operand(OperandSlot::Measure),
         "plane" => SlotId::Operand(OperandSlot::Plane),
         "at" => SlotId::Operand(OperandSlot::At),
+        "body" => SlotId::Operand(OperandSlot::Body),
         _ => return None,
     };
     Some(slot)
