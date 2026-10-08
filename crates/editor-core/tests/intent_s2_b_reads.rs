@@ -588,8 +588,9 @@ fn the_comparator_reads_reads_as_inputs_and_catches_a_re_pointed_one() {
 }
 
 /// **(B, test 4, one shot) Every re-blessed document is the pre-B one
-/// up to ids, with reads in place of inputs** — its roots element for
-/// element and every other byte, except the tube subgraph, whose
+/// up to ids, with reads in place of inputs** (and a logged `SetParam`'s
+/// formula under `value`, Q1) — its roots element for element and every
+/// other byte, except the tube subgraph, whose
 /// anchor moved from a spine axis to a frame by design (FORK-1b) and
 /// is set aside on both sides.
 ///
@@ -613,7 +614,7 @@ fn every_re_blessed_document_is_the_pre_b_one_up_to_ids() {
         let read = |root: &std::path::Path| {
             crate::wire::wire_body(&std::fs::read_to_string(root.join(file)).expect("reads"))
         };
-        let (old, new) = (read(&base), read(&here));
+        let (old, new) = (up_to_ids::set_param_writes_value(&read(&base)), read(&here));
         // An edit log's reads name outputs its replay mints: the
         // replayed document's table says whose they are.
         let text = std::fs::read_to_string(here.join(file)).expect("reads");

@@ -4421,25 +4421,33 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
 /// someone has to remember to extend.
 #[test]
 fn every_slot_word_reads_back_to_the_slot_it_names() {
-    let entry = TAG_INVENTORY
-        .iter()
-        .find(|entry| entry.function == "slot_id_tag")
-        .expect("the inventory carries the slot alphabet");
-    for word in entry.values {
+    let words = |function: &str| {
+        TAG_INVENTORY
+            .iter()
+            .find(|entry| entry.function == function)
+            .unwrap_or_else(|| panic!("the inventory carries `{function}`"))
+            .values
+    };
+    // The operands' words are the slot alphabet's too, forwarded from
+    // `operand_slot_tag` (D10: an operand is a slot).
+    for word in words("slot_id_tag").iter().chain(words("operand_slot_tag")) {
         match crate::slot_word::slot_from_word(word) {
             Some(slot) => assert_eq!(
                 crate::tags::slot_id_tag(&slot),
                 *word,
                 "`{word}` reads back as a slot the forward map spells otherwise"
             ),
-            // The three words an address is not completed by: a
-            // profile program's expression is reached by a loop index,
-            // a step index and an argument role, a later placement
-            // step's by a step index and a component, and a mate
-            // offset's by a side, a step index and a component, none
-            // of which the word carries.
+            // The words an address is not completed by: a profile
+            // program's expression is reached by a loop index, a step
+            // index and an argument role, a later placement step's by a
+            // step index and a component, a mate offset's by a side, a
+            // step index and a component, and a list's entry by its
+            // position, none of which the word carries.
             None => assert!(
-                matches!(*word, "profile" | "placement_step" | "mate_frame_step"),
+                matches!(
+                    *word,
+                    "program" | "placement_step" | "mate_frame_step" | "section" | "member"
+                ),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
         }
@@ -6132,7 +6140,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "origin_y",
             "origin_z",
             "placement_step",
-            "profile",
+            "program",
             "radius",
             "revolve_angle",
             "rotation_angle",
@@ -6160,7 +6168,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "v_y",
             "v_z",
         ],
-        delegates: &[],
+        delegates: &["operand_slot_tag"],
     },
     TagEntry {
         function: "snapshot_error_tag",
@@ -6706,9 +6714,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // gauge's kind.
     ("plane", 2),
     ("poisoned", 2),
-    // The profile operand, the profile slot and the profile node's own
-    // evaluation class: one word for the one node kind.
-    ("profile", 3),
+    // The profile operand and the profile node's own evaluation class:
+    // one word for the one node kind. The profile PROGRAM's slot says
+    // `program`, which leaves `profile` to the operand the slot
+    // alphabet forwards.
+    ("profile", 2),
     ("revolve", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
     ("scaffolding_operand", 2),
@@ -8362,19 +8372,19 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
         }],
     },
     MintingItem {
-        owner: "slot_kind_tag",
-        literals: 2,
-        held_by: &[Holder::Test {
-            name: "slot_kind_tags_are_stable",
-            holds: "the two words of its own, and a kind's word as `var_kind_tag`'s",
-        }],
-    },
-    MintingItem {
         owner: "reads_as_prose",
         literals: 1,
         held_by: &[Holder::Test {
             name: "the_prose_rule_separates_a_display_from_a_debug_dump",
             holds: "the predicate over both fingerprints",
+        }],
+    },
+    MintingItem {
+        owner: "slot_kind_tag",
+        literals: 2,
+        held_by: &[Holder::Test {
+            name: "slot_kind_tags_are_stable",
+            holds: "the two words of its own, and a kind's word as `var_kind_tag`'s",
         }],
     },
     MintingItem {
