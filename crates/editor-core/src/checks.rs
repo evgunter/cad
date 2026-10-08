@@ -1055,7 +1055,7 @@ impl<T: Decide> Subject<'_, T> {
 ///
 /// # Errors
 ///
-/// [`ChecksError`] — an evaluation of another document, a root without
+/// [`ChecksError`] — an evaluation of another document, a placement without
 /// a value in `ev`, a band the tolerance cannot form, or a document
 /// whose placements do not gather into a product for a resident that reads
 /// one. These mean the checks could not run at all; a check that ran

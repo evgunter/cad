@@ -4261,6 +4261,12 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
 /// ([`names::name_placed`]). A split's half is its port, as a read of
 /// any port is that output. A boolean's empty result places as itself:
 /// an empty copy, a typed success (F8) the gather finds no solid in.
+///
+/// The copy carries the body's declared contact records and the
+/// declaration rows keyed with them (ASM-R2b D-1) verbatim: a rigid
+/// placement keeps every arena key (`transform_rigid`), so they key the
+/// copy as they keyed the body. A split's half carries none, as its
+/// value carries none.
 fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     of: RecipeNodeId,
@@ -4271,6 +4277,8 @@ fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> OpResult<T> {
     let value = value_of(results, of)?;
+    let mut contacts = Arc::clone(&value.contacts);
+    let mut carried = Arc::clone(&value.carried);
     let (body, index) = match &value.payload {
         ValuePayload::Boolean(BooleanValue::Empty) => {
             return Ok(OpOut::plain(
@@ -4278,12 +4286,22 @@ fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
                 names::empty(),
             ));
         }
+        ValuePayload::Boolean(BooleanValue::Body {
+            body,
+            contacts: records,
+            ..
+        }) => {
+            contacts = Arc::clone(records);
+            (Arc::clone(body), 0)
+        }
         ValuePayload::Split { above, below } => {
             let half = if port == 0 {
                 SplitHalf::Above
             } else {
                 SplitHalf::Below
             };
+            contacts = Arc::default();
+            carried = Arc::default();
             match if port == 0 { above } else { below } {
                 SplitSide::Body(b) => (Arc::clone(b), half.output_body()),
                 SplitSide::Empty => return Err(NodeErrorKind::EmptyHalf { input: of, half }),
@@ -4298,7 +4316,11 @@ fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
     let map = pose.motion_kept(vals, band(tol)?)?.non_identity();
     let placed = place(&body, map.as_ref(), Placing::of(id, 0, 1, 0)?, tol)?;
     let table = names::name_placed(id, &table, &placed).map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut::plain(ValuePayload::Body(Arc::new(placed)), table).carrying(value.parts))
+    Ok(OpOut {
+        contacts,
+        carried,
+        ..OpOut::plain(ValuePayload::Body(Arc::new(placed)), table).carrying(value.parts)
+    })
 }
 
 /// **What `node`'s slots read as written** ([`crate::Doc::slot_expansion`]),

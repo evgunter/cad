@@ -1785,9 +1785,10 @@ pub(crate) enum VerbatimEdge<'a> {
 /// projection, a split's intact entities (N1's pass-through ops).
 /// Every other node is classified as re-minting what it carries.
 ///
-/// Two walks read the set here: the product's two-roots check
-/// (`product::placed_under_two_roots`) and the mate member walk
-/// (`mate::member::walk`); they differ only in where each stops. The
+/// Two walks read the set here: split's test of which cut placement's
+/// copy carries a name (`refactor::split`'s `in_world`, which follows
+/// `Whole` edges alone) and the mate member walk (`mate::member::walk`);
+/// they differ only in where each stops. The
 /// compiler holds the three together: this match is exhaustive, so a
 /// new node kind does not compile until it is classified here, and
 /// both walks match [`VerbatimEdge`] without a wildcard, so a new kind

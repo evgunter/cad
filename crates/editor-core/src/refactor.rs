@@ -3327,15 +3327,36 @@ pub fn split(
     })?;
     // A cut name re-anchors as the part's product spells it: under the
     // one cut placement whose copy holds its entity
-    // ([`RoleSeg::Placed`]), since a part delivers only its world. A
-    // name of material no cut placement places, or two do, names
-    // nothing the instance carries.
+    // ([`RoleSeg::Placed`]), since a part delivers only its world. The
+    // copy holds the names its body minted and those a transform below
+    // it carried whole (N1's `Whole` edge); a part's projection is not
+    // followed, because which of its input's bodies a name is of is
+    // the evaluation's answer, not the recipe's. A name of material no
+    // cut placement places, or two do, names nothing the instance
+    // carries.
     let in_world = |name: &StableName| -> Result<StableName, SplitError> {
         let of = remap_name(name, &node_map, &step_map)
             .map_err(|missing| SplitError::straddles(doc, name, missing))?;
+        let holds = |placed: Option<RecipeNodeId>| -> bool {
+            let mut at = placed;
+            while let Some(node) = at {
+                if node == name.node {
+                    return true;
+                }
+                at = match doc.node(node).and_then(crate::names::verbatim_edge) {
+                    Some(crate::names::VerbatimEdge::Whole { input }) => doc.operation_of(input),
+                    Some(
+                        crate::names::VerbatimEdge::Selected { .. }
+                        | crate::names::VerbatimEdge::Intact,
+                    )
+                    | None => None,
+                };
+            }
+            false
+        };
         let mut placing = in_order.iter().copied().filter(|&p| {
             matches!(doc.node(p), Some(Node::PlaceInWorld { body, .. })
-                if doc.operation_of(*body) == Some(name.node))
+                if holds(doc.operation_of(*body)))
         });
         let (Some(placement), None) = (placing.next(), placing.next()) else {
             return Err(SplitError::NameOutsidePartWorld {
