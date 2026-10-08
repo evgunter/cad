@@ -926,5 +926,6 @@ line builds, in topo and through editor-core. Filed here
 `an-edge-crossing-two-wedges-about-a-contact-line-refuses`; the naming
 siblings went to WIRE and EMIT.
 
+- 2026-10-08: closed `a-torus-meridian-lying-on-a-torus-is-unsettled` (PR 4343): the circle × torus door's meridian rung (`bool_circle_torus_meridian`); the lily's chain now stops at the graze in both orders. Filed `roots/an-oblique-cone-section-reads-a-zero-floor` (P2) and `hone/a-villarceau-circle-lying-on-a-torus-is-unsettled` (P3) from the F ≡ 0 sweep.
 - 2026-10-08: closed `a-turned-hemisphere-keeps-the-crossing-layers-door`. It already built on main, by PR 4123's sphere azimuth reach (bisected). Rows pin six turns and two spun poses, and the near-aligned window. Filed `a-covered-line-ending-just-off-the-face-keeps-the-door` (P3, parked on D10): the covered line rung's door within about `2e-4` of aligned.
 - 2026-10-08: closed `a-rim-offset-half-the-zero-band-builds-in-one-member-order-only`. Both orders already build on main, since PR 3759 (PR 3812's envelope restatement; bisected). The old envelope read the rim offset twice, so half a band sat on its flip. Rows pin both orders at eleven offsets and three ε. Filed `pcurve-envelope-terms-sum-the-cos-and-sin-coefficients-of-a-deviation` on PCERT; evidence added to REACHHOLD's tight-volume-bound row and CLEAVE's in-span lever row.
