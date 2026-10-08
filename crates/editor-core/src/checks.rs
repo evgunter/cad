@@ -519,9 +519,9 @@ pub enum CheckEvidence {
     /// door does not prove structural ([`crate::coincide::prove`]).
     UnprovenCoincidence {
         /// The row, its cells named in the node's inputs' tables.
-        row: crate::coincide::NamedCoincidence,
+        row: Box<crate::coincide::NamedCoincidence>,
         /// What separates the two cells' constructions.
-        residual: crate::coincide::Residual,
+        residual: Box<crate::coincide::Residual>,
         /// What would make it structural.
         recourse: crate::coincide::Recourse,
     },
@@ -1238,8 +1238,8 @@ fn unproven_coincidence<P, T: Decide>(doc: &Doc<P>, ev: &Evaluation<T>, report: 
                     root: node,
                     output_ix: 0,
                     evidence: CheckEvidence::UnprovenCoincidence {
-                        row: row.clone(),
-                        residual,
+                        row: Box::new(row.clone()),
+                        residual: Box::new(residual),
                         recourse,
                     },
                 });

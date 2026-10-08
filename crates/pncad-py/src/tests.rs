@@ -3954,16 +3954,16 @@ fn every_check_evidence_arm_projects_the_payload_it_carries() {
         input: RecipeNodeId::new(0, 3),
     };
     let unproven = E::UnprovenCoincidence {
-        row: pncad::document::NamedCoincidence {
+        row: Box::new(pncad::document::NamedCoincidence {
             cells: [tool.clone(), tool],
             relation: pncad::document::coincidence::Relation::OnCarrier,
             site: pncad::document::coincidence::DecisionSite::SplitOn,
             margin: pncad::geom_core::MarginDiag::value(0.0),
             discharge: pncad::document::coincidence::Discharge::Numeric,
-        },
-        residual: pncad::document::Residual {
+        }),
+        residual: Box::new(pncad::document::Residual {
             constructions: [None, None],
-        },
+        }),
         recourse: pncad::document::coincide::Recourse::OneConstruction,
     };
     carries(&unproven, &["reason", "relation", "site"]);

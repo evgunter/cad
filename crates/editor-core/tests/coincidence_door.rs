@@ -109,7 +109,7 @@ fn a_declared_rest_is_one_unproven_row_named_by_its_operands() {
     assert_eq!(findings.len(), 1, "{findings:?}");
     assert_eq!(findings[0].root, union, "attributed to the deciding node");
     match &findings[0].evidence {
-        CheckEvidence::UnprovenCoincidence { row: found, .. } => assert_eq!(found, row),
+        CheckEvidence::UnprovenCoincidence { row: found, .. } => assert_eq!(**found, *row),
         other => panic!("{other:?}"),
     }
     let said = findings[0].to_string();

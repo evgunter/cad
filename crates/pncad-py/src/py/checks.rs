@@ -487,7 +487,7 @@ impl CheckEvidence {
                 py,
                 row,
                 &d::Proof::Unproven {
-                    residual: residual.clone(),
+                    residual: (**residual).clone(),
                     recourse: *recourse,
                 },
             )
