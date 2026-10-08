@@ -1174,7 +1174,7 @@ fn ring_order<T: Decide>(
 /// **The ring's corners**, from the runs' germs in clockwise `order`
 /// ([`ring_order`]; run `i`'s start germ is `2i`, its end `2i + 1`):
 /// each run with whether its corner meets its start germ first, in the
-/// corners' clockwise order. A read of `order` alone, so it adds no
+/// corners' clockwise order from run 0's. A read of `order` alone, so it adds no
 /// predicate.
 ///
 /// The ring is one loop of null struts at the pierce point, each
@@ -1202,6 +1202,8 @@ fn ring_corners(order: &[usize]) -> Option<Vec<(usize, bool)>> {
         }
         corners.push((g / 2, g % 2 == 0));
     }
+    let first = corners.iter().position(|&(i, _)| i == 0)?;
+    corners.rotate_left(first);
     Some(corners)
 }
 
