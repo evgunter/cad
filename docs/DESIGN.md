@@ -1221,12 +1221,15 @@ intent.
 variable whose type suits the slot. The types are the scalars (`Length`,
 `Angle`, `Scalar`, `Count`), the discrete kinds (a side, a half, a
 sense) and the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`),
-which are only defined: by coordinates over scalar variables, in the
-document's own coordinates or in a frame the definition reads, by a
-construction over other poses, by a face or the body of a `Body`
-variable, or as an output of an operation; the shapes (`Body`, `Bodies`,
+which are only defined: read off a body's geometry (a face's frame, a
+carrier's axis or centre), by coordinates over scalar variables in a
+frame the definition reads, by a construction over other poses, as a
+pose of a copy, or as an output of an operation, so no pose is free and
+none is defined from nothing; the shapes (`Body`, `Bodies`,
 an ordered list of bodies whose length is a `Count`, and `Profile`),
-which only an operation defines; and the selections of a shape
+which only an operation defines, a `Profile` being 2-D shape with no
+frame that each reader reads through a frame it supplies, or through
+none; and the selections of a shape
 (`Face`, `Edge`, and their sets `Faces`, `Edges`). A variable is
 **free** — a value, its written unit (D6) and optionally a distribution
 — or **defined**, by an `Expr` over other variables, by a selection of a
@@ -1273,33 +1276,34 @@ rather than of what was written; an observed variable, and any
 definition reading one, is read only by an assertion. A construction
 reads what was written.
 
-**Spaces and placement.** A part has no location: its construction is
-written in coordinates of its own, which no variable stands for and no
-relation reaches. A **space** is a set of copies related to one
-another; a definition's or an operation's reads that reach copies lie
-in one space, else it refuses. A
+**Spaces and placement.** A part has no location, and no coordinates
+are anyone's: raw coordinates are never compared with one another. A
+construction that reads no frame is built in coordinates of its own,
+which no variable stands for and nothing reads; it, the world, and a
+copy whose bundle is empty are the **roots**. A **space** is a root and
+everything that reaches it by reads, where a copy stands for its
+placement's targets and never for its source. An operation or
+definition whose reads reach two roots refuses, and only a placement
+relates two roots. A
 **placement** is the bundle of mates that pins one copy of a part
 relative to others: two placements of a part are two copies, and a mate
 added to a pinned copy refuses as an overconstraint, decided by
 subgroup algebra (A11 (1)) without measuring. A mate places and never
-checks. The **world** is one undeletable frame, defined in the
-document's coordinates, that copies may be related to like a part; only
-a placement's mates and export read it, and construction never does.
-An operation computes in a frame that is a function of what it reads
-and of nothing else, chosen so its arithmetic is well conditioned near
-the geometry it builds, and never in the world's; the frame is keyed
-with its inputs, so an edit that leaves an operation's reads alone
-moves none of its bits (D9). The frame is not part of the operation's
-meaning: the body up to that rigid map, its names and every verdict
-outside the sliver band are the same in any frame, and a minted
-reference direction is a function of the inputs, not of the axes.
-Absent a better-conditioned choice, a construction computes in the
-document's coordinates and an operation over copies in the construction
-coordinates of its first operand as the author lists it; a choice
-informed by the operands' values may replace that, with the author's
-order as its tie-break. A check over a space,
-the at-rest census, is defined order-free: each pair's verdict is the
-same in either member's frame, or the sliver band refuses.
+checks. The **world** is one undeletable node that copies may be
+related to like a part; only a placement's mates and export read it,
+and construction never does. An operation computes in a frame that is
+a function of what it reads and of nothing else, chosen so its
+arithmetic is well conditioned near the geometry it builds, and never
+in the world's; the frame is keyed with its inputs, so an edit that
+leaves an operation's reads alone moves none of its bits (D9). The
+frame is no part of the operation's meaning: the body up to that rigid
+map, its names and every verdict outside the sliver band are the same
+in any frame, and a minted reference direction is a function of the
+inputs, not of the axes. Where conditioning does not decide, a
+construction computes in its root's coordinates and an operation over
+copies in its first operand's as the author lists it. A check over a
+space, the at-rest census, is defined order-free: each pair's verdict
+is the same in either member's frame, or the sliver band refuses.
 
 **Coincidence.** Whether two cells coincide is a margined verdict like
 any other (Q1): a margin decided Zero glues them, a definite one keeps

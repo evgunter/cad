@@ -17,18 +17,21 @@ INTENT stage 3, PR A. Spec: `docs/INTENT-STAGE3-SPEC.md` §2.
 
 The migration keeps every datum's scalar ids, and geometry is bit-equal. It waits on stage 2 E because `FaceFrame` reads a `Face` variable. FORK-S3-1 goes to a designer pair before dispatch.
 
-FORK-S3-1 was weighed with FORK-S3-6 as FORK-S3P (fork log row 95) and
-went to Ev in an `[ev]` PR; this unit builds on the answer
-provisionally. After Ev's comment ("frames only enter at placement, so
-there's no need to specifically have blank ones"), no pose is free.
-A part's construction is written in the document's own coordinates,
-which no variable stands for: a datum is coordinates over scalar
-variables in them (`InFrame` reads a frame only when it is relative to
-one), so the migration of absolute datums is none. There is no `Seed`, no
-free `Frame` and no `OfCopy`. A pose of a copy is a `FaceFrame` over the
-copy's `Body` variable, or `BodyFrame { body }`, the body's construction
-coordinates as a `Frame` pose (today's `FrameBase::Part`). The world is
-one undeletable frame defined in the document's coordinates, read only by
-placements' mates and export. A space is a set of copies; reads that
-reach copies lie in one space. `InFrame` of kind `Frame` and `Offset` stay
-two spellings, and that is this unit's call.
+FORK-S3-1 was weighed with FORK-S3-6 as FORK-S3P (fork log row 95,
+PR 4324), and this unit builds on that answer. No pose is free and none
+is defined from nothing: there is no `Seed`, no free `Frame`, no
+`BodyFrame` and no "document coordinates". A `Profile` is 2-D shape with
+no frame; a construction reads it through a frame it supplies, or
+through none, and one that reads none is a root, built in coordinates of
+its own that nothing reads. Every other pose is read off geometry
+(`FaceFrame` over a `Face` variable, a carrier's axis or centre), is
+coordinates over scalar variables `InFrame` a frame it reads, is a
+construction over poses, is a pose of a copy (`OfCopy`), or is an
+operation's output (a revolve's axis, the world's frame). A definition
+or operation whose reads reach two roots refuses. Migration: a
+document's first profile datum folds into its body's own coordinates,
+and every later absolute datum is rewritten `InFrame` over a face frame
+of that body, its bits moving by one composition, which the migration
+reports. The façade's datum builders take a frame and default to none.
+`InFrame` of kind `Frame` and `Offset` stay two spellings, and that is
+this unit's call.
