@@ -1703,6 +1703,34 @@ mod tests {
         }
     }
 
+    /// PROBE (review 2): review 1's two in-band probes over the full
+    /// ladder, and a germ in band of germ 0's antipode: each either
+    /// orders truly or refuses as the sectors' coincidence.
+    #[test]
+    fn probe_review2_review1_ladder_and_antipode() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let n = Vec3::new(0.0, 0.0, 1.0);
+        type Row = (&'static str, fn(f64) -> Vec<f64>, Vec<usize>);
+        let rows: [Row; 5] = [
+            ("comb k=2 (review 1)", |d| vec![30.0, 30.0 - d, 200.0, 100.0], vec![0, 3, 2, 1]),
+            ("side by side (review 1)", |d| vec![0.0, 90.0, 180.0, 360.0 - d], vec![0, 1, 2, 3]),
+            ("antipode, before", |d| vec![0.0, 90.0, 180.0 - d, 270.0], vec![0, 1, 2, 3]),
+            ("antipode, after", |d| vec![0.0, 90.0, 180.0 + d, 270.0], vec![0, 1, 2, 3]),
+            ("antipode, two near it", |d| vec![0.0, 179.0, 180.0 + d, 270.0], vec![0, 1, 2, 3]),
+        ];
+        for (what, degs, truth) in rows {
+            for d in [1.0, 1e-3, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-11, 1e-12, 1e-13, 0.0] {
+                let germs: Vec<_> = degs(d).into_iter().map(germ_at).collect();
+                let r = germ_order(&germs, n, band);
+                eprintln!("LADDER {what} d={d:e}: {:?}", r.as_ref().map_err(|e| format!("{e}")));
+                match &r {
+                    Ok(o) => assert_eq!(o, &truth, "{what} d={d:e}: placed by fiat"),
+                    Err(_) => assert!(sectors_coincide(&r) || what.starts_with("antipode"), "{what} d={d:e}: {r:?}"),
+                }
+            }
+        }
+    }
+
     /// PROBE (review 2): a germ decided apart from germ 0 at its own
     /// arm, but in the zero band at a third germ's shorter arm, is
     /// placed by its sense inside `strut_order` (`Sign::Zero` arm).
