@@ -1856,40 +1856,32 @@ fn a_tool_closes_on_its_own_committed_edit() {
     }
 }
 
-/// **The body seat tracks the evaluator's operand door**, and this row
-/// is what holds that rather than the prose at
+/// **The body seat is the operand door's body slot**, and this row is
+/// what holds that rather than the prose at
 /// [`viewer::combine::denotes_body`].
 ///
-/// The check drives the REAL door: each candidate node is fed to a
-/// `Node::Transform`, whose single-body operand IS `body_operand`, and
-/// the transform's own failure is the verdict — `WrongOperand` means
-/// the door refused the candidate as an operand, and anything else
-/// (including a failure of the transform's own, such as the NURBS
-/// placement frontier a lofted body meets) means it did not. Two
-/// directions matter and both are asserted: a kind the seat admits
-/// that the door refuses is a lie the user meets after the edit lands,
-/// and a kind the seat refuses that the door would take is silent
-/// capability loss.
-///
-/// **The named exception**: `Sweep` is admitted by the seat and
-/// evaluates to nothing at all — it is the curved-solid frontier, so
-/// its own node fails and the transform is POISONED rather than
-/// refused. That is asserted here in the same shape, so the day the
-/// frontier moves this row notices.
+/// The check drives the REAL door: each candidate node is offered as a
+/// `Node::Shell`'s target, a slot that reads one `Body`, and the edit
+/// door's answer is the verdict — a kind refusal (`OperandVarKind`, or
+/// `AmbiguousOutput` for a node of two bodies named alone) means the
+/// door refused the candidate as an operand, and acceptance means it
+/// did not. Both directions are asserted as one equality: a kind the
+/// seat admits that the door refuses is a lie the user meets at the
+/// commit, and a kind the seat refuses that the door would take is
+/// silent capability loss.
 ///
 /// **What it does not reach**, stated rather than implied: six of the
 /// twenty-two node kinds are absent. `Mate`, `Measure` and `Assertion`
 /// need substrate this row does not build (a solved assembly, a
-/// measured expression) and are all answered `false` by the seat;
-/// `InstantiatePart` is answered `true` and needs a resolver with a
-/// sibling document on disk, so its evaluates-to-a-body path is
-/// exercised by the assembly suites instead; the two tube kinds are
-/// answered `true` and evaluate through their own doors, exercised by
+/// measured expression) and define no body; `InstantiatePart` needs a
+/// resolver with a sibling document on disk, so its body is exercised
+/// by the assembly suites instead; the two tube kinds define a body
+/// and evaluate through their own doors, exercised by
 /// `lib_tube_node`. The sixteen that ARE here — `Part` counted once
 /// for its two selectors — include every kind whose classification is
 /// load-bearing for this unit.
 #[test]
-fn the_body_seat_tracks_the_evaluators_operand_door() {
+fn the_body_seat_is_the_operand_doors_body_slot() {
     let tol = Tol::witness();
     let mut doc = Doc::empty_derived("operand-door", tol);
     // The substrate every candidate is built out of.
@@ -1912,7 +1904,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     let (next, ring) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: sketch_frame,
+            plane: sketch_frame.into(),
             loops: vec![LoopProgram::circle(0.05, 0.0, 0.01).expect("finite circle")],
             ids: Vec::new(),
         }),
@@ -1927,7 +1919,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     let (next, sketch_axis) = common::inserted(
         &doc,
         Node::Datum(Datum::AxisInPlane {
-            plane: sketch_frame,
+            plane: sketch_frame.into(),
             origin: [common::len(0.0), common::len(0.0)],
             direction: [common::scl(0.0), common::scl(1.0)],
         }),
@@ -1946,7 +1938,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     let (next, body) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -1964,7 +1956,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     let (next, extruded_b) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: profile_b,
+            profile: profile_b.into(),
             distance: common::len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -2003,8 +1995,8 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     let (next, split_of_body) = common::inserted(
         &doc,
         Node::Split {
-            target: body,
-            tool: plane,
+            target: body.into(),
+            tool: plane.into(),
         },
         tol,
     );
@@ -2012,7 +2004,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     let (next, pattern_of_body) = common::inserted(
         &doc,
         Node::Pattern {
-            input: body,
+            input: body.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
@@ -2054,7 +2046,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         (
             "extrude",
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: common::len(0.004),
                 side: ExtrudeSide::Along,
             },
@@ -2062,8 +2054,8 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         (
             "revolve",
             Node::Revolve {
-                profile: ring,
-                axis: sketch_axis,
+                profile: ring.into(),
+                axis: sketch_axis.into(),
                 angle: common::ang(core::f64::consts::TAU),
             },
         ),
@@ -2071,8 +2063,8 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             "boolean",
             Node::Boolean {
                 op: BooleanOp::Union,
-                a: body,
-                b: other,
+                a: body.into(),
+                b: other.into(),
                 declare: Vec::new(),
             },
         ),
@@ -2087,7 +2079,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         (
             "union",
             Node::Union {
-                members: vec![body, body_b],
+                members: vec![body.into(), body_b.into()],
                 declare: Vec::new(),
             },
         ),
@@ -2105,14 +2097,14 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         (
             "split",
             Node::Split {
-                target: body,
-                tool: plane,
+                target: body.into(),
+                tool: plane.into(),
             },
         ),
         (
             "pattern",
             Node::Pattern {
-                input: body,
+                input: body.into(),
                 count: Formula::count(2),
                 kind: PatternKind::Linear {
                     direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
@@ -2125,21 +2117,21 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         (
             "part of a split",
             Node::Part {
-                of: split_of_body,
+                of: split_of_body.into(),
                 select: PartSelect::SplitHalf(SplitHalf::Above),
             },
         ),
         (
             "part of a pattern",
             Node::Part {
-                of: pattern_of_body,
+                of: pattern_of_body.into(),
                 select: PartSelect::Instance(Formula::count(1)),
             },
         ),
         (
             "loft",
             Node::Loft {
-                profiles: vec![profile, profile_b],
+                profiles: vec![profile.into(), profile_b.into()],
                 v_degree: Formula::count(1),
             },
         ),
@@ -2154,7 +2146,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         (
             "placed union",
             Node::PlacedUnion {
-                input: body,
+                input: body.into(),
                 count: Some(Formula::count(2)),
                 kind: PatternKind::Linear {
                     direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
@@ -2165,8 +2157,8 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         (
             "sweep",
             Node::Sweep {
-                profile,
-                path: profile_b,
+                profile: profile.into(),
+                path: profile_b.into(),
                 stations: Formula::count(8),
                 v_degree: Formula::count(3),
             },
@@ -2174,85 +2166,27 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     ];
 
     for (name, node) in candidates {
-        let admitted = denotes_body(&node);
         let (with_candidate, candidate) = common::inserted(&doc, node, tol);
-        let (with_probe, probe) = common::inserted(
+        let admitted = denotes_body(&with_candidate, candidate);
+        let probe = pncad::document::apply(
             &with_candidate,
-            Node::transform(
-                candidate,
-                pncad::document::Step::Rigid {
-                    translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
-                    axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                    angle: common::ang(0.0),
-                },
-            ),
+            &pncad::document::DocEdit::InsertNode {
+                node: Box::new(Node::shell(candidate, common::len(0.001), Vec::new())),
+                fresh: Vec::new(),
+            },
             tol,
+            &pncad::document::RefusingReach,
         );
-        let mut session = DocSession::inline(with_probe, tol);
-        session.pump();
-        let eval = session.evaluation().expect("the inline seam landed");
         let refused_as_operand = matches!(
-            eval.result(probe).and_then(NodeResult::error),
-            Some(NodeError {
-                kind: NodeErrorKind::WrongOperand { .. },
-                ..
-            })
+            probe,
+            Err(EditError::OperandVarKind { .. } | EditError::AmbiguousOutput { .. })
         );
-        if name == "sweep" {
-            // The one exception, asserted rather than assumed: the
-            // seat admits it, and the door never gets to answer
-            // because the sweep itself is the frontier.
-            assert!(admitted, "the seat admits a sweep");
-            assert!(
-                eval.result(candidate).and_then(NodeResult::error).is_some(),
-                "the sweep node fails on its own"
-            );
-            assert!(
-                !refused_as_operand,
-                "and the transform is poisoned, not told the sweep is not a body"
-            );
-            continue;
-        }
-        if name == "pattern" {
-            // The probe's own door is wider than the seat's question:
-            // a transform is shape-preserving over its input's value
-            // (`Body → Body`, `Instances → Instances`), so it ADMITS
-            // a pattern and yields instances — several bodies, which
-            // the seat is right to refuse. The seat's answer here is
-            // not the transform door's to confirm — a consumer that
-            // takes one body would be, and this row's probe is not
-            // one.
-            assert!(!admitted, "the seat refuses a pattern");
-            assert!(
-                !refused_as_operand,
-                "the transform takes the pattern's instances whole: {:?}",
-                eval.result(probe).and_then(NodeResult::error)
-            );
-            continue;
-        }
-        if admitted {
-            assert!(
-                eval.value(candidate).is_some(),
-                "a {name} evaluates to a value: {:?}",
-                eval.result(candidate).and_then(NodeResult::error)
-            );
-            // The probe may still fail for a reason of its OWN — a
-            // rigid transform of a lofted NURBS body is its own
-            // frontier — and that is not this row's business. What is
-            // asserted is that the operand door did not answer "that
-            // is not a body" about a kind the seat admits.
-            assert!(
-                !refused_as_operand,
-                "the seat admits a {name}, so the operand door must not refuse one"
-            );
-        } else {
-            assert!(
-                refused_as_operand,
-                "the seat refuses a {name}; the operand door must refuse it too, \
-                 or the seat is losing a capability the kernel has: {:?}",
-                eval.result(probe).and_then(NodeResult::error)
-            );
-        }
+        assert_eq!(
+            admitted,
+            !refused_as_operand,
+            "the seat and the operand door disagree about a {name}: {:?}",
+            probe.err()
+        );
     }
 }
 
@@ -2595,7 +2529,11 @@ fn duplicating_a_body_leaves_two_roots_and_two_drawn_copies() {
         else {
             panic!("the gesture authored two instance projections");
         };
-        assert_eq!(*of, pattern, "both read the pattern it just authored");
+        assert_eq!(
+            Some(*of),
+            session.committed_doc().output(pattern, 0),
+            "both read the pattern it just authored"
+        );
         assert_eq!(
             Formula::from(
                 session
@@ -2726,29 +2664,19 @@ fn a_duplicates_copy_moves_on_its_own() {
     assert!(near(original_below, one), "it is wholly below the plane");
 }
 
-/// **The part seats track the evaluator's own part door**, in both
-/// directions, over every node kind this suite can build — the shape
-/// `the_body_seat_tracks_the_evaluators_operand_door` takes for the
+/// **The part seats track the part door**, in both directions, over
+/// every node kind this suite can build — the shape
+/// `the_body_seat_is_the_operand_doors_body_slot` takes for the
 /// single-body operand door.
 ///
-/// The check drives the REAL door: each candidate is fed to a
-/// `Node::Part` with each selector, and the part node's own failure is
-/// the verdict — `WrongOperand` means `wire_part` refused the
-/// candidate's VALUE as the family that selector reads.
-///
-/// **The named exception, asserted rather than assumed**: a
-/// `Node::Transform` over a pattern evaluates to `Instances` and the
-/// door indexes it, while the seat — which classifies off the node
-/// kind alone — refuses it. The viewer cannot author that shape (its
-/// body seats refuse a pattern), a loaded document can hold one, and
-/// the direction of the disagreement is the safe one: an honest
-/// refusal, not a node that lands and then fails. It is the same
-/// defect `work/forms/body-seat-reads-through-the-placer-chain` names
-/// at the BODY seat and asks the same repair for, so it is tracked
-/// there rather than as a second row; the day the classifier walks the
-/// chain, this row says so.
+/// The check drives the REAL doors: each candidate is offered to a
+/// `Node::Part` with each selector, and the verdict is a refusal at the
+/// edit door (the read's kind) or the part node's own `WrongOperand`
+/// (`wire_part` refusing the VALUE as the family that selector reads).
+/// A transform of a pattern defines a list of bodies, fixed at minting
+/// off its operand, so the instances seat takes it as the door does.
 #[test]
-fn the_part_seats_track_the_evaluators_part_door() {
+fn the_part_seats_track_the_part_door() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = common::xy_box_in(&mut session, A);
@@ -2779,8 +2707,8 @@ fn the_part_seats_track_the_evaluators_part_door() {
             },
         },
     );
-    // The shape the seat and the door disagree about, authored past
-    // the viewer's own body seat because that seat refuses a pattern.
+    // A transform of the pattern, authored past the viewer's own body
+    // seat because that seat refuses a pattern.
     let mut doc = session.committed_doc().clone();
     let placed_pattern = common::insert_into(
         &mut doc,
@@ -2813,47 +2741,38 @@ fn the_part_seats_track_the_evaluators_part_door() {
                 PartSelect::Instance(Formula::count(0)),
             ),
         ] {
-            let admitted = viewer::session::admits(doc.node(candidate), wanted);
-            let mut with_part = doc.clone();
-            let part = common::insert_into(
-                &mut with_part,
-                Node::Part {
-                    of: candidate,
-                    select: select.clone(),
+            let admitted = viewer::session::admits(&doc, candidate, wanted);
+            let refused = match pncad::document::apply(
+                &doc,
+                &pncad::document::DocEdit::InsertNode {
+                    node: Box::new(Node::Part {
+                        of: candidate.into(),
+                        select: select.clone(),
+                    }),
+                    fresh: Vec::new(),
                 },
                 tol,
+                &pncad::document::RefusingReach,
+            ) {
+                Err(_) => true,
+                Ok(applied) => {
+                    let part = applied.record.minted.expect("an insert mints its node");
+                    let mut probe = DocSession::inline(applied.doc, tol);
+                    probe.pump();
+                    let eval = probe.evaluation().expect("the inline seam landed");
+                    matches!(
+                        eval.result(part).and_then(NodeResult::error),
+                        Some(NodeError {
+                            kind: NodeErrorKind::WrongOperand { .. },
+                            ..
+                        })
+                    )
+                }
+            };
+            assert_eq!(
+                admitted, !refused,
+                "the {wanted:?} seat and the part door disagree about {name}"
             );
-            let mut probe = DocSession::inline(with_part, tol);
-            probe.pump();
-            let eval = probe.evaluation().expect("the inline seam landed");
-            let refused = matches!(
-                eval.result(part).and_then(NodeResult::error),
-                Some(NodeError {
-                    kind: NodeErrorKind::WrongOperand { .. },
-                    ..
-                })
-            );
-            if name == "a transform of the pattern" && wanted == NodeKindWanted::Instances {
-                assert!(!admitted, "the seat refuses a transform of a pattern");
-                assert!(
-                    !refused,
-                    "and the part door indexes its instances: the one disagreement, filed",
-                );
-                continue;
-            }
-            if admitted {
-                assert!(
-                    !refused,
-                    "the {wanted:?} seat admits {name}, so the part door must not refuse it",
-                );
-            } else {
-                assert!(
-                    refused,
-                    "the {wanted:?} seat refuses {name}; the part door must refuse it too, \
-                     or the seat is losing a capability the kernel has: {:?}",
-                    eval.result(part).and_then(NodeResult::error),
-                );
-            }
         }
     }
 }
@@ -3068,7 +2987,11 @@ fn duplicating_a_moved_copy_picked_in_the_viewport_duplicates_the_copy() {
     let Some(Node::Pattern { input, .. }) = session.committed_doc().node(pattern) else {
         panic!("a pattern");
     };
-    assert_eq!(*input, moved, "the pattern replicates the moved copy");
+    assert_eq!(
+        Some(*input),
+        session.committed_doc().output(moved, 0),
+        "the pattern replicates the moved copy"
+    );
     assert_eq!(
         separation_findings(&mut session),
         0,
@@ -3193,11 +3116,12 @@ fn a_duplicate_keeps_the_notes_promise() {
     );
 }
 
-/// **A body whose value is several bodies is refused, typed** — the
-/// shape the body seat's node-kind gate admits (a transform of a
-/// pattern), and one a pattern of two would index IN PLACE: its two
-/// projections would select two of the existing bodies and the gesture
-/// would add nothing to the picture.
+/// **A body whose value is several bodies is refused, typed** — a
+/// transform of a pattern, which a pattern of two would index IN PLACE:
+/// its two projections would select two of the existing bodies and the
+/// gesture would add nothing to the picture. The body seat refuses it
+/// by the kind of the variable it defines, before the duplicate door
+/// asks its value.
 #[test]
 fn duplicating_a_several_body_value_is_refused() {
     let tol = Tol::witness();
@@ -3237,7 +3161,7 @@ fn duplicating_a_several_body_value_is_refused() {
     assert!(
         matches!(
             &out.refusal,
-            Some(Refusal::Duplicate(DuplicateFault::NotOneBody { input })) if input.id() == placed
+            Some(Refusal::WrongNodeKind { node, wanted: NodeKindWanted::Body }) if node.id() == placed
         ),
         "{:?}",
         out.refusal
@@ -3409,8 +3333,8 @@ fn a_boolean_poisoned_by_an_upstream_contact_commits_and_offers_nothing() {
         &doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: block,
-            b: boss,
+            a: block.into(),
+            b: boss.into(),
             declare: Vec::new(),
         },
         tol,

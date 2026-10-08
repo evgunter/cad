@@ -57,7 +57,7 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
     let (doc, extrude) = common::inserted(
         &doc,
         pncad::document::Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.008),
             side: ExtrudeSide::Along,
         },
@@ -126,7 +126,7 @@ fn literal_and_pattern_doc(
     let (doc, extrude) = common::inserted(
         &doc,
         pncad::document::Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.008),
             side: ExtrudeSide::Along,
         },
@@ -135,7 +135,7 @@ fn literal_and_pattern_doc(
     let (doc, pattern) = common::inserted(
         &doc,
         pncad::document::Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: pncad::document::Formula::count(3),
             kind: pncad::document::PatternKind::Linear {
                 direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
@@ -462,7 +462,7 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
     let (doc, extrude) = common::inserted(
         &doc,
         pncad::document::Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.008),
             side: ExtrudeSide::Along,
         },
@@ -850,7 +850,7 @@ fn an_abandoned_gesture_leaves_no_trace() {
     let (doc, extrude) = common::inserted(
         &doc,
         pncad::document::Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.008),
             side: ExtrudeSide::Along,
         },

@@ -281,10 +281,14 @@ pub(crate) fn datum_node(spec: DatumSpec) -> AuthoredNode {
             origin,
             direction,
         } => Datum::AxisInPlane {
-            plane,
+            plane: plane.into(),
             origin,
             direction,
         },
-        DatumSpec::FaceFrame { at, face, spin } => Datum::FaceFrame { at, face, spin },
+        DatumSpec::FaceFrame { at, face, spin } => Datum::FaceFrame {
+            at: at.into(),
+            face,
+            spin,
+        },
     })
 }

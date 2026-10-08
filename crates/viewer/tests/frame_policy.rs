@@ -900,7 +900,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     let (doc, healthy) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: healthy_profile,
+            profile: healthy_profile.into(),
             distance: common::len(0.008),
             side: ExtrudeSide::Along,
         },
@@ -910,7 +910,7 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     let (doc, broken) = common::inserted(
         &doc,
         Node::Extrude {
-            profile: broken_profile,
+            profile: broken_profile.into(),
             distance: Formula::div(common::len(0.008), common::scl(0.0))
                 .expect("length / scalar is a length"),
             side: ExtrudeSide::Along,
@@ -2234,7 +2234,7 @@ fn two_placements(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId)
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -3071,7 +3071,7 @@ fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.008),
             side: ExtrudeSide::Along,
         },

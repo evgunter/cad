@@ -74,7 +74,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.006),
             side: ExtrudeSide::Along,
         },
@@ -660,7 +660,7 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     let (doc, bad) = inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             // A zero extrude distance: well-dimensioned at the edit
             // door, refused by the operation at evaluation.
             distance: len(0.0),

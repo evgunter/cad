@@ -4,7 +4,7 @@
 //! The tree's shape is a pure function of the recipe DAG, so it is
 //! asserted here as values rather than looked at. The one rule under
 //! test is `tree`'s: a node continues the line of its PRIMARY input
-//! (the first entry of `Node::inputs()` — a boolean's `a`, a fillet's
+//! (the first entry of `Doc::upstream` — a boolean's `a`, a fillet's
 //! `target`), and every other input is a branch that indents one
 //! level.
 //!
@@ -48,7 +48,7 @@ fn plate(
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -89,8 +89,8 @@ fn a_chain_of_booleans_stays_at_one_level_however_long_it_gets() {
             &doc,
             Node::Boolean {
                 op: BooleanOp::Subtract,
-                a: accumulated,
-                b: tool,
+                a: accumulated.into(),
+                b: tool.into(),
                 declare: Vec::new(),
             },
             tol,
@@ -140,8 +140,8 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
         &doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: tool_a,
-            b: tool_b,
+            a: tool_a.into(),
+            b: tool_b.into(),
             declare: Vec::new(),
         },
         tol,
@@ -151,8 +151,8 @@ fn a_tool_that_is_itself_a_branch_indents_one_level_further() {
         &doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: base,
-            b: compound_tool,
+            a: base.into(),
+            b: compound_tool.into(),
             declare: Vec::new(),
         },
         tol,

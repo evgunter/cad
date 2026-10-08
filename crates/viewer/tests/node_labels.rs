@@ -27,7 +27,7 @@ fn extruded(seed: &str, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.01),
             side: ExtrudeSide::Along,
         },
@@ -178,7 +178,7 @@ fn a_create_form_proposes_kind_n_counted_among_that_kinds_nodes() {
         let (doc, extrude) = common::inserted(
             &doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: common::len(0.02),
                 side: ExtrudeSide::Along,
             },
@@ -705,7 +705,7 @@ fn an_undo_then_a_different_insert_mints_a_different_id() {
     let (taller, tall) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.03),
             side: ExtrudeSide::Along,
         },
@@ -714,7 +714,7 @@ fn an_undo_then_a_different_insert_mints_a_different_id() {
     let (shorter, short) = common::inserted(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: common::len(0.02),
             side: ExtrudeSide::Along,
         },

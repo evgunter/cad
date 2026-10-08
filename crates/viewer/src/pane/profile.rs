@@ -110,7 +110,10 @@ pub(crate) fn edit_door_ui(
     preview: Option<&Result<ProfilePreview, PreviewError>>,
 ) -> Result<Option<SessionOp>, frame::Message> {
     let node = edit.node;
-    ui.label(format!("profile on {}", session.doc().spoken(edit.plane())));
+    match edit.plane() {
+        Some(frame) => ui.label(format!("profile on {}", session.doc().spoken(frame))),
+        None => ui.label("profile on a frame a delete removed"),
+    };
     let loops = edit.loops().len();
     let units = (notation.length.def(), notation.angle.def());
     let mut rows = Vec::new();
@@ -621,7 +624,7 @@ mod tests {
             .expect("finite"),
         ];
         let node = Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops,
             ids: Vec::new(),
         });
@@ -1119,7 +1122,7 @@ mod tests {
         let (doc, profile) = inserted(
             &doc,
             Node::Profile(ProfileProgram {
-                plane,
+                plane: plane.into(),
                 loops,
                 ids: Vec::new(),
             }),
@@ -1128,7 +1131,7 @@ mod tests {
         let (doc, extrude) = inserted(
             &doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: crate::test_support::len(0.01),
                 side: ExtrudeSide::Along,
             },
@@ -1151,7 +1154,7 @@ mod tests {
         let (doc, carrier) = inserted(
             &doc,
             Node::Datum(Datum::FaceFrame {
-                at: extrude,
+                at: extrude.into(),
                 face: wall.clone(),
                 spin: crate::test_support::ang(0.0),
             }),

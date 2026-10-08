@@ -202,7 +202,10 @@ fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
     else {
         panic!("the door minted a fillet");
     };
-    assert_eq!(*stored_target, target);
+    assert_eq!(
+        Some(*stored_target),
+        session.committed_doc().output(target, 0)
+    );
     assert!(
         session.committed_doc().free(*radius).is_some(),
         "the radius is a written Length: the slot's own free variable"
@@ -259,7 +262,10 @@ fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
     else {
         panic!("the door minted a chamfer");
     };
-    assert_eq!(*stored_target, target);
+    assert_eq!(
+        Some(*stored_target),
+        session.committed_doc().output(target, 0)
+    );
     assert_eq!(
         session
             .committed_doc()
@@ -415,7 +421,8 @@ fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
     let fillet = commit(&mut session, &mut tools, op);
     assert!(matches!(
         session.committed_doc().node(fillet),
-        Some(Node::Fillet { target, .. }) if *target == first
+        Some(Node::Fillet { target, .. })
+            if session.committed_doc().output(first, 0) == Some(*target)
     ));
 }
 

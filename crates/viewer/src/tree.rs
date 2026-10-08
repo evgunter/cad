@@ -163,7 +163,7 @@
 //!
 //! Depth is the number of BRANCHES a node sits under, not the length
 //! of its input chain. A node continues the line of its PRIMARY input
-//! — the first entry of `Node::inputs()`, which is the operand the
+//! — the first entry of `Doc::upstream`, which is the operand the
 //! kernel accumulates into: a boolean's `a`, a fillet's `target`, a
 //! transform's `input`. Every other input is a branch that indents:
 //!
@@ -617,7 +617,10 @@ pub fn frame_pose(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>) -> Opt
                 (None, None) => "origin driven".to_owned(),
             })
         }
-        Node::Datum(Datum::FaceFrame { at, .. }) => Some(format!("on {}'s face", doc.spoken(*at))),
+        Node::Datum(Datum::FaceFrame { at, .. }) => Some(match doc.defined_by(*at) {
+            Some((body, _)) => format!("on {}'s face", doc.spoken(body)),
+            None => "on a face of a deleted body".to_owned(),
+        }),
         Node::Datum(
             Datum::Plane { .. }
             | Datum::Axis { .. }
@@ -756,7 +759,7 @@ pub fn rows(
         let Some(node) = doc.node(id) else {
             continue;
         };
-        let depth = depth_of(&node.inputs(), &depths);
+        let depth = depth_of(&doc.upstream(id), &depths);
         depths.insert(id, depth);
         let status = status_of(doc, id, evaluation, files);
         let (repair_at, readout, version_offer) = match status {
@@ -899,7 +902,10 @@ fn asserted(
     let Node::Assertion { measure, dir, .. } = node else {
         unreachable!("only an assertion node evaluates to a verdict")
     };
-    let dim = || match evaluation.usable(*measure).ok().map(|value| &value.payload) {
+    let Some((measure, _)) = doc.defined_by(*measure) else {
+        unreachable!("an assertion with a verdict reads a live measure")
+    };
+    let dim = || match evaluation.usable(measure).ok().map(|value| &value.payload) {
         Some(ValuePayload::Measure { dim, .. }) => *dim,
         other => unreachable!(
             "a verdict with numbers compared a measured value, yet its measure holds {:?}",
@@ -912,7 +918,7 @@ fn asserted(
             dimension: dim(),
         }),
         dir: *dir,
-        measure: doc.spoken(*measure),
+        measure: doc.spoken(measure),
     }
 }
 
@@ -1168,6 +1174,9 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // `AxisInDifferentPlane` names are evidence of which frame each
         // sits on.
         NodeErrorKind::WrongOperand { .. }
+        // An operand reads an output its operation no longer defines:
+        // the repair is a re-point at the reading node itself.
+        | NodeErrorKind::UnresolvedRead { .. }
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }

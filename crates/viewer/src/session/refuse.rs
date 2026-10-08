@@ -77,30 +77,17 @@ pub enum NodeKindWanted {
     /// and never a second way to hold one.
     Split,
     /// A node whose value is a pattern's INSTANCES — what a
-    /// [`pncad::document::PartSelect::Instance`] indexes.
-    ///
-    /// **Classified off the node kind, and that is narrower than the
-    /// evaluator by one shape**: `Node::Transform` is shape-preserving
-    /// over its input's value, so a transform of a pattern evaluates to
-    /// `Instances` and `wire_part` would index it, while this answers
-    /// `no`. The viewer cannot author that shape — its body seats
-    /// refuse a pattern — but a loaded document may hold one, and the
-    /// direction of the disagreement is the safe one: an honest
-    /// refusal rather than a node that lands and then fails. It is the
-    /// same defect [`Self::Body`] has in the other direction, wanting
-    /// the same repair — read the family through the placer chain — so
-    /// it is tracked on the row that already asks for it,
-    /// `work/forms/body-seat-reads-through-the-placer-chain`. The row
-    /// `combine_ops::the_part_seats_track_the_evaluators_part_door`
-    /// asserts the disagreement by name, so the day the classifier
-    /// walks the chain that row says so.
+    /// [`pncad::document::PartSelect::Instance`] indexes: read alone,
+    /// it defines a `Bodies` variable, a pattern's or a transform's of
+    /// one (its kind fixed at minting off its operand).
     Instances,
 }
 
-/// **Whether `held` is the wanted kind** — the one classification
-/// behind every creation seat's gate, `None` (an absent node) reading
-/// as "no", because a seat naming nothing and a seat naming the wrong
-/// thing both mean there is nothing of that kind there to consume.
+/// **Whether `node` in `doc` is the wanted kind** — the one
+/// classification behind every creation seat's gate, a node `doc` does
+/// not hold reading as "no", because a seat naming nothing and a seat
+/// naming the wrong thing both mean there is nothing of that kind
+/// there to consume.
 ///
 /// A free function rather than a `DocSession` method because the
 /// question is asked in two places for two purposes: the commit door
@@ -108,24 +95,29 @@ pub enum NodeKindWanted {
 /// seats ask it to ROUTE a pick ([`crate::seats::Seats::pick`]). One
 /// answer for both is what keeps a seat from steering a pick the door
 /// would then reject.
-pub fn admits(held: Option<&Node<ProfileProgram>>, wanted: NodeKindWanted) -> bool {
+pub fn admits(doc: &Doc<ProfileProgram>, node: RecipeNodeId, wanted: NodeKindWanted) -> bool {
+    let held = doc.node(node);
     match wanted {
-        NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
+        NodeKindWanted::Body => combine::denotes_body(doc, node),
+        NodeKindWanted::Instances => doc
+            .read_of_node(node)
+            .and_then(|read| doc.var(read))
+            .is_some_and(|var| var.kind() == pncad::document::VarKind::Bodies),
         NodeKindWanted::Profile
         | NodeKindWanted::Axis
         | NodeKindWanted::SketchAxis
         | NodeKindWanted::Plane
         | NodeKindWanted::Frame
-        | NodeKindWanted::Split
-        | NodeKindWanted::Instances => held.and_then(seat_kind) == Some(wanted),
+        | NodeKindWanted::Split => held.and_then(seat_kind) == Some(wanted),
     }
 }
 
-/// **Which non-body kind a node is**, or `None` for a node no
-/// profile, axis, plane, frame, split or instances seat takes — the one classification
-/// [`admits`] reads for every kind but [`NodeKindWanted::Body`], whose
-/// rule is [`combine::denotes_body`]'s.
-fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
+/// **Which seat kind a node is by its kind alone**, or `None` for a
+/// node no profile, axis, plane, frame or split seat takes — the one
+/// classification [`admits`] reads for every kind but the two read off
+/// the variable a node named alone defines ([`NodeKindWanted::Body`],
+/// [`NodeKindWanted::Instances`]).
+pub(crate) fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
     match node {
         Node::Profile(_) => Some(NodeKindWanted::Profile),
         Node::Datum(datum) => match datum {
@@ -140,8 +132,8 @@ fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
             Datum::Point { .. } => None,
         },
         Node::Split { .. } => Some(NodeKindWanted::Split),
-        Node::Pattern { .. } => Some(NodeKindWanted::Instances),
-        Node::Extrude { .. }
+        Node::Pattern { .. }
+        | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Tube { .. }
         | Node::HollowTube { .. }
@@ -1449,8 +1441,8 @@ mod refused_boolean {
             &doc,
             Node::Boolean {
                 op: BooleanOp::Union,
-                a: block,
-                b: boss,
+                a: block.into(),
+                b: boss.into(),
                 declare: Vec::new(),
             },
             tol,
