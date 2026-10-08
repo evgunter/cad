@@ -949,13 +949,17 @@ mod join_door {
         assert!(joinable_vertices(&body, band).unwrap().is_empty());
     }
 
+    /// **An offset door joins only over what it writes.** The split
+    /// vertex lies on no edge the offset of a face it does not bound
+    /// rewrites, so the door's join (`replace_face::staged_join`) does
+    /// not reach it: the door reports no join and the vertex stands, as
+    /// the at-rest operand would have left it.
     #[test]
-    fn an_offset_door_ends_with_the_join() {
+    fn an_offset_door_joins_only_over_what_it_writes() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let (mut body, made, whole) = split_brick();
-        // A face the split edge does not bound, so the offset keeps
-        // the vertex and only the join takes it.
+        // A face the split edge does not bound.
         let far = body
             .faces()
             .map(|(f, _)| f)
@@ -971,8 +975,9 @@ mod join_door {
                     })
             })
             .unwrap();
-        crate::replace_face_offset(&mut body, far, 0.25, tol).unwrap();
-        assert!(joinable_vertices(&body, band).unwrap().is_empty());
-        assert_eq!(body.arena_counts(), whole);
+        let out = crate::replace_face_offset(&mut body, far, 0.25, tol).unwrap();
+        assert!(out.joins.is_empty(), "{:?}", out.joins);
+        assert_eq!(joinable_vertices(&body, band).unwrap(), vec![made.vertex]);
+        assert_ne!(body.arena_counts(), whole, "the split stands");
     }
 }
