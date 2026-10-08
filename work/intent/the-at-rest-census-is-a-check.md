@@ -56,8 +56,8 @@ examines every pair of copies the boxes cannot prove apart, and decides
 each one apart, in contact, overlapping or undecided. A contact is
 recorded at the coincidence door; unless it is structural, the
 `unproven-coincidence` lint reports it. An overlap is an `AtRest`
-interference finding, localised to the faces bounding it, or, when the
-intersection refuses, to the faces incident to the census's witnesses.
+interference finding, localised to the faces bounding it, or loud,
+unquietable and never refusing when the intersection refuses.
 An undecided pair is an `AtRest` could-not-look finding, which refuses
 at no severity (DS6). Each finding is quiet under D10's rule
 or loud. Nothing refuses: a caller that wants a gate runs

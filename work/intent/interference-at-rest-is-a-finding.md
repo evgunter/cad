@@ -42,12 +42,9 @@ from the spec's recommendation in three places, and this unit builds
 on it provisionally: `Distance = 0` quiets nothing (only `Gap`, over an
 opposed face pair); an interference is quiet only when every face
 bounding the overlap lies between the carriers of one asserted pair;
-an overlap the kernel cannot intersect is an interference finding, not
-a could-not-look finding, sited at the faces incident to the census's
-witnesses and quiet under an assertion over two of them (2026-10-08:
-a deliberate press fit must be quietable;
-`an-unintersectable-press-fit-is-quieted-only-at-its-witness-faces`
-holds the full fix).
+an overlap the kernel cannot intersect is a loud interference that
+nothing quiets and no severity refuses (DS6's frontier), not a
+could-not-look finding.
 
 After Ev's comments on #4319 (rounds 3 and 4): an interference is quiet
 only when the asserted pair's own faces bound the overlap, so a second

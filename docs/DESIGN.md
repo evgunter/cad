@@ -1357,10 +1357,8 @@ are the two cells the census found coincident; an interference, when
 the assertion's two faces bound the overlap and every face bounding it
 lies between the carriers of an asserted pair. An assertion speaks for
 nothing else, so a new contact or overlap anywhere else is loud until
-something says otherwise. An overlap the census found but the kernel
-cannot intersect has no bounding faces, so its site is the faces
-incident to the census's witnesses of it, and an assertion whose two
-faces, one of each copy, are among them quiets it. The bodies of a pattern's `Bodies` are
+something says otherwise, and an overlap the kernel cannot bound is
+loud and nothing quiets it. The bodies of a pattern's `Bodies` are
 examined like any others, and an assertion about each of them is
 written once, as a `map` over the `Bodies`: one assertion per member,
 each reading the one bound variable, as many as the pattern's `Count`.

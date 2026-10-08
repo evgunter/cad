@@ -2,8 +2,9 @@
 id: an-unintersectable-press-fit-is-quieted-only-at-its-witness-faces
 kind: issue
 title: An overlap the kernel cannot intersect is sited only at the census's witness faces, so a press fit whose pin passes right through stays unquietable
-status: open
+status: closed
 opened: 2026-10-08
+closed: 2026-10-08
 priority: P0
 design: true
 refs: [interference-at-rest-is-a-finding]
@@ -31,3 +32,20 @@ the census's containment and pierce tests touch for that pair, or an
 intersection that does not refuse at a thin shell (a localisation that
 reports the bounding face pair without building the shell). Weighed by
 a designer pair before it is built; lands with or after stage 5 B.
+
+## Closed
+
+Not done, by Ev's ruling (2026-10-08): "re your sliver unquietable
+example, tbh that sounds like the problem is eps too big? if a press fit
+is eps scale then there's really nothing sensible we can do, because our
+representation might be far enough off to change things meaningfully.
+so uh idk if it should be quietable, hm". A sliver refusal means the
+overlap is about ε thick, where the representation cannot tell a press
+fit from contact or a gap and cannot verify `Gap ≤ −2 µm` either; a
+press fit well above ε intersects. No witness-face site is built. What
+remains, an overlap on a curved pair the join has no arm for, is DS6's
+capability frontier (loud, unquietable, never refusing), and the join's
+missing curved arms are already tracked on their own rows (for example
+`work/join/cylinder-sphere-germ-pair-has-no-join-lane.md`,
+`work/join/along-edge-ring-on-a-curved-face-has-no-join-arm.md`,
+`work/join/a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet.md`).
