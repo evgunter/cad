@@ -7,7 +7,7 @@ priority: P2
 cost: M
 design: true
 opened: 2026-09-30
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 refs: [union-refuses-in-some-member-orders-and-publishes-in-others, a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires, 3526]
 ---
 
@@ -97,3 +97,7 @@ Measured evidence for whoever builds stage 4 is in
 refused pair to every face descending from the name made `r4trig`
 1302 and 3102 fuse with no wrong binding, and all 22 mixed cases fuse
 in every order.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: route_declarations/look_through_fold route declared pairs, which stage 4 retires (booleans glue on Zero); the question then has no subject. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

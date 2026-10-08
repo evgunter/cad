@@ -33,13 +33,18 @@ after that cut, as units:
    walls meeting at an angle across less than `2t` shell silently.
    A silent wrong body; first in line.
 9. **The lofted oblique corner** — `shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam`
-   (P1, H): the per-chart door moves a cap rigidly, so a loft with
-   slanted seams refuses `ReanchorOffCarrier`. Measure first; a
-   design question goes to the designer pair before a spec.
+   (P1, H): decided 2026-10-08 (the item's `## Decided`): the
+   per-chart door derives edges by section and corners by crossing,
+   carrying ISO's `nurbs-iso-derive-line-rim-arm-refuses-an-interior-row`
+   first. Lofts then stop at the first wall,
+   `a-fitted-wall-has-no-section-with-a-moved-cap` (P1, H; a design
+   fork for a designer pair and Ev); the one-door merge
+   `offset-doors-are-one-door-with-a-held-distance` (P3, H) follows.
 10. **The face door is at rest** — `replace-face-offset-answers-for-the-complement-of-an-inside-out-body`
     (P2, M) carrying `shell-operand-shape-arms-behind-the-at-rest-gate`
-    (P3, E): the `AtRestBody` gate unit 2 put on `shell` reaches
-    `replace_face_offset`, and the arms it made unreachable go.
+    (P3, E): decided 2026-10-08 (the item's `## Decided`): the
+    doors stay construction steps, the premise is corrected and
+    pinned; the arms the `shell` gate made unreachable go.
 11. **The sealed arm's two refusals** — `shell-of-a-cone-tip-refuses-at-the-nappe-decision`
     and `shell-of-a-tangent-dome-refuses-at-the-axial-corner` (P2,
     M each). Unit 7's cone tip, tangent dome and the lift's cone arm

@@ -1833,6 +1833,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "not-transverse",
             CertifyError::NotTransverse {
+                lever: None,
                 sample: 4,
                 verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
                     margin: MarginDiag::value(5.0e-10),
@@ -1845,6 +1846,7 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
         (
             "not-transverse, tangent",
             CertifyError::NotTransverse {
+                lever: None,
                 sample: 4,
                 verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
                     margin: MarginDiag::value(0.0),
@@ -4115,6 +4117,23 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
         .collect()
 }
 
+/// **The offset door's join refusal, typed**: the refusal a regularity
+/// reading in the band raises, carried as the door carries it
+/// ([`topo::JoinRefusal`]) and rendered through its own `Display`, so a
+/// regression in the door's words reds this row. A body whose reading
+/// lands in the band is the STEP fixture `halfcap_eps6` (its split
+/// vertex is 1e-8 m off the pole), which `step-import`'s rows feed to
+/// the door itself; this crate cannot build one at the run's one
+/// tolerance, since `split_edge` refuses inside the same band.
+fn join_refused_offset() -> topo::ReplaceFaceError<f64> {
+    topo::ReplaceFaceError::Join {
+        refusal: topo::JoinRefusal::Undecided(topo::JoinUndecided {
+            vertex: topo::VertexKey::default(),
+            reading: topo::JoinReading::Regularity(payloads::named("join_regular_point")),
+        }),
+    }
+}
+
 /// Every `topo::ReplaceFaceError` arm but `Fit` ([`offset_fit_routes`]
 /// renders that one per fit refusal), and every `OffsetError` arm
 /// through `Offset`. `TogetherAxialCorner` carries the longest `what`
@@ -4338,6 +4357,7 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
                 },
             ),
             ("Pcurve", R::Pcurve { source: pcurve() }),
+            ("Join", join_refused_offset()),
             (
                 "ResultNotClosed",
                 R::ResultNotClosed {
@@ -4405,13 +4425,14 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
         R::Escalated { .. } => "Escalated",
         R::Op { .. } => "Op",
         R::Pcurve { .. } => "Pcurve",
+        R::Join { .. } => "Join",
         R::ResultNotClosed { .. } => "ResultNotClosed",
     }
 }
 
 /// Every `ReplaceFaceError` variant, in declaration order: the names
 /// [`replace_face_arm`] answers.
-const REPLACE_FACE_ARMS: [&str; 38] = [
+const REPLACE_FACE_ARMS: [&str; 39] = [
     "Band",
     "StaleFace",
     "Offset",
@@ -4449,6 +4470,7 @@ const REPLACE_FACE_ARMS: [&str; 38] = [
     "Escalated",
     "Op",
     "Pcurve",
+    "Join",
     "ResultNotClosed",
 ];
 

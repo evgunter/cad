@@ -305,7 +305,7 @@ mod tests {
                     "nothing subtracts them, so the document denotes the study's ",
                     "numbers and not the two-hole plate it is about. The cut is two ",
                     "walls: the certified drive certifies no box of the cut plate ",
-                    "(work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-",
+                    "(work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-",
                     "volume-bound.md), and the cut plate has no product at all ",
                     "(the_cut_plate_has_no_product; ",
                     "work/recipe/a-measured-part-is-not-a-product-root.md)",

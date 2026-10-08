@@ -5,7 +5,7 @@ title: A pinch whose keys no seam ties keeps its cones on separate point keys
 status: parked
 priority: P2
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 refs: [the-cone-vertices-at-a-pinch-share-the-pierce-points-key]
 opened: 2026-10-07
 ---
@@ -121,3 +121,7 @@ direction, one along it, 916 poses past the overlap filter. It is
 - **Refused typed by PR 4249:** 167 lines `PinchConesOnSeparateKeys`.
   Without the guard they are 112 `OK BAD` and 55 two-key `SOUND`
   bodies.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: only a declared VertexVertex contact or a coincidence read can link the keys; stage 4 retires the first and moves the second to the one door. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

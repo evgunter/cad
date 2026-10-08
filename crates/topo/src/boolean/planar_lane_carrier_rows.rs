@@ -14,7 +14,7 @@
 //! rows read what the sweep's arms themselves do with it. **No public
 //! door reaches these arms with such an edge while that gate stands**
 //! (`reduce::gate_operand_edges`); the rows are what pins them until it
-//! goes (`work/reach/delete-the-boolean-operand-edge-gate.md`).
+//! goes (`work/orbit/delete-the-boolean-operand-edge-gate.md`).
 //!
 //! The oracles are closed forms, never the kernel's evaluator: the
 //! Bézier's `x(t) = 2t(1−t)·mx + 2t²`, `y(t) = 4t(1−t)·h`, and the

@@ -2,11 +2,10 @@
 id: a-declared-flush-wedge-sunk-in-a-block-refuses-its-intersect-join-desync
 kind: issue
 title: A flush wedge sunk into a block, its continuation declared, refuses its intersect and subtract JoinDesync though every face is planar
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -76,3 +75,7 @@ stop refusing on readings that concern a ray rather than the point:
 
 The section loops' flanking witnesses probably decided through one of
 those. Close this row if a reader agrees.
+
+## Released from the D10 hold (2026-10-08)
+
+Nothing D10 changes gates this row, so it is open: both ops build at +2ε since PR 3866 and door_backstop_settled_residue.rs pins it; what is left is a reader's close, and loop_roles is unchanged by D10. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
