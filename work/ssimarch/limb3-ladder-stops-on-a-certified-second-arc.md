@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-04
 priority: P3
 cost: M
-refs: [limb3-at-rest-proves-the-graph-not-the-arc]
 ---
 
 

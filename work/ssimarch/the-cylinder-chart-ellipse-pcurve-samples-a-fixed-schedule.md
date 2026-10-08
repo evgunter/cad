@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-03
 priority: P3
 cost: M
-refs: [ssi-step-max-is-a-sampling-heuristic, plane-nurbs-certificate-bound-does-not-refine-with-eps]
+refs: [plane-nurbs-certificate-bound-does-not-refine-with-eps]
 ---
 
 (SSI implementer on `ssi/step-max-certify`, from the class sweep of

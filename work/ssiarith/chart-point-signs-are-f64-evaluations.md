@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-03
 priority: P3
 cost: M
-refs: [limb-3-tube-banks-a-second-arc-as-accounted]
 ---
 
 ## Found (limb-3 fix pass, branch `ssi/limb3-one-arc`, 2026-10-03; a review of PR 3999 named it)
