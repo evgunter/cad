@@ -134,3 +134,53 @@ The datum nodes stay operations through stage 2. They become free or defined pos
   - Q5's port-0 sugar keeps `body` at port 0.
   - Test 3 checks that a revolve's output axis is readable at a circular pattern.
 - **Not weighed:** whether `Body | Bodies` admission (FORK-1) should also become door coercion through an explicit pick. It has the same shape, but it is not a pose question.
+
+## Round 2 — For Ev
+
+**Recommendation (likely): I move to the other report on all three points.** What remains is names, plus one small choice about the tube, set out below.
+
+**1. The revolve's axis. Moved to: the revolve reads an `AxisInPlane`, and its door requires `plane(axis) ≡ plane(profile)`.**
+- **What my round-1 objection was aimed at.** A plain 3-D `Axis` with a *containment* check, which makes each legal revolve a value-decided coincidence.
+- **Why the other report's check is different.** It is an *equality of two projections*, decided from the formulas without reading any value: the same `Frame` id today, canonical forms at stage 4. That is a typing judgement, not a coincidence, so my objection does not apply to it.
+- **What decides it.** My 2-D line in the profile's coordinates removes the check, but at two costs:
+  - it adds a second, 2-D order of kinds, a new profusion of names, which is what your comment objected to;
+  - it adds an extra `axis` output port so the axis can be shared.
+- **Under the other report's design neither cost exists.**
+  - The axis is an ordinary 3-D variable. A circular pattern reads `axis(a)` directly, and two revolves share it by reading one variable.
+  - The axis-first construction works the same way: `frame(A, q)`, then `x_axis`.
+  - "The profile closes on the axis" is as structural there as in mine, since profile steps and `in_plane` read the same 2-D values.
+- **What I give up.** One representable bad state: an `AxisInPlane` in another frame. It is refused at the door and at the load walk, never at evaluation. (likely)
+- **If reversed later.** Moving to my form retypes the revolve's slot and adds a port, so the wire is re-blessed once, and no geometry moves. Moving from my form to the other report's costs the same. That is not a reason to prefer either.
+
+**2. Which elements are kinds. Moved to seven, keeping one reservation.**
+- **`AxisInPlane`** follows from point 1.
+- **`Pivot`** (a point with a direction): the decisive argument is that it is what `Datum::Axis` actually stores and what the tube actually reads.
+  - Typing that datum as `Axis` in unit A, as I proposed, would have the tube read the origin of a kind that forgets its origin. That is the very defect I flagged.
+  - My answer was "the tube reads a `Frame`", but that only arrives with stage 3.
+  - `Pivot` is also the hinge mate's kind (`Revolute`).
+- **The reservation.** At stage 3 the tube should read one `Frame` (centre, spine, roll reference), not a `Pivot` plus a loose `u_ref` `Direction`: the window's angles are measured in that frame. That is stage 3's call and does not change the kind list.
+- **A choice for you:** whether seven named kinds answers "a profusion of names". My view is that it does. Each name is one element of one order, made by one recipe ("a frame known up to H"), and no name stands outside it. (likely)
+
+**3. What unit A carries. Moved to the other report's carry:**
+- the seven names in `VarKind`;
+- `Datum::Axis` defines a `Pivot`;
+- `Datum::AxisInPlane` defines an `AxisInPlane`;
+- the revolve's slot is an `AxisInPlane`, and `AxisInDifferentPlane` moves to the door and the load walk;
+- no `axis` port on the revolve.
+
+My carry would have typed the stored origin as forgotten. (likely)
+
+**Is my round-1 argument answered?** Yes, on every point:
+- the containment worry is answered by equality of projections;
+- sharing is answered without a port;
+- the tube's mis-typing is answered by `Pivot`.
+
+What stands from round 1: a partial order, not a lattice; constructions as definitions; coercion at the door rather than subsumption; the mate closure read as the symmetry list. Both reports hold these.
+
+**Confidence:**
+
+| Claim | Confidence |
+|---|---|
+| The converged design | likely |
+| Unit A can merge | sure |
+| The names `Pivot` and `AxisInPlane` | unsure |
