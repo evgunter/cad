@@ -108,7 +108,7 @@
 //! each hole lies wholly inside the blank, so the subtract's volume
 //! bound `vol(A ∖ B) ≥ vol(A) − vol(B)` is a tie whose enclosure
 //! straddles zero at every width
-//! (`work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`).
+//! (`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`).
 //! [`cut_wall`] pins it at `1e-9` of the study, a box the study's own
 //! document certifies whole. The Monte-Carlo lane answers on the cut
 //! plate; only the certified lane, and the stackup over it, refuse.
@@ -299,7 +299,7 @@ fn cut_wall(tol: Tol) {
             other => Err(Box::new(other)),
         }),
         |r| matches!(r, Ok(receipt) if receipt.certified == 0),
-        "re-author crate::plate::plate as the cut (work/reach/\
+        "re-author crate::plate::plate as the cut (work/tally/\
          a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md)",
     );
     // The advisory lane is not walled: it samples the cut plate over

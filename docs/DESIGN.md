@@ -296,7 +296,7 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    The Boolean door's result meets tier 3 without the census: its
    declared contacts ride beside it (`BooleanBody::contacts`), and the
    census over them is parked on CONTACT's cross-solid curved lane
-   (`work/reach/boolean-door-runs-the-census-over-its-result.md`).
+   (`work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
    Construction state (tier 1, or tier 2 without geometric
    certification) is what Euler operators hand back, and becomes a
    finished body only through the at-rest gate.
