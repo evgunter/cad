@@ -2,11 +2,13 @@
 id: join1-delta-probes-keep-their-own-outcome
 kind: issue
 title: join1_delta_probes judges SOUND by its own outcome, weaker than common::differential::outcome
-status: open
+status: closed
 opened: 2026-10-04
 priority: P4
 cost: E
 branch: join/battery-hygiene
+closed: 2026-10-08
+pr: 4334
 ---
 
 
