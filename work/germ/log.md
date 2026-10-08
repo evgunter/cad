@@ -762,3 +762,4 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
 - **Blinded coding:** byte 84.
 - **The fix pass** carries the union.
 - **Class (logged):** a helper that exists for a numerical hazard (`square_to`) was bypassed by a second, naive spelling in a new arm. Briefs for numeric arms should name the module's existing hazard helpers.
+- 2026-10-08 23:58 — Cone sector U-S1/2/6 landed as PR 4369 (CI green). Two departures, both measured: the lever is `max(ρ−reach, 2ρ/3)`, since the spec's version refused TANG T1; and R6's NaN was `plane_cone_section`'s lever, fixed at the source. Single Opus review dispatched. U-S3+U-S4 implementer launched as its own cloud session (container disk ~15 GB with three lanes) → branch `germ/cone-sector-join`; dual review on its PR. PR 4357: the demos red is main's (identical on 4356); commented; single review in flight.
