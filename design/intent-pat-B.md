@@ -126,3 +126,42 @@ operation, likely; no list literal, unsure (lean no, add on a real need); nothin
   INTENT-STAGE3 §Readers item 6 re-homes `Direction`'s first reader to `PatternKind::Linear`; under this answer it is the
   `translate` construction. (4) DM4's "fewer than two members refuses" at the door cannot hold for a list of variable length.
 - The brief's "A11 subgroup algebra" loss does not arise: no mate folds across members today or under #4326.
+
+## Round 2 (after reading A's `For Ev`)
+
+Ev's clarification ("maps over numbers + some facade helper functions") is what both reports say; the differences below
+are representation, not expressiveness, and I re-read the 2026-10-03 transcript before each answer.
+
+**1. The construct: I hold, with one concession.** A's `map` holds one definer over a domain, so a pose, then a placement,
+then an assertion over the same members are three maps that each restate `0..N` and correspond by equal index values:
+the range is represented three times and kept in step by hand, and "lockstep" is a convention about equal ranges. An
+index variable states the range once and the three statements read it; lockstep is one index read twice; the members
+correspond because they are the same variable's values. That is Ev's "edges replaced by sharing variables" applied to
+repetition, and it is the one-source-of-truth test. The concession: A's domain `a..b` says a bolt circle missing one hole
+directly (`1..N`) where I write `index(N−1)` and `k+1`; if Ev wants two bounds, `index(a..b)` is harmless sugar the
+façade can own. I also move to A on faults: a family whose definer refuses at one index refuses whole, naming the index;
+a list is one value and no reader can hold a list with a hole.
+
+**2. Wraparound: I move halfway.** When the ring closes by `turn/N` the contact between member `N−1` and member `0` is
+structural, so no assertion is needed and none should be written (D10: construct the coincidence). An assertion over all
+adjacent pairs is needed only for a value-level relation, such as an intended press fit between neighbours, and there
+`(k+1) mod N` says it once where I needed `N−1` pairs plus one more statement. So: admit `mod` on `Count` (exact integer
+arithmetic, already closed under the other operators), and say in the same breath that the structural ring is the normal
+case and the façade's full-ring helper writes `turn/N`, never a mod.
+
+**3. Grids: I move to flat families.** The output of a node that reads indices `i` and `j` is one family keyed by the
+index tuple `(i, j)`, outer first; there are no nested list kinds, `xs[i, j]` is the member read, and a union reads one
+family. Names are `Member { (i, j), of }`, stable under either count changing. What I keep from my report is the rule
+that gives the tuple its order: a node may read two indices only when one is declared `within` the other (implied when
+its count reads it, as for pairs `j within k`); two unrelated indices in one reader refuse rather than take an order
+from document position. Without that rule A's "outer first" has to come from the order of the domain's spelling.
+
+**4. Else.** (a) A says repeated constructions through different frames share one cache entry if keys are taken in the
+frame they read, so the die's pip balls are one entry. I disagree: #4326 distinguishes copies (rigid images of one body,
+reused) from constructions through frames precisely because equivariance is audited per site, never assumed (D9 conv.
+4, MIRROR-DESIGN P3). A construction is built per member until a site is proven equivariant. (b) A keeps the name
+segment `Instance` as the map's index; I keep `Member` keyed by the index variable's id, since a document may hold
+several families and the integer alone names nothing. (c) Agreed, and worth saying together: orbit structure for the
+census is derived from the pose formula being affine in the index, never declared.
+
+Where we now stand: one answer in two spellings. Ev's call is the construct of point 1; everything else has converged.
