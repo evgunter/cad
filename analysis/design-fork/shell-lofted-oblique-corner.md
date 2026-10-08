@@ -25,3 +25,20 @@ mapping: Opus=A Fable=B
 - Agreement: on the principle and refusals; split on one door vs three,
   on whether the loft rim is already `Intersection` (A) or a declared
   Chart-on-cap (B), and on the iso item's sequencing.
+
+## Round 1 (each shown the other's first report verbatim)
+
+- **A** moved to B on the loft premise (cap rims are declared
+  Chart-on-cap; `held_neighbour_image` covers only a neighbour's chart)
+  and on sequencing (iso interior-row item first); moved to B's shape
+  (per-chart door re-derives, simultaneous doors kept; merging is a
+  follow-up). New sub-question: a declared edge an oblique offset moves —
+  drop the declaration (derived), loft should re-describe rims as
+  `Intersection` but the door should not depend on it.
+- **B** moved to A's shape (one door, per-chart distances, shortcuts
+  inside; shell's door choice gone); held that the door derives from the
+  description, so the loft's rims become `Intersection` at rest and a
+  declared Chart between two surfaces keeps its declaration with ends
+  re-stated; iso row item lands (an exact row beats a fitted image).
+- A crossover on the door shape; split on the declared record (drop vs
+  keep-and-restate; door reads sides vs description). Round 2 follows.
