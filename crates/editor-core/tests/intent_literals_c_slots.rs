@@ -20,8 +20,8 @@ use editor_core::{
     CancelToken, Datum, Dimension, Distribution, DocEdit, DocumentId, EditError, EvalOptions,
     Evaluation, ExtrudeSide, Formula, FreeValue, FreeVar, LoopProgram, Maintenance, Node,
     PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, SplitError, VarDecl, VarId,
-    VarName, apply, evaluate, load, save, split,
-};
+    VarName, apply, evaluate, load, save, };
+use crate::fixture::split_world as split;
 use geom_brep::RadiusEvidence;
 use geom_core::Tol;
 use topo::{Body, FaceKey, SurfaceField};
@@ -465,6 +465,7 @@ fn frame_sharing_a_fresh_entry(seed: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
             side: ExtrudeSide::Along,
         },
     );
+    let doc = crate::fixture::place(doc, extrude).0;
     (doc, [frame_id, profile, extrude])
 }
 

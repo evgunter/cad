@@ -343,6 +343,7 @@ fn the_load_door_holds_the_table_to_every_signature() {
 #[test]
 fn a_split_carries_a_named_output_onto_its_nodes_new_one() {
     let (doc, _, _, extrude) = block("s2a-split");
+    let doc = fixture::place(doc, extrude).0;
     let body = doc.output(extrude, 0).expect("an extrude defines its body");
     let (doc, _) = fixture::step(
         doc,
@@ -403,9 +404,16 @@ fn the_up_to_ids_comparator_holds_a_document_and_refuses_each_mutant() {
     let err = up_to_ids::equal_up_to_ids(&dropped, &new).expect_err("a dropped node");
     assert!(err.contains("nodes"), "{err}");
 
+    // The second placement reads the first one's body.
     let mut swapped = old.clone();
-    let roots = swapped["snapshot"]["roots"].as_array_mut().unwrap();
-    roots.swap(0, 1);
+    let mut reads: Vec<&mut serde_json::Value> = swapped["snapshot"]["nodes"]
+        .as_object_mut()
+        .unwrap()
+        .values_mut()
+        .filter_map(|node| node.get_mut("PlaceInWorld"))
+        .map(|placement| &mut placement["body"])
+        .collect();
+    *reads[1] = reads[0].clone();
     let err = up_to_ids::equal_up_to_ids(&swapped, &new).expect_err("an inconsistent renaming");
     assert!(err.contains("earlier"), "{err}");
     // A document that is an edit log alone, which the walk compares
@@ -632,16 +640,17 @@ fn instance_named_bracket(
         let body = doc.output(extrude, 0).expect("an extrude defines its body");
         doc = named(doc, body, heir);
     }
+    doc = fixture::place(doc, extrude).0;
     if second_body {
-        doc = insert(
+        let (next, second) = insert(
             doc,
             Node::Extrude {
                 profile: profile.into(),
                 distance: len(2.0),
                 side: editor_core::ExtrudeSide::Along,
             },
-        )
-        .0;
+        );
+        doc = fixture::place(next, second).0;
     }
     let cut: std::collections::BTreeSet<_> = doc.ids().iter().copied().collect();
     let out = editor_core::split(
@@ -695,7 +704,7 @@ fn inline_carries_the_name_on_an_instances_body() {
             assert_eq!(name.as_str(), "bracket");
             assert_eq!(why, editor_core::Uncarried::Bodies { count: 2 });
         }
-        other => panic!("two body roots have no one heir, got {other:?}"),
+        other => panic!("two placed bodies have no one heir, got {other:?}"),
     }
 
     let (host, instance, store, _) =
