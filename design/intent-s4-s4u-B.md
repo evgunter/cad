@@ -148,3 +148,62 @@ the kernel recording higher-order coincidences *unsure*.
   relative order. If it does not, an inline can reorder a union's fold (bits only).
 - Measure before E: count the higher-order rows (edge or vertex of two members on a third's
   cell) on the union corpus (`emit_union_rim_piece_ranks.rs`), to settle the *unsure* claim.
+
+## Round 2
+
+**1. Member order: hold (sure on the argument; a choice for Ev, because it changes a ratified sentence).**
+A's own orchestrator notes list what its design leaves order-dependent: the fold's non-verdict
+refusals (`RingHomingAmbiguous`, `JoinDesync`), the pinch vertex's name, and, after E, the
+description a Zero glue keeps (operand A is the accumulation) and a piece's margin read over its
+own extent. A canonical fold makes every one of those a function of the members, with no
+mechanism added. A's design keeps them, and each is an open row today. A's argument for list
+order is only that DM4 says so. The phrase "D9: the order is the list's" has no provenance I
+could find, and D9 itself says nothing about lists. The cost: `SetMembers` takes a set, an
+authored duplicate still refuses as written, and the members sort by variable id after stage 2.
+Inline and split must keep relative mint order; if they don't, an inline can change a union's
+bits but nothing it publishes beyond them. Reversal either way is one sort, added or removed.
+
+**2. A Zero the fold decides that no pair row backs: hold that it is never a bug; refine the
+criterion.** A's backing claim is false for the three-way case. Take faces `a.f`, `b.g` and
+`c.h`, pairwise transversal, meeting along one line L. Pair `(a, c)` cuts along `a.f ∩ c.h`
+transversally, and transversal is not a coincidence, so it emits no Zero. The same holds for
+`(b, c)`. The fold then decides the seam `a ∩ b` ON `c.h`: a Zero no pair holds, in a legal
+union. A vertex where four member planes meet behaves the same way. A's assertion would refuse
+such a document as an emission bug. Two cases remain to keep apart:
+- That ON may be one spec B does not record (it "only places topology"). Then its only effect
+  is a band refusal, which is the union's refusal like any other.
+- The piece-reads-Zero, pair-reads-Distinct case is numerics, not a bug.
+
+Final state: a fold row is dropped when a pair row states it (the same two member cells, after
+mapping pieces to their member parents, and the same relation). Every other fold row is
+published. There is no assertion. This replaces my round-1 test ("names a cell an earlier step
+minted"), which missed the numeric case.
+
+**3. Face links: move to A, conditionally (likely).** One source is better than two. A
+`covered` pair or a `merge_groups` pair is a same-oriented coplanar face pair decided Zero in the
+same build, and after E deletes the kernel's rung 1 every such pair is margin-decided. The
+condition is that unit B emits a `SameOriented` row only where the faces merge or one covers
+the other. A row for coplanar faces that touch only at a vertex would link them, and change
+names. The implementer asserts links-from-rows equal links-from-`BooleanNaming` over the union
+corpus before `BooleanNaming` leaves the pass. If they differ, emission is incomplete or too
+wide, which is A's point. Reversal is cheap: `BooleanNaming` is still built.
+
+**Remaining choices for Ev.** (1) Canonical order or list order. Cost of reversing later:
+re-baselined bits and names in reordered unions, nothing structural. (2) Nothing else: point 2
+is a correctness fix to A's assertion, not a preference.
+
+**DM4 text now proposed.** Take A's bullets for the pairwise clause (its opening, the Zero-glue
+bullet, "A row is a fact about two members…", "A row names member cells", N2 as "recorded a
+same-oriented coincidence between them"), with three changes:
+- Replace "It evaluates as a fold of the kernel's pair verb in member order (D9: the order is
+  the list's, and the list is data). … The fold's body is the same in every member order: …"
+  with "Its members are a set, held in ascending id order whatever order they were written in,
+  and it evaluates as a fold of the kernel's pair verb in that order, so its body, names,
+  refusals and records are functions of its members." `SetMembers` names "the whole new set".
+- Replace A's "a fold step whose Zero no judged row backs is an emission bug", and the old
+  "the fold mints no contact verdict of its own", with: "The fold decides its own pieces; its
+  refusals are the union's. A fold row that a judged row states (the same member cells, the
+  same relation) is not published again; any other, such as a seam of two members lying in a
+  third's face, is the union's row too."
+- Keep A's deletions of the declaration channel, "Merges and order", and the declared and
+  certified bullets.
