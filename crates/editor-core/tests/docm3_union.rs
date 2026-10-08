@@ -655,13 +655,26 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
         .map(|&m| doc.operation_of(m).expect("a member reads a live output"))
         .collect();
     assert_eq!(members.len(), 21, "the die has 21 pips");
-    let blends: Vec<RecipeNodeId> = doc
-        .ids()
-        .iter()
-        .copied()
-        .filter(|id| matches!(doc.node(*id), Some(Node::Fillet { .. })))
-        .collect();
-    assert_eq!(blends.len(), 2, "the box-edge blend and the rim blend");
+    // The die is what the world places: the rim blend, over the
+    // box-edge blend.
+    let rim_blend = match doc.placements().as_slice() {
+        [placement] => match doc.node(*placement) {
+            Some(Node::PlaceInWorld { body, .. }) => {
+                doc.operation_of(*body).expect("the placement reads the die")
+            }
+            other => panic!("a placement, got {other:?}"),
+        },
+        other => panic!("the tour places the die alone, got {other:?}"),
+    };
+    let box_blend = match doc.node(rim_blend) {
+        Some(Node::Fillet { target, .. }) => doc.operation_of(*target).expect("a live target"),
+        other => panic!("the die is its rim blend, got {other:?}"),
+    };
+    assert!(
+        matches!(doc.node(box_blend), Some(Node::Fillet { .. })),
+        "the rim blend's target is the box-edge blend"
+    );
+    let blends = [box_blend, rim_blend];
     let before = run(&doc);
     // The radius as written: deleting the blend retires the anonymous
     // variable its radius reads, so the re-authored blend writes it

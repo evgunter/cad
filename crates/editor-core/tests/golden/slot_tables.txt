@@ -123,6 +123,17 @@ Transform { input: @0, placement: Placement { steps: [Rigid { translation: [#0, 
   @0 Operand(Input)
 Transform { input: @0, placement: Placement { steps: [Literal(Frame { columns: [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]], translation: [0.0, 0.0, 2.0] })] } }
   @0 Operand(Input)
+PlaceInWorld { body: @0, pose: Placement { steps: [] } }
+  @0 Operand(Body)
+PlaceInWorld { body: @0, pose: Placement { steps: [Rigid { translation: [#0, #1, #2], axis: [#3, #4, #5], angle: #6 }] } }
+  #0 Translation(X)
+  #1 Translation(Y)
+  #2 Translation(Z)
+  #3 RotationAxis(X)
+  #4 RotationAxis(Y)
+  #5 RotationAxis(Z)
+  #6 RotationAngle
+  @0 Operand(Body)
 Pattern { input: @0, count: #0, kind: Linear { direction: [#1, #2, #3], spacing: #4 } }
   #0 Count
   #1 Direction(X)

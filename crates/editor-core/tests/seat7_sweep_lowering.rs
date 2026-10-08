@@ -324,14 +324,21 @@ fn both_sweeps_evaluate_in_one_document() {
 /// `kitchen_sink` alone, whose formulas hold written quantities that
 /// now mint variables of their own, so its ids moved. No outcome or
 /// point moved (the id-free fence held).
+///
+/// RE-BLESSED, all five, for INTENT stage 2 PR C (the product is the
+/// world): each document now places its bodies, and every placement is
+/// a node with a value and a name table of its own, so the evaluation
+/// this digest walks holds those copies. No node evaluated before moved:
+/// `intent_s2_c_world`'s migration check holds each product to its
+/// pre-C digest.
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x6858_5ccc_eb36_f418),
-        ("corner_table", 0x228e_a725_d027_88e8),
-        ("cut_cylinder", 0x7529_6a8e_c3e6_0cdd),
-        ("boss_union", 0x1810_3eb9_2f36_a79a),
-        ("kitchen_sink", 0x4019_ed56_6ca7_caaa),
+        ("die", 0x46bf_1010_238f_9bd4),
+        ("corner_table", 0xe702_cfcd_0be7_cfda),
+        ("cut_cylinder", 0xbc90_5dcb_4379_ce03),
+        ("boss_union", 0xf568_e510_6e0d_fb5c),
+        ("kitchen_sink", 0x820a_88cc_7ad2_8b85),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {

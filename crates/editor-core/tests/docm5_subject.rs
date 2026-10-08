@@ -654,6 +654,7 @@ fn the_registry_split_is_measured_at_a_pinned_point() {
     )
     .expect("the fin count is a document parameter")
     .doc;
+    let doc = corpus::place_pattern_to(doc, 160);
     let ev: Evaluation<f64> = corpus::eval(&doc);
     let product = product_recorded(&doc, &ev, tol).expect("the heat sink gathers");
     assert_eq!(

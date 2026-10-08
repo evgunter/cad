@@ -89,6 +89,43 @@ pub fn place_instances(r: &mut Recorder, pattern: RecipeNodeId, count: i64) {
     }
 }
 
+/// **`doc` with copies `0..count` of its one pattern placed**: the
+/// copies a placement already picks stay, and each further one is
+/// picked and placed. Driving a pattern's count moves no placement, so
+/// a document whose count was driven places the new copies this way.
+pub fn place_pattern_to(doc: ProfileDoc, count: i64) -> ProfileDoc {
+    let pattern = doc
+        .ids()
+        .into_iter()
+        .find(|&id| matches!(doc.node(id), Some(Node::Pattern { .. })))
+        .expect("the document holds a pattern");
+    let placed = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| match doc.node(p) {
+            Some(Node::PlaceInWorld { body, .. }) => doc
+                .operation_of(*body)
+                .and_then(|picked| doc.node(picked))
+                .is_some_and(|picked| {
+                    matches!(picked, Node::Part { of, .. } if doc.operation_of(*of) == Some(pattern))
+                }),
+            _ => false,
+        })
+        .count();
+    let mut doc = doc;
+    for i in i64::try_from(placed).expect("a count")..count {
+        let (next, copy) = crate::fixture::insert(
+            doc,
+            Node::Part {
+                of: pattern.into(),
+                select: PartSelect::Instance(editor_core::Formula::count(i)),
+            },
+        );
+        doc = crate::fixture::place(next, copy).0;
+    }
+    doc
+}
+
 /// **A split's two halves placed in the world**, above then below:
 /// each half is its port.
 pub fn place_halves(r: &mut Recorder, split: RecipeNodeId) {
