@@ -10700,9 +10700,13 @@ mod tests {
         ] {
             assert_eq!(read(carried.clone()), top(own), "{carried:?}");
         }
-        assert_eq!(read(S::Escalated { face, diag }).1, super::OFF_BOUNDARY);
-        // A poisoned margin is a defect on the carried path as on the
-        // top-level one (`own_close`).
+        // The door's own escalation names no decision: the unnamed lever.
+        assert_eq!(
+            read(S::Escalated { face, diag }).1,
+            "Recourse: move the geometry clear of the boundary"
+        );
+        // A poisoned margin adds the unreadable-margin note, on the carried
+        // path as on the top-level one.
         let poisoned = Indeterminate {
             margin: MarginDiag::INVALID,
             ..diag
@@ -10790,7 +10794,7 @@ mod tests {
                 read(e.clone()),
                 (
                     "a curved face's trim is one the check cannot yet read".into(),
-                    super::NOT_YET
+                    super::NOT_YET.into()
                 ),
                 "{e:?}"
             );

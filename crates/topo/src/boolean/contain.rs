@@ -436,7 +436,9 @@ pub(crate) fn loop_circle<T: Decide>(
                     match decide("bool_face_disc_carrier", Margin::of(d), band) {
                         Ok(Sign::Zero) => {}
                         Ok(Sign::Positive | Sign::Negative) => one_circle = false,
-                        Err(diag) => return Err(ContainError::on(ContainDecision::OneCircle, diag)),
+                        Err(diag) => {
+                            return Err(ContainError::on(ContainDecision::OneCircle, diag));
+                        }
                     }
                 }
             },
@@ -524,8 +526,7 @@ fn boundary_pre_pass<T: Decide>(
                     decision: Some(LoopDecision::Boundary.into()),
                     escalation: e.escalation,
                     diag: e.diag,
-                })?
-            {
+                })? {
                 EdgeContact::On => return Ok(PrePass::On(FaceContainment::OnEdge(lp.keys[i]))),
                 EdgeContact::Off | EdgeContact::Carrier | EdgeContact::Unread => {}
                 // Within the band of a curved edge's END, which the vertex
@@ -1211,18 +1212,58 @@ mod tests {
         };
         use Escalation::{Decided, Margin, Straddle};
         let rows = [
-            (loop_(LoopDecision::Boundary), Margin, above, tighten(BOUNDARY, "length")),
-            (loop_(LoopDecision::Boundary), Margin, below, tighten(BOUNDARY, "length")),
-            (loop_(LoopDecision::Boundary), Margin, poisoned, format!("{BOUNDARY}; {NOTE}")),
-            (loop_(LoopDecision::Boundary), Straddle, poisoned, BOUNDARY.to_owned()),
+            (
+                loop_(LoopDecision::Boundary),
+                Margin,
+                above,
+                tighten(BOUNDARY, "length"),
+            ),
+            (
+                loop_(LoopDecision::Boundary),
+                Margin,
+                below,
+                tighten(BOUNDARY, "length"),
+            ),
+            (
+                loop_(LoopDecision::Boundary),
+                Margin,
+                poisoned,
+                format!("{BOUNDARY}; {NOTE}"),
+            ),
+            (
+                loop_(LoopDecision::Boundary),
+                Straddle,
+                poisoned,
+                BOUNDARY.to_owned(),
+            ),
             (loop_(LoopDecision::Ray), Margin, above, RAY.to_owned()),
-            (loop_(LoopDecision::Ray), Margin, poisoned, format!("{RAY}; {NOTE}")),
+            (
+                loop_(LoopDecision::Ray),
+                Margin,
+                poisoned,
+                format!("{RAY}; {NOTE}"),
+            ),
             (loop_(LoopDecision::ArcSpan), Margin, below, ARC.to_owned()),
-            (loop_(LoopDecision::ArcSpan), Straddle, poisoned, ARC.to_owned()),
+            (
+                loop_(LoopDecision::ArcSpan),
+                Straddle,
+                poisoned,
+                ARC.to_owned(),
+            ),
             (loop_(LoopDecision::Plane), Margin, above, PLANE.to_owned()),
             (Some(ContainDecision::ArcEnd), Margin, above, END.to_owned()),
-            (Some(ContainDecision::ArcEnd), Decided, poisoned, END.to_owned()),
-            (Some(ContainDecision::ArcEnd), Margin, poisoned, format!("{END}; {NOTE}")),
+            (
+                Some(ContainDecision::ArcEnd),
+                Decided,
+                poisoned,
+                END.to_owned(),
+            ),
+            (
+                Some(ContainDecision::ArcEnd),
+                Margin,
+                poisoned,
+                format!("{END}; {NOTE}"),
+            ),
             (
                 Some(ContainDecision::OneCircle),
                 Margin,
@@ -1232,10 +1273,30 @@ mod tests {
                     "gap between circles",
                 ),
             ),
-            (Some(ContainDecision::Carrier), Margin, above, CARRIER.to_owned()),
-            (Some(ContainDecision::Carrier), Margin, below, CARRIER.to_owned()),
-            (Some(ContainDecision::WindowPeriod), Margin, above, tighten(WALL, "sweep")),
-            (Some(ContainDecision::WindowPeriod), Margin, below, WALL.to_owned()),
+            (
+                Some(ContainDecision::Carrier),
+                Margin,
+                above,
+                CARRIER.to_owned(),
+            ),
+            (
+                Some(ContainDecision::Carrier),
+                Margin,
+                below,
+                CARRIER.to_owned(),
+            ),
+            (
+                Some(ContainDecision::WindowPeriod),
+                Margin,
+                above,
+                tighten(WALL, "sweep"),
+            ),
+            (
+                Some(ContainDecision::WindowPeriod),
+                Margin,
+                below,
+                WALL.to_owned(),
+            ),
             (None, Margin, above, UNNAMED.to_owned()),
             (None, Margin, poisoned, format!("{UNNAMED}; {NOTE}")),
         ];
@@ -1328,7 +1389,10 @@ mod tests {
         else {
             unreachable!("found as an escalation")
         };
-        assert_eq!(decision, Some(ContainDecision::Loop(LoopDecision::Boundary)));
+        assert_eq!(
+            decision,
+            Some(ContainDecision::Loop(LoopDecision::Boundary))
+        );
         assert_eq!(escalation, Escalation::Margin);
         let ending = placement_ending(decision, escalation, &diag, Reading::AtRest);
         assert!(

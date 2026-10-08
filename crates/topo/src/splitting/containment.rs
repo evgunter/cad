@@ -124,10 +124,10 @@
 //! **`point_in_arc_loop_boundary_disagreement`**, the walk meeting on an
 //! edge a point its caller's pass placed off it.
 
-use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_brep::recourse::{
     LeverOnly, Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite,
 };
+use geom_core::k_stats::{Magnitude, decide_magnitude};
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
@@ -458,10 +458,7 @@ impl std::error::Error for PointInLoopError {}
 
 impl PointInLoopError {
     /// An escalation of `decision` on `loop`, for a `map_err`.
-    fn on(
-        r#loop: LoopKey,
-        decision: LoopDecision,
-    ) -> impl Fn(ReadEscalation) -> Self + Copy {
+    fn on(r#loop: LoopKey, decision: LoopDecision) -> impl Fn(ReadEscalation) -> Self + Copy {
         move |ReadEscalation { escalation, diag }| Self::Escalated {
             r#loop,
             decision,
@@ -472,10 +469,7 @@ impl PointInLoopError {
 
     /// An escalation of `decision` on `loop` on an in-band or
     /// unreadable margin, for a `map_err`.
-    fn on_margin(
-        r#loop: LoopKey,
-        decision: LoopDecision,
-    ) -> impl Fn(Indeterminate) -> Self + Copy {
+    fn on_margin(r#loop: LoopKey, decision: LoopDecision) -> impl Fn(Indeterminate) -> Self + Copy {
         move |diag| Self::on(r#loop, decision)(diag.into())
     }
 }
@@ -1456,7 +1450,9 @@ pub(crate) fn carrier_loop<T: Decide>(
                 Ok(Sign::Positive) => edges.push(LoopEdge::Conic(k)),
                 Ok(_) => return Err(corrupt()),
                 Err(diag) => {
-                    return Err(PointInLoopError::on_margin(r#loop, LoopDecision::ArcSpan)(diag));
+                    return Err(PointInLoopError::on_margin(r#loop, LoopDecision::ArcSpan)(
+                        diag,
+                    ));
                 }
             },
             Ok(Some(k)) => edges.push(LoopEdge::Conic(k)),
@@ -1964,10 +1960,12 @@ fn carrier_walk<T: Decide>(
                 // and then the point is in the band of this edge, which
                 // is an escalation, never a panic.
                 Boundary::Decided => {
-                    return Err(on_boundary(ReadEscalation::from(crate::invalid_margin::invalid(
-                        band,
-                        "point_in_arc_loop_boundary_disagreement",
-                    ))));
+                    return Err(on_boundary(ReadEscalation::from(
+                        crate::invalid_margin::invalid(
+                            band,
+                            "point_in_arc_loop_boundary_disagreement",
+                        ),
+                    )));
                 }
             },
         }

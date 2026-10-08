@@ -290,11 +290,7 @@ fn contain_errors() -> Vec<ContainError> {
             poisoned,
         ),
         escalated(arc_span, Escalation::Straddle, poisoned),
-        escalated(
-            Some(ContainDecision::ArcEnd),
-            Escalation::Decided,
-            poisoned,
-        ),
+        escalated(Some(ContainDecision::ArcEnd), Escalation::Decided, poisoned),
     ]);
     v.extend([
         ContainError::RayExhausted,
@@ -303,7 +299,11 @@ fn contain_errors() -> Vec<ContainError> {
         ContainError::LoopUnreadable(LoopKey::default()),
         ContainError::Uncrossable(uncrossable()),
     ]);
-    v.extend(point_in_solid_errors().into_iter().map(ContainError::Curved));
+    v.extend(
+        point_in_solid_errors()
+            .into_iter()
+            .map(ContainError::Curved),
+    );
     v
 }
 
@@ -906,19 +906,18 @@ fn path_label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
             // reading stood, and its margin's kind.
             _ if head == "Escalated" && rest.contains("escalation: ") => {
                 let field = |name: &str| {
-                    rest.split_once(name).map_or("", |(_, tail)| {
-                        tail.split([',', ' ']).next().unwrap_or("")
-                    })
+                    rest.split_once(name)
+                        .map_or("", |(_, tail)| tail.split([',', ' ']).next().unwrap_or(""))
                 };
                 let decision = rest
                     .split_once("decision: ")
                     .and_then(|(_, tail)| tail.split_once(", escalation"))
                     .map_or("", |(d, _)| d);
-                let kind = rest
-                    .split_once("margin: ")
-                    .map_or("", |(_, tail)| {
-                        tail.split(|c: char| !c.is_alphanumeric()).next().unwrap_or("")
-                    });
+                let kind = rest.split_once("margin: ").map_or("", |(_, tail)| {
+                    tail.split(|c: char| !c.is_alphanumeric())
+                        .next()
+                        .unwrap_or("")
+                });
                 return format!("{path}/{decision}/{}/{kind}", field("escalation: "));
             }
             // An off-plane loop's refusals differ by cause alone.

@@ -1977,12 +1977,15 @@ pub(in crate::boolean) mod tests {
                 BooleanDecisionKind::Containment => core::iter::once(None)
                     .chain(ContainDecision::ALL.map(Some))
                     .flat_map(|decision| {
-                        [Escalation::Margin, Escalation::Straddle, Escalation::Decided].map(
-                            |escalation| BooleanDecision::Containment {
-                                decision,
-                                escalation,
-                            },
-                        )
+                        [
+                            Escalation::Margin,
+                            Escalation::Straddle,
+                            Escalation::Decided,
+                        ]
+                        .map(|escalation| BooleanDecision::Containment {
+                            decision,
+                            escalation,
+                        })
                     })
                     .collect(),
                 BooleanDecisionKind::Crossing => CrossingDecision::iter()

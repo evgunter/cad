@@ -317,7 +317,10 @@ impl<T: Decide> SphereFaceRegion<T> {
                     return Err(RegionRefusal::WoundPastPeriod);
                 }
             };
-            match k.hit(p, BOUNDARY, band).map_err(|e| RegionRefusal::Escalated(e.diag))? {
+            match k
+                .hit(p, BOUNDARY, band)
+                .map_err(|e| RegionRefusal::Escalated(e.diag))?
+            {
                 ConicHit::On | ConicHit::End => return Ok(None),
                 ConicHit::Off | ConicHit::Carrier => {}
             }

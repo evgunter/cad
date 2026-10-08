@@ -499,7 +499,10 @@ fn each_walk_site_tags_its_decision() {
         assert_eq!(*decision, want, "{row}");
         assert_eq!(*escalation, Escalation::Margin, "{row}");
         assert!(
-            diag.margin.diagnostic_f64_for_error_text().value().is_some(),
+            diag.margin
+                .diagnostic_f64_for_error_text()
+                .value()
+                .is_some(),
             "{row}: {diag:?}"
         );
         let ending = want.ending(Escalation::Margin, diag, Reading::Build);
@@ -511,4 +514,3 @@ fn each_walk_site_tags_its_decision() {
         );
     }
 }
-

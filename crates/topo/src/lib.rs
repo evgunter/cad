@@ -785,8 +785,8 @@ pub use boolean::{
     BooleanErrorKind, BooleanNaming, BooleanOp, BooleanReduction, BooleanResult, BooleanResultKind,
     CarriedContacts, CarriedVf, CarriedVv, CarrierDesc, CarrierEqError, CarrierRelation, Cell,
     Coincide, CoincidenceMeasure, CompletedPolygonPair, ConsumedExtent, ContactRecords,
-    ContainDecision, ContainError, Contradiction, CurveContact, DeclarationRead, DiscardRow, EdgeJoin,
-    EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions, HeldEdge,
+    ContainDecision, ContainError, Contradiction, CurveContact, DeclarationRead, DiscardRow,
+    EdgeJoin, EdgePieceClass, EeContact, FaceContainment, FacePairDeclaration, Fusions, HeldEdge,
     JoinReading, JoinRefusal, JoinUndecided, LeverArm, NeighbourOffset, NullEdgePairRecord,
     Operand, OperandKeys, PairFace, PairRefusalSite, PairSite, PairUnread, PatchContact,
     PierceRingRecord, PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung,
@@ -898,12 +898,12 @@ pub use source::{
 };
 pub use split::SplitEdgeCreated;
 pub use splitting::{
-    ConicCrossingsCase, ConicRootFault, CrossingDecision, KnifeEdge, KnifeEdgeSite,
-    Escalation, LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide, PointInLoopError, Section,
-    SectionEdge, SectionError, SectionPolygon, SectionRegion, SectorEntry, SectorEntryKind,
-    SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, SplitReduceError,
-    SplitReduction, SplitResult, Uncrossable, UncrossableCarrier, classify_neighborhood,
-    plane_section, point_in_loop, split, split_reduce, vertex_sides,
+    ConicCrossingsCase, ConicRootFault, CrossingDecision, Escalation, KnifeEdge, KnifeEdgeSite,
+    LoopContainment, LoopDecision, NullEdgeRecord, OffPlane, OffPlaneCause, PlaneSide,
+    PointInLoopError, Section, SectionEdge, SectionError, SectionPolygon, SectionRegion,
+    SectorEntry, SectorEntryKind, SplitError, SplitFinishError, SplitJoinError, SplitPart,
+    SplitPlane, SplitReduceError, SplitReduction, SplitResult, Uncrossable, UncrossableCarrier,
+    classify_neighborhood, plane_section, point_in_loop, split, split_reduce, vertex_sides,
 };
 pub use transform::{TransformError, check_rigid, not_rigid_reading, transform_rigid};
 pub use validate::{

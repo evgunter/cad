@@ -3124,14 +3124,19 @@ pub(crate) enum Undecided {
 fn witness_too_close(decision: Option<crate::splitting::LoopDecision>) -> &'static str {
     use crate::splitting::LoopDecision as D;
     static SENTENCES: std::sync::LazyLock<[String; 5]> = std::sync::LazyLock::new(|| {
-        [None, Some(D::Boundary), Some(D::Ray), Some(D::ArcSpan), Some(D::Plane)].map(
-            |decision| {
-                format!(
-                    "{WITNESS_LEAD}Recourse: {}",
-                    crate::boolean::placement_lever(decision.map(Into::into))
-                )
-            },
-        )
+        [
+            None,
+            Some(D::Boundary),
+            Some(D::Ray),
+            Some(D::ArcSpan),
+            Some(D::Plane),
+        ]
+        .map(|decision| {
+            format!(
+                "{WITNESS_LEAD}Recourse: {}",
+                crate::boolean::placement_lever(decision.map(Into::into))
+            )
+        })
     });
     let at = match decision {
         None => 0,

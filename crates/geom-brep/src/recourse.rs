@@ -511,7 +511,10 @@ mod tests {
             at_zero: None,
         };
         for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
-            assert_eq!(decision.recourse(RefusedArm::Straddle, reading), "Recourse: L");
+            assert_eq!(
+                decision.recourse(RefusedArm::Straddle, reading),
+                "Recourse: L"
+            );
         }
         let cause = |margin| Indeterminate {
             margin,
