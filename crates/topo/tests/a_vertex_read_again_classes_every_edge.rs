@@ -719,9 +719,10 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
         // where neither crown builds; each is read where it builds.
         let fin_builds = Band::linear(t()).unwrap().zero() < 1e-8;
         if !fin_builds && pose.label == poses()[0].label {
-            println!(
-                "SKIPPED at this ε: the fin's fold and the crown's dents are in band and \
-                 their crowns do not build"
+            test_utils::vacuity::stood_down(
+                "the fin and the dented crown",
+                "the fin's fold and the crown's dents are in band at this ε, their crowns do \
+                 not build, and no row of theirs is read",
             );
         }
         let fin_scene = fin_builds.then(|| {

@@ -801,6 +801,19 @@ PR 4289's second review (REQUEST-CHANGES, MAJOR 1). The fix pass:
 - **Filed:** `pair-classes-falls-back-to-per-pair-rows-beside-a-partner-that-reads-none`
   (P2) and `in-sector-is-a-second-spelling-of-within` (P3).
 
+PR 4289's third review (REQUEST-CHANGES, MAJOR 1). The fix pass:
+- **M1.** `in_sector` levered a reading past a bound at the read
+  point's reach alone. Beside a 1 mm bound it decided a class that a
+  3e-10 m move of that bound's far point flips. Every reading of the
+  polygon-cone reader is now levered at the least deviation of the
+  points it reads, by one helper (`least_lever`): each bound at its own
+  reach, as `arc_side` already read its three points.
+- **Oracle.** `cone_fuzz` judges in band by D4: a reading is in band
+  where a band-sized move of the probe or of a bound's far point can
+  flip the exact class, and a decided class there is wrong. It reads at
+  ε 1e-12 too, and takes the review's bound family.
+- **Moved:** `in-sector-is-a-second-spelling-of-within` to HONE.
+
 2026-10-07 — PR 4246's third fix pass (third review, interim
 REQUEST-CHANGES, 1 MAJOR). A root at a smooth vertex under a graze is
 decided by its in-span readings, and those were levered by arc length,

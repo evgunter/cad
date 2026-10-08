@@ -5,9 +5,10 @@
 //!
 //! The cones are stars about an axis, their corners risen and fallen
 //! at random, some with two corners a hair apart (a thin fin or
-//! sliver), some turned off the axis; and the graze family of PR 4289's
+//! sliver), some turned off the axis; the graze family of PR 4289's
 //! second review: a flat corner with one face dented a hair, read by
-//! directions a hair off the flat faces. Every bound is a line edge,
+//! directions a hair off the flat faces; and its third review's bound
+//! family: a short bound, read by directions a hair past it. Every bound is a line edge,
 //! its far point an `f64` vector, and every direction a line edge too.
 //!
 //! The oracle reads the same `f64` numbers exactly, as rationals: a
@@ -20,11 +21,32 @@
 //! rounding, so a decided class the oracle contradicts is a defect, not
 //! a rounding.
 //!
-//! A class is wrong where it is decided (`In`, `Out` or `On`) and the
-//! oracle's differs, except where either is `On` and the direction lies
-//! within four zero bands of the cone's boundary (an `On` read in the
-//! band is the reader's answer there). `None` and refusals are not
-//! wrong; they are counted and printed.
+//! **In band, by D4.** A direction is in band where some deviation of
+//! the points the cone and the probe are read from, each moved by no
+//! more than the zero band, puts the probe's far point `D` on the
+//! cone's boundary, so that the exact class can flip. A face is its
+//! plane, as the reader holds it (a surface, not three points), and
+//! its sector is bounded in that plane by its bounds, each a far point
+//! at its own reach `L`. Moving `D` by `δ` moves it off the plane by
+//! `δ`; moving a bound's far point by `δ` turns the bound in the plane
+//! by `δ/L`, which carries the bound's ray, a distance `t` out, by
+//! `t·δ/L`. So where `D` projects into a sector, the least such `δ` is
+//! `D`'s height `h` over the plane; elsewhere it is the larger of `h`
+//! and `w/(1 + t/L)`, `w` the projection's distance from the nearer
+//! bound's ray and `t` its distance along it. The probe is in band
+//! where that is within the zero band for some face, or it lies exactly
+//! on the cone.
+//!
+//! A reading is **wrong** where it is a decided class (`In` or `Out`)
+//! the oracle contradicts, or a decided class in band (a band-sized
+//! move could flip it, so deciding it is no reading of the input), or
+//! `On` out of band. An `On`, a refusal or `None` in band is the
+//! reader's answer there. `None` and refusals are counted and printed.
+//!
+//! It reads at ε = 1e-9, 1e-6 and 1e-12, and at the session's ε where
+//! that is another, each cone that is one at that ε: a face whose
+//! bounds stand off its own plane beyond the zero band is skipped, and
+//! only readings checked are counted.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -349,25 +371,32 @@ fn bool_sectors(cone: &[Sector]) -> Vec<BoolSector<f64>> {
         .collect()
 }
 
-/// The angle, roughly, from a unit direction to the cone's boundary:
-/// to a face's plane where it projects inside the sector, else to a
-/// bound.
-fn off_boundary(cone: &[Sector], u: [f64; 3]) -> f64 {
-    let mut best = f64::MAX;
-    for s in cone {
-        let (a, b, n) = (norm3(s.start_far), norm3(s.end_far), s.normal);
-        let h = u[0] * n[0] + u[1] * n[1] + u[2] * n[2];
-        let pr = [u[0] - n[0] * h, u[1] - n[1] * h, u[2] - n[2] * h];
-        let d = |x: [f64; 3], y: [f64; 3]| x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
-        if d(cross3(a, pr), n) >= 0.0 && d(cross3(pr, b), n) >= 0.0 {
-            best = best.min(h.abs());
-        }
-        for c in [a, b] {
-            let e = [u[0] - c[0], u[1] - c[1], u[2] - c[2]];
-            best = best.min(d(e, e).sqrt());
-        }
-    }
-    best
+/// The least deviation of the cone's far points and the probe's that
+/// puts the probe's far point `far` on the cone's boundary (module
+/// docs, "In band, by D4").
+fn least_flip(cone: &[Sector], far: [f64; 3]) -> f64 {
+    let dot = |x: [f64; 3], y: [f64; 3]| x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
+    let len = |x: [f64; 3]| dot(x, x).sqrt();
+    cone.iter()
+        .map(|s| {
+            let n = s.normal;
+            let h = dot(far, n);
+            let pr = [0, 1, 2].map(|i| far[i] - h * n[i]);
+            let (u, v) = (norm3(s.start_far), norm3(s.end_far));
+            if dot(cross3(u, pr), n) >= 0.0 && dot(cross3(pr, v), n) >= 0.0 {
+                return h.abs();
+            }
+            [s.start_far, s.end_far]
+                .iter()
+                .map(|&bound| {
+                    let (b, l_b) = (norm3(bound), len(bound));
+                    let t = dot(pr, b).max(0.0);
+                    let w = len([0, 1, 2].map(|i| pr[i] - t * b[i]));
+                    h.abs().max(w / (1.0 + t / l_b))
+                })
+                .fold(f64::MAX, f64::min)
+        })
+        .fold(f64::MAX, f64::min)
 }
 
 /// A cone's corners, in order round it: each a unit bound and the
@@ -454,6 +483,34 @@ fn graze(rng: &mut Rng) -> (Ring, Vec<[f64; 3]>) {
     (ring, probes)
 }
 
+/// Review 3's bound family: a crown whose face on `z = 0` has a short
+/// edge at bearing 0.05, read by directions a hair past or before that
+/// bound, on or a hair off the plane.
+fn beside_bound(rng: &mut Rng) -> (Ring, Vec<[f64; 3]>) {
+    let pt = |a: f64, z: f64| [a.cos(), a.sin(), z];
+    let pick = |rng: &mut Rng, xs: &[f64]| xs[rng.below(xs.len())];
+    let za = pick(rng, &[0.2, -0.2, 0.05, -0.05]);
+    let short = pick(rng, &[1e-3, 1e-2, 1e-4]);
+    let at = 0.05 + pick(rng, &[0.0, 3e-7, -3e-7]);
+    let ring = vec![
+        (pt(-0.3, za), 1.0),
+        (pt(at, 0.0), short),
+        (pt(0.5, 0.0), 1.0),
+        (pt(2.0, 0.3), 1.0),
+        (pt(3.5, -0.3), 1.0),
+        (pt(5.0, 0.15), 1.0),
+    ];
+    let probes = (0..12)
+        .map(|_| {
+            let past = pick(rng, &[1e-7, 2e-7, 4e-7, 1e-6, -1e-7, -1e-6]);
+            let h = pick(rng, &[0.0, 1e-10, -1e-10, 4e-10, -4e-10, 2e-9, -2e-9]);
+            let l = pick(rng, &[0.5, 1.0, 2.0]);
+            norm3(pt(0.05 - past, h)).map(|x| x * l)
+        })
+        .collect();
+    (ring, probes)
+}
+
 /// Directions about a cone: random ones, and ones on, beside and a
 /// hair off its faces and bounds, each a far point at a random length.
 fn probes_about(rng: &mut Rng, cone: &[Sector]) -> Vec<[f64; 3]> {
@@ -495,7 +552,7 @@ fn check_cone(
     probes: &[[f64; 3]],
     band: Band,
     rng: &mut Rng,
-    undecided: &mut usize,
+    counts: &mut Counts,
 ) -> Vec<String> {
     // A face whose bounds stand off its own plane beyond the zero band
     // is no face at this ε: a sector a few nanoradians wide has its
@@ -546,16 +603,23 @@ fn check_cone(
             ),
         ];
         let truth = oracle.class(far, rng);
-        let off = off_boundary(cone, norm3(far));
+        let flip = least_flip(cone, far);
+        let in_band = truth == SideCode::On || flip <= band.zero();
         for (reader, got) in readings {
+            counts.read += 1;
             let Some(got) = got else {
-                *undecided += 1;
+                counts.undecided += 1;
                 continue;
             };
-            let in_band = (got == SideCode::On || truth == SideCode::On) && off < 4.0 * band.zero();
-            if got != truth && !in_band && off > 1e-14 {
+            let defect = match got {
+                SideCode::On => (!in_band).then_some("On out of band"),
+                _ if got != truth => Some("the oracle contradicts it"),
+                _ => in_band.then_some("decided in band"),
+            };
+            if let Some(defect) = defect {
                 wrong.push(format!(
-                    "{what}, probe {k} {far:?}: {reader} reads {got:?}, exactly {truth:?}, {off:.3e} rad off the boundary"
+                    "{what}, probe {k} {far:?}: {reader} reads {got:?}, exactly {truth:?}, \
+                     flipped by a {flip:.3e} m deviation: {defect}"
                 ));
             }
         }
@@ -563,21 +627,35 @@ fn check_cone(
     wrong
 }
 
+/// What a run read, and what it left undecided.
+#[derive(Default)]
+struct Counts {
+    read: usize,
+    undecided: usize,
+}
+
 /// **No decided class the polygon-cone reader gives contradicts the
-/// exact oracle**, over random stars, thin fins and slivers, turned
-/// stars, and the graze family, at ε = 1e-9 and 1e-6 (module docs).
+/// exact oracle or lies in band**, over random stars, thin fins and
+/// slivers, turned stars, and the graze family (module docs).
 #[test]
 fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
     let mut rng = test_utils::fuzz::start("sectors_cone_fuzz");
-    let cones = test_utils::fuzz::scaled(120);
+    let cones = test_utils::fuzz::scaled(80);
     let mut wrong = Vec::new();
-    let (mut read, mut undecided) = (0usize, 0usize);
-    for eps in [1e-9, 1e-6] {
+    let mut counts = Counts::default();
+    let session = Tol::witness().get().eps;
+    let mut eps_set = vec![1e-9, 1e-6, 1e-12];
+    if !eps_set.contains(&session) {
+        eps_set.push(session);
+    }
+    for eps in eps_set {
         let band = Band::linear_at(Tol::witness(), eps).unwrap();
         for c in 0..cones {
             let hollow = rng.below(2) == 0;
-            let (ring, probes) = if c % 3 == 0 {
+            let (ring, probes) = if c % 4 == 0 {
                 graze(&mut rng)
+            } else if c % 4 == 1 {
+                beside_bound(&mut rng)
             } else {
                 let n = 3 + rng.below(9);
                 let thin = rng.unit() < 0.3;
@@ -595,7 +673,6 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
             } else {
                 probes
             };
-            read += 2 * probes.len();
             let what = format!(
                 "ε {eps:e}, cone {c} ({} corners, hollow {hollow})",
                 ring.len()
@@ -606,17 +683,19 @@ fn the_polygon_cone_reader_never_contradicts_the_exact_oracle() {
                 &probes,
                 band,
                 &mut rng,
-                &mut undecided,
+                &mut counts,
             ));
         }
     }
     println!(
-        "[fuzz] sectors_cone_fuzz: {read} readings, {undecided} undecided, {} wrong",
+        "[fuzz] sectors_cone_fuzz: {} readings, {} undecided, {} wrong",
+        counts.read,
+        counts.undecided,
         wrong.len()
     );
     assert!(
         wrong.is_empty(),
-        "{} decided classes contradict the exact oracle; {}:\n{}",
+        "{} readings contradict the exact oracle or decide in band; {}:\n{}",
         wrong.len(),
         test_utils::fuzz::replay(),
         wrong.join("\n")

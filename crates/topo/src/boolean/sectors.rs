@@ -1595,47 +1595,29 @@ pub(super) fn cone_read<T: Decide>(
 /// A direction on a face's plane within its sector ([`in_sector`]) is
 /// `On`. Any other is read along the great arc to a reference `p`, the
 /// direction halfway between one sector's bounds, where the direction
-/// lies strictly to one side of that sector's plane. Beside `p` on the
-/// direction's side, the material is that face's inner half-space, so
-/// the side starts as the direction's side of the face, and flips at
-/// each sector the arc crosses.
-///
-/// Each other face `S` (normal `n`) is read by one rule, from the
+/// lies strictly to one side of that sector's plane: the side starts as
+/// the direction's side of that face, and flips at each sector the arc
+/// crosses. Each other face `S` is read by one rule, from the
 /// direction's side of its plane and `p`'s:
-/// - **Decidedly on one side**, both: a minor arc whose ends lie
-///   strictly on one side of a plane lies there, so `S` is not crossed.
+/// - **Decidedly on one side**, both: `S` is not crossed.
 /// - **Decidedly on opposite sides**: the arc crosses `S`'s plane once,
-///   and crosses `S` iff that point lies between `S`'s bounds `u` and
-///   `v`. Two minor arcs `d→p` and `u→v` cross iff
-///   `det(d,p,u) = −det(d,p,v) = −det(u,v,d) = det(u,v,p)`, all nonzero,
-///   and `det(u,v,x)` is `x·n`'s sign: `u` on `p`'s side and `v` on the
-///   direction's side of the plane through the direction and `p`
-///   ([`arc_side`]).
+///   and crosses `S` iff `S`'s bounds lie on opposite sides of the plane
+///   through the direction and `p`, the start on `p`'s side
+///   ([`arc_side`]; two minor arcs `d→p` and `u→v` cross iff
+///   `det(d,p,u) = −det(d,p,v) = −det(u,v,d) = det(u,v,p)`, all nonzero).
 /// - **`p` in band of the plane**: the reference is passed over.
-/// - **Otherwise**, the direction on or in band of the plane, or `p` on
-///   it within the zero band: the crossing, if
-///   there is one, is the point `x = |p̂·n|·d̂ + |d̂·n|·p̂` the ends'
-///   heights over the plane locate ([`crossing`]); with both ends on
-///   the plane it locates none, and the reference is passed over. `S`
-///   is passed over only where
-///   [`in_sector`] decides `x` outside `S`'s sector, read at the
-///   direction's reach or, if less, at how well `x` is located:
-///   `|x|·arm₀·L_d/(arm₀ + L_d)`, the move of the reference (at its arm
-///   `arm₀`) or of the direction's far point (at `L_d`) that moves the
-///   crossing by the angle read. Where `x` lies inside `S`, on its
-///   bound, or is not decided, the reference is passed over: whether
-///   the arc crosses there, and where, the readings do not decide.
+/// - **Otherwise**: the crossing, if any, is located ([`crossing`]), and
+///   `S` is passed over only where [`in_sector`] decides it outside
+///   `S`'s sector. Anywhere else, or where nothing is located, the
+///   reference is passed over.
 ///
 /// `S` on `p`'s own face is not read: `p` lies on that plane in its own
 /// sector, which no other sector of the face shares.
 ///
-/// Every decision is a point deviation, as `side_code` reads one: the
-/// direction's side of a face's plane is `side_code`'s, and `p`'s a
-/// bisector's, levered at its sector's arm; the arc's side of a bound
-/// is [`arc_side`]'s; a point's place in a sector is [`in_sector`]'s. A
-/// reference any of whose readings is zero or in band is passed over
-/// for the next; where none reads, the first escalation refuses. `None`
-/// is returned where no reference reads and none escalated: every
+/// Every decision is a point deviation ([`least_lever`]). A reference
+/// any of whose readings is zero or in band is passed over for the
+/// next; where none reads, the first escalation refuses. `None` is
+/// returned where no reference reads and none escalated: every
 /// reference's arc runs through the link, or meets a face whose
 /// crossing it cannot locate or that it may cross inside its sector
 /// without decidedly crossing its plane.
@@ -1683,9 +1665,9 @@ fn cone_side<T: Decide>(
             // any, is located from the endpoints' heights over the plane,
             // and `S` is passed over only where that point is decidedly
             // outside its sector, read at how well it is located.
-            match (side, *code) {
+            let code = match (side, *code) {
                 (SideCode::In | SideCode::Out, Some(code)) if code == side => continue,
-                (SideCode::In | SideCode::Out, Some(_)) => {}
+                (SideCode::In | SideCode::Out, Some(code)) => code,
                 _ => {
                     let Some((x, lever)) = crossing(d, reach, p, s0.arm, s.normal.vec()) else {
                         continue 'reference;
@@ -1699,13 +1681,12 @@ fn cone_side<T: Decide>(
                         }
                     }
                 }
-            }
-            let Some(code) = *code else { continue };
+            };
             let mut crosses = true;
             for (bound, bound_reach, want) in
                 [(s.start, s.start_reach, side), (s.end, s.end_reach, code)]
             {
-                let arc = Arc {
+                let arc = GreatArc {
                     dir,
                     reach,
                     p,
@@ -1727,14 +1708,39 @@ fn cone_side<T: Decide>(
     escalation.map_or(Ok(None), Err)
 }
 
+/// **The least deviation that flips a reading, as its lever.** A
+/// reading's value is a sine, cosine or determinant of unit vectors,
+/// each the direction to a point at some reach from the vertex. Moving
+/// that point by `δ` turns its unit vector by at most `δ/L`, which
+/// moves the value by at most `rate·δ/L`, `rate` the value's rate in
+/// that vector's turn. The least move of any one point that can flip
+/// the value's sign is then `|value|·min(L/rate)` (D4), and this
+/// returns that `min(L/rate)` over `points`, each `(L, rate)`. A zero
+/// rate drops that point: no move of it alone flips the reading.
+/// [`arc_side`] and [`in_sector`] lever here.
+fn least_lever<T: Decide>(points: impl IntoIterator<Item = (T, T)>) -> T {
+    points
+        .into_iter()
+        .map(|(length, rate)| length / rate)
+        .filter(|&lever| geom_core::is_finite_length(lever))
+        .reduce(|a, b| a.min(b))
+        .unwrap_or_else(|| T::from_f64(0.0))
+}
+
 /// Where the arc from the unit direction `d`, read as `reach` allows,
 /// to the unit reference `p`, levered at `arm`, meets the plane through
 /// the vertex of normal `n`, if it does: `x = |p·n|·d + |d·n|·p`, the
-/// point the ends' heights over the plane locate, and the lever it is
-/// read at, the direction's reach or, if less, `|x|·arm·L_d/(arm + L_d)`,
-/// the move of `p` at its arm or of the direction's far point that moves
-/// the crossing by the angle read. `None` where `x` has no length: both
-/// ends lie on the plane, and the arc locates no crossing.
+/// point the ends' heights over the plane locate (on the arc, at the
+/// ratio of the heights), and the lever it is read at.
+///
+/// The lever is the direction's reach or, if less,
+/// `|x|·arm·L_d/(arm + L_d)`. Moving `p`'s point at its arm by `δ`
+/// changes `|p·n|` by `δ/arm`, and moving the direction's far point
+/// changes `|d·n|` by `δ/L_d`; either slides `x` along the arc by that
+/// over `|x|`, so the angle read at `x` is moved, with both points moved
+/// by `δ`, by no more than `δ·(1/arm + 1/L_d)/|x|`. `None`
+/// where `x` has no length: both ends lie on the plane, and the arc
+/// locates no crossing.
 fn crossing<T: Decide>(
     d: Vec3<T>,
     reach: Reach<T>,
@@ -1751,13 +1757,17 @@ fn crossing<T: Decide>(
 /// Whether a direction on or beside `s`'s plane lies within its
 /// sector, read as a point `lever` out along it: `false` where it lies
 /// decidedly past one of the planes through each bound square to the
-/// face (`"bool_cone_within"`, the sine of its angle past it, levered)
-/// or decidedly faces away from the sector's middle
-/// (`"bool_cone_facing"`, the cosine, levered), which a direction
-/// opposite a thin sector, between those planes too, does; `true`
-/// where no reading decides it outside: inside, or on a bound or
-/// square to the middle within the zero band. Every caller reads a
-/// bound as the sector's.
+/// face (`"bool_cone_within"`, the sine of its angle past it) or
+/// decidedly faces away from the sector's middle (`"bool_cone_facing"`,
+/// the cosine), which a direction opposite a thin sector, between those
+/// planes too, does; `true` where no reading decides it outside:
+/// inside, or on a bound or square to the middle within the band.
+/// Every caller reads a bound as the sector's.
+///
+/// Each reading is levered at the least deviation of the points it
+/// reads ([`least_lever`]): the direction at `lever`, and each bound
+/// it compares against at the bound's own reach. The middle turns by a
+/// bound's turn over `|start + end|`.
 fn in_sector<T: Decide>(
     s: &BoolSector<T>,
     dir: Vec3<T>,
@@ -1766,13 +1776,22 @@ fn in_sector<T: Decide>(
 ) -> Result<bool, BooleanError> {
     let escalate = |diag| BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag);
     let (d, n) = (dir.normalize(), s.normal.vec());
-    let middle = (s.start + s.end).normalize();
-    for (name, x) in [
-        ("bool_cone_within", s.start.cross(d).dot(n)),
-        ("bool_cone_within", d.cross(s.end).dot(n)),
-        ("bool_cone_facing", d.dot(middle)),
+    let sum = s.start + s.end;
+    let middle = sum.normalize();
+    let (one, l_start, l_end) = (
+        T::from_f64(1.0),
+        s.start_reach.length(),
+        s.end_reach.length(),
+    );
+    let half = one / sum.norm();
+    let past = |x: T, l_bound: T| Margin::levered(x, least_lever([(lever, one), (l_bound, one)]));
+    let facing = least_lever([(lever, one), (l_start, half), (l_end, half)]);
+    for (name, margin) in [
+        ("bool_cone_within", past(s.start.cross(d).dot(n), l_start)),
+        ("bool_cone_within", past(d.cross(s.end).dot(n), l_end)),
+        ("bool_cone_facing", Margin::levered(d.dot(middle), facing)),
     ] {
-        if decide(name, Margin::levered(x, lever), band).map_err(escalate)? == Sign::Negative {
+        if decide(name, margin, band).map_err(escalate)? == Sign::Negative {
             return Ok(false);
         }
     }
@@ -1782,7 +1801,7 @@ fn in_sector<T: Decide>(
 /// The arc [`cone_side`] reads along: from `dir`, read as `reach`
 /// allows, to the unit reference `p`, a direction levered at `p_arm`.
 #[derive(Clone, Copy)]
-struct Arc<T: geom_core::Real> {
+struct GreatArc<T: geom_core::Real> {
     dir: Vec3<T>,
     reach: Reach<T>,
     p: Vec3<T>,
@@ -1797,17 +1816,15 @@ struct Arc<T: geom_core::Real> {
 /// zero.
 ///
 /// The margin (`"bool_cone_arc"`) is the least displacement of any of
-/// the three points the determinant reads that flips its sign: the
-/// direction's far point off the plane through `p` and `bound`,
-/// `|det|·L_d/|p̂×b̂|`; `bound`'s far point off the plane through the
-/// direction and `p`, `|det|·L_b/|d̂×p̂|`; and `p` levered at its arm
-/// off the plane through the direction and `bound`, `|det|·arm/|d̂×b̂|`,
-/// each `L` the bound's own reach. A displacement along a plane that
-/// holds the other two points never flips it, so a zero sine drops
-/// that point. The determinant's own rounding (eight ulp of three unit
-/// vectors) is taken off before it is levered.
+/// the three points the determinant reads that flips its sign
+/// ([`least_lever`]): turning one unit vector moves the determinant by
+/// the turn times the sine between the other two, so the rates are
+/// `|p̂×b̂|` for the direction's far point (at `L_d`), `|d̂×p̂|` for
+/// `bound`'s (at its own reach) and `|d̂×b̂|` for `p` (at its arm). The
+/// determinant's own rounding (eight ulp of three unit vectors) is
+/// taken off before it is levered.
 fn arc_side<T: Decide>(
-    arc: Arc<T>,
+    arc: GreatArc<T>,
     bound: Vec3<T>,
     bound_reach: Reach<T>,
     arm: T,
@@ -1823,15 +1840,11 @@ fn arc_side<T: Decide>(
         _ => return Ok(None),
     }
     let det = d.dot(pb);
-    let mut lever = arc.reach.length() / span;
-    for (length, sine) in [
+    let lever = least_lever([
+        (arc.reach.length(), span),
         (bound_reach.length(), d.cross(arc.p).norm()),
         (arc.p_arm, d.cross(b).norm()),
-    ] {
-        if geom_core::is_finite_length(length / sine) {
-            lever = lever.min(length / sine);
-        }
-    }
+    ]);
     // The determinant of three unit vectors rounds by a few ulp, which
     // the lever magnifies: what of it a rounding could account for is
     // no deviation of the points.
@@ -2589,11 +2602,15 @@ mod tests {
         reads_exactly("the fin", &cone, &probes);
     }
 
-    /// **A direction outside a sector at its own reach is outside it,
-    /// however short the sector's arm**: a hollow fin whose short edge
-    /// is 1 cm, and a direction 1.5e-7 m below the fin's base edge at
-    /// its own reach, which `within` at the sector's arm reads on the
-    /// bound (fuzz seed 1, cone 85).
+    /// **A direction outside a sector is read at the bound it passes,
+    /// not at the sector's shortest arm**: a hollow fin whose short edge
+    /// is 1 cm, and a direction 7.9e-8 rad (1.5e-7 m at its 1.95 m
+    /// reach) past the fin's base edge, which is 0.5 m long. The least
+    /// deviation that flips that reading moves the base edge's far point
+    /// or the direction's by 4e-8 m, forty zero bands, so it is decided:
+    /// `In`, as the exact oracle reads it. Levered at the sector's arm
+    /// (`within`'s, the short edge's 1 cm), it read on the bound (fuzz
+    /// seed 1, cone 85; PR 4289's third review re-posed it).
     #[test]
     fn a_direction_off_a_short_armed_sector_is_off_it() {
         use SideCode::In;
@@ -3130,6 +3147,285 @@ mod tests {
         assert_eq!(classes(&read), [SideCode::In], "1.6 rad inside");
     }
 
+    /// **A direction beside a short bound is read at the bound's own
+    /// reach**: a crown whose face `S` (on `z = 0`) has a 1 mm edge `B`,
+    /// read by directions 1e-7 rad past `B` and 1e-10, 4e-10 and 2e-9 m
+    /// over the plane; and its twin, `B`'s far point moved 3e-10 m in
+    /// the plane, a third of the zero band. The two cones are one cone
+    /// within the band, but their exact classes differ (`Out`, then
+    /// `In`). Levered at the direction's reach alone, the first read
+    /// `Out` while its twin refused: a decided class its twin
+    /// contradicts. Each now reads `On` or refuses (PR 4289's third
+    /// review; `r3_bound.py`, case `bnd_zA0.2_s`).
+    #[test]
+    fn a_direction_beside_a_short_bound_is_read_at_the_bounds_reach() {
+        let cone = fuzz_cone(&[
+            [
+                0.9987502603949663,
+                0.04997916927067833,
+                0.0,
+                0.9367845000189781,
+                -0.28978140392829665,
+                0.19611613513818402,
+                0.025180826917106023,
+                -0.5031967879301025,
+                -0.8638049077034687,
+                1.0,
+                1.0,
+                0.0009987502603949663,
+                4.997916927067833e-05,
+                0.0,
+                0.9367845000189781,
+                -0.28978140392829665,
+                0.19611613513818402,
+                0.001,
+                0.0,
+            ],
+            [
+                0.8775825618903728,
+                0.479425538604203,
+                0.0,
+                0.9987502603949663,
+                0.04997916927067833,
+                0.0,
+                0.0,
+                0.0,
+                -1.0,
+                1.0,
+                1.0,
+                0.8775825618903728,
+                0.479425538604203,
+                0.0,
+                0.0009987502603949663,
+                4.997916927067833e-05,
+                0.0,
+                0.001,
+                1.0,
+            ],
+            [
+                -0.39859637855648306,
+                0.8709489764975944,
+                0.2873478855663454,
+                0.8775825618903728,
+                0.479425538604203,
+                0.0,
+                -0.13807921244038343,
+                0.25275230299584717,
+                -0.9576274872945841,
+                1.0,
+                1.0,
+                -0.39859637855648306,
+                0.8709489764975944,
+                0.2873478855663454,
+                0.8775825618903728,
+                0.479425538604203,
+                0.0,
+                1.0,
+                2.0,
+            ],
+            [
+                -0.8969628300582488,
+                -0.3359893958958339,
+                -0.2873478855663454,
+                -0.39859637855648306,
+                0.8709489764975944,
+                0.2873478855663454,
+                0.1537435140353627,
+                0.3723343456140114,
+                -0.9152759512672909,
+                1.0,
+                1.0,
+                -0.8969628300582488,
+                -0.3359893958958339,
+                -0.2873478855663454,
+                -0.39859637855648306,
+                0.8709489764975944,
+                0.2873478855663454,
+                1.0,
+                3.0,
+            ],
+            [
+                0.2805238471386536,
+                -0.9483150748622418,
+                0.14834045293024462,
+                -0.8969628300582488,
+                -0.3359893958958339,
+                -0.2873478855663454,
+                0.3224329819611792,
+                -0.05246353097466939,
+                -0.9451373180979005,
+                1.0,
+                1.0,
+                0.2805238471386536,
+                -0.9483150748622418,
+                0.14834045293024462,
+                -0.8969628300582488,
+                -0.3359893958958339,
+                -0.2873478855663454,
+                1.0,
+                4.0,
+            ],
+            [
+                0.9367845000189781,
+                -0.28978140392829665,
+                0.19611613513818402,
+                0.2805238471386536,
+                -0.9483150748622418,
+                0.14834045293024462,
+                0.17354989635680937,
+                -0.10188659515906286,
+                -0.9795404816552677,
+                1.0,
+                1.0,
+                0.9367845000189781,
+                -0.28978140392829665,
+                0.19611613513818402,
+                0.2805238471386536,
+                -0.9483150748622418,
+                0.14834045293024462,
+                1.0,
+                5.0,
+            ],
+        ]);
+        let twin = fuzz_cone(&[
+            [
+                0.9987502753886721,
+                0.04997886964559796,
+                0.0,
+                0.9367845000189781,
+                -0.28978140392829665,
+                0.19611613513818402,
+                0.025180691399709475,
+                -0.5031971040615982,
+                -0.8638047274961244,
+                1.0,
+                1.0,
+                0.0009987502753886722,
+                4.997886964559796e-05,
+                0.0,
+                0.9367845000189781,
+                -0.28978140392829665,
+                0.19611613513818402,
+                0.001,
+                0.0,
+            ],
+            [
+                0.8775825618903728,
+                0.479425538604203,
+                0.0,
+                0.9987502753886721,
+                0.04997886964559796,
+                0.0,
+                0.0,
+                0.0,
+                -1.0,
+                1.0,
+                1.0,
+                0.8775825618903728,
+                0.479425538604203,
+                0.0,
+                0.0009987502753886722,
+                4.997886964559796e-05,
+                0.0,
+                0.001,
+                1.0,
+            ],
+            [
+                -0.39859637855648306,
+                0.8709489764975944,
+                0.2873478855663454,
+                0.8775825618903728,
+                0.479425538604203,
+                0.0,
+                -0.13807921244038343,
+                0.25275230299584717,
+                -0.9576274872945841,
+                1.0,
+                1.0,
+                -0.39859637855648306,
+                0.8709489764975944,
+                0.2873478855663454,
+                0.8775825618903728,
+                0.479425538604203,
+                0.0,
+                1.0,
+                2.0,
+            ],
+            [
+                -0.8969628300582488,
+                -0.3359893958958339,
+                -0.2873478855663454,
+                -0.39859637855648306,
+                0.8709489764975944,
+                0.2873478855663454,
+                0.1537435140353627,
+                0.3723343456140114,
+                -0.9152759512672909,
+                1.0,
+                1.0,
+                -0.8969628300582488,
+                -0.3359893958958339,
+                -0.2873478855663454,
+                -0.39859637855648306,
+                0.8709489764975944,
+                0.2873478855663454,
+                1.0,
+                3.0,
+            ],
+            [
+                0.2805238471386536,
+                -0.9483150748622418,
+                0.14834045293024462,
+                -0.8969628300582488,
+                -0.3359893958958339,
+                -0.2873478855663454,
+                0.3224329819611792,
+                -0.05246353097466939,
+                -0.9451373180979005,
+                1.0,
+                1.0,
+                0.2805238471386536,
+                -0.9483150748622418,
+                0.14834045293024462,
+                -0.8969628300582488,
+                -0.3359893958958339,
+                -0.2873478855663454,
+                1.0,
+                4.0,
+            ],
+            [
+                0.9367845000189781,
+                -0.28978140392829665,
+                0.19611613513818402,
+                0.2805238471386536,
+                -0.9483150748622418,
+                0.14834045293024462,
+                0.17354989635680937,
+                -0.10188659515906286,
+                -0.9795404816552677,
+                1.0,
+                1.0,
+                0.9367845000189781,
+                -0.28978140392829665,
+                0.19611613513818402,
+                0.2805238471386536,
+                -0.9483150748622418,
+                0.14834045293024462,
+                1.0,
+                5.0,
+            ],
+        ]);
+        for (what, cone) in [("the crown", &cone), ("its twin", &twin)] {
+            for far in [1e-10, 4e-10, 2e-9] {
+                let far = Vec3::new(0.9987502653928781, 0.04997906939565204, far);
+                // A refusal or no reading is an answer; a class must be On.
+                if let Ok(Some(read)) = cone_read(&probes(&[far]), cone, fuzz_band()) {
+                    assert_eq!(classes(&read), [SideCode::On], "{what} at {far:?}");
+                }
+            }
+        }
+    }
+
     /// **A crossing point is read at how well it is located**: a
     /// reference on a plane at a 1 m arm, and a direction 1e-3 rad off
     /// it. The crossing is the reference itself, but a move of the
@@ -3137,6 +3433,12 @@ mod tests {
     /// δ/1e-3, so it is read at no more than 1e-3 of the arm, not at the
     /// arm (PR 4289's second review). Both ends on the plane locate
     /// nothing.
+    ///
+    /// A pin on the lever, not a class: `p` is the reader's own point,
+    /// not an input, and the crossing is located to rounding, so a
+    /// longer lever reads no class the exact oracle contradicts. The
+    /// fuzz, with a family built to locate crossings from heights within
+    /// the zero band at ε = 1e-12, found none (PR 4289's third review).
     #[test]
     fn a_crossing_point_is_read_at_how_well_it_is_located() {
         let o = Point3::new(0.0, 0.0, 0.0);
@@ -3167,6 +3469,11 @@ mod tests {
     /// vectors rounds to a few ulp; levered, that reads decided at
     /// ε = 1e-12 unless the rounding is taken off first (PR 4289's
     /// second review, n4).
+    ///
+    /// A pin on the margin, not a class: the faces either side of a
+    /// bound read its determinant alike, so a rounded sign counts the
+    /// crossing at one face or the other and the parity holds. No class
+    /// reads differently without the rounding (PR 4289's third review).
     #[test]
     fn an_arcs_side_of_a_bound_is_not_read_off_its_rounding() {
         let o = Point3::new(0.0, 0.0, 0.0);
@@ -3177,7 +3484,7 @@ mod tests {
         let band = Band::linear_at(Tol::witness(), 1e-12).unwrap();
         let (d, p_far) = (Vec3::new(1.0, 2.0, 3.0), Vec3::new(2.0, 3.0, 5.0));
         let b = p_far * 1e6 + d;
-        let arc = Arc {
+        let arc = GreatArc {
             dir: d,
             reach: chord(d),
             p: p_far.normalize(),
