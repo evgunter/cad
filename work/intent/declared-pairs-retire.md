@@ -8,7 +8,6 @@ priority: P0
 cost: M
 design: true
 blocked_on: [booleans-glue-on-zero]
-needs_ev: true
 ---
 
 INTENT stage 4, PR F. Spec: `docs/INTENT-STAGE4-SPEC.md` §7. Design open: FORK-S4-4 (DM4's pairwise judgement without declarations).
@@ -39,3 +38,19 @@ union paragraph reads "the pairwise judgement of their two members (DM4)
 merged or covered them". Also re-measure
 `wire/union-pairwise-refusal-names-its-pair-in-digest-id-order`: ids
 order by mint ordinal first (`mint.rs`), so its premise may be stale.
+
+Ev, approving #4323: "would be good to have either good tests or
+possibly debug asserts to detect behavior that we think should remain
+order independent". So this unit (and E, for unions) lands both:
+- a test row family that evaluates each union in the union corpus
+  under every permutation of its members (or a seeded sample where n! is
+  large), and asserts equal across orders: the pair rows and their
+  refusals, the three-member rows spelled by member cells, the names,
+  the topology, and that a refusal, when one occurs, is raised either by
+  the pass in every order or by a fold step that names its step;
+- a debug assertion at the fold's verdict site that every carrier-pair
+  verdict the fold uses comes from the pass's table through `Parents`,
+  never a fresh decision on a piece.
+What follows the list on purpose (the kept description's bits) is
+excluded by name, so the test states what is order-free.
+
