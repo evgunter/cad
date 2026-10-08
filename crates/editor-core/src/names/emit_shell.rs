@@ -345,8 +345,9 @@ mod tests {
     /// The D-section (the half disc of radius 0.5 on `x ≥ 0`, extruded
     /// 0.8 along `z`) with its half-cylinder cut in two along its middle
     /// ruling, each wall arc split at its `x = r` point: the body, the
-    /// two wall faces, and each split arc's two halves.
-    fn split_d_section() -> (Body<f64>, [FaceKey; 2], [[EdgeKey; 2]; 2]) {
+    /// two wall faces, and each split arc's pieces: its two halves, or
+    /// with `quarters` each half split again at its middle.
+    fn split_d_section(quarters: bool) -> (Body<f64>, [FaceKey; 2], Vec<Vec<EdgeKey>>) {
         let tol = Tol::witness();
         let (r, h) = (0.5, 0.8);
         let half_disc = profile::test_support::bulge_loop(vec![
@@ -388,7 +389,23 @@ mod tests {
                 .params();
             let made = body.split_edge(arc, 0.5 * (t0 + t1), tol).unwrap();
             mids.push(made.vertex);
-            halves.push([arc, made.new_edge]);
+            let mut pieces = vec![arc, made.new_edge];
+            if quarters {
+                for half in [arc, made.new_edge] {
+                    let curve = body.get_edge(half).unwrap().curve;
+                    let (t0, t1) = body
+                        .get_curve_geom(curve)
+                        .and_then(topo::CurveGeom::certified)
+                        .unwrap()
+                        .params();
+                    pieces.push(
+                        body.split_edge(half, 0.5 * (t0 + t1), tol)
+                            .unwrap()
+                            .new_edge,
+                    );
+                }
+            }
+            halves.push(pieces);
         }
         let wall = body
             .faces()
@@ -425,7 +442,7 @@ mod tests {
             )
             .unwrap();
         topo::mint_pcurves(&mut body, tol).unwrap();
-        (body, [wall, made.face], [halves[0], halves[1]])
+        (body, [wall, made.face], halves)
     }
 
     /// **An edge the shell's closing join made is named by the input
@@ -438,7 +455,7 @@ mod tests {
     #[test]
     fn a_joined_ring_arc_is_named_as_the_set_of_its_halves() {
         let tol = Tol::witness();
-        let (body, wall, halves) = split_d_section();
+        let (body, wall, halves) = split_d_section(false);
         let target = named(&body);
         let shelled = topo::shell_open(
             &topo::test_support::finished("the split D-section", body, tol),
@@ -460,11 +477,13 @@ mod tests {
             .map(|(e, _)| t.name_of(&ent(0, EntityKey::Edge(e))).unwrap().clone())
             .collect();
         let of = |e: EdgeKey| target.name_of(&ent(0, EntityKey::Edge(e))).unwrap().clone();
-        for pair in halves {
+        for pieces in halves {
             for role in [RoleSeg::FromTarget, RoleSeg::Inner] {
                 let want = super::super::merged::edge_set(
                     NODE,
-                    pair.map(|h| name1(EntityKind::Edge, NODE, role(of(h).into()))),
+                    pieces
+                        .iter()
+                        .map(|&h| name1(EntityKind::Edge, NODE, role(of(h).into()))),
                 );
                 assert!(names.contains(&want), "the joined edge is {want:?}");
             }
@@ -478,7 +497,7 @@ mod tests {
     #[test]
     fn a_joined_edge_over_an_upstream_set_is_one_flat_set() {
         let tol = Tol::witness();
-        let (body, wall, halves) = split_d_section();
+        let (body, wall, halves) = split_d_section(false);
         let target = named_with_set(&body, Some(halves[0][0]));
         let shelled = topo::shell_open(
             &topo::test_support::finished("the split D-section", body, tol),
@@ -505,5 +524,47 @@ mod tests {
             }
         }
         assert_eq!(sets, 2, "the ring's and the twin's, each of three edges");
+    }
+
+    /// **Joins that chain are chased whole** (`topo::join_covers`): each
+    /// arc cut at three points leaves four pieces, which the shell joins
+    /// one vertex at a time, a later join taking an edge an earlier one
+    /// kept. Each joined edge is the one flat set of its four pieces.
+    #[test]
+    fn a_rim_cut_at_three_points_joins_to_the_set_of_its_four_pieces() {
+        let tol = Tol::witness();
+        let (body, wall, pieces) = split_d_section(true);
+        let target = named(&body);
+        let shelled = topo::shell_open(
+            &topo::test_support::finished("the quartered D-section", body, tol),
+            0.05,
+            &wall,
+            tol,
+        )
+        .expect("the quartered window opens");
+        assert_eq!(
+            shelled.naming.edge_joins.len(),
+            12,
+            "three per arc, ring and twin"
+        );
+        let t = name_shell(NODE, TARGET, &target, &shelled.body, &shelled.naming)
+            .expect("the shell is named");
+        let names: BTreeSet<_> = shelled
+            .body
+            .edges()
+            .map(|(e, _)| t.name_of(&ent(0, EntityKey::Edge(e))).unwrap().clone())
+            .collect();
+        let of = |e: EdgeKey| target.name_of(&ent(0, EntityKey::Edge(e))).unwrap().clone();
+        for arc in pieces {
+            assert_eq!(arc.len(), 4);
+            for role in [RoleSeg::FromTarget, RoleSeg::Inner] {
+                let want = super::super::merged::edge_set(
+                    NODE,
+                    arc.iter()
+                        .map(|&h| name1(EntityKind::Edge, NODE, role(of(h).into()))),
+                );
+                assert!(names.contains(&want), "the joined edge is {want:?}");
+            }
+        }
     }
 }

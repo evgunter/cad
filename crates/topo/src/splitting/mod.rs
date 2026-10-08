@@ -992,13 +992,9 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
         if let finish::SplitPart::Body(body) = part {
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
-            // Every finisher ends with the join (`docs/DESIGN.md`,
-            // maximal edges): a vertex the cut left between two edges of
-            // one carrier, the seam strut it held gone, is no corner.
+            // Every finisher ends with the join (`docs/DESIGN.md`, maximal edges).
             let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
-            // A kill takes its edge's birth record with it, so the
-            // split lineage the joined edges' covers are read through
-            // is taken first (`SplitNaming::joined_lineage`).
+            // Taken before the kills, which drop it (`SplitNaming::joined_lineage`).
             let split_from: std::collections::BTreeMap<
                 crate::entity::EdgeKey,
                 crate::entity::EdgeKey,
@@ -1009,9 +1005,7 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
                     _ => None,
                 })
                 .collect();
-            // The side is this run's own output, so the join runs on it
-            // in place (a refusal discards it), and the closing mint
-            // below re-derives its rows whole.
+            // On this run's own output: a refusal discards it.
             let joins = body
                 .join_edges_within(band, tol, &|_| true)
                 .map_err(|refusal| SplitFinishError::EdgeJoin {
@@ -1027,6 +1021,9 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 .naming
                 .edge_joins
                 .extend(joins.into_iter().map(|j| (side, j)));
+            // The side's tier-2 gate again, on the body as joined.
+            crate::validate::validate_closed(body)
+                .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
             crate::pcurves::mint_pcurves(body, tol)?;
         }
     }

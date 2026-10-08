@@ -331,6 +331,22 @@ fn split_joined_readings<T: Decide>(
     // arena), and each side's joins keep their order, so one chase
     // over both sides' rows is each side's.
     let joins: Vec<topo::EdgeJoin> = naming.edge_joins.iter().map(|&(_, j)| j).collect();
+    // Each record states the half it was made on: the edge it leaves
+    // lives there (the mirrored run's records are flipped to say so).
+    for &(side, j) in &naming.edge_joins {
+        let half = match side {
+            PlaneSide::Above => SplitHalf::Above,
+            PlaneSide::Below => SplitHalf::Below,
+            PlaneSide::On => return Err(bug("a split join's record names no half")),
+        };
+        let left = topo::joined_edge(&joins, j.kept);
+        if !sides
+            .iter()
+            .any(|sb| sb.half == half && sb.body.get_edge(left).is_some())
+        {
+            return Err(bug("a split join's record names a half its edge is not on"));
+        }
+    }
     let named = |k: EdgeKey| target_table.name_of(&ent(0, EntityKey::Edge(k))).is_some();
     let mut out = BTreeMap::new();
     for (kept, cover) in topo::join_covers(&joins) {
