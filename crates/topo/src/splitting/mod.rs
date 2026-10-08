@@ -964,25 +964,7 @@ fn split_one_solid<T: geom_core::Decide + crate::props::AtRestPolicy>(
             // The naming sides were recorded against the MIRRORED
             // plane; swap them back with the bodies so `sections`
             // states sides in the caller's orientation.
-            naming: finish::SplitNaming {
-                sections: naming
-                    .sections
-                    .into_iter()
-                    .map(|(f, s)| (f, s.opposite()))
-                    .collect(),
-                face_fragments: naming.face_fragments,
-                // Pairs stay (copy, original): the mirrored run's
-                // copies land on the caller's BELOW side, but
-                // consumers resolve pair roles by which body holds
-                // each key, so no swap is needed here.
-                vertex_pairs: naming.vertex_pairs,
-                // Each join on the side the caller sees it on.
-                edge_joins: naming
-                    .edge_joins
-                    .into_iter()
-                    .map(|(s, j)| (s.opposite(), j))
-                    .collect(),
-            },
+            naming: naming.mirrored(),
         }),
         Err(_) => split_direct(operand, plane, tol),
     }
@@ -1014,6 +996,19 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
             // maximal edges): a vertex the cut left between two edges of
             // one carrier, the seam strut it held gone, is no corner.
             let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
+            // A kill takes its edge's birth record with it, so the
+            // split lineage the joined edges' covers are read through
+            // is taken first (`SplitNaming::joined_lineage`).
+            let split_from: std::collections::BTreeMap<
+                crate::entity::EdgeKey,
+                crate::entity::EdgeKey,
+            > = body
+                .edges()
+                .filter_map(|(e, _)| match body.edge_provenance_of(e) {
+                    Some(crate::provenance::Provenance::SplitEdge { edge }) => Some((e, *edge)),
+                    _ => None,
+                })
+                .collect();
             // The side is this run's own output, so the join runs on it
             // in place (a refusal discards it), and the closing mint
             // below re-derives its rows whole.
@@ -1023,6 +1018,11 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
                     side,
                     refusal: crate::boolean::JoinRefusal::of(&refusal),
                 })?;
+            result.naming.joined_lineage.extend(
+                joins
+                    .iter()
+                    .filter_map(|j| split_from.get(&j.gone).map(|&from| (j.gone, from))),
+            );
             result
                 .naming
                 .edge_joins

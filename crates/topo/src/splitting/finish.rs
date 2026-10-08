@@ -146,6 +146,42 @@ pub struct SplitNaming {
     /// row's `vertex` and `gone` edge are dead there, and `kept` holds
     /// them (`docs/DESIGN.md`, maximal edges).
     pub edge_joins: Vec<(PlaneSide, crate::boolean::EdgeJoin)>,
+    /// `(killed edge, the edge it was split from)` for each edge a
+    /// side's join killed that the cut had split off another
+    /// (`Provenance::SplitEdge`), recorded before the kill: a kill
+    /// takes its edge's birth record with it, and this is the lineage a
+    /// joined edge's cover is read through to the operand edges it lies
+    /// along.
+    pub joined_lineage: Vec<(crate::entity::EdgeKey, crate::entity::EdgeKey)>,
+}
+
+impl SplitNaming {
+    /// The record of a run made against the MIRRORED plane, in the
+    /// caller's orientation: every side flipped. The pairs, fragments
+    /// and lineage carry keys alone, which the mirror does not move.
+    #[must_use]
+    pub(crate) fn mirrored(self) -> Self {
+        Self {
+            sections: self
+                .sections
+                .into_iter()
+                .map(|(f, s)| (f, s.opposite()))
+                .collect(),
+            face_fragments: self.face_fragments,
+            // Pairs stay (copy, original): the mirrored run's copies
+            // land on the caller's BELOW side, but consumers resolve
+            // pair roles by which body holds each key, so no swap is
+            // needed here.
+            vertex_pairs: self.vertex_pairs,
+            // Each join on the side the caller sees it on.
+            edge_joins: self
+                .edge_joins
+                .into_iter()
+                .map(|(s, j)| (s.opposite(), j))
+                .collect(),
+            joined_lineage: self.joined_lineage,
+        }
+    }
 }
 
 /// Typed failure of the finish step.
@@ -416,6 +452,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
             })
             .collect::<Result<_, _>>()?,
         edge_joins: Vec::new(),
+        joined_lineage: Vec::new(),
     };
 
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
@@ -1495,5 +1532,51 @@ mod smooth_arm_rows {
             }
             other => panic!("an under-determined edge keeps no tangency, got {other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod mirrored {
+    use super::{PlaneSide, SplitNaming};
+    use crate::boolean::EdgeJoin;
+    use crate::entity::{EdgeKey, FaceKey, VertexKey};
+
+    /// **The mirrored run's record states every side in the caller's
+    /// orientation**: a join the mirrored run made on its Above side is
+    /// the caller's Below join, as its section is; the keys stand.
+    #[test]
+    fn a_mirrored_record_states_each_join_on_the_callers_side() {
+        let join = EdgeJoin {
+            vertex: VertexKey::default(),
+            gone: EdgeKey::default(),
+            kept: EdgeKey::default(),
+            conventional: None,
+        };
+        let record = SplitNaming {
+            sections: vec![(FaceKey::default(), PlaneSide::Above)],
+            face_fragments: Vec::new(),
+            vertex_pairs: Vec::new(),
+            edge_joins: vec![(PlaneSide::Above, join), (PlaneSide::Below, join)],
+            joined_lineage: vec![(EdgeKey::default(), EdgeKey::default())],
+        };
+        let caller = record.mirrored();
+        assert_eq!(
+            caller.edge_joins,
+            vec![(PlaneSide::Below, join), (PlaneSide::Above, join)]
+        );
+        assert_eq!(
+            caller.sections,
+            vec![(FaceKey::default(), PlaneSide::Below)]
+        );
+        assert_eq!(
+            caller.joined_lineage,
+            vec![(EdgeKey::default(), EdgeKey::default())],
+            "the lineage carries keys alone"
+        );
+        assert_eq!(
+            caller.mirrored().edge_joins,
+            vec![(PlaneSide::Above, join), (PlaneSide::Below, join)],
+            "an involution"
+        );
     }
 }

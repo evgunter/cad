@@ -154,7 +154,8 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 pub(crate) use contain::{driver_face_stale, loop_circle};
 pub use discard::{DiscardRow, HeldEdge, lineage_root};
 pub use edge_join::{
-    EdgeJoin, JoinReading, JoinRefusal, JoinUndecided, is_conventional_vertex, joinable_vertices,
+    EdgeJoin, JoinReading, JoinRefusal, JoinUndecided, is_conventional_vertex, join_covers,
+    joinable_vertices, joined_edge,
 };
 pub use join::CompletedPolygonPair;
 pub use ops::{

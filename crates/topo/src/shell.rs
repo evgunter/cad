@@ -857,8 +857,9 @@ pub struct ShellNaming {
     pub dead: ShellRetired,
     /// The joins the shell ended with ([`crate::Body::join_edges`]), in
     /// the order made. Every row above stays as the construction wrote
-    /// it: a join's `vertex` and `gone` are then dead, and its `kept`
-    /// covers what `gone` did besides its own.
+    /// it, `dead` included: a join's `vertex` and `gone` are then dead
+    /// but listed here, not there, and its `kept` covers what `gone` did
+    /// besides its own ([`crate::join_covers`]).
     pub edge_joins: Vec<crate::EdgeJoin>,
 }
 
@@ -1004,7 +1005,9 @@ pub struct HoleRim {
 /// The result keys the construction retired, in every arena the
 /// record names. Scaffolding a rim's surgery mints and kills within
 /// itself (a seamed band's struts and its pole's copy) was never in a
-/// row and is not listed.
+/// row and is not listed. Nor are the closing join's kills: each join's
+/// `vertex` and `gone` edge are its row in [`ShellNaming::edge_joins`],
+/// read there.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ShellRetired {
     /// Faces that no longer resolve: a designated chart's merged-away
@@ -1013,10 +1016,10 @@ pub struct ShellRetired {
     /// itself on a void's.
     pub faces: Vec<FaceKey>,
     /// Edges that no longer resolve: the seam and slit edges the chart
-    /// reduction kills.
+    /// reduction kills (the closing join's are `edge_joins`' `gone`).
     pub edges: Vec<EdgeKey>,
     /// Vertices that no longer resolve: the apex vertices a spur dies
-    /// with.
+    /// with (the closing join's are `edge_joins`' `vertex`).
     pub vertices: Vec<VertexKey>,
     /// Loops that no longer resolve: the outer loop of each face a
     /// chart merge kills.

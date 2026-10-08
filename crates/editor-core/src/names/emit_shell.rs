@@ -171,16 +171,8 @@ pub(crate) fn name_shell<T: geom_core::Real>(
     // survivor. One covered name is the edge's own; several are a
     // `Merged` set of them. The killed vertex and the absorbed edge are
     // no longer in the body, so their rows are never consulted.
-    let mut covers: BTreeMap<EdgeKey, Vec<EdgeKey>> = BTreeMap::new();
-    for j in &rec.edge_joins {
-        let gone = covers.remove(&j.gone).unwrap_or_else(|| vec![j.gone]);
-        covers
-            .entry(j.kept)
-            .or_insert_with(|| vec![j.kept])
-            .extend(gone);
-    }
     let mut joined: BTreeMap<EntityKey, (RoleSeg, bool)> = BTreeMap::new();
-    for (kept, members) in covers {
+    for (kept, members) in topo::join_covers(&rec.edge_joins) {
         if body.get_edge(kept).is_none() {
             return Err(NamingError::Emission {
                 what: "the shell recorded a join whose kept edge is not in its body",
@@ -308,6 +300,13 @@ mod tests {
     /// `body` named whole under [`TARGET`]: each entity by a distinct
     /// role.
     fn named(body: &Body<f64>) -> NameTable {
+        named_with_set(body, None)
+    }
+
+    /// [`named`], with `set` (where given) named as an edge set of two
+    /// edges: the name a boolean's join gives an edge it made along
+    /// two operand edges.
+    fn named_with_set(body: &Body<f64>, set: Option<EdgeKey>) -> NameTable {
         let mut t = NameTable::new();
         t.insert(
             name1(EntityKind::Body, TARGET, RoleSeg::OutputBody),
@@ -323,11 +322,15 @@ mod tests {
                 .unwrap();
         }
         for (i, (e, _)) in (0u64..).zip(body.edges()) {
-            t.insert(
-                name1(EntityKind::Edge, TARGET, RoleSeg::BandRim(at(i))),
-                ent(0, EntityKey::Edge(e)),
-            )
-            .unwrap();
+            let name = if set == Some(e) {
+                super::super::merged::edge_set(
+                    TARGET,
+                    [1000, 1001].map(|k| name1(EntityKind::Edge, TARGET, RoleSeg::BandRim(at(k)))),
+                )
+            } else {
+                name1(EntityKind::Edge, TARGET, RoleSeg::BandRim(at(i)))
+            };
+            t.insert(name, ent(0, EntityKey::Edge(e))).unwrap();
         }
         for (i, (v, _)) in (0u64..).zip(body.vertices()) {
             t.insert(
@@ -466,5 +469,41 @@ mod tests {
                 assert!(names.contains(&want), "the joined edge is {want:?}");
             }
         }
+    }
+
+    /// **A joined edge's set is flat** (N3): where a covered edge's own
+    /// name is already a set (an edge a boolean's join made), the
+    /// shell's set lists that set's edges, read through `FromTarget` and
+    /// `Inner` as through a boolean's wrappers, never the set itself.
+    #[test]
+    fn a_joined_edge_over_an_upstream_set_is_one_flat_set() {
+        let tol = Tol::witness();
+        let (body, wall, halves) = split_d_section();
+        let target = named_with_set(&body, Some(halves[0][0]));
+        let shelled = topo::shell_open(
+            &topo::test_support::finished("the split D-section", body, tol),
+            0.05,
+            &wall,
+            tol,
+        )
+        .expect("the split window opens");
+        let t = name_shell(NODE, TARGET, &target, &shelled.body, &shelled.naming)
+            .expect("the shell is named");
+        let mut sets = 0;
+        for (e, _) in shelled.body.edges() {
+            let name = t.name_of(&ent(0, EntityKey::Edge(e))).unwrap();
+            let [RoleSeg::Merged(cs)] = name.path.as_slice() else {
+                continue;
+            };
+            assert!(
+                cs.iter()
+                    .all(|c| super::super::merged::constituents_through_wrappers(c).is_none()),
+                "no constituent is itself a set: {name:?}"
+            );
+            if cs.len() == 3 {
+                sets += 1;
+            }
+        }
+        assert_eq!(sets, 2, "the ring's and the twin's, each of three edges");
     }
 }
