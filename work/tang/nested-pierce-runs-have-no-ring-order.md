@@ -1,7 +1,7 @@
 ---
 id: nested-pierce-runs-have-no-ring-order
 kind: issue
-title: A pierce whose Out runs nest about the pierced face's normal has no ring order; it refuses typed (PierceRunsNested)
+title: A pierce whose Out runs nest about the pierced face's normal hangs its ring struts in run order, which crosses the face's loop
 status: closed
 opened: 2026-10-06
 closed: 2026-10-08
@@ -96,5 +96,5 @@ path or a tree (`meeting::arch`, `meeting::arch_cone`,
 `meeting::branching_cone`), and all build in every op and pose. The
 enclosing case, filed as
 `a-pierce-whose-run-chords-enclose-one-another-needs-a-tree-ring`, is
-closed in the same PR. Struts at one node face alike; facings differ by
-depth, so `Below` and `Above` mix at one point only across nodes.
+closed in the same PR. Facings alternate strictly by depth, so `Below`
+and `Above` mix at one point only across depths.

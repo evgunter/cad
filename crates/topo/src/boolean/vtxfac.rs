@@ -1055,8 +1055,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     // its node just before the half leaving it towards the root, after
     // the node's earlier struts: at the ring vertex, before the first
     // strut's leaving half. The half leaving its node faces the germ its
-    // run's corner meets first clockwise; with one run either half may
-    // face either germ. The op does not enter. Where the struts leave
+    // run's corner meets first clockwise, so facings alternate by depth;
+    // with one run either half may face either germ. The op does not enter. Where the struts leave
     // both operands one vertex at a pinch, `zip::split_cones` splits it
     // per cone before the zips.
     let mut root_anchor: Option<HalfEdgeKey> = None;
@@ -1133,40 +1133,38 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
 /// (each a direction and its arm), clockwise about the pierced face's
 /// outward `normal` from `germs[0]`. Every comparison is
 /// [`super::insert::strut_order`]'s from `germs[0]`, levered at the
-/// shortest of its three germs' arms, and a germ along `germs[0]` has no
-/// place before or after it: its side of `germs[0]` read in band
-/// (`bool_strut_side`, its sense along) refuses as the sectors'
-/// coincidence. Any reading that does not decide refuses; nothing orders
-/// the germs otherwise.
+/// shortest of its three germs' arms. A germ along `germs[0]` has no
+/// place before or after it, so each germ's side of `germs[0]` is read
+/// first at every arm a reading of it uses, its own pair's and each
+/// comparison's: in band with its sense along (`bool_strut_side`,
+/// `bool_dir_same`), it refuses as the sectors' coincidence rather than
+/// stand at `germs[0]`. Any reading that does not decide refuses;
+/// nothing orders the germs otherwise.
 fn germ_order<T: Decide>(
     germs: &[(Vec3<T>, T)],
     normal: Vec3<T>,
     band: Band,
 ) -> Result<Vec<usize>, BooleanError> {
     let (from, from_arm) = germs[0];
+    let apart = |g: Vec3<T>, arm: T| -> Result<(), BooleanError> {
+        let side = Margin::levered(g.cross(from).dot(normal), arm);
+        match crate::validate::decide_nonzero("bool_strut_side", side, band) {
+            Err(diag) if super::sectors::direction_sense(g, from, arm, band)? => Err(
+                BooleanError::coincidence(Coincide::Sectors, DeclarationRead::Moot, diag),
+            ),
+            _ => Ok(()),
+        }
+    };
     let mut order = vec![0];
     for (i, &(g, g_arm)) in germs.iter().enumerate().skip(1) {
-        let arm = from_arm.min(g_arm);
-        let side = Margin::levered(g.cross(from).dot(normal), arm);
-        if let Err(diag) = crate::validate::decide_nonzero("bool_strut_side", side, band)
-            && super::sectors::direction_sense(g, from, arm, band)?
-        {
-            return Err(BooleanError::coincidence(
-                Coincide::Sectors,
-                DeclarationRead::Moot,
-                diag,
-            ));
-        }
+        apart(g, from_arm.min(g_arm))?;
         let mut at = order.len();
         for (slot, &j) in order.iter().enumerate().skip(1) {
             let (h, h_arm) = germs[j];
-            if super::insert::strut_order(
-                from,
-                normal,
-                (g, h),
-                from_arm.min(g_arm).min(h_arm),
-                band,
-            )? {
+            let arm = from_arm.min(g_arm).min(h_arm);
+            apart(g, arm)?;
+            apart(h, arm)?;
+            if super::insert::strut_order(from, normal, (g, h), arm, band)? {
                 at = slot;
                 break;
             }
@@ -1661,7 +1659,10 @@ mod tests {
     /// - a path, `meeting::arch`'s germs mirrored, run 1's end `d` before
     ///   run 0's start (`[0, 1, 2, 5, 4, 3]`: run 1 between the others);
     /// - two germs neither of them the first, `d` apart: no order of
-    ///   them is read in band.
+    ///   them is read in band;
+    /// - a germ decided apart from the first at its own arm but in band
+    ///   at a third germ's shorter arm, which the comparison reads at, in
+    ///   either insertion order; ordered where every arm is long.
     #[test]
     fn germs_in_band_of_each_other_refuse_as_the_sectors_coincidence() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -1689,6 +1690,29 @@ mod tests {
                 vec![0, 1, 2, 3],
             ),
         ];
+        // A germ apart from the first at its own arm but in band at a
+        // third germ's shorter one: both insertion orders refuse, and with
+        // every arm long it is ordered.
+        let at = |deg: f64, arm: f64| (germ_at(deg).0, arm);
+        let d = 2e-8f64.to_degrees();
+        for (what, germs) in [
+            (
+                "short third arm, after",
+                [at(0.0, 1.0), at(120.0, 0.01), at(360.0 - d, 1.0)],
+            ),
+            (
+                "short third arm, before",
+                [at(0.0, 1.0), at(360.0 - d, 1.0), at(120.0, 0.01)],
+            ),
+        ] {
+            let r = germ_order(&germs, n, band);
+            assert!(sectors_coincide(&r), "{what}: {r:?}");
+        }
+        assert_eq!(
+            germ_order(&[at(0.0, 1.0), at(120.0, 1.0), at(360.0 - d, 1.0)], n, band).ok(),
+            Some(vec![0, 1, 2]),
+            "short third arm, every arm long"
+        );
         for (what, degs, decided) in rows {
             let germs = |d: f64| degs(d).into_iter().map(germ_at).collect::<Vec<_>>();
             assert_eq!(

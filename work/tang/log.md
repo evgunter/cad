@@ -804,6 +804,7 @@ slate `ball-lever-reads-the-3d-distance-not-the-axial-travel`,
 `plane-cylinder-gap-reads-the-3d-distance-not-the-in-section-stand-off`;
 the sweep's siblings went to OFFSET, CLEAVE, CHART, CONTACT, FLUX and
 GERM.
+
 ## 2026-10-08 — the pierce ring is a tree of struts (TANG implementer)
 
 A pierce's ring struts hang as the tree of its runs' chords, read off

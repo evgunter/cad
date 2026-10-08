@@ -612,33 +612,14 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<bool, BooleanError> {
     let mut moved = false;
     for at in runs.values() {
-        let mut at = at.clone();
-        loop {
-            let r = at.len();
-            let cones_here: BTreeSet<usize> = at.iter().map(|&k| cone_of[k]).collect();
-            if cones_here.len() < 2 {
-                break;
-            }
-            // Group starts: the runs whose cone differs from the run
-            // before. A group whose cone has no other group is split off;
-            // the first group stays.
-            let starts: Vec<usize> = (0..r)
-                .filter(|&i| cone_of[at[i]] != cone_of[at[(i + r - 1) % r]])
-                .collect();
-            let whole = |g: usize| {
-                let c = cone_of[at[starts[g]]];
-                (0..starts.len()).all(|h| h == g || cone_of[at[starts[h]]] != c)
-            };
-            let Some(g) = (1..starts.len()).find(|&g| whole(g)) else {
-                return Err(BooleanError::ZipCorrespondence {
-                    what: "a vertex's cones interleave round it",
-                });
-            };
-            let (s, end) = (starts[g], starts[(g + 1) % starts.len()]);
+        let plan = peel(at, cone_of).ok_or(BooleanError::ZipCorrespondence {
+            what: "a vertex's cones interleave round it",
+        })?;
+        for (from, to) in plan {
             let made = body.mev_null(
                 MevSite::Fan {
-                    he1: he_of(at[s]),
-                    he2: he_of(at[end]),
+                    he1: he_of(from),
+                    he2: he_of(to),
                 },
                 crate::NewVertexSide::Above,
             )?;
@@ -653,15 +634,44 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
                 let killed = body.kef_minting(made.he_plus, tol)?.killed_face;
                 sections.retain(|&f| f != killed);
             }
-            if end > s {
-                at.drain(s..end);
-            } else {
-                at.drain(s..);
-                at.drain(..end);
-            }
         }
     }
     Ok(moved)
+}
+
+/// One vertex's splits, read before any is written: each the first and
+/// the next pair index of a group of runs one cone holds alone, the
+/// group moved off the vertex (the `mev_null` fan between them), until
+/// one cone is left. Groups are maximal runs of one cone round the
+/// vertex; the first stays, and the split takes the first later group
+/// whose cone has no other. `None` where no such group is left while
+/// two cones are: their runs alternate round the vertex.
+fn peel(at: &[usize], cone_of: &[usize]) -> Option<Vec<(usize, usize)>> {
+    let mut at = at.to_vec();
+    let mut plan = Vec::new();
+    loop {
+        let r = at.len();
+        let cones_here: BTreeSet<usize> = at.iter().map(|&k| cone_of[k]).collect();
+        if cones_here.len() < 2 {
+            return Some(plan);
+        }
+        let starts: Vec<usize> = (0..r)
+            .filter(|&i| cone_of[at[i]] != cone_of[at[(i + r - 1) % r]])
+            .collect();
+        let whole = |g: usize| {
+            let c = cone_of[at[starts[g]]];
+            (0..starts.len()).all(|h| h == g || cone_of[at[starts[h]]] != c)
+        };
+        let g = (1..starts.len()).find(|&g| whole(g))?;
+        let (s, end) = (starts[g], starts[(g + 1) % starts.len()]);
+        plan.push((at[s], at[end]));
+        if end > s {
+            at.drain(s..end);
+        } else {
+            at.drain(s..);
+            at.drain(..end);
+        }
+    }
 }
 
 /// The seams after a split: an A section edge is the B ring edge it zips
@@ -941,9 +951,36 @@ mod cone_rows {
 mod tests {
     #![allow(clippy::unwrap_used, clippy::panic)]
 
-    use super::{BooleanError, Fusions};
+    use super::{BooleanError, Fusions, peel};
     use crate::entity::VertexKey;
     use slotmap::SlotMap;
+
+    /// **A vertex's cones peel one group at a time, read before any is
+    /// written** ([`peel`]), runs as pair indices round the vertex, each
+    /// run's cone given:
+    /// - cones apart, each together: each later group in turn, the first
+    ///   staying (the one-pass split's order);
+    /// - a cone nested between two runs of another, itself between two
+    ///   runs of a third: the innermost first, which leaves the next one
+    ///   together, and then the group after the first;
+    /// - two cones alternating: none.
+    #[test]
+    fn a_vertexs_cones_peel_innermost_first_and_refuse_alternating() {
+        type Row = (&'static str, Vec<usize>, Option<Vec<(usize, usize)>>);
+        let rows: [Row; 3] = [
+            ("apart", vec![0, 0, 1, 2, 2], Some(vec![(2, 3), (3, 0)])),
+            (
+                "nested twice",
+                vec![0, 1, 2, 1, 0],
+                Some(vec![(2, 3), (4, 1)]),
+            ),
+            ("alternating", vec![0, 1, 0, 1], None),
+        ];
+        for (what, cone_of, want) in rows {
+            let at: Vec<usize> = (0..cone_of.len()).collect();
+            assert_eq!(peel(&at, &cone_of), want, "{what}");
+        }
+    }
 
     /// **A fusion list refuses every row that would fold a key onto a
     /// dead one, and folds a well-ordered chain through every hop.** A

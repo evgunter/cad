@@ -62,3 +62,8 @@ must build once it is fixed.
 `finish::pinch_site` lies on CLEAVE/HONE ground by `work.py territory`
 (`crates/topo/src/boolean/finish.rs`), though JOIN has owned the pinch
 welds historically.
+
+At k ≥ 4 the default root's walk does not always mint run 0 first:
+measured over every closed meander (PR 4300's second review), 6 of 42
+at k = 4 up to 5,090 of 13,820 at k = 7 mint another run first. No row
+measures a pinch weld meeting such a ring.

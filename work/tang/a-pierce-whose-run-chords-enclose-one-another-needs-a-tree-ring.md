@@ -1,7 +1,7 @@
 ---
 id: a-pierce-whose-run-chords-enclose-one-another-needs-a-tree-ring
 kind: issue
-title: A pierce whose Out runs have one between others needs a tree of ring struts; it refuses typed (PierceRunsEnclose)
+title: A pierce whose Out runs have one between others cannot hang its ring struts at one vertex; it needs a tree of struts
 status: closed
 opened: 2026-10-08
 closed: 2026-10-08
@@ -85,7 +85,7 @@ ring hangs as before), the walk starting at its corner before the
 lowest run. A child strut's site is `MevSite::Fan` on its parent's half
 leaving the parent's far end; its record's `at_vertex` and attribute
 name the parent's far end, and `PierceRingRecord::ring_vertex` stays the
-ring vertex. Struts at one node face alike; facings differ by depth.
+ring vertex. Facings alternate strictly by depth.
 Crossing chords would break the derivation, so they refuse
 `ClassificationInvariant`. `PierceRunsEnclose` is retired.
 

@@ -450,15 +450,15 @@ fn analytic(base: &[[f64; 3]], q: [f64; 3]) -> (bool, bool) {
 /// the intersection's, against the identities between the ops. At
 /// every probe ([`probes`]) where no body reads its boundary, the result
 /// holds material exactly where the op over the operands' own
-/// containment does; and where `u` is the cone over `base` at rest, so
-/// it does at 4000 pseudo-random probes near the apex against the
-/// [`analytic`] oracle.
+/// containment does; and where `u` is the cone over a base at rest
+/// (`analytic_at`), so it does at that many pseudo-random probes near
+/// the apex against the [`analytic`] oracle.
 fn every_op_sound(
     label: &str,
     u: &AtRestBody<f64>,
     pose: &Pose,
     closed: Option<(f64, f64)>,
-    base: Option<&[[f64; 3]]>,
+    analytic_at: Option<(&[[f64; 3]], usize)>,
 ) {
     use topo::intersect;
     let p = posed_box("the plate", PLATE, pose, t());
@@ -477,6 +477,12 @@ fn every_op_sound(
         .into_iter()
         .filter_map(|q| Some((q, inside_of(&p, q)?, inside_of(u, q)?)))
         .collect();
+    // Measured: every probe read at ε 1e-12, 1e-9 and 1e-6.
+    assert!(
+        probes.len() * 100 >= 99 * 793,
+        "{label}: the operands read {} of 793 probes",
+        probes.len()
+    );
     for (what, r) in every_op(&p, u) {
         let label = format!("{label}: {what}");
         let (want, keep): (f64, fn(bool, bool) -> bool) = match what {
@@ -494,8 +500,12 @@ fn every_op_sound(
                 read += 1;
             }
         }
-        assert!(read > 600, "{label}: {read} probes read");
-        if let (Some(base), "at rest") = (base, pose.label) {
+        assert!(
+            read * 100 >= 99 * probes.len(),
+            "{label}: {read} of {} probes read",
+            probes.len()
+        );
+        if let (Some((base, count)), "at rest") = (analytic_at, pose.label) {
             // Pseudo-random probes within 0.6 of the apex, denser near it.
             let mut seed: u64 = 0x9E37_79B9_7F4A_7C15;
             let mut rnd = || {
@@ -505,7 +515,7 @@ fn every_op_sound(
                 (seed >> 11) as f64 / (1u64 << 53) as f64
             };
             let (mut read, mut wrong) = (0, 0);
-            for _ in 0..4000 {
+            for _ in 0..count {
                 let rad = 0.6 * rnd().powi(2);
                 let q = [0, 1, 2].map(|i| rad.mul_add(2.0f64.mul_add(rnd(), -1.0), MEET[i]));
                 let (in_p, in_u) = analytic(base, q);
@@ -514,8 +524,9 @@ fn every_op_sound(
                     wrong += usize::from(got != keep(in_p, in_u));
                 }
             }
+            // Measured: at least 99.05% read (ε 1e-6), 99.9% at 1e-9.
             assert!(
-                wrong == 0 && read > 3000,
+                wrong == 0 && read * 100 >= 98 * count,
                 "{label}: analytic oracle, {wrong} wrong of {read}"
             );
         }
@@ -555,7 +566,7 @@ fn a_cone_whose_runs_nest_under_one_builds_in_every_op() {
             &u,
             &pose,
             Some(pyramid_volumes(&comb())),
-            Some(&comb()),
+            Some((&comb(), 4000)),
         );
     }
 }
@@ -584,7 +595,7 @@ fn runs_one_between_others_build_in_every_op() {
                 &u,
                 &pose,
                 Some(pyramid_volumes(&base)),
-                Some(&base),
+                Some((&base, 4000)),
             );
         }
     }
@@ -610,7 +621,7 @@ fn every_root_of_the_ring_builds_in_every_op() {
                     u,
                     &rest,
                     closed,
-                    None,
+                    base.as_deref().map(|b| (b, 500)),
                 );
             });
         }
