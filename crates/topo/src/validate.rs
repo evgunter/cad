@@ -15318,6 +15318,7 @@ mod certify_escalation_rows {
             // (D4 ¶1 (i)): the lever, and the tolerance its margin gives.
             (
                 says(CertifyError::NotTransverse {
+                    lever: None,
                     sample: 4,
                     verdict: zero(5.0e-10),
                 }),
@@ -15353,6 +15354,7 @@ mod certify_escalation_rows {
             // At exact tangency no tolerance decides it: the lever alone.
             (
                 says(CertifyError::NotTransverse {
+                    lever: None,
                     sample: 4,
                     verdict: zero(0.0),
                 }),

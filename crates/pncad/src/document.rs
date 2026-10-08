@@ -107,8 +107,9 @@ pub use editor_core::cascade_delete_order;
 // `EditError::PlacementRuleMismatch` carry.
 pub use editor_core::{
     Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault, ListFault,
-    MeasureNodeFault, MintId, Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId,
-    RigidArg, SlotId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
+    MeasureNodeFault, MintId, Node, OutputPort, PartSelect, PatternKind, PlacementRuleFault,
+    PortKind, RecipeNodeId, RigidArg, SlotId, TubeWindow, VectorSlot, declare_continuation,
+    declare_rest,
 };
 
 // How a sentence names a node: the kind noun and tag a person reads, the
@@ -208,8 +209,9 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // held beside it — a string newtype admissible by construction (one
 // identifier an expression reads back), whose fallible constructor
 // answers `VarNameFault`. `Var` is the variable a document holds, of a
-// `VarKind` fixed at minting and defined by a `VarDef` (free, or defined
-// by an `Expr` over other variables); `VarDecl` is the definition as
+// `VarKind` fixed at minting and defined by a `VarDef` (free, defined
+// by an `Expr` over other variables, or an output of an operation,
+// which `Doc::output` reads); `VarDecl` is the definition as
 // an edit carries it, read by name before the door lowers it; `FreeVar`
 // is a free definition's dimension plus exact stored value. `VarRef` is how
 // an edit addresses a variable, by id or by name. Recipe vocabulary,
@@ -244,7 +246,7 @@ pub use editor_core::expr::{EvalError, eval, eval_count, eval_var, eval_var_coun
 // refusal's count can read what it was measured against.
 pub use editor_core::{
     DEFINITION_NODE_BOUND, DisplayUnitRefusal, DistributionRefusal, FreeValue, FreeVar, UnitSym,
-    Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef,
+    Var, VarDecl, VarDef, VarId, VarKind, VarName, VarNameFault, VarNameReason, VarRef, WrittenDef,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
@@ -328,8 +330,8 @@ pub use editor_core::{
 // schema version (the persist module docs say why), so there is no
 // version constant to carry either.
 pub use editor_core::{
-    Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SnapshotError, load,
-    save,
+    Loaded, NonFiniteSite, OutputFault, PersistError, ProgramFault, REGENERATE_RECOURSE,
+    SnapshotError, load, save,
 };
 
 // A refusal's two renderings: under its stage word (`Display`), and as
@@ -423,10 +425,10 @@ pub use editor_core::LeverRefusal;
 pub use editor_core::{
     Alignment, AxisSense, CONTRADICTORY_RECOURSE, Clash, FrameBase, Lever, MateFault, MateFrame,
     MatePrimitive, MateReach, MateRole, MateSide, Member, OFFSET_RECOURSE, OffsetCheck, PartReach,
-    PlacerRow, Placing, PoseRefusal, ReachRefusal, RefusingReach, SolvedPoses, Space, Subgroup,
-    UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups, head_face, mate_reach,
-    member_of, member_reading, places, reading_edges, relative_freedom_components, root_of,
-    solve_document,
+    PlacerRow, Placing, PoseRefusal, PoseSymmetry, ReachRefusal, RefusingReach, SolvedPoses, Space,
+    Subgroup, SubgroupFamily, UNDER_RECOURSE, UNPLACED_RECOURSE, Unplaced, gauge_chain, groups,
+    head_face, mate_reach, member_of, member_reading, places, reading_edges,
+    relative_freedom_components, root_of, solve_document,
 };
 /// Why a mate's face base did not resolve to a pose, which
 /// [`MateFault::FaceUnresolved`] carries — by the same payload rule.
@@ -507,7 +509,7 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
-    SplitOutcome, StepMap, inline, split,
+    SplitOutcome, StepMap, Uncarried, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s

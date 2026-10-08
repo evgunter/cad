@@ -373,13 +373,13 @@ fn wedge_reads_zero_at_the_arm<T: Decide>(sin_theta: T, band: Band) -> bool {
 ///
 /// `crate::certify` reaches it through [`tangent_second_order`], the
 /// smooth-join constructors through [`must_carry_over_edge`], which
-/// composes it, and `topo::boolean::contact_verify` directly. One
-/// copy is still spelled in place: `crate::ssi::march`'s transversality
-/// gate folds the extent onto its system's arm
-/// (`Real::min(sys.lever_arm(x), extent)`, the arm itself
-/// `pair_lever_arm`'s). `contact_verify`'s `contact_tangent_opposed` is
-/// also [`classify_material_pairing`]'s own twin — the same C1 lemma
-/// between bodies rather than within one. Both are issue 1439's work.
+/// composes it, and `topo::boolean::contact_verify` directly. The SSI
+/// point decisions do not read it: their arm is
+/// `crate::ssi::point_arm`'s, from the surfaces' largest principal
+/// curvature, which this fold's [`curvature_lever_arm`] is not on a
+/// cone or a torus. `contact_verify`'s `contact_tangent_opposed` is
+/// [`classify_material_pairing`]'s own twin — the same C1 lemma
+/// between bodies rather than within one, issue 1439's work.
 /// A new site levering against its own fold is a silent
 /// non-comparability, so route new callers through this function.
 pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>, extent: T) -> T {
@@ -387,11 +387,9 @@ pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>,
 }
 
 /// The two curvature arms of [`folded_lever_arm`] folded without the
-/// extent, for a caller that applies its own extent once at the point
-/// of use (the SSI march's arm guard). An arm
-/// [`curvature_lever_arm`] cannot state (a NURBS or approximated
-/// carrier) makes the pair's arm poison.
-pub(crate) fn pair_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>) -> T {
+/// extent. An arm [`curvature_lever_arm`] cannot state (a NURBS or
+/// approximated carrier) makes the pair's arm poison.
+fn pair_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>) -> T {
     curvature_lever_arm(s1, p).min(curvature_lever_arm(s2, p))
 }
 

@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 Found while building `a-stack-across-a-mid-edge-tangency-builds-in-one-operand-order-only`,
@@ -42,3 +42,7 @@ been instrumented. At the corner three of the box's faces meet the
 fillet: the tangent wall along the ruling, the end wall through the
 cylinder's axis (transverse), and the bottom/top (continuations of the
 plate's). Measure the raising site before designing anything.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: reached only through a declared Tangent cover; stage 4 retires the declared-tangency channel and the undeclared-tangency refusal. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

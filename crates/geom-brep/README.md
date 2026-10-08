@@ -290,7 +290,8 @@ may be long and the step is the short quantity, and the refusal is the
 step's (`SsiError::MarchStepInBand`), carrying the Hermite's, its
 levers the bend and the tolerance below which the step clears the
 band. The extent sizes no realized
-step; it is the lever arm's clamp, the seeding floor and the tube
+step; it is the point decisions' clamp, the region decisions' lever,
+the seeding floor and the tube
 ladder's widest rung.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
@@ -317,14 +318,21 @@ The op does not return until every branch is found or it refuses; the
 subdivision doubles as the seed generator, so finding never depends on
 luck. Closure of a trace and loop
 topology are named trileans on parameter-space distances. Near-tangential
-configurations refuse toward C7, each candidate by what it reads: a
-marched branch by the transversality decision at every state, `sin θ`
-levered by the smaller of the operands' lever arm (on a wall, its
-chart's) and the extent; a Hermite branch by that decision at its two
-ends, and between them by limb 3's tube, whose clearance is levered by
-the extent alone. The levers differ where a wall's chart bends and its
-surface does not
-(`work/ssi/ssi-transversality-at-a-point-is-spelled-three-ways.md`).
+configurations refuse toward C7, each decision by what it reads. A
+decision at a point reads `sin θ · min(ρ, E)`, its arm from
+`ssi::point_arm`: `E` the extent, and `ρ` the reciprocal of the larger
+principal curvature of either surface there, read on the plane × NURBS
+lane from each chart's first and second fundamental forms
+(`shape_operator`) and on the ℝ³ lane from each implicit form's
+Hessian (`implicit_max_normal_curvature`), a plane's being zero; no
+chart's parameter lines enter it. The point decisions are the march's
+states, a Hermite candidate's two ends and refinement's unsettled chord
+midpoint, which refuse `SsiError::TransversalityBand`, and the at-rest
+per-sample check in `plane_nurbs_limbs`, which refuses
+`PlaneNurbsRefusal::NotTransverse`; each names which of `ρ` and `E`
+its arm was (`PointLever`). A decision over a region (the boundary
+strip, and limb 3's tube on both lanes) reads the certified least
+`sin θ` over it, levered by `E` alone.
 Hoffmann §6.5's tracing through singular points is deliberately not
 adopted. Subdivision is recursive bisection with a linear scan over
 tubes; the C10 tree is not wired in.
@@ -366,22 +374,28 @@ f64 witness replay, the `Witness::Inexact` scalars) and as a property
 test of `chart_image_harmonic ∘
 chart_pcurve = carrier_harmonic` over the covered classes, not in a
 certificate over a parameter box. Where no closed form exists, the
-certificate falls back to the displacement at the shared schedule plus
-a between-samples envelope: hull-bounded for fitted images on NURBS
-charts, and only the carrier's incidence with the chart surface
-(`OnLocusHull`) for a fitted image over a rung-3 carrier on a periodic
-analytic chart, where `S ∘ P` is transcendental. A sphere's general
-circle (neither polar nor meridian) has no closed form either, but its
-envelope still bounds the whole span: its image is a piecewise quintic
-Hermite interpolant of the circle's chart image, and the envelope
-(`MapResidualHermite`) bounds `|S(P(t)) − C(t)|` as the circle's
-distance from the sphere, plus per span the image's control distance
-from the Hermite data and the Hermite remainder, through the chart
-map's derivative bound (`geom_brep::sphere_circle`); its schedule stays
-in the certified statement. No UV-space tolerance appears in
-any certified statement; the chart's stretch is the lever arm. A row
-certifies against its carrier and chart alone, on one branch (a τ jump
-is unrepresentable in `Harmonic`'s `α + β·t`); no caller's window enters
+image is the one the chart holds exactly. A fitted image on a NURBS
+chart is bounded between the shared schedule's samples by hull bounds.
+On an analytic chart, a carrier with no closed-form image (a spline
+carrier, a sphere's general circle) stores the *projected image*, the
+chart's own inverse applied to the carrier, `P(t) = ψ(C(t))`: the
+carrier's net in the chart frame, plus a partition of the span into
+pieces that each stay in one `atan2` sector. On the plane it is the
+carrier's net mapped through the affine chart; on the cone its second
+channel is the coordinate of the carrier point's foot on the
+generator. `S(ψ(x))` is the point of the chart nearest `x`, so the
+envelope bounds `|S(P(t)) − C(t)|` over the whole span as the
+carrier's distance from the chart (the composite of the chart's
+implicit form along the carrier, in metres through a per-span lever),
+plus the stored net's fidelity to the re-derived one through the
+projection's Lipschitz bound and the frame's defect; per span, the
+sector condition is decided, and a span reaching a pole or the apex
+refuses. The row reads no mate surface: an intersection carrier's
+uniqueness tube is the edge's certificate (C2), not the row's. No
+UV-space tolerance appears in any certified statement; the chart's
+stretch is the lever arm. A row certifies against its carrier and chart alone, on one branch (a τ jump
+is unrepresentable in `Harmonic`'s `α + β·t`, and the projected
+image's sector condition refuses one); no caller's window enters
 it. The face's rows lift its loops, and `topo::pcurves` certifies the
 loop: at each joint the walk decides the deck element (the whole number
 of periods, and on a sphere the involution twin) as an integer, with

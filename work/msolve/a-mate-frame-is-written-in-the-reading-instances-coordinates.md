@@ -7,7 +7,7 @@ opened: 2026-10-01
 priority: P2
 cost: M
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage3-is-built]
 ---
 
 
@@ -52,3 +52,7 @@ P2-face, `docs/doc-ledger/edit-placement-spec.md` § P2-split rulings 7 and 8): 
 the member's part, so it crosses split and inline with its head under
 A4's condition (b) alone, and follows that face wherever the head
 reads it. What this row asks is the same for the authored arm.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage3-is-built`, not on the whole program: what a mate's literal frame means is ASSEMBLY A3, which D10 retires; spaces, "a part has no location" and the per-space computing frame are stage 3. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

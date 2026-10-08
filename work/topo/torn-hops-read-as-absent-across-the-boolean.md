@@ -7,7 +7,7 @@ opened: 2026-10-05
 priority: P3
 cost: M
 refs: [torn-records-read-as-absent-in-the-rest-lane-and-the-split-gate, torn-body-refusal-families-beyond-the-six-doors]
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 ## What
@@ -129,3 +129,7 @@ Two sites still spell the iteration by hand, because they sit in files
 under another open PR: `boolean/rest.rs` `face_witnesses`
 (PR 4067) and `attach.rs` `check_moved_boundary` (PR 4060). Each moves to the helper
 once its PR lands.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: every held site reads a declaration or coincidence (DeclaredPairs, carrier identity/distinctness ladders, undeclared scan, verify_tangent_declaration); the stage-4 door rewrites them. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

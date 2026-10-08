@@ -715,7 +715,7 @@ fn program_structure_doors_refuse_typed_at_load() {
     match load(&mangled, Tol::witness()) {
         Err(PersistError::Snapshot(editor_core::SnapshotError::SlotVarKind {
             node,
-            declared: editor_core::Dimension::Angle,
+            declared: editor_core::VarKind::Angle,
             referenced: editor_core::Dimension::Length,
             ..
         })) => assert_eq!(node.id(), circle),

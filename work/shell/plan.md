@@ -38,8 +38,9 @@ after that cut, as units:
    design question goes to the designer pair before a spec.
 10. **The face door is at rest** — `replace-face-offset-answers-for-the-complement-of-an-inside-out-body`
     (P2, M) carrying `shell-operand-shape-arms-behind-the-at-rest-gate`
-    (P3, E): the `AtRestBody` gate unit 2 put on `shell` reaches
-    `replace_face_offset`, and the arms it made unreachable go.
+    (P3, E): decided 2026-10-08 (the item's `## Decided`): the
+    doors stay construction steps, the premise is corrected and
+    pinned; the arms the `shell` gate made unreachable go.
 11. **The sealed arm's two refusals** — `shell-of-a-cone-tip-refuses-at-the-nappe-decision`
     and `shell-of-a-tangent-dome-refuses-at-the-axial-corner` (P2,
     M each). Unit 7's cone tip, tangent dome and the lift's cone arm

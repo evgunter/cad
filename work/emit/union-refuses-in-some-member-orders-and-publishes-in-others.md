@@ -4,7 +4,7 @@ kind: issue
 title: A union refuses in some member orders and publishes in others, over PR 3112's review corpus and the #3168 review fixtures
 status: parked
 opened: 2026-09-24
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 priority: P1
 cost: H
 refs: [a-declaration-on-a-face-one-fold-step-cut-and-partly-merged-cannot-be-routed-by-names, a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission]
@@ -281,3 +281,7 @@ today:
   `[0,2,1]`. Owners:
   `work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md` (P0)
   and `work/fuse/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md` (P1).
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the class left is DeclareResolve/ConsumedByFold on routed declarations (wire.rs look_through_fold), removed when stage 4 retires declared pairs. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

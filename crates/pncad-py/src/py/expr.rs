@@ -505,7 +505,11 @@ pub(crate) fn name_fault_err(py: Python<'_>, fault: &d::NameFault) -> PyErr {
                 fault.name
             ),
         ),
-        d::Unlowered::Kind { declared, .. } => (dim(fault.dim), dim(declared), fault.to_string()),
+        d::Unlowered::Kind { declared, .. } => (
+            dim(fault.dim),
+            text(crate::errors::var_kind_tag(declared)),
+            fault.to_string(),
+        ),
     };
     let fields = [
         ("variant", text(crate::tags::name_fault_tag(fault))),
@@ -767,7 +771,7 @@ pub(crate) fn eval_err(
         E::Unlowered(fault) => return lower_fault_err(py, fault),
         // The defined variable read; its definition's own refusal is
         // the sentence's.
-        E::UnresolvedVar { var } | E::DefinitionRefused { var, .. } => {
+        E::UnresolvedVar { var } | E::OutputRead { var } | E::DefinitionRefused { var, .. } => {
             (text(&var_text(var)), none(), none(), none())
         }
         E::VarKindMismatch { var, bound, read } => {
