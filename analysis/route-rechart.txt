@@ -1,0 +1,141 @@
+   Compiling sweep v0.0.0 (/home/user/cad/crates/sweep)
+    Finished `release` profile [optimized] target(s) in 3m 56s
+     Running tests/all.rs (/home/user/join-target/release/deps/all-c55e780278ea0535)
+
+running 1 test
+ROUTE plain | a∪b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE plain | b∪a | OK SOUND | F4 E6 V4 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE plain | a∖b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE plain | b∖a | OK SOUND | F4 E6 V4 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE plain | a∩b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE plain | b∩a | OK SOUND | F4 E6 V4 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE lens-union | a∪b | OK SOUND | F7 E16 V11 sph[(1.0, 5), (0.3, 2)] skip3 mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoR
+ROUTE lens-union | b∪a | OK SOUND | F7 E16 V11 sph[(0.3, 2), (1.0, 5)] skip3 mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoR
+ROUTE lens-union | a∖b | OK SOUND | F7 E16 V11 sph[(1.0, 5), (0.3, 2)] skip3 mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoR
+ROUTE lens-union | b∖a | OK SOUND | F3 E4 V3 sph[(0.3, 2), (1.0, 1)] skip1 mesh=ERR UnsupportedCurvedShape { face: FaceKey(4v5), source: NotIsoR
+ROUTE lens-union | a∩b | OK SOUND | F3 E4 V3 sph[(1.0, 1), (0.3, 2)] skip1 mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoR
+ROUTE lens-union | b∩a | OK SOUND | F3 E4 V3 sph[(0.3, 2), (1.0, 1)] skip1 mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v5), source: NotIsoR
+ROUTE line r0.05 d1 | a∪b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.05, 2)] skip2 mesh=ok
+ROUTE line r0.05 d1 | b∪a | OK SOUND | F4 E6 V4 sph[(0.05, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE line r0.05 d1 | a∖b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.05, 2)] skip2 mesh=ok
+ROUTE line r0.05 d1 | b∖a | OK SOUND | F4 E6 V4 sph[(0.05, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE line r0.05 d1 | a∩b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.05, 2)] skip2 mesh=ok
+ROUTE line r0.05 d1 | b∩a | OK SOUND | F4 E6 V4 sph[(0.05, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE line r0.7 d1 | a∪b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.7, 2)] skip2 mesh=ok
+ROUTE line r0.7 d1 | b∪a | OK SOUND | F4 E6 V4 sph[(0.7, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE line r0.7 d1 | a∖b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.7, 2)] skip2 mesh=ok
+ROUTE line r0.7 d1 | b∖a | OK SOUND | F4 E6 V4 sph[(0.7, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE line r0.7 d1 | a∩b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.7, 2)] skip2 mesh=ok
+ROUTE line r0.7 d1 | b∩a | OK SOUND | F4 E6 V4 sph[(0.7, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE line r1.5 d1.5 | a∪b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (1.5, 2)] skip2 mesh=ok
+ROUTE line r1.5 d1.5 | b∪a | OK SOUND | F4 E6 V4 sph[(1.5, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE line r1.5 d1.5 | a∖b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (1.5, 2)] skip2 mesh=ok
+ROUTE line r1.5 d1.5 | b∖a | OK SOUND | F4 E6 V4 sph[(1.5, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE line r1.5 d1.5 | a∩b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (1.5, 2)] skip2 mesh=ok
+ROUTE line r1.5 d1.5 | b∩a | OK SOUND | F4 E6 V4 sph[(1.5, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE line r1 d1 | a∪b | OK SOUND | F4 E6 V4 sph[(1.0, 4)] skip2 mesh=ok
+ROUTE line r1 d1 | b∪a | OK SOUND | F4 E6 V4 sph[(1.0, 4)] skip2 mesh=ok
+ROUTE line r1 d1 | a∖b | OK SOUND | F4 E6 V4 sph[(1.0, 4)] skip2 mesh=ok
+ROUTE line r1 d1 | b∖a | OK SOUND | F4 E6 V4 sph[(1.0, 4)] skip2 mesh=ok
+ROUTE line r1 d1 | a∩b | OK SOUND | F4 E6 V4 sph[(1.0, 4)] skip2 mesh=ok
+ROUTE line r1 d1 | b∩a | OK SOUND | F4 E6 V4 sph[(1.0, 4)] skip2 mesh=ok
+ROUTE tilted | a∪b | OK SOUND | F4 E8 V6 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE tilted | b∪a | OK SOUND | F4 E8 V6 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE tilted | a∖b | OK SOUND | F4 E8 V6 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE tilted | b∖a | OK SOUND | F4 E8 V6 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE tilted | a∩b | OK SOUND | F4 E8 V6 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE tilted | b∩a | OK SOUND | F4 E8 V6 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE trimmed2 | a∪b | OK SOUND | F8 E16 V10 sph[(1.0, 3), (0.3, 3)] skip2 mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoR
+ROUTE trimmed2 | b∪a | OK SOUND | F8 E16 V10 sph[(0.3, 3), (1.0, 3)] skip2 mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoR
+ROUTE trimmed2 | a∖b | OK SOUND | F5 E9 V6 sph[(1.0, 3), (0.3, 1)] skip1 mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoR
+ROUTE trimmed2 | b∖a | OK SOUND | F5 E9 V6 sph[(0.3, 3), (1.0, 1)] skip1 mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoR
+ROUTE trimmed2 | a∩b | OK SOUND | F2 E1 V1 sph[(0.3, 1), (1.0, 1)] skip0 mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v9), source: NotIsoR
+ROUTE trimmed2 | b∩a | OK SOUND | F2 E1 V1 sph[(1.0, 1), (0.3, 1)] skip0 mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v9), source: NotIsoR
+ROUTE orbit-lens | a∪b | OK SOUND | F8 E15 V9 sph[(1.0, 3), (0.2, 2), (0.8, 3)] skip2 mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoR
+ROUTE orbit-lens | b∪a | OK SOUND | F8 E15 V9 sph[(0.2, 2), (0.8, 3), (1.0, 3)] skip2 mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoR
+ROUTE orbit-lens | a∖b | OK SOUND | F10 E21 V11 sph[(1.0, 3), (0.2, 4), (0.8, 3)] skip3 mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoR
+ROUTE orbit-lens | b∖a | OK BAD | F4 E2 V2 sph[(0.2, 2), (1.0, 1), (0.8, 1)] skip0 mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoR
+ROUTE orbit-lens | a∩b | OK SOUND | F6 E10 V6 sph[(0.8, 1), (1.0, 1), (0.2, 4)] skip1 mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v7), source: NotIsoR
+ROUTE orbit-lens | b∩a | OK SOUND | F6 E10 V6 sph[(0.8, 1), (0.2, 4), (1.0, 1)] skip1 mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoR
+ROUTE nonpar spin0.5 | a∪b | OK SOUND | F4 E8 V6 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE nonpar spin0.5 | b∪a | OK SOUND | F4 E8 V6 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE nonpar spin0.5 | a∖b | OK SOUND | F4 E8 V6 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE nonpar spin0.5 | b∖a | OK SOUND | F4 E8 V6 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE nonpar spin0.5 | a∩b | OK SOUND | F4 E8 V6 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE nonpar spin0.5 | b∩a | OK SOUND | F4 E8 V6 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE nonpar spin1.6 | a∪b | OK SOUND | F4 E8 V6 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE nonpar spin1.6 | b∪a | OK SOUND | F4 E8 V6 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE nonpar spin1.6 | a∖b | OK SOUND | F4 E8 V6 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE nonpar spin1.6 | b∖a | OK SOUND | F4 E8 V6 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE nonpar spin1.6 | a∩b | OK SOUND | F4 E8 V6 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE nonpar spin1.6 | b∩a | OK SOUND | F4 E8 V6 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE nonpar tilt-line | a∪b | OK SOUND | F4 E8 V6 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE nonpar tilt-line | b∪a | OK SOUND | F4 E8 V6 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE nonpar tilt-line | a∖b | OK SOUND | F4 E8 V6 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE nonpar tilt-line | b∖a | OK SOUND | F4 E8 V6 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE nonpar tilt-line | a∩b | OK SOUND | F4 E8 V6 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE nonpar tilt-line | b∩a | OK SOUND | F4 E8 V6 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE pole δ1e-5 | a∪b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.01, 2)] skip2 mesh=ok
+ROUTE pole δ1e-5 | b∪a | OK SOUND | F4 E6 V4 sph[(0.01, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE pole δ1e-5 | a∖b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.01, 2)] skip2 mesh=ok
+ROUTE pole δ1e-5 | b∖a | OK SOUND | F4 E6 V4 sph[(0.01, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE pole δ1e-5 | a∩b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.01, 2)] skip2 mesh=ok
+ROUTE pole δ1e-5 | b∩a | OK SOUND | F4 E6 V4 sph[(0.01, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE pole δ1e-7 | a∪b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.01, 2)] skip2 mesh=ok
+ROUTE pole δ1e-7 | b∪a | OK SOUND | F4 E6 V4 sph[(0.01, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE pole δ1e-7 | a∖b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.01, 2)] skip2 mesh=ok
+ROUTE pole δ1e-7 | b∖a | OK SOUND | F4 E6 V4 sph[(0.01, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE pole δ1e-7 | a∩b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.01, 2)] skip2 mesh=ok
+ROUTE pole δ1e-7 | b∩a | OK SOUND | F4 E6 V4 sph[(0.01, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE tiny r1e-3 on sphere | a∪b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.001, 2)] skip2 mesh=ok
+ROUTE tiny r1e-3 on sphere | b∪a | OK SOUND | F4 E6 V4 sph[(0.001, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE tiny r1e-3 on sphere | a∖b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.001, 2)] skip2 mesh=ok
+ROUTE tiny r1e-3 on sphere | b∖a | OK SOUND | F4 E6 V4 sph[(0.001, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE tiny r1e-3 on sphere | a∩b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (0.001, 2)] skip2 mesh=ok
+ROUTE tiny r1e-3 on sphere | b∩a | OK SOUND | F4 E6 V4 sph[(0.001, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE r50 int | a∪b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (50.0, 2)] skip2 mesh=ok
+ROUTE r50 int | b∪a | OK SOUND | F4 E6 V4 sph[(50.0, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE r50 int | a∖b | OK BAD | F4 E6 V4 sph[(1.0, 2), (50.0, 2)] skip2 mesh=ok
+ROUTE r50 int | b∖a | OK SOUND | F4 E6 V4 sph[(50.0, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE r50 int | a∩b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (50.0, 2)] skip2 mesh=ok
+ROUTE r50 int | b∩a | OK SOUND | F4 E6 V4 sph[(50.0, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE r50 ext | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: Face { face: FaceKey(5v3), source: | 
+ROUTE r50 ext | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: Face { face: FaceKey(2v1), source: | 
+ROUTE r50 ext | a∖b | OK SOUND | F4 E6 V4 sph[(1.0, 2), (50.0, 2)] skip2 mesh=ok
+ROUTE r50 ext | b∖a | OK SOUND | F4 E6 V4 sph[(50.0, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE r50 ext | a∩b | OK BAD | F4 E6 V4 sph[(1.0, 2), (50.0, 2)] skip2 mesh=ok
+ROUTE r50 ext | b∩a | OK BAD | F4 E6 V4 sph[(50.0, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE r1000 | a∪b | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+ROUTE r1000 | b∪a | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+ROUTE r1000 | a∖b | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+ROUTE r1000 | b∖a | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+ROUTE r1000 | a∩b | ERR CurvedPierceUnsupported { operand: B, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+ROUTE r1000 | b∩a | ERR CurvedPierceUnsupported { operand: A, face: FaceKey(1v1), edge: EdgeKey(1v1), band: Band { zero: 1e-9, escalat | 
+ROUTE three +z-z | a∪b | OK SOUND | F6 E10 V6 sph[(0.3, 4), (1.0, 2)] skip3 mesh=ok
+ROUTE three +z-z | b∪a | OK SOUND | F6 E10 V6 sph[(0.3, 4), (1.0, 2)] skip3 mesh=ok
+ROUTE three +z-z | a∖b | OK SOUND | F6 E10 V6 sph[(0.3, 4), (1.0, 2)] skip3 mesh=ok
+ROUTE three +z-z | b∖a | OK SOUND | F8 E12 V8 sph[(0.3, 4), (1.0, 4)] skip4 mesh=ok
+ROUTE three +z-z | a∩b | OK SOUND | F8 E12 V8 sph[(1.0, 4), (0.3, 4)] skip4 mesh=ok
+ROUTE three +z-z | b∩a | OK SOUND | F8 E12 V8 sph[(0.3, 4), (1.0, 4)] skip4 mesh=ok
+ROUTE three +z,-tilt | a∪b | OK SOUND | F8 E18 V12 sph[(1.0, 4), (0.3, 4)] skip3 mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoR
+ROUTE three +z,-tilt | b∪a | OK SOUND | F8 E18 V12 sph[(0.3, 4), (1.0, 4)] skip3 mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v5), source: NotIsoR
+ROUTE three +z,-tilt | a∖b | OK SOUND | F8 E18 V12 sph[(1.0, 4), (0.3, 4)] skip3 mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoR
+ROUTE three +z,-tilt | b∖a | OK BAD | F6 E8 V6 sph[(0.3, 4), (1.0, 2)] skip2 mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v5), source: NotIsoR
+ROUTE three +z,-tilt | a∩b | OK BAD | F6 E8 V6 sph[(1.0, 2), (0.3, 4)] skip2 mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoR
+ROUTE three +z,-tilt | b∩a | OK BAD | F6 E8 V6 sph[(0.3, 4), (1.0, 2)] skip2 mesh=ERR UnsupportedCurvedShape { face: FaceKey(4v5), source: NotIsoR
+ROUTE plane+sphere par | a∪b | OK SOUND | F10 E20 V13 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE plane+sphere par | b∪a | OK SOUND | F10 E20 V13 sph[(0.3, 2), (1.0, 2)] skip2 mesh=ok
+ROUTE plane+sphere par | a∖b | OK SOUND | F5 E8 V5 sph[(1.0, 2), (0.3, 2)] skip2 mesh=ok
+ROUTE plane+sphere par | b∖a | OK SOUND | F12 E22 V15 sph[(0.3, 2), (1.0, 4)] skip3 mesh=ok
+ROUTE plane+sphere par | a∩b | OK SOUND | F7 E10 V7 sph[(1.0, 4), (0.3, 2)] skip3 mesh=ok
+ROUTE plane+sphere par | b∩a | OK SOUND | F7 E10 V7 sph[(1.0, 4), (0.3, 2)] skip3 mesh=ok
+ROUTE plane+sphere nonpar | a∪b | ERR CurvedPairUnsupported { op: Some(Union), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sphere | 
+ROUTE plane+sphere nonpar | b∪a | ERR CurvedPairUnsupported { op: Some(Union), site: InteriorLoopGuard, operand: B, face: FaceKey(1v1), kind: Sphere | 
+ROUTE plane+sphere nonpar | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+ROUTE plane+sphere nonpar | b∖a | ERR CurvedPairUnsupported { op: Some(Subtract), site: InteriorLoopGuard, operand: B, face: FaceKey(1v1), kind: Sph | 
+ROUTE plane+sphere nonpar | a∩b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+ROUTE plane+sphere nonpar | b∩a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(7 | 
+test zz_join_route_probe::route_probe ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2529 filtered out; finished in 2.53s
+
