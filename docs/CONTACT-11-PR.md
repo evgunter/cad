@@ -37,7 +37,10 @@ boundary, which a face's outer loop, walked once, covers.
   margin grows linearly with the notch.
 - **The arms bound the metric separation from above.** Zero is the
   accepting verdict, so each arm has to overstate the separation, never
-  understate it. The site says so, per verdict:
+  understate it. The type says so: every arm is a `SupSpeed`, crossed to
+  metres by `Margin::metered_sup` (the overshoot-and-escape door: trim
+  containment, a loop-continuity gap). That covers both
+  `chart_polygon_box` and the walk's `torus_chart_meets`. The bounds:
   - torus: `R + r` per radian of major angle (a parallel's radius
     `R + r·cos t` is at most that); `r` per radian of minor angle (the
     arc `r·Δt` is at least its chord);
@@ -174,6 +177,44 @@ The sweep is as of `f4e9aa68b`.
 - The sphere row is rewritten to point at the linear side test, or at
   its own level count.
 - The STEP issue is filed on EXCH's slate.
+
+## Short fix pass (after the delta review of `659dfddfa`)
+
+- **The arms' direction is pinned.** `the_smallest_notch_refuses_definitely`
+  covers the torus outer equator on all four rings and the cone frustum
+  top rim on both frusta. Each notch is `1.5·K·ε`, about the smallest
+  `mev` mints, and each arm is the exact rate there.
+  - It asks the TRIM directly (`torus_face_windows`, `cone_face_trim`)
+    and requires a definite `PartialTorusFace` / `PartialConeFace`.
+  - It asks the face door at the notch centre only for "never `In`". At
+    `0.75·K·ε` from the face the door escalates on `bool_contact_arc`,
+    in its boundary walk, before it reaches the trim. That is why the
+    door alone cannot pin the bound.
+  - Both arms halved (in `chart_polygon_box`, at `fcb03f3f5`) is killed
+    at ε 1e-9, 1e-6 and 1e-12: every torus ring and cone frustum cell's
+    trim escalates (margin `0.75·K·ε`) instead of refusing. No cell
+    answers `In` at the door. That is the under-bound the review's hunt
+    found nowhere at the true arms.
+- **The comment.** The cone L row's comment no longer describes the
+  area check or carries history.
+- **`SupSpeed`.** It fit without contortion (above).
+- **Null edges.** The torus walk steps over an uncertified edge where
+  the cone refuses it. Unifying them would change behaviour on the
+  boolean's working copies, or need a cone continuity check inside
+  `chord_join.rs` (TANG's). This is filed as
+  `work/contact/torus-walk-steps-over-null-edges-where-the-cone-refuses`
+  (P3, E).
+- **`bar`.** It is now one line over the box door
+  (`sweep::test_support::brick`, the body `common::cavity::brick` also
+  wraps), finished at rest. `germ_torus_doors` and the CONTACT-11 row
+  pass on it. The two private `brick` helpers in other suites are not
+  this unit's.
+- **The owed checks.** The sweep row's header now points at
+  `work/contact/notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands`
+  (P3, E). That row is parked on `c5-plane-torus-cone-cylinder-arms`,
+  the plane × torus arm.
+- **The carried row.** Its fix section now describes the linear test,
+  and says why the area test was unsound.
 
 ## The merge of main (2026-10-08)
 
