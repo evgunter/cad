@@ -312,6 +312,23 @@ fn name_split_edges_vertices<T: Decide>(
             }
         }
     }
+    // How many live edges of either side descend from each operand
+    // edge, chords aside. The split ends with the join (`docs/DESIGN.md`,
+    // maximal edges): an operand edge the cut subdivided without
+    // separating (a graze's touch point) is joined back, and its one
+    // descendant holds it whole, so it takes the operand edge's own
+    // name, as if never cut.
+    let mut descendants: BTreeMap<EdgeKey, usize> = BTreeMap::new();
+    for sb in sides {
+        let chords = chord_faces(sb.body, &naming.sections, section_keys)?;
+        for (e, _) in sb.body.edges() {
+            if !chords.contains_key(&e) {
+                *descendants
+                    .entry(chase_split_edge_to_table(sides, target_table, e)?)
+                    .or_default() += 1;
+            }
+        }
+    }
     for (slot, s) in sides.iter().enumerate() {
         let body = s.body;
         let chord_faces = chord_faces(body, &naming.sections, section_keys)?;
@@ -353,6 +370,12 @@ fn name_split_edges_vertices<T: Decide>(
             {
                 // Intact operand edge: pass-through.
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(e)))?;
+                tie.carry(up, ent(s.ix, EntityKey::Edge(e)))?;
+                continue;
+            }
+            if descendants.get(&root) == Some(&1) {
+                // Cut and joined back whole: the operand edge itself.
+                let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(root)))?;
                 tie.carry(up, ent(s.ix, EntityKey::Edge(e)))?;
                 continue;
             }
