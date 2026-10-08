@@ -53,17 +53,19 @@ use crate::entities::SolidSpec;
 use crate::error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
 use geom_core::Tol;
 
-/// Runs phases B and C for one assembled solid (module docs).
+/// Runs phases B and C for one assembled solid (module docs), and
+/// returns the body face per file face, in `CLOSED_SHELL` order.
 pub(crate) fn finish(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     asm: &Assembled,
     tol: Tol,
-) -> Result<(), StepImportError> {
+) -> Result<Vec<FaceKey>, StepImportError> {
     let face_keys = designate_faces(body, solid, asm)?;
     rotate_loop_firsts(body, solid, asm, tol)?;
     attach_surfaces(body, solid, &face_keys)?;
-    adopt_edges(body, solid, asm, tol)
+    adopt_edges(body, solid, asm, tol)?;
+    Ok(face_keys)
 }
 
 /// The body loop realizing target loop `l`.

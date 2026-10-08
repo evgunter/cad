@@ -905,23 +905,14 @@ fn assemble_solid(
             })
         })
         .collect::<Result<_, _>>()?;
-    // Each face's `ADVANCED_FACE`, read off its outer loop's first use
-    // while the uses still name their half-edges: the join below
-    // reports against the file's faces.
-    let mut faces = BTreeMap::new();
-    for (spec, (outer, _)) in solid.faces.iter().zip(&target.face_loops) {
-        let he = use_he[target.loops[*outer][0]];
-        let face = body
-            .face_of_half_edge(he)
-            .ok_or(StepImportError::Topology {
-                id: solid.id,
-                what: "internal: an assembled face's loop has no face",
-            })?;
-        faces.insert(face, spec.id);
-    }
     let assembled = Assembled { target, use_he };
-    adopt::finish(body, solid, &assembled, tol)?;
-    Ok(faces)
+    // Each body face's `ADVANCED_FACE`: the join the build ends with
+    // reports against the file's faces.
+    let keys = adopt::finish(body, solid, &assembled, tol)?;
+    Ok(keys
+        .into_iter()
+        .zip(solid.faces.iter().map(|f| f.id))
+        .collect())
 }
 
 /// The assembly proper: one `MANIFOLD_SOLID_BREP` into a body of its
