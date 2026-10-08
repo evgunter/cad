@@ -122,6 +122,11 @@ under.
      it), or
    - a later escape (rule 11) traced to a sequential unit that meets
      rule 6(b) and (d) and that no review of the unit raised as MAJOR.
+   After the third readout (Ev, 2026-10-08, PR 4283), the arms
+   continue unchanged. The **next M-tier miss owes a short readout**:
+   an FYI to Ev naming the miss, with no options. The **next full
+   readout is owed at twenty M-tier units or at two more M-tier
+   misses** after DR-104, whichever comes first.
    This is a readout, not a stop — the arms continue until Ev rules
    on the result. The orchestrator recording the triggering row asks
    Ev per `CLAUDE.md` "Asking Ev". The running tally, the count of
