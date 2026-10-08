@@ -34,7 +34,7 @@ fn minted_high() -> (ProfileDoc, RecipeNodeId) {
             insert(
                 doc,
                 Node::Extrude {
-                    profile,
+                    profile: profile.into(),
                     distance: len(f64::from(d)),
                     side: ExtrudeSide::Along,
                 },
@@ -171,7 +171,7 @@ fn a_profile_program_comes_back_through_metadata_at_every_plane_id() {
         (u32::MAX, u64::MAX),
     ] {
         let program: ProfileProgram = ProfileProgram {
-            plane: RecipeNodeId::new(ordinal, id),
+            plane: editor_core::VarId::new(ordinal, id),
             loops: Vec::new(),
             ids: Vec::new(),
         };

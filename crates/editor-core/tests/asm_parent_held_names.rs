@@ -67,7 +67,7 @@ fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap(),
             ],
@@ -77,7 +77,7 @@ fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -392,7 +392,7 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
     let (a, tall) = insert(
         base.clone(),
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(3.0),
             side: ExtrudeSide::Along,
         },
@@ -400,7 +400,7 @@ fn sibling_versions_mint_two_node_ids_and_neither_resolves_the_others_names() {
     let (b, taller) = insert(
         base,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(5.0),
             side: ExtrudeSide::Along,
         },

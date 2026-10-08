@@ -75,7 +75,7 @@ impl Standings {
         let (doc, failed) = insert(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             },
@@ -351,7 +351,7 @@ fn the_checks_root_refusal_names_the_node_the_repair_is_at() {
     let (doc, failed) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.0),
             side: ExtrudeSide::Along,
         },

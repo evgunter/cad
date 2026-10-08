@@ -62,7 +62,7 @@ fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNod
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -185,8 +185,8 @@ fn revolved(doc: ProfileDoc, angle: Formula) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle,
         },
     )
@@ -722,7 +722,7 @@ fn a_count_a_definition_reads_does_not_reproduce() {
         &doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: Formula::mul(
                     named("w"),
                     Formula::count_to_scalar(Formula::fresh(0, Dimension::Count)).unwrap(),

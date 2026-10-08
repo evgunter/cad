@@ -61,13 +61,13 @@ pub fn inner(wall: f64) -> f64 {
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
 
-    let spine = r.insert(Node::Datum(Datum::Axis {
+    let spine = r.insert(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(0.0), scl(1.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(1.0), scl(0.0)],
     }));
     let ring = r.insert(Node::HollowTube {
-        spine,
-        u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+        frame: spine.into(),
         major_radius: len(R),
         window: TubeWindow::Full,
         minor_radius: len(OUTER),

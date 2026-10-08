@@ -102,7 +102,7 @@ fn wired() -> (
     let (doc, body) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -124,7 +124,7 @@ fn wired() -> (
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: body,
+            input: body.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -180,7 +180,7 @@ fn wired() -> (
         "body_operand over a plane datum (Shell)",
         Owes::Refusal("body", "datum"),
         Node::Shell {
-            target: plane,
+            target: plane.into(),
             thickness: len(0.1),
             open: vec![],
         },
@@ -192,7 +192,7 @@ fn wired() -> (
         "body_operand over instances (Shell of a pattern)",
         Owes::Refusal("body", "instances"),
         Node::Shell {
-            target: pattern,
+            target: pattern.into(),
             thickness: len(0.1),
             open: vec![],
         },
@@ -204,7 +204,7 @@ fn wired() -> (
         "placeable_operand over a profile (Pattern)",
         Owes::Refusal("body or instances", "profile"),
         Node::Pattern {
-            input: profile,
+            input: profile.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -235,7 +235,7 @@ fn wired() -> (
         "wire_swept (an Extrude of a plane datum)",
         Owes::Refusal("profile", "datum"),
         Node::Extrude {
-            profile: plane,
+            profile: plane.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -247,8 +247,8 @@ fn wired() -> (
         "wire_revolve's profile pre-check (a Revolve of a plane datum)",
         Owes::Refusal("profile", "datum"),
         Node::Revolve {
-            profile: plane,
-            axis: axis3,
+            profile: plane.into(),
+            axis: axis3.into(),
             angle: ang(1.0),
         },
         plane,
@@ -259,8 +259,8 @@ fn wired() -> (
         "wire_revolve's axis (a Revolve about a 3-D axis)",
         Owes::Refusal("an axis in a sketch frame (Datum::AxisInPlane)", "datum"),
         Node::Revolve {
-            profile,
-            axis: axis3,
+            profile: profile.into(),
+            axis: axis3.into(),
             angle: ang(1.0),
         },
         axis3,
@@ -268,11 +268,10 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "tube_args (a Tube spined on a profile)",
-        Owes::Refusal("datum axis", "profile"),
+        "tube_args (a Tube built in a profile) — behind the edit door",
+        Owes::EditDoor,
         Node::Tube {
-            spine: profile,
-            u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+            frame: profile.into(),
             major_radius: len(2.0),
             window: TubeWindow::Full,
             minor_radius: len(0.5),
@@ -285,7 +284,7 @@ fn wired() -> (
         "wire_assertion's measure operand — behind the edit door",
         Owes::EditDoor,
         Node::Assertion {
-            measure: plane,
+            measure: plane.into(),
             bound: len(1.0),
             dir: AssertionDir::AtMost,
         },
@@ -297,8 +296,8 @@ fn wired() -> (
         "wire_split's tool (a Split tooled by a profile)",
         Owes::Refusal("datum plane", "profile"),
         Node::Split {
-            target: body,
-            tool: profile,
+            target: body.into(),
+            tool: profile.into(),
         },
         profile,
     );
@@ -308,8 +307,8 @@ fn wired() -> (
         "wire_split's tool (a Split tooled by a 3-D axis datum)",
         Owes::Refusal("datum plane", "datum"),
         Node::Split {
-            target: body,
-            tool: axis3,
+            target: body.into(),
+            tool: axis3.into(),
         },
         axis3,
     );
@@ -319,7 +318,7 @@ fn wired() -> (
         "wire_part's SplitHalf arm (a half of a plain body)",
         Owes::Refusal("split", "body"),
         Node::Part {
-            of: body,
+            of: body.into(),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
         body,
@@ -330,7 +329,7 @@ fn wired() -> (
         "wire_part's Instance arm (an instance of a plain body)",
         Owes::Refusal("instances", "body"),
         Node::Part {
-            of: body,
+            of: body.into(),
             select: PartSelect::Instance(Formula::count(0)),
         },
         body,
@@ -341,10 +340,10 @@ fn wired() -> (
         "stepped_map's circular axis (a Pattern about a plane datum)",
         Owes::Refusal("datum axis", "datum"),
         Node::Pattern {
-            input: body,
+            input: body.into(),
             count: Formula::count(3),
             kind: PatternKind::Circular {
-                axis: plane,
+                axis: plane.into(),
                 step: ang(0.5),
             },
         },
@@ -359,7 +358,7 @@ fn wired() -> (
         "section_of (a Loft over a body)",
         Owes::Refusal("profile", "body"),
         Node::Loft {
-            profiles: vec![profile, body],
+            profiles: vec![profile.into(), body.into()],
             v_degree: Formula::count(1),
         },
         body,
@@ -370,7 +369,7 @@ fn wired() -> (
         "section_of (a Loft over a frame datum)",
         Owes::Refusal("profile", "datum"),
         Node::Loft {
-            profiles: vec![profile, sketch],
+            profiles: vec![profile.into(), sketch.into()],
             v_degree: Formula::count(1),
         },
         sketch,
@@ -381,8 +380,8 @@ fn wired() -> (
         "section_of on the sweep road (a Sweep whose profile is a body)",
         Owes::Refusal("profile", "body"),
         Node::Sweep {
-            profile: body,
-            path: profile,
+            profile: body.into(),
+            path: profile.into(),
             stations: Formula::count(3),
             v_degree: Formula::count(1),
         },

@@ -92,7 +92,7 @@ fn block(
     insert(
         &doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -300,8 +300,8 @@ fn a_boolean_over_a_filleted_body_composes_downstream_of_the_fillet() {
         &doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: blank,
-            b: far,
+            a: blank.into(),
+            b: far.into(),
             declare: Vec::new(),
         },
     );

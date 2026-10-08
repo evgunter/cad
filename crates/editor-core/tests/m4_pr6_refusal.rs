@@ -32,7 +32,7 @@ fn small() -> (ProfileDoc, String) {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -311,7 +311,7 @@ fn with_logged_quantity(wire: serde_json::Value) -> String {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: Formula::add(len(1.0), len(1.0)).expect("Length + Length"),
             side: ExtrudeSide::Along,
         },
@@ -374,7 +374,7 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: Formula::add(len(1.0), len(1.0)).expect("Length + Length"),
             side: ExtrudeSide::Along,
         },
@@ -683,7 +683,7 @@ fn program_structure_doors_refuse_typed_at_load() {
     let (doc, circle) = insert(
         doc,
         Node::Profile(editor_core::ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
             ids: Vec::new(),
         }),
@@ -785,7 +785,7 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
         xy_frame(),
     );
     let unclosed = editor_core::ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![LoopProgram::Chain(vec![ProgramStep::Tangent])],
         ids: Vec::new(),
     };

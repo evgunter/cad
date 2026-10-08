@@ -395,18 +395,18 @@ fn bracket_with(
         ])
     };
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![plate_loop],
         ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
-        profile: plate_profile,
+        profile: plate_profile.into(),
         distance: div(w(), 10.0),
         side: ExtrudeSide::Along,
     });
     let hole = |r: &mut Recorder, cx: Formula| {
         let profile = r.insert(Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [cx, len(0.0)],
                 radius: div(w(), 16.0),
@@ -414,7 +414,7 @@ fn bracket_with(
             ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: div(w(), 10.0),
             side: ExtrudeSide::Along,
         })
@@ -455,7 +455,7 @@ fn bracket_with(
     .unwrap();
     let measure = r.insert(Node::measure(web, refs).unwrap());
     let assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(7.0e-3),
         dir: editor_core::AssertionDir::AtLeast,
     });

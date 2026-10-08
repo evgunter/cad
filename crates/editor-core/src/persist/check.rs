@@ -2151,6 +2151,7 @@ mod tests {
             DefinitionCycle,
             SlotRead,
             PayloadRead,
+            OperandRead,
             AnonymousVar,
             Program,
             Snapshot,
@@ -2728,7 +2729,7 @@ mod tests {
         let (doc, profile) = insert(
             doc,
             Box::new(Node::Profile(crate::program::ProfileProgram {
-                plane,
+                plane: plane.into(),
                 loops: vec![triangle],
                 ids: Vec::new(),
             })),

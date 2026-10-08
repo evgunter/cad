@@ -232,7 +232,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -240,7 +240,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, block) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(THICK),
             side: ExtrudeSide::Along,
         },
@@ -254,7 +254,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, fillet) = fixture::insert(
         doc,
         Node::Fillet {
-            target: block,
+            target: block.into(),
             radius: len(R),
             selection,
         },

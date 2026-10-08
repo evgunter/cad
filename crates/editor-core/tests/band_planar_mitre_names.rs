@@ -70,7 +70,7 @@ fn a_turn_is_named_by_its_mitre_and_feet() {
     let (doc, the_box) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

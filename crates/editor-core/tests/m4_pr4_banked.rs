@@ -57,7 +57,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -97,7 +97,7 @@ fn band_cut() -> BandCut {
     let (doc, band) = insert(
         doc,
         Node::Extrude {
-            profile: bp,
+            profile: bp.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -117,8 +117,8 @@ fn band_cut() -> BandCut {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: transform,
+            a: a.into(),
+            b: transform.into(),
             declare: Vec::new(),
         },
     );
@@ -226,8 +226,8 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b: transform,
+            a: a.into(),
+            b: transform.into(),
             declare: decl,
         },
     );

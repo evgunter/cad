@@ -114,19 +114,19 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNode
         ProgramStep::CloseTo,
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![pad_loop],
         ids: Vec::new(),
     }));
     let thickness = len(1.2e-3);
     let body = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: thickness.clone(),
         side: ExtrudeSide::Along,
     });
 
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: plen("bore_r"),
@@ -134,7 +134,7 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNode
         ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
-        profile: bore_profile,
+        profile: bore_profile.into(),
         distance: thickness,
         side: ExtrudeSide::Along,
     });
@@ -180,7 +180,7 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNode
     .expect("Length - Length");
     let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
     let assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(0.0),
         dir: editor_core::AssertionDir::AtLeast,
     });

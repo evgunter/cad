@@ -79,7 +79,7 @@ fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNod
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -452,7 +452,7 @@ fn frame_sharing_a_fresh_entry(seed: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let (doc, profile) = insert(
         frame.doc,
         Node::Profile(ProfileProgram {
-            plane: frame_id,
+            plane: frame_id.into(),
             loops: vec![LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap()],
             ids: Vec::new(),
         }),
@@ -460,7 +460,7 @@ fn frame_sharing_a_fresh_entry(seed: &str) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -833,7 +833,7 @@ fn the_load_door_reads_every_slots_variable() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: body,
+            input: body.into(),
             count: Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [

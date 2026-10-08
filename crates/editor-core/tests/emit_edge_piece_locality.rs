@@ -57,8 +57,8 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: plate,
-            b: rib,
+            a: plate.into(),
+            b: rib.into(),
             declare: Vec::new(),
         },
     );
@@ -81,8 +81,8 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: n1,
-            b: tr,
+            a: n1.into(),
+            b: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -90,8 +90,8 @@ fn a_second_cut_on_a_seam_leaves_the_other_pieces_names() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: joined,
-            b: notches,
+            a: joined.into(),
+            b: notches.into(),
             declare: Vec::new(),
         },
     );
@@ -185,7 +185,7 @@ fn a_second_crossing_by_the_same_face_keeps_the_first_crossing_and_its_pieces_na
             normal: [scl(nx), scl(ny), scl(0.0)],
         }),
     );
-    let (doc, cut) = insert(doc, Node::Split { target: rod, tool });
+    let (doc, cut) = insert(doc, Node::Split { target: rod.into(), tool: tool.into() });
     let (nx, ny) = normal(30.0);
     let (doc2, _) = step(
         doc.clone(),

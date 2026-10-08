@@ -73,7 +73,7 @@ fn with_measure() -> (ProfileDoc, RecipeNodeId) {
         vec![fixture::square(0.0, 0.0, 0.5)],
     );
     let _ = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -86,7 +86,7 @@ fn with_measure() -> (ProfileDoc, RecipeNodeId) {
 
 fn assertion(measure: RecipeNodeId, bound: Formula) -> AuthoredNode {
     Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound,
         dir: editor_core::AssertionDir::AtLeast,
     }
@@ -279,7 +279,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

@@ -43,7 +43,7 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -51,7 +51,7 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],

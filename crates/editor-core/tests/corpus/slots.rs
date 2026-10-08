@@ -52,7 +52,7 @@ pub fn document() -> CorpusDoc {
         vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 3.0), (0.0, 3.0)]],
     );
     let plate = r.insert(Node::Extrude {
-        profile: plate_p,
+        profile: plate_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -65,7 +65,7 @@ pub fn document() -> CorpusDoc {
         vec![vec![(1.0, -1.0), (2.0, -1.0), (2.0, 4.0), (1.0, 4.0)]],
     );
     let slot1 = r.insert(Node::Extrude {
-        profile: slot1_p,
+        profile: slot1_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -73,8 +73,8 @@ pub fn document() -> CorpusDoc {
     // overhangs both ends), so this subtract declares nothing.
     let sub1 = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,
-        a: plate,
-        b: slot1,
+        a: plate.into(),
+        b: slot1.into(),
         declare: Vec::new(),
     });
 
@@ -87,7 +87,7 @@ pub fn document() -> CorpusDoc {
         vec![vec![(-1.0, 1.0), (4.0, 1.0), (4.0, 2.0), (-1.0, 2.0)]],
     );
     let slot2 = r.insert(Node::Extrude {
-        profile: slot2_p,
+        profile: slot2_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -104,8 +104,8 @@ pub fn document() -> CorpusDoc {
     )]);
     let sub2 = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,
-        a: sub1,
-        b: slot2,
+        a: sub1.into(),
+        b: slot2.into(),
         declare: decl,
     });
 

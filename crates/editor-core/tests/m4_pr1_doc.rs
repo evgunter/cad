@@ -25,6 +25,7 @@ impl editor_core::ProfilePayload for FakeProfile {
     fn lower<E>(
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
+        _: &mut dyn FnMut(editor_core::OperandSlot, &editor_core::Operand) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(authored.clone())
     }
@@ -136,7 +137,7 @@ fn author_die() -> Die {
         &mut log,
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: cube_profile.unwrap(),
+                profile: cube_profile.unwrap().into(),
                 distance: len(2.0 * HALF),
                 side: ExtrudeSide::Along,
             }),
@@ -157,7 +158,7 @@ fn author_die() -> Die {
         &mut log,
         TEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: pip_profile.unwrap(),
+                profile: pip_profile.unwrap().into(),
                 distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
@@ -202,8 +203,8 @@ fn author_die() -> Die {
                 TEdit::InsertNode {
                     node: Box::new(Node::Boolean {
                         op: editor_core::BooleanOp::Subtract,
-                        a: body,
-                        b: placed.unwrap(),
+                        a: body.into(),
+                        b: placed.unwrap().into(),
                         declare: Vec::new(),
                     }),
                     fresh: Vec::new(),

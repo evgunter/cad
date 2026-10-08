@@ -274,8 +274,8 @@ fn a_union_over_a_pair_boolean_publishes_flat_sets_in_both_orders() {
         doc.clone(),
         Node::Boolean {
             op: BooleanOp::Union,
-            a: ab[0],
-            b: ab[1],
+            a: ab[0].into(),
+            b: ab[1].into(),
             declare: editor_core::declare_continuation(flush_pairs(
                 &doc,
                 (ab[0], ab[0]),

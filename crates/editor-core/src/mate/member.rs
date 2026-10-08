@@ -1014,7 +1014,7 @@ mod tests {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                plane: plane.into(),
                 loops: vec![
                     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap(),
                 ],
@@ -1024,7 +1024,7 @@ mod tests {
         let (mut doc, body) = ins(
             doc,
             Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(1.0),
                 side: crate::ExtrudeSide::Along,
             },
@@ -1047,10 +1047,10 @@ mod tests {
             (
                 PATTERN,
                 Node::Pattern {
-                    input: body,
+                    input: body.into(),
                     count: crate::Formula::count(4),
                     kind: PatternKind::Circular {
-                        axis: id(axis_operand),
+                        axis: id(axis_operand).into(),
                         step: ang(0.5),
                     },
                 },

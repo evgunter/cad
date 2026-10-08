@@ -134,9 +134,9 @@ fn check_all_slots(value: f64) {
         panic!("profile lost");
     };
     assert_eq!(
-        prof.plane,
-        doc.ids()[0],
-        "the profile still names its frame across the wire"
+        doc.operation_of(prof.plane),
+        Some(doc.ids()[0]),
+        "the profile still reads its frame across the wire"
     );
     let Some(Node::Datum(editor_core::Datum::Point { position })) = doc.node(doc.ids()[2]) else {
         panic!("datum lost");

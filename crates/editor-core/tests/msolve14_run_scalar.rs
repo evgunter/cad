@@ -92,7 +92,7 @@ fn block(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -277,7 +277,7 @@ fn bolted(label: &str, slab_frame: MateFrame<Formula>) -> Bolted {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: bolt,
+            input: bolt.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [1.0, 0.0, 0.0].map(scl),

@@ -69,7 +69,7 @@ fn a_listed_pattern_with_an_unheld_count_refuses_the_rule_not_a_panic() {
     let refused = edit(
         &doc,
         &insert(Node::Pattern {
-            input: b,
+            input: b.into(),
             count: Formula::named(name("nope"), Dimension::Count),
             kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
         }),
@@ -94,7 +94,7 @@ fn a_listed_union_with_an_unheld_count_refuses_the_rule_not_a_panic() {
     let refused = edit(
         &doc,
         &insert(Node::PlacedUnion {
-            input: b,
+            input: b.into(),
             count: Some(Formula::named(name("nope"), Dimension::Count)),
             kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
         }),
@@ -163,7 +163,7 @@ fn a_refused_insert_speaks_one_id_by_name_or_by_id() {
     let doc = applied.doc;
     let node = |first: Formula| -> AuthoredNode {
         Node::Pattern {
-            input: b,
+            input: b.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -286,25 +286,24 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
     // here need only be ids.
     let edges: Vec<AuthoredNode> = vec![
         Node::Pattern {
-            input: b,
+            input: b.into(),
             count: Formula::count(2),
             kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
         },
         Node::PlacedUnion {
-            input: b,
+            input: b.into(),
             count: Some(Formula::count(2)),
             kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
         },
         Node::shell(b, len(0.01), Vec::new()),
         Node::Sweep {
-            profile: b,
-            path: b,
+            profile: b.into(),
+            path: b.into(),
             stations: Formula::count(4),
             v_degree: Formula::count(3),
         },
         Node::Tube {
-            spine: b,
-            u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+            frame: b.into(),
             major_radius: len(0.5),
             minor_radius: len(0.1),
             window: TubeWindow::Arc {
@@ -356,7 +355,11 @@ fn every_formula_the_door_walks_refuses_typed_as_an_unheld_name() {
             let mut at = 0;
             loop {
                 let (mutated, seen) = unheld_at(form, at, |f| {
-                    node.try_map_slots(|p, g| p.try_map_slots(&mut |e| g(e)), &mut |e| f(e))
+                    node.try_map_slots(
+                        |p, g, r| p.try_map_slots(&mut |e| g(e), &mut |at, read| r(at, read)),
+                        &mut |e| f(e),
+                        &mut |_, read| Ok(read.clone()),
+                    )
                 });
                 if at >= seen {
                     break;
@@ -483,6 +486,7 @@ impl editor_core::ProfilePayload for Unlisted<editor_core::VarId> {
     fn lower<E>(
         authored: &Unlisted<Formula>,
         f: &mut dyn FnMut(&Formula) -> Result<editor_core::VarId, E>,
+        _read: &mut dyn FnMut(editor_core::OperandSlot, &editor_core::Operand) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(Unlisted {
             hidden: f(&authored.hidden)?,

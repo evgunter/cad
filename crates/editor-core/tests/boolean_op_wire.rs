@@ -36,8 +36,8 @@ use editor_core::{BooleanOp, Node, RecipeNodeId};
 fn boolean(op: BooleanOp) -> AuthoredNode {
     Node::Boolean {
         op,
-        a: RecipeNodeId::new(0, 1),
-        b: RecipeNodeId::new(0, 2),
+        a: RecipeNodeId::new(0, 1).into(),
+        b: RecipeNodeId::new(0, 2).into(),
         declare: Vec::new(),
     }
 }

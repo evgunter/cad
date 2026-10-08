@@ -37,7 +37,7 @@ fn prism() -> (ProfileDoc, RecipeNodeId) {
         vec![fixture::square(0.0, 0.0, 0.5)],
     );
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: fixture::len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -75,7 +75,7 @@ fn edge(doc: &ProfileDoc, node: RecipeNodeId, segment: u32) -> StableName {
 /// canonicalized, handed to a door raw.
 fn raw_fillet(doc: &ProfileDoc, solid: RecipeNodeId, segments: &[u32]) -> AuthoredNode {
     Node::Fillet {
-        target: solid,
+        target: solid.into(),
         radius: fixture::len(0.0625),
         selection: segments.iter().map(|s| edge(doc, solid, *s)).collect(),
     }
@@ -163,7 +163,7 @@ fn an_unsorted_selection_is_refused_at_the_insert_door() {
 fn an_unsorted_chamfer_selection_is_refused_at_the_insert_door() {
     let (doc, solid) = prism();
     let raw: AuthoredNode = Node::Chamfer {
-        target: solid,
+        target: solid.into(),
         distance: fixture::len(0.0625),
         selection: vec![edge(&doc, solid, 2), edge(&doc, solid, 0)],
     };
@@ -294,7 +294,7 @@ fn the_construction_doors_canonicalize() {
 fn an_empty_selection_is_canonical() {
     let (doc, solid) = prism();
     let empty: AuthoredNode = Node::Fillet {
-        target: solid,
+        target: solid.into(),
         radius: fixture::len(0.0625),
         selection: Vec::new(),
     };

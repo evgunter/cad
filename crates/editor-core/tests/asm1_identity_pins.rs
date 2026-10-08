@@ -41,7 +41,7 @@ fn exemplar(
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.5),
             side: ExtrudeSide::Along,
         },

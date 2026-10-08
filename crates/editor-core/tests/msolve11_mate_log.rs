@@ -50,7 +50,7 @@ fn slab(label: &str, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -88,7 +88,7 @@ fn scene(label: &str) -> Scene {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: block,
+            input: block.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -523,7 +523,7 @@ fn a_parts_index_that_does_not_evaluate_is_refused_at_the_part() {
     )
     .unwrap();
     let part = s.add(Node::Part {
-        of: s.pattern,
+        of: s.pattern.into(),
         select: PartSelect::Instance(index),
     });
     let read_at_part = fixture::head_at(
@@ -610,10 +610,10 @@ fn a_parts_flat_index_past_the_row_width_is_refused_at_the_pattern_it_selects_fr
             spacing: len(3.0),
         },
     };
-    let inner = s.add(wide(s.other));
-    let outer = s.add(wide(inner));
+    let inner = s.add(wide(s.other.into()));
+    let outer = s.add(wide(inner.into()));
     let part = s.add(Node::Part {
-        of: outer,
+        of: outer.into(),
         select: PartSelect::Instance(Formula::count(0)),
     });
     let b = fixture::head_at(
@@ -675,7 +675,7 @@ fn a_parts_index_outside_its_value_is_refused_as_the_evaluation_refuses_it() {
     use editor_core::{NodeErrorKind, PartSelect};
     let mut s = scene("msolve11-part-out-of-range");
     let part = s.add(Node::Part {
-        of: s.pattern,
+        of: s.pattern.into(),
         select: PartSelect::Instance(Formula::count(5)),
     });
     let b = fixture::head_at(
@@ -758,7 +758,7 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: block,
+            input: block.into(),
             count: Formula::count(2),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -795,7 +795,7 @@ fn a_part_index_refusal_behind_a_poisoned_pattern_is_pointed_at_a_silent_row() {
     )
     .unwrap();
     let part = s.add(Node::Part {
-        of: s.pattern,
+        of: s.pattern.into(),
         select: PartSelect::Instance(index),
     });
     let read_at_part = fixture::head_at(

@@ -61,7 +61,7 @@ pub(crate) fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -163,7 +163,7 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
     let (bare, plain) = insert(
         doc.clone(),
         Node::Union {
-            members: vec![m1, m2],
+            members: vec![m1.into(), m2.into()],
             declare: Vec::new(),
         },
     );
@@ -216,8 +216,8 @@ fn the_pair_boolean_declares_between_two_placements_of_one_prototype() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: m1,
-            b: m2,
+            a: m1.into(),
+            b: m2.into(),
             declare: decl,
         },
     );
@@ -253,8 +253,8 @@ fn a_site_that_is_neither_operand_refuses() {
     )]);
     let boolean = |declare| Node::Boolean {
         op: BooleanOp::Union,
-        a: m1,
-        b: m2,
+        a: m1.into(),
+        b: m2.into(),
         declare,
     };
     let inserted = doc.apply(
@@ -316,7 +316,7 @@ fn a_union_site_dropped_by_set_members_strands_and_loads() {
         doc,
         DocEdit::SetMembers {
             node: union,
-            members: vec![m1, m2],
+            members: vec![m1.into(), m2.into()],
         },
     );
     let stranded = run(&doc);
@@ -364,8 +364,8 @@ fn a_declared_union_is_the_pair_booleans_body() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl,
         },
     );
@@ -631,7 +631,7 @@ fn a_declared_member_removed_by_set_members_refuses() {
         doc,
         DocEdit::SetMembers {
             node: union,
-            members: vec![a, far],
+            members: vec![a.into(), far.into()],
         },
     );
     let ev = run(&doc);
@@ -731,7 +731,7 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
     let (live, union) = insert(
         doc.clone(),
         Node::Union {
-            members: vec![a, b],
+            members: vec![a.into(), b.into()],
             declare: Vec::new(),
         },
     );
@@ -741,7 +741,7 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
         let inserted = doc.apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Union {
-                    members: vec![a, b],
+                    members: vec![a.into(), b.into()],
                     declare: pairs.clone(),
                 }),
                 fresh: Vec::new(),
@@ -791,7 +791,7 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
     let (live, union) = insert(
         doc.clone(),
         Node::Union {
-            members: vec![a, b],
+            members: vec![a.into(), b.into()],
             declare: Vec::new(),
         },
     );
@@ -802,7 +802,7 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
     let inserted = doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(Node::Union {
-                members: vec![a, b],
+                members: vec![a.into(), b.into()],
                 declare: off_member.clone(),
             }),
             fresh: Vec::new(),
@@ -906,7 +906,7 @@ fn set_declare_on_a_live_union_answers_its_refusal() {
     let (mut doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![m1, m2],
+            members: vec![m1.into(), m2.into()],
             declare: Vec::new(),
         },
     );
@@ -977,7 +977,7 @@ fn a_declaration_recomputes_the_union_alone() {
     let (bare, _) = insert(
         base.clone(),
         Node::Union {
-            members: vec![a, b],
+            members: vec![a.into(), b.into()],
             declare: Vec::new(),
         },
     );
@@ -1069,8 +1069,8 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: far,
-            b: a,
+            a: far.into(),
+            b: a.into(),
             declare: pdecl.clone(),
         },
     );
@@ -1101,8 +1101,8 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b: far,
+            a: a.into(),
+            b: far.into(),
             declare: pdecl,
         },
     );
@@ -1110,8 +1110,8 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: chain0,
-            b: far2,
+            a: chain0.into(),
+            b: far2.into(),
             declare: Vec::new(),
         },
     );
@@ -1323,8 +1323,8 @@ fn a_pass_through_operand_is_the_site_and_the_minting_node_is_not() {
         .collect();
         Node::Boolean {
             op: BooleanOp::Union,
-            a: m1,
-            b: m2,
+            a: m1.into(),
+            b: m2.into(),
             declare: editor_core::declare_continuation(pairs),
         }
     };
@@ -1365,8 +1365,8 @@ fn a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl,
         },
     );
@@ -1407,7 +1407,7 @@ fn a_deleted_site_refuses_at_the_next_evaluation() {
         doc,
         DocEdit::SetMembers {
             node: union,
-            members: vec![a, far],
+            members: vec![a.into(), far.into()],
         },
     );
     let ev = run(&doc);
@@ -1497,8 +1497,8 @@ fn a_name_the_other_operand_carries_is_not_read_at_its_site() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl,
         },
     );
@@ -1530,9 +1530,9 @@ fn a_declaration_adds_no_inputs() {
     let (doc, union) = declared_union(doc, &[a, b], pairs);
     let node = doc.node(union).expect("the union is live");
     assert_eq!(
-        node.inputs(),
+        doc.upstream(union),
         vec![a, b],
-        "a declaration's sides are references, not edges"
+        "a declaration's sides are references, not reads"
     );
     // And the sites are what `payload_read_sites` answers with — the
     // reading edges, which is the other half of the same fact.
@@ -1669,7 +1669,7 @@ fn redrawing_another_member_never_takes_a_held_flush_stretch() {
                 doc,
                 DocEdit::SetMembers {
                     node: union,
-                    members: listed(a, redrawn),
+                    members: listed(a, redrawn).into_iter().map(Into::into).collect(),
                 },
             );
             let pairs = corner_pairs(&doc, a, redrawn);

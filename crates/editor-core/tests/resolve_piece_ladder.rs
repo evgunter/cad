@@ -59,7 +59,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -108,8 +108,8 @@ fn slot() -> Slot {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: tr,
+            a: a.into(),
+            b: tr.into(),
             declare: Vec::new(),
         },
     );

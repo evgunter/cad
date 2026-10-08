@@ -78,7 +78,7 @@ fn scene() -> Scene {
         &applied.doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile,
+                profile: profile.into(),
                 distance: len(PLATE_DEPTH),
                 side: ExtrudeSide::Along,
             }),

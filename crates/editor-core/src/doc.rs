@@ -1604,9 +1604,8 @@ impl<P> Doc<P> {
     }
 
     /// **`node`'s signature resolved**: each port's name and kind, a
-    /// placer's read through its operand ([`crate::PortKind::PlacedFrom`]).
-    /// `None` when `node`, or an operand a placer's kind is read
-    /// through, is not live.
+    /// placer's read off the variable it reads ([`crate::PortKind::Placed`]).
+    /// `None` when `node`, or the variable a placer reads, is not live.
     pub fn signature(&self, node: RecipeNodeId) -> Option<Vec<(&'static str, crate::VarKind)>> {
         self.signature_of(self.nodes.get(&node)?)
     }
@@ -1618,22 +1617,24 @@ impl<P> Doc<P> {
     ) -> Option<Vec<(&'static str, crate::VarKind)>> {
         node.outputs()
             .into_iter()
-            .map(|port| Some((port.name, self.port_kind(port.kind)?)))
+            .map(|port| {
+                let kind = match port.kind {
+                    crate::PortKind::Of(kind) => kind,
+                    // A placer has the shape of what it reads: `Bodies`
+                    // over a `Bodies`, `Body` otherwise.
+                    crate::PortKind::Placed => {
+                        let Node::Transform { input, .. } = node else {
+                            unreachable!("only a transform's port is placed")
+                        };
+                        match self.vars.get(input)?.kind() {
+                            crate::VarKind::Bodies => crate::VarKind::Bodies,
+                            _ => crate::VarKind::Body,
+                        }
+                    }
+                };
+                Some((port.name, kind))
+            })
             .collect()
-    }
-
-    /// The kind `kind` decides: a placer's is the shape of the
-    /// variable it reads, `Bodies` over a `Bodies` and `Body` otherwise.
-    /// `None` where a placer reads a variable this document does not
-    /// hold.
-    fn port_kind(&self, kind: crate::PortKind) -> Option<crate::VarKind> {
-        match kind {
-            crate::PortKind::Of(kind) => Some(kind),
-            crate::PortKind::PlacedFrom(input) => Some(match self.vars.get(&input)?.kind() {
-                crate::VarKind::Bodies => crate::VarKind::Bodies,
-                _ => crate::VarKind::Body,
-            }),
-        }
     }
 
     /// The free variable `id`, if live and free.
@@ -2388,8 +2389,8 @@ mod tests {
             RecipeNodeId::new(0, 0),
             Node::Boolean {
                 op: crate::BooleanOp::Union,
-                a: RecipeNodeId::new(0, 98),
-                b: RecipeNodeId::new(0, 99),
+                a: crate::VarId::new(0, 98),
+                b: crate::VarId::new(0, 99),
                 declare: vec![(
                     (
                         SitedRef::at_mint(first.clone()),
@@ -2403,8 +2404,8 @@ mod tests {
             RecipeNodeId::new(0, 1),
             Node::Boolean {
                 op: crate::BooleanOp::Union,
-                a: RecipeNodeId::new(0, 98),
-                b: RecipeNodeId::new(0, 99),
+                a: crate::VarId::new(0, 98),
+                b: crate::VarId::new(0, 99),
                 declare: vec![(
                     (
                         SitedRef::at_mint(third.clone()),

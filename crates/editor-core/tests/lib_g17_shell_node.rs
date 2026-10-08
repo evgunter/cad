@@ -335,7 +335,7 @@ fn the_vessel_opens_its_mouth_into_one_rim() {
     assert_eq!(topo::validate_closed(body), Ok(()), "closed");
     // Outer: base, foot ×2, belly ×2; the rim; cavity: the same five.
     assert_eq!(body.faces().count(), 11, "5 outer + 1 rim + 5 cavity");
-    let pot = d.doc.node(shell).map(|n| n.inputs()[0]).expect("the pot");
+    let pot = d.doc.upstream(shell)[0];
     let table = &ev.value(shell).expect("evaluated").name_table;
     let rim = shelled(
         shell,

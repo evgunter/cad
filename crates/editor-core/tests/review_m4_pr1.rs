@@ -24,6 +24,7 @@ impl editor_core::ProfilePayload for Fake {
     fn lower<E>(
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
+        _: &mut dyn FnMut(editor_core::OperandSlot, &editor_core::Operand) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(*authored)
     }
@@ -515,8 +516,8 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     let boolean = |node| Edit::InsertNode {
         node: Box::new(Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: pairs(node),
         }),
         fresh: Vec::new(),
@@ -576,7 +577,7 @@ fn r4_stablename_node_refs_escape_ref_validation() {
     let res2 = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
         &Edit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: phantom,
+                profile: phantom.into(),
                 distance: len(1.0),
                 side: ExtrudeSide::Along,
             }),
@@ -608,7 +609,7 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
         .apply(
             &Edit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile: ids[0],
+                    profile: ids[0].into(),
                     distance: len(1.0),
                     side: ExtrudeSide::Along,
                 }),
@@ -637,8 +638,8 @@ fn r4_cycle_unconstructible_by_any_edit_sequence() {
         &Edit::InsertNode {
             node: Box::new(Node::Boolean {
                 op: editor_core::BooleanOp::Union,
-                a: extrude,
-                b: next_would_be,
+                a: extrude.into(),
+                b: next_would_be.into(),
                 declare: Vec::new(),
             }),
             fresh: Vec::new(),
@@ -935,7 +936,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
     let (doc, ids) = apply_all(doc, &[point_edit(len(0.0))]);
     let pattern = |count: Formula| Edit::InsertNode {
         node: Box::new(Node::Pattern {
-            input: ids[0],
+            input: ids[0].into(),
             count,
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -1006,8 +1007,8 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         &[Edit::InsertNode {
             node: Box::new(Node::Boolean {
                 op: editor_core::BooleanOp::Union,
-                a: ids[0],
-                b: pat_id,
+                a: ids[0].into(),
+                b: pat_id.into(),
                 declare: Vec::new(),
             }),
             fresh: Vec::new(),
@@ -1065,7 +1066,7 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
     }
     for id in a.ids() {
         let (na, nb) = (a.node(id).unwrap(), b.node(id).unwrap());
-        assert_eq!(na.inputs(), nb.inputs(), "inputs of {id:?}");
+        assert_eq!(a.upstream(id), b.upstream(id), "upstream of {id:?}");
         assert_eq!(na.slots(), nb.slots(), "slots of {id:?}");
         for slot in na.slots() {
             let (ea, eb) = (

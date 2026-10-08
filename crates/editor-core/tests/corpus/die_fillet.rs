@@ -84,12 +84,12 @@ pub fn document() -> CorpusDoc {
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
     let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(L),
         side: ExtrudeSide::Along,
     });

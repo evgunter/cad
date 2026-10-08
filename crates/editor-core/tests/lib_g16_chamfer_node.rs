@@ -194,7 +194,7 @@ fn an_empty_selection_refuses_as_a_chamfer() {
     let (doc, cube) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: fixture::len(1.0),
             side: ExtrudeSide::Along,
         },

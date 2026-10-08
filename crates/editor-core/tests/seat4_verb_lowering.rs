@@ -72,12 +72,12 @@ fn both_blends() -> BothBlends {
     let square = LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap();
     let xy_frame_0 = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_0,
+        plane: xy_frame_0.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(L),
         side: ExtrudeSide::Along,
     });
@@ -408,30 +408,30 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
         |x0: f64| LoopProgram::polygon([(x0, 0.0), (x0 + L, 0.0), (x0 + L, L), (x0, L)]).unwrap();
     let xy_frame_1 = r.insert(xy_frame());
     let pa = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_1,
+        plane: xy_frame_1.into(),
         loops: vec![square(0.0)],
         ids: Vec::new(),
     }));
     let a = r.insert(Node::Extrude {
-        profile: pa,
+        profile: pa.into(),
         distance: len(L),
         side: ExtrudeSide::Along,
     });
     let xy_frame_2 = r.insert(xy_frame());
     let pb = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_2,
+        plane: xy_frame_2.into(),
         loops: vec![square(3.0)],
         ids: Vec::new(),
     }));
     let b = r.insert(Node::Extrude {
-        profile: pb,
+        profile: pb.into(),
         distance: len(L),
         side: ExtrudeSide::Along,
     });
     let boolean = r.insert(Node::Boolean {
         op: editor_core::BooleanOp::Intersect,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: Vec::new(),
     });
     let ev = corpus::eval::<f64>(&r.doc);

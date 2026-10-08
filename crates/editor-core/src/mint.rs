@@ -660,7 +660,7 @@ mod tests {
 
     fn extrude(profile: u64, distance: f64) -> Node<ProfileProgram> {
         Node::Extrude {
-            profile: RecipeNodeId::new(0, profile),
+            profile: VarId::new(0, profile),
             distance: VarId::new(0, distance.to_bits()),
             side: crate::ExtrudeSide::Along,
         }
@@ -843,7 +843,7 @@ mod tests {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap();
         let steps = square.authored_steps();
         let node = Node::Profile(ProfileProgram {
-            plane: RecipeNodeId::new(0, 0),
+            plane: crate::Operand::Node(RecipeNodeId::new(0, 0)),
             loops: vec![square],
             ids: Vec::new(),
         });

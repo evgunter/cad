@@ -22,7 +22,7 @@ fn cone_block_union_refusal() -> String {
     let mut r = Recorder::new();
     let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let cone_p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.4, 1.0), (0.0, 1.0)]).unwrap(),
         ],
@@ -30,27 +30,27 @@ fn cone_block_union_refusal() -> String {
     }));
     let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let cone = r.insert(Node::Revolve {
-        profile: cone_p,
-        axis,
+        profile: cone_p.into(),
+        axis: axis.into(),
         angle: ang(std::f64::consts::TAU),
     });
     let block_plane = r.insert(frame([0.0, 0.0, -0.25], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let block_p = r.insert(Node::Profile(ProfileProgram {
-        plane: block_plane,
+        plane: block_plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.5, 0.4), (1.5, 0.4), (1.5, 0.6), (0.5, 0.6)]).unwrap(),
         ],
         ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
-        profile: block_p,
+        profile: block_p.into(),
         distance: len(0.5),
         side: ExtrudeSide::Along,
     });
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: cone,
-        b: block,
+        a: cone.into(),
+        b: block.into(),
         declare: Vec::new(),
     });
     let ev = eval::<f64>(&r.doc);

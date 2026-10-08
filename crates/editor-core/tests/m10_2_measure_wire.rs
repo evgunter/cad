@@ -139,7 +139,7 @@ fn every_form() -> ProfileDoc {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: crate::fixture::newest(&doc),
+                measure: crate::fixture::newest(&doc).into(),
                 bound: len(0.0005),
                 dir: AssertionDir::AtMost,
             }),
@@ -187,7 +187,7 @@ fn angular() -> ProfileDoc {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: crate::fixture::newest(&doc),
+                measure: crate::fixture::newest(&doc).into(),
                 bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
             }),
@@ -351,7 +351,7 @@ fn a_dimension_mismatched_bound_refuses_at_the_edit_door() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: measure(&doc),
+                measure: measure(&doc).into(),
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             }),
@@ -383,7 +383,7 @@ fn an_assertion_over_a_non_measure_refuses() {
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
                 // An assertion is not a measure.
-                measure: assertion(&doc),
+                measure: assertion(&doc).into(),
                 bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
             }),

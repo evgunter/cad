@@ -74,7 +74,7 @@ fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

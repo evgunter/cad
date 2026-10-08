@@ -594,7 +594,7 @@ fn block_and_cut(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         vec![vec![(0.0, -1.0), (4.0, -1.0), (4.0, 3.0), (0.0, 3.0)]],
     );
     let block = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -605,14 +605,14 @@ fn block_and_cut(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         vec![vec![(1.0, 0.0), (1.5, 0.0), (1.5, 0.5), (1.0, 0.5)]],
     );
     let pin = r.insert(Node::Extrude {
-        profile: q,
+        profile: q.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     let cut = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,
-        a: block,
-        b: pin,
+        a: block.into(),
+        b: pin.into(),
         declare: Vec::new(),
     });
     (block, cut)
@@ -628,7 +628,7 @@ fn block_and_split(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         vec![vec![(0.0, -1.0), (4.0, -1.0), (4.0, 3.0), (0.0, 3.0)]],
     );
     let block = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -637,8 +637,8 @@ fn block_and_split(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         normal: [scl(1.0), scl(0.0), scl(0.0)],
     }));
     let split = r.insert(Node::Split {
-        target: block,
-        tool,
+        target: block.into(),
+        tool: tool.into(),
     });
     (block, split)
 }
@@ -683,8 +683,8 @@ fn a_resolve_row_names_the_slot_that_failed() {
     let cap = fixture::fname(block, RoleSeg::Cap(CapEnd::End));
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: block,
-        b: split,
+        a: block.into(),
+        b: split.into(),
         declare: vec![(
             (
                 SitedRef::new(block, cap.clone()),
@@ -791,7 +791,7 @@ fn a_resolve_row_names_a_payload_slot_above_zero() {
         .expect("the selection holds it");
     assert!(at > 0, "the unheld edge sits above slot zero: {edges:#?}");
     let fillet = r.insert(Node::Fillet {
-        target: block,
+        target: block.into(),
         radius: len(0.1),
         selection: edges,
     });
@@ -804,7 +804,7 @@ fn a_resolve_row_names_a_payload_slot_above_zero() {
     let mut r = Recorder::new();
     let (block, _) = block_and_split(&mut r);
     let shell = r.insert(Node::Shell {
-        target: block,
+        target: block.into(),
         thickness: len(0.1),
         open: vec![
             fixture::fname(block, RoleSeg::Cap(CapEnd::End)),
@@ -828,7 +828,7 @@ fn a_union_resolve_row_names_its_declared_pairs_second_side() {
     let (block, cut) = block_and_cut(&mut r);
     let cap = fixture::fname(block, RoleSeg::Cap(CapEnd::Start));
     let union = r.insert(Node::Union {
-        members: vec![block, cut],
+        members: vec![block.into(), cut.into()],
         declare: vec![(
             (SitedRef::new(block, cap.clone()), SitedRef::new(cut, cap)),
             BooleanCoincidence::REST,
@@ -855,12 +855,12 @@ fn a_strand_row_names_a_deleted_union() {
         vec![vec![(1.0, 0.0), (1.5, 0.0), (1.5, 0.5), (1.0, 0.5)]],
     );
     let boss = r.insert(Node::Extrude {
-        profile: q,
+        profile: q.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     let union = r.insert(Node::Union {
-        members: vec![block, boss],
+        members: vec![block.into(), boss.into()],
         declare: Vec::new(),
     });
     let doc = r.doc;

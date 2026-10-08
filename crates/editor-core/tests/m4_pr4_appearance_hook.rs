@@ -70,7 +70,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -101,7 +101,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -110,8 +110,8 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -131,8 +131,8 @@ fn gap_fixture() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, StableName) {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -283,7 +283,7 @@ fn vanished_loss_with_prior_enriches_diagnosis_and_tombstone() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: ext,
+            input: ext.into(),
             count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -380,8 +380,8 @@ fn indeterminate_losses_enrich_to_the_matching_indeterminate_arm() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );

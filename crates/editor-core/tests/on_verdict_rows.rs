@@ -44,7 +44,7 @@ fn block(
         vec![vec![(x0, y0), (x1, y0), (x1, y1), (x0, y1)]],
     );
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(h),
         side: ExtrudeSide::Along,
     })
@@ -53,8 +53,8 @@ fn block(
 fn boolean(r: &mut Recorder, op: BooleanOp, a: RecipeNodeId, b: RecipeNodeId) -> RecipeNodeId {
     r.insert(Node::Boolean {
         op,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: Vec::new(),
     })
 }
@@ -116,14 +116,14 @@ fn two_parts_of_one_half(r: &mut Recorder) -> (RecipeNodeId, RecipeNodeId) {
         origin: [len(0.0), len(0.0), len(0.25)],
         normal: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    let split = r.insert(Node::Split { target: cube, tool });
+    let split = r.insert(Node::Split { target: cube.into(), tool: tool.into() });
     let above = PartSelect::SplitHalf(SplitHalf::Above);
     let p = r.insert(Node::Part {
-        of: split,
+        of: split.into(),
         select: above.clone(),
     });
     let q = r.insert(Node::Part {
-        of: split,
+        of: split.into(),
         select: above,
     });
     (p, q)
@@ -138,7 +138,7 @@ fn two_parts_of_one_half_answer_under_every_op() {
     let (p, q) = two_parts_of_one_half(&mut r);
     let nodes: Vec<RecipeNodeId> = OPS.iter().map(|&op| boolean(&mut r, op, p, q)).collect();
     let union = r.insert(Node::Union {
-        members: vec![p, q],
+        members: vec![p.into(), q.into()],
         declare: Vec::new(),
     });
     let ev = eval(&r.doc);
@@ -207,7 +207,7 @@ fn a_master_and_its_instance_zero_answer() {
     let mut r = Recorder::new();
     let cube = block(&mut r, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let pat = r.insert(Node::Pattern {
-        input: cube,
+        input: cube.into(),
         count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -215,7 +215,7 @@ fn a_master_and_its_instance_zero_answer() {
         },
     });
     let p0 = r.insert(Node::Part {
-        of: pat,
+        of: pat.into(),
         select: PartSelect::Instance(Formula::count(0)),
     });
     let mut rows = Vec::new();
@@ -361,8 +361,8 @@ fn a_declared_twin_answers_and_an_undeclared_one_refuses() {
         .map(|&op| {
             let id = r.insert(Node::Boolean {
                 op,
-                a: s,
-                b: t,
+                a: s.into(),
+                b: t.into(),
                 declare: pairs.clone(),
             });
             (

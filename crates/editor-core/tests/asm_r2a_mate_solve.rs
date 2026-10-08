@@ -55,7 +55,7 @@ fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -1376,8 +1376,8 @@ fn row6g_rebind_repairs_a_mate_head_beside_a_declare_reference() {
         DocEdit::InsertNode {
             node: Box::new(Node::Boolean {
                 op: BooleanOp::Union,
-                a: ids[0],
-                b: ids[2],
+                a: ids[0].into(),
+                b: ids[2].into(),
                 declare: vec![(
                     (
                         SitedRef::new(ids[2], in_part(ids[1], body, CapEnd::Start)),

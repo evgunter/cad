@@ -137,7 +137,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: xy,
+            plane: xy.into(),
             loops: vec![outer],
             ids: Vec::new(),
         }),
@@ -145,7 +145,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
     let (doc, slab) = insert(
         &doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: Formula::named(VarName::from_static("depth"), Dimension::Length),
             side: ExtrudeSide::Along,
         },
@@ -429,7 +429,7 @@ fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNod
     let (doc, p) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: xy,
+            plane: xy.into(),
             loops: vec![meridian],
             ids: Vec::new(),
         }),
@@ -444,8 +444,8 @@ fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNod
     insert(
         &doc,
         Node::Revolve {
-            profile: p,
-            axis,
+            profile: p.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     )
@@ -496,7 +496,7 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
     let (doc, xy) = insert(&doc, fixture::xy_frame());
     let circle = |cx: f64, r: f64| {
         Node::Profile(ProfileProgram {
-            plane: xy,
+            plane: xy.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: len(r),
@@ -508,7 +508,7 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
     let (doc, bore) = insert(
         &doc,
         Node::Extrude {
-            profile: p1,
+            profile: p1.into(),
             distance: len(0.1),
             side: ExtrudeSide::Along,
         },
@@ -517,7 +517,7 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
     let (doc, pin) = insert(
         &doc,
         Node::Extrude {
-            profile: p2,
+            profile: p2.into(),
             distance: len(0.1),
             side: ExtrudeSide::Along,
         },
@@ -626,7 +626,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
     let (doc, p1) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: xy,
+            plane: xy.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(0.0)],
                 radius: len(0.3),
@@ -637,7 +637,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
     let (doc, bore) = insert(
         &doc,
         Node::Extrude {
-            profile: p1,
+            profile: p1.into(),
             distance: len(0.1),
             side: ExtrudeSide::Along,
         },
@@ -645,7 +645,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
     let (doc, p2) = insert(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: yz,
+            plane: yz.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(1.0)],
                 radius: len(0.2),
@@ -656,7 +656,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
     let (doc, pin) = insert(
         &doc,
         Node::Extrude {
-            profile: p2,
+            profile: p2.into(),
             distance: len(0.1),
             side: ExtrudeSide::Along,
         },
@@ -727,7 +727,7 @@ fn r1_measure_at_dual64_value_channel_is_bit_identical_tangent_zero() {
     let (doc, a) = insert(
         &doc,
         Node::Assertion {
-            measure: m,
+            measure: m.into(),
             bound: len(0.1),
             dir: AssertionDir::AtLeast,
         },
@@ -828,7 +828,7 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
     let (doc_eq, a_eq) = insert(
         &doc,
         Node::Assertion {
-            measure: m,
+            measure: m.into(),
             bound: len(DEPTH),
             dir: AssertionDir::AtLeast,
         },
@@ -845,7 +845,7 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
     let (doc_band, a_band) = insert(
         &doc,
         Node::Assertion {
-            measure: m,
+            measure: m.into(),
             bound: len(DEPTH - 5.0 * eps),
             dir: AssertionDir::AtLeast,
         },
@@ -876,7 +876,7 @@ fn r1_ops_refuse_measurement_operands_typed() {
     let (doc, a) = insert(
         &doc,
         Node::Assertion {
-            measure: m,
+            measure: m.into(),
             bound: len(0.1),
             dir: AssertionDir::AtLeast,
         },
@@ -886,8 +886,8 @@ fn r1_ops_refuse_measurement_operands_typed() {
         &doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Subtract,
-            a: slab,
-            b: a,
+            a: slab.into(),
+            b: a.into(),
             declare: Vec::new(),
         },
     );
@@ -996,7 +996,7 @@ fn corruptible() -> ProfileDoc {
     let (doc, _) = insert(
         &doc,
         Node::Assertion {
-            measure: m,
+            measure: m.into(),
             bound: len(0.777),
             dir: AssertionDir::AtLeast,
         },
@@ -1075,12 +1075,9 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     assert!(n >= 1, "the measure's refs name the extrude");
     let corrupt = text.replacen(&target, "\"node\": \"0:000000000000004d\",", 1);
     match load(&corrupt, Tol::witness()) {
-        // Two typed gates can own this corruption: the mint-log
-        // check (77 was never minted) or the dangling-input walk.
-        // Either is a loud load-door refusal, which is the claim.
-        Err(PersistError::Snapshot(
-            SnapshotError::DanglingInput { .. } | SnapshotError::NodeNotMinted { .. },
-        )) => {}
+        // The mint-log check owns this corruption: 77 was never
+        // minted, which is a loud load-door refusal, the claim.
+        Err(PersistError::Snapshot(SnapshotError::NodeNotMinted { .. })) => {}
         other => panic!("a dangling minting node must refuse typed at load, got {other:?}"),
     }
 }
@@ -1141,7 +1138,7 @@ fn r1_own_document_web_and_flip() {
     let (doc, xy) = insert(&doc, fixture::xy_frame());
     let circle = |cx: f64| {
         Node::Profile(ProfileProgram {
-            plane: xy,
+            plane: xy.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: Formula::named(VarName::from_static("r"), Dimension::Length),
@@ -1153,7 +1150,7 @@ fn r1_own_document_web_and_flip() {
     let (d3, e1) = insert(
         &d2,
         Node::Extrude {
-            profile: p1,
+            profile: p1.into(),
             distance: len(0.05),
             side: ExtrudeSide::Along,
         },
@@ -1162,7 +1159,7 @@ fn r1_own_document_web_and_flip() {
     let (d5, e2) = insert(
         &d4,
         Node::Extrude {
-            profile: p2,
+            profile: p2.into(),
             distance: len(0.05),
             side: ExtrudeSide::Along,
         },
@@ -1182,7 +1179,7 @@ fn r1_own_document_web_and_flip() {
     let (d7, a) = insert(
         &d6,
         Node::Assertion {
-            measure: m,
+            measure: m.into(),
             bound: len(0.05),
             dir: AssertionDir::AtLeast,
         },

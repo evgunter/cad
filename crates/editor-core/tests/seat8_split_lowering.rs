@@ -249,7 +249,7 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
         vec![square(0.5, 0.5, 0.5)],
     );
     let cube = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -257,7 +257,7 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
         origin: [len(0.0), len(0.0), len(z)],
         normal: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    let split = r.insert(Node::Split { target: cube, tool });
+    let split = r.insert(Node::Split { target: cube.into(), tool: tool.into() });
     (r, split)
 }
 
@@ -335,11 +335,11 @@ fn error_of(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKi
 fn the_projection_reads_the_two_sided_value_by_role() {
     let (mut r, split) = cube_split_at(5.0);
     let above = r.insert(Node::Part {
-        of: split,
+        of: split.into(),
         select: PartSelect::SplitHalf(SplitHalf::Above),
     });
     let below = r.insert(Node::Part {
-        of: split,
+        of: split.into(),
         select: PartSelect::SplitHalf(SplitHalf::Below),
     });
     let ev = eval::<f64>(&r.doc);

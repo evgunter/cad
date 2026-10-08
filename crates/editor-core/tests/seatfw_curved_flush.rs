@@ -69,7 +69,7 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, peg_profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: peg_plane,
+            plane: peg_plane.into(),
             loops: vec![circle(PEG_R)],
             ids: Vec::new(),
         }),
@@ -77,7 +77,7 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, peg) = insert(
         doc,
         Node::Extrude {
-            profile: peg_profile,
+            profile: peg_profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -89,7 +89,7 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, block_profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: block_plane,
+            plane: block_plane.into(),
             loops: vec![
                 LoopProgram::polygon(square(0.0, 0.0, 1.0)).expect("finite corners"),
                 circle(bore_r),
@@ -100,7 +100,7 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, block) = insert(
         doc,
         Node::Extrude {
-            profile: block_profile,
+            profile: block_profile.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -230,8 +230,8 @@ fn a_declared_curved_finding_verifies_and_the_mate_builds() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: peg,
-            b: block,
+            a: peg.into(),
+            b: block.into(),
             declare: declared_pairs(&findings),
         },
     );

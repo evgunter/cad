@@ -84,7 +84,7 @@ fn filleted(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, RecipeNod
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -523,7 +523,7 @@ fn the_door_lowers_names_before_it_mints() {
         fresh: Vec::new(),
     });
     let extrude = Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: named("w"),
         side: ExtrudeSide::Along,
     };
@@ -732,7 +732,7 @@ fn block(doc: ProfileDoc, cx: f64, depth: Formula) -> (ProfileDoc, [RecipeNodeId
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: depth,
             side: ExtrudeSide::Along,
         },
@@ -1557,7 +1557,7 @@ fn recording_insert_lowers_as_apply_does() {
         vec![square(0.0, 0.0, 0.5)],
     );
     let node = Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: named("w"),
         side: ExtrudeSide::Along,
     };

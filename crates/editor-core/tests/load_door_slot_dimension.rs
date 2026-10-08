@@ -55,7 +55,7 @@ fn doc() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, extrude) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

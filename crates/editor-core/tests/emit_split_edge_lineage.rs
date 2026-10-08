@@ -205,7 +205,7 @@ fn a_wall_crossed_twice_names_its_same_side_pieces_by_the_edges_they_keep() {
             normal: [scl(0.0), scl(1.0), scl(0.0)],
         }),
     );
-    let (doc, split) = insert(doc, Node::Split { target: ext, tool });
+    let (doc, split) = insert(doc, Node::Split { target: ext.into(), tool: tool.into() });
     let ev = evaluate::<f64>(
         &doc,
         None,

@@ -46,7 +46,7 @@ fn small() -> String {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

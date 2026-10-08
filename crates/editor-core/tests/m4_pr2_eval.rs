@@ -236,7 +236,7 @@ fn a_parameter_driven_negative_depth_refuses_with_a_recourse_that_builds() {
         vec![fixture::square(0.0, 0.0, 0.5)],
     );
     let block = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: Formula::named(h.clone(), Dimension::Length),
         side: ExtrudeSide::Along,
     });
@@ -411,7 +411,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
     let (doc, small) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: small_p,
+            profile: small_p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -426,7 +426,7 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
     let (doc, big) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: big_p,
+            profile: big_p.into(),
             distance: len(3.0),
             side: ExtrudeSide::Along,
         },
@@ -435,8 +435,8 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: small,
-            b: big,
+            a: small.into(),
+            b: big.into(),
             declare: Vec::new(),
         },
     );
@@ -446,8 +446,8 @@ fn disjoint_subtract_to_empty_is_a_typed_success() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: sub,
-            b: big,
+            a: sub.into(),
+            b: big.into(),
             declare: Vec::new(),
         },
     );
@@ -479,7 +479,7 @@ fn split_evaluates_both_parts_role_tagged() {
     let (doc, cube) = fixture::insert(
         doc,
         Node::Extrude {
-            profile: prof,
+            profile: prof.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -495,8 +495,8 @@ fn split_evaluates_both_parts_role_tagged() {
     let (doc, split_node) = fixture::insert(
         doc,
         Node::Split {
-            target: cube,
-            tool: plane,
+            target: cube.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc, None, false);

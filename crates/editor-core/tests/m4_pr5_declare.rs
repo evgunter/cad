@@ -63,7 +63,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -87,8 +87,8 @@ fn kiss_base(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -132,8 +132,8 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
         doc_undeclared,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: base,
-            b: mover,
+            a: base.into(),
+            b: mover.into(),
             declare: Vec::new(),
         },
     );
@@ -159,8 +159,8 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
         doc_declared,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: base,
-            b: mover,
+            a: base.into(),
+            b: mover.into(),
             declare: decl,
         },
     );
@@ -192,8 +192,8 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         doc.clone(),
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -215,8 +215,8 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl,
         },
     );
@@ -252,8 +252,8 @@ fn flush_plane_pair_glues_with_declare_refuses_without() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -283,8 +283,8 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: slab,
-            b: b1,
+            a: slab.into(),
+            b: b1.into(),
             declare: Vec::new(),
         },
     );
@@ -303,8 +303,8 @@ fn crossing_slots_recipe_document_evaluates_and_resolves() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: s1,
-            b: b2,
+            a: s1.into(),
+            b: b2.into(),
             declare: decl,
         },
     );
@@ -370,8 +370,8 @@ fn declare_resolution_failures_are_typed_n5_errors() {
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 declare: decl,
             },
         )
@@ -468,8 +468,8 @@ fn declared_l_corner_caps_merge_at_the_recipe_door_tier3_green() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl,
         },
     );
@@ -552,8 +552,8 @@ fn declare_doors_node_gone_and_ambiguous() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl,
         },
     );
@@ -598,7 +598,7 @@ fn declare_doors_node_gone_and_ambiguous() {
     let (doc, ub) = insert(
         doc,
         Node::Extrude {
-            profile: up,
+            profile: up.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -607,8 +607,8 @@ fn declare_doors_node_gone_and_ambiguous() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: ua,
-            b: ub,
+            a: ua.into(),
+            b: ub.into(),
             declare: Vec::new(),
         },
     );
@@ -629,8 +629,8 @@ fn declare_doors_node_gone_and_ambiguous() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: us,
-            b: mate,
+            a: us.into(),
+            b: mate.into(),
             declare: decl,
         },
     );
@@ -677,8 +677,8 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: slab,
-            b: b2,
+            a: slab.into(),
+            b: b2.into(),
             declare: Vec::new(),
         },
     );
@@ -695,8 +695,8 @@ fn crossing_slots_swapped_order_hits_the_junction_arm() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: s1,
-            b: b1,
+            a: s1.into(),
+            b: b1.into(),
             declare: decl,
         },
     );
@@ -788,8 +788,8 @@ fn an_unsupported_declared_pair_answers_its_kinds_with_a_tied_name_in_it() {
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
-                a: us,
-                b: mate,
+                a: us.into(),
+                b: mate.into(),
                 declare: decl,
             },
         )
@@ -898,8 +898,8 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
             doc,
             Node::Boolean {
                 op: BooleanOp::Union,
-                a: us,
-                b: mate,
+                a: us.into(),
+                b: mate.into(),
                 declare: decl,
             },
         )

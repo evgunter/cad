@@ -61,7 +61,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -102,15 +102,15 @@ where
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b: tr,
+            a: a.into(),
+            b: tr.into(),
             declare: Vec::new(),
         },
     );
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: u,
+            input: u.into(),
             count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -225,7 +225,7 @@ where
     let (docu, ub) = insert(
         docu,
         Node::Extrude {
-            profile: up,
+            profile: up.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -234,8 +234,8 @@ where
         docu,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: ua,
-            b: ub,
+            a: ua.into(),
+            b: ub.into(),
             declare: Vec::new(),
         },
     );

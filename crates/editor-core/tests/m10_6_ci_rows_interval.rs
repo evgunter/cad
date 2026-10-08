@@ -240,7 +240,7 @@ fn distributed_plate() -> ProfileDoc {
     }
     let plane = r.insert(fixture::xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (-4.0e-3, -2.0e-3),
@@ -253,13 +253,13 @@ fn distributed_plate() -> ProfileDoc {
         ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
-        profile: plate_p,
+        profile: plate_p.into(),
         distance: len(1.0e-3),
         side: ExtrudeSide::Along,
     });
     let hs = Formula::named(name("half_spacing"), Dimension::Length);
     let hole_a_p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [
                 Formula::neg(hs.clone()).expect("a shallow negation"),
@@ -270,12 +270,12 @@ fn distributed_plate() -> ProfileDoc {
         ids: Vec::new(),
     }));
     let hole_a = r.insert(Node::Extrude {
-        profile: hole_a_p,
+        profile: hole_a_p.into(),
         distance: len(1.0e-3),
         side: ExtrudeSide::Along,
     });
     let hole_b_p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [hs, len(0.0)],
             radius: Formula::named(name("hole_b_r"), Dimension::Length),
@@ -283,7 +283,7 @@ fn distributed_plate() -> ProfileDoc {
         ids: Vec::new(),
     }));
     let hole_b = r.insert(Node::Extrude {
-        profile: hole_b_p,
+        profile: hole_b_p.into(),
         distance: len(1.0e-3),
         side: ExtrudeSide::Along,
     });
@@ -328,7 +328,7 @@ fn distributed_plate() -> ProfileDoc {
     // `Holds` rather than a band-coincident one. Row 1 is about the
     // verdict being taken and holding, not about the band.
     r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps()),
         dir: AssertionDir::AtLeast,
     });
@@ -398,7 +398,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     });
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (0.0, 0.0),
@@ -419,7 +419,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(2.0),
         side: ExtrudeSide::Along,
     });
@@ -452,7 +452,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         .expect("both indices in range"),
     );
     r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(0.3),
         dir: AssertionDir::AtLeast,
     });
@@ -872,7 +872,7 @@ fn plain_distance_doc() -> ProfileDoc {
     let mut r = Recorder::new();
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -880,7 +880,7 @@ fn plain_distance_doc() -> ProfileDoc {
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -895,7 +895,7 @@ fn plain_distance_doc() -> ProfileDoc {
         .expect("indices in range"),
     );
     r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(0.5),
         dir: AssertionDir::AtLeast,
     });

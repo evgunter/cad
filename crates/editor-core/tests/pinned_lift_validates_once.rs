@@ -124,7 +124,8 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
             // `f64` placement lifted (the `f64` run's plane, which at
             // `f64` IS that placement); a derived frame at the lane's
             // own frame value.
-            let plane: SketchPlane<T> = match d.doc.node(program.plane) {
+            let frame = d.doc.operation_of(program.plane).expect("the plane read is live");
+            let plane: SketchPlane<T> = match d.doc.node(frame) {
                 Some(Node::Datum(Datum::Frame { .. })) => {
                     let ValuePayload::Profile(p) = &at_f64.value(id).expect("evaluates").payload
                     else {
@@ -134,7 +135,7 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
                 }
                 _ => {
                     let ValuePayload::Datum(DatumValue::Frame(f)) = &ev
-                        .value(program.plane)
+                        .value(frame)
                         .expect("the frame evaluates")
                         .payload
                     else {
@@ -339,12 +340,12 @@ fn a_default_interval_evaluation_of_an_extruded_copied_arc_builds() {
     ]);
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });

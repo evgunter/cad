@@ -90,7 +90,7 @@ fn prism(doc: ProfileDoc, corners: &[(f64, f64)], z0: f64, dz: f64) -> (ProfileD
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -589,13 +589,13 @@ fn the_plate_against_the_joined_blocks_welds_a_kept_pinch_only() {
     };
     let (doc, blocks) = crate::fixture::union_over(doc, &[p1, p2], Vec::new());
     let (doc, folded) = crate::fixture::union_over(doc, &[p1, p2, plate], Vec::new());
-    let pair = |doc, op, a, b| {
+    let pair = |doc, op, a: RecipeNodeId, b: RecipeNodeId| {
         insert(
             doc,
             Node::Boolean {
                 op,
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 declare: Vec::new(),
             },
         )
@@ -680,13 +680,13 @@ fn a_slab_holding_the_contact_welds_only_a_pinch_on_one_fragment() {
     let (doc, p1) = block(doc, (1.0, 1.5), (-2.0, 1.0), 0.3, 2.0);
     let (doc, p2) = block(doc, (1.5, 2.0), (1.0, 4.0), 0.27, 1.73);
     let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 2.0), 0.0, 1.0);
-    let pair = |doc, op, a, b| {
+    let pair = |doc, op, a: RecipeNodeId, b: RecipeNodeId| {
         insert(
             doc,
             Node::Boolean {
                 op,
-                a,
-                b,
+                a: a.into(),
+                b: b.into(),
                 declare: Vec::new(),
             },
         )
@@ -820,7 +820,7 @@ fn tilted_holes(doc: ProfileDoc, holes: &[Hole]) -> (ProfileDoc, Vec<RecipeNodeI
         let (d, w) = insert(
             d,
             Node::Extrude {
-                profile: p,
+                profile: p.into(),
                 distance: len(h.length),
                 side: ExtrudeSide::Along,
             },

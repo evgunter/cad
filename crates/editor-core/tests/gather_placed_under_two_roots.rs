@@ -40,7 +40,7 @@ fn block(doc: ProfileDoc, w: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(h),
             side: ExtrudeSide::Along,
         },
@@ -179,8 +179,8 @@ fn split_block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Split {
-            target,
-            tool: plane,
+            target: target.into(),
+            tool: plane.into(),
         },
     )
 }
@@ -189,7 +189,7 @@ fn half(doc: ProfileDoc, of: RecipeNodeId, h: SplitHalf) -> (ProfileDoc, RecipeN
     insert(
         doc,
         Node::Part {
-            of,
+            of: of.into(),
             select: PartSelect::SplitHalf(h),
         },
     )
@@ -233,7 +233,7 @@ fn a_whole_pattern_and_one_of_its_instances_refuse() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -245,7 +245,7 @@ fn a_whole_pattern_and_one_of_its_instances_refuse() {
     let (doc, one) = insert(
         doc,
         Node::Part {
-            of: pattern,
+            of: pattern.into(),
             select: PartSelect::Instance(Formula::count(1)),
         },
     );
@@ -262,7 +262,7 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -274,7 +274,7 @@ fn one_instance_under_two_roots_refuses_naming_the_instance() {
         insert(
             doc,
             Node::Part {
-                of: pattern,
+                of: pattern.into(),
                 select: PartSelect::Instance(Formula::count(1)),
             },
         )
@@ -330,7 +330,7 @@ fn legal_placements_still_gather() {
     let (doc, union) = insert(
         doc,
         Node::Union {
-            members: vec![t1, t2],
+            members: vec![t1.into(), t2.into()],
             declare: Vec::new(),
         },
     );
@@ -352,7 +352,7 @@ fn legal_placements_still_gather() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: extrude,
+            input: extrude.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -364,7 +364,7 @@ fn legal_placements_still_gather() {
         insert(
             doc,
             Node::Part {
-                of: pattern,
+                of: pattern.into(),
                 select: PartSelect::Instance(Formula::count(i)),
             },
         )
@@ -512,7 +512,7 @@ fn rv_selection_rides_down_through_a_transform() {
     let (doc, p) = insert(
         doc,
         Node::Pattern {
-            input: b,
+            input: b.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -530,8 +530,8 @@ fn rv_selection_rides_down_through_a_transform() {
             },
         )
     };
-    let (doc, _) = pick(doc, tp, 0);
-    let (doc, _) = pick(doc, p, 2);
+    let (doc, _) = pick(doc, tp.into(), 0);
+    let (doc, _) = pick(doc, p.into(), 2);
     assert_eq!(
         product(&doc, &run(&doc), Tol::witness())
             .map(|b| b.faces().count())
@@ -582,7 +582,7 @@ fn cutter(doc: ProfileDoc, prongs: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) 
     let (doc, c) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -591,8 +591,8 @@ fn cutter(doc: ProfileDoc, prongs: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) 
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Subtract,
-            a,
-            b: c,
+            a: a.into(),
+            b: c.into(),
             declare: Vec::new(),
         },
     )
@@ -625,8 +625,8 @@ fn halves_over_a_tie(
     let (whole, split) = insert(
         doc,
         Node::Split {
-            target: sub,
-            tool: plane,
+            target: sub.into(),
+            tool: plane.into(),
         },
     );
     assert_eq!(whole.roots(), &[split][..], "the premise: the split alone");
@@ -796,8 +796,8 @@ fn a_tie_candidate_merges_through_a_transform_and_a_second_split() {
     let (doc, again) = insert(
         doc,
         Node::Split {
-            target: above,
-            tool: plane,
+            target: above.into(),
+            tool: plane.into(),
         },
     );
     let (resplit, below) = half(doc.clone(), split, SplitHalf::Below);
@@ -838,8 +838,8 @@ fn half_of_a_split(
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: sub,
-            tool: plane,
+            target: sub.into(),
+            tool: plane.into(),
         },
     );
     half(doc, split, h)
@@ -941,8 +941,8 @@ fn a_holed_section_is_named_once_per_side() {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: sub,
-            tool: plane,
+            target: sub.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc);

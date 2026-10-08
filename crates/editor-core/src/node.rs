@@ -4198,7 +4198,7 @@ pub enum PortKind {
     /// is fixed at minting), and the load door only checks the two
     /// still agree. Re-pointing the operand at the other shape refuses
     /// at the slot door.
-    PlacedFrom(VarId),
+    Placed,
 }
 
 impl OutputPort {
@@ -4210,15 +4210,14 @@ impl OutputPort {
     }
 }
 
-impl<P> Node<P> {
+impl<P, S: Slot> Node<P, S> {
     /// **The operation's output signature** (D10, Operations): the
     /// fixed list of named, typed ports its variant defines, in port
     /// order, possibly none. The insert door mints one variable per
     /// port ([`crate::Doc::output`]).
     ///
     /// A [`Node::Transform`]'s one port has its operand's shape:
-    /// `Bodies` over a `Bodies`, `Body` otherwise
-    /// ([`PortKind::PlacedFrom`]). An instance defines one
+    /// `Bodies` over a `Bodies`, `Body` otherwise ([`PortKind::Placed`]). An instance defines one
     /// `body` until world placements give it one per placement.
     ///
     /// Exhaustive over the variants, so one added does not compile
@@ -4245,9 +4244,9 @@ impl<P> Node<P> {
                 OutputPort::of("below", VarKind::Body),
             ],
             Self::Pattern { .. } => vec![OutputPort::of("bodies", VarKind::Bodies)],
-            Self::Transform { input, .. } => vec![OutputPort {
+            Self::Transform { .. } => vec![OutputPort {
                 name: "body",
-                kind: PortKind::PlacedFrom(*input),
+                kind: PortKind::Placed,
             }],
             Self::Measure { expr, .. } => {
                 vec![OutputPort::of("value", VarKind::from(expr.dim()))]

@@ -156,8 +156,8 @@ fn lantern(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     let (doc, revolve) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     );
@@ -171,7 +171,7 @@ fn filleted(mouth: (f64, f64), top: (f64, f64)) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Fillet {
-            target: revolve,
+            target: revolve.into(),
             radius: len(0.04),
             selection: vec![rim],
         },

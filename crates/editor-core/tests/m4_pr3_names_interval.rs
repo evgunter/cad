@@ -36,7 +36,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -56,8 +56,8 @@ fn corpus() -> ProfileDoc {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: decl_u,
         },
     );
@@ -82,8 +82,8 @@ fn corpus() -> ProfileDoc {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: c,
-            b: slot,
+            a: c.into(),
+            b: slot.into(),
             declare: Vec::new(),
         },
     );
@@ -98,8 +98,8 @@ fn corpus() -> ProfileDoc {
     let (doc, _split) = insert(
         doc,
         Node::Split {
-            target: d,
-            tool: plane,
+            target: d.into(),
+            tool: plane.into(),
         },
     );
     let (doc, e) = block(doc, (10.0, 14.0), (0.0, 4.0), 0.0, 4.0);
@@ -122,7 +122,7 @@ fn corpus() -> ProfileDoc {
     let (doc, u) = insert(
         doc,
         Node::Extrude {
-            profile: u,
+            profile: u.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -131,8 +131,8 @@ fn corpus() -> ProfileDoc {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: e,
-            b: u,
+            a: e.into(),
+            b: u.into(),
             declare: Vec::new(),
         },
     );
@@ -146,14 +146,14 @@ fn corpus() -> ProfileDoc {
     let (doc, halves) = insert(
         doc,
         Node::Split {
-            target: cut,
-            tool: between,
+            target: cut.into(),
+            tool: between.into(),
         },
     );
     let (doc, _above) = insert(
         doc,
         Node::Part {
-            of: halves,
+            of: halves.into(),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
     );

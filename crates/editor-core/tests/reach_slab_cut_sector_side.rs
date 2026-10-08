@@ -33,7 +33,7 @@ fn disc(doc: ProfileDoc, lp: LoopProgram<Formula>, z0: f64, dz: f64) -> (Profile
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![lp],
             ids: Vec::new(),
         }),
@@ -41,7 +41,7 @@ fn disc(doc: ProfileDoc, lp: LoopProgram<Formula>, z0: f64, dz: f64) -> (Profile
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -77,8 +77,8 @@ fn a_slab_cut_through_a_drum_answers_its_volume() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: drum,
-            b: cutter,
+            a: drum.into(),
+            b: cutter.into(),
             declare: Vec::new(),
         },
     );
@@ -118,7 +118,7 @@ fn a_slab_across_a_round_boss_builds_in_every_order() {
         let (doc, n) = insert(
             doc.clone(),
             Node::Union {
-                members: order.iter().map(|&i| ids[i]).collect(),
+                members: order.iter().map(|&i| ids[i].into()).collect(),
                 declare: Vec::new(),
             },
         );

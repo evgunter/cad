@@ -34,7 +34,7 @@ fn revolve_programs(loops: Vec<LoopProgram<Formula>>, angle: f64) -> (ProfileDoc
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -49,8 +49,8 @@ fn revolve_programs(loops: Vec<LoopProgram<Formula>>, angle: f64) -> (ProfileDoc
     insert(
         doc,
         Node::Revolve {
-            profile: p,
-            axis,
+            profile: p.into(),
+            axis: axis.into(),
             angle: ang(angle),
         },
     )

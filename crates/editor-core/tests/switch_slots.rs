@@ -42,7 +42,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
     doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: doc.ids()[0],
+                plane: doc.ids()[0].into(),
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                 ids: Vec::new(),
             })),
@@ -281,7 +281,7 @@ fn define_var_never_refuses_for_downstream_profiles() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: doc.ids()[0],
+                    plane: doc.ids()[0].into(),
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: Formula::named(VarName::from_static("r"), Dimension::Length),
@@ -348,7 +348,7 @@ fn insert_node_checks_program_dimensions() {
         .unwrap()
         .doc;
     let bad = ProfileProgram {
-        plane: doc.ids()[0],
+        plane: doc.ids()[0].into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             // An Angle where the Radius role demands Length.
@@ -458,7 +458,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
             arg: arrival,
         };
         let mut program: ProfileNode = Node::Profile(ProfileProgram {
-            plane: doc.ids()[0],
+            plane: doc.ids()[0].into(),
             loops: vec![LoopProgram::Chain(vec![
                 ProgramStep::At([len(0.0), len(0.0)]),
                 ProgramStep::ArcFilletArc {
@@ -609,7 +609,7 @@ fn datum_shapes() -> Vec<Datum<Formula>> {
             position: [len(0.0), len(0.0), len(0.0)],
         },
         Datum::AxisInPlane {
-            plane: nid(0),
+            plane: nid(0).into(),
             origin: [len(0.0), len(0.0)],
             direction: [scl(1.0), scl(0.0)],
         },
@@ -619,7 +619,7 @@ fn datum_shapes() -> Vec<Datum<Formula>> {
             v: [scl(0.0), scl(1.0), scl(0.0)],
         },
         Datum::FaceFrame {
-            at: nid(0),
+            at: nid(0).into(),
             face: fixture::fname(nid(0), RoleSeg::Cap(CapEnd::Start)),
             spin: ang(0.0),
         },
@@ -640,74 +640,71 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
     nodes.extend([
         Node::Profile(fixture::desc(nid(0), vec![fixture::square(0.0, 0.0, 0.5)])),
         Node::Extrude {
-            profile: nid(1),
+            profile: nid(1).into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
         Node::Revolve {
-            profile: nid(1),
-            axis: nid(0),
+            profile: nid(1).into(),
+            axis: nid(0).into(),
             angle: ang(1.0),
         },
         Node::Tube {
-            spine: nid(1),
-            u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+            frame: nid(0).into(),
             major_radius: len(1.0),
             window: TubeWindow::Full,
             minor_radius: len(0.5),
         },
         Node::Tube {
-            spine: nid(1),
-            u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+            frame: nid(0).into(),
             major_radius: len(1.0),
             window: window(),
             minor_radius: len(0.5),
         },
         Node::HollowTube {
-            spine: nid(1),
-            u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+            frame: nid(0).into(),
             major_radius: len(1.0),
             window: window(),
             minor_radius: len(0.5),
             wall: len(0.1),
         },
         Node::Loft {
-            profiles: vec![nid(1), nid(2)],
+            profiles: vec![nid(1).into(), nid(2).into()],
             v_degree: Formula::count(1),
         },
         Node::Sweep {
-            profile: nid(1),
-            path: nid(2),
+            profile: nid(1).into(),
+            path: nid(2).into(),
             stations: Formula::count(4),
             v_degree: Formula::count(1),
         },
         Node::Fillet {
-            target: nid(1),
+            target: nid(1).into(),
             radius: len(0.1),
             selection: Vec::new(),
         },
         Node::Chamfer {
-            target: nid(1),
+            target: nid(1).into(),
             distance: len(0.1),
             selection: Vec::new(),
         },
         Node::Shell {
-            target: nid(1),
+            target: nid(1).into(),
             thickness: len(0.1),
             open: Vec::new(),
         },
         Node::Split {
-            target: nid(1),
-            tool: nid(2),
+            target: nid(1).into(),
+            tool: nid(2).into(),
         },
         Node::Boolean {
             op: BooleanOp::Union,
-            a: nid(1),
-            b: nid(2),
+            a: nid(1).into(),
+            b: nid(2).into(),
             declare: Vec::new(),
         },
         Node::Union {
-            members: vec![nid(1), nid(2)],
+            members: vec![nid(1).into(), nid(2).into()],
             declare: Vec::new(),
         },
         Node::transform(
@@ -721,7 +718,7 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         // A chain: rigid, literal, rigid — the literal takes no slot and
         // its index is skipped, so the second rigid step is step 2.
         Node::Transform {
-            input: nid(1),
+            input: nid(1).into(),
             placement: Placement {
                 steps: vec![
                     Step::Rigid {
@@ -740,7 +737,7 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         // A literal alone: no slot at all.
         Node::Transform {
-            input: nid(1),
+            input: nid(1).into(),
             placement: Placement::literal(&Frame::translation([0.0, 0.0, 2.0])),
         },
     ]);
@@ -750,34 +747,34 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             spacing: len(1.0),
         },
         PatternKind::Circular {
-            axis: nid(0),
+            axis: nid(0).into(),
             step: ang(0.5),
         },
         PatternKind::Explicit(Vec::new()),
     ] {
         nodes.push(Node::Pattern {
-            input: nid(1),
+            input: nid(1).into(),
             count: Formula::count(3),
             kind: kind.clone(),
         });
         nodes.push(Node::PlacedUnion {
-            input: nid(1),
+            input: nid(1).into(),
             count: Some(Formula::count(3)),
             kind: kind.clone(),
         });
         nodes.push(Node::PlacedUnion {
-            input: nid(1),
+            input: nid(1).into(),
             count: None,
             kind,
         });
     }
     nodes.extend([
         Node::Part {
-            of: nid(1),
+            of: nid(1).into(),
             select: PartSelect::Instance(Formula::count(0)),
         },
         Node::Part {
-            of: nid(1),
+            of: nid(1).into(),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
         Node::InstantiatePart {
@@ -838,7 +835,7 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             refs: Vec::new(),
         },
         Node::Assertion {
-            measure: nid(1),
+            measure: nid(1).into(),
             bound: len(1.0),
             dir: AssertionDir::AtLeast,
         },

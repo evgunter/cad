@@ -63,7 +63,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -78,11 +78,11 @@ fn twin(doc: ProfileDoc, extrude: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     let Some(Node::Extrude { profile, .. }) = doc.node(extrude) else {
         panic!("{extrude} is a block's extrude")
     };
-    let profile = *profile;
+    let profile = doc.operation_of(*profile).expect("the profile read is live");
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("{profile} is a block's profile")
     };
-    let frame = program.plane;
+    let frame = doc.operation_of(program.plane).expect("the plane read is live");
     let authored = |doc: &ProfileDoc, id: RecipeNodeId| {
         doc.node(id)
             .unwrap_or_else(|| panic!("{id} is in the document"))
@@ -92,13 +92,13 @@ fn twin(doc: ProfileDoc, extrude: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     let (doc, frame) = insert(doc, node);
     let mut node = authored(&doc, profile);
     if let Node::Profile(program) = &mut node {
-        program.plane = frame;
+        program.plane = frame.into();
         program.ids = Vec::new();
     }
     let (doc, profile) = insert(doc, node);
     let mut node = authored(&doc, extrude);
     if let Node::Extrude { profile: of, .. } = &mut node {
-        *of = profile;
+        *of = profile.into();
     }
     insert(doc, node)
 }
@@ -135,8 +135,8 @@ fn slide_union(tx: f64) -> Slide {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b: transform,
+            a: a.into(),
+            b: transform.into(),
             declare: decl,
         },
     );
@@ -254,7 +254,7 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -263,8 +263,8 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -542,7 +542,7 @@ fn pattern_count_shrink_diagnoses_structural_param() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: body,
+            input: body.into(),
             count: editor_core::Formula::count(3),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -616,7 +616,7 @@ fn instance_of_vanished_master_name_diagnoses_cascade() {
     let (doc, pattern) = insert(
         s.doc.clone(),
         Node::Pattern {
-            input: s.union,
+            input: s.union.into(),
             count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(0.0), scl(1.0), scl(0.0)],
@@ -715,8 +715,8 @@ fn failed_and_poisoned_targets_resolve_indeterminate_not_vanished() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -793,8 +793,8 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -1154,7 +1154,7 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
     let (doc, band) = insert(
         doc,
         Node::Extrude {
-            profile: bp,
+            profile: bp.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -1174,8 +1174,8 @@ fn suggestions_never_offer_wall_phantoms_and_are_kind_filtered() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: _a,
-            b: tr,
+            a: _a.into(),
+            b: tr.into(),
             declare: Vec::new(),
         },
     );
@@ -1244,7 +1244,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
     let (doc1, bl) = insert(
         doc,
         Node::Union {
-            members: vec![a, b],
+            members: vec![a.into(), b.into()],
             declare: Vec::new(),
         },
     );
@@ -1276,7 +1276,7 @@ fn repointed_input_diagnoses_recipe_edit_on_path() {
         doc1.clone(),
         DocEdit::SetMembers {
             node: bl,
-            members: vec![a, c],
+            members: vec![a.into(), c.into()],
         },
     );
     // #95 disposition 2 LANDED (M4 PR 5): the memo-TRANSFERRED run
@@ -1351,7 +1351,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
     let (doc, x) = insert(
         doc,
         Node::Union {
-            members: vec![b, d],
+            members: vec![b.into(), d.into()],
             declare: Vec::new(),
         },
     );
@@ -1371,7 +1371,7 @@ fn grandparent_repoint_rederives_the_grandchild_names() {
         doc1,
         DocEdit::SetMembers {
             node: x,
-            members: vec![c, d],
+            members: vec![c.into(), d.into()],
         },
     );
     let ev2 = run(&doc2, Some(&ev1));
@@ -1413,7 +1413,7 @@ fn single_run_vanished_falls_back_to_cause_not_in_evidence() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: body,
+            input: body.into(),
             count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],

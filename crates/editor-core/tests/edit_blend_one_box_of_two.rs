@@ -33,7 +33,7 @@ fn unit_box(doc: ProfileDoc, x0: f64) -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -49,8 +49,8 @@ fn two_boxes(label: &str) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     )
@@ -159,7 +159,7 @@ fn one_box_of_a_disjoint_union_fillets_by_name_and_the_other_keeps_its_names() {
     blend_one_box(
         "one_box_of_two_fillet",
         |target, selection| Node::Fillet {
-            target,
+            target: target.into(),
             radius: len(R),
             selection,
         },
@@ -175,7 +175,7 @@ fn one_box_of_a_disjoint_union_chamfers_by_name_and_the_other_keeps_its_names() 
     blend_one_box(
         "one_box_of_two_chamfer",
         |target, selection| Node::Chamfer {
-            target,
+            target: target.into(),
             distance: len(R),
             selection,
         },

@@ -31,7 +31,7 @@ fn small() -> (ProfileDoc, String) {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -300,7 +300,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: p0,
+                profile: p0.into(),
                 distance: Formula::named(VarName::from_static("d"), Dimension::Length),
                 side: ExtrudeSide::Along,
             }),
@@ -328,7 +328,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: p1,
+                profile: p1.into(),
                 distance: len(1.5),
                 side: ExtrudeSide::Along,
             }),
@@ -341,8 +341,8 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::InsertNode {
             node: Box::new(Node::Boolean {
                 op: BooleanOp::Union,
-                a: e0,
-                b: e1,
+                a: e0.into(),
+                b: e1.into(),
                 declare: Vec::new(),
             }),
             fresh: Vec::new(),
@@ -395,7 +395,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Pattern {
-                input: boole,
+                input: boole.into(),
                 count: Formula::count(2),
                 kind: editor_core::PatternKind::Linear {
                     direction: [scl(1.0), scl(0.0), scl(0.0)],

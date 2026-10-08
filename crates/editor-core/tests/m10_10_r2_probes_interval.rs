@@ -321,18 +321,18 @@ pub(crate) fn d_tab_at(
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![outline],
         ids: Vec::new(),
     }));
     let thickness = len(1.0e-3);
     let tab = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: thickness.clone(),
         side: ExtrudeSide::Along,
     });
     let hole_profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [
                 Formula::named(VarName::from_static("hole_x"), Dimension::Length),
@@ -343,7 +343,7 @@ pub(crate) fn d_tab_at(
         ids: Vec::new(),
     }));
     let hole = r.insert(Node::Extrude {
-        profile: hole_profile,
+        profile: hole_profile.into(),
         distance: thickness,
         side: ExtrudeSide::Along,
     });
@@ -379,7 +379,7 @@ pub(crate) fn d_tab_at(
     let gap = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
     let measure = r.insert(Node::measure(gap, refs).expect("both indices in range"));
     let assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(1.78e-3),
         dir: editor_core::AssertionDir::AtLeast,
     });

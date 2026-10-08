@@ -271,11 +271,10 @@ pub fn documents() -> Vec<CorpusDoc> {
 pub fn cone(doc: &editor_core::ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
     let mut set = BTreeSet::new();
     set.insert(root);
-    // `order` is insertion order and inputs must pre-exist, so one
-    // forward sweep suffices.
+    // The corpus writes no forward read, so one sweep in insertion
+    // order suffices.
     for id in doc.ids() {
-        let node = doc.node(id).expect("ordered node exists");
-        if node.inputs().iter().any(|i| set.contains(i)) {
+        if doc.upstream(id).iter().any(|i| set.contains(i)) {
             set.insert(id);
         }
     }
@@ -616,6 +615,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::InsertNode { .. } => "InsertNode",
         DocEdit::DeleteNode { .. } => "DeleteNode",
         DocEdit::SetMembers { .. } => "SetMembers",
+        DocEdit::SetOperand { .. } => "SetOperand",
         DocEdit::SetProgram { .. } => "SetProgram",
         DocEdit::SetParam { .. } => "SetParam",
         DocEdit::SetStructuralParam { .. } => "SetStructuralParam",

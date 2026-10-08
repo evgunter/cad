@@ -84,7 +84,7 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     let (doc, a) = insert(
         doc,
         Node::Extrude {
-            profile: pa,
+            profile: pa.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -99,7 +99,7 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: pb,
+            profile: pb.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -115,8 +115,8 @@ fn subtract_doc(swap: bool) -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: x,
-            b: y,
+            a: x.into(),
+            b: y.into(),
             declare: decl,
         },
     );
@@ -169,7 +169,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
     let (doc, e_old) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -183,7 +183,7 @@ fn delete_and_reinsert_identical_node_recomputes() {
     let (doc, e_new) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -221,7 +221,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
     let (doc, fa) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: bad(),
             side: ExtrudeSide::Along,
         },
@@ -229,7 +229,7 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
     let (doc, fb) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: bad(),
             side: ExtrudeSide::Along,
         },
@@ -238,8 +238,8 @@ fn diamond_with_two_failed_ancestors_has_deterministic_through() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: fa,
-            b: fb,
+            a: fa.into(),
+            b: fb.into(),
             declare: Vec::new(),
         },
     );
@@ -367,7 +367,7 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, base) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -393,8 +393,8 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: t1,
-            b: t2,
+            a: t1.into(),
+            b: t2.into(),
             declare: Vec::new(),
         },
     );
@@ -409,10 +409,10 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: base,
+            input: base.into(),
             count: Formula::count(4),
             kind: editor_core::PatternKind::Circular {
-                axis: ax,
+                axis: ax.into(),
                 step: ang(std::f64::consts::FRAC_PI_2),
             },
         },
@@ -435,8 +435,8 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, rev) = insert(
         doc,
         Node::Revolve {
-            profile: rp,
-            axis: rax,
+            profile: rp.into(),
+            axis: rax.into(),
             angle: ang(std::f64::consts::PI),
         },
     );
@@ -451,15 +451,15 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
     let (doc, sp) = insert(
         doc,
         Node::Split {
-            target: u,
-            tool: pl,
+            target: u.into(),
+            tool: pl.into(),
         },
     );
     // Poisoned subgraph: failing extrude + a dependent subtract.
     let (doc, bad) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: Formula::div(len(1.0), scl(0.0)).unwrap(),
             side: ExtrudeSide::Along,
         },
@@ -468,8 +468,8 @@ fn rich_doc() -> (ProfileDoc, Vec<RecipeNodeId>) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: u,
-            b: bad,
+            a: u.into(),
+            b: bad.into(),
             declare: Vec::new(),
         },
     );
@@ -594,8 +594,8 @@ fn revolve_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, rev) = insert(
         doc,
         Node::Revolve {
-            profile: rp,
-            axis: rax,
+            profile: rp.into(),
+            axis: rax.into(),
             angle: ang(angle),
         },
     );
@@ -699,7 +699,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
         let (doc, cube) = insert(
             doc,
             Node::Extrude {
-                profile: cp,
+                profile: cp.into(),
                 distance: len(2.0),
                 side: ExtrudeSide::Along,
             },
@@ -714,7 +714,7 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
         let (doc, pip) = insert(
             doc,
             Node::Extrude {
-                profile: pp,
+                profile: pp.into(),
                 distance: len(0.125),
                 side: ExtrudeSide::Against,
             },
@@ -757,8 +757,8 @@ fn rotational_pip_matches_translated_pip_to_rounding() {
             doc,
             Node::Boolean {
                 op: BooleanOp::Subtract,
-                a: cube,
-                b: tr,
+                a: cube.into(),
+                b: tr.into(),
                 declare: decl,
             },
         );
@@ -800,8 +800,8 @@ fn wire_doors_refuse_typed() {
         doc.clone(),
         Node::Boolean {
             op: BooleanOp::Union,
-            a: u,
-            b: pat,
+            a: u.into(),
+            b: pat.into(),
             declare: Vec::new(),
         },
     );
@@ -826,8 +826,8 @@ fn wire_doors_refuse_typed() {
     let (d, bad_rev) = insert(
         doc.clone(),
         Node::Revolve {
-            profile: p,
-            axis: ax,
+            profile: p.into(),
+            axis: ax.into(),
             angle: ang(1.0),
         },
     );
@@ -846,8 +846,8 @@ fn wire_doors_refuse_typed() {
     let (d, bad_split) = insert(
         doc.clone(),
         Node::Split {
-            target: u,
-            tool: ax,
+            target: u.into(),
+            tool: ax.into(),
         },
     );
     let ev = run(&d, None, false);
@@ -865,10 +865,10 @@ fn wire_doors_refuse_typed() {
     let (d, bad_pat) = insert(
         doc.clone(),
         Node::Pattern {
-            input: base,
+            input: base.into(),
             count: Formula::count(0),
             kind: editor_core::PatternKind::Circular {
-                axis: ax,
+                axis: ax.into(),
                 step: ang(1.0),
             },
         },

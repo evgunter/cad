@@ -104,7 +104,7 @@ fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
     let Some(Node::Loft { profiles, .. }) = doc.node(loft) else {
         panic!("the loft");
     };
-    let section = profiles[0];
+    let section = doc.operation_of(profiles[0]).expect("the section read is live");
     match ev.nodes.get(&loft) {
         Some(NodeResult::Failed(NodeError {
             kind:
@@ -160,7 +160,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     );
     let _ = plane;
     let cube = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -179,7 +179,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     // A rigid transform keeps its input's name table verbatim, so the
     // cap is still named by the extrude that minted it.
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: lifted,
+        at: lifted.into(),
         face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
         spin: ang(0.0),
     }));
@@ -276,7 +276,7 @@ fn an_interval_extrude_of_a_widened_height() {
             vec![fixture::square(0.0, 0.0, 1.0)],
         );
         r.insert(Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: Formula::named(VarName::from_static("hh"), Dimension::Length),
             side: ExtrudeSide::Along,
         });
@@ -340,12 +340,12 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
         vec![fixture::square(0.0, 0.0, 1.0)],
     );
     let cube = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: Formula::named(VarName::from_static("h"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
-        at: cube,
+        at: cube.into(),
         face: fixture::fname(cube, RoleSeg::Cap(CapEnd::End)),
         spin: ang(0.0),
     }));

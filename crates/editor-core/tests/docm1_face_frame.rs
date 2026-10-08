@@ -57,7 +57,7 @@ fn box_doc() -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -78,8 +78,8 @@ fn washer_doc() -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
         Node::Revolve {
-            profile: p,
-            axis,
+            profile: p.into(),
+            axis: axis.into(),
             angle: fixture::ang(std::f64::consts::TAU),
         },
     )
@@ -97,7 +97,7 @@ fn ball_doc() -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![corpus::die_pips::half_disc_program()],
             ids: Vec::new(),
         }),
@@ -105,8 +105,8 @@ fn ball_doc() -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
         Node::Revolve {
-            profile: p,
-            axis,
+            profile: p.into(),
+            axis: axis.into(),
             angle: fixture::ang(std::f64::consts::TAU),
         },
     )
@@ -452,7 +452,7 @@ fn name_of_key(
 
 fn face_frame_node(at: RecipeNodeId, face: StableName, spin: f64) -> AuthoredNode {
     Node::Datum(Datum::FaceFrame {
-        at,
+        at: at.into(),
         face,
         spin: ang(spin),
     })
@@ -670,7 +670,7 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
     let (doc, boss) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(0.3),
             side: ExtrudeSide::Along,
         },
@@ -766,8 +766,8 @@ fn a7_a_derived_frame_serves_a_profile_and_an_in_plane_axis_by_value() {
     let (doc, ring) = fixture::insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     );
@@ -861,7 +861,7 @@ pub(crate) fn lofted_on_face_frame() -> (ProfileDoc, RecipeNodeId) {
     fixture::insert(
         doc,
         Node::Loft {
-            profiles: vec![lower, upper],
+            profiles: vec![lower.into(), upper.into()],
             v_degree: Formula::count(1),
         },
     )

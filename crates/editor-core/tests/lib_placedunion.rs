@@ -47,7 +47,7 @@ fn fin_only() -> (ProfileDoc, RecipeNodeId) {
         ]],
     );
     let fin = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(0.8125),
         side: ExtrudeSide::Along,
     });
@@ -143,8 +143,8 @@ fn the_fin_group_equals_the_transform_union_chain() {
                     &DocEdit::InsertNode {
                         node: Box::new(Node::Boolean {
                             op: BooleanOp::Union,
-                            a,
-                            b: placed,
+                            a: a.into(),
+                            b: placed.into(),
                             declare: Vec::new(),
                         }),
                         fresh: Vec::new(),
@@ -328,7 +328,7 @@ fn boxes_at(frames: Vec<Frame>) -> (ProfileDoc, RecipeNodeId) {
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let solid = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -414,7 +414,7 @@ fn a_circular_group_places_around_a_datum_axis() {
         vec![vec![(4.0, -0.5), (5.0, -0.5), (5.0, 0.5), (4.0, 0.5)]],
     );
     let solid = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -423,7 +423,7 @@ fn a_circular_group_places_around_a_datum_axis() {
             solid,
             Formula::count(4),
             PatternKind::Circular {
-                axis,
+                axis: axis.into(),
                 step: ang(std::f64::consts::FRAC_PI_2),
             },
         )
@@ -444,7 +444,7 @@ fn a_circular_group_places_around_a_datum_axis() {
 fn the_edit_door_refuses_a_two_spelling_count() {
     let (doc, fin) = fin_only();
     let with_count = Node::PlacedUnion {
-        input: fin,
+        input: fin.into(),
         count: Some(Formula::count(2)),
         kind: PatternKind::Explicit(vec![Frame::IDENTITY, Frame::translation([9.0, 0.0, 0.0])]),
     };
@@ -461,7 +461,7 @@ fn the_edit_door_refuses_a_two_spelling_count() {
         Err(EditError::PlacementRuleMismatch { .. })
     ));
     let pattern_explicit = Node::Pattern {
-        input: fin,
+        input: fin.into(),
         count: Formula::count(2),
         kind: PatternKind::Explicit(vec![Frame::IDENTITY]),
     };
@@ -516,14 +516,14 @@ fn a_placement_rule_refusals_recourse_gets_through() {
         (
             "a placed union's list, with a count",
             Node::PlacedUnion {
-                input: fin,
+                input: fin.into(),
                 count: Some(Formula::count(1)),
                 kind: listed(),
             },
             Some(CountMismatch::ListedWithCount),
             "insert it without a count, since the list is the count",
             vec![Node::PlacedUnion {
-                input: fin,
+                input: fin.into(),
                 count: None,
                 kind: listed(),
             }],
@@ -531,14 +531,14 @@ fn a_placement_rule_refusals_recourse_gets_through() {
         (
             "a placed union's stepped rule, without a count",
             Node::PlacedUnion {
-                input: fin,
+                input: fin.into(),
                 count: None,
                 kind: linear(),
             },
             Some(CountMismatch::SteppedWithoutCount),
             "insert it with a count",
             vec![Node::PlacedUnion {
-                input: fin,
+                input: fin.into(),
                 count: Some(Formula::count(2)),
                 kind: linear(),
             }],
@@ -546,7 +546,7 @@ fn a_placement_rule_refusals_recourse_gets_through() {
         (
             "a pattern given a list",
             Node::Pattern {
-                input: fin,
+                input: fin.into(),
                 count: Formula::count(1),
                 kind: listed(),
             },
@@ -555,12 +555,12 @@ fn a_placement_rule_refusals_recourse_gets_through() {
             // Both routes: the pattern kept, and the union that fuses.
             vec![
                 Node::Pattern {
-                    input: fin,
+                    input: fin.into(),
                     count: Formula::count(1),
                     kind: linear(),
                 },
                 Node::PlacedUnion {
-                    input: fin,
+                    input: fin.into(),
                     count: None,
                     kind: listed(),
                 },
@@ -614,7 +614,7 @@ fn the_slot_surface_follows_the_rule() {
     )
     .expect("a stepped rule takes a count");
     let pattern: AuthoredNode = Node::Pattern {
-        input: fin,
+        input: fin.into(),
         count: Formula::count(3),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -852,7 +852,7 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
             vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]],
         );
         let solid = r.insert(Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         });
@@ -918,8 +918,8 @@ fn the_rotated_explicit_group_equals_the_transform_union_chain() {
                     &DocEdit::InsertNode {
                         node: Box::new(Node::Boolean {
                             op: BooleanOp::Union,
-                            a,
-                            b: placed,
+                            a: a.into(),
+                            b: placed.into(),
                             declare: Vec::new(),
                         }),
                         fresh: Vec::new(),

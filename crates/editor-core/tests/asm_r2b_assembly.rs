@@ -66,7 +66,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -96,8 +96,8 @@ fn kiss_part(label: &str) -> ProfileDoc {
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );

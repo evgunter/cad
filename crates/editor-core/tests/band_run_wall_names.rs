@@ -43,7 +43,7 @@ fn profiled(steps: Vec<ProgramStep<Formula>>) -> (ProfileDoc, RecipeNodeId, Reci
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -60,7 +60,7 @@ fn extruded_by(steps: Vec<ProgramStep<Formula>>, side: ExtrudeSide) -> (ProfileD
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side,
         },
@@ -73,8 +73,8 @@ fn revolved(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, Recipe
     insert(
         doc,
         Node::Revolve {
-            profile: p,
-            axis,
+            profile: p.into(),
+            axis: axis.into(),
             angle: ang(angle),
         },
     )
@@ -569,7 +569,9 @@ fn arc_run_names_agree_across_scalars() {
 /// The profile a sweep node sweeps.
 fn profile_of(doc: &ProfileDoc, sweep: RecipeNodeId) -> RecipeNodeId {
     match doc.node(sweep) {
-        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => *profile,
+        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => {
+            doc.operation_of(*profile).expect("the profile read is live")
+        }
         other => panic!("not a sweep: {other:?}"),
     }
 }

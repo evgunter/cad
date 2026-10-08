@@ -89,9 +89,9 @@ fn engrave(tool: LoopProgram<Formula>, dx: f64) -> (Evaluation<f64>, [RecipeNode
     let doc = ProfileDoc::empty_derived("pierce-ring-engraving", Tol::witness());
     // The XZ frame: its normal is −y, so an extrude against it runs +y.
     let (doc, xz) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
-    let profile = |plane, lp| {
+    let profile = |plane: RecipeNodeId, lp| {
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![lp],
             ids: Vec::new(),
         })
@@ -100,7 +100,7 @@ fn engrave(tool: LoopProgram<Formula>, dx: f64) -> (Evaluation<f64>, [RecipeNode
     let (doc, cylinder) = insert(
         doc,
         Node::Extrude {
-            profile: disc,
+            profile: disc.into(),
             distance: len(HEIGHT),
             side: ExtrudeSide::Against,
         },
@@ -109,7 +109,7 @@ fn engrave(tool: LoopProgram<Formula>, dx: f64) -> (Evaluation<f64>, [RecipeNode
     let (doc, prism) = insert(
         doc,
         Node::Extrude {
-            profile: outline,
+            profile: outline.into(),
             distance: len(2.0 * DEPTH),
             side: ExtrudeSide::Along,
         },
@@ -119,8 +119,8 @@ fn engrave(tool: LoopProgram<Formula>, dx: f64) -> (Evaluation<f64>, [RecipeNode
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: cylinder,
-            b: lifted,
+            a: cylinder.into(),
+            b: lifted.into(),
             declare: Vec::new(),
         },
     );

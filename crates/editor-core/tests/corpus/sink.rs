@@ -125,7 +125,7 @@ pub fn document() -> CorpusDoc {
     )
     .expect("mul");
     let block_a = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: dist,
         side: ExtrudeSide::Along,
     });
@@ -143,15 +143,15 @@ pub fn document() -> CorpusDoc {
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
     let block_b = r.insert(Node::Extrude {
-        profile: profile_b,
+        profile: profile_b.into(),
         distance: len(1.25),
         side: ExtrudeSide::Along,
     });
     let declare = declare_x_offset_flush(&r.doc, block_a, block_b);
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: block_a,
-        b: block_b,
+        a: block_a.into(),
+        b: block_b.into(),
         declare,
     });
 
@@ -161,8 +161,8 @@ pub fn document() -> CorpusDoc {
         normal: [scl(0.0), scl(0.0), scl(1.0)],
     }));
     r.insert(Node::Split {
-        target: union,
-        tool,
+        target: union.into(),
+        tool: tool.into(),
     });
 
     // A transformed copy, patterned linearly; a lone block patterned
@@ -176,7 +176,7 @@ pub fn document() -> CorpusDoc {
         },
     ));
     let linear = r.insert(Node::Pattern {
-        input: moved,
+        input: moved.into(),
         count: Formula::count(2),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -184,15 +184,15 @@ pub fn document() -> CorpusDoc {
         },
     });
     let lone = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(0.5),
         side: ExtrudeSide::Along,
     });
     r.insert(Node::Pattern {
-        input: lone,
+        input: lone.into(),
         count: Formula::count(2),
         kind: PatternKind::Circular {
-            axis,
+            axis: axis.into(),
             step: ang(std::f64::consts::PI),
         },
     });
@@ -209,8 +209,8 @@ pub fn document() -> CorpusDoc {
     );
     let rev_axis = r.insert(axis_in_plane(rev_plane, (0.0, 0.0), (0.0, 1.0)));
     r.insert(Node::Revolve {
-        profile: rev_profile,
-        axis: rev_axis,
+        profile: rev_profile.into(),
+        axis: rev_axis.into(),
         angle: ang(std::f64::consts::FRAC_PI_2),
     });
 

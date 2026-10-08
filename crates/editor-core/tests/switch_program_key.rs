@@ -55,7 +55,7 @@ fn doc_with(loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: plane(),
+                    plane: plane().into(),
                     loops,
                     ids: Vec::new(),
                 })),
@@ -185,7 +185,7 @@ fn resolved_values_feed_the_key() {
         doc.apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: plane(),
+                    plane: plane().into(),
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: Formula::named(VarName::from_static("r"), Dimension::Length),
@@ -241,7 +241,7 @@ fn a_carrier_centre_respelled_keys_identically() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: plane(),
+                    plane: plane().into(),
                     loops: vec![LoopProgram::Circle {
                         centre: [
                             Formula::named(VarName::from_static("cx"), Dimension::Length),
@@ -307,7 +307,7 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram<Formula>>) -> ProfileDoc {
     doc.apply(
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: plane(),
+                plane: plane().into(),
                 loops,
                 ids: Vec::new(),
             })),

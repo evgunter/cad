@@ -42,7 +42,7 @@ fn block(
     let (doc, e) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -90,7 +90,7 @@ fn three() -> Three {
     let (doc, decl) = insert(
         doc,
         Node::Union {
-            members: vec![a, d],
+            members: vec![a.into(), d.into()],
             declare: editor_core::declare_rest(vec![(sited(a), SitedRef::new(d, cap(b)))]),
         },
     );

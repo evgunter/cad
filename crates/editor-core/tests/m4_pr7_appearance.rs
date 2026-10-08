@@ -63,7 +63,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -249,7 +249,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
     let (doc2, ext) = insert(
         doc1,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -504,8 +504,8 @@ fn poisoned_target_node_reports_the_failed_ancestor() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -558,7 +558,7 @@ fn structural_count_reduction_vanishes_the_instance_name_loudly() {
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: ext,
+            input: ext.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -642,7 +642,7 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
     let (doc, b) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -651,8 +651,8 @@ fn tie_fixture() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -749,8 +749,8 @@ fn operand_paint_does_not_follow_the_face_through_a_boolean() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );

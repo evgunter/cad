@@ -120,7 +120,7 @@ fn steps() -> Vec<ProgramStep<Formula>> {
 
 fn program() -> ProfileProgram<Formula> {
     ProfileProgram {
-        plane: editor_core::RecipeNodeId::new(0, 0),
+        plane: editor_core::RecipeNodeId::new(0, 0).into(),
         loops: vec![
             LoopProgram::Chain(steps()),
             LoopProgram::circle(1.0, 1.0, 0.5).unwrap(),

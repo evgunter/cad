@@ -62,7 +62,7 @@ fn loft_doc() -> (ProfileDoc, RecipeNodeId, Vec<RecipeNodeId>) {
     let (doc, loft) = insert(
         doc,
         Node::Loft {
-            profiles: profiles.clone(),
+            profiles: profiles.clone().into_iter().map(Into::into).collect(),
             v_degree: count(2),
         },
     );
@@ -85,7 +85,7 @@ fn the_new_slots_are_structural_counts() {
 fn loft_inputs_are_its_profiles_in_order() {
     let (doc, loft, profiles) = loft_doc();
     let node = doc.node(loft).expect("the loft node");
-    assert_eq!(node.inputs(), profiles);
+    assert_eq!(doc.upstream(loft), profiles);
     assert_eq!(node.slots(), vec![SlotId::VDegree]);
     assert!(node.expr(SlotId::VDegree).is_some());
     assert!(node.expr(SlotId::Stations).is_none());
@@ -102,14 +102,14 @@ fn sweep_inputs_are_profile_then_path_and_it_carries_both_slots() {
     let (doc, sweep) = insert(
         doc,
         Node::Sweep {
-            profile,
-            path,
+            profile: profile.into(),
+            path: path.into(),
             stations: count(5),
             v_degree: count(3),
         },
     );
     let node = doc.node(sweep).expect("the sweep node");
-    assert_eq!(node.inputs(), vec![profile, path]);
+    assert_eq!(doc.upstream(sweep), vec![profile, path]);
     assert_eq!(node.slots(), vec![SlotId::Stations, SlotId::VDegree]);
     for slot in [SlotId::Stations, SlotId::VDegree] {
         assert!(node.expr(slot).is_some(), "{slot:?}");
@@ -126,7 +126,7 @@ fn a_dangling_profile_ref_refuses_at_the_edit_door() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Loft {
-                    profiles: vec![bogus],
+                    profiles: vec![bogus.into()],
                     v_degree: count(1),
                 }),
                 fresh: Vec::new(),
@@ -147,7 +147,7 @@ fn a_length_expression_in_the_v_degree_slot_refuses() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Loft {
-                    profiles,
+                    profiles: profiles.into_iter().map(Into::into).collect(),
                     v_degree: len(2.0),
                 }),
                 fresh: Vec::new(),
@@ -196,8 +196,8 @@ fn a_sweep_document_round_trips_bit_identically() {
     let (doc, _) = insert(
         doc,
         Node::Sweep {
-            profile,
-            path,
+            profile: profile.into(),
+            path: path.into(),
             stations: count(4),
             v_degree: count(2),
         },
@@ -288,7 +288,7 @@ fn mismatched_sections_refuse_before_the_frontier() {
     let (doc, loft) = insert(
         doc,
         Node::Loft {
-            profiles: vec![a, b],
+            profiles: vec![a.into(), b.into()],
             v_degree: count(1),
         },
     );
@@ -309,7 +309,7 @@ fn an_unusable_v_degree_refuses_typed() {
     let (doc, loft) = insert(
         doc,
         Node::Loft {
-            profiles,
+            profiles: profiles.into_iter().map(Into::into).collect(),
             v_degree: count(3), // == the section count
         },
     );
@@ -335,7 +335,7 @@ fn a_non_profile_input_refuses_typed() {
     let (doc, loft) = insert(
         doc,
         Node::Loft {
-            profiles: vec![profiles[0], datum],
+            profiles: vec![profiles[0].into(), datum.into()],
             v_degree: count(1),
         },
     );
@@ -360,8 +360,8 @@ fn a_sweep_node_reaches_its_own_wider_frontier() {
     let (doc, sweep) = insert(
         doc,
         Node::Sweep {
-            profile,
-            path,
+            profile: profile.into(),
+            path: path.into(),
             stations: count(4),
             v_degree: count(2),
         },
@@ -393,8 +393,8 @@ fn a_sweeps_structural_slots_are_checked_before_the_frontier() {
     let (doc, sweep) = insert(
         doc,
         Node::Sweep {
-            profile,
-            path,
+            profile: profile.into(),
+            path: path.into(),
             stations: count(-3),
             v_degree: count(2),
         },

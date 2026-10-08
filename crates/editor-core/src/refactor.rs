@@ -4254,14 +4254,14 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
         let name = nested(EntityKind::Edge);
         let node = Node::Boolean {
             op: crate::node::BooleanOp::Union,
-            a: OUTER,
-            b: OUTER,
+            a: crate::VarId::new(0, 1),
+            b: crate::VarId::new(0, 2),
             declare: crate::declare_rest(vec![(
                 SitedRef::new(OUTER, name.clone()),
                 SitedRef::at_mint(name.clone()),
             )]),
         };
-        match remap_node(&node, &map(), &StepMap::new(), &|g| Ok(g)) {
+        match remap_node(&node, &map(), &Ok, &StepMap::new(), &|g| Ok(g)) {
             Err(RemapMiss::Name {
                 name: reported,
                 missing,
@@ -4279,6 +4279,7 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
                 );
             }
             Err(RemapMiss::Input(id)) => panic!("a name miss is not an input miss, got {id:?}"),
+            Err(RemapMiss::Read { var, .. }) => panic!("a name miss is not a read miss, got {var:?}"),
             Ok(out) => panic!("INNER is unmapped, got {out:?}"),
         }
     }

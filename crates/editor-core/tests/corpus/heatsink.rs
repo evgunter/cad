@@ -56,7 +56,7 @@ pub fn document() -> CorpusDoc {
         vec![vec![(0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (0.0, 1.0)]],
     );
     let base = r.insert(Node::Extrude {
-        profile: base_p,
+        profile: base_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
@@ -72,13 +72,13 @@ pub fn document() -> CorpusDoc {
         ]],
     );
     let fin = r.insert(Node::Extrude {
-        profile: fin_p,
+        profile: fin_p.into(),
         distance: len(0.8125),
         side: ExtrudeSide::Along,
     });
     // The instance-payload half of the document.
     let pattern = r.insert(Node::Pattern {
-        input: fin,
+        input: fin.into(),
         count: Formula::count(FINS),
         kind: PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -108,8 +108,8 @@ pub fn document() -> CorpusDoc {
         ));
         acc = r.insert(Node::Boolean {
             op: BooleanOp::Union,
-            a: acc,
-            b: tr,
+            a: acc.into(),
+            b: tr.into(),
             declare: Vec::new(),
         });
     }

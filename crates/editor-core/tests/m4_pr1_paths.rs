@@ -23,6 +23,7 @@ impl editor_core::ProfilePayload for FakeProfile {
     fn lower<E>(
         authored: &Self,
         _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
+        _: &mut dyn FnMut(editor_core::OperandSlot, &editor_core::Operand) -> Result<editor_core::VarId, E>,
     ) -> Result<Self, E> {
         Ok(authored.clone())
     }
@@ -66,7 +67,7 @@ fn profile_and_extrude() -> (TDoc, RecipeNodeId, RecipeNodeId) {
         .apply(
             &TEdit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile,
+                    profile: profile.into(),
                     distance,
                     side: ExtrudeSide::Along,
                 }),
@@ -213,7 +214,7 @@ fn dangling_ref_rejected() {
         .apply(
             &TEdit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile: ghost,
+                    profile: ghost.into(),
                     distance: len(0.01),
                     side: ExtrudeSide::Along,
                 }),
@@ -241,7 +242,7 @@ fn self_reference_cannot_forge_the_next_id() {
         .apply(
             &TEdit::InsertNode {
                 node: Box::new(Node::Extrude {
-                    profile: guessed,
+                    profile: guessed.into(),
                     distance: len(0.01),
                     side: ExtrudeSide::Along,
                 }),
@@ -259,22 +260,26 @@ fn self_reference_cannot_forge_the_next_id() {
     );
 }
 
+/// A delete of a read node is accepted (D10): the reader keeps its
+/// read, unresolved, and the delete reports it.
 #[test]
-fn delete_of_referenced_node_rejected() {
+fn delete_of_referenced_node_strands_its_reader() {
     let (doc, profile, extrude) = profile_and_extrude();
-    let err = doc
+    let read = doc.output(profile, 0).expect("the profile's output");
+    let applied = doc
         .apply(
             &TEdit::DeleteNode { id: profile },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .unwrap_err();
+        .expect("a read node deletes");
     assert_eq!(
-        err,
-        EditError::DeleteWouldDangle {
-            id: doc.spoken(profile),
-            referenced_by: doc.spoken(extrude)
-        }
+        applied.maintenance,
+        vec![editor_core::Maintenance::StrandedRead {
+            node: doc.spoken(extrude),
+            slot: editor_core::OperandSlot::Profile,
+            var: doc.spoken_var(read),
+        }]
     );
 }
 

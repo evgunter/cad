@@ -75,7 +75,7 @@ fn filleted_cube(
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -334,7 +334,7 @@ fn the_chamfer_attaches_nothing_because_its_flow_says_so() {
     let (doc, cube) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -472,8 +472,8 @@ fn filleted_lantern(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, R
     let (doc, revolve) = insert(
         doc,
         Node::Revolve {
-            profile,
-            axis,
+            profile: profile.into(),
+            axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
     );
@@ -481,7 +481,7 @@ fn filleted_lantern(doc: ProfileDoc, cx: f64, radius: Formula) -> (ProfileDoc, R
     insert(
         doc,
         Node::Fillet {
-            target: revolve,
+            target: revolve.into(),
             radius,
             selection: vec![mouth],
         },

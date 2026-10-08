@@ -51,7 +51,7 @@ fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -151,7 +151,7 @@ fn patterned(label: &str, kind: PatternKind<Formula>, count: i64, i: u32) -> Sce
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
-                input: legs,
+                input: legs.into(),
                 count: Formula::count(count),
                 kind,
             },
@@ -462,10 +462,10 @@ fn a1_a_circular_rule_over_a_plane_datum_refuses_the_operand() {
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
-                input: legs,
+                input: legs.into(),
                 count: Formula::count(4),
                 kind: PatternKind::Circular {
-                    axis: plane,
+                    axis: plane.into(),
                     step: ang(0.5),
                 },
             },
@@ -498,10 +498,10 @@ fn a1_a_circular_rule_over_a_body_refuses_the_operand() {
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
-                input: legs,
+                input: legs.into(),
                 count: Formula::count(4),
                 kind: PatternKind::Circular {
-                    axis: body,
+                    axis: body.into(),
                     step: ang(0.5),
                 },
             },
@@ -532,7 +532,7 @@ fn a1_a_circular_rule_over_a_transform_of_a_pattern_refuses_the_operand() {
             let (doc, array) = insert(
                 doc,
                 Node::Pattern {
-                    input: legs,
+                    input: legs.into(),
                     count: Formula::count(2),
                     kind: PatternKind::Linear {
                         direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -544,10 +544,10 @@ fn a1_a_circular_rule_over_a_transform_of_a_pattern_refuses_the_operand() {
             let (doc, pattern) = insert(
                 doc,
                 Node::Pattern {
-                    input: legs,
+                    input: legs.into(),
                     count: Formula::count(4),
                     kind: PatternKind::Circular {
-                        axis: moved,
+                        axis: moved.into(),
                         step: ang(0.5),
                     },
                 },
@@ -576,10 +576,10 @@ fn a1_a_circular_rule_over_a_transform_of_a_transform_of_a_body_refuses_the_oper
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
-                input: legs,
+                input: legs.into(),
                 count: Formula::count(4),
                 kind: PatternKind::Circular {
-                    axis: again,
+                    axis: again.into(),
                     step: ang(0.5),
                 },
             },
@@ -616,10 +616,10 @@ fn a1_an_axis_datums_slot_refusal_is_reported_at_the_datum() {
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
-                input: legs,
+                input: legs.into(),
                 count: Formula::count(4),
                 kind: PatternKind::Circular {
-                    axis,
+                    axis: axis.into(),
                     step: ang(0.5),
                 },
             },
@@ -680,10 +680,10 @@ fn a1_an_axis_datums_degenerate_direction_is_reported_at_the_datum() {
         let (doc, pattern) = insert(
             doc,
             Node::Pattern {
-                input: legs,
+                input: legs.into(),
                 count: Formula::count(4),
                 kind: PatternKind::Circular {
-                    axis,
+                    axis: axis.into(),
                     step: ang(0.5),
                 },
             },
@@ -790,10 +790,10 @@ impl Rule {
                     let (doc, pattern) = insert(
                         doc,
                         Node::Pattern {
-                            input: legs,
+                            input: legs.into(),
                             count: Formula::count(4),
                             kind: PatternKind::Circular {
-                                axis,
+                                axis: axis.into(),
                                 step: ang(*step),
                             },
                         },
@@ -824,7 +824,7 @@ fn an_explicit_pattern_rule_never_reaches_the_solve() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Pattern {
-                input: legs,
+                input: legs.into(),
                 count: Formula::count(2),
                 kind: PatternKind::Explicit(vec![
                     Frame::IDENTITY,

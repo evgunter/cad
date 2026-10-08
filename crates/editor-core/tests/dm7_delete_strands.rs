@@ -30,7 +30,7 @@ use crate::fixture::resolver::PartStore;
 use editor_core::Formula;
 use editor_core::{
     Alignment, Attr, AttrKind, AxisSense, BooleanOp, CapEnd, ContactClass, Datum, DocEdit,
-    DocumentId, EditError, EntityKind, Maintenance, MateFrame, MatePrimitive, MeasureExpr,
+    DocumentId, EntityKind, Maintenance, MateFrame, MatePrimitive, MeasureExpr,
     MeasurePrimitive, Node, ProfileDoc, RecipeNodeId, Rgba8, RoleSeg, SitedRef, StableName, apply,
     cascade_delete_order,
 };
@@ -46,6 +46,7 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
             Maintenance::Strand { node, name, .. } => Some((node.id(), name.name().clone())),
             Maintenance::OffsetCleared { .. }
             | Maintenance::StrandedAppearance { .. }
+            | Maintenance::StrandedRead { .. }
             | Maintenance::LabelDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
@@ -61,6 +62,7 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
             Maintenance::StrandedAppearance { name, .. } => Some(name.name().clone()),
             Maintenance::Strand { .. }
             | Maintenance::OffsetCleared { .. }
+            | Maintenance::StrandedRead { .. }
             | Maintenance::LabelDropped { .. }
             | Maintenance::AnonymousVarRemoved { .. } => None,
         })
@@ -119,7 +121,7 @@ fn union_released_from_a_declared_member(
         &declared,
         &DocEdit::SetMembers {
             node: union,
-            members: vec![a, c],
+            members: vec![a.into(), c.into()],
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -147,17 +149,22 @@ fn union_released_from_a_declared_member(
 fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
     let (declared, doc, union, b) = union_released_from_a_declared_member("dm7_declared_union");
 
+    // A member is a read: the delete is accepted, and leaves the union
+    // reading the deleted output, reported (D10).
+    let deleted = apply(
+        &declared,
+        &DocEdit::DeleteNode { id: b },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("deleting a read node is accepted");
     assert!(
-        matches!(
-            apply(
-                &declared,
-                &DocEdit::DeleteNode { id: b },
-                Tol::witness(),
-                &editor_core::RefusingReach
-            ),
-            Err(EditError::DeleteWouldDangle { .. })
-        ),
-        "a member IS a DAG edge and refuses"
+        deleted.maintenance.iter().any(|row| matches!(
+            row,
+            Maintenance::StrandedRead { node, .. } if node.id() == union
+        )),
+        "the union's read of the deleted member is reported stranded: {:?}",
+        deleted.maintenance
     );
 
     let Some(Node::Union { declare: pairs, .. }) = doc.node(union) else {
@@ -234,7 +241,7 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: body,
+            target: body.into(),
             radius: len(0.1),
             selection: vec![f0.clone()],
         },
@@ -242,7 +249,7 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     let (doc, chamfer) = insert(
         doc,
         Node::Chamfer {
-            target: body,
+            target: body.into(),
             distance: len(0.1),
             selection: vec![f1.clone()],
         },
@@ -250,7 +257,7 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     let (doc, shell) = insert(
         doc,
         Node::Shell {
-            target: body,
+            target: body.into(),
             thickness: len(0.1),
             open: vec![f2.clone()],
         },
@@ -258,7 +265,7 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     let (doc, derived) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: body,
+            at: body.into(),
             face: f3.clone(),
             spin: ang(0.0),
         }),
@@ -278,8 +285,8 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a: body,
-            b: other,
+            a: body.into(),
+            b: other.into(),
             // Sited at the operands, as every pair must be; the names
             // are the victim's, minted before the boolean, so the
             // delete strands them without taking an operand.
@@ -369,7 +376,7 @@ fn a_delete_that_strands_nothing_reports_nothing() {
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, spare) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let node = Node::Fillet {
-        target: body,
+        target: body.into(),
         radius: len(0.1),
         selection: vec![fname(body, wall(&doc, body, 0))],
     };
@@ -392,7 +399,7 @@ fn a_carrier_deleted_with_the_node_it_names_reports_nothing() {
     let doc = ProfileDoc::empty_derived("dm7_self", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let node1 = Node::Fillet {
-        target: body,
+        target: body.into(),
         radius: len(0.1),
         selection: vec![fname(body, wall(&doc, body, 0))],
     };
@@ -432,7 +439,7 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, other) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let node2 = Node::Fillet {
-        target: body,
+        target: body.into(),
         radius: len(0.1),
         selection: vec![fname(body, wall(&doc, body, 0))],
     };
@@ -441,7 +448,7 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
     let (doc, derived) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
-            at: other,
+            at: other.into(),
             face: face.clone(),
             spin: ang(0.0),
         }),
@@ -692,7 +699,7 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
-            target: body,
+            target: body.into(),
             radius: len(0.1),
             selection: vec![carried.clone()],
         },
@@ -806,7 +813,7 @@ fn a_cascade_reports_each_appearance_strand_at_the_step_that_made_it() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_cascade", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let node3 = Node::Fillet {
-        target: body,
+        target: body.into(),
         radius: len(0.1),
         selection: vec![fname(body, wall(&doc, body, 0))],
     };

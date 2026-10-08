@@ -76,7 +76,7 @@ fn placed_twice(loop_: &LoopProgram<Formula>) -> (ProfileDoc, RecipeNodeId, Reci
         insert(
             doc,
             Node::Profile(ProfileProgram {
-                plane,
+                plane: plane.into(),
                 loops: vec![loop_.clone()],
                 ids: Vec::new(),
             }),

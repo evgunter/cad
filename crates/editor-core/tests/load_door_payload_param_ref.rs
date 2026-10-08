@@ -54,7 +54,7 @@ fn with_depth_and_extrude() -> (ProfileDoc, VarName, RecipeNodeId) {
     let (doc, extrude) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -233,7 +233,7 @@ fn an_assertion_bound_reading_an_undeclared_parameter_refuses_to_load() {
         },
     );
     let bound = |n: &VarName| Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: Formula::named(n.clone(), Dimension::Length),
         dir: editor_core::AssertionDir::AtLeast,
     };
@@ -382,7 +382,7 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
     let (doc, assertion) = insert(
         doc,
         Node::Assertion {
-            measure,
+            measure: measure.into(),
             bound: Formula::named(name.clone(), Dimension::Length),
             dir: editor_core::AssertionDir::AtLeast,
         },
@@ -393,7 +393,7 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: extrude,
+                measure: extrude.into(),
                 bound: Formula::named(name.clone(), Dimension::Length),
                 dir: editor_core::AssertionDir::AtLeast,
             }),

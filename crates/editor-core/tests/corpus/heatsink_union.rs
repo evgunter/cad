@@ -78,7 +78,7 @@ pub fn document() -> CorpusDoc {
         ]],
     );
     let fin = r.insert(Node::Extrude {
-        profile: fin_p,
+        profile: fin_p.into(),
         distance: len(0.8125),
         side: ExtrudeSide::Along,
     });

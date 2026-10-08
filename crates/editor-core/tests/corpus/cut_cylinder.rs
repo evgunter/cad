@@ -36,12 +36,12 @@ pub fn document() -> CorpusDoc {
     let disc = LoopProgram::circle(0.0, 0.0, 0.5).unwrap();
     let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![disc],
         ids: Vec::new(),
     }));
     let cylinder = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -53,8 +53,8 @@ pub fn document() -> CorpusDoc {
         normal: [scl(TILT.sin()), scl(0.0), scl(TILT.cos())],
     }));
     let split = r.insert(Node::Split {
-        target: cylinder,
-        tool,
+        target: cylinder.into(),
+        tool: tool.into(),
     });
     let _ = split;
 

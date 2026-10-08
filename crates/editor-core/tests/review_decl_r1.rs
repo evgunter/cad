@@ -144,8 +144,8 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
     let (base, tr) = placed(base, b0, 0.5);
     let boolean = |declare| Node::Boolean {
         op: BooleanOp::Union,
-        a,
-        b: tr,
+        a: a.into(),
+        b: tr.into(),
         declare,
     };
     // Sited at the minting node, which is not an operand.
@@ -217,8 +217,8 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
     )]);
     let boolean = Node::Boolean {
         op: BooleanOp::Union,
-        a,
-        b,
+        a: a.into(),
+        b: b.into(),
         declare: decl.clone(),
     };
     let insert_into = |doc: &ProfileDoc| {
@@ -249,7 +249,7 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
         doc,
         DocEdit::SetMembers {
             node: u,
-            members: vec![a, b],
+            members: vec![a.into(), b.into()],
         },
     );
     let ev = run(&stranded);
@@ -348,7 +348,7 @@ fn flush_findings_of_two_placements_declare_and_fuse_through_a_union() {
     let (bare, union) = insert(
         doc,
         Node::Union {
-            members: vec![m1, m2],
+            members: vec![m1.into(), m2.into()],
             declare: Vec::new(),
         },
     );

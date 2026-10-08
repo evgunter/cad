@@ -1250,6 +1250,33 @@ pub fn lower_slot_into<P>(doc: &mut Doc<P>, formula: &Formula) -> Result<VarId, 
     })
 }
 
+/// **One authored node lowered into `doc`**, outside any edit: what the
+/// insert door would store for it — its operands each lowered at its
+/// seat ([`lower_operand`]), its slots each through
+/// [`lower_slot_into`] — minting into `doc` where the door would mint.
+/// The test support's stored nodes are built through it.
+///
+/// # Errors
+///
+/// An operand or a formula that does not lower in `doc`.
+#[doc(hidden)]
+pub fn lower_node_into<P: crate::ProfilePayload>(
+    doc: &mut Doc<P>,
+    node: &Node<P::Authored, Formula>,
+) -> Result<Node<P>, EditError> {
+    let spoken = || SpokenNode::absent(RecipeNodeId::new(0, 0));
+    let mut reads = lower_reads(doc, node, None, &spoken)?.into_iter();
+    node.try_map_slots(
+        |p, g, r| P::lower(p, g, r),
+        &mut |f| lower_slot_into(doc, f),
+        &mut |_, _| {
+            Ok(reads
+                .next()
+                .unwrap_or_else(|| unreachable!("one read per operand, walked in one order")))
+        },
+    )
+}
+
 /// **A name a definition reads that does not lower**, as the doors
 /// refuse it of `var`'s definition.
 fn definition_name_refusal<P>(

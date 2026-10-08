@@ -42,7 +42,7 @@ fn movable(doc: ProfileDoc, input: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Transform {
-            input,
+            input: input.into(),
             placement: editor_core::placement::Step::Rigid {
                 translation: [len(0.0), len(0.0), len(0.0)],
                 axis: [scl(0.0), scl(0.0), scl(1.0)],
@@ -137,7 +137,7 @@ fn add(doc: ProfileDoc, m: &Mem) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(distance),
             side: ExtrudeSide::Along,
         },
@@ -301,8 +301,8 @@ fn check(fx: &Fixture) -> usize {
                 doc.clone(),
                 Node::Boolean {
                     op,
-                    a: ids[0],
-                    b: ids[1],
+                    a: ids[0].into(),
+                    b: ids[1].into(),
                     declare: Vec::new(),
                 },
             ),
@@ -992,7 +992,7 @@ fn tied_prongs() -> (ProfileDoc, RecipeNodeId) {
     let (doc, u) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -1001,8 +1001,8 @@ fn tied_prongs() -> (ProfileDoc, RecipeNodeId) {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b: u,
+            a: a.into(),
+            b: u.into(),
             declare: Vec::new(),
         },
     )
@@ -1208,7 +1208,7 @@ pub(crate) fn cylinder(
     let (doc, disc) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![LoopProgram::circle_split(0.0, 0.0, 0.3, 2, 0.0).unwrap()],
             ids: Vec::new(),
         }),
@@ -1216,7 +1216,7 @@ pub(crate) fn cylinder(
     insert(
         doc,
         Node::Extrude {
-            profile: disc,
+            profile: disc.into(),
             distance: len(length),
             side: ExtrudeSide::Along,
         },
@@ -1243,8 +1243,8 @@ fn a_curved_divider_names_as_the_pair_boolean_does() {
         doc.clone(),
         Node::Boolean {
             op: BooleanOp::Union,
-            a: plate,
-            b: cyl,
+            a: plate.into(),
+            b: cyl.into(),
             declare: Vec::new(),
         },
     );
@@ -1326,8 +1326,8 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
         doc.clone(),
         Node::Boolean {
             op: BooleanOp::Union,
-            a: plate,
-            b: boss,
+            a: plate.into(),
+            b: boss.into(),
             declare: Vec::new(),
         },
     );
@@ -1341,8 +1341,8 @@ fn a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls() {
             doc,
             Node::Boolean {
                 op: BooleanOp::Subtract,
-                a: joined,
-                b: slab,
+                a: joined.into(),
+                b: slab.into(),
                 declare: Vec::new(),
             },
         );
@@ -1381,8 +1381,8 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
         doc.clone(),
         Node::Boolean {
             op: BooleanOp::Union,
-            a: plate,
-            b: boss,
+            a: plate.into(),
+            b: boss.into(),
             declare: Vec::new(),
         },
     );
@@ -1396,8 +1396,8 @@ fn a_slot_along_x_across_a_sunk_boss_names() {
             doc,
             Node::Boolean {
                 op: BooleanOp::Subtract,
-                a: joined,
-                b: slab,
+                a: joined.into(),
+                b: slab.into(),
                 declare: Vec::new(),
             },
         );

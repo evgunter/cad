@@ -321,7 +321,7 @@ fn corpus_lowered() -> (ProfileProgram, VarEnv<f64>) {
         // The corpus is resolved and serialized directly, never
         // inserted, so the frame it names is scaffolding: no row here
         // reads what the plane denotes.
-        plane: SCAFFOLD_PLANE,
+        plane: SCAFFOLD_PLANE.into(),
         loops: vec![
             LoopProgram::Chain(chain_steps()),
             LoopProgram::circle(1.0, 1.0, 0.5).unwrap(),
@@ -565,7 +565,7 @@ fn every_table_verb_is_a_document_program() {
 fn every_target_form_is_a_document_program() {
     for kind in TargetKind::ALL {
         let (program, env) = lowered(&ProfileProgram {
-            plane: SCAFFOLD_PLANE,
+            plane: SCAFFOLD_PLANE.into(),
             loops: vec![LoopProgram::Chain(vec![ProgramStep::LineTo(
                 target_witness(*kind),
             )])],
@@ -669,7 +669,7 @@ fn every_target_form_is_a_document_program() {
 fn every_arc_mode_is_a_document_program() {
     for mode in ArcMode::ALL {
         let (program, env) = lowered(&ProfileProgram {
-            plane: SCAFFOLD_PLANE,
+            plane: SCAFFOLD_PLANE.into(),
             loops: vec![LoopProgram::Chain(vec![ProgramStep::ArcTo(mode_witness(
                 *mode,
             ))])],

@@ -330,6 +330,6 @@ fn the_probe_document_carries_the_parameter_only_in_the_frame() {
     let Some(Node::Profile(program)) = doc.node(profile(&doc)) else {
         panic!("a profile second");
     };
-    assert_eq!(program.plane, frame(&doc));
+    assert_eq!(doc.operation_of(program.plane), Some(frame(&doc)));
     assert!(!program.reads(var), "the program must hold no parameter");
 }

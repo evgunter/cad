@@ -84,7 +84,7 @@ pub fn outline() -> LoopProgram<Formula> {
 /// two holes.
 pub fn plate_profile(plane: RecipeNodeId) -> ProfileProgram<Formula> {
     ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![
             outline(),
             hole_loop(HOLE_CENTRES[0]),
@@ -104,7 +104,7 @@ pub fn document() -> CorpusDoc {
     let plate_plane = r.insert(xy_frame());
     let plate_p = r.insert(Node::Profile(plate_profile(plate_plane)));
     let plate = r.insert(Node::Extrude {
-        profile: plate_p,
+        profile: plate_p.into(),
         distance: len(PLATE_DEPTH),
         side: ExtrudeSide::Along,
     });
@@ -116,7 +116,7 @@ pub fn document() -> CorpusDoc {
     // no coincident faces to refuse.
     let tab_plane = r.insert(frame([0.0, 0.0, 0.125], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let tab_p = r.insert(Node::Profile(ProfileProgram {
-        plane: tab_plane,
+        plane: tab_plane.into(),
         loops: vec![
             LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                 .expect("finite tab corners"),
@@ -124,15 +124,15 @@ pub fn document() -> CorpusDoc {
         ids: Vec::new(),
     }));
     let tab = r.insert(Node::Extrude {
-        profile: tab_p,
+        profile: tab_p.into(),
         distance: len(0.25),
         side: ExtrudeSide::Along,
     });
 
     let union = r.insert(Node::Boolean {
         op: BooleanOp::Union,
-        a: plate,
-        b: tab,
+        a: plate.into(),
+        b: tab.into(),
         declare: Vec::new(),
     });
 

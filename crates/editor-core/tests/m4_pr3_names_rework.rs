@@ -42,7 +42,7 @@ fn block(
     insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(dz),
             side: ExtrudeSide::Along,
         },
@@ -63,8 +63,8 @@ fn union_cross_bar_names_totally() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -87,8 +87,8 @@ fn union_cross_bar_swapped_names_totally() {
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -109,8 +109,8 @@ fn subtract_cross_bar_names_totally() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -131,8 +131,8 @@ fn subtract_block_from_bar_never_fails_in_naming() {
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a,
-            b,
+            a: a.into(),
+            b: b.into(),
             declare: Vec::new(),
         },
     );
@@ -169,8 +169,8 @@ fn split_through_operand_edges_names_totally() {
     let (doc, sp) = insert(
         doc,
         Node::Split {
-            target: d,
-            tool: plane,
+            target: d.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc);
@@ -220,7 +220,7 @@ fn split_through_a_reflex_corner_names_its_copy_on_each_half() {
     let (doc, prism) = insert(
         doc,
         Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -235,8 +235,8 @@ fn split_through_a_reflex_corner_names_its_copy_on_each_half() {
     let (doc, sp) = insert(
         doc,
         Node::Split {
-            target: prism,
-            tool: plane,
+            target: prism.into(),
+            tool: plane.into(),
         },
     );
     let ev = run(&doc);
@@ -290,14 +290,14 @@ fn pattern_of_split_output_refuses_typed_never_misnames() {
     let (doc, sp) = insert(
         doc,
         Node::Split {
-            target: d,
-            tool: plane,
+            target: d.into(),
+            tool: plane.into(),
         },
     );
     let (doc, pat) = insert(
         doc,
         Node::Pattern {
-            input: sp,
+            input: sp.into(),
             count: editor_core::Formula::count(2),
             kind: editor_core::PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],

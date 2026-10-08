@@ -138,26 +138,26 @@ fn stepped_shaft_sized(
     // a plane bind the same id, which is how sharing is said now.
     let frame = r.insert(fixture::xy_frame());
     let base_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        plane: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-o, -o), (o, -o), (o, o), (-o, o)]).expect("finite corners"),
         ],
         ids: Vec::new(),
     }));
     let base = r.insert(Node::Extrude {
-        profile: base_p,
+        profile: base_p.into(),
         distance: param("h1", Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let boss_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        plane: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-i, -i), (i, -i), (i, i), (-i, i)]).expect("finite corners"),
         ],
         ids: Vec::new(),
     }));
     let boss_raw = r.insert(Node::Extrude {
-        profile: boss_p,
+        profile: boss_p.into(),
         distance: param("h2", Dimension::Length),
         side: ExtrudeSide::Along,
     });
@@ -238,12 +238,12 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     ]);
     let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        plane: frame.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));
     let slab = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });

@@ -51,7 +51,7 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![square],
             ids: Vec::new(),
         }),
@@ -59,7 +59,7 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
     let (doc, body) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -110,7 +110,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     let (d, ua) = insert(
         &d,
         Node::Extrude {
-            profile: bp,
+            profile: bp.into(),
             distance: len(4.0),
             side: ExtrudeSide::Along,
         },
@@ -134,7 +134,7 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     let (d, ub) = insert(
         &d,
         Node::Extrude {
-            profile: up,
+            profile: up.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         },
@@ -143,8 +143,8 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
         &d,
         Node::Boolean {
             op: BooleanOp::Subtract,
-            a: ua,
-            b: ub,
+            a: ua.into(),
+            b: ub.into(),
             declare: Vec::new(),
         },
     );
@@ -222,7 +222,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Extrude {
-                profile: doc.ids()[1],
+                profile: doc.ids()[1].into(),
                 distance: len(2.0),
                 side: ExtrudeSide::Along,
             }),

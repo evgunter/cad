@@ -101,7 +101,7 @@ fn block(doc: ProfileDoc, cx: f64) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -309,7 +309,7 @@ fn a_pattern_root_names_each_failing_instance() {
     let (doc, pattern) = insert(
         doc,
         Node::Pattern {
-            input: a,
+            input: a.into(),
             count: Formula::count(3),
             kind: PatternKind::Linear {
                 direction: [scl(1.0), scl(0.0), scl(0.0)],
@@ -351,7 +351,7 @@ fn a_split_root_names_its_below_half_as_output_1() {
             normal: [scl(0.0), scl(0.0), scl(1.0)],
         }),
     );
-    let (doc, split) = insert(doc, Node::Split { target: a, tool });
+    let (doc, split) = insert(doc, Node::Split { target: a.into(), tool: tool.into() });
     assert_eq!(doc.roots(), &[split][..]);
     let mut ev = run(&doc);
     let Some(NodeResult::Ok(value)) = ev.nodes.get_mut(&split) else {

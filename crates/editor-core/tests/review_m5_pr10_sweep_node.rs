@@ -61,7 +61,7 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
         let (d, path) = insert(
             doc,
             Node::Profile(editor_core::ProfileProgram {
-                plane: path_plane,
+                plane: path_plane.into(),
                 loops: path_loops,
                 ids: Vec::new(),
             }),
@@ -70,8 +70,8 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
         let (doc, sweep) = insert(
             doc,
             Node::Sweep {
-                profile,
-                path,
+                profile: profile.into(),
+                path: path.into(),
                 stations: Formula::count(4),
                 v_degree: Formula::count(2),
             },
@@ -140,8 +140,8 @@ fn review_recipe_doors_precede_the_sweep_frontier() {
     let (doc, sweep) = insert(
         doc,
         Node::Sweep {
-            profile,
-            path: datum,
+            profile: profile.into(),
+            path: datum.into(),
             stations: Formula::count(4),
             v_degree: Formula::count(2),
         },

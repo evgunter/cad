@@ -124,12 +124,12 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![rod_loop(false)],
         ids: Vec::new(),
     }));
     let rod = r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(ROD_L),
         side: ExtrudeSide::Along,
     });

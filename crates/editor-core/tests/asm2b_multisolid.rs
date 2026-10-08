@@ -38,7 +38,7 @@ fn part(label: &str, cx: f64) -> ProfileDoc {
     let (doc, _) = insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

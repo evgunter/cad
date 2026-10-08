@@ -251,7 +251,7 @@ fn plate_spaced(
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        plane: frame.into(),
         loops: vec![
             LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
                 .expect("finite plate corners"),
@@ -259,14 +259,14 @@ fn plate_spaced(
         ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
-        profile: plate_profile,
+        profile: plate_profile.into(),
         distance: param("depth", Dimension::Length),
         side: ExtrudeSide::Along,
     });
     let mut holes = Vec::new();
     for cx in [-hole_x, hole_x] {
         let p = r.insert(Node::Profile(ProfileProgram {
-            plane: frame,
+            plane: frame.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
                 radius: param("hole_r", Dimension::Length),
@@ -274,7 +274,7 @@ fn plate_spaced(
             ids: Vec::new(),
         }));
         holes.push(r.insert(Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(0.1),
             side: ExtrudeSide::Along,
         }));
@@ -294,7 +294,7 @@ fn plate_spaced(
         Node::measure(web, vec![wall_of(holes[0]), wall_of(holes[1])]).expect("indices in range"),
     );
     let assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(MIN_WEB),
         dir: AssertionDir::AtLeast,
     });
@@ -338,7 +338,7 @@ fn kink(dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        plane: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -346,7 +346,7 @@ fn kink(dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -395,7 +395,7 @@ fn slab(half: f64) -> (ProfileDoc, RecipeNodeId) {
     // share a plane bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        plane: frame.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
@@ -403,7 +403,7 @@ fn slab(half: f64) -> (ProfileDoc, RecipeNodeId) {
         ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: param("depth", Dimension::Length),
         side: ExtrudeSide::Along,
     });
@@ -1448,7 +1448,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     // on the same plane, so they bind the same id.
     let frame = r.insert(fixture::xy_frame());
     let bore_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        plane: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             radius: len(0.5),
@@ -1456,12 +1456,12 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
         ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
-        profile: bore_p,
+        profile: bore_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
     let pin_p = r.insert(Node::Profile(ProfileProgram {
-        plane: frame,
+        plane: frame.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.1), len(0.0)],
             radius: param("r", Dimension::Length),
@@ -1469,7 +1469,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
         ids: Vec::new(),
     }));
     let pin = r.insert(Node::Extrude {
-        profile: pin_p,
+        profile: pin_p.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
@@ -1601,11 +1601,11 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
         })
     };
     let f0 = frame_at(&mut r, 0.0);
-    let p0 = r.insert(section(f0));
+    let p0 = r.insert(section(f0.into()));
     let f1 = frame_at(&mut r, 1.0);
-    let p1 = r.insert(section(f1));
+    let p1 = r.insert(section(f1.into()));
     let loft = r.insert(Node::Loft {
-        profiles: vec![p0, p1],
+        profiles: vec![p0.into(), p1.into()],
         v_degree: Formula::count(1),
     });
     let ev = eval(&r.doc);

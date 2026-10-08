@@ -30,7 +30,7 @@ fn the_selection_reaches_the_wire_canonical() {
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(editor_core::ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![square],
             ids: Vec::new(),
         }),
@@ -38,7 +38,7 @@ fn the_selection_reaches_the_wire_canonical() {
     let (mut doc, body) = fixture::insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },

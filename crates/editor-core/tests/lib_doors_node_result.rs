@@ -24,7 +24,7 @@ use geom_core::Tol;
 /// A square profile `[0,s]²` on `plane`, as a loop program.
 fn square(plane: RecipeNodeId, s: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(s), len(0.0)])),
@@ -63,7 +63,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let outer = insert(
         &mut doc,
         Box::new(Node::Extrude {
-            profile: outer_profile,
+            profile: outer_profile.into(),
             distance: len(2.0),
             side: ExtrudeSide::Along,
         }),
@@ -72,7 +72,7 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let inner = insert(
         &mut doc,
         Box::new(Node::Extrude {
-            profile: inner_profile,
+            profile: inner_profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         }),
@@ -81,8 +81,8 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &mut doc,
         Box::new(Node::Boolean {
             op: BooleanOp::Subtract,
-            a: outer,
-            b: inner,
+            a: outer.into(),
+            b: inner.into(),
             declare: Vec::new(),
         }),
     );
@@ -90,8 +90,8 @@ fn doc_with_failure() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &mut doc,
         Box::new(Node::Boolean {
             op: BooleanOp::Union,
-            a: cut,
-            b: outer,
+            a: cut.into(),
+            b: outer.into(),
             declare: Vec::new(),
         }),
     );

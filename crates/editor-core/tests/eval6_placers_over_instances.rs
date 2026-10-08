@@ -49,7 +49,7 @@ pub(crate) fn cube_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         },
@@ -59,7 +59,7 @@ pub(crate) fn cube_doc(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// A linear pattern of `count` along `dir` at `spacing`.
 pub(crate) fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i64) -> AuthoredNode {
     Node::Pattern {
-        input,
+        input: input.into(),
         count: editor_core::Formula::count(count),
         kind: PatternKind::Linear {
             direction: dir.map(scl),
@@ -71,7 +71,7 @@ pub(crate) fn linear(input: RecipeNodeId, dir: [f64; 3], spacing: f64, count: i6
 /// `Part(Instance(i))` of `of`.
 pub(crate) fn part(of: RecipeNodeId, i: i64) -> AuthoredNode {
     Node::Part {
-        of,
+        of: of.into(),
         select: PartSelect::Instance(editor_core::Formula::count(i)),
     }
 }
@@ -388,8 +388,8 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
     let (doc, split) = insert(
         doc,
         Node::Split {
-            target: cube,
-            tool: plane,
+            target: cube.into(),
+            tool: plane.into(),
         },
     );
     let (doc, pattern) = insert(doc, linear(cube, [1.0, 0.0, 0.0], 2.0, M));
@@ -402,8 +402,8 @@ fn the_placers_admit_a_body_or_instances_and_the_boolean_one_body() {
         doc,
         Node::Boolean {
             op: editor_core::BooleanOp::Union,
-            a: pattern,
-            b: cube,
+            a: pattern.into(),
+            b: cube.into(),
             declare: Vec::new(),
         },
     );

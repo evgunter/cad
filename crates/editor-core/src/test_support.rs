@@ -88,11 +88,7 @@ pub fn scratch(tol: geom_core::Tol) -> ProfileDoc {
 ///
 /// If `node` does not lower in `doc`.
 pub fn stored(doc: &mut ProfileDoc, node: &crate::AuthoredNode) -> Node<ProfileProgram> {
-    use crate::ProfilePayload;
-    node.try_map_slots(|p, f| ProfileProgram::lower(p, f), &mut |f| {
-        crate::edit::lower_slot_into(doc, f)
-    })
-    .expect("a node the document can answer lowers")
+    crate::edit::lower_node_into(doc, node).expect("a node the document can answer lowers")
 }
 
 /// **A live node as it was written**: each slot the formula its
@@ -137,9 +133,11 @@ pub fn stored_expr(formula: &Formula) -> Expr {
 ///
 /// If `program` does not lower in `doc`.
 pub fn stored_program(doc: &mut ProfileDoc, program: &ProfileProgram<Formula>) -> ProfileProgram {
-    program
-        .try_map_slots(&mut |f| crate::edit::lower_slot_into(doc, f))
-        .expect("a program the document can answer lowers")
+    match crate::edit::lower_node_into(doc, &Node::Profile(program.clone())) {
+        Ok(Node::Profile(stored)) => stored,
+        Ok(_) => unreachable!("a profile lowers to a profile"),
+        Err(refusal) => panic!("a program the document can answer lowers: {refusal}"),
+    }
 }
 
 /// The stored loop `program` lowers to in `doc` ([`stored`]).
@@ -220,7 +218,7 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
     let (doc, profile) = ins(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
             ids: Vec::new(),
         }),
@@ -228,7 +226,7 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
     let (doc, ext) = ins(
         doc,
         Node::Extrude {
-            profile,
+            profile: profile.into(),
             distance: len(1.0),
             side: crate::ExtrudeSide::Along,
         },
@@ -240,7 +238,13 @@ pub fn clipped_cylinder(tol: geom_core::Tol) -> (ProfileDoc, [RecipeNodeId; 3]) 
             normal: [scl(0.0), scl(1.0), scl(-1.0)],
         }),
     );
-    let (doc, split) = ins(doc, Node::Split { target: ext, tool });
+    let (doc, split) = ins(
+        doc,
+        Node::Split {
+            target: ext.into(),
+            tool: tool.into(),
+        },
+    );
     (doc, [ext, tool, split])
 }
 

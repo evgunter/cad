@@ -41,7 +41,7 @@ fn revolve_chain(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, R
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -56,8 +56,8 @@ fn revolve_chain(steps: Vec<ProgramStep<Formula>>, angle: f64) -> (ProfileDoc, R
     insert(
         doc,
         Node::Revolve {
-            profile: p,
-            axis,
+            profile: p.into(),
+            axis: axis.into(),
             angle: ang(angle),
         },
     )
@@ -79,7 +79,7 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
     // does not have would be turned away for that instead.
     let (doc, plane) = insert(doc, fixture::xy_frame());
     let node = Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At(len2([0.0, 1.0])),
             ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 0.0]))),

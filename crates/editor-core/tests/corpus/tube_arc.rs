@@ -55,13 +55,13 @@ pub fn document() -> CorpusDoc {
     // A different spine axis from `tube_ring`'s deliberately: that
     // document turns about +z and this one about +y, so a lowering
     // that assumed one world axis has two documents to disagree with.
-    let spine = r.insert(Node::Datum(Datum::Axis {
+    let spine = r.insert(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scl(0.0), scl(1.0), scl(0.0)],
+        u: [scl(1.0), scl(0.0), scl(0.0)],
+        v: [scl(0.0), scl(0.0), scl(-1.0)],
     }));
     let bend = r.insert(Node::Tube {
-        spine,
-        u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+        frame: spine.into(),
         major_radius: len(R),
         window: TubeWindow::Arc {
             t0: ang(T0),

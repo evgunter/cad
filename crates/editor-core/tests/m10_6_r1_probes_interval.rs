@@ -154,12 +154,12 @@ fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Formula; 3]) -> RecipeNo
 fn prism(r: &mut Recorder, origin: [f64; 3], corners: &[(f64, f64)], height: f64) -> RecipeNodeId {
     let plane = r.insert(fixture::frame(origin, [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![LoopProgram::polygon(corners.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile,
+        profile: profile.into(),
         distance: len(height),
         side: ExtrudeSide::Along,
     })
@@ -209,7 +209,7 @@ fn notch(bound: f64, dir: AssertionDir) -> (ProfileDoc, RecipeNodeId, RecipeNode
         .expect("both indices in range"),
     );
     let assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(bound),
         dir,
     });
@@ -492,7 +492,7 @@ fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, RecipeNodeId, Recipe
         .expect("in range"),
     );
     let assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(bound),
         dir: AssertionDir::AtLeast,
     });
@@ -616,14 +616,14 @@ fn report_key_tells_two_budgets_apart() {
     );
     let plane = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("square"),
         ],
         ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
-        profile: p,
+        profile: p.into(),
         distance: Formula::named(name("depth"), Dimension::Length),
         side: ExtrudeSide::Along,
     });
@@ -784,7 +784,7 @@ fn neck_dir(
         .expect("in range"),
     );
     let assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(bound),
         dir,
     });
@@ -950,7 +950,7 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
         .expect("in range"),
     );
     r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(1.0),
         dir: AssertionDir::AtLeast,
     });
@@ -1068,7 +1068,7 @@ fn bracket(
         .expect("in range"),
     );
     let web_ok = r.insert(Node::Assertion {
-        measure: web,
+        measure: web.into(),
         bound: len(0.9),
         dir: AssertionDir::AtLeast,
     });
@@ -1094,7 +1094,7 @@ fn bracket(
         .expect("in range"),
     );
     let clear_ok = r.insert(Node::Assertion {
-        measure: clearance,
+        measure: clearance.into(),
         bound: len(0.1),
         dir: AssertionDir::AtLeast,
     });
@@ -1320,7 +1320,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     }
     let plane = r.insert(fixture::xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
-        plane,
+        plane: plane.into(),
         loops: vec![
             LoopProgram::polygon([
                 (-4.0e-3, -2.0e-3),
@@ -1333,13 +1333,13 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
         ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
-        profile: plate_p,
+        profile: plate_p.into(),
         distance: len(1.0e-3),
         side: ExtrudeSide::Along,
     });
     let hole = |r: &mut Recorder, centre: Formula, radius: &'static str| {
         let p = r.insert(Node::Profile(ProfileProgram {
-            plane,
+            plane: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [centre, len(0.0)],
                 radius: Formula::named(name(radius), Dimension::Length),
@@ -1347,7 +1347,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
             ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
-            profile: p,
+            profile: p.into(),
             distance: len(1.0e-3),
             side: ExtrudeSide::Along,
         })
@@ -1392,7 +1392,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     .expect("L − L");
     let measure = r.insert(Node::measure(web, refs).expect("in range"));
     let assertion = r.insert(Node::Assertion {
-        measure,
+        measure: measure.into(),
         bound: len(bound),
         dir: AssertionDir::AtLeast,
     });
