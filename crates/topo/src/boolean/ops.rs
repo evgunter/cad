@@ -2767,6 +2767,12 @@ impl Descendants {
     }
 
     pub(super) fn absorb_merge(&mut self, merged: &crate::merge_faces::MergeCoplanarOutcome) {
+        // The boolean merges unjoined (`finish_output`): its joins are
+        // written by its own join stage, after the re-description.
+        debug_assert!(
+            merged.joins.is_empty(),
+            "absorb_merge: the boolean's merge is the unjoined one, so it reports no join"
+        );
         for group in &merged.groups {
             for &absorbed in &group.absorbed {
                 self.faces.insert(absorbed, group.kept);

@@ -522,10 +522,8 @@ pub enum MergeCoplanarError {
     /// joined edge cannot be run on, or the kill's own refusal. The
     /// body is untouched, exactly as on every other variant.
     Join {
-        /// The join's refusal, by kind ([`crate::BooleanError::kind`]).
-        kind: crate::boolean::BooleanErrorKind,
-        /// The refusal's own sentence.
-        what: String,
+        /// Why the join refused.
+        refusal: crate::boolean::JoinRefusal,
     },
     /// A kept face's boundary edge could not be re-described against
     /// the two faces the merge left it between.
@@ -983,11 +981,7 @@ impl core::fmt::Display for MergeCoplanarError {
                 "merge_coplanar_faces: the staged result's pcurve re-mint refused \
                  ({source}) — the body is untouched"
             ),
-            Self::Join { what, .. } => write!(
-                f,
-                "merge_coplanar_faces: the join on the merged body refused ({what}) — the body \
-                 is untouched"
-            ),
+            Self::Join { refusal } => write!(f, "merging coplanar faces: {refusal}"),
             Self::KeptBoundaryUndescribed {
                 face,
                 edge,
@@ -1656,26 +1650,13 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
-        let mut work = self.clone();
-        let mut outcome = work.merge_coplanar_faces_unjoined(declared, tol)?;
-        let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
-        outcome.joins = work
-            .join_edges(band, tol)
-            .map_err(|refusal| MergeCoplanarError::Join {
-                kind: refusal.kind(),
-                what: crate::boolean::edge_join::join_refusal_sentence(&refusal),
-            })?;
-        if !outcome.joins.is_empty() && !work.pcurves.is_empty() {
-            crate::pcurves::mint_pcurves(&mut work, tol)
-                .map_err(|source| MergeCoplanarError::Pcurve { source })?;
-        }
-        self.adopt(work);
-        Ok(outcome)
+        self.merge_coplanar_faces_staged(declared, tol, true)
     }
 
     /// [`Body::merge_coplanar_faces_declared`] without the join: the
     /// boolean's merge, whose output stage re-describes what it minted
-    /// and joins after (`boolean::ops::finish_output`).
+    /// and joins after (`boolean::ops::finish_output`). Its result is
+    /// construction state a later step must join.
     pub(crate) fn merge_coplanar_faces_unjoined(
         &mut self,
         declared: &[(SurfaceKey, SurfaceKey)],
@@ -1684,6 +1665,32 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
+        self.merge_coplanar_faces_staged(declared, tol, false)
+    }
+
+    /// The merge, ending with the join where `join` is set: on the
+    /// staged result before it is adopted, so a refusal of either
+    /// leaves the body untouched.
+    fn merge_coplanar_faces_staged(
+        &mut self,
+        declared: &[(SurfaceKey, SurfaceKey)],
+        tol: Tol,
+        join: bool,
+    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let joined =
+            |body: &mut Self| -> Result<Vec<crate::boolean::EdgeJoin>, MergeCoplanarError> {
+                if !join {
+                    return Ok(Vec::new());
+                }
+                let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
+                body.join_edges(band, tol)
+                    .map_err(|refusal| MergeCoplanarError::Join {
+                        refusal: crate::boolean::JoinRefusal::of(&refusal),
+                    })
+            };
         // ---- Gate: tier-valid before. ----
         if let Err(errors) = validate_closed(self) {
             return Err(MergeCoplanarError::InputNotClosed { errors });
@@ -1797,6 +1804,9 @@ impl<T: Decide> Body<T> {
             // not about any merge), on the outcome whose placeholder
             // census the initializer already took.
             outcome.skipped = declined_records(self);
+            // Nothing merged, so `self` is as found: the join door
+            // stages its own clone.
+            outcome.joins = joined(self)?;
             return Ok(outcome);
         }
         // ---- Group labeling (face-arena order seeds, DFS worklist). ----
@@ -1973,6 +1983,7 @@ impl<T: Decide> Body<T> {
         let mut skipped = declined;
         skipped.append(&mut outcome.skipped);
         outcome.skipped = skipped;
+        outcome.joins = joined(&mut work)?;
         self.adopt(work);
         Ok(outcome)
     }

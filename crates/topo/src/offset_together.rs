@@ -165,20 +165,22 @@ pub fn offset_planes_together<T: Decide + crate::props::AtRestPolicy>(
     moves: &[ChartMove<T>],
     band: Band,
     tol: Tol,
-) -> Result<(), ReplaceFaceError<T>> {
-    crate::replace_face::ending_with_the_join(body, tol, |work| {
-        offset_planes_together_unjoined(work, moves, band, tol)
-    })
+) -> Result<crate::replace_face::OffsetOutcome, ReplaceFaceError<T>> {
+    offset_planes_together_staged(body, moves, band, tol, true)
+        .map(|joins| crate::replace_face::OffsetOutcome { joins })
 }
 
-/// [`offset_planes_together`] without the join: the shell's cavity
-/// offset, which keys its naming rows by the moved body's cells.
-pub(crate) fn offset_planes_together_unjoined<T: Decide + crate::props::AtRestPolicy>(
+/// [`offset_planes_together`], ending with the join where `join` is set. Unset, the
+/// result is construction state a later step must join: the shell's
+/// cavity and lift offsets, which key their naming rows by the moved
+/// body's cells.
+pub(crate) fn offset_planes_together_staged<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     moves: &[ChartMove<T>],
     band: Band,
     tol: Tol,
-) -> Result<(), ReplaceFaceError<T>> {
+    join: bool,
+) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
     // ---- Decide: the chart moves are well formed. ----
     //
     // One surface key per chart and no face named twice: both are
@@ -486,8 +488,9 @@ pub(crate) fn offset_planes_together_unjoined<T: Decide + crate::props::AtRestPo
     if let Err(errors) = crate::validate::validate_closed(&staged) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }
+    let joins = crate::replace_face::staged_join(&mut staged, join, tol)?;
     body.adopt(staged);
-    Ok(())
+    Ok(joins)
 }
 
 /// Whether the moves ask the corner on `at`'s planes to move —
