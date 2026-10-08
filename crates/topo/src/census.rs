@@ -10036,6 +10036,23 @@ mod tests {
                 cuts.len() == 1 && close(cuts[0].0, 0.1),
                 "only the side edge that crosses away from a vertex: {cuts:?}"
             );
+            // A corner `12ε` across the line — just past the escalation
+            // threshold — still makes its side edge a crossing.
+            let near = 0.3 + 12.0 * band().zero();
+            let (body, face, edge) = lap(&[
+                (0.1, 0.2),
+                (0.3, 0.2),
+                (0.3, near),
+                (0.2, 0.42),
+                (0.1, 0.42),
+            ]);
+            let (cuts, errors) = crossings(&body, face, edge);
+            let cuts = cuts.expect("decided");
+            assert!(errors.is_empty(), "{errors:?}");
+            assert!(
+                cuts.len() == 2 && cuts.iter().any(|c| (c.0 - 0.3).abs() < 1e-9),
+                "the side edge whose corner is 12ε across is cut: {cuts:?}"
+            );
         }
 
         /// **A crossing within the band escalates.** A cap corner
@@ -10315,6 +10332,215 @@ mod tests {
                     }]
                 ),
                 "{errors:?}"
+            );
+        }
+
+        /// A planar cap bounded by one ellipse arc `(t0, t1)` of
+        /// `carrier`, cut from `cyl` by the plane through the ellipse,
+        /// and the chord closing it; the cap's face.
+        fn ellipse_cap(
+            cyl: CylFrame,
+            carrier: geom::Curve3<f64>,
+            (t0, t1): (f64, f64),
+        ) -> (Body<f64>, FaceKey) {
+            use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+            let geom::Curve3::Ellipse {
+                center,
+                axis,
+                u_ref,
+                ..
+            } = carrier
+            else {
+                panic!("an ellipse carrier")
+            };
+            let tol = Tol::witness();
+            let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
+            let mut body = Body::<f64>::new();
+            let seed = body.mvfs(p0, true).expect("a seed");
+            let plane = body.add_surface(Surface::Plane {
+                origin: center,
+                normal: axis,
+                u_ref,
+            });
+            let cyl = body.add_surface(cyl.surface());
+            let arc = body
+                .mev(
+                    MevSite::Lone {
+                        r#loop: seed.r#loop,
+                    },
+                    p1,
+                    EdgeCurveSpec {
+                        description: EdgeDescriptionSpec::Intersection {
+                            s1: cyl,
+                            s2: plane,
+                            witness: carrier.eval(geom::mid_param(t0, t1)),
+                        },
+                        carrier,
+                        param_start: t0,
+                        param_end: t1,
+                    },
+                    tol,
+                )
+                .expect("the arc");
+            let chord = body
+                .mef(
+                    MefSite::Chords {
+                        he1: arc.he_minus,
+                        he2: arc.he_plus,
+                    },
+                    EdgeCurveSpec::line_between(p1, p0),
+                    FaceSurface::Shared {
+                        key: plane,
+                        sense: true,
+                    },
+                    tol,
+                )
+                .expect("the chord closes the cap");
+            let face = [chord.face, seed.face]
+                .into_iter()
+                .find(|&f| {
+                    let geo = snapshot(&body);
+                    planar_face(&geo, f).is_some()
+                        && body.get_face(f).is_some_and(|d| d.surface == plane)
+                })
+                .expect("the cap");
+            (body, face)
+        }
+
+        /// An edge from `a` to `b` in `body`'s census snapshot shape,
+        /// keyed on any of `body`'s own entities: the overlap lane reads
+        /// only its geometry.
+        fn edge_from(body: &Body<f64>, a: Point3<f64>, b: Point3<f64>) -> EdgeGeo<f64> {
+            let geo = snapshot(body);
+            let any = &geo.edges[0];
+            EdgeGeo {
+                p0: a,
+                dir: (b - a).normalize(),
+                len: (b - a).norm(),
+                ..*any
+            }
+        }
+
+        /// The `y` of every cell's bounds and their kinds.
+        fn cells_along_y(
+            body: &Body<f64>,
+            face: FaceKey,
+            e: &EdgeGeo<f64>,
+        ) -> (Vec<(f64, CutAt, f64, CutAt)>, Vec<ValidationError>) {
+            let geo = snapshot(body);
+            let f = planar_face(&geo, face).unwrap();
+            let mut errors = Vec::new();
+            let cells = ef_overlap_cells(body, e, f, &geo, band(), &mut errors);
+            let y = |c: Cut<f64>| (e.p0 + e.dir * c.s).y;
+            (
+                cells
+                    .iter()
+                    .map(|c| (y(c.lo), c.lo.at, y(c.hi), c.hi.at))
+                    .collect(),
+                errors,
+            )
+        }
+
+        /// **A steep ellipse's crossing near an arc end is cut** (the
+        /// half-ellipse `a = 20, b = 1`, arc `[π/2, 3π/2]`, closed by the
+        /// chord `x = 0`). The edge runs on `x = −19ε`: it crosses the
+        /// arc `19ε` from each end along the arc — clear of the end in
+        /// metres — but only `0.95ε` from it in the carrier's parameter
+        /// times its minor semi-axis. Both crossings are cut, and the
+        /// edge's stretch inside the cap is one cell between them.
+        #[test]
+        fn a_steep_ellipse_crossing_near_an_arc_end_is_cut() {
+            use std::f64::consts::{FRAC_PI_2, PI};
+            let carrier = geom::Curve3::Ellipse {
+                center: Point3::origin(),
+                axis: Vec3::unit_z(),
+                major: 20.0,
+                minor: 1.0,
+                u_ref: Vec3::unit_x(),
+            };
+            let (body, cap) = ellipse_cap(
+                CylFrame::tilted(1.0, 0.05_f64.acos()),
+                carrier,
+                (FRAC_PI_2, 3.0 * FRAC_PI_2),
+            );
+            let x = -19.0 * band().zero();
+            let e = edge_from(&body, Point3::new(x, -1.2, 0.0), Point3::new(x, 4.0, 0.0));
+            let (cells, errors) = cells_along_y(&body, cap, &e);
+            assert!(errors.is_empty(), "{errors:?}");
+            assert!(
+                cells.len() == 1
+                    && (cells[0].0 + 1.0).abs() < 1e-6
+                    && (cells[0].2 - 1.0).abs() < 1e-6
+                    && matches!(
+                        (cells[0].1, cells[0].3),
+                        (CutAt::ConicCrossing, CutAt::ConicCrossing)
+                    ),
+                "one cell, crossing to crossing: {cells:?} (π = {PI})"
+            );
+        }
+
+        /// The same, tilted: a face in the plane `z = 20x` bounded by an
+        /// arc of the cylinder `x² + y² = 0.01` (an ellipse of semi-axes
+        /// `√4.01` and `0.1`), from `8ε` short of `θ = π/2` round to `8ε`
+        /// past `3π/2`, and its chord. The edge on `x = z = 0` crosses the
+        /// arc at `θ = π/2` and `3π/2`, `0.8ε` from the ends by the minor
+        /// meter and `16ε` along the arc. An edge reaching past the
+        /// crossing at `y = 0.1` has one cell inside, bounded there; an
+        /// edge ending inside has no cell straddling it.
+        #[test]
+        fn a_tilted_ellipse_crossing_near_an_arc_end_is_cut() {
+            use std::f64::consts::{FRAC_PI_2, PI};
+            let major = 4.01_f64.sqrt();
+            let normal = Vec3::new(-20.0, 0.0, 1.0).normalize();
+            let carrier = geom::Curve3::Ellipse {
+                center: Point3::origin(),
+                axis: normal,
+                major,
+                minor: 0.1,
+                u_ref: Vec3::new(1.0, 0.0, 20.0).normalize(),
+            };
+            let d = 8.0 * band().zero();
+            let (body, cap) = ellipse_cap(
+                CylFrame::canonical(0.1),
+                carrier,
+                (FRAC_PI_2 - d, 3.0 * FRAC_PI_2 + d),
+            );
+            let on_y = |y0: f64, y1: f64| {
+                edge_from(&body, Point3::new(0.0, y0, 0.0), Point3::new(0.0, y1, 0.0))
+            };
+            let (cells, errors) = cells_along_y(&body, cap, &on_y(-0.05, 0.3));
+            assert!(errors.is_empty(), "{errors:?}");
+            assert!(
+                cells.len() == 1
+                    && (cells[0].0 + 0.05).abs() < 1e-9
+                    && (cells[0].2 - 0.1).abs() < 1e-6
+                    && matches!(cells[0].3, CutAt::ConicCrossing),
+                "the stretch inside, bounded at the crossing: {cells:?} (π = {PI})"
+            );
+            let (cells, errors) = cells_along_y(&body, cap, &on_y(0.0, 0.15));
+            assert!(errors.is_empty(), "{errors:?}");
+            assert!(
+                cells.len() == 1 && (cells[0].2 - 0.1).abs() < 1e-6,
+                "no cell straddles the crossing: {cells:?}"
+            );
+        }
+
+        /// `pm_census_ef_cross_screen` skips only what lies wholly past
+        /// one end: a cap side running from past the shelf edge's start
+        /// (`x = 0.95`) to inside its span crosses the edge at
+        /// `x ≈ 0.859`, and is cut there.
+        #[test]
+        fn a_boundary_edge_reaching_past_an_end_is_read() {
+            let (body, face, edge) = lap(&[(0.5, 0.2), (0.95, 0.2), (0.75, 0.42), (0.5, 0.42)]);
+            let (cuts, errors) = crossings(&body, face, edge);
+            assert!(errors.is_empty(), "{errors:?}");
+            let cuts = cuts.expect("decided");
+            let x = 0.95 - 0.2 * (0.1 / 0.22);
+            assert!(
+                cuts.len() == 2
+                    && cuts.iter().any(|c| (c.0 - x).abs() < 1e-12)
+                    && cuts.iter().any(|c| close(c.0, 0.5)),
+                "{cuts:?}"
             );
         }
     }
