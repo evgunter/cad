@@ -2497,6 +2497,7 @@ Blocked: no orchestrator, and no row that can be picked up.
 | `perpendicular-part-over-a-small-norm-outside-section-cert` | 2026-10-06 | Four perpendicular parts divided by a small norm outside section_cert (join, offset_axial, props) |
 | `decided-tangent-point-is-the-radical-foot` | 2026-10-07 | decided-tangent contact points taken at the radical-line foot sit off both circles by gap*(r1+r2)/d, not the gap |
 | `two-rows-commit-a-process-global-tolerance-and-red-under-cargo-test` | 2026-10-07 | Two rows commit a process-global tolerance, so they red under cargo test and pass only under nextest |
+| `graft-door-caller-errors-are-join-desync` | 2026-10-08 | the graft doors refuse a caller's wrong source as JoinDesync, which offer_key reads as a kernel defect |
 
 ## Blocked
 
