@@ -3,7 +3,7 @@
 //! face, and a box across it refuses, never deciding a crossing. The
 //! rows are a log whose lower arc dips into a wall, declared as four
 //! v-on-f records that cleared on their word, and its flat-bottomed
-//! twin, a true rest the box reading certifies.
+//! twin, a true rest the reach boxes are too wide to certify.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
@@ -100,15 +100,40 @@ fn a_log_dipping_into_a_wall_declared_by_its_joints_refuses() {
     );
 }
 
-/// **The control: the flat-bottomed log on the wall**, declared the
-/// same way, certifies: every curved face's box lies on its side of
-/// the wall's top plane.
+/// **The flat-bottomed log on the wall, a true rest, refuses on its
+/// curved faces' boxes.** Declared the same way, every face is on its
+/// side of the wall's top plane, but the reach boxes of the two arc
+/// walls and of the two caps reach about 1.2 mm below it: an arc's box
+/// is its sampled hull widened by the subdivision charge on every side,
+/// the side its endpoint pins included. So arm 1 refuses each of those
+/// four pairs with the wall's top, typed, and nothing reads as a
+/// crossing. A tighter reading of curved faces is
+/// `work/contact/the-touch-analysis-reads-curved-cones-tighter-than-the-reach-box.md`.
 #[test]
-fn a_flat_bottomed_log_on_a_wall_declared_by_its_joints_certifies() {
+fn a_flat_bottomed_log_on_a_wall_refuses_on_its_curved_faces_boxes() {
     let body = wall_with(&log(true));
     let records = joints_on_the_wall_top(&body);
-    assert_eq!(
-        validate_pseudomanifold(&body, &records, Tol::witness()),
-        Ok(())
+    let errors = validate_pseudomanifold(&body, &records, Tol::witness())
+        .expect_err("the boxes cross the wall's top plane");
+    let curved = errors
+        .iter()
+        .filter(|e| {
+            matches!(
+                e,
+                ValidationError::CensusUndecidable {
+                    a: EntityId::Face(_),
+                    b: EntityId::Face(_),
+                    what,
+                } if what.starts_with("a curved face of one is within reach")
+            )
+        })
+        .count();
+    assert_eq!(curved, 4, "two arc walls and two caps: {errors:?}");
+    assert!(
+        errors.iter().all(|e| !matches!(
+            e,
+            ValidationError::UndeclaredContact { .. } | ValidationError::InstanceInterference { .. }
+        )),
+        "{errors:?}"
     );
 }
