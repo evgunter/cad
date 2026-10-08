@@ -750,3 +750,15 @@ The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12
   - **Q6:** U-H2 is probably the coincidence work's.
   - **Q7:** the item's chain is corrected by the spec.
 - **Dispatched:** U-S1 (the cone pierce normal and its lever), U-S2 (the sector normal and apex refusal) and U-S6 (the near-apex NaN), as one PR with a single review. U-S3+U-S4 (the frame and the join lane; dual) follow when a lane frees.
+
+## 2026-10-08 — PR 4352 (U4) dual review: both reviewers find one MAJOR; fix pass dispatched
+
+- **Concurrent arm (H).** R1 is NOT-MERGEABLE-AS-IS and R2 is APPROVE-WITH-FIXES (MAJOR blocking).
+- **Bilateral MAJOR, both executed and mpmath-checked:** `cone_sphere` (and `cone_plane`) projects the centre off the axis naively (`delta − a(delta·a)`) instead of with the module's own `square_to`. Near the axis the frame tilts, and every unsafe direction occurs: a W0 clearance of a null loop, W2 clearing a null loop, and W4 unsound.
+  - R2 reproduced it on real bodies: a ball in a conical seat, misaligned by less than a micron.
+  - The verified fix is two lines.
+- **Also:** witnesses drift off the carriers (W3 premise); the search never samples near the margins; the test door's events are a second spelling and unexercised; doc and spec errata.
+- **Pre-note:** tally none (the MAJOR is bilateral); the pair found a MAJOR. Fairness is flagged: each reviewer saw the other lane's process names or command line while diagnosing slot waits, and R2 listed the shared locks directory against its brief. No findings were glimpsed, so it stays fair.
+- **Blinded coding:** byte 84.
+- **The fix pass** carries the union.
+- **Class (logged):** a helper that exists for a numerical hazard (`square_to`) was bypassed by a second, naive spelling in a new arm. Briefs for numeric arms should name the module's existing hazard helpers.
