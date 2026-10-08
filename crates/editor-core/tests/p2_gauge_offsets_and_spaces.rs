@@ -956,8 +956,8 @@ fn a_cut_of_a_gauged_instance_and_its_transform_lands_on_two_anchors() {
     let (doc, x) = insert(doc, Node::instantiate_part(p.base));
     let doc = set_gauge(doc, x, Some(g));
     let (doc, t) = insert(doc, xform(x, [0.0, 0.0, 0.0], [0.0, 0.0, 1.0], 0.5));
-    // The transform is the root: its world placement holds the
-    // instance's geometry in the world's coordinates, and votes the
+    // The transform is placed: its world placement is no instance's
+    // body at the identity, so it follows no gauge and votes the
     // world.
     let (doc, t_copy) = crate::fixture::place(doc, t);
     let o = p.opts();

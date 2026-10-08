@@ -116,7 +116,7 @@ pub(crate) struct PartValue<T: Decide> {
     /// which the instantiating document must still be able to name.
     pub unplaced: Arc<Vec<PartRow<crate::assembly::UnplacedGroup>>>,
     /// How many parts the referenced document's product is: its
-    /// distinct root outputs ([`crate::product::Product::solid_copies`]),
+    /// placements' copies ([`crate::product::Product::solid_copies`]),
     /// each counted at its own value's `parts`, so a sub-assembly's
     /// parts count through (`NodeValue::parts`).
     pub parts: usize,

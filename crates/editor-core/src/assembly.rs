@@ -1524,8 +1524,8 @@ fn resolve_face<P: crate::ProfilePayload, T: Decide>(
             let row = names.lookup(&name);
             debug_assert!(
                 row.is_some(),
-                "a root's face row is absent from the product's table: \
-                 `product::carry_names` carries every face row of every root"
+                "a placement's face row is absent from the product's table: \
+                 `product::carry_names` carries every face row of every copy"
             );
             match row {
                 Some(Entry::Unique(ent)) => {

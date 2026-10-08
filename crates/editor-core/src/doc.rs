@@ -1061,10 +1061,12 @@ impl<P> Doc<P> {
             .collect()
     }
 
-    /// **The unplaced bodies** (A10): every live `Body` output no world
-    /// placement reads, a placement's own copy aside, in document
-    /// order. What a door needing a product names when the world is
-    /// empty ([`crate::ProductError::EmptyProduct`]).
+    /// **The unplaced bodies** (A10): every live `Body` or `Bodies`
+    /// output no world placement reads, a placement's own copy aside,
+    /// in document order. What a door needing a product names when the
+    /// world is empty ([`crate::ProductError::EmptyProduct`]); a
+    /// `Bodies` output (a pattern's) is placed through a `Part` pick of
+    /// one of its bodies.
     pub fn unplaced(&self) -> Vec<VarId> {
         let placed: std::collections::BTreeSet<VarId> = self
             .nodes
@@ -1079,10 +1081,9 @@ impl<P> Doc<P> {
             .filter(|(_, node)| !matches!(node, Node::PlaceInWorld { .. }))
             .flat_map(|(&id, _)| self.outputs(id))
             .filter(|var| {
-                self.vars
-                    .get(var)
-                    .is_some_and(|v| v.kind() == crate::VarKind::Body)
-                    && !placed.contains(var)
+                self.vars.get(var).is_some_and(|v| {
+                    matches!(v.kind(), crate::VarKind::Body | crate::VarKind::Bodies)
+                }) && !placed.contains(var)
             })
             .collect()
     }

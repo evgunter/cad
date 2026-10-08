@@ -348,7 +348,10 @@ impl ProductError {
                 write!(
                     f,
                     ". {}",
-                    crate::sentence::Recourse("place a body in the world")
+                    crate::sentence::Recourse(
+                        "place a body in the world; a list of bodies is placed one body at a \
+                         time, through a Part pick of it"
+                    )
                 )
             }
             Self::StrandedPlacement { placement } => write!(
@@ -610,9 +613,9 @@ impl ProductError {
 ///
 /// A [`crate::Node::Part`] is a `Body` value and contributes exactly
 /// the body it selected. The half or instance it did NOT select is in
-/// no product through it: a split or a pattern consumed by a Part is
-/// no longer a sink, so it is no longer a root, and the product of a
-/// document whose only root is a `Part(Above)` is that one half.
+/// no product through it: a placement reads one `Body`, so the product
+/// of a document whose one placement reads a `Part(Above)` is that one
+/// half.
 pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
     let carried = || Arc::clone(&value.contacts);
     let none = || Arc::new(ContactRecords::default());
@@ -712,13 +715,19 @@ pub fn gathers_on_this_thread() -> u64 {
     GATHERS.with(std::cell::Cell::get)
 }
 
-/// The document's product: every body-denoting root's solids gathered,
-/// in root-list order, into one [`Body`] (module docs). A root that
-/// lives in an unplaced group's own space is not part of it (A9).
+/// The document's product: every world placement's copy gathered, in
+/// the placements' document order, into one [`Body`] (module docs).
 ///
-/// The result is a pure function of (`doc.roots()`, `evaluation`) — no
-/// ambient state, so two evaluations of a root-neutral edit yield the
-/// same solid order (D9).
+/// **One carve-out (A11 (2), stage 3's to retire):** a placement whose
+/// copy lives in an unplaced group's own space is not part of it, and
+/// the gather stands without it rather than refusing. Export refuses
+/// such a copy (`pncad::export`'s `UnplacedBelow`), and
+/// [`Product::spaces`] carries it to the at-rest gate, so leaving it
+/// out is never silent.
+///
+/// The result is a pure function of (`doc.placements()`, `evaluation`)
+/// — no ambient state, so two evaluations of an edit that moves no
+/// placement yield the same solid order (D9).
 ///
 /// # Errors
 ///
@@ -764,10 +773,10 @@ pub struct Product<T: Decide> {
     /// Its declared contacts, re-keyed onto the aggregate through the
     /// graft's own descendant map.
     pub contacts: ContactRecords,
-    /// Which product ROOT contributed each of the aggregate's solids,
-    /// in gather order (`crate::checks`'s separation resident is the
+    /// Which placement contributed each of the aggregate's solids, in
+    /// gather order (`crate::checks`'s separation resident is the
     /// consumer: it turns a kernel finding about two solid keys into a
-    /// sentence about two roots).
+    /// sentence about two placements).
     ///
     /// Read off the GRAFT's own minted-key list, exactly as the name
     /// and contact carries are — never re-derived by looking at the

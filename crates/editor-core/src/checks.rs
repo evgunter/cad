@@ -33,9 +33,9 @@
 //!   "the caller turned me off" and "the data would not let me look"
 //!   are two answers and only the first is reversible by changing the
 //!   configuration.
-//! - **Deterministic order** (D9): findings follow root-list order,
-//!   then output-index order within a root — a report that changes
-//!   only when the document or its evaluation does.
+//! - **Deterministic order** (D9): findings follow the placements'
+//!   document order — a report that changes only when the document or
+//!   its evaluation does.
 //!
 //! The check set is a CLOSED enum ([`CheckId`], the D3 philosophy): a
 //! new check is a new variant, and the compiler enumerates every match
@@ -1260,9 +1260,8 @@ fn connectedness<P: crate::ProfilePayload, T: Decide + CertifiedBounds>(
 ///
 /// # Order (D9)
 ///
-/// Roots in root-list order, each root's outputs in output-index
-/// order, and within one body the door's own total order — its
-/// findings, then its unexamined loops. A pure function of the
+/// Placements in document order, and within one copy the door's own
+/// total order — its findings, then its unexamined loops. A pure function of the
 /// evaluation and eps, as the door itself is.
 fn chart_coherence<P: crate::ProfilePayload, T: Decide + ChartCoherenceLane>(
     doc: &Doc<P>,
@@ -1322,8 +1321,8 @@ fn chart_coherence<P: crate::ProfilePayload, T: Decide + ChartCoherenceLane>(
 ///
 /// # Determinism (D9)
 ///
-/// `solid_copies` is in gather order, which is root-list order then
-/// output order then the source body's own solid order. The walk is
+/// `solid_copies` is in gather order, which is the placements'
+/// document order then the copy's own solid order. The walk is
 /// `i < j` over that list, so the findings come out in a stable order
 /// that does not depend on arena iteration luck.
 ///

@@ -4026,11 +4026,7 @@ impl<P> Node<P> {
     /// one.
     pub fn held_placement(&self) -> Option<&crate::placement::Placement> {
         match self {
-            Node::Transform { placement, .. }
-            | Node::PlaceInWorld {
-                pose: placement, ..
-            }
-            | Node::Gauge { placement, .. } => Some(placement),
+            Node::Transform { placement, .. } | Node::Gauge { placement, .. } => Some(placement),
             Node::InstantiatePart { offset, .. } => offset.as_ref(),
             _ => None,
         }

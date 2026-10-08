@@ -579,7 +579,7 @@ pub enum SplitError {
     /// gauge, or the world. A cut instance votes its gauge and a cut
     /// gauge its parent, unless that reference stays inside the cut; a
     /// cut placement of anything but an instance at the identity, whose
-    /// copy is in the world's coordinates, votes for the world.
+    /// copy follows no gauge, votes for the world.
     TwoAnchors {
         /// The cut node whose anchor disagrees with the first: an
         /// instance or gauge by its gauge reference, or a cut placement
@@ -2982,9 +2982,9 @@ pub fn split(
     // votes. A cut instance votes its gauge and a cut gauge its parent,
     // unless that reference stays inside the cut; a group unplaced for
     // lack of an offset votes like any other, and only places nothing.
-    // A cut root that is no instance and lives in the world holds
-    // geometry in the world's coordinates, and votes for the world.
-    // They must agree.
+    // A cut placement of anything but an instance's body at the
+    // identity follows no gauge, and votes for the world. They must
+    // agree.
     let mut anchor: Option<Option<RecipeNodeId>> = None;
     for &node in &in_order {
         let vote = match doc.node(node) {
@@ -3346,10 +3346,11 @@ pub fn split(
     // carried whole (N1's `Whole` edge), and a pattern copy's names
     // where a part picks that copy: the name's own `Instance` index
     // against the pick's, at the document's values, as the member walk
-    // judges a pick (`mate::member`). A split half's pick is not
-    // followed, since which half holds a split's name is the
-    // geometry's answer. A name of material no cut placement places,
-    // or two do, names nothing the instance carries.
+    // judges a pick (`mate::member`). That match is positional and
+    // interim: it retires with `[ev]` #4341's `Member` keys. A split
+    // half's pick is not followed, since which half holds a split's
+    // name is the geometry's answer. A name of material no cut
+    // placement places, or two do, names nothing the instance carries.
     let env = doc.var_env::<f64>();
     let in_world = |name: &StableName| -> Result<StableName, SplitError> {
         let of = remap_name(name, &node_map, &step_map)
@@ -3605,8 +3606,7 @@ pub fn split(
 /// **Whether a world placement's copy stands where a gauge puts it**
 /// (A4): one placing an instance's body at the identity, whose copy is
 /// wherever the instance sits, so it lands on any gauge; any other copy
-/// is recipe content placed in the world's coordinates, which sits on
-/// no gauge. The one reading split and inline share, so split admits no
+/// is recipe content, which follows no gauge. The one reading split and inline share, so split admits no
 /// cut whose part inline would refuse to put back
 /// ([`SplitError::UnplaceableRoot`], [`InlineError::UnplaceableFrame`]).
 fn places_an_instance(doc: &ProfileDoc, placement: RecipeNodeId) -> bool {

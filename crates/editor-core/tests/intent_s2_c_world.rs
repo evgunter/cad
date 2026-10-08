@@ -706,3 +706,40 @@ fn inline_refuses_a_reader_of_an_instance_whose_part_places_at_a_pose() {
         other => panic!("inline refuses the posed heir: {other:?}"),
     }
 }
+
+/// **An empty world names a pattern among the unplaced.** A block and a
+/// pattern of it, nothing placed: `EmptyProduct` lists both outputs,
+/// the pattern's `Bodies` included, and the recourse says how a list of
+/// bodies is placed.
+///
+/// Red if `Doc::unplaced` lists `Body` outputs only (the pattern is
+/// missing), or the recourse does not name the `Part` pick.
+#[test]
+fn an_empty_world_names_a_pattern_and_how_to_place_one_of_its_bodies() {
+    let doc = ProfileDoc::empty_derived("intent-c-unplaced-pattern", Tol::witness());
+    let (doc, a) = block(doc, 0.0);
+    let (doc, pattern) = insert(
+        doc,
+        Node::Pattern {
+            input: a.into(),
+            count: editor_core::Formula::count(2),
+            kind: editor_core::PatternKind::Linear {
+                direction: [1.0, 0.0, 0.0].map(crate::fixture::scl),
+                spacing: len(2.0),
+            },
+        },
+    );
+    let want = vec![doc.output(a, 0).unwrap(), doc.output(pattern, 0).unwrap()];
+    assert_eq!(
+        doc.unplaced(),
+        want,
+        "the block's body and the pattern's bodies"
+    );
+    let refused = product(&doc, &ev(&doc), Tol::witness()).expect_err("nothing is placed");
+    assert!(
+        matches!(&refused, ProductError::EmptyProduct { unplaced } if *unplaced == want),
+        "{refused:?}"
+    );
+    let said = refused.to_string();
+    assert!(said.contains("through a Part pick"), "{said}");
+}
