@@ -16,7 +16,7 @@ Filed by TANG (PR 4289's fix pass), from the review's fin scene.
 
 - **The body.** `meeting::posed_crown(&meeting::fin(), [0.0, 0.2, -0.6], pose, tol)`, subtracted from the block `[1, 2] × [0.5, 1.5] × [0.3, 1.5]` (`posed_box`). This is a void whose apex at `MEET` is a crown with a thin fin: two faces folded at a 1 mm edge, between corners 1e-4° apart.
 - **The op.** `subtract(fin_void, over)`, where `over` is the pyramid `apex_pyramid(&corners(50.0, 0.7, 0.5), pose, tol)`. Pose at rest, ε = 1e-9.
-- **The refusal.** The result builds at tier 3, then `validate_pseudomanifold` refuses `UndeclaredContact { contact: EdgeFacePierce { .. } }`, witness `(1.8774, 1.0000007, 1.0)`. That point is on the fin, away from `MEET`, and no record declares it.
+- **The refusal.** The result builds at tier 3, then `validate_pseudomanifold` refuses `UndeclaredContact { contact: EdgeFacePierce { .. } }`, witness `(1.8774, 1.0000007, 1.0)`. That point is on the fin, away from `MEET`, and no record declares it. PR 4289's second review found a second pierce on the fin's short edge, at `(1.501, 1.000013, 0.999996)`.
 - **On main.** Main (c839f03c) refuses the same, so it is not the polygon-cone reader's. The reader writes naming rows only.
 
 ## What is open

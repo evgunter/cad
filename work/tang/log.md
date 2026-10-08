@@ -783,6 +783,24 @@ PR 4289's first FULL review (REQUEST-CHANGES, MAJOR 1). The fix pass:
 - **Filed:** `great-arc-parity-is-read-twice-with-two-degeneracy-rules`
   (P3).
 
+PR 4289's second review (REQUEST-CHANGES, MAJOR 1). The fix pass:
+- **M1.** `p` on a face's plane was still passed over on its own
+  reading. Every face is now read by one rule: the crossing, where it
+  is not decided by the ends' strict sides, is located from both ends'
+  heights over the plane, and the face is passed over only where that
+  point lies decidedly outside its sector, read at how well it is
+  located. Anywhere else the reference is passed over.
+- **Rows.** The review's reference-on-a-plane row, a crisp witness, a
+  span read at the shorter arm, and a dented crown void in the germ
+  oracle.
+- **Margins.** The arc determinant's rounding is taken off before it
+  is levered.
+- **Fuzz.** `sectors::cone_fuzz`, a seeded fuzzer on the effort dial,
+  reads `cone_read` against an exact rational oracle. The review's
+  fuzz reads 0 wrong at ε 1e-9 and 1e-6 on every family.
+- **Filed:** `pair-classes-falls-back-to-per-pair-rows-beside-a-partner-that-reads-none`
+  (P2) and `in-sector-is-a-second-spelling-of-within` (P3).
+
 2026-10-07 — PR 4246's third fix pass (third review, interim
 REQUEST-CHANGES, 1 MAJOR). A root at a smooth vertex under a graze is
 decided by its in-span readings, and those were levered by arc length,
