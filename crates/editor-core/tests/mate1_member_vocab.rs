@@ -467,7 +467,7 @@ fn mates_never_solve_pattern_parameters() {
             *spacing,
             editor_core::Dimension::Length
         ))
-        .bit_eq(&editor_core::test_support::stored_expr(&len(3.0))),
+        .bit_eq(&len(3.0)),
         "the spacing expression is untouched: {spacing:?}"
     );
 
