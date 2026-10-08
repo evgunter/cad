@@ -24,16 +24,36 @@
 //! is not on it means either the list is wrong or the function should
 //! not exist.
 //!
-//! The list is not the same claim as *"everything here has a caller"*,
-//! and that second claim is **false today**: `intersection` has no
-//! production call site anywhere in the tree
-//! (`docs/inventory.md` records it as `none today`). It is kept
-//! deliberately — `docs/semantics-diffs.md` §D7 defines `hull`'s single
-//! divergence from IEEE 1788 by contrast with it, so deleting it would
-//! delete what a live argument points at — and that is a reason, not an
-//! exemption. Which functions the kernel actually consumes, and which
-//! are deliberately not built at all, is the census in
-//! `docs/inventory.md`.
+//! The list is not the same claim as *"everything here has a caller"*.
+//! Which functions the kernel actually consumes, and which are
+//! deliberately not built at all, is the census in `docs/inventory.md`.
+//!
+//! ## Signed zeros
+//!
+//! `-0` and `+0` are one real number, so an endpoint's zero sign is
+//! never part of what an enclosure says, and no enclosure semantics
+//! depend on it. The kernel's identity channels do read it:
+//! `Interval::repr_bits` reports the stored bits, and content keys
+//! (`editor-core`'s eval memo), `geom-core`'s `bit_identity` and
+//! `topo`'s source bit witnesses are built from them. That is a reason
+//! for the bit to be a function of the source and the inputs (below),
+//! not for any operation to preserve it. There is no sign-preservation
+//! convention, and none is owed: `+`, `−` and `neg` give the sign `f64`
+//! would on point operands, `abs` gives `+0` as `f64::abs` does, and
+//! `×` and `÷` give `+0` for a zero factor or numerator whatever the
+//! operands' signs.
+//!
+//! What IS owed is that the bit is a function of the source and the
+//! inputs (D9). Every endpoint chosen between two candidates — `min_i`,
+//! `max_i`, `hull`, `intersection`, and the corner folds of `×` and `÷`
+//! — therefore decides a choice between zeros of opposite sign by rule:
+//! **a lower endpoint takes `-0`, an upper endpoint `+0`**, in either
+//! operand order. `f64::min`/`f64::max` (IEEE 754-2008 `minNum`/
+//! `maxNum`) leave that choice unspecified, and what they compile to
+//! answers it differently by optimisation level and operand order. The
+//! rule is the outward one, the direction every padded endpoint here
+//! already leans, and it makes `hull` and `intersection` commute bit
+//! for bit.
 //!
 //! ## Soundness contract
 //!

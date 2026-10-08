@@ -49,6 +49,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 use std::collections::BTreeSet;
 
 use crate::corpus;
@@ -56,14 +59,14 @@ use crate::fixture;
 
 use editor_core::test_support::{VerbatimKind, verbatim_kind};
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, DocRef, DocumentId, EvalOptions, MateFrame,
-    MatePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName,
+    Alignment, AxisSense, CapEnd, ContactClass, DocumentId, EvalOptions, MateFrame, MatePrimitive,
+    Node, ProfileDoc, RecipeNodeId, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{insert, len, on_frame};
+use fixture::{insert, len, on_frame, step};
 use geom_core::Tol;
 
-type ProfileNode = Node<ProfileProgram>;
+type ProfileNode = AuthoredNode;
 
 test_utils::f6_variants! {
     /// **Every node kind**, welded to `Node` by the match the macro
@@ -89,8 +92,8 @@ test_utils::f6_variants! {
         Pattern,
         Part,
         PlacedUnion,
-        Declare,
         InstantiatePart,
+        Gauge,
         Mate,
         Measure,
         Assertion,
@@ -98,23 +101,14 @@ test_utils::f6_variants! {
 }
 
 /// **The node kinds whose value carries no names**: a datum, a profile,
-/// a declaration list, a solved mate, a measurement and an assertion
-/// verdict are not bodies, so their tables are empty and the
-/// equivalence holds of them vacuously. Listed so that vacuity is
-/// asserted — every sample publishes zero rows — rather than counted as
+/// a solved mate, a measurement and an assertion verdict are not
+/// bodies, so their tables are empty and the equivalence holds of them
+/// vacuously. Listed so that vacuity is asserted — every sample publishes zero rows — rather than counted as
 /// coverage.
-const ROW_FREE: [&str; 6] = [
-    "Datum",
-    "Profile",
-    "Declare",
-    "Mate",
-    "Measure",
-    "Assertion",
-];
+const ROW_FREE: [&str; 6] = ["Datum", "Profile", "Mate", "Gauge", "Measure", "Assertion"];
 
-/// The unit cube `[0,1]³` as a whole part document, its body at
-/// `fixture::resolver::PART_BODY` so `in_part` names its caps.
-fn block(label: &str) -> ProfileDoc {
+/// The unit cube `[0,1]³` as a whole part document, and its body.
+fn block(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -128,36 +122,54 @@ fn block(label: &str) -> ProfileDoc {
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
     )
-    .0
 }
 
-fn mate_frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame {
+fn mate_frame(origin: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(
         origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        geom_core::Tol::witness(),
+    )
+    .expect("a definite frame")
 }
 
-/// **Two instanced blocks, one seated on the other** — the assembly
-/// kinds the Band 4 corpus does not author (`InstantiatePart`, `Mate`).
+/// **Two instanced blocks on a gauge, one seated on the other** — the
+/// assembly kinds the Band 4 corpus does not author (`InstantiatePart`,
+/// `Gauge`, `Mate`).
 /// An instance's rows wrap its part's names in `InPart` under the
 /// instance's own head, which is the shape the head comparison exists
 /// to read correctly.
 fn stacked_blocks() -> (ProfileDoc, EvalOptions) {
     let mut store = PartStore::new();
-    let base: DocRef = store.insert(block("vedge-base"), Tol::witness());
-    let top: DocRef = store.insert(block("vedge-top"), Tol::witness());
+    let (base, base_body) = store.insert_part(block("vedge-base"), Tol::witness());
+    let (top, top_body) = store.insert_part(block("vedge-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("vedge-stack"), Tol::witness());
+    let (doc, gauge) = insert(doc, Node::gauge(None, editor_core::Placement::IDENTITY));
     let (doc, base) = insert(doc, Node::instantiate_part(base));
     let (doc, top) = insert(doc, Node::instantiate_part(top));
+    let (doc, _) = step(
+        doc,
+        editor_core::DocEdit::SetGauge {
+            node: base,
+            gauge: Some(gauge),
+        },
+    );
+    let (doc, _) = step(
+        doc,
+        editor_core::DocEdit::SetGauge {
+            node: top,
+            gauge: Some(gauge),
+        },
+    );
     let (doc, _mate) = insert(
         doc,
         Node::Mate {
-            a: fixture::head(in_part(base, CapEnd::End)),
-            b: fixture::head(in_part(top, CapEnd::Start)),
+            a: fixture::head(in_part(base, base_body, CapEnd::End)),
+            b: fixture::head(in_part(top, top_body, CapEnd::Start)),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame([0.0, 0.0, 1.0]),

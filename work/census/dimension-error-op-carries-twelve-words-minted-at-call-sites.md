@@ -50,7 +50,7 @@ thirteenth is added.
 as a struct-field literal on `MeasureUnavailableAt::NeedsEnclosure`,
 and `py/measure.rs` hands it to the attribute unchanged. Its two
 siblings on that arm do NOT have the defect — `verb` comes from
-`MeasurePrimitive::verb` and `scalar` from `Lane::NAME` — so the arm is
+`MeasurePrimitive::verb` and `scalar` from `geom_core::Real::NAME` — so the arm is
 one literal among two maps. `tests/test_measures.py` asserts the word
 on `.door`, so it is covered by accident like the rest — the point is
 that nothing reds if it is renamed or a second one is added. WIRE's

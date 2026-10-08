@@ -15,7 +15,8 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Bounds;
-use geom_core::{CertifiedEnclosure, Interval, Real};
+use geom_core::interval::certification::Certification;
+use geom_core::{CertifiedEnclosure, Interval};
 use test_utils::fuzz;
 
 fn ri(lo: f64, hi: f64) -> Interval {
@@ -25,10 +26,10 @@ fn ri(lo: f64, hi: f64) -> Interval {
 // ------------------------------------------------ 1. the crossing
 
 #[test]
-fn a_trv_scalar_with_real_endpoints_crosses_as_poison_with_its_endpoints() {
+fn a_trv_scalar_with_real_endpoints_crosses_refused_with_its_endpoints() {
     // `sqrt([-1, 4])` clamps to `[0, 2]` at Trv: a sound bracket the
     // computation is not entitled to.
-    let x = Interval::from_bounds(-1.0, 4.0).sqrt();
+    let x = geom_core::Real::sqrt(Interval::from_bounds(-1.0, 4.0));
     assert!(x.certified_bracket().is_none(), "the fixture is a refusal");
     assert_eq!((x.lo(), x.hi()), (0.0, 2.0));
     let r = Interval::from_certified(x);
@@ -74,14 +75,14 @@ fn a_trv_scalar_with_real_endpoints_crosses_as_poison_with_its_endpoints() {
         !rr.is_certified() && (rr.lo(), rr.hi()) == (0.0, 2.0),
         "{rr:?}"
     );
-    // The empty set and NaI cross as NaN-endpoint poison.
+    // The empty set and NaI cross refused, with NaN endpoints.
     let e =
         Interval::from_certified(Interval::from_bounds(1.0, 2.0) / Interval::from_bounds(0.0, 0.0));
     assert!(!e.is_certified() && e.lo().is_nan());
     // A certified scalar crosses clean, and its infinite side stays a bound.
     let c = Interval::from_certified(Interval::from_bounds(1.0, f64::INFINITY));
     assert!(c.is_certified() && c.hi().is_infinite(), "{c:?}");
-    // A certified f64 at +inf is not a real: poison (the merge base's answer too).
+    // A certified f64 at +inf is not a real: refused (the merge base's answer too).
     assert!(!Interval::from_certified(f64::INFINITY).is_certified());
     assert!(Interval::from_certified(2.5f64).is_certified());
 }
@@ -296,15 +297,15 @@ struct Count {
     looser: u64,
     /// Neither contains the other.
     crossed: u64,
-    /// One side poison and the other not.
+    /// One side refused and the other not.
     verdict_differs: u64,
-    both_poison: u64,
+    both_refused: u64,
     worst_looser: Option<(f64, f64, f64, f64, f64, f64)>,
 }
 
 fn classify(c: &mut Count, new: Interval, o: Old, a: (f64, f64), b: (f64, f64)) {
     match (!new.is_certified(), o.is_poison()) {
-        (true, true) => c.both_poison += 1,
+        (true, true) => c.both_refused += 1,
         (true, false) | (false, true) => c.verdict_differs += 1,
         (false, false) => {
             let (nl, nh, ol, oh) = (new.lo(), new.hi(), o.lo, o.hi);
@@ -400,13 +401,13 @@ fn the_newtype_against_the_retired_ring_op_by_op() {
         for (op, c) in ops.iter().zip(&counts) {
             println!(
                 "[{corpus}] {op:7} identical {:6} tighter {:6} LOOSER {:6} crossed {:6} \
-                 verdict-differs {:6} both-poison {:6} worst-looser {:?}",
+                 verdict-differs {:6} both-refused {:6} worst-looser {:?}",
                 c.identical,
                 c.tighter,
                 c.looser,
                 c.crossed,
                 c.verdict_differs,
-                c.both_poison,
+                c.both_refused,
                 c.worst_looser
             );
         }

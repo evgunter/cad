@@ -40,18 +40,22 @@
 
 use std::collections::BTreeMap;
 
+use geom::SurfaceKind;
 use geom::{NetState, Surface};
-use geom_brep::SurfaceKind;
-use geom_core::{Band, BandError, Decide, Indeterminate, Tol};
+use geom_brep::recourse::{Reading, RefusedArm, SizedDecision, SizedPass, StoredDefinite, Unsized};
+use geom_core::{Band, BandError, Decide, Decided, Indeterminate, Tol};
 use slotmap::SecondaryMap;
 
 use crate::body::Body;
-use crate::boolean::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
-use crate::entity::{EdgeKey, EntityId, FaceKey, GeomRef, LoopKey, VertexKey};
+use crate::boolean::{
+    PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, PlaneRung, oriented_plane_eq,
+};
+use crate::entity::{EdgeKey, EntityId, FaceKey, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
-use crate::readback::DanglingRef;
+use crate::live::{BoundaryMember, linked, proven};
+use crate::loop_winding::{LoopWinding, WINDING_PREDICATE};
 use crate::validate::{ValidationError, validate_closed};
 
 /// One merged run: the surviving face and what was consumed into it.
@@ -72,7 +76,8 @@ pub struct MergedGroup {
     /// Vertices deleted by the dangling-seam pruning, in kill order:
     /// each the free end of a shared edge the glue left dangling inside
     /// the merged face (the argument that this changes no region is
-    /// stated once, at the pruning in `merge_group`). A contact record
+    /// stated once, at the pruning in `merge_group`), or the vertex of a
+    /// closed shared edge the glue killed. A contact record
     /// citing one is consumed and drops.
     ///
     /// Recorded rather than left implicit because this is the one
@@ -123,6 +128,11 @@ pub struct SkippedMerge {
 pub struct MergeCoplanarOutcome {
     /// The merged runs, in group order (first face's arena order).
     pub groups: Vec<MergedGroup>,
+    /// The joins the public doors end with ([`Body::join_edges`]), in
+    /// the order made, on the merged body: each killed `vertex` and
+    /// `gone` edge, and the `kept` edge that holds them. Empty from the
+    /// boolean's own merge, which joins in its output stage.
+    pub joins: Vec<crate::boolean::EdgeJoin>,
     /// Curved groups left unmerged as outside the inventory, with the
     /// refusal that stopped each; a planar group never lands here (it
     /// refuses the call). Non-empty needs no declaration: a curved run
@@ -152,6 +162,21 @@ struct HalfEdgeFacts {
     /// The half-edge's start vertex.
     start: VertexKey,
 }
+
+/// The door's one kind question, asked of every live face
+/// ([`Body::kind_census`]).
+struct KindCensus<'a, T: geom_core::Real> {
+    /// Each live face's kind.
+    kinds: SecondaryMap<FaceKey, MergeKind>,
+    /// Each live face's record and the surface it resolved to, which
+    /// the adjacency test reads rather than looking the surface up.
+    described: Described<'a, T>,
+    /// The faces on a placeholder, in face-arena order.
+    placeholders: Vec<FaceKey>,
+}
+
+/// [`KindCensus::described`]'s map.
+type Described<'a, T> = SecondaryMap<FaceKey, (&'a crate::entity::Face, &'a Surface<T>)>;
 
 /// What becomes of one group's INVENTORY refusal — the door's two
 /// failure regimes, named so the boundary between them is a value
@@ -242,7 +267,7 @@ struct PoisonedNet;
 
 impl MergeKind {
     /// The kind of one surface value. The plane question is
-    /// [`SurfaceKind::of`]'s — the crate's one carrier-kind read —
+    /// [`geom::Surface::kind`]'s — the crate's one carrier-kind read —
     /// and the net question is [`NetState`]'s, matched exhaustively so
     /// no state is answered by a default.
     fn of<T: geom_core::Real>(surface: &Surface<T>) -> Result<Self, PoisonedNet> {
@@ -252,7 +277,7 @@ impl MergeKind {
                 NetState::Poisoned => Err(PoisonedNet),
                 NetState::Described => Ok(Self::Curved),
             },
-            s if SurfaceKind::of(s) == SurfaceKind::Plane => Ok(Self::Plane),
+            s if s.kind() == SurfaceKind::Plane => Ok(Self::Plane),
             _ => Ok(Self::Curved),
         }
     }
@@ -386,22 +411,15 @@ pub enum MergeCoplanarError {
         edge: EdgeKey,
     },
     /// An internal Euler step refused — surfaced typed (unreachable on
-    /// tier-2 input in the supported inventory; never a panic, D9).
-    /// Also the spelling for a dangling reference the surgery's own
-    /// plan steps observe: [`crate::DanglingRef`] maps into
-    /// [`EulerOpError::StaleKey`] / [`EulerOpError::StaleGeometry`],
-    /// the state is the one the operators name and the caller's
-    /// recourse is identical, so it is not given a second name here.
-    /// Those two are arena faults and refuse the call under both
-    /// failure regimes, as do the other operator refusals the class
-    /// covers — which is wider than a dangling reference and is
+    /// tier-2 input in the supported inventory). One that reports the
+    /// arena refuses the call under both failure regimes; the class is
     /// stated in [`Body::merge_coplanar_faces_declared`].
     Op {
         /// The refusing operator's error.
         error: EulerOpError,
     },
     /// A declared surface pair references a key that does not
-    /// resolve, or names two surfaces of DIFFERENT kinds — a torn
+    /// resolve, or names two surfaces of DIFFERENT kinds — a malformed
     /// argument, refused up front. A pair on one non-planar kind is
     /// NOT this: it is a legal declaration recorded as
     /// [`MergeCoplanarError::DeclaredCarrierUnsupported`].
@@ -415,8 +433,12 @@ pub enum MergeCoplanarError {
     /// declaration contradicts the geometry; refused loudly, never
     /// glued (M4 PR 5; `plane_eq` rung 2's verification direction).
     DeclarationContradicted {
-        /// The contradicting predicate's diagnostics.
-        diag: Indeterminate,
+        /// The fact that contradicted the declaration: `PlanesNotParallel`
+        /// or `PlanesApart`, the two the declared plane rung raises. The
+        /// field keeps the rung's own type (`PlaneEqError` is
+        /// `CarrierEqError`), which a narrower one would convert from
+        /// fallibly at the one raise site.
+        fact: crate::boolean::Contradiction,
     },
     /// A declared face pair meets with OPPOSITE orientations at a
     /// shared edge — no valid closed solid merges such a pair; the
@@ -445,29 +467,37 @@ pub enum MergeCoplanarError {
     /// all, so a record's `faces` is never empty.
     DeclaredCarrierUnsupported {
         /// The declared surface pair, as the caller passed it. Both
-        /// keys resolved when the door read them; a caller that
-        /// re-describes edges after this call may drop a surface the
-        /// pair names (a surface held only by an edge curve's
-        /// reference goes with that curve), so a consumer walks the
-        /// record's `faces`, not the pair, for what is live.
+        /// keys resolved when the door read them, but either may be
+        /// gone from the body it returns: a surface held only by an
+        /// edge curve goes with that curve when the edge is
+        /// re-described, by this door's kept boundaries or by a caller
+        /// afterwards. A consumer walks the record's `faces`, not the
+        /// pair, for what is live.
         pair: (SurfaceKey, SurfaceKey),
         /// The carrier kind both surfaces share.
         kind: SurfaceKind,
     },
     /// After absorbing a group, the survivor's loops admit no unique
-    /// positively-wound outline (zero or several positive windings) —
-    /// the outer/ring roles cannot be assigned; refused rather than
-    /// guessed (M5 S1 fix pass: the intra-face `kemr`'s provisional
-    /// ring designation is now RESOLVED by winding, and shapes the
-    /// resolution cannot decide are outside the inventory).
+    /// positively-wound outline, so the outer/ring roles cannot be
+    /// assigned; refused rather than guessed. The intra-face `kemr`
+    /// designates its ring provisionally and the winding resolves it.
+    /// A zero winding that leaves no outline is not this variant: it
+    /// is the winding decision's own band-decided refusal,
+    /// [`MergeCoplanarError::Escalated`] with
+    /// [`MergeDecision::LoopWinding`] and the winding's margin.
     MergedFaceRoleAmbiguous {
         /// The merged survivor face.
         face: FaceKey,
+        /// Why no loop is the unique outline.
+        verdict: OutlineVerdict,
     },
-    /// A plane-identity margin escalated while verifying a declared
-    /// pair (in-band sliver) — typed, never guessed.
+    /// A decision of the merge could not be taken at this tolerance —
+    /// typed, never guessed.
     Escalated {
-        /// The predicate's diagnostics.
+        /// The decision, which the refusal's ending follows from.
+        decision: MergeDecision,
+        /// Its diagnostics: the margin in band, or the one a rung
+        /// decided at zero where zero does not pass.
         diag: Indeterminate,
     },
     /// The run's tolerance cannot form a valid band (needed only when
@@ -487,7 +517,344 @@ pub enum MergeCoplanarError {
         /// The mint pass's typed refusal.
         source: crate::pcurves::PcurveMintError,
     },
+    /// The join the public merge door ends with ([`Body::join_edges`])
+    /// refused on the merged body: a reading in the band, a carrier the
+    /// joined edge cannot be run on, or the kill's own refusal. The
+    /// body is untouched, exactly as on every other variant.
+    Join {
+        /// Why the join refused.
+        refusal: crate::boolean::JoinRefusal,
+    },
+    /// A kept face's boundary edge could not be re-described against
+    /// the two faces the merge left it between.
+    KeptBoundaryUndescribed {
+        /// The kept face.
+        face: FaceKey,
+        /// Its boundary edge.
+        edge: EdgeKey,
+        /// What could not be done.
+        failure: EdgeDescribeFailure,
+    },
+    /// Whether the two faces at a kept face's boundary edge cross or
+    /// meet smoothly could not be decided at this tolerance, so the edge
+    /// has no honest description: refused, never guessed.
+    KeptBoundaryUndecided {
+        /// The kept face.
+        face: FaceKey,
+        /// Its boundary edge.
+        edge: EdgeKey,
+        /// The reading that could not decide.
+        reading: DihedralReading,
+        /// Its diagnostics.
+        diag: Indeterminate,
+    },
 }
+
+/// What the edge describer could not do at one edge
+/// ([`MergeCoplanarError::KeptBoundaryUndescribed`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EdgeDescribeFailure {
+    /// The edge carries no certified curve to re-describe, or its
+    /// halves, faces, vertices or surfaces do not resolve.
+    NotWalkable,
+    /// The two faces' intersection does not certify on the edge's
+    /// carrier.
+    Intersection,
+    /// Their tangency does not certify on the edge's carrier.
+    Tangency,
+    /// The carrier has no conventional description in a chart.
+    NoConventionalLane,
+    /// The arc's image in its face's chart does not certify.
+    Arc,
+    /// The line's image in its face's chart does not certify.
+    Line,
+}
+
+impl EdgeDescribeFailure {
+    /// The failure, as a clause with no colon or dash of its own.
+    const fn clause(self) -> &'static str {
+        match self {
+            Self::NotWalkable => {
+                "it carries no certified curve, or its faces, vertices or surfaces do not resolve"
+            }
+            Self::Intersection => "its two faces' intersection does not certify on its curve",
+            Self::Tangency => "its two faces' tangency does not certify on its curve",
+            Self::NoConventionalLane => {
+                "its curve has no description in a face's chart for its kind"
+            }
+            Self::Arc => "its arc does not certify as an image in its face's chart",
+            Self::Line => "its line does not certify as an image in its face's chart",
+        }
+    }
+}
+
+/// The reading of the two faces at an edge that could not decide
+/// ([`MergeCoplanarError::KeptBoundaryUndecided`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DihedralReading {
+    /// The first-order dihedral: the angle between the faces, metered
+    /// over the edge, at the rung that could not decide.
+    Lever(geom_brep::LeverRung),
+    /// The second-order bend of two faces that meet smoothly.
+    Bend,
+}
+
+/// Why the edge describer refused one edge, before a door words it:
+/// the merge door as [`MergeCoplanarError::KeptBoundaryUndescribed`] /
+/// [`MergeCoplanarError::KeptBoundaryUndecided`], the boolean in its
+/// own vocabulary.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) enum DescribeRefusal {
+    /// The edge could not be described.
+    Failed {
+        edge: EdgeKey,
+        failure: EdgeDescribeFailure,
+    },
+    /// A reading of its two faces could not decide.
+    Undecided {
+        edge: EdgeKey,
+        reading: DihedralReading,
+        diag: Indeterminate,
+    },
+}
+
+impl DescribeRefusal {
+    pub(crate) const fn failed(edge: EdgeKey, failure: EdgeDescribeFailure) -> Self {
+        Self::Failed { edge, failure }
+    }
+
+    pub(crate) const fn undecided(
+        edge: EdgeKey,
+        reading: DihedralReading,
+        diag: Indeterminate,
+    ) -> Self {
+        Self::Undecided {
+            edge,
+            reading,
+            diag,
+        }
+    }
+
+    const fn edge(self) -> EdgeKey {
+        match self {
+            Self::Failed { edge, .. } | Self::Undecided { edge, .. } => edge,
+        }
+    }
+}
+
+impl MergeCoplanarError {
+    /// The door's refusal for `refusal` at one of `boundary`'s edges,
+    /// naming the kept face it was walked from.
+    pub(crate) fn of_kept_boundary(
+        boundary: &[(FaceKey, EdgeKey)],
+        refusal: DescribeRefusal,
+    ) -> Self {
+        let Some(&(face, _)) = boundary.iter().find(|(_, e)| *e == refusal.edge()) else {
+            unreachable!(
+                "merge_coplanar_faces: the describer refused edge {:?}, which is not on the \
+                 worklist it was handed — it describes only the edges it is given",
+                refusal.edge()
+            )
+        };
+        match refusal {
+            DescribeRefusal::Failed { edge, failure } => Self::KeptBoundaryUndescribed {
+                face,
+                edge,
+                failure,
+            },
+            DescribeRefusal::Undecided {
+                edge,
+                reading,
+                diag,
+            } => Self::KeptBoundaryUndecided {
+                face,
+                edge,
+                reading,
+                diag,
+            },
+        }
+    }
+
+    /// The describer's refusal this one words, for a caller that words
+    /// it in its own vocabulary; `None` for every other refusal.
+    pub(crate) const fn kept_boundary(&self) -> Option<DescribeRefusal> {
+        match *self {
+            Self::KeptBoundaryUndescribed { edge, failure, .. } => {
+                Some(DescribeRefusal::failed(edge, failure))
+            }
+            Self::KeptBoundaryUndecided {
+                edge,
+                reading,
+                diag,
+                ..
+            } => Some(DescribeRefusal::undecided(edge, reading, diag)),
+            _ => None,
+        }
+    }
+
+    /// The refusal of the plane identity verifying a declared pair.
+    pub(crate) fn of_declared_refusal(refusal: PlaneEqError) -> Self {
+        match refusal {
+            PlaneEqError::Contradicted { fact, .. } => Self::DeclarationContradicted { fact },
+            PlaneEqError::Escalated { rung, diag } => Self::Escalated {
+                decision: MergeDecision::DeclaredPlanes(rung),
+                diag,
+            },
+            PlaneEqError::Unsettled { diag } => Self::Escalated {
+                decision: MergeDecision::DeclaredReach,
+                diag,
+            },
+            // Unreachable with `declared: true`; refuse loudly anyway.
+            PlaneEqError::Undeclared { coincidence, .. } => Self::Escalated {
+                decision: MergeDecision::DeclaredOffset,
+                diag: coincidence.reported(),
+            },
+        }
+    }
+}
+
+/// What the merge does with the declared plane rung's `verdict` on the
+/// pair `(f1, f2)` meeting at a shared edge: it glues a pair that faces
+/// the same way and refuses every other verdict.
+pub(crate) fn declared_pair_verdict(
+    verdict: Result<PlaneRelation, PlaneEqError>,
+    f1: FaceKey,
+    f2: FaceKey,
+) -> Result<bool, MergeCoplanarError> {
+    match verdict {
+        Ok(PlaneRelation::SameOriented) => Ok(true),
+        Ok(PlaneRelation::SameOpposite) => {
+            Err(MergeCoplanarError::DeclaredOppositeOrientation { f1, f2 })
+        }
+        // Unreachable through the declared rung; kept typed.
+        Ok(PlaneRelation::Distinct) => Ok(false),
+        Err(refusal) => Err(MergeCoplanarError::of_declared_refusal(refusal)),
+    }
+}
+
+/// Why a merged face has no unique outline
+/// ([`MergeCoplanarError::MergedFaceRoleAmbiguous`]), each loop's
+/// winding read about the face's outward normal.
+///
+/// `SeveralPositive` and `AllNegative` are the ROLE decision's
+/// verdicts, not the winding's: every loop's winding was decided, and
+/// it is the count of outlines among them that is wrong. A winding the
+/// band cannot decide, or decides zero, is the winding decision's own
+/// refusal ([`MergeDecision::LoopWinding`]), never one of these.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OutlineVerdict {
+    /// Several loops wind positively: each bounds a region of its own,
+    /// and one face bounds one connected region.
+    SeveralPositive {
+        /// The positively-wound loops, outline slot first.
+        loops: Vec<LoopKey>,
+    },
+    /// No loop winds positively or zero, and this one rides a carrier
+    /// the kernel does not wind (a NURBS or spiric edge): it may be the
+    /// outline, and which loop is cannot be read until that winding is
+    /// built.
+    UnsupportedWinding {
+        /// The first such loop, outline slot first.
+        r#loop: LoopKey,
+    },
+    /// Every loop winds negatively or is a lone vertex (which bounds
+    /// no area): none bounds the face, so the face's sense disagrees
+    /// with its boundary.
+    AllNegative,
+}
+
+/// Which decision [`MergeCoplanarError::Escalated`] could not take.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MergeDecision {
+    /// A rung of the plane identity verifying a pair the caller
+    /// declared (`plane_eq`'s declared rung). The declaration is
+    /// already there, so no ending offers one.
+    DeclaredPlanes(PlaneRung),
+    /// Whether a declared pair's parallel planes lie apart. The declared
+    /// rung contradicts a definite offset and bridges an in-band one, so
+    /// it never escalates this; kept typed for the refusal that would
+    /// be a kernel defect.
+    DeclaredOffset,
+    /// Whether a declared pair's planes stay within the band across the
+    /// extent the rung reads them over: their displacement's upper
+    /// bound stands past the band and its lower bound does not
+    /// (`carrier_eq::CarrierEqError::Unsettled`).
+    DeclaredReach,
+    /// Which way a loop of the merged face winds about its normal,
+    /// which decides the outline among its loops.
+    LoopWinding,
+}
+
+impl MergeDecision {
+    /// What the decision decides, as a clause with no colon or dash of
+    /// its own.
+    #[must_use]
+    pub const fn subject(self) -> &'static str {
+        match self {
+            Self::DeclaredPlanes(PlaneRung::Orientation) => {
+                "whether the two declared faces face the same way across the edge they share"
+            }
+            Self::DeclaredPlanes(rung @ (PlaneRung::Parallel | PlaneRung::Norm)) => rung.subject(),
+            Self::DeclaredOffset => "whether the two declared planes lie apart",
+            Self::DeclaredReach => {
+                "whether the two declared planes stay within the tolerance of \
+                                    one another across the faces"
+            }
+            Self::LoopWinding => "which way a loop of the merged face winds about its normal",
+        }
+    }
+
+    /// The one ending an escalation of this decision carries, at the
+    /// merge that built the geometry.
+    fn ending(self, diag: &Indeterminate) -> String {
+        let arm = RefusedArm::Undecided(diag);
+        match self {
+            Self::DeclaredPlanes(PlaneRung::Orientation) => {
+                DECLARED_ORIENTATION.recourse(arm, Reading::Build)
+            }
+            // The declared rung bridges in-band parallelism, so what
+            // escalates here is a norm the rung could not read, as at every
+            // Boolean door (`SelfCheck::Normals`).
+            Self::DeclaredPlanes(PlaneRung::Parallel | PlaneRung::Norm) | Self::DeclaredOffset => {
+                Unsized::Defect.recourse(arm, Reading::Build)
+            }
+            // The displacement is a bound over a ball enclosing the
+            // faces, not a reading of them.
+            Self::DeclaredReach => Unsized::LastResort.recourse(arm, Reading::Build),
+            Self::LoopWinding => LOOP_WINDING.recourse(arm, Reading::Build),
+        }
+    }
+}
+
+/// The merge's orientation decision on a declared pair meeting at a
+/// shared edge. Only a pair that faces the same way glues, so it passes
+/// on a positive margin, and [`MergeCoplanarError::DeclaredOppositeOrientation`]
+/// is its sign-certain arm. The margin is the outward normals' cosine
+/// levered at the radius of a ball enclosing both faces, so `|cos| ≈ 1`
+/// wherever the planes stand near parallel, and what an undecided
+/// margin measures is that reach: the lever names both moves a refusal
+/// may need.
+const DECLARED_ORIENTATION: SizedDecision = SizedDecision {
+    lever: "turn one of the two faces so both clearly face the same way, on faces that clearly \
+            span a length",
+    size: "span of the two faces",
+    passes: SizedPass::Positive,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
+
+/// The winding decision: its margin is the loop's signed area over its
+/// length. A positive loop is an outline, a negative one a hole, and a
+/// zero one neither, so it passes on either nonzero sign. Its zero arm
+/// refuses where the zero winding leaves the merged face no outline
+/// ([`Body::merged_outline_ring`]), with the margin it was decided on.
+const LOOP_WINDING: SizedDecision = SizedDecision {
+    lever: "reshape the merged faces so each loop of the result clearly encloses an area",
+    size: "area a loop encloses over its length",
+    passes: SizedPass::NonZero,
+    stored: StoredDefinite::Lever,
+    at_zero: None,
+};
 
 impl core::fmt::Display for MergeCoplanarError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -557,15 +924,17 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: invalid declared pair at surface {surface:?}: {what}"
             ),
-            Self::DeclarationContradicted { diag } => write!(
+            Self::DeclarationContradicted { fact } => write!(
                 f,
-                "merge_coplanar_faces: declared coincidence contradicts the geometry ({diag}) \
-                 — fix the declaration or the geometry, the op never glues a lie"
+                "a declared coincidence contradicts the geometry: {}, and the merge never \
+                 glues a lie. {}",
+                fact.fact(),
+                crate::contact::CONTRADICTION_RECOURSE
             ),
-            Self::DeclaredOppositeOrientation { f1, f2 } => write!(
+            Self::DeclaredOppositeOrientation { .. } => write!(
                 f,
-                "merge_coplanar_faces: declared pair ({f1:?}, {f2:?}) meets with opposite \
-                 orientations — unmergeable in a closed solid"
+                "the two declared faces face opposite ways across the edge they share. {}",
+                DECLARED_ORIENTATION.recourse(RefusedArm::SignCertain, Reading::Build)
             ),
             Self::DeclaredCarrierUnsupported { pair, kind } => write!(
                 f,
@@ -574,21 +943,76 @@ impl core::fmt::Display for MergeCoplanarError {
                  rung is planar and has no {kind} arm; the pair is left unmerged and recorded",
                 kind = kind.name()
             ),
-            Self::MergedFaceRoleAmbiguous { face } => write!(
+            Self::MergedFaceRoleAmbiguous { face, verdict } => match verdict {
+                OutlineVerdict::SeveralPositive { loops } => write!(
+                    f,
+                    "{} loops of the merged face {face:?} each wind counterclockwise about its \
+                     outward normal ({loops:?}), so each bounds a region of its own and one \
+                     face cannot bound them all. Recourse: reshape the merged faces so their \
+                     union is one connected region",
+                    loops.len()
+                ),
+                OutlineVerdict::UnsupportedWinding { r#loop } => write!(
+                    f,
+                    "no loop of the merged face {face:?} winds counterclockwise about its \
+                     outward normal, and loop {loop:?} rides a NURBS or spiric edge, whose \
+                     winding the kernel does not read, so which loop is the outline is not \
+                     known. Recourse: bound the merged faces with line, \
+                     circle or ellipse edges, whose winding the kernel reads"
+                ),
+                OutlineVerdict::AllNegative => write!(
+                    f,
+                    "every loop of the merged face {face:?} winds clockwise about its outward \
+                     normal or is a lone vertex, so none bounds the face; its sense disagrees \
+                     with its boundary. Recourse: orient the faces being merged so each outline \
+                     winds counterclockwise about its outward normal, as tier 3 requires at rest"
+                ),
+            },
+            Self::Escalated { decision, diag } => write!(
                 f,
-                "merge_coplanar_faces: merged face {face:?} has no unique positively-wound \
-                 outline among its loops — outer/ring roles cannot be assigned; refused"
-            ),
-            Self::Escalated { diag } => write!(
-                f,
-                "merge_coplanar_faces: plane-identity margin escalated verifying a declared \
-                 pair ({diag})"
+                "{} is undecided: {}. {}",
+                decision.subject(),
+                diag.payload(),
+                decision.ending(diag)
             ),
             Self::Band { error } => write!(f, "merge_coplanar_faces: {error}"),
             Self::Pcurve { source } => write!(
                 f,
                 "merge_coplanar_faces: the staged result's pcurve re-mint refused \
                  ({source}) — the body is untouched"
+            ),
+            Self::Join { refusal } => write!(f, "merging coplanar faces: {refusal}"),
+            Self::KeptBoundaryUndescribed {
+                face,
+                edge,
+                failure,
+            } => write!(
+                f,
+                "merge_coplanar_faces: kept face {face:?}'s boundary edge {edge:?} cannot be \
+                 re-described against the two faces it now lies between: {}. The body is \
+                 untouched",
+                failure.clause()
+            ),
+            Self::KeptBoundaryUndecided {
+                face,
+                edge,
+                reading,
+                diag,
+            } => write!(
+                f,
+                "merge_coplanar_faces: re-describing kept face {face:?}'s boundary edge \
+                 {edge:?}, {} is undecided: {}. Recourse: move the geometry so the faces at \
+                 that edge clearly cross or are clearly smooth",
+                match reading {
+                    DihedralReading::Lever(geom_brep::LeverRung::Arm) => {
+                        "whether the edge is long enough to measure the faces' angle over"
+                    }
+                    DihedralReading::Lever(geom_brep::LeverRung::Reading) => {
+                        "whether the faces at it cross or meet smoothly"
+                    }
+                    DihedralReading::Bend => "whether the faces at it bend apart",
+                },
+                diag.payload()
             ),
         }
     }
@@ -598,17 +1022,8 @@ impl std::error::Error for MergeCoplanarError {}
 
 impl From<EulerOpError> for MergeCoplanarError {
     fn from(error: EulerOpError) -> Self {
-        Self::Op { error }
-    }
-}
-
-/// The crate's dangling-reference vocabulary reaches this door
-/// through the operator layer's own mapping, so a failed lookup here
-/// is spelled once and named the same way it is everywhere else.
-impl From<DanglingRef> for MergeCoplanarError {
-    fn from(what: DanglingRef) -> Self {
         Self::Op {
-            error: EulerOpError::from(what),
+            error: error.from_driver(),
         }
     }
 }
@@ -643,6 +1058,13 @@ pub(crate) enum TearPoint {
     StrutBecomesASelfLoop,
     /// Before `kemr`: re-parents the duplicate's minus half elsewhere.
     DuplicateHalvesPartCompany,
+    /// Before the role pass: drops the survivor's surface. Not a
+    /// re-checked fact: a key the role pass looks up after the surgery
+    /// has mutated the arena, torn where no input can tear it.
+    SurvivorLosesItsSurface,
+    /// Before the role pass: drops the point of the survivor's
+    /// outline's first vertex (a lookup tear, as above).
+    OutlineLosesAPoint,
 }
 
 #[cfg(test)]
@@ -768,6 +1190,30 @@ fn tear_before_kemr<T: geom_core::Real>(body: &mut Body<T>, he_minus: crate::ent
     }
 }
 
+/// The lookup tears offered immediately before the role pass.
+#[cfg(test)]
+fn tear_before_role_pass<T: geom_core::Real>(body: &mut Body<T>, survivor: &crate::entity::Face) {
+    match armed_tear() {
+        Some(TearPoint::SurvivorLosesItsSurface) => {
+            body.surfaces.remove(survivor.surface);
+        }
+        Some(TearPoint::OutlineLosesAPoint) => {
+            let point = body
+                .get_loop(survivor.outer)
+                .and_then(|l| match l.boundary {
+                    crate::entity::LoopBoundary::Cycle { first } => body.get_half_edge(first),
+                    crate::entity::LoopBoundary::Empty { .. } => None,
+                })
+                .and_then(|h| body.get_vertex(h.start))
+                .map(|v| v.point);
+            if let Some(point) = point {
+                body.points.remove(point);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// A fact `merge_group` establishes, **re-checks immediately before**
 /// the operator call that could contradict it, and therefore owns.
 ///
@@ -826,16 +1272,11 @@ impl EstablishedFact {
     }
 }
 
-/// Where one [`EulerOpError`] falls **at this door**.
-///
-/// The arena-fault rule ([`Body::merge_coplanar_faces_declared`]) has
-/// two halves with two owners, and this enum is the door's half. *Is
-/// the variant torn by its own line?* belongs to the operator layer
-/// ([`EulerOpError::reports_tier1_corruption`]) and
-/// [`OpPlacement::TheEnumsVerdict`] delegates it. *Does the refusal
-/// contradict a fact this door RE-CHECKS at the call?* no other
-/// caller of the operator can answer, so it is enumerated here, one
-/// arm per [`EstablishedFact`].
+/// Where one [`EulerOpError`] falls **at this door**: an inventory
+/// refusal, or one that contradicts a fact the door RE-CHECKS at the
+/// call ([`Body::merge_coplanar_faces_declared`]'s arena-fault rule),
+/// one arm per [`EstablishedFact`]. No other caller of the operator
+/// can answer the second question, so it is enumerated here.
 ///
 /// # Which site raises which
 ///
@@ -846,48 +1287,37 @@ impl EstablishedFact {
 /// the contract reads it, of every member, before the surgery is
 /// handed the group ([`Body::group_contract`]), and the surgery's own
 /// re-check of what it was told is a `debug_assert!`, not a lookup
-/// that can return.
+/// that can return. Every key the surgery hands an operator it read
+/// from the body, so no site raises [`EulerOpError::Argument`].
 ///
 /// | site | can return |
 /// | --- | --- |
-/// | `edge_halves` | `StaleKey` |
-/// | `get_face` (the dying face) | `StaleKey` |
-/// | `strut_tip` | `OrbitBroken` |
-/// | `loop_winding`, through `merged_outline_ring` | `StaleKey` |
-/// | `ring_move` | `StaleKey`, `RingIsOuter` (C), `CrossShell` (C) |
-/// | `kef` | `StaleKey`, `UnclaimedHalfEdge`, `LoopCycleBroken`, `LoopNotCycle`, `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C) |
-/// | `kev` | `StaleKey`, `UnclaimedHalfEdge`, `LoopNotCycle`, `OrbitBroken`, `SelfLoopEdge` (C) |
-/// | `mekr_chord` (a lone vertex's ring) | `StaleKey`, `StaleGeometry`, `LoopNotCycle`, `LoopNotEmpty`, `LoopCycleBroken`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
-/// | `kemr` | `StaleKey`, `NotSameEdge`, `LoopNotCycle`, `LoopCycleBroken`, `EmptyAnchorsCollide`, `NotSameLoop` (C) |
+/// | `ring_move_minting` | `RingIsOuter` (C), `CrossShell` (C); its site mint's `Certification` (a `tol` that forms no band), never `PcurveMint`: a moved loop is left as found on a spline chart, and a minting door owes no keys-only row |
+/// | `kef_minting` | `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C); its site mint's, as `ring_move_minting`'s |
+/// | `kev` | `SelfLoopEdge` (C); not its fan-merge refusals, which need a fan that neither kill's far vertex has: `strut_tip`'s valence-one tip, and the lone vertex the `mekr_chord` bridge ends at |
+/// | `mekr_chord` (a lone vertex's ring) | `LoopNotEmpty`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
+/// | `kemr` | `NotSameLoop` (C) |
 ///
 /// The `mekr_chord` row and the `kev` after it run only on a planar
 /// survivor, which refuses the call whatever it raises, so where those
 /// refusals fall changes no outcome; the row's variants take the arms
 /// below as they stand.
 ///
-/// The variants the table does not name take the enum's verdict like
-/// any other variant this door does not contradict. One of them this
-/// door does raise, outside `merge_group`: `StaleGeometry`, when the
-/// kind census ([`Body::merge_kind`]) meets a face whose surface key
-/// does not resolve — announced through [`crate::DanglingRef`] before
-/// any group reaches the surgery. The rest belong to operators this
-/// door does not call: the attachment and split gates
+/// The variants the table does not name are inventory refusals like
+/// any other variant this door does not contradict; they belong to
+/// operators this door does not call: the attachment and split gates
 /// (`set_edge_curve`, `split_edge`), the make-side sites (`mev`,
-/// `mef`), `kvfs`, `kfmrh`'s cross-solid form and the
-/// shell-move door. That is not a third arm: an arm the door cannot
-/// reach cannot be pinned, and a classification nothing can
-/// distinguish is documentation, which is what this table is. No
-/// count of the remainder is stated here; the match below is the
-/// census.
+/// `mef`), `kvfs`, `kfmrh`'s cross-solid form, the shell-move door and
+/// the null-face door. An arm the door cannot reach cannot be pinned,
+/// so the table is documentation; the match below is the census.
 ///
-/// The match producing this is exhaustive on purpose, like the enum's
-/// own: a new [`EulerOpError`] variant does not compile until someone
-/// places it here as well as on the operator layer's line.
+/// The match producing this is exhaustive on purpose: a new
+/// [`EulerOpError`] variant does not compile until someone places it
+/// here.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum OpPlacement {
-    /// The operator layer's verdict, taken as it stands. The door
-    /// keeps no copy of that list and adds nothing to it.
-    TheEnumsVerdict,
+    /// A statement about the group's mergeability.
+    Inventory,
     /// The refusal contradicts a fact this door re-checks immediately
     /// before the call it came back from, so it reports the arena
     /// whatever the variant means elsewhere.
@@ -897,74 +1327,83 @@ enum OpPlacement {
 impl OpPlacement {
     /// Places one operator refusal against the facts `merge_group`
     /// re-checks at its calls (the table in [`OpPlacement`]).
+    ///
+    /// # Panics
+    ///
+    /// On [`EulerOpError::Argument`]: every key the surgery hands an
+    /// operator it read from a tier-1-valid body.
     fn of(error: &EulerOpError) -> Self {
         use EstablishedFact as F;
         use EulerOpError as E;
         match error {
-            // ---- This door's own half: contradicts a re-checked
-            // fact. Each arm's re-check is the `debug_assert!` that
-            // carries the same `EstablishedFact` in the surgery, or,
-            // for the strut, `strut_tip`'s answer just before `kev`. ----
+            // ---- Contradicts a re-checked fact. Each arm's re-check
+            // is the `debug_assert!` that carries the same
+            // `EstablishedFact` in the surgery, or, for the strut,
+            // `strut_tip`'s answer just before `kev`. ----
             E::RingIsOuter { .. } => Self::Contradicts(F::RingIsNotItsFacesOuter),
             E::CrossShell { .. } => Self::Contradicts(F::RingAndSurvivorShareAShell),
             E::FaceHasRings { .. } => Self::Contradicts(F::AbsorbedFaceIsRingFree),
             E::SameLoop { .. } => Self::Contradicts(F::DyingHalvesAreInDifferentLoops),
             E::SelfLoopEdge { .. } => Self::Contradicts(F::StrutHalvesHaveDistinctEnds),
             E::NotSameLoop { .. } => Self::Contradicts(F::DuplicateHalvesShareALoop),
-            // ---- The enum's half. `SameFace` is here and not above:
-            // the absorption's own drain re-homes the dying loop onto
-            // the survivor, so a nested group meets it on a body that
-            // was never torn and the regime places it. ----
+            E::Argument(bad) => unreachable!(
+                "merge_group handed an operator a stale argument ({bad:?}): every key the \
+                 surgery passes it read from the body, which every operator keeps \
+                 tier-1-valid"
+            ),
+            // ---- Inventory. `SameFace` is here and not above: the
+            // absorption's own drain re-homes the dying loop onto the
+            // survivor, so a nested group meets it on a body that was
+            // never torn. ----
             E::SameFace { .. }
-            | E::StaleKey { .. }
-            | E::StaleGeometry { .. }
-            | E::LoopCycleBroken { .. }
-            | E::LoopNotCycle { .. }
-            | E::NotSameEdge { .. }
-            | E::UnclaimedHalfEdge { .. }
-            | E::OrbitBroken { .. }
-            | E::EmptyAnchorsCollide { .. }
             | E::Certification { .. }
             | E::RebasedCarrier { .. }
+            | E::NurbsLaneUnsupported { .. }
             | E::RebasedNullEdge { .. }
+            | E::MergeRebasesCarriers { .. }
+            | E::NotMergedMember { .. }
+            | E::DuplicateRedescription { .. }
             | E::DescriptionNotAdjacent { .. }
+            | E::RechartStrandsDescriptions { .. }
+            | E::RechartUnvouched { .. }
+            | E::RechartUndescribed { .. }
+            | E::RechartFalsifies { .. }
+            | E::RechartOffBoundary { .. }
+            | E::RechartBoundaryEscalated { .. }
+            | E::NotMovedEdge { .. }
+            | E::FaceMovedTwice { .. }
             | E::FanStartMismatch { .. }
-            | E::FanOrbitBroken { .. }
             | E::LoopNotEmpty { .. }
             | E::NotSameFace { .. }
+            | E::NullPairForeignLoop { .. }
             | E::SolidNotSingleShell { .. }
             | E::ShellNotSingleFace { .. }
             | E::NullScaffoldCurve { .. }
             | E::SplitParamNotInterior { .. }
             | E::SplitParamEscalated { .. }
+            | E::KillTurnUndecided { .. }
+            | E::SplitJointUndecided { .. }
             | E::PcurveSplit { .. }
+            | E::PcurveMint { .. }
             | E::CrossSolid { .. }
             | E::NoShellsNamed
             | E::ShellRepeated { .. }
             | E::ShellsAcrossSolids { .. }
-            | E::SolidWouldEmpty { .. } => Self::TheEnumsVerdict,
+            | E::SolidWouldEmpty { .. }
+            | E::SenseContradictsChart { .. } => Self::Inventory,
         }
     }
 }
 
 impl MergeCoplanarError {
     /// Whether this refusal reports a torn ARENA rather than a fact
-    /// about the group's mergeability.
-    ///
-    /// The rule is stated once, in [`GroupRegime`]'s header, and this
-    /// applies it: a refusal escapes when the variant is torn by the
-    /// operator layer's own line
-    /// ([`EulerOpError::reports_tier1_corruption`]), **or** when it
+    /// about the group's mergeability: an operator refusal that
     /// contradicts a fact this door re-checks at the call
-    /// ([`OpPlacement`], [`EstablishedFact`]). The second half is
-    /// enumerated here because it is this door's own question; the
-    /// first is delegated because it is not.
+    /// ([`OpPlacement`], [`EstablishedFact`]). The rule is stated once,
+    /// in [`Body::merge_coplanar_faces_declared`].
     fn is_arena_fault(&self) -> bool {
         match self {
-            Self::Op { error } => match OpPlacement::of(error) {
-                OpPlacement::Contradicts(_) => true,
-                OpPlacement::TheEnumsVerdict => error.reports_tier1_corruption(),
-            },
+            Self::Op { error } => matches!(OpPlacement::of(error), OpPlacement::Contradicts(_)),
             _ => false,
         }
     }
@@ -1042,6 +1481,23 @@ impl<T: Decide> Body<T> {
     /// [`MergedGroup::killed_vertices`], whose docs say where the
     /// region argument lives.
     ///
+    /// **A closed shared edge goes with its vertex.** Where the dying
+    /// face's whole outline is one closed edge (a disc in a hole of its
+    /// survivor), `kef` leaves the edge's vertex as a lone-vertex ring of
+    /// the survivor, which `mekr` then `kev` delete.
+    ///
+    /// **The kept faces' boundaries are re-described.** An absorbed
+    /// face's boundary edges end on its survivor still described
+    /// against the absorbed face's surface. Before it returns, the door
+    /// describes every boundary edge of each kept face again from the
+    /// two faces it now lies between — definitely transverse ⇒
+    /// `Intersection`, definitely smooth ⇒ the must-carry rule, or the
+    /// conventional description where the old one no longer cites those
+    /// faces — certified in `Band::linear(tol)`, so no such edge comes
+    /// back with tier 3's `DescriptionNotAdjacent`. An edge it cannot
+    /// describe refuses ([`MergeCoplanarError::KeptBoundaryUndescribed`],
+    /// [`MergeCoplanarError::KeptBoundaryUndecided`]).
+    ///
     /// **Atomic and deterministic (D9)**: the op stages on a clone —
     /// on any refusal `self` is untouched; on success the staged body
     /// replaces `self` wholesale. All scans are arena-order; the
@@ -1057,8 +1513,10 @@ impl<T: Decide> Body<T> {
     /// is an Euler operator, so tier 1 holds throughout and χ is
     /// conserved at every step.
     ///
-    /// A body with nothing to merge returns `Ok` with an empty outcome
-    /// and is untouched (deterministic no-op).
+    /// A body with nothing to merge returns `Ok` with no merge groups,
+    /// and is changed only by the join the door ends with (reported in
+    /// [`MergeCoplanarOutcome::joins`]); a body that also has nothing to
+    /// join is untouched (deterministic no-op).
     ///
     /// # Errors
     ///
@@ -1068,7 +1526,7 @@ impl<T: Decide> Body<T> {
         tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
     where
-        T: geom_brep::PcurveFittedLane,
+        T: crate::props::AtRestPolicy,
     {
         self.merge_coplanar_faces_declared(&[], tol)
     }
@@ -1119,20 +1577,14 @@ impl<T: Decide> Body<T> {
     /// kernel bug. **This is the rule's one statement in this
     /// module** — everything else that applies it points here.
     ///
-    /// Two things put a refusal in that class and this door asks
-    /// both:
-    ///
-    /// 1. The **operator layer's own line**
-    ///    ([`EulerOpError::reports_tier1_corruption`]): a dangling
-    ///    reference, and the walks and bijections that cannot fail on
-    ///    a tier-1-valid body. A property of the variant, asked and
-    ///    never copied here.
-    /// 2. A refusal that **contradicts a fact the surgery re-checks
-    ///    at the call** it came back from. `kef` reporting that the
-    ///    dying face still has rings, on a face whose rings the
-    ///    surgery re-homed and re-checked a statement earlier,
-    ///    reports the arena and not the group's mergeability,
-    ///    whatever that variant means at another door.
+    /// What puts a refusal in that class is that it **contradicts a
+    /// fact the surgery re-checks at the call** it came back from.
+    /// `kef` reporting that the dying face still has rings, on a face
+    /// whose rings the surgery re-homed and re-checked a statement
+    /// earlier, reports the arena and not the group's mergeability,
+    /// whatever that variant means at another door. A torn link or
+    /// walk is not a refusal at all: the door and its operators panic
+    /// on it.
     ///
     /// **Re-checked, not merely established.** A fact the door read
     /// before its own next mutation says nothing about the call:
@@ -1184,6 +1636,11 @@ impl<T: Decide> Body<T> {
     /// was — never a partial commit, and the unglued curved adjacency
     /// persists in the cut-carrying form the operands already carried.
     ///
+    /// The door ends with the join ([`Body::join_edges`], recorded in
+    /// [`MergeCoplanarOutcome::joins`]), so the body it leaves has
+    /// maximal faces and maximal edges (`docs/DESIGN.md`, maximal
+    /// edges); a body with nothing to merge is still joined.
+    ///
     /// # Errors
     ///
     /// [`MergeCoplanarError`], the body untouched in every case.
@@ -1193,8 +1650,49 @@ impl<T: Decide> Body<T> {
         tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
     where
-        T: geom_brep::PcurveFittedLane,
+        T: crate::props::AtRestPolicy,
     {
+        self.merge_coplanar_faces_staged(declared, tol, true)
+    }
+
+    /// [`Body::merge_coplanar_faces_declared`] without the join: the
+    /// boolean's merge, whose output stage re-describes what it minted
+    /// and joins after (`boolean::ops::finish_output`). Its result is
+    /// construction state a later step must join.
+    pub(crate) fn merge_coplanar_faces_unjoined(
+        &mut self,
+        declared: &[(SurfaceKey, SurfaceKey)],
+        tol: Tol,
+    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        self.merge_coplanar_faces_staged(declared, tol, false)
+    }
+
+    /// The merge, ending with the join where `join` is set: on the
+    /// staged result before it is adopted, so a refusal of either
+    /// leaves the body untouched.
+    fn merge_coplanar_faces_staged(
+        &mut self,
+        declared: &[(SurfaceKey, SurfaceKey)],
+        tol: Tol,
+        join: bool,
+    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let joined =
+            |body: &mut Self| -> Result<Vec<crate::boolean::EdgeJoin>, MergeCoplanarError> {
+                if !join {
+                    return Ok(Vec::new());
+                }
+                let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
+                body.join_edges(band, tol)
+                    .map_err(|refusal| MergeCoplanarError::Join {
+                        refusal: crate::boolean::JoinRefusal::of(&refusal),
+                    })
+            };
         // ---- Gate: tier-valid before. ----
         if let Err(errors) = validate_closed(self) {
             return Err(MergeCoplanarError::InputNotClosed { errors });
@@ -1202,19 +1700,19 @@ impl<T: Decide> Body<T> {
         // ---- Declared pairs: validate, then class each by carrier kind. ----
         //
         // A key that does not resolve, or a pair of two kinds, is a
-        // torn argument and refuses. A planar pair joins the surface
+        // malformed argument and refuses. A planar pair joins the surface
         // equivalence. A pair on one non-planar kind is a LEGAL
         // declaration this door has no rung for: it is declined here
         // and recorded below, never refused — the declaration served
         // the calling op, and an inventory limit of this door is not
         // the caller's error.
         let kind_of = |k: SurfaceKey| -> Result<SurfaceKind, MergeCoplanarError> {
-            self.get_surface(k)
-                .map(SurfaceKind::of)
-                .ok_or(MergeCoplanarError::InvalidDeclaration {
+            self.get_surface(k).map(geom::Surface::kind).ok_or(
+                MergeCoplanarError::InvalidDeclaration {
                     surface: k,
                     what: "declared surface key does not resolve",
-                })
+                },
+            )
         };
         let mut eq = DeclaredSurfaceEq::default();
         let mut declined: Vec<((SurfaceKey, SurfaceKey), SurfaceKind)> = Vec::new();
@@ -1281,28 +1779,24 @@ impl<T: Decide> Body<T> {
         // by-product. Taken before the adjacency scan so the record is
         // complete whether or not anything merges, and so a poisoned
         // net refuses before any group forms.
-        let kinds = self.kind_census()?;
+        let KindCensus {
+            kinds,
+            described,
+            placeholders,
+        } = self.kind_census()?;
         let mut outcome = MergeCoplanarOutcome {
-            placeholders: self
-                .faces()
-                .map(|(k, _)| k)
-                .filter(|&k| kinds.get(k) == Some(&MergeKind::Placeholder))
-                .collect(),
+            placeholders,
             ..MergeCoplanarOutcome::default()
         };
         // ---- Mergeable adjacency (read-only, edge-arena order). ----
-        let mut neighbors: SecondaryMap<FaceKey, Vec<FaceKey>> = SecondaryMap::new();
+        let mut neighbors: BTreeMap<FaceKey, Vec<FaceKey>> = BTreeMap::new();
         let mut any = false;
         for (edge_key, edge) in self.edges() {
-            let (hp, hm) = self.edge_halves(edge.he_plus, edge.he_minus)?;
+            let (hp, hm) = self.edge_halves(edge_key, edge);
             let (fp, fm) = (hp.face, hm.face);
-            if fp != fm && self.planes_declared_equal(fp, fm, edge_key, declared_ctx.as_ref())? {
-                if let Some(entry) = neighbors.entry(fp) {
-                    entry.or_default().push(fm);
-                }
-                if let Some(entry) = neighbors.entry(fm) {
-                    entry.or_default().push(fp);
-                }
+            if fp != fm && self.planes_declared_equal(hp, hm, &described, declared_ctx.as_ref())? {
+                neighbors.entry(fp).or_default().push(fm);
+                neighbors.entry(fm).or_default().push(fp);
                 any = true;
             }
         }
@@ -1312,6 +1806,9 @@ impl<T: Decide> Body<T> {
             // not about any merge), on the outcome whose placeholder
             // census the initializer already took.
             outcome.skipped = declined_records(self);
+            // Nothing merged, so `self` is as found: the join door
+            // stages its own clone.
+            outcome.joins = joined(self)?;
             return Ok(outcome);
         }
         // ---- Group labeling (face-arena order seeds, DFS worklist). ----
@@ -1323,7 +1820,7 @@ impl<T: Decide> Body<T> {
         let mut label: SecondaryMap<FaceKey, usize> = SecondaryMap::new();
         let mut groups: Vec<(FaceKey, Vec<FaceKey>)> = Vec::new();
         for (face_key, _) in self.faces() {
-            if !neighbors.contains_key(face_key) || label.contains_key(face_key) {
+            if !neighbors.contains_key(&face_key) || label.contains_key(face_key) {
                 continue;
             }
             let id = groups.len();
@@ -1331,7 +1828,14 @@ impl<T: Decide> Body<T> {
             label.insert(face_key, id);
             let mut pending = vec![face_key];
             while let Some(next) = pending.pop() {
-                for &n in neighbors.get(next).map(Vec::as_slice).unwrap_or(&[]) {
+                let Some(adjacent) = neighbors.get(&next) else {
+                    unreachable!(
+                        "merge_coplanar_faces: face {next:?} was queued from the adjacency map, \
+                         and every face that map lists is one of its keys (each mergeable edge \
+                         enters both of its faces)"
+                    )
+                };
+                for &n in adjacent {
                     if !label.contains_key(n) {
                         label.insert(n, id);
                         rest.push(n);
@@ -1351,7 +1855,7 @@ impl<T: Decide> Body<T> {
         // surgery: it is set aside here, its faces already named.
         let mut work = self.clone();
         for (seed, members) in groups {
-            let (rep, rest) = work.outermost_survivor(seed, members)?;
+            let (rep, rest) = work.outermost_survivor(seed, members);
             let (regime, kind) = match Self::group_contract(rep, &rest, &kinds)? {
                 GroupContract::Runs { regime, kind } => (regime, kind),
                 GroupContract::SetAside => continue,
@@ -1411,58 +1915,92 @@ impl<T: Decide> Body<T> {
                 }
             }
         }
-        // ---- Gate: tier-valid after; commit. ----
+        // ---- Gate: tier-valid after. ----
         if let Err(errors) = validate_closed(&work) {
             return Err(MergeCoplanarError::ResultNotClosed { errors });
         }
+        // The records the caller receives. Neither the re-description
+        // nor the pcurve re-mint below moves a face or its surface, so
+        // they are read once, here.
+        let declined = declined_records(&work);
+        // ---- The kept faces' boundaries, re-described. ----
+        //
+        // An absorbed face's boundary edges now lie on its survivor,
+        // and their descriptions still name the absorbed face's
+        // surface: each is described again from the two faces it lies
+        // between. After the gate, so a torn result reports its tier-2
+        // errors, never a walk the describer could not make.
+        if !outcome.groups.is_empty() {
+            let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
+            let Some(boundary) =
+                crate::boolean::boundary_edges(&work, outcome.groups.iter().map(|g| g.kept))
+            else {
+                unreachable!(
+                    "merge_coplanar_faces: a kept face's loop does not walk, on a result that \
+                     passed tier 1 and tier 2 a statement ago"
+                )
+            };
+            // The describer reads the records for the scaffold a
+            // recorded skip leaves between its faces.
+            let records: Vec<SkippedMerge> =
+                declined.iter().chain(&outcome.skipped).cloned().collect();
+            let mut surgery = work.begin_surgery();
+            crate::boolean::describe_edges(
+                &mut surgery,
+                boundary.iter().map(|&(_, edge)| edge),
+                &records,
+                band,
+                tol,
+            )
+            .map_err(|refusal| MergeCoplanarError::of_kept_boundary(&boundary, refusal))?;
+            surgery.sweep_and_close();
+            // The describer's postcondition: every edge it described is
+            // coherent with its two faces (tier 3's naming check, exact).
+            #[cfg(debug_assertions)]
+            for &(face, edge) in &boundary {
+                debug_assert!(
+                    work.stored_description_adjacent(edge),
+                    "merge_coplanar_faces: kept face {face:?}'s boundary edge {edge:?} was \
+                     described and is not coherent with its sides {:?}",
+                    crate::readback::edge_sides(&work, edge)
+                );
+            }
+        }
         // A body that carried stored pcurve caches RE-MINTS them on
         // the staged result before commit (the `topo::pcurves` module
-        // docs' rule for ops that mutate minted bodies): the merge
+        // docs' rule for ops that mutate minted bodies; a body at rest
+        // carries them on every face whose chart mints): the merge
         // rebuilds face loops, and two absorbed fragments' walks were
         // branch-anchored independently — the merged loop's one-branch
         // walk must be derived fresh, never stitched from the
         // fragments' rows. Still on the staged clone, so a mint
-        // refusal keeps the untouched-on-error contract.
-        //
-        // LATENT (named, not reachable by any current path): the mint
-        // pass carries the `PcurveFittedLane` bound since PCURVE P-2
-        // (#498) and mints U2's `General` arm through it, but the
-        // FITTED variant itself still has no mint site, so a `Fitted`
-        // cache (at rest since M6-2) on a merged body would still come
-        // back as the mint pass's honest-skip — the face legally
-        // UNCACHED, its fitted certificate silently dropped. What is
-        // left of that item is `certify_fitted`'s own wiring, not the
-        // bound; this site inherits the fix when that lands.
+        // refusal keeps the untouched-on-error contract. A row the mint
+        // has no route to (a `Fitted` row on a class the closed-form
+        // lane does not cover) is carried across, re-certified, not
+        // dropped (`pcurves::carry_rows`).
         if !self.pcurves.is_empty() {
             crate::pcurves::mint_pcurves(&mut work, tol)
                 .map_err(|source| MergeCoplanarError::Pcurve { source })?;
         }
-        let mut skipped = declined_records(&work);
+        let mut skipped = declined;
         skipped.append(&mut outcome.skipped);
         outcome.skipped = skipped;
+        outcome.joins = joined(&mut work)?;
         self.adopt(work);
         Ok(outcome)
     }
 
     /// The other half of `edge`, resolved — the re-checks' shared
-    /// lookup. `None` when either key does not resolve, which the
-    /// re-checks read as "nothing to prove here": a dangling key is
-    /// the operator's own refusal to make, and it is torn by the
-    /// enum's line either way.
+    /// lookup. `None` when a key does not resolve or `edge` does not
+    /// claim `he` ([`crate::entity::Edge::claim`]), which the re-checks
+    /// read as "nothing to prove here": the operator they guard panics
+    /// on it.
     fn edge_mate(
         &self,
         he: crate::entity::HalfEdgeKey,
         edge: EdgeKey,
     ) -> Option<&crate::entity::HalfEdge> {
-        let e = self.get_edge(edge)?;
-        let mate = if e.he_plus == he {
-            e.he_minus
-        } else if e.he_minus == he {
-            e.he_plus
-        } else {
-            return None;
-        };
-        self.get_half_edge(mate)
+        self.get_half_edge(self.get_edge(edge)?.claim(he)?.mate)
     }
 
     /// The [`MergeKind`] of one face's surface, announcing both
@@ -1470,35 +2008,51 @@ impl<T: Decide> Body<T> {
     ///
     /// # Errors
     ///
-    /// [`MergeCoplanarError::Op`], through the crate's dangling-
-    /// reference vocabulary;
     /// [`MergeCoplanarError::PoisonedSurfaceDescription`] for a net
     /// that has no kind here.
     fn merge_kind(&self, face: FaceKey) -> Result<MergeKind, MergeCoplanarError> {
-        let surface = self
-            .get_face(face)
-            .ok_or(DanglingRef::Entity(EntityId::Face(face)))?
-            .surface;
-        let described = self
-            .get_surface(surface)
-            .ok_or(DanglingRef::Geometry(GeomRef::Surface(surface)))?;
-        MergeKind::of(described)
-            .map_err(|PoisonedNet| MergeCoplanarError::PoisonedSurfaceDescription { face })
+        let record = proven(&self.faces, face, EntityId::Face);
+        Ok(self.described_kind(face, record)?.1)
+    }
+
+    /// Face `face`'s surface (`record` is its resolved record) and
+    /// the surface's [`MergeKind`]: [`Body::merge_kind`]'s errors past
+    /// the face lookup.
+    fn described_kind(
+        &self,
+        face: FaceKey,
+        record: &crate::entity::Face,
+    ) -> Result<(&Surface<T>, MergeKind), MergeCoplanarError> {
+        let described = self.face_surface_linked(face, record);
+        let kind = MergeKind::of(described)
+            .map_err(|PoisonedNet| MergeCoplanarError::PoisonedSurfaceDescription { face })?;
+        Ok((described, kind))
     }
 
     /// Every live face's [`MergeKind`], in one pass — the one place
-    /// the door asks the kind question of the arena.
+    /// the door asks the kind question of the arena — with the
+    /// surface each face resolved to and the placeholder faces that
+    /// pass met, in face-arena order.
     ///
     /// # Errors
     ///
     /// [`Body::merge_kind`]'s, for the first face (arena order) that
     /// raises one.
-    fn kind_census(&self) -> Result<SecondaryMap<FaceKey, MergeKind>, MergeCoplanarError> {
-        let mut kinds = SecondaryMap::new();
-        for (face_key, _) in self.faces() {
-            kinds.insert(face_key, self.merge_kind(face_key)?);
+    fn kind_census(&self) -> Result<KindCensus<'_, T>, MergeCoplanarError> {
+        let mut census = KindCensus {
+            kinds: SecondaryMap::new(),
+            described: SecondaryMap::new(),
+            placeholders: Vec::new(),
+        };
+        for (face_key, record) in self.faces() {
+            let (described, kind) = self.described_kind(face_key, record)?;
+            if kind == MergeKind::Placeholder {
+                census.placeholders.push(face_key);
+            }
+            census.kinds.insert(face_key, kind);
+            census.described.insert(face_key, (record, described));
         }
-        Ok(kinds)
+        Ok(census)
     }
 
     /// **Does `toward` dangle alone at its start vertex** — is that
@@ -1506,20 +2060,13 @@ impl<T: Decide> Body<T> {
     /// the condition that licenses `kev` over `kemr` on a planar
     /// survivor's duplicate?
     ///
-    /// A BROKEN orbit is ANNOUNCED, not read as "no tip". `kev` and
-    /// `kemr` are different operators with different Euler deltas, so
-    /// a torn arena answering this question silently chooses which
-    /// surgery runs and which delta the group reports.
+    /// # Panics
     ///
-    /// # Errors
-    ///
-    /// [`EulerOpError::OrbitBroken`], naming the half-edge whose
-    /// start vertex's orbit failed to close.
-    fn strut_tip(&self, toward: crate::entity::HalfEdgeKey) -> Result<bool, EulerOpError> {
-        let orbit = self
-            .vertex_orbit(toward)
-            .ok_or(EulerOpError::OrbitBroken { he: toward })?;
-        Ok(orbit.len() == 1)
+    /// Where `toward`'s start vertex's orbit does not close: on a
+    /// tier-1-valid body every orbit does.
+    #[track_caller]
+    fn strut_tip(&self, toward: crate::entity::HalfEdgeKey) -> bool {
+        self.orbit_walk(toward).closed("orbit", toward).len() == 1
     }
 
     /// The group's survivor: its first member in face-arena order that
@@ -1539,47 +2086,39 @@ impl<T: Decide> Body<T> {
     /// a merge can reach) keeps `seed`, and the absorption refuses as
     /// before.
     ///
-    /// # Errors
+    /// # Panics
     ///
-    /// [`MergeCoplanarError::Op`] carrying an unresolved reference.
-    fn outermost_survivor(
-        &self,
-        seed: FaceKey,
-        members: Vec<FaceKey>,
-    ) -> Result<(FaceKey, Vec<FaceKey>), MergeCoplanarError> {
+    /// Where a member's rings, a ring walk, a ring member's edge or a
+    /// lone ring vertex's point reach a record that does not resolve, a
+    /// ring walk does not close, or it meets a half-edge its
+    /// edge does not claim: the staged body is tier-1-valid, since every operator
+    /// the earlier groups ran keeps it so.
+    fn outermost_survivor(&self, seed: FaceKey, members: Vec<FaceKey>) -> (FaceKey, Vec<FaceKey>) {
         let in_group = |f: FaceKey| f == seed || members.contains(&f);
         let mut nested: std::collections::BTreeSet<FaceKey> = std::collections::BTreeSet::new();
         for f in core::iter::once(seed).chain(members.iter().copied()) {
-            let face = self
-                .get_face(f)
-                .ok_or(DanglingRef::Entity(EntityId::Face(f)))?;
-            for &ring in &face.rings {
-                let first = match self
-                    .get_loop(ring)
-                    .ok_or(DanglingRef::Entity(EntityId::Loop(ring)))?
-                    .boundary
-                {
-                    crate::entity::LoopBoundary::Cycle { first } => first,
+            let face = proven(&self.faces, f, EntityId::Face);
+            for &lk in &face.rings {
+                let ring = linked(&self.loops, lk, EntityId::Loop, EntityId::Face(f), "rings");
+                for member in self.loop_members_linked(lk, ring) {
                     // A lone-vertex ring borders no face.
-                    crate::entity::LoopBoundary::Empty { vertex: _lone } => continue,
-                };
-                let cycle = self
-                    .loop_cycle(first)
-                    .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring })?;
-                for he in cycle {
-                    let edge = self
-                        .get_half_edge(he)
-                        .ok_or(DanglingRef::Entity(EntityId::HalfEdge(he)))?
-                        .edge;
-                    let e = self
-                        .get_edge(edge)
-                        .ok_or(DanglingRef::Entity(EntityId::Edge(edge)))?;
-                    let mate = if e.he_plus == he {
-                        e.he_minus
-                    } else {
-                        e.he_plus
+                    let BoundaryMember::Edge {
+                        he,
+                        ek: edge,
+                        edge: e,
+                        ..
+                    } = member
+                    else {
+                        continue;
                     };
-                    let (_, facts) = self.edge_halves(he, mate)?;
+                    let Some(claim) = e.claim(he) else {
+                        unreachable!(
+                            "{he:?}'s edge {edge:?} does not claim it: on a tier-1-valid body \
+                             an edge claims the two half-edges that name it"
+                        )
+                    };
+                    let facts =
+                        self.half_edge_facts(claim.mate, EntityId::Edge(edge), claim.mate_field());
                     if facts.face != f && in_group(facts.face) {
                         nested.insert(facts.face);
                     }
@@ -1587,13 +2126,13 @@ impl<T: Decide> Body<T> {
             }
         }
         if !nested.contains(&seed) {
-            return Ok((seed, members));
+            return (seed, members);
         }
         let survivor = self
             .faces()
             .map(|(k, _)| k)
             .find(|&k| in_group(k) && !nested.contains(&k));
-        Ok(match survivor {
+        match survivor {
             Some(kept) => {
                 let rest = core::iter::once(seed)
                     .chain(members)
@@ -1602,7 +2141,7 @@ impl<T: Decide> Body<T> {
                 (kept, rest)
             }
             None => (seed, members),
-        })
+        }
     }
 
     /// One group's [`GroupContract`]: whether it runs, and under which
@@ -1628,32 +2167,35 @@ impl<T: Decide> Body<T> {
     /// described faces included.
     ///
     /// The kinds are read from the census ([`Body::kind_census`]), not
-    /// from the arena: the census asked every face once, and a member
-    /// it does not hold is a face the arena did not have when the
-    /// door started.
+    /// from the arena: the census asked every face once.
     ///
     /// # Errors
     ///
     /// [`MergeCoplanarError::GroupKindSplit`] where the members
-    /// disagree, or [`MergeCoplanarError::Op`] carrying an unresolved
-    /// reference. The kind lookups are ANNOUNCED rather than read as
-    /// "not curved": they decide which contract the group is handed,
-    /// and a failed lookup silently spelled "planar" would move a
-    /// group between regimes on a torn arena.
+    /// disagree.
+    ///
+    /// # Panics
+    ///
+    /// Where the census does not hold a member: every member is a face
+    /// the adjacency scan met live, and the census holds every face
+    /// live when the door started.
     fn group_contract(
         rep: FaceKey,
         rest: &[FaceKey],
         kinds: &SecondaryMap<FaceKey, MergeKind>,
     ) -> Result<GroupContract, MergeCoplanarError> {
         let kind_of = |f: FaceKey| {
-            kinds
-                .get(f)
-                .copied()
-                .ok_or(DanglingRef::Entity(EntityId::Face(f)))
+            let Some(&kind) = kinds.get(f) else {
+                unreachable!(
+                    "group member {f:?} is not in the kind census: every member is a face the \
+                     adjacency scan met live, and the census holds every live face"
+                )
+            };
+            kind
         };
-        let rep_kind = kind_of(rep)?;
+        let rep_kind = kind_of(rep);
         for &f in rest {
-            let kind = kind_of(f)?;
+            let kind = kind_of(f);
             if kind != rep_kind {
                 let ((face, kind), (other, other_kind)) = if rep_kind < kind {
                     ((rep, rep_kind), (f, kind))
@@ -1684,62 +2226,66 @@ impl<T: Decide> Body<T> {
     /// One resolved half of an edge — every fact the merge's scans
     /// read through a half-edge, taken in the one walk that proves
     /// the keys, so no later step looks a proven key up again.
+    ///
+    /// `he` is `holder`'s field `field`.
+    ///
+    /// # Panics
+    ///
+    /// Where `he` or its parent loop does not resolve: on a
+    /// tier-1-valid body every link resolves.
+    #[track_caller]
     fn half_edge_facts(
         &self,
         he: crate::entity::HalfEdgeKey,
-    ) -> Result<HalfEdgeFacts, EulerOpError> {
-        let hd = self.get_half_edge(he).ok_or(EulerOpError::StaleKey {
-            key: EntityId::HalfEdge(he),
-        })?;
+        holder: EntityId,
+        field: &'static str,
+    ) -> HalfEdgeFacts {
+        let hd = linked(&self.half_edges, he, EntityId::HalfEdge, holder, field);
         let parent = hd.parent_loop;
-        let face = self
-            .get_loop(parent)
-            .ok_or(EulerOpError::StaleKey {
-                key: EntityId::Loop(parent),
-            })?
-            .face;
-        Ok(HalfEdgeFacts {
+        let face = linked(
+            &self.loops,
+            parent,
+            EntityId::Loop,
+            EntityId::HalfEdge(he),
+            "parent_loop",
+        )
+        .face;
+        HalfEdgeFacts {
             r#loop: parent,
             face,
             start: hd.start,
-        })
+        }
     }
 
-    /// An edge's two halves, resolved.
-    ///
-    /// Every link this walks is one tier 1 requires to resolve, so a
-    /// refusal names a torn arena and never an ordinary shape. It is
-    /// returned rather than folded into "this edge is not interesting"
-    /// because the two are indistinguishable to the scans that call
-    /// this, and treating a torn link as an uninteresting edge drops a
-    /// mergeable adjacency or a shared seam without a word.
+    /// The two halves of `edge` (`data` is its record), resolved.
     ///
     /// It carries the parent loop and start vertex beside the face
     /// because the scans need those too: returning them from the walk
     /// that proved the keys is what leaves the later steps with
-    /// nothing to look up and therefore nothing to discard.
+    /// nothing to look up.
     ///
-    /// # Errors
+    /// # Panics
     ///
-    /// [`EulerOpError::StaleKey`], naming the link that did not
-    /// resolve.
+    /// Where a link it walks does not resolve: on a tier-1-valid body
+    /// every one does.
+    #[track_caller]
     fn edge_halves(
         &self,
-        he_plus: crate::entity::HalfEdgeKey,
-        he_minus: crate::entity::HalfEdgeKey,
-    ) -> Result<(HalfEdgeFacts, HalfEdgeFacts), EulerOpError> {
-        Ok((
-            self.half_edge_facts(he_plus)?,
-            self.half_edge_facts(he_minus)?,
-        ))
+        edge: EdgeKey,
+        data: &crate::entity::Edge,
+    ) -> (HalfEdgeFacts, HalfEdgeFacts) {
+        (
+            self.half_edge_facts(data.he_plus, EntityId::Edge(edge), "he_plus"),
+            self.half_edge_facts(data.he_minus, EntityId::Edge(edge), "he_minus"),
+        )
     }
 
-    /// The F6 ladder's merge test (M4 PR 5, the N6 retirement): same
-    /// surface key (structural), same [`crate::GeomSource`] including
-    /// orient (declared — shared recipe source, syntactic identity,
-    /// zero numerics), or the pair's surfaces are declared-equivalent
-    /// by this call's face pairs (verified through `plane_eq`'s
-    /// declared rung at the meeting edge; contradiction refuses).
+    /// The F6 ladder's merge test: the recipe declared the two faces'
+    /// surfaces one ([`crate::source::surface_declaration`] — same key
+    /// or same [`crate::GeomSource`], zero numerics) and the faces share
+    /// a `sense`, or the pair's planes are declared-equivalent by this
+    /// call's face pairs (verified through `plane_eq`'s declared rung
+    /// at the meeting edge; contradiction refuses).
     ///
     /// The M3-era rung — bit-identical nine-scalar descriptions — is
     /// RETIRED from production: equal bits without shared source stay
@@ -1749,8 +2295,8 @@ impl<T: Decide> Body<T> {
     /// here by design* — the declared-pair verification only checks
     /// the declaration is not a lie; the INTENT does the gluing.
     ///
-    /// Non-plane surfaces never merge, same-key included (curved
-    /// maximality is M5's).
+    /// The declared hard rungs merge any kind; the declared-pair rung
+    /// is planar.
     ///
     /// **Shared sense is a precondition of every rung** (S10). Two
     /// faces on one surface whose `sense` bits differ have OPPOSITE
@@ -1767,66 +2313,64 @@ impl<T: Decide> Body<T> {
     /// opposite-sense pair is not refused, it is simply not a merge
     /// candidate: a slit is legal geometry, and this op has no
     /// standing to reject a body for containing one.
+    ///
+    /// `plus` and `minus` are the shared edge's two halves as the
+    /// adjacency scan resolved them: their faces are the pair, and
+    /// their start vertices are the edge's two ends.
+    ///
+    /// `described` is the kind census's record of every live face and
+    /// its surface. "Not a plane" is an answer (`false`: the
+    /// declared-pair rung is planar).
+    ///
+    /// # Errors
+    ///
+    /// The declared rung's refusals ([`declared_pair_verdict`]).
+    ///
+    /// # Panics
+    ///
+    /// Where the census does not hold either face, or a boundary record
+    /// does not resolve ([`Body::boundary_points`]): the scan reads the
+    /// body the census was taken of, through its own links.
     fn planes_declared_equal(
         &self,
-        f1: FaceKey,
-        f2: FaceKey,
-        edge: EdgeKey,
+        plus: HalfEdgeFacts,
+        minus: HalfEdgeFacts,
+        described: &Described<'_, T>,
         declared: Option<&DeclaredCtx>,
     ) -> Result<bool, MergeCoplanarError> {
-        let (Some(face1), Some(face2)) = (self.get_face(f1), self.get_face(f2)) else {
-            return Ok(false);
+        let (f1, f2) = (plus.face, minus.face);
+        let resolved = |f: FaceKey| {
+            let Some(&entry) = described.get(f) else {
+                unreachable!(
+                    "{f:?}, read off a loop's face link, is not in the kind census: the census \
+                     holds every live face of the body the scan reads"
+                )
+            };
+            entry
         };
+        let ((face1, s1), (face2, s2)) = (resolved(f1), resolved(f2));
         let (k1, k2) = (face1.surface, face2.surface);
-        let (Some(s1), Some(s2)) = (self.get_surface(k1), self.get_surface(k2)) else {
-            return Ok(false);
-        };
         // The shared-sense precondition (fn docs): a differing bit
         // makes the two outward normals opposite, so neither hard rung
         // — both of which certify the SURFACE, not the face — may
         // conclude the faces are one region. Falling through leaves
         // the declared rung to refuse loudly if the pair was declared.
         let same_sense = face1.sense == face2.sense;
-        // The hard rungs are KIND-AGNOSTIC since M5 PR 9 (C12.5, the
-        // cosurface generalization): the same-key and same-source
-        // tests never touch a numeric coordinate, so nothing about
-        // them was planar — the M3-era "curved same-key neighbors
-        // stay unmerged" note flips here, with the same ladder, the
-        // same never-numeric rule, and N3 naming semantics unchanged.
-        // The named consumer: the boolean zip's re-merge of a
-        // cylinder wall split by a through cut.
-        if k1 == k2 && same_sense {
-            return Ok(true); // structural
-        }
-        // Declared rung, N6 form: same recipe source INCLUDING orient
-        // — a provenance lookup, no numerics (M4's GeomSource
-        // retirement consumed, NOT bit_identity). The debug assertion
-        // is DESIGN.md's "records agree with bits", stated for the
-        // planar kind where the bit predicate exists.
-        if same_sense
-            && let (Some(g1), Some(g2)) = (self.surface_source(k1), self.surface_source(k2))
-            && g1 == g2
-        {
-            // Asserted only where the scalar HAS a bit channel: the rung
-            // is the provenance lookup, the bits are its evidence, and a
-            // scalar with no channel (`Dual`, `Sym`) offers none —
-            // `None` there is not disagreement.
+        // The hard rungs are the declared-identity predicate
+        // (`crate::source`'s module docs): kind-agnostic, never numeric.
+        let declaration = crate::source::surface_declaration(self, k1, self, k2);
+        if same_sense && declaration.one_surface() {
+            // Asserted where the grouping's kind split will not refuse
+            // the pair typed, and only where the scalar HAS a bit
+            // channel: a scalar with no channel (`Dual`, `Sym`) offers
+            // no evidence, and `None` there is not disagreement.
             #[cfg(debug_assertions)]
-            if let (
-                Surface::Plane {
-                    origin: o1,
-                    normal: n1,
-                    u_ref: u1,
-                },
-                Surface::Plane {
-                    origin: o2,
-                    normal: n2,
-                    u_ref: u2,
-                },
-            ) = (s1.clone(), s2.clone())
-                && let Some(agree) = crate::source::plane_bits_witness(o1, n1, o2, n2, false)
-                    .zip(crate::source::vec3_bits_witness(u1, u2))
-                    .map(|(plane, u_ref)| plane && u_ref)
+            if declaration == crate::source::SurfaceDeclaration::SameSource
+                && matches!(
+                    (MergeKind::of(s1), MergeKind::of(s2)),
+                    (Ok(a), Ok(b)) if a == b
+                )
+                && let Some(agree) = crate::source::surface_bits_witness(s1, s2)
             {
                 debug_assert!(
                     agree,
@@ -1860,7 +2404,6 @@ impl<T: Decide> Body<T> {
             && ctx.eq.same(k1, k2)
         {
             let band = ctx.band;
-            let arm = self.edge_chord_len(edge).unwrap_or_else(T::one);
             let id = PlaneIdentity {
                 s1: None,
                 s2: None,
@@ -1878,34 +2421,114 @@ impl<T: Decide> Body<T> {
                 origin: o2,
                 normal: plane_outward_normal(face2, n2).vec(),
             };
-            return match oriented_plane_eq(&p1, &p2, id, arm, band) {
-                Ok(PlaneRelation::SameOriented) => Ok(true),
-                Ok(PlaneRelation::SameOpposite) => {
-                    Err(MergeCoplanarError::DeclaredOppositeOrientation { f1, f2 })
-                }
-                // Unreachable through the declared rung; kept typed.
-                Ok(PlaneRelation::Distinct) => Ok(false),
-                Err(PlaneEqError::Contradicted(diag)) => {
-                    Err(MergeCoplanarError::DeclarationContradicted { diag })
-                }
-                Err(PlaneEqError::Escalated(diag) | PlaneEqError::Undeclared { diag, .. }) => {
-                    Err(MergeCoplanarError::Escalated { diag })
-                }
+            // The pair is read over a ball enclosing both faces, and
+            // their vertices, the points known to be consumed: the
+            // glue holds at every point of both faces, and a face
+            // standing definitely off the other's plane contradicts the
+            // declaration. A face whose extent does not read has no
+            // reach to settle, which the reach decision names.
+            let (on1, on2) = (self.boundary_points(f1), self.boundary_points(f2));
+            let reach =
+                crate::boolean::rest::pair_extent(self, f1, self, f2, band).map_err(|_| {
+                    MergeCoplanarError::Escalated {
+                        decision: MergeDecision::DeclaredReach,
+                        diag: Indeterminate {
+                            margin: geom_core::MarginDiag::INVALID,
+                            band,
+                            predicate: Some("merge_declared_extent"),
+                            terminal_sliver: false,
+                        },
+                    }
+                })?;
+            let extent = crate::boolean::ConsumedExtent {
+                reach: reach.reach,
+                on: [&on1, &on2],
             };
+            return declared_pair_verdict(oriented_plane_eq(&p1, &p2, id, &extent, band), f1, f2);
         }
         Ok(false)
     }
 
-    /// The chord length between an edge's endpoints — the lever arm
-    /// metering the declared-pair verification at that edge.
-    fn edge_chord_len(&self, edge: EdgeKey) -> Option<T> {
-        let e = self.get_edge(edge)?;
-        let pa = *self.get_point(self.get_vertex(self.get_half_edge(e.he_plus)?.start)?.point)?;
-        let pb = *self.get_point(
-            self.get_vertex(self.get_half_edge(e.he_minus)?.start)?
-                .point,
-        )?;
-        Some((pb - pa).norm())
+    /// The face's boundary vertex positions, outer loop then rings
+    /// (an empty loop contributes its lone vertex): the points the
+    /// declared rung knows lie on the face. `face` is one the caller
+    /// resolved.
+    ///
+    /// # Panics
+    ///
+    /// Where a boundary record (a loop, a member's edge, a lone vertex
+    /// or its point) does not resolve or a cycle does not close: on a
+    /// tier-1-valid body every one does.
+    #[track_caller]
+    fn boundary_points(&self, face: FaceKey) -> Vec<geom_core::Point3<T>> {
+        let f = proven(&self.faces, face, EntityId::Face);
+        self.face_boundary_linked(face, f)
+            .map(|member| match member {
+                BoundaryMember::Isolated { point, .. } => point,
+                BoundaryMember::Edge { he, half, .. } => {
+                    self.linked_vertex_point(half.start, EntityId::HalfEdge(he), "start")
+                }
+            })
+            .collect()
+    }
+
+    /// Deletes the lone-vertex ring `ring` of `rep` with its vertex:
+    /// `mekr` bridges it to `rep`'s outline and `kev` kills the bridge
+    /// and the vertex.
+    ///
+    /// # Panics
+    ///
+    /// Where `rep`'s outline is a lone vertex: the entry gate proved the
+    /// body closed, where an outline bounds its face's area, and
+    /// [`Body::refuse_lone_outline`] stops the surgery before it
+    /// reduces one to a lone vertex.
+    fn delete_lone_ring(
+        &mut self,
+        rep: FaceKey,
+        ring: crate::entity::LoopKey,
+        tol: Tol,
+    ) -> Result<(), MergeCoplanarError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let outline = proven(&self.faces, rep, EntityId::Face).outer;
+        let target = match linked(
+            &self.loops,
+            outline,
+            EntityId::Loop,
+            EntityId::Face(rep),
+            "outer",
+        )
+        .boundary
+        {
+            crate::entity::LoopBoundary::Cycle { first } => first,
+            crate::entity::LoopBoundary::Empty { .. } => unreachable!(
+                "survivor {rep:?}'s outline {outline:?} is a lone vertex: the entry gate proved \
+                 the body closed, where an outline bounds its face's area, and \
+                 refuse_lone_outline stops the surgery before it reduces one to a lone vertex"
+            ),
+        };
+        let bridge = self.mekr_chord(crate::MekrSite::EmptyRing { target, ring }, tol)?;
+        self.kev(bridge.he_plus)?;
+        Ok(())
+    }
+
+    /// Refuses, before any write, a surgery that would leave `rep`'s
+    /// outline a lone vertex: `ring` is the loop the surgery is about
+    /// to reduce to one, and an outline bounds the face's area, so it
+    /// is never one ([`MergeCoplanarError::UnsupportedConfiguration`]
+    /// on `edge`, the edge whose kill would do it).
+    fn refuse_lone_outline(
+        &self,
+        rep: FaceKey,
+        ring: crate::entity::LoopKey,
+        edge: EdgeKey,
+    ) -> Result<(), MergeCoplanarError> {
+        let outline = proven(&self.faces, rep, EntityId::Face).outer;
+        if ring == outline {
+            return Err(MergeCoplanarError::UnsupportedConfiguration { edge });
+        }
+        Ok(())
     }
 
     /// Merges one group into `rep`, its survivor (see the
@@ -1934,7 +2557,10 @@ impl<T: Decide> Body<T> {
         rest: &[FaceKey],
         kind: MergeKind,
         tol: Tol,
-    ) -> Result<MergedGroup, MergeCoplanarError> {
+    ) -> Result<MergedGroup, MergeCoplanarError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         debug_assert!(
             kind != MergeKind::Placeholder && self.merge_kind(rep).ok().is_none_or(|k| k == kind),
             "merge_group: the survivor's kind is the contract's ({kind:?})"
@@ -1952,35 +2578,29 @@ impl<T: Decide> Body<T> {
         loop {
             let mut found = None;
             for (edge_key, edge) in self.edges() {
-                let (hp, hm) = self.edge_halves(edge.he_plus, edge.he_minus)?;
+                let (hp, hm) = self.edge_halves(edge_key, edge);
                 if hp.face == rep && hm.face != rep && in_group(hm.face) {
-                    found = Some((edge_key, edge.he_minus, hm.face));
+                    found = Some((edge_key, edge.he_minus, hm));
                     break;
                 }
                 if hm.face == rep && hp.face != rep && in_group(hp.face) {
-                    found = Some((edge_key, edge.he_plus, hp.face));
+                    found = Some((edge_key, edge.he_plus, hp));
                     break;
                 }
             }
-            let Some((edge_key, dying_he, other)) = found else {
+            let Some((edge_key, dying_he, dying_facts)) = found else {
                 break;
             };
             // Re-home the dying face's rings onto the survivor, then
             // kill the shared edge and the face together (kef).
-            //
-            // The lookup is ANNOUNCED rather than defaulted to an
-            // empty ring list, because "this face has no rings" and
-            // "this face is gone" are different answers and the
-            // default gave them one spelling. It is a typed refusal
-            // and not an `unreachable!`: `other` arrives from a
-            // loop's back-pointer and no check in this call proves it
-            // live. `kef` below re-derives the same key and refuses
-            // on it too, so the ANSWER here was never reachable — the
-            // announcement is what makes the two agree at the site
-            // that reads the rings.
-            let dying = self
-                .get_face(other)
-                .ok_or(DanglingRef::Entity(EntityId::Face(other)))?;
+            let other = dying_facts.face;
+            let dying = linked(
+                &self.faces,
+                other,
+                EntityId::Face,
+                EntityId::Loop(dying_facts.r#loop),
+                "face",
+            );
             for ring in dying.rings.clone() {
                 // The two facts `ring_move` could contradict, RE-READ
                 // from the arena here rather than carried down from
@@ -2005,7 +2625,7 @@ impl<T: Decide> Body<T> {
                 );
                 #[cfg(test)]
                 tear_before_ring_move(self, ring);
-                self.ring_move(ring, rep)?;
+                self.ring_move_minting(ring, rep, tol)?;
             }
             // The two facts `kef` could contradict. The drain above is
             // exactly the mutation that invalidates a fact read before
@@ -2023,11 +2643,43 @@ impl<T: Decide> Body<T> {
                 "merge_group: {}",
                 EstablishedFact::AbsorbedFaceIsRingFree.what()
             );
+            // The loop the kef leaves on the survivor: across a closed
+            // edge that is the whole of both its loops, a lone vertex,
+            // which `mekr` then `kev` delete with its ring.
+            let Some(claim) = proven(&self.edges, edge_key, EntityId::Edge).claim(dying_he) else {
+                unreachable!(
+                    "{dying_he:?}'s edge {edge_key:?} does not claim it: on a tier-1-valid body \
+                     an edge claims the two half-edges that name it"
+                )
+            };
+            let mate_key = claim.mate;
+            let dying = proven(&self.half_edges, dying_he, EntityId::HalfEdge);
+            let mate = linked(
+                &self.half_edges,
+                mate_key,
+                EntityId::HalfEdge,
+                EntityId::Edge(edge_key),
+                claim.mate_field(),
+            );
+            let kept_loop = mate.parent_loop;
+            if dying.next == dying_he && mate.next == mate_key {
+                self.refuse_lone_outline(rep, kept_loop, edge_key)?;
+            }
             #[cfg(test)]
             tear_before_kef(self, dying_he, edge_key, other);
-            self.kef(dying_he)?;
+            self.kef_minting(dying_he, tol)?;
             group.absorbed.push(other);
             group.killed_edges.push(edge_key);
+            let Some(kept) = self.get_loop(kept_loop) else {
+                unreachable!(
+                    "kef removed loop {kept_loop:?}, which its kept half {mate_key:?} claimed: \
+                     kef removes only the dying face's loop"
+                )
+            };
+            if let crate::entity::LoopBoundary::Empty { vertex: lone } = kept.boundary {
+                self.delete_lone_ring(rep, kept_loop, tol)?;
+                group.killed_vertices.push(lone);
+            }
         }
         // Intra-face duplicates: edges now occurring twice within the
         // survivor's loops. On a CURVED survivor (C12.5, M5 PR 9) a
@@ -2066,7 +2718,7 @@ impl<T: Decide> Body<T> {
         loop {
             let mut duplicates = Vec::new();
             for (edge_key, edge) in self.edges() {
-                let (hp, hm) = self.edge_halves(edge.he_plus, edge.he_minus)?;
+                let (hp, hm) = self.edge_halves(edge_key, edge);
                 if hp.face == rep && hm.face == rep {
                     duplicates.push((edge_key, (edge.he_plus, hp), (edge.he_minus, hm)));
                 }
@@ -2083,40 +2735,29 @@ impl<T: Decide> Body<T> {
             // halves STARTING at its argument's start vertex, so each
             // candidate asks about the far end of the other half.
             //
-            // A BROKEN orbit is announced, not read as "not dangling":
-            // `kev` and `kemr` are different operators with different
-            // Euler deltas, so letting a torn arena answer this
-            // question silently chooses which surgery runs.
             let mut strut = None;
             'scan: for &(edge_key, (he_plus, hp), (he_minus, hm)) in &duplicates {
-                for (toward_free, from_free, free) in
-                    [(he_plus, he_minus, hm.start), (he_minus, he_plus, hp.start)]
-                {
-                    if self.strut_tip(from_free)? {
-                        strut = Some((edge_key, toward_free, free, hp.r#loop));
+                for (toward_free, from_free, near, free) in [
+                    (he_plus, he_minus, hp.start, hm.start),
+                    (he_minus, he_plus, hm.start, hp.start),
+                ] {
+                    if self.strut_tip(from_free) {
+                        strut = Some((edge_key, toward_free, near, free, hp.r#loop));
                         break 'scan;
                     }
                 }
             }
-            if let Some((edge_key, toward_free, free, ring)) = strut {
+            if let Some((edge_key, toward_free, near, free, ring)) = strut {
                 // BOTH ends free: the edge is its own loop, a ring of
                 // the survivor holding nothing but itself — the last
                 // edge of a doubled cycle the pruning has taken the
                 // rest of. `kev` leaves that ring as a lone vertex, and
                 // `mekr` then `kev` delete the vertex with its ring.
-                // The ring is never the survivor's outline (an outline
-                // bounds the face's area); if the arena says it is,
-                // the shape is refused before any of the three calls.
-                let other = self
-                    .strut_tip(toward_free)?
-                    .then(|| self.get_half_edge(toward_free).map(|h| h.start))
-                    .flatten();
-                let outline = self
-                    .get_face(rep)
-                    .ok_or(DanglingRef::Entity(EntityId::Face(rep)))?
-                    .outer;
-                if other.is_some() && ring == outline {
-                    return Err(MergeCoplanarError::UnsupportedConfiguration { edge: edge_key });
+                // A ring that is the survivor's outline is refused
+                // before any of the three calls.
+                let other = self.strut_tip(toward_free).then_some(near);
+                if other.is_some() {
+                    self.refuse_lone_outline(rep, ring, edge_key)?;
                 }
                 #[cfg(test)]
                 tear_before_kev(self, toward_free, edge_key);
@@ -2124,21 +2765,7 @@ impl<T: Decide> Body<T> {
                 group.killed_edges.push(edge_key);
                 group.killed_vertices.push(free);
                 if let Some(lone) = other {
-                    let target = match self
-                        .get_loop(outline)
-                        .ok_or(DanglingRef::Entity(EntityId::Loop(outline)))?
-                        .boundary
-                    {
-                        crate::entity::LoopBoundary::Cycle { first } => first,
-                        crate::entity::LoopBoundary::Empty { .. } => {
-                            return Err(MergeCoplanarError::Op {
-                                error: EulerOpError::LoopNotCycle { r#loop: outline },
-                            });
-                        }
-                    };
-                    let bridge =
-                        self.mekr_chord(crate::MekrSite::EmptyRing { target, ring }, tol)?;
-                    self.kev(bridge.he_plus)?;
+                    self.delete_lone_ring(rep, ring, tol)?;
                     group.killed_vertices.push(lone);
                 }
                 continue;
@@ -2161,8 +2788,7 @@ impl<T: Decide> Body<T> {
             group.killed_edges.push(edge_key);
             group.rings_made.push(result.ring);
         }
-        // Role normalization (M5 S1 fix pass, review MAJOR-1): the
-        // intra-face `kemr` above designates its ring PROVISIONALLY
+        // Role normalization: the intra-face `kemr` above designates its ring PROVISIONALLY
         // (the plus half's side — the module docs' documented
         // containment question). A group absorbed across TWO disjoint
         // shared runs closes a genuine hole, and the provisional side
@@ -2173,7 +2799,8 @@ impl<T: Decide> Body<T> {
         // POSITIVELY around the face's outward normal (the same
         // Newell-functional predicate the boolean join's ring lane
         // decides on); swap it into the outer slot if the kemr put it
-        // elsewhere; no unique positive cycle refuses typed.
+        // elsewhere; no unique positive cycle refuses with the verdict
+        // that left none ([`Body::merged_outline_ring`]).
         if !group.rings_made.is_empty() {
             // The survivor is resolved HERE, where its liveness is
             // proven in this call: `rings_made` is non-empty only
@@ -2181,8 +2808,10 @@ impl<T: Decide> Body<T> {
             // duplicate's loop's face — `rep`, the face both halves
             // were found on through that loop — to be live
             // (`require_key` on the loop's `face`) and kills no face.
-            // The role pass then takes resolved data and performs no
-            // lookup of its own.
+            // The role pass takes the resolved face record; the
+            // surface, loop and walk lookups it makes read the arena
+            // the surgery has just mutated, and announce what they
+            // cannot resolve.
             let Some(survivor) = self.get_face(rep) else {
                 unreachable!(
                     "merge_group: `rep` was required live by the `kemr` that minted the last \
@@ -2190,6 +2819,8 @@ impl<T: Decide> Body<T> {
                 )
             };
             let survivor = survivor.clone();
+            #[cfg(test)]
+            tear_before_role_pass(self, &survivor);
             if let Some(i) = self.merged_outline_ring(rep, &survivor, tol)? {
                 let Some(fm) = self.faces.get_mut(rep) else {
                     unreachable!(
@@ -2204,27 +2835,29 @@ impl<T: Decide> Body<T> {
         Ok(group)
     }
 
-    /// [`Body::planar_loop_winding`], in this door's
-    /// error vocabulary: a torn lookup is `StaleKey` naming the loop and
-    /// an in-band margin escalates. `None` is an empty loop or a NURBS
-    /// or spiric carrier. `normal` is the face's OUTWARD normal.
+    /// [`Body::planar_loop_winding_decided`], in this door's error
+    /// vocabulary: an in-band margin escalates. The decided sign keeps
+    /// its margin, which a zero winding's refusal quotes. `normal` is
+    /// the face's OUTWARD normal.
+    ///
+    /// # Panics
+    ///
+    /// Where the walk is torn (D2 row 4).
     fn loop_winding(
         &self,
         l: LoopKey,
         normal: geom_core::Vec3<T>,
         band: Band,
-    ) -> Result<Option<geom_core::Sign>, MergeCoplanarError> {
-        let winding = self.planar_loop_winding(l, normal, band).map_err(
-            |crate::loop_winding::TornLoop| MergeCoplanarError::Op {
-                error: EulerOpError::StaleKey {
-                    key: EntityId::Loop(l),
-                },
-            },
-        )?;
+    ) -> Result<LoopWinding<Decided>, MergeCoplanarError> {
+        let winding = self.planar_loop_winding_decided(l, normal, band);
         match winding {
-            None => Ok(None),
-            Some(Ok(sign)) => Ok(Some(sign)),
-            Some(Err(diag)) => Err(MergeCoplanarError::Escalated { diag }),
+            LoopWinding::Empty => Ok(LoopWinding::Empty),
+            LoopWinding::Unsupported => Ok(LoopWinding::Unsupported),
+            LoopWinding::Wound(Ok(decided)) => Ok(LoopWinding::Wound(decided)),
+            LoopWinding::Wound(Err(diag)) => Err(MergeCoplanarError::Escalated {
+                decision: MergeDecision::LoopWinding,
+                diag,
+            }),
         }
     }
 
@@ -2232,13 +2865,36 @@ impl<T: Decide> Body<T> {
     /// winding (doc at the call site): the unique positively-wound
     /// cycle is the outer loop. `Some(i)` means ring `i` must swap into
     /// the outer slot; `None` means the roles are already correct, or
-    /// the survivor is not a planar rung. Zero or multiple positive
-    /// cycles refuse [`MergeCoplanarError::MergedFaceRoleAmbiguous`].
+    /// the survivor is not a plane, which has no winding question here
+    /// (a curved run refuses `PeriodClosure` before any `kemr`, so the
+    /// survivor is a plane at every call).
     ///
-    /// Takes the survivor's resolved data rather than looking it up:
-    /// the caller holds the liveness proof, and a helper that cannot
-    /// look anything up cannot discard a failed lookup. `face` is the
-    /// refusal's payload only — nothing here dereferences it.
+    /// Takes the survivor's resolved face record: the caller holds its
+    /// liveness proof. `face` is the refusal's payload only.
+    ///
+    /// # Errors
+    ///
+    /// When no loop is the unique outline, the verdict that left none,
+    /// in this order:
+    ///
+    /// - several positive windings:
+    ///   [`MergeCoplanarError::MergedFaceRoleAmbiguous`]
+    ///   ([`OutlineVerdict::SeveralPositive`]);
+    /// - no positive winding and a zero one:
+    ///   [`MergeCoplanarError::Escalated`] ([`MergeDecision::LoopWinding`],
+    ///   the zero winding's own margin), the winding decision's
+    ///   band-decided refusal, named before a loop the kernel does not
+    ///   wind, which counts as not positive;
+    /// - no positive or zero winding and a loop the kernel does not
+    ///   wind: [`OutlineVerdict::UnsupportedWinding`];
+    /// - otherwise every loop is negative or a lone vertex:
+    ///   [`OutlineVerdict::AllNegative`].
+    ///
+    /// # Panics
+    ///
+    /// Where a surface or walk key does not resolve, a walk does not
+    /// close, or a half-edge's edge does not claim it: the surgery's
+    /// operators keep the body tier-1-valid.
     fn merged_outline_ring(
         &self,
         face: FaceKey,
@@ -2246,34 +2902,75 @@ impl<T: Decide> Body<T> {
         tol: Tol,
     ) -> Result<Option<usize>, MergeCoplanarError> {
         let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
+        let described = self.face_surface_linked(face, survivor);
         // The face's OUTWARD normal (S10): "positively wound" means
         // CCW seen from OUTSIDE the material, so on a reversed face
         // the chart normal names the opposite convention and every
         // role assignment below would come out inverted.
-        let normal = match self.get_surface(survivor.surface) {
-            Some(Surface::Plane { normal, .. }) => plane_outward_normal(survivor, *normal).vec(),
-            // The survivor is a plane at every call: `rings_made` is
-            // non-empty only under a planar contract, since the curved
-            // arm refuses `PeriodClosure` before any `kemr`. This arm
-            // still spells "not a plane" and "unresolved" the same way.
-            _ => return Ok(None),
+        let Surface::Plane { normal, .. } = described else {
+            return Ok(None);
         };
-        let mut positives: Vec<Option<usize>> = Vec::new(); // None = outer
-        if self.loop_winding(survivor.outer, normal, band)? == Some(geom_core::Sign::Positive) {
-            positives.push(None);
-        }
-        for (i, &r) in survivor.rings.iter().enumerate() {
-            if self.loop_winding(r, normal, band)? == Some(geom_core::Sign::Positive) {
-                positives.push(Some(i));
+        let normal = plane_outward_normal(survivor, *normal).vec();
+        // Every loop's verdict, outline slot first (`None`). A negative
+        // winding and an empty loop are not positive and name nothing.
+        let mut positive: Vec<(Option<usize>, LoopKey)> = Vec::new();
+        let mut zero = None;
+        let mut unsupported = None;
+        let slots = core::iter::once((None, survivor.outer)).chain(
+            survivor
+                .rings
+                .iter()
+                .enumerate()
+                .map(|(i, &r)| (Some(i), r)),
+        );
+        for (slot, l) in slots {
+            match self.loop_winding(l, normal, band)? {
+                LoopWinding::Wound(Decided {
+                    sign: geom_core::Sign::Positive,
+                    ..
+                }) => positive.push((slot, l)),
+                LoopWinding::Wound(Decided {
+                    sign: geom_core::Sign::Zero,
+                    margin,
+                }) => {
+                    zero.get_or_insert(margin);
+                }
+                LoopWinding::Wound(Decided {
+                    sign: geom_core::Sign::Negative,
+                    ..
+                })
+                | LoopWinding::Empty => {}
+                LoopWinding::Unsupported => {
+                    unsupported.get_or_insert(l);
+                }
             }
         }
-        match positives[..] {
-            [None] => Ok(None), // roles already correct
-            [Some(i)] => Ok(Some(i)),
-            _ => Err(MergeCoplanarError::MergedFaceRoleAmbiguous { face }),
-        }
+        let verdict = match (&positive[..], zero, unsupported) {
+            (&[(slot, _)], _, _) => return Ok(slot),
+            ([_, _, ..], _, _) => OutlineVerdict::SeveralPositive {
+                loops: positive.iter().map(|&(_, l)| l).collect(),
+            },
+            ([], Some(margin), _) => {
+                return Err(MergeCoplanarError::Escalated {
+                    decision: MergeDecision::LoopWinding,
+                    diag: Indeterminate {
+                        margin,
+                        band,
+                        predicate: Some(WINDING_PREDICATE),
+                        terminal_sliver: false,
+                    },
+                });
+            }
+            ([], None, Some(r#loop)) => OutlineVerdict::UnsupportedWinding { r#loop },
+            ([], None, None) => OutlineVerdict::AllNegative,
+        };
+        Err(MergeCoplanarError::MergedFaceRoleAmbiguous { face, verdict })
     }
 }
+
+#[cfg(test)]
+#[path = "merge_faces_kept_rows.rs"]
+pub(crate) mod kept_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -2286,26 +2983,38 @@ mod tests {
     /// through the loops' `face` back-pointers.
     fn adjacent_pair(body: &Body<f64>) -> (FaceKey, FaceKey) {
         body.edges()
-            .find_map(|(_, e)| {
-                let (hp, hm) = body.edge_halves(e.he_plus, e.he_minus).ok()?;
+            .find_map(|(k, e)| {
+                let (hp, hm) = body.edge_halves(k, e);
                 (hp.face != hm.face).then_some((hp.face, hm.face))
             })
             .expect("a cube has adjacent faces")
     }
 
-    /// **A dangling absorbed-face key is refused typed, naming the
-    /// face** — the contract the absorption owes, pinned end to end.
-    ///
-    /// It does NOT isolate the ring lookup, and cannot: `kef`'s own
-    /// plan phase re-derives the same key
-    /// (`loops[half_edges[dying_he].parent_loop].face`) and refuses on
-    /// it with the same value, before any mutation. The two sites are
-    /// indistinguishable from outside by construction — which is why
-    /// the earlier `unwrap_or_default()` there could never actually
-    /// drop a ring. This row pins the answer; it is not evidence about
-    /// which of the two produced it.
+    /// **The survivor search and the boundary points panic on a ring
+    /// link that does not resolve**, where they stepped over it.
     #[test]
-    fn a_dangling_absorbed_face_key_is_refused_typed_and_names_the_face() {
+    fn the_boundary_walks_panic_on_a_torn_ring_link() {
+        use crate::live::OPERATORS_KEEP_LINKS;
+        use crate::review_d18::{ROW_FOUR, assert_torn_op_panics};
+        let mut body = structural_planar_cube(Tol::witness());
+        let face = body.faces().next().map(|(k, _)| k).expect("a face");
+        assert_eq!(body.outermost_survivor(face, Vec::new()).0, face, "no nest");
+        assert_eq!(body.boundary_points(face).len(), 4, "four corners");
+        let named = crate::review_d18::tear_ring(&mut body, face);
+        let premise = [named.as_str(), ROW_FOUR, OPERATORS_KEEP_LINKS];
+        assert_torn_op_panics("outermost_survivor", &mut body, &premise, |b| {
+            b.outermost_survivor(face, Vec::new())
+        });
+        assert_torn_op_panics("boundary_points", &mut body, &premise, |b| {
+            b.boundary_points(face).len()
+        });
+    }
+
+    /// **A dangling absorbed-face key panics naming the face**: the
+    /// absorption reads the face off the dying loop's `face` link, and
+    /// on a tier-1-valid body that link resolves.
+    #[test]
+    fn a_dangling_absorbed_face_key_panics_naming_the_face() {
         let tol = Tol::witness();
         let mut body = structural_planar_cube(tol);
         let (rep, other) = adjacent_pair(&body);
@@ -2313,13 +3022,16 @@ mod tests {
             .remove(other)
             .expect("the pair's second face is live before the tear");
 
-        assert_eq!(
-            body.merge_group(rep, &[other], MergeKind::Plane, tol),
-            Err(MergeCoplanarError::Op {
-                error: EulerOpError::StaleKey {
-                    key: EntityId::Face(other),
-                },
-            }),
+        let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+            let _ = body.merge_group(rep, &[other], MergeKind::Plane, tol);
+        }))
+        .expect("the torn link panics");
+        assert!(
+            message.contains(&format!(
+                "'s face names {}, which does not resolve",
+                EntityId::Face(other)
+            )),
+            "{message}"
         );
     }
 
@@ -2396,7 +3108,10 @@ mod tests {
     /// the way the door asks it.
     fn contract_of(body: &Body<f64>) -> GroupContract {
         let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
-        let kinds = body.kind_census().expect("the fixture's faces resolve");
+        let kinds = body
+            .kind_census()
+            .expect("the fixture's faces resolve")
+            .kinds;
         Body::<f64>::group_contract(faces[0], &faces[1..], &kinds)
             .expect("the census holds every face")
     }
@@ -2520,7 +3235,7 @@ mod tests {
                 let p = body
                     .get_point(body.get_vertex(v).expect("live").point)
                     .expect("live");
-                [p.x, p.y, p.z] == at
+                p.to_array() == at
             })
             .expect("a half-edge starts there")
     }
@@ -2561,8 +3276,14 @@ mod tests {
             .filter(|&k| k != top && k != half)
             .collect();
         for f in others {
-            body.set_face_surface(f, crate::euler::FaceSurface::New(flat_plane()))
-                .expect("a live face takes a surface");
+            body.set_face_surface(
+                f,
+                crate::euler::FaceSurface::New {
+                    surface: flat_plane(),
+                    sense: true,
+                },
+            )
+            .expect("a live face takes a surface");
         }
         assert_eq!(
             validate_closed(&body),
@@ -2588,6 +3309,194 @@ mod tests {
         assert!(group.killed_vertices.is_empty(), "{group:?}");
         assert_eq!(body.get_face(group.kept).expect("live").rings.len(), 1);
         assert_eq!(validate_closed(&body), Ok(()));
+    }
+
+    /// **Every key the adjacency test reads that does not resolve
+    /// panics naming it** — not `false`, which drops a mergeable
+    /// adjacency without a word, and not an extent read over a boundary
+    /// the declared rung could not walk. The kind census reads a face's
+    /// surface link; the adjacency test reads the census for each face
+    /// and the boundary's vertex and point links. Asked of the census
+    /// and the helper directly: the door's entry gate refuses each of
+    /// these tears first
+    /// (`the_entry_gate_refuses_every_tear_the_adjacency_scan_reads`).
+    /// The first row is the control: the intact pair is declared one
+    /// plane, so each torn row pins its tear and not the fixture.
+    #[test]
+    fn a_torn_adjacency_lookup_panics_naming_its_key() {
+        let tol = Tol::witness();
+        type Tear = fn(&mut Body<f64>, HalfEdgeFacts, HalfEdgeFacts) -> Option<String>;
+        let rows: [(&str, Tear); 5] = [
+            ("nothing", |_, _, _| None),
+            ("a face", |b, _, hm| {
+                b.faces.remove(hm.face);
+                Some(format!(
+                    "{:?}, read off a loop's face link, is not in the kind census",
+                    hm.face
+                ))
+            }),
+            ("a face's surface", |b, _, hm| {
+                let k = b.get_face(hm.face).expect("live").surface;
+                b.surfaces.remove(k);
+                Some(format!(
+                    "{}'s surface names {}, which does not resolve",
+                    EntityId::Face(hm.face),
+                    crate::entity::GeomRef::Surface(k)
+                ))
+            }),
+            ("an end vertex", |b, hp, _| {
+                b.vertices.remove(hp.start);
+                Some(format!(
+                    "'s start names {}, which does not resolve",
+                    EntityId::Vertex(hp.start)
+                ))
+            }),
+            ("an end point", |b, _, hm| {
+                let p = b.get_vertex(hm.start).expect("live").point;
+                b.points.remove(p);
+                Some(format!(
+                    "{}'s point names {}, which does not resolve",
+                    EntityId::Vertex(hm.start),
+                    crate::entity::GeomRef::Point(p)
+                ))
+            }),
+        ];
+        for (what, tear) in rows {
+            let (mut body, declared) = declared_planar_cube(tol);
+            let mut eq = DeclaredSurfaceEq::default();
+            for &(a, b) in &declared {
+                eq.union(a, b);
+            }
+            let ctx = DeclaredCtx {
+                eq,
+                band: Band::linear(tol).expect("the witness tolerance forms a band"),
+            };
+            let (edge_key, edge) = body.edges().next().expect("an edge");
+            let (hp, hm) = body.edge_halves(edge_key, edge);
+            let want = tear(&mut body, hp, hm);
+            let mut got = None;
+            let panicked = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+                got = Some(body.kind_census().and_then(|census| {
+                    body.planes_declared_equal(hp, hm, &census.described, Some(&ctx))
+                }));
+            }));
+            match (want, panicked) {
+                (None, None) => assert_eq!(got, Some(Ok(true)), "tearing {what}"),
+                (Some(want), Some(message)) => {
+                    assert!(message.contains(&want), "tearing {what}: {message}");
+                }
+                (want, panicked) => {
+                    panic!("tearing {what}: wanted a panic {want:?}, got {panicked:?} / {got:?}")
+                }
+            }
+        }
+    }
+
+    /// **The entry gate refuses every tear the adjacency scan's
+    /// helpers read** — the measurement behind their docs' claim that
+    /// no input reaches a failed lookup there. Each row tears a
+    /// declared planar cube the way one of `planes_declared_equal`'s
+    /// lookups would fail (a face a loop points at, that face's
+    /// surface, a vertex a half-edge starts at, that vertex's point)
+    /// and drives the public door: tier 2 refuses the input, and the
+    /// body comes back exactly as it went in.
+    #[test]
+    fn the_entry_gate_refuses_every_tear_the_adjacency_scan_reads() {
+        let tol = Tol::witness();
+        type Tear = fn(&mut Body<f64>);
+        let tears: [(&str, Tear); 4] = [
+            ("a face", |b| {
+                let (_, f) = adjacent_pair(b);
+                b.faces.remove(f);
+            }),
+            ("a face's surface", |b| {
+                let (f, _) = adjacent_pair(b);
+                let k = b.get_face(f).expect("live").surface;
+                b.surfaces.remove(k);
+            }),
+            ("a vertex", |b| {
+                let v = b.vertices().next().expect("a vertex").0;
+                b.vertices.remove(v);
+            }),
+            ("a vertex's point", |b| {
+                let p = b.vertices().next().expect("a vertex").1.point;
+                b.points.remove(p);
+            }),
+        ];
+        for (what, tear) in tears {
+            let (mut body, declared) = declared_planar_cube(tol);
+            tear(&mut body);
+            let before = format!("{body:?}");
+            let got = body.merge_coplanar_faces_declared(&declared, tol);
+            assert!(
+                matches!(got, Err(MergeCoplanarError::InputNotClosed { .. })),
+                "tearing {what}: {got:?}"
+            );
+            assert_eq!(
+                format!("{body:?}"),
+                before,
+                "tearing {what}: the refusal leaves the body as it was"
+            );
+        }
+    }
+
+    /// Runs the public door on the split ringed top — whose merge
+    /// mints a ring and so reaches the role pass — with one lookup
+    /// tear armed there, checks the body comes back as it went in (the
+    /// door stages on a clone), and returns the body and the panic's
+    /// message.
+    fn role_pass_tear(point: TearPoint) -> (Body<f64>, String) {
+        let tol = Tol::witness();
+        let mut body = split_ringed_top(tol);
+        let before = format!("{body:?}");
+        let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+            let _armed = ArmedTear::at(point);
+            let _ = body.merge_coplanar_faces(tol);
+        }))
+        .unwrap_or_else(|| panic!("{point:?}: the torn lookup panics"));
+        assert_eq!(
+            format!("{body:?}"),
+            before,
+            "{point:?}: the panic leaves the caller's body as it was"
+        );
+        (body, message)
+    }
+
+    /// **The survivor's surface, torn under the role pass, panics
+    /// naming that surface** — not read as "not a plane", which would
+    /// leave the roles as the `kemr` put them. The role pass reads the
+    /// arena after the surgery has mutated it, so the entry gate's
+    /// proof does not reach it.
+    #[test]
+    fn a_torn_survivor_surface_in_the_role_pass_panics_naming_it() {
+        let (body, message) = role_pass_tear(TearPoint::SurvivorLosesItsSurface);
+        let shared = body
+            .faces()
+            .map(|(_, f)| f.surface)
+            .find(|&k| body.faces().filter(|(_, f)| f.surface == k).count() == 2)
+            .expect("the merged pair shares one surface");
+        assert!(
+            message.contains(&format!(
+                "'s surface names {}, which does not resolve",
+                crate::entity::GeomRef::Surface(shared)
+            )),
+            "names the surface the merged pair shares: {message}"
+        );
+    }
+
+    /// **A point torn under the winding walk panics naming the
+    /// point**, not the loop the walk started from alone.
+    #[test]
+    fn a_torn_outline_point_in_the_role_pass_panics_naming_it() {
+        let (body, message) = role_pass_tear(TearPoint::OutlineLosesAPoint);
+        assert!(
+            body.vertices().any(|(k, v)| message.contains(&format!(
+                "{}'s point names {}, which does not resolve",
+                EntityId::Vertex(k),
+                crate::entity::GeomRef::Point(v.point)
+            ))),
+            "names a vertex's point: {message}"
+        );
     }
 
     /// The facts whose tear reaches its operator under the RECORDING
@@ -2645,11 +3554,9 @@ mod tests {
     /// which is the whole of what "contradicts a fact this door
     /// re-checks" claims. A torn INPUT cannot reach any of these
     /// arms: the entry gate refuses one before a group is staged.
-    ///
-    /// Reds against asking the enum alone: every variant here answers
-    /// `false` to [`EulerOpError::reports_tier1_corruption`], so
-    /// under [`GroupRegime::RecordsASkip`] the door returned `Ok`
-    /// with the corruption filed as an inventory skip.
+    /// Every variant here is a legal refusal elsewhere, so under
+    /// [`GroupRegime::RecordsASkip`] only the door's placement keeps
+    /// it from being filed as an inventory skip.
     #[test]
     fn every_contradicted_fact_escapes_the_recording_regime() {
         let tol = Tol::witness();
@@ -2658,10 +3565,6 @@ mod tests {
             describe_shared_key_curved(&mut body);
             assert_eq!(contract_of(&body), CURVED, "{point:?}");
             let error = escaped_refusal(point, &mut body, &[], tol);
-            assert!(
-                !error.reports_tier1_corruption(),
-                "{error} is the enum's already; this row would prove nothing"
-            );
             assert_eq!(
                 OpPlacement::of(&error),
                 OpPlacement::Contradicts(want),
@@ -2748,6 +3651,36 @@ mod tests {
         );
     }
 
+    /// **A ring half-edge its own edge does not claim panics in the
+    /// survivor search**, naming both, rather than reading the edge's
+    /// plus half as its mate and asking about the wrong face.
+    #[test]
+    fn an_unclaimed_ring_half_edge_panics_in_the_survivor_search() {
+        let tol = Tol::witness();
+        let (mut body, top, membrane) = cube_with_membrane(tol);
+        let ring = body.get_face(top).expect("live").rings[0];
+        let crate::entity::LoopBoundary::Cycle { first } =
+            body.get_loop(ring).expect("live").boundary
+        else {
+            panic!("the ring is a cycle")
+        };
+        let own = body.get_half_edge(first).expect("live").edge;
+        let other = body
+            .edges()
+            .map(|(k, _)| k)
+            .find(|&k| k != own)
+            .expect("another edge");
+        body.half_edges.get_mut(first).expect("live").edge = other;
+        let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+            let _ = body.outermost_survivor(top, vec![membrane]);
+        }))
+        .expect("an unclaimed ring half-edge panics");
+        assert!(
+            message.contains(&format!("{first:?}'s edge {other:?} does not claim it")),
+            "{message}"
+        );
+    }
+
     /// **`kef` reports [`EulerOpError::SameFace`] on a body that was
     /// never torn.** With the survivor the face INSIDE the ring, the
     /// absorption's own drain re-homes the dying half-edge's parent
@@ -2831,8 +3764,8 @@ mod tests {
         let seed_face = cube.seed.face;
         let victim = body
             .edges()
-            .find_map(|(_, e)| {
-                let (hp, hm) = body.edge_halves(e.he_plus, e.he_minus).ok()?;
+            .find_map(|(k, e)| {
+                let (hp, hm) = body.edge_halves(k, e);
                 if hp.face == seed_face && hm.face != seed_face {
                     Some(e.he_plus)
                 } else if hm.face == seed_face && hp.face != seed_face {
@@ -2875,37 +3808,40 @@ mod tests {
         (body, membrane.face)
     }
 
-    /// **The door's placement is exhaustive, and no arm of it
-    /// contradicts the enum.**
+    /// **The door's placement is exhaustive, and an arm it
+    /// contradicts escapes the regime.**
     ///
     /// Over the crate's shared sample array
     /// ([`crate::euler::every_euler_op_error_once`], which carries
     /// the coverage and discriminant-order assertions), so a variant
-    /// added without a placement fails by name. The direction pinned
-    /// is the one the door owes the operator layer: a variant the
-    /// door CONTRADICTS is one the enum answers `false` for —
-    /// otherwise the arm is dead and the door's own question has no
-    /// content — and every contradicted variant escapes while the
-    /// delegated ones answer exactly as the enum does.
+    /// added without a placement fails by name. A contradicted
+    /// variant names its fact and escapes; an inventory one does not;
+    /// an `Argument` panics, since every key the surgery hands an
+    /// operator it read from the body.
     #[test]
-    fn the_doors_placement_is_exhaustive_and_agrees_with_the_enum() {
+    fn the_doors_placement_is_exhaustive() {
         for error in crate::euler::every_euler_op_error_once() {
+            if matches!(error, EulerOpError::Argument(_)) {
+                let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+                    let _ = OpPlacement::of(&error);
+                }))
+                .unwrap_or_else(|| panic!("{error}: an argument refusal is placed nowhere"));
+                assert!(
+                    message.contains("merge_group handed an operator a stale argument"),
+                    "{message}"
+                );
+                continue;
+            }
             let escapes = MergeCoplanarError::Op {
                 error: error.clone(),
             }
             .is_arena_fault();
             match OpPlacement::of(&error) {
                 OpPlacement::Contradicts(fact) => {
-                    assert!(
-                        !error.reports_tier1_corruption(),
-                        "{error} is the enum's already; the door's arm would be dead"
-                    );
                     assert!(!fact.what().is_empty());
                     assert!(escapes, "{error}");
                 }
-                OpPlacement::TheEnumsVerdict => {
-                    assert_eq!(escapes, error.reports_tier1_corruption(), "{error}");
-                }
+                OpPlacement::Inventory => assert!(!escapes, "{error}"),
             }
         }
     }
@@ -2922,12 +3858,13 @@ mod tests {
     /// instead ([`TearPoint`],
     /// `every_contradicted_fact_escapes_the_recording_regime`); this
     /// row states that the regime applies the rule, over a variant
-    /// the operator layer's own line places.
+    /// the door contradicts.
     #[test]
     fn only_inventory_refusals_are_ever_recorded() {
         let arena = MergeCoplanarError::Op {
-            error: EulerOpError::OrbitBroken {
-                he: crate::entity::HalfEdgeKey::default(),
+            error: EulerOpError::NotSameLoop {
+                he1: crate::entity::HalfEdgeKey::default(),
+                he2: crate::entity::HalfEdgeKey::default(),
             },
         };
         let inventory = MergeCoplanarError::GroupNotClosed { errors: Vec::new() };
@@ -2946,49 +3883,18 @@ mod tests {
         assert!(!GroupRegime::RefusesTheCall.records(&arena));
     }
 
-    /// **The corruption class is the operator layer's, and it is
-    /// nine variants wide, not two — and the door's is wider still.**
+    /// **The arena-fault class is the facts the door contradicts.**
     /// The door's docs promise that a refusal reporting a torn arena
     /// never becomes a record; this pins the membership that promise
-    /// needs, at the sample the merge can actually raise, in both of
-    /// its halves.
+    /// needs, at the sample the merge can actually raise.
     ///
-    /// The second half is what the enum cannot answer: `FaceHasRings`
-    /// and `SameFace` are legal facts about an operation and the enum
-    /// says so, here and below — but a `kef` at THIS door raises them
-    /// only against a fact the absorption established a few lines
-    /// earlier, so they report the arena and escape. The two
-    /// assertions on each are the two questions, and they no longer
-    /// have one answer.
+    /// Each contradicted variant is a legal fact about an operation
+    /// elsewhere, but an operator at THIS door raises it only against a
+    /// fact the surgery re-checked immediately before the call, so it
+    /// reports the arena and escapes.
     #[test]
-    fn the_arena_fault_class_is_the_operator_layers_tier_one_row() {
+    fn the_arena_fault_class_is_the_contradicted_facts() {
         let he = crate::entity::HalfEdgeKey::default();
-        let torn = [
-            EulerOpError::StaleKey {
-                key: EntityId::Face(FaceKey::default()),
-            },
-            EulerOpError::StaleGeometry {
-                key: GeomRef::Surface(SurfaceKey::default()),
-            },
-            EulerOpError::OrbitBroken { he },
-            EulerOpError::LoopCycleBroken {
-                r#loop: LoopKey::default(),
-            },
-            EulerOpError::UnclaimedHalfEdge {
-                he,
-                edge: EdgeKey::default(),
-            },
-        ];
-        for error in torn {
-            assert!(
-                error.reports_tier1_corruption(),
-                "{error} is tier-1-invalid input by its own docs"
-            );
-            assert!(MergeCoplanarError::Op { error }.is_arena_fault());
-        }
-        // Facts about the operation elsewhere, legal to meet on a
-        // valid body — and at this door, refusals that contradict a
-        // fact the absorption established before the call.
         let contradicted = [
             EulerOpError::FaceHasRings {
                 face: FaceKey::default(),
@@ -3011,11 +3917,6 @@ mod tests {
         ];
         for error in contradicted {
             assert!(
-                !error.reports_tier1_corruption(),
-                "{error} is a legal fact about the operation, and the enum's line is \
-                 unchanged by this door's question"
-            );
-            assert!(
                 MergeCoplanarError::Op {
                     error: error.clone()
                 }
@@ -3027,12 +3928,10 @@ mod tests {
                 OpPlacement::Contradicts(_)
             ));
         }
-        // `SameFace` is on neither list. The enum answers `false`
-        // for it and this door agrees, because the absorption's own
-        // drain can re-home the dying loop onto the survivor and
-        // leave `kef` reading one face on both sides — legally, on a
-        // body that was never torn
-        // (`kef_reports_same_face_on_an_untorn_nested_group`).
+        // `SameFace` is inventory: the absorption's own drain can
+        // re-home the dying loop onto the survivor and leave `kef`
+        // reading one face on both sides, on a body that was never
+        // torn (`kef_reports_same_face_on_an_untorn_nested_group`).
         assert!(
             !MergeCoplanarError::Op {
                 error: EulerOpError::SameFace {
@@ -3051,19 +3950,17 @@ mod tests {
         );
     }
 
-    /// **`edge_halves` announces a torn link; it does not skip the
-    /// edge.** Reds against the `else { continue }` it replaced: with
-    /// the discard, the poisoned edge is passed over, the absorption
-    /// finds nothing, and the group merges nothing while reporting
-    /// `Ok`.
+    /// **`edge_halves` panics on a torn link; it does not skip the
+    /// edge.** Skipping would pass the poisoned edge over, find
+    /// nothing to absorb, and merge nothing while reporting `Ok`.
     #[test]
-    fn a_torn_parent_loop_link_refuses_rather_than_skipping_the_edge() {
+    fn a_torn_parent_loop_link_panics_rather_than_skipping_the_edge() {
         let tol = Tol::witness();
         let mut body = structural_planar_cube(tol);
         let (rep, other, he_plus) = body
             .edges()
-            .find_map(|(_, e)| {
-                let (hp, hm) = body.edge_halves(e.he_plus, e.he_minus).ok()?;
+            .find_map(|(k, e)| {
+                let (hp, hm) = body.edge_halves(k, e);
                 (hp.face != hm.face).then_some((hp.face, hm.face, e.he_plus))
             })
             .expect("a cube has adjacent faces");
@@ -3072,30 +3969,31 @@ mod tests {
             .expect("the shared edge's plus half is live")
             .parent_loop = LoopKey::default();
 
-        assert_eq!(
-            body.merge_group(rep, &[other], MergeKind::Plane, tol),
-            Err(MergeCoplanarError::Op {
-                error: EulerOpError::StaleKey {
-                    key: EntityId::Loop(LoopKey::default()),
-                },
-            }),
-            "a torn parent-loop link is announced, never passed over"
+        let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+            let _ = body.merge_group(rep, &[other], MergeKind::Plane, tol);
+        }))
+        .expect("a torn parent-loop link panics, never passed over");
+        assert!(
+            message.contains(&format!(
+                "{}'s parent_loop names {}, which does not resolve",
+                EntityId::HalfEdge(he_plus),
+                EntityId::Loop(LoopKey::default())
+            )),
+            "{message}"
         );
     }
 
-    /// **A broken orbit is announced, not read as "no tip".** Reds
-    /// against the `is_some_and` it replaced, which answered `false`
-    /// — routing the pruning from `kev` to `kemr` and changing the
+    /// **A broken orbit panics, not read as "no tip".** A `false`
+    /// would route the pruning from `kev` to `kemr` and change the
     /// group's Euler delta on a torn arena.
     ///
     /// It pins `strut_tip` rather than the surgery: reaching the tip
     /// search with a broken orbit needs the arena torn BETWEEN the
-    /// absorption and the free-end test, and the surgery
-    /// offers no tear point there — its points sit at the operator
-    /// calls, which is where a contradicted fact is decided.
-    /// `strut_tip` is that decision and has one production call site.
+    /// absorption and the free-end test, and the surgery offers no
+    /// tear point there. `strut_tip` is that decision and has one
+    /// production call site.
     #[test]
-    fn a_broken_vertex_orbit_refuses_rather_than_answering_no_tip() {
+    fn a_broken_vertex_orbit_panics_rather_than_answering_no_tip() {
         let tol = Tol::witness();
         let mut body = declined_cube::<f64>(tol).body;
         let he = body
@@ -3103,9 +4001,8 @@ mod tests {
             .map(|(_, e)| e.he_plus)
             .next()
             .expect("a cube has edges");
-        assert_eq!(
-            body.strut_tip(he),
-            Ok(false),
+        assert!(
+            !body.strut_tip(he),
             "an intact cube's half-edge has a two-member orbit"
         );
 
@@ -3115,10 +4012,13 @@ mod tests {
             .get_mut(he)
             .expect("the half-edge is live")
             .edge = EdgeKey::default();
-        assert_eq!(
-            body.strut_tip(he),
-            Err(EulerOpError::OrbitBroken { he }),
-            "a broken orbit is a refusal, not a `false`"
+        let message = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+            let _ = body.strut_tip(he);
+        }))
+        .expect("a broken orbit panics, not a `false`");
+        assert!(
+            message.contains(&format!("the orbit walk from {he:?} breaks at")),
+            "{message}"
         );
     }
 
@@ -3166,7 +4066,10 @@ mod tests {
             other_kind: MergeKind::Curved,
         });
         let contract = |body: &Body<f64>, a: FaceKey, b: FaceKey| {
-            let kinds = body.kind_census().expect("the fixture's faces resolve");
+            let kinds = body
+                .kind_census()
+                .expect("the fixture's faces resolve")
+                .kinds;
             Body::<f64>::group_contract(a, &[b], &kinds)
         };
         assert_eq!(contract(&body, rep, other), split);
@@ -3262,8 +4165,14 @@ mod tests {
         assert_eq!(MergeKind::of(&poisoned_net()), Err(PoisonedNet));
         let mut body = declined_cube::<f64>(tol).body;
         let face = body.faces().next().expect("a cube has faces").0;
-        body.set_face_surface(face, crate::euler::FaceSurface::New(poisoned_net()))
-            .expect("a live face takes a surface");
+        body.set_face_surface(
+            face,
+            crate::euler::FaceSurface::New {
+                surface: poisoned_net(),
+                sense: true,
+            },
+        )
+        .expect("a live face takes a surface");
         assert_eq!(
             body.merge_kind(face),
             Err(MergeCoplanarError::PoisonedSurfaceDescription { face })
@@ -3292,11 +4201,20 @@ mod tests {
         let tol = Tol::witness();
         let mut body = declined_cube::<f64>(tol).body;
         let (first, second) = adjacent_pair(&body);
-        body.set_face_surface(first, crate::euler::FaceSurface::New(poisoned_net()))
-            .expect("a live face takes a surface");
+        body.set_face_surface(
+            first,
+            crate::euler::FaceSurface::New {
+                surface: poisoned_net(),
+                sense: true,
+            },
+        )
+        .expect("a live face takes a surface");
         body.set_face_surface(
             second,
-            crate::euler::FaceSurface::Shared(surface_of(&body, first)),
+            crate::euler::FaceSurface::Shared {
+                key: surface_of(&body, first),
+                sense: true,
+            },
         )
         .expect("a live face takes a shared key");
         let named = body
@@ -3378,7 +4296,10 @@ mod tests {
             .expect("a cube has faces");
         body.set_face_surface(
             side,
-            crate::euler::FaceSurface::New(Surface::nurbs_placeholder()),
+            crate::euler::FaceSurface::New {
+                surface: Surface::nurbs_placeholder(),
+                sense: true,
+            },
         )
         .expect("a live face takes a surface");
         let outcome = body
@@ -3404,8 +4325,14 @@ mod tests {
     fn cube_with_one_described_face(tol: Tol) -> (Body<f64>, FaceKey) {
         let mut body = declined_cube::<f64>(tol).body;
         let face = body.faces().next().expect("a cube has faces").0;
-        body.set_face_surface(face, crate::euler::FaceSurface::New(flat_plane()))
-            .expect("a live face takes a surface");
+        body.set_face_surface(
+            face,
+            crate::euler::FaceSurface::New {
+                surface: flat_plane(),
+                sense: true,
+            },
+        )
+        .expect("a live face takes a surface");
         (body, face)
     }
 
@@ -3508,7 +4435,7 @@ mod tests {
     fn pillow_with_a_placeholder_cap(tol: Tol) -> (Body<f64>, FaceKey, FaceKey) {
         let mut body = Body::<f64>::new();
         let seed = body
-            .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+            .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0), true)
             .expect("mvfs has no preconditions");
         let seg = body
             .mev_line(
@@ -3528,8 +4455,14 @@ mod tests {
                 tol,
             )
             .expect("the chord closes a second face");
-        body.set_face_surface(split.face, crate::euler::FaceSurface::New(flat_plane()))
-            .expect("a live face takes a surface");
+        body.set_face_surface(
+            split.face,
+            crate::euler::FaceSurface::New {
+                surface: flat_plane(),
+                sense: true,
+            },
+        )
+        .expect("a live face takes a surface");
         (body, seed.face, split.face)
     }
 
@@ -3586,17 +4519,16 @@ mod tests {
             group.contains("unmerged") && group.contains("run continues"),
             "a group's own gate says the run survives it: {group}"
         );
+        let contradicted = rendered(&MergeCoplanarError::DeclarationContradicted {
+            fact: crate::boolean::Contradiction::PlanesApart,
+        });
         assert!(
-            rendered(&MergeCoplanarError::DeclarationContradicted {
-                diag: Indeterminate {
-                    margin: geom_core::MarginDiag::value(0.0),
-                    band: Band::linear(Tol::witness()).expect("the witness band"),
-                    predicate: Some("merge_declared_plane_eq"),
-                    terminal_sliver: false,
-                },
-            })
-            .contains("fix the declaration or the geometry"),
-            "the declared-pair contradiction carries its recourse"
+            contradicted.contains("the declared planes are parallel but apart")
+                && contradicted.ends_with(
+                    "Recourse: correct or remove the declaration, or move the geometry so it holds"
+                ),
+            "the declared-pair contradiction names its fact and ends on its recourse: \
+             {contradicted}"
         );
         let split = |other_kind| {
             rendered(&MergeCoplanarError::GroupKindSplit {
@@ -3677,6 +4609,7 @@ mod tests {
 mod winding_arm_tests {
     use super::*;
     use crate::euler::{FaceSurface, MefSite, MevSite};
+    use crate::loop_winding::RunClosing::{self, Straight};
     use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
     use geom_core::{Point3, Sign, Vec3};
 
@@ -3703,9 +4636,31 @@ mod winding_arm_tests {
 
     fn tri(a: Point3<f64>, b: Point3<f64>, d: Point3<f64>, tol: Tol) -> Tri {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(a).unwrap();
+        let (r#loop, surface, ab) = tri_into(&mut body, [a, b, d], tol);
+        Tri {
+            body,
+            r#loop,
+            surface,
+            ab,
+        }
+    }
+
+    /// [`tri`]'s triangle, added to `body` as a shell of its own:
+    /// the `a → b → d` loop, its surface and the `a → b` edge.
+    fn tri_into(
+        body: &mut Body<f64>,
+        [a, b, d]: [Point3<f64>; 3],
+        tol: Tol,
+    ) -> (LoopKey, geom_brep::SurfaceKey, crate::entity::EdgeKey) {
+        let seed = body.mvfs(a, true).unwrap();
         let surface = body
-            .set_face_surface(seed.face, FaceSurface::New(plane()))
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: plane(),
+                    sense: true,
+                },
+            )
             .unwrap();
         let e_ab = body
             .mev_line(
@@ -3735,20 +4690,32 @@ mod winding_arm_tests {
                 tol,
             )
             .unwrap();
-        body.set_face_surface(new.face, FaceSurface::New(plane()))
-            .unwrap();
+        body.set_face_surface(
+            new.face,
+            FaceSurface::New {
+                surface: plane(),
+                sense: true,
+            },
+        )
+        .unwrap();
         let r#loop = body.get_face(seed.face).unwrap().outer;
-        let ab = body_edge(&body, e_ab.he_plus);
-        Tri {
-            body,
-            r#loop,
-            surface,
-            ab,
-        }
+        let ab = body_edge(body, e_ab.he_plus);
+        (r#loop, surface, ab)
     }
 
     fn body_edge(body: &Body<f64>, he: crate::HalfEdgeKey) -> crate::entity::EdgeKey {
         body.get_half_edge(he).unwrap().edge
+    }
+
+    /// A winding's sign, its margin dropped.
+    fn signed(
+        r: Result<LoopWinding<Decided>, MergeCoplanarError>,
+    ) -> Result<LoopWinding<Sign>, MergeCoplanarError> {
+        r.map(|w| match w {
+            LoopWinding::Empty => LoopWinding::Empty,
+            LoopWinding::Unsupported => LoopWinding::Unsupported,
+            LoopWinding::Wound(d) => LoopWinding::Wound(d.sign),
+        })
     }
 
     fn band(tol: Tol) -> Band {
@@ -3771,13 +4738,13 @@ mod winding_arm_tests {
             tol,
         );
         assert_eq!(
-            t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)),
-            Ok(Some(Sign::Positive)),
+            signed(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol))),
+            Ok(LoopWinding::Wound(Sign::Positive)),
             "the chord triangle winds positively about +z"
         );
         assert_eq!(
-            t.body.loop_winding(t.r#loop, -Vec3::unit_z(), band(tol)),
-            Ok(Some(Sign::Negative)),
+            signed(t.body.loop_winding(t.r#loop, -Vec3::unit_z(), band(tol))),
+            Ok(LoopWinding::Wound(Sign::Negative)),
             "and negatively about the opposite normal"
         );
     }
@@ -3793,11 +4760,35 @@ mod winding_arm_tests {
     #[test]
     fn a_two_arc_cycle_winds_positively_and_its_counterpart_negatively() {
         let tol = Tol::witness();
+        let (body, disc, anti) = two_semicircle_disc(tol);
+        let outward = Vec3::unit_z();
+        assert_eq!(
+            signed(body.loop_winding(disc, outward, band(tol))),
+            Ok(LoopWinding::Wound(Sign::Positive)),
+            "the disc's own boundary encloses material about the outward normal"
+        );
+        assert_eq!(
+            signed(body.loop_winding(anti, outward, band(tol))),
+            Ok(LoopWinding::Wound(Sign::Negative)),
+            "the same boundary reversed anti-encloses — a ring's signature"
+        );
+    }
+
+    /// The unit disc on the z = 0 plane bounded by two semicircles
+    /// meeting at `(±1, 0, 0)`: the disc face's own loop, which winds
+    /// counterclockwise about `+z`, and the seed face's counterpart.
+    fn two_semicircle_disc(tol: Tol) -> (Body<f64>, LoopKey, LoopKey) {
         let (a, b) = (Point3::new(1.0, 0.0, 0.0), Point3::new(-1.0, 0.0, 0.0));
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(a).unwrap();
+        let seed = body.mvfs(a, true).unwrap();
         let surface = body
-            .set_face_surface(seed.face, FaceSurface::New(plane()))
+            .set_face_surface(
+                seed.face,
+                FaceSurface::New {
+                    surface: plane(),
+                    sense: true,
+                },
+            )
             .unwrap();
         let arc = |axis: Vec3<f64>| EdgeCurveSpec {
             description: EdgeDescriptionSpec::chart(surface),
@@ -3831,23 +4822,13 @@ mod winding_arm_tests {
                     he2: e1.he_minus,
                 },
                 arc(-Vec3::unit_z()),
-                FaceSurface::New(plane()),
+                FaceSurface::Inherit,
                 tol,
             )
             .unwrap();
-        let outward = Vec3::unit_z();
         let disc = body.get_face(e2.face).unwrap().outer;
         let anti = body.get_face(seed.face).unwrap().outer;
-        assert_eq!(
-            body.loop_winding(disc, outward, band(tol)),
-            Ok(Some(Sign::Positive)),
-            "the disc's own boundary encloses material about the outward normal"
-        );
-        assert_eq!(
-            body.loop_winding(anti, outward, band(tol)),
-            Ok(Some(Sign::Negative)),
-            "the same boundary reversed anti-encloses — a ring's signature"
-        );
+        (body, disc, anti)
     }
 
     /// **The mixed Line + Circle cycle**, and the reason the bulge is a
@@ -3883,8 +4864,8 @@ mod winding_arm_tests {
             )
             .unwrap();
         assert_eq!(
-            t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)),
-            Ok(Some(Sign::Positive)),
+            signed(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol))),
+            Ok(LoopWinding::Wound(Sign::Positive)),
             "chord 2A = 1 minus the bite the arc takes out of it"
         );
     }
@@ -3901,9 +4882,30 @@ mod winding_arm_tests {
     /// the DENOMINATOR can both be pinned, and the denominator — the
     /// re-metered arc-length perimeter — is otherwise invisible to any
     /// sign assertion, because scaling a lever cannot change a sign.
-    fn escalated_margin(r: Result<Option<Sign>, MergeCoplanarError>) -> f64 {
+    ///
+    /// Each escalation is also the winding decision's real raise for the
+    /// refusal-shape guard: one recourse, its subject, no stage prefix
+    /// and no declaration.
+    fn escalated_margin(r: Result<LoopWinding<Decided>, MergeCoplanarError>) -> f64 {
         match r {
-            Err(MergeCoplanarError::Escalated { diag }) => {
+            Err(
+                ref err @ MergeCoplanarError::Escalated {
+                    decision: MergeDecision::LoopWinding,
+                    diag,
+                },
+            ) => {
+                let text = err.to_string();
+                assert_eq!(test_utils::refusal::recourse_markers(&text), 1, "{text}");
+                assert!(
+                    test_utils::refusal::subjectless_escalations(&text).is_empty()
+                        && test_utils::refusal::stage_prefixes(&text, &[]).is_empty()
+                        && text.starts_with(
+                            "which way a loop of the merged face winds about its normal is \
+                             undecided: "
+                        )
+                        && !text.contains("declare"),
+                    "{text}"
+                );
                 match diag.margin.diagnostic_f64_for_error_text() {
                     geom_core::ErrorTextReading::Value(v) => v,
                     other => panic!("expected a classified f64 margin, got {other:?}"),
@@ -4098,26 +5100,10 @@ mod winding_arm_tests {
         );
     }
 
-    /// **The honest remainder**: a cycle carrying a NURBS edge is not
-    /// answered. No closed form exists for the region a fitted carrier
-    /// bounds, and the chord winding is not that region's — so the
-    /// question comes back `None` and the caller refuses rather than
-    /// guesses. The chord polygon here winds positively, so `None` is
-    /// a REFUSAL to read the chords, not an absence of chords to read.
-    #[test]
-    fn a_nurbs_carrying_cycle_stays_undecidable() {
-        let tol = Tol::witness();
-        let mut t = tri(
-            Point3::new(2.0, 0.0, 0.0),
-            Point3::new(0.0, 2.0, 0.0),
-            Point3::new(-1.0, -1.0, 0.0),
-            tol,
-        );
-        assert_eq!(
-            t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)),
-            Ok(Some(Sign::Positive)),
-            "as a chord triangle it is decidable and positive"
-        );
+    /// Retypes [`tri`]'s `a → b` edge, for `a = (2,0)` and `b = (0,2)`,
+    /// as the rational quadratic quarter circle between them: a NURBS
+    /// carrier, whose winding the kernel does not read.
+    fn fit_a_nurbs_quarter(t: &mut Tri, tol: Tol) {
         // The rational quadratic quarter circle `a → b`, described as
         // the plane chart's own image of itself: the chart is
         // `origin + u·x̂ + v·ŷ` here, so the 2-D control net is the
@@ -4163,10 +5149,769 @@ mod winding_arm_tests {
                 tol,
             )
             .unwrap();
+    }
+
+    /// **The honest remainder**: a cycle carrying a NURBS edge is not
+    /// answered. No closed form exists for the region a fitted carrier
+    /// bounds, and the chord winding is not that region's — so the
+    /// question comes back `None` and the caller refuses rather than
+    /// guesses. The chord polygon here winds positively, so `None` is
+    /// a REFUSAL to read the chords, not an absence of chords to read.
+    #[test]
+    fn a_nurbs_carrying_cycle_stays_undecidable() {
+        let tol = Tol::witness();
+        let mut t = tri(
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(0.0, 2.0, 0.0),
+            Point3::new(-1.0, -1.0, 0.0),
+            tol,
+        );
         assert_eq!(
-            t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol)),
-            Ok(None),
+            signed(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol))),
+            Ok(LoopWinding::Wound(Sign::Positive)),
+            "as a chord triangle it is decidable and positive"
+        );
+        fit_a_nurbs_quarter(&mut t, tol);
+        assert_eq!(
+            signed(t.body.loop_winding(t.r#loop, Vec3::unit_z(), band(tol))),
+            Ok(LoopWinding::Unsupported),
             "one fitted carrier and the whole cycle stops being answerable"
         );
+        // ...and as a merged face's only loop it is named, not taken
+        // for a hole: it may be the outline, and nothing built reads it.
+        let face = t.body.get_loop(t.r#loop).unwrap().face;
+        let survivor = t.body.get_face(face).unwrap().clone();
+        let err = t
+            .body
+            .merged_outline_ring(face, &survivor, tol)
+            .expect_err("an outline whose winding is not built is not assigned");
+        assert_one_story(&err.to_string());
+        assert_eq!(
+            err,
+            MergeCoplanarError::MergedFaceRoleAmbiguous {
+                face,
+                verdict: OutlineVerdict::UnsupportedWinding { r#loop: t.r#loop },
+            }
+        );
+    }
+
+    /// The refusal-shape guard every outline ending passes: one
+    /// recourse, no stage prefix, no subjectless escalation, and no
+    /// offer of a declaration the merge cannot take.
+    fn assert_one_story(text: &str) {
+        assert_eq!(test_utils::refusal::recourse_markers(text), 1, "{text}");
+        assert!(
+            test_utils::refusal::subjectless_escalations(text).is_empty()
+                && test_utils::refusal::stage_prefixes(text, &[]).is_empty()
+                && !text.contains("declare"),
+            "{text}"
+        );
+    }
+
+    /// **A zero winding that leaves the merged face no outline tells
+    /// the winding decision's in-band story**, with the tolerance its
+    /// own margin gives.
+    ///
+    /// The fixture: one triangle `(0,0) → (2,0) → (1,h)`, the merged
+    /// face's only loop, with `h` the band's zero threshold. Its
+    /// margin `2A/P = 2h/P ≈ h/2` is nonzero and lies within the zero
+    /// band at every tolerance row, so the winding classifies zero and
+    /// no loop is an outline. [`LOOP_WINDING`] passes on either
+    /// nonzero sign, so a smaller tolerance decides this margin: the
+    /// ending offers `m/K`, read here off the loop's own geometry.
+    #[test]
+    fn a_zero_winding_that_leaves_no_outline_tells_the_winding_story() {
+        let tol = Tol::witness();
+        let band = band(tol);
+        let h = band.zero();
+        let t = tri(
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(1.0, h, 0.0),
+            tol,
+        );
+        let face = t.body.get_loop(t.r#loop).unwrap().face;
+        let survivor = t.body.get_face(face).unwrap().clone();
+        let text = t
+            .body
+            .merged_outline_ring(face, &survivor, tol)
+            .expect_err("a face whose one loop winds zero has no outline")
+            .to_string();
+        assert_one_story(&text);
+        assert!(
+            text.starts_with(
+                "which way a loop of the merged face winds about its normal is undecided: \
+                 margin "
+            ) && text.contains("lies within the zero band")
+                && text.contains(LOOP_WINDING.lever),
+            "{text}"
+        );
+        let margin = 2.0 * h / (2.0 + 2.0 * (1.0 + h * h).sqrt());
+        let want = margin / (band.escalate() / band.zero());
+        let offered: f64 = text
+            .split_once("tighten the tolerance below ")
+            .and_then(|(_, tail)| tail.strip_suffix(" m"))
+            .and_then(|v| v.parse().ok())
+            .unwrap_or_else(|| panic!("a valued tolerance offer ends the text: {text}"));
+        assert!(
+            (offered - want).abs() <= 1e-9 * want,
+            "the offer is the zero winding's own margin over K: offered {offered:e}, \
+             want {want:e}: {text}"
+        );
+    }
+
+    /// **Several positive windings end in their own story**: two
+    /// counterclockwise triangles as one merged face's outline and
+    /// ring. Each bounds a region of its own, so the merge would make
+    /// one face of two separate regions; the refusal names both loops
+    /// and the move that makes the union one region.
+    #[test]
+    fn several_positive_windings_name_their_loops_and_the_move() {
+        let tol = Tol::witness();
+        let mut body = Body::<f64>::new();
+        let (first, _, _) = tri_into(
+            &mut body,
+            [
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+            ],
+            tol,
+        );
+        let (second, _, _) = tri_into(
+            &mut body,
+            [
+                Point3::new(3.0, 0.0, 0.0),
+                Point3::new(4.0, 0.0, 0.0),
+                Point3::new(3.0, 1.0, 0.0),
+            ],
+            tol,
+        );
+        let face = body.get_loop(first).unwrap().face;
+        let mut survivor = body.get_face(face).unwrap().clone();
+        survivor.rings = vec![second];
+        let text = body
+            .merged_outline_ring(face, &survivor, tol)
+            .expect_err("two outlines are not one face's")
+            .to_string();
+        assert_one_story(&text);
+        assert!(
+            text.contains(&format!("{first:?}"))
+                && text.contains(&format!("{second:?}"))
+                && text.contains(
+                    "Recourse: reshape the merged faces so their union is one connected region"
+                ),
+            "{text}"
+        );
+    }
+
+    /// **Every loop negative ends in the orientation story**: the
+    /// triangle's second face, whose one loop winds clockwise about
+    /// its outward normal, taken as a merged face. Nothing about the
+    /// margin is band-decided, so no tolerance is offered.
+    #[test]
+    fn every_loop_negative_names_the_face_and_offers_no_tolerance() {
+        let tol = Tol::witness();
+        let t = tri(
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            tol,
+        );
+        let (face, survivor) = t
+            .body
+            .faces()
+            .find(|(_, f)| f.outer != t.r#loop)
+            .map(|(k, f)| (k, f.clone()))
+            .expect("the triangle's second face");
+        let err = t
+            .body
+            .merged_outline_ring(face, &survivor, tol)
+            .expect_err("a face of holes has no outline");
+        let text = err.to_string();
+        assert_one_story(&text);
+        assert!(!text.contains("tighten"), "{text}");
+        assert_eq!(
+            err,
+            MergeCoplanarError::MergedFaceRoleAmbiguous {
+                face,
+                verdict: OutlineVerdict::AllNegative,
+            }
+        );
+    }
+
+    /// The zero-winding triangle `(0,0) → (2,0) → (1,h)`, `h` the
+    /// band's zero threshold, shifted by `dx` and added to `body`: its
+    /// margin `2A/P ≈ h/2` lies within the zero band.
+    fn thin_into(body: &mut Body<f64>, dx: f64, tol: Tol) -> LoopKey {
+        let h = band(tol).zero();
+        tri_into(
+            body,
+            [
+                Point3::new(dx, 0.0, 0.0),
+                Point3::new(dx + 2.0, 0.0, 0.0),
+                Point3::new(dx + 1.0, h, 0.0),
+            ],
+            tol,
+        )
+        .0
+    }
+
+    /// Whether `err` is the winding decision's zero-band refusal.
+    fn is_the_zero_story(err: &MergeCoplanarError) -> bool {
+        matches!(
+            err,
+            MergeCoplanarError::Escalated {
+                decision: MergeDecision::LoopWinding,
+                diag,
+            } if diag.margin.kind() == geom_core::MarginKind::Value
+        ) && err.to_string().contains("lies within the zero band")
+    }
+
+    /// **With no loop positive, a zero winding is named before a loop
+    /// the kernel does not wind.** Such a loop already counts as not
+    /// positive (beside one positive loop the merge takes it for a
+    /// hole and proceeds), so the answer here turns on the zero
+    /// winding, which a tighter tolerance decides; the refusal offers
+    /// that tolerance rather than the carriers. The outline rides a
+    /// NURBS edge and the ring is the zero triangle. (Adopted from the
+    /// review's `probe_winding.rs`.)
+    #[test]
+    fn a_zero_winding_is_named_before_a_loop_the_kernel_does_not_wind() {
+        let tol = Tol::witness();
+        let mut t = tri(
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(0.0, 2.0, 0.0),
+            Point3::new(-1.0, -1.0, 0.0),
+            tol,
+        );
+        fit_a_nurbs_quarter(&mut t, tol);
+        let thin = thin_into(&mut t.body, 10.0, tol);
+        let face = t.body.get_loop(t.r#loop).unwrap().face;
+        let mut survivor = t.body.get_face(face).unwrap().clone();
+        survivor.rings = vec![thin];
+        let err = t
+            .body
+            .merged_outline_ring(face, &survivor, tol)
+            .expect_err("no loop is positive");
+        assert_one_story(&err.to_string());
+        assert!(is_the_zero_story(&err), "{err:?}: {err}");
+    }
+
+    /// **An empty loop bounds no area, so it is not positive and names
+    /// nothing**: beside a zero outline the zero winding tells its
+    /// story, and beside a clockwise outline every loop reads as a
+    /// hole. An empty loop is not a carrier the kernel does not wind.
+    /// (The first row is adopted from the review's `probe_winding.rs`.)
+    #[test]
+    fn an_empty_ring_is_not_positive_and_names_nothing() {
+        let tol = Tol::witness();
+        // A zero outline beside an empty ring.
+        let mut body = Body::<f64>::new();
+        let thin = thin_into(&mut body, 0.0, tol);
+        let lone = body.mvfs(Point3::new(5.0, 5.0, 0.0), true).unwrap().r#loop;
+        let face = body.get_loop(thin).unwrap().face;
+        let mut survivor = body.get_face(face).unwrap().clone();
+        survivor.rings = vec![lone];
+        let err = body
+            .merged_outline_ring(face, &survivor, tol)
+            .expect_err("a zero outline is no outline");
+        assert!(is_the_zero_story(&err), "zero beside empty: {err:?}: {err}");
+        // A clockwise outline beside an empty ring.
+        let t = tri(
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            tol,
+        );
+        let mut body = t.body;
+        let (face, mut survivor) = body
+            .faces()
+            .find(|(_, f)| f.outer != t.r#loop)
+            .map(|(k, f)| (k, f.clone()))
+            .expect("the triangle's second face");
+        let lone = body.mvfs(Point3::new(5.0, 5.0, 0.0), true).unwrap().r#loop;
+        survivor.rings = vec![lone];
+        let err = body
+            .merged_outline_ring(face, &survivor, tol)
+            .expect_err("a face of holes has no outline");
+        assert_one_story(&err.to_string());
+        assert_eq!(
+            err,
+            MergeCoplanarError::MergedFaceRoleAmbiguous {
+                face,
+                verdict: OutlineVerdict::AllNegative,
+            },
+            "clockwise beside empty"
+        );
+    }
+
+    /// **A torn winding walk panics naming what it could not read**:
+    /// each row tears the triangle's loop one way and reads the winding
+    /// through the door's vocabulary. A stale link names the record it
+    /// points at; a link that resolves but never returns names the
+    /// loop; a half-edge its own edge does not claim panics rather than
+    /// being read as the minus half. The first row is the control.
+    #[test]
+    fn a_torn_winding_walk_panics_naming_what_it_could_not_read() {
+        use crate::entity::GeomRef;
+        type Tear = fn(&mut Body<f64>, crate::HalfEdgeKey) -> Option<String>;
+        let rows: [(&str, Tear); 8] = [
+            ("nothing", |_, _| None),
+            ("a next link", |b, first| {
+                let next = b.get_half_edge(first).unwrap().next;
+                b.half_edges.remove(next);
+                Some(format!(
+                    "{}'s next names {}, which does not resolve",
+                    EntityId::HalfEdge(first),
+                    EntityId::HalfEdge(next)
+                ))
+            }),
+            ("the loop's closure", |b, first| {
+                let second = b.get_half_edge(first).unwrap().next;
+                b.half_edges.get_mut(second).unwrap().next = second;
+                Some(format!(
+                    "the next walk from {} does not come back to it",
+                    EntityId::HalfEdge(first)
+                ))
+            }),
+            ("an edge", |b, first| {
+                let edge = b.get_half_edge(first).unwrap().edge;
+                b.edges.remove(edge);
+                Some(format!(
+                    "{}'s edge names {}, which does not resolve",
+                    EntityId::HalfEdge(first),
+                    EntityId::Edge(edge)
+                ))
+            }),
+            ("the edge's claim", |b, first| {
+                let own = b.get_half_edge(first).unwrap().edge;
+                let other = b.edges().map(|(k, _)| k).find(|&k| k != own).unwrap();
+                b.half_edges.get_mut(first).unwrap().edge = other;
+                Some(format!(
+                    "{}'s edge {} does not claim it in either slot",
+                    EntityId::HalfEdge(first),
+                    EntityId::Edge(other)
+                ))
+            }),
+            ("a curve", |b, first| {
+                let edge = b.get_half_edge(first).unwrap().edge;
+                let curve = b.get_edge(edge).unwrap().curve;
+                b.curves.remove(curve);
+                Some(format!(
+                    "{}'s curve names {}, which does not resolve",
+                    EntityId::Edge(edge),
+                    GeomRef::Curve(curve)
+                ))
+            }),
+            ("a vertex", |b, first| {
+                let v = b.get_half_edge(first).unwrap().start;
+                b.vertices.remove(v);
+                Some(format!(
+                    "{}'s start names {}, which does not resolve",
+                    EntityId::HalfEdge(first),
+                    EntityId::Vertex(v)
+                ))
+            }),
+            ("a point", |b, first| {
+                let v = b.get_half_edge(first).unwrap().start;
+                let p = b.get_vertex(v).unwrap().point;
+                b.points.remove(p);
+                Some(format!(
+                    "{}'s point names {}, which does not resolve",
+                    EntityId::Vertex(v),
+                    GeomRef::Point(p)
+                ))
+            }),
+        ];
+        let tol = Tol::witness();
+        for (what, tear) in rows {
+            let mut t = tri(
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+                tol,
+            );
+            let crate::entity::LoopBoundary::Cycle { first } =
+                t.body.get_loop(t.r#loop).unwrap().boundary
+            else {
+                panic!("the triangle's loop is a cycle")
+            };
+            let want = tear(&mut t.body, first);
+            let mut got = None;
+            let panicked = crate::surgery::tests::caught(std::panic::AssertUnwindSafe(|| {
+                got = Some(signed(t.body.loop_winding(
+                    t.r#loop,
+                    Vec3::unit_z(),
+                    band(tol),
+                )));
+            }));
+            match (want, panicked) {
+                (None, None) => assert_eq!(
+                    got,
+                    Some(Ok(LoopWinding::Wound(Sign::Positive))),
+                    "tearing {what}"
+                ),
+                (Some(want), Some(message)) => {
+                    assert!(message.contains(&want), "tearing {what}: {message}");
+                }
+                (want, panicked) => {
+                    panic!("tearing {what}: wanted a panic {want:?}, got {panicked:?} / {got:?}")
+                }
+            }
+        }
+    }
+
+    /// **A run is the loop's sum with its closing chord added**, and
+    /// nothing else (`crate::loop_winding`, the boolean join's ring
+    /// lane): the open run `a → b → d` closed by the chord `d → a` is
+    /// the triangle, and is decided on the loop's margin bit for bit;
+    /// a null-edge strut on the run winds as its zero-length chord, on
+    /// the loop and the run alike; and the run reads the loop's carrier
+    /// set and claim, so a NURBS edge on it is not wound and a half its
+    /// edge does not claim is refused rather than read as a minus half.
+    #[test]
+    fn a_run_is_the_loop_sum_with_its_closing_chord() {
+        let tol = Tol::witness();
+        let b = band(tol);
+        let n = Vec3::unit_z();
+        let fresh = || {
+            tri(
+                Point3::new(2.0, 0.0, 0.0),
+                Point3::new(0.0, 2.0, 0.0),
+                Point3::new(-1.0, -1.0, 0.0),
+                tol,
+            )
+        };
+        // The run from `a → b` to `b → d`: the loop's first two halves.
+        let run_of = |t: &Tri| {
+            let he_ab = t.body.get_edge(t.ab).unwrap().he_plus;
+            (he_ab, t.body.get_half_edge(he_ab).unwrap().next)
+        };
+        let loop_margin = |t: &Tri| match t.body.planar_loop_winding_decided(t.r#loop, n, b) {
+            LoopWinding::Wound(Ok(d)) => d,
+            other => panic!("the triangle winds: {other:?}"),
+        };
+        let run_margin =
+            |t: &Tri, (h1, h2)| match t.body.planar_run_winding_decided((h1, h2), Straight, n, b) {
+                Ok(Some(Ok(d))) => d,
+                other => panic!("the run winds: {other:?}"),
+            };
+
+        let t = fresh();
+        let whole = loop_margin(&t);
+        assert_eq!(whole.sign, Sign::Positive, "a → b → d is counterclockwise");
+        assert_eq!(run_margin(&t, run_of(&t)), whole, "the run is the loop");
+
+        let mut t = fresh();
+        let (h1, _) = run_of(&t);
+        t.body
+            .mev_null(
+                MevSite::Fan { he1: h1, he2: h1 },
+                crate::null::NewVertexSide::Above,
+            )
+            .unwrap();
+        assert_eq!(
+            loop_margin(&t),
+            whole,
+            "a strut on the loop is wound as nothing"
+        );
+        let first = t.body.get_half_edge(h1).unwrap().prev;
+        let first = t.body.get_half_edge(first).unwrap().prev;
+        assert_eq!(
+            run_margin(&t, (first, t.body.get_half_edge(h1).unwrap().next)),
+            whole,
+            "a run opening on the strut is the same region"
+        );
+
+        let mut t = fresh();
+        let run = run_of(&t);
+        fit_a_nurbs_quarter(&mut t, tol);
+        assert_eq!(
+            t.body.planar_run_winding_decided(run, Straight, n, b),
+            Ok(None),
+            "a NURBS edge on the run is not wound by its chord"
+        );
+
+        let mut t = fresh();
+        let (h1, h2) = run_of(&t);
+        let own = t.body.get_half_edge(h2).unwrap().edge;
+        let other = t.body.edges().map(|(k, _)| k).find(|&k| k != own).unwrap();
+        t.body.half_edges.get_mut(h2).unwrap().edge = other;
+        let message = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = t.body.planar_run_winding_decided((h1, h2), Straight, n, b);
+        }));
+        assert!(
+            message.contains(&format!(
+                "{}'s edge {} does not claim it in either slot",
+                EntityId::HalfEdge(h2),
+                EntityId::Edge(other)
+            )),
+            "a half its edge does not claim is not read as a minus half: {message}"
+        );
+    }
+
+    /// **A run's conic bulge is read, closing curve and all**: one
+    /// semicircle of [`two_semicircle_disc`] closed by its diameter is
+    /// a half-disc whose chord Newell sum is exactly zero, so only the
+    /// run's bulge can decide it, and it winds counterclockwise like the
+    /// disc; the run over both semicircles closes on a zero-length chord
+    /// and is the disc's own loop, margin for margin. A closing CURVE is
+    /// one more edge: a semicircle closed by the other semicircle is the
+    /// disc, margin for margin, and closed by itself run back it encloses
+    /// nothing — which a closing read as its straight chord would call
+    /// the half-disc.
+    #[test]
+    fn a_run_on_arcs_is_decided_by_its_bulge() {
+        let tol = Tol::witness();
+        let b = band(tol);
+        let n = Vec3::unit_z();
+        let (body, disc, _) = two_semicircle_disc(tol);
+        let crate::entity::LoopBoundary::Cycle { first } = body.get_loop(disc).unwrap().boundary
+        else {
+            panic!("the disc's loop is a cycle");
+        };
+        let second = body.get_half_edge(first).unwrap().next;
+        let run = |h1, h2| match body.planar_run_winding_decided((h1, h2), Straight, n, b) {
+            Ok(Some(Ok(d))) => d,
+            other => panic!("the run winds: {other:?}"),
+        };
+        for half in [first, second] {
+            assert_eq!(
+                run(half, half).sign,
+                Sign::Positive,
+                "a semicircle closed by its diameter is a counterclockwise half-disc"
+            );
+        }
+        let whole = match body.planar_loop_winding_decided(disc, n, b) {
+            LoopWinding::Wound(Ok(d)) => d,
+            other => panic!("the disc winds: {other:?}"),
+        };
+        assert_eq!(run(first, second), whole, "the whole run is the disc");
+        // The one-half run `opens` closed by a chord curve, as the ring
+        // lane reads it: a [`SegmentCurve`] between `opens` and the other
+        // half, standing for the match's, whose spec is the edge under
+        // `he`, computed running the way that edge's plus half runs;
+        // `with_traversal` says whether the closing (from the run's end
+        // back to its start) runs the way `he` does. Both edges' plus
+        // halves run a → b, so the closing of `first` (b → a's half, its
+        // edge's minus) is the curve as computed, and the closing of
+        // `second` is the curve run back.
+        let closed = |opens: crate::HalfEdgeKey, he: crate::HalfEdgeKey, with_traversal: bool| {
+            let other = if opens == first { second } else { first };
+            let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
+            let curve = body
+                .get_curve_geom(edge.curve)
+                .unwrap()
+                .certified()
+                .unwrap();
+            let (t0, t1) = curve.params();
+            let spec = EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1: body
+                        .get_face(body.get_loop(disc).unwrap().face)
+                        .unwrap()
+                        .surface,
+                    s2: body
+                        .get_face(body.get_loop(disc).unwrap().face)
+                        .unwrap()
+                        .surface,
+                    witness: curve.carrier().mid_point(t0, t1),
+                },
+                carrier: curve.carrier().clone(),
+                param_start: t0,
+                param_end: t1,
+            };
+            let forward = with_traversal == edge.claim(he).unwrap().plus;
+            let halves = if forward {
+                (other, opens)
+            } else {
+                (opens, other)
+            };
+            let segment = crate::chord_join::SegmentCurve::of(halves, Some(spec));
+            let face = body.get_loop(disc).unwrap().face;
+            let closing = segment.run_closing(opens, face).unwrap();
+            match body.planar_run_winding_decided(
+                (opens, opens),
+                RunClosing::of(closing.as_ref()),
+                n,
+                b,
+            ) {
+                Ok(Some(Ok(d))) => d,
+                other => panic!("the closed run winds: {other:?}"),
+            }
+        };
+        for (opens, other) in [(first, second), (second, first)] {
+            assert_eq!(
+                closed(opens, other, true),
+                whole,
+                "a semicircle closed by the other one is the disc"
+            );
+            assert_eq!(
+                closed(opens, opens, false).sign,
+                Sign::Zero,
+                "a semicircle closed by itself run back encloses nothing"
+            );
+        }
+    }
+
+    /// **The ring lane's own shape**: a run that opens AND closes on a
+    /// null half, as every ring-lane run does (the match's two halves
+    /// are null). Struts at `a` and `d` of the triangle; the run from
+    /// the strut half entering `a` through `a → b → d` to the strut half
+    /// leaving `d` ends at that null half's far vertex — a copy of `d` —
+    /// and its closing chord `d → a` makes it the triangle, margin for
+    /// margin.
+    #[test]
+    fn a_run_between_two_null_halves_is_the_region_they_bracket() {
+        let tol = Tol::witness();
+        let b = band(tol);
+        let n = Vec3::unit_z();
+        let mut t = tri(
+            Point3::new(2.0, 0.0, 0.0),
+            Point3::new(0.0, 2.0, 0.0),
+            Point3::new(-1.0, -1.0, 0.0),
+            tol,
+        );
+        let whole = match t.body.planar_loop_winding_decided(t.r#loop, n, b) {
+            LoopWinding::Wound(Ok(d)) => d,
+            other => panic!("the triangle winds: {other:?}"),
+        };
+        let he_ab = t.body.get_edge(t.ab).unwrap().he_plus;
+        let he_bd = t.body.get_half_edge(he_ab).unwrap().next;
+        let he_da = t.body.get_half_edge(he_bd).unwrap().next;
+        for at in [he_ab, he_da] {
+            t.body
+                .mev_null(
+                    MevSite::Fan { he1: at, he2: at },
+                    crate::null::NewVertexSide::Above,
+                )
+                .unwrap();
+        }
+        let h1 = t.body.get_half_edge(he_ab).unwrap().prev;
+        let h2 = t.body.get_half_edge(he_bd).unwrap().next;
+        let is_null = |he: crate::HalfEdgeKey| {
+            let edge = t.body.get_half_edge(he).unwrap().edge;
+            let curve = t.body.get_edge(edge).unwrap().curve;
+            t.body.get_curve_geom(curve).unwrap().certified().is_none()
+        };
+        assert!(
+            is_null(h1) && is_null(h2),
+            "the run opens and closes on null halves"
+        );
+        assert_ne!(
+            t.body.half_edge_end(h2),
+            Some(t.body.get_half_edge(h2).unwrap().start),
+            "the run ends at the null half's far vertex, not at `d` itself"
+        );
+        match t.body.planar_run_winding_decided((h1, h2), Straight, n, b) {
+            Ok(Some(Ok(d))) => assert_eq!(d, whole, "the bracketed run is the triangle"),
+            other => panic!("the run winds: {other:?}"),
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod declared_reach_rows {
+    use crate::body::Body;
+    use crate::entity::{FaceKey, LoopBoundary, VertexKey};
+    use crate::euler::{FaceSurface, MefSite};
+    use crate::test_support_fixtures::{line, prism_z};
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::MergeCoplanarError;
+
+    /// The half-edge of `face`'s outer loop that starts at `v`.
+    fn leaving(
+        body: &Body<f64>,
+        face: FaceKey,
+        v: VertexKey,
+    ) -> Option<crate::entity::HalfEdgeKey> {
+        let f = body.get_face(face).expect("a live face");
+        let LoopBoundary::Cycle { first } = body.get_loop(f.outer).expect("a loop").boundary else {
+            panic!("a cycle");
+        };
+        body.loop_cycle(first)
+            .expect("the loop walks")
+            .into_iter()
+            .find(|&he| body.get_half_edge(he).expect("live").start == v)
+    }
+
+    /// **A declared pair glues only where both faces lie in band of one
+    /// plane**, read through the public merge: a dart prism whose top
+    /// is split along its 1 cm inner diagonal, one half re-described
+    /// as a plane tilted about that diagonal by 10, 50 and 90 Kε per
+    /// metre. The other half's far tip stands 10 m off the hinge, so
+    /// the tilted plane passes it 100 to 900 Kε away. Read over the
+    /// shared edge's chord (1 cm), the tilt reads at or under the band
+    /// and the pair glued; read over a ball enclosing both faces, with
+    /// their vertices as the consumed points, the tip contradicts the
+    /// declaration.
+    #[test]
+    fn a_tilt_in_band_at_the_shared_edge_but_past_it_across_the_faces_is_contradicted() {
+        let tol = Tol::witness();
+        let k_eps = Band::linear(tol).expect("the witness band").escalate();
+        for per_metre in [10.0, 50.0, 90.0] {
+            let theta = per_metre * k_eps;
+            // A(0,0) → D(10,−10) → C(1 cm, 0) → B(10,10): reflex at C,
+            // so A–C is an interior diagonal.
+            let prism = prism_z::<f64>(
+                &[(0.0, 0.0), (10.0, -10.0), (0.01, 0.0), (10.0, 10.0)],
+                0.0,
+                1.0,
+                tol,
+            );
+            let mut body = prism.body;
+            let (top, a, c) = (prism.top_face, prism.top[0], prism.top[2]);
+            let at = |body: &Body<f64>, v: VertexKey| {
+                *body
+                    .get_point(body.get_vertex(v).expect("live").point)
+                    .expect("live")
+            };
+            let (pa, pc) = (at(&body, a), at(&body, c));
+            let flat = body
+                .get_surface(body.get_face(top).expect("live").surface)
+                .expect("live")
+                .clone();
+            let he1 = leaving(&body, top, a).expect("A is on the top");
+            let he2 = leaving(&body, top, c).expect("C is on the top");
+            // Lifts RechartStrandsDescriptions: the half on a key of its own is the declared pair; its rim's descriptions are not the row.
+            let split = body
+                .lifting_rechart_refusals_for_tests(|body| {
+                    body.mef(
+                        MefSite::Chords { he1, he2 },
+                        line(pa, pc),
+                        FaceSurface::New {
+                            surface: flat,
+                            sense: true,
+                        },
+                        tol,
+                    )
+                })
+                .expect("the diagonal splits the top");
+            // The half holding B (+y) turns about the x-axis hinge at
+            // z = 1; the half holding D stays flat.
+            let b_side = if leaving(&body, split.face, prism.top[3]).is_some() {
+                split.face
+            } else {
+                top
+            };
+            let tilted = body.get_face(b_side).expect("live").surface;
+            *body.surfaces.get_mut(tilted).expect("live") = geom::Surface::Plane {
+                origin: Point3::new(0.0, 0.0, 1.0),
+                normal: Vec3::new(0.0, -theta, 1.0).normalize(),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            let flat_key = body
+                .get_face(if b_side == top { split.face } else { top })
+                .expect("live")
+                .surface;
+            let got = body.merge_coplanar_faces_declared(&[(flat_key, tilted)], tol);
+            assert!(
+                matches!(got, Err(MergeCoplanarError::DeclarationContradicted { .. })),
+                "{per_metre} Kε/m: {got:?}"
+            );
+        }
     }
 }

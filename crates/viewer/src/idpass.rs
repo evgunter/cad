@@ -29,8 +29,9 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::{Doc, Evaluation, ProfileProgram, Said, Say, Speaker};
 use pncad::prelude::StableName;
-use pncad::select::HitTestError;
+use pncad::select::UnnamedEntity;
 
 use crate::frame::{Message, Retold, Subject};
 use crate::generation::Generation;
@@ -168,12 +169,13 @@ pub enum IdAnswer {
     /// A drawn patch, by the name the index has for it.
     Named(StableName),
     /// A drawn patch the index has no name for: the naming layer's
-    /// loud bug arm ([`PickIndex::name_of`]), with its own refusal.
+    /// loud bug report ([`PickIndex::name_of`]), with its own refusal
+    /// — a lookup's, since the index was built by one.
     Unnamed {
         /// The patch id the id buffer read back.
         id: u32,
         /// Why the patch has no name.
-        error: HitTestError,
+        error: UnnamedEntity,
     },
     /// An id the index never assigned, so no patch of this picture is
     /// drawn under it. The picture is the one this index drew (the
@@ -185,28 +187,30 @@ pub enum IdAnswer {
     },
 }
 
-impl core::fmt::Display for IdAnswer {
-    /// Each arm in the words of the layer that raised it: a name
-    /// through [`name_and_path`], an unnamed patch through its own
-    /// refusal's `Display`, and an unassigned id as the picture's own
+impl Say for IdAnswer {
+    /// Each arm in the words of the layer that raised it: a name in
+    /// its words ([`Speaker::name`]), an unnamed patch through its own
+    /// refusal's sentence, and an unassigned id as the picture's own
     /// fact. The id is `id N` in every arm that carries one, because
     /// it is one `u32` read out of the id buffer, whatever it turns out
     /// to denote.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         match self {
             Self::Nothing => f.write_str("nothing"),
-            Self::Named(name) => f.write_str(&name_and_path(name)),
-            Self::Unnamed { id, error } => write!(f, "id {id}, a drawn patch: {error}"),
+            Self::Named(name) => write!(f, "{}", by.name(name)),
+            Self::Unnamed { id, error } => {
+                write!(f, "id {id}, a drawn patch: {}", Said(error, by))
+            }
             Self::Unassigned { id } => write!(f, "id {id}, which no patch of this picture draws"),
         }
     }
 }
 
-/// A name as a sentence about two DIFFERING answers renders it: kind
-/// and minting node through [`StableName`]'s own `Display`, then the
-/// role path ([`Disagreement`]'s `Display` says why both halves).
-fn name_and_path(name: &StableName) -> String {
-    format!("{name} ({:?})", name.path)
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for IdAnswer {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
+    }
 }
 
 impl IdAnswer {
@@ -217,10 +221,7 @@ impl IdAnswer {
         }
         match index.name_of(id) {
             Some(Ok(name)) => Self::Named(name.clone()),
-            Some(Err(error)) => Self::Unnamed {
-                id,
-                error: error.clone(),
-            },
+            Some(Err(error)) => Self::Unnamed { id, error: *error },
             None => Self::Unassigned { id },
         }
     }
@@ -242,46 +243,45 @@ pub struct Disagreement {
     pub from_ray: Vec<StableName>,
 }
 
-impl core::fmt::Display for Disagreement {
-    /// The id side renders through [`IdAnswer`]'s own `Display`. Every
-    /// NAME on either side renders through [`StableName`]'s `Display`
-    /// — kind and minting node, the half a user can act on — followed
-    /// by the role path ([`name_and_path`]).
+impl Say for Disagreement {
+    /// The id side is [`IdAnswer`]'s own sentence. Every NAME on
+    /// either side is said in its words, which tell two names of one
+    /// table apart. The sentence reaches the user's status line
+    /// ([`Disagreement::notice`]), so it carries no role path: the path
+    /// a bug report replays is this value's `Debug`, for a log, and no
+    /// surface of the viewer prints it.
     ///
-    /// BOTH halves of a name are load-bearing here, which is what makes this
-    /// message different from every other one in this crate. The name's
-    /// `Display` omits the path deliberately, so two names differing
-    /// only in their derivation would render identically; the path
-    /// alone drops kind and node, so two names on different nodes
-    /// sharing a role path would. A message whose entire subject is
-    /// that two answers DIFFER cannot afford either collapse.
-    ///
-    /// The path rides as `Debug` because `RoleSeg` has no `Display` in
-    /// this workspace — the one rendering here that is not prose, and
-    /// it is a derivation, not a sentence.
-    ///
-    /// Destructured rather than field-read, which is what holds the
-    /// paragraph above to the value: the argument is that BOTH halves
-    /// are load-bearing, and a third field added to
-    /// [`Disagreement`] and left out of this sentence would falsify it
-    /// silently. In the pattern it is E0027 instead.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+    /// Destructured rather than field-read, so a third field added to
+    /// [`Disagreement`] and left out of this sentence is E0027 rather
+    /// than silently unsaid.
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
         let Self { from_gpu, from_ray } = self;
-        let ray = match &from_ray[..] {
-            [] => "nothing".to_owned(),
-            [name] => name_and_path(name),
-            tied => format!(
-                "tied between {}",
-                tied.iter()
-                    .map(name_and_path)
-                    .collect::<Vec<_>>()
-                    .join(" and ")
-            ),
-        };
         write!(
             f,
-            "picking paths disagree at the cursor: id buffer {from_gpu}, ray {ray}"
-        )
+            "picking paths disagree at the cursor: id buffer {}, ray ",
+            Said(from_gpu, by)
+        )?;
+        match &from_ray[..] {
+            [] => f.write_str("nothing"),
+            [name] => write!(f, "{}", by.name(name)),
+            tied => {
+                f.write_str("tied between ")?;
+                for (i, name) in tied.iter().enumerate() {
+                    if i > 0 {
+                        f.write_str(" and ")?;
+                    }
+                    write!(f, "{}", by.name(name))?;
+                }
+                Ok(())
+            }
+        }
+    }
+}
+
+/// The sentence where no document is at hand: each node by its tag.
+impl core::fmt::Display for Disagreement {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say(f, Speaker::TAG)
     }
 }
 
@@ -293,10 +293,20 @@ impl Disagreement {
     /// retires it on
     /// the id log's own judgement that the question has moved on.
     ///
+    /// Its nodes are said from the landed document the index that drew
+    /// the picture was built against, and its names within the tables
+    /// of that document's evaluation ([`Speaker::within`]), both in
+    /// `landed`.
+    ///
     /// [`Retold::Again`]: the same hover says it again while the
     /// paths still disagree.
-    pub fn notice(&self) -> Message {
-        Message::new(Subject::Cursor, self.to_string(), Retold::Again)
+    pub fn notice(&self, landed: (&Doc<ProfileProgram>, &Evaluation<f64>)) -> Message {
+        let (doc, evaluation) = landed;
+        Message::new(
+            Subject::Cursor,
+            Said(self, Speaker::of(doc).within(evaluation)).to_string(),
+            Retold::Again,
+        )
     }
 }
 
@@ -393,4 +403,39 @@ pub fn disagreement(
         from_gpu,
         from_ray: from_ray.to_vec(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use pncad::prelude::{CapEnd, EntityKind, NameRef, RecipeNodeId, RoleSeg};
+
+    /// A disagreement says each name in its words, and no role path, on
+    /// the wasm32 build's stack however deep the name nests: a name's
+    /// words walk its nesting from their own stack.
+    #[test]
+    fn a_disagreement_over_a_name_nested_past_every_stack_says_it_on_the_smallest_stack() {
+        const DEEP: usize = 20_000;
+        let shown = test_utils::own_thread::on_the_smallest_stack(|| {
+            let leaf = StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(1)),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            };
+            let deep = (0..DEEP).fold(leaf, |n, _| StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId::new(0, test_utils::refusal::tagged(2)),
+                path: vec![RoleSeg::FromA(NameRef::new(n))],
+            });
+            Disagreement {
+                from_gpu: IdAnswer::Named(deep.clone()),
+                from_ray: vec![deep],
+            }
+            .to_string()
+        });
+        assert!(!shown.contains("FromA"), "no role path: {shown}");
+        assert_eq!(shown.matches("the end cap of node 000000000001").count(), 2);
+    }
 }

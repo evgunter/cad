@@ -48,7 +48,7 @@
 //! # The claim the picture makes, and how it is checked
 //!
 //! Not "samples from the same laws" — **this run's samples**. Each
-//! one comes from `mc::sample_offsets(analyzed, config, i)`, the door
+//! one comes from `mc::sample_offsets(doc, analyzed, config, i)`, the door
 //! `work/props`'s
 //! `mc-lanes-draws-are-not-reproducible-from-outside-the-crate` asked
 //! for, and the cell then holds itself to it: it summarizes its own
@@ -64,7 +64,7 @@
 //! 1. **The lane's own way of placing a sample is not the cell's.**
 //!    `monte_carlo` puts a draw at `nominal + offset` through a
 //!    degenerate `ParamBox` axis; this cell places each draw with an
-//!    ordinary `DocEdit::SetDocParamValue` instead. That the two
+//!    ordinary `DocEdit::SetVarValue` instead. That the two
 //!    coincide is not assumed: `m10_6_mc_draws.rs` pins it in the
 //!    library, and the bit-equality above re-checks it here on real
 //!    geometry.
@@ -92,20 +92,16 @@ use pncad::analysis::{
     AnalysisPolicy, DEFAULT_SAMPLES, McConfig, analyzed_box, monte_carlo, sample_offsets, summarize,
 };
 use pncad::document::{
-    CancelToken, DocEdit, DocParamValue, EvalOptions, Evaluation, ParamName, ProfileDoc,
-    RecipeNodeId, RefusingReach, ValuePayload, apply, evaluate,
+    CancelToken, DocEdit, EvalOptions, Evaluation, FreeValue, ProfileDoc, RecipeNodeId,
+    RefusingReach, ValuePayload, VarId, apply, evaluate,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
 use pncad::topo::Body;
 
-use crate::plate::{CERTIFIABLE_FRACTION, Plate, RADIUS, SPACING, WEB, plate};
-
-/// The study the machinist writes down: ±0.05 mm on the hole spacing.
-const SPACING_HALF_WIDTH: f64 = 5.0e-5;
-/// …and σ = 0.01 mm on each radius. Same two numbers as the tolerance
-/// cell's stop 1, because it is the same study.
-const RADIUS_SIGMA: f64 = 1.0e-5;
+use crate::plate::{
+    CERTIFIABLE_FRACTION, Plate, RADIUS, RADIUS_SIGMA, SPACING, SPACING_HALF_WIDTH, WEB, real_study,
+};
 
 /// Metres to millimetres, for every printed number.
 const MM: f64 = 1e3;
@@ -176,23 +172,23 @@ fn hole_circle(body: &Body<f64>) -> (f64, f64, f64) {
 /// read back out of it.
 fn replay(base: &Plate, samples: usize, config: &McConfig, tol: Tol) -> Vec<Sample> {
     let analyzed = analyzed_box(&base.doc, &AnalysisPolicy::default());
-    let nominal: Vec<(ParamName, f64)> = analyzed
+    let nominal: Vec<(VarId, f64)> = analyzed
         .varying()
-        .map(|(name, p)| (name.clone(), p.nominal))
+        .map(|(var, p)| (var, p.nominal))
         .collect();
 
     (0..samples)
         .map(|i| {
-            let offsets =
-                sample_offsets(&analyzed, config, i).expect("the study's laws are sampleable");
+            let offsets = sample_offsets(&base.doc, &analyzed, config, i)
+                .expect("the study's laws are sampleable");
             let mut doc: ProfileDoc = base.doc.clone();
-            for (name, value) in &nominal {
-                let offset = offsets[name];
+            for (var, value) in &nominal {
+                let offset = offsets[var];
                 let applied = apply(
                     &doc,
-                    &DocEdit::SetDocParamValue {
-                        name: name.clone(),
-                        value: DocParamValue::Continuous(value + offset),
+                    &DocEdit::SetVarValue {
+                        var: (*var).into(),
+                        value: FreeValue::Continuous(value + offset),
                     },
                     tol,
                     &RefusingReach,
@@ -229,7 +225,7 @@ fn replay(base: &Plate, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
 ///
 /// Returns the SVG so the caller owns where it lands.
 pub fn narration(tol: Tol) -> String {
-    let base = plate(SPACING_HALF_WIDTH, RADIUS_SIGMA, WEB - 1.0e-4, tol);
+    let base = real_study(tol);
     let analyzed = analyzed_box(&base.doc, &AnalysisPolicy::default());
     let config = McConfig {
         samples: DEFAULT_SAMPLES,
@@ -667,4 +663,53 @@ fn sheet(
 
     out.push_str("</svg>\n");
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// FNV-1a over `bytes`, folded into `h`.
+    fn fnv(h: &mut u64, bytes: &[u8]) {
+        for &b in bytes {
+            *h ^= u64::from(b);
+            *h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+
+    /// **The Monte Carlo sheet does not move** (INTENT-LITERALS spec §8
+    /// row 9): the draw matrix — every sample's offsets, each keyed by
+    /// its variable's NAME, the varying axes in declaration order, since
+    /// an id's digest moves when minting does — and the
+    /// sheet's own bytes are the numbers measured on the tree before a
+    /// slot held a variable. Only a distributed variable draws, so a
+    /// typed value's anonymous variable enters neither.
+    #[test]
+    fn the_monte_carlo_sheet_is_pinned() {
+        let tol = Tol::witness();
+        let base = real_study(tol);
+        let analyzed = analyzed_box(&base.doc, &AnalysisPolicy::default());
+        let config = McConfig {
+            samples: DEFAULT_SAMPLES,
+            parallel: false,
+            ..McConfig::default()
+        };
+        let mut draws = 0xcbf2_9ce4_8422_2325_u64;
+        for i in 0..config.samples {
+            let offsets = sample_offsets(&base.doc, &analyzed, &config, i).expect("sampleable");
+            for (var, _) in analyzed.varying() {
+                let name = base.doc.var_name(var).expect("the study's axes are named");
+                fnv(&mut draws, name.as_str().as_bytes());
+                fnv(&mut draws, &offsets[&var].to_bits().to_le_bytes());
+            }
+        }
+        let mut sheet = 0xcbf2_9ce4_8422_2325_u64;
+        fnv(&mut sheet, narration(tol).as_bytes());
+        println!("mcplate draws {draws:#018x} sheet {sheet:#018x}");
+        assert_eq!(
+            (draws, sheet),
+            (0xd633_699a_f382_1806, 0x6d3e_4b0b_0201_2542),
+            "the Monte Carlo sheet moved"
+        );
+    }
 }

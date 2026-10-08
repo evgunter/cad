@@ -5,7 +5,7 @@
 //! subtract answers must not. Any body answered must also be valid at
 //! tier 3, and the volumes of `A ∖ B` and `A ∩ B` must sum to `A`'s.
 //!
-//! Most rods refuse (the sagitta charge, the pierce door, or an
+//! Most rods refuse (the join's germ frame, the pierce door, or an
 //! escalation, depending on the pose and the band); the row prints the
 //! count of each refusal, which is a report and not a gate.
 

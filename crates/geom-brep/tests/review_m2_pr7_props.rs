@@ -632,7 +632,10 @@ fn reflex_major_arc_vector_area_matches_dense_polyline() {
 }
 
 // ---------------------------------------------------------------------
-// Assignment 3 (unit level): out-of-inventory boundaries refuse typed.
+// Assignment 3 (unit level): a boundary this lane cannot fold refuses
+// typed — and the variant says WHICH of the two it is, by the premise
+// the residual checked: `OffSurface` where no valid body could get
+// there, `NotIsoRectangle` where a valid face can.
 // ---------------------------------------------------------------------
 
 #[test]
@@ -651,9 +654,9 @@ fn out_of_inventory_boundaries_refuse_typed() {
     assert!(
         matches!(
             curved_face(&s, &lp.edges, true, b),
-            Err(PropsError::NotIsoRectangle { .. })
+            Err(PropsError::OffSurface { .. })
         ),
-        "wrong-radius rim must refuse"
+        "a wrong-radius circle is nowhere on the cylinder, so it refuses OFF-SURFACE"
     );
     // (c) non-axial line on a cylinder.
     let mut lp = patch_loop(&s, [0.0, 1.0, 0.0, 1.0], 1.0, false);
@@ -663,9 +666,9 @@ fn out_of_inventory_boundaries_refuse_typed() {
     assert!(
         matches!(
             curved_face(&s, &lp.edges, true, b),
-            Err(PropsError::NotIsoRectangle { .. })
+            Err(PropsError::OffSurface { .. })
         ),
-        "tilted meridian must refuse"
+        "a tilted line is nowhere on the cylinder, so it refuses OFF-SURFACE"
     );
     // (d) line edge on a sphere.
     let sp = sph();
@@ -716,7 +719,10 @@ fn out_of_inventory_boundaries_refuse_typed() {
 /// silently with a fabricated contribution. The fix adds the
 /// `props_rim_center_on_axis` / `props_rim_axis_parallel` /
 /// per-surface meridian incidence residuals; the off-axis rim now
-/// refuses typed (`NotIsoRectangle`), matching the module docs.
+/// refuses typed, and since a cylinder's only on-surface circles are its
+/// cross-sections the premise is an INCIDENCE one, so the refusal is
+/// `PropsError::OffSurface` — a defect of the kernel or of the file,
+/// told apart from a valid face outside the inventory.
 #[test]
 fn off_surface_boundaries_must_refuse_typed() {
     let axis = Vec3::new(0.0, 0.0, 1.0);
@@ -748,7 +754,7 @@ fn off_surface_boundaries_must_refuse_typed() {
     assert!(
         matches!(
             curved_face(&s, &edges, true, band()),
-            Err(PropsError::NotIsoRectangle {
+            Err(PropsError::OffSurface {
                 what: "props_rim_center_on_axis"
             })
         ),
@@ -757,19 +763,18 @@ fn off_surface_boundaries_must_refuse_typed() {
     );
 }
 
-/// The torus `s_f` inference trusts the loop-local vertex tags: a
-/// caller that LIES (tags the meridian anchor onto the far rim) gets a
-/// silently flipped sign. This is a documented caller contract (tags
-/// come from `topo`'s flattening, first-seen order), not a public
-/// surface — pinned here so the trust boundary is explicit.
+/// The torus reader trusts no vertex tags: its chart Green form reads
+/// the loop's geometry and its cyclic order, so a caller that lies
+/// about the tags (the two rims' tag pairs swapped — a lie no topo
+/// flattening produces) gets the same flux, and both match the oracle.
+/// The old reader took its side from the rim tagged onto the anchor
+/// meridian's `t0` vertex, which made the tags load-bearing.
 #[test]
-fn torus_tag_contract_is_load_bearing() {
+fn torus_flux_reads_no_tags() {
     let s = tor();
     let rect = [0.1, 1.8, -0.7, 0.9];
     let mut lp = patch_loop(&s, rect, 1.0, false);
     let honest = curved_face(&s, &lp.edges, true, band()).unwrap();
-    // Swap the two rims' tag pairs (a lie no topo flattening produces:
-    // the loop is otherwise untouched).
     let (r0, r1) = (lp.edges[0].clone(), lp.edges[2].clone());
     lp.edges[0].start = r1.start;
     lp.edges[0].end = r1.end;
@@ -778,8 +783,9 @@ fn torus_tag_contract_is_load_bearing() {
     let lied = curved_face(&s, &lp.edges, true, band()).unwrap();
     let (_, flux) = oracle(&s, rect, 1.0);
     assert_rel("honest torus flux", honest.flux, flux, 1e-9);
-    assert!(
-        (lied.flux - honest.flux).abs() > 1e-6,
-        "tag lie must actually change the anchored term (proves the tags are load-bearing)"
+    assert_eq!(
+        lied.flux.to_bits(),
+        honest.flux.to_bits(),
+        "a tag lie moves nothing the Green form reads"
     );
 }

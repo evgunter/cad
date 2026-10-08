@@ -96,9 +96,15 @@ fn pole_crossing_half_cap() -> (Body<f64>, EdgeKey) {
     }
     let t_end = g.param_near(a, 0.0).unwrap();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
+    let seed = body.mvfs(a, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     let e_rim = body
         .mev(
             MevSite::Lone {
@@ -148,15 +154,18 @@ fn chord_wobble(metres: f64) -> Body<f64> {
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: rr,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: rr,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e = body
@@ -220,9 +229,15 @@ fn two_circle_rim_cap(c: f64) -> Body<f64> {
     let e = other.param_near(a, 0.0).unwrap();
     let e = if e > s { e } else { e + core::f64::consts::TAU };
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
+    let seed = body.mvfs(a, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: unit_sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     let e1 = body
         .mev(
             MevSite::Lone {
@@ -490,15 +505,18 @@ fn split_meridian_wobble(metres: f64) -> Body<f64> {
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(v0).unwrap();
+    let seed = body.mvfs(v0, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Cylinder {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            radius: rr,
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius: rr,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e0 = body
@@ -623,15 +641,18 @@ fn tilted_lune(radius: f64, theta: f64) -> Option<Body<f64>> {
     let m0 = meridian(0.0);
     let (s, n) = (m0.eval(ta), m0.eval(tb));
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(s).ok()?;
+    let seed = body.mvfs(s, true).ok()?;
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Sphere {
-            center: c,
-            radius,
-            axis,
-            u_ref,
-        }),
+        FaceSurface::New {
+            surface: Surface::Sphere {
+                center: c,
+                radius,
+                axis,
+                u_ref,
+            },
+            sense: true,
+        },
     )
     .ok()?;
     let e = body

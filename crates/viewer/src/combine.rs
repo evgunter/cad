@@ -11,9 +11,8 @@
 //! face or edge pick reaches the node whose DRAWN body the ray met
 //! (`Selection::seat_node`). Everything before the commit is tool
 //! state; the document transition is one [`SessionOp`], committed
-//! through the session's ordinary commit door as one action — one
-//! `DocEdit::InsertNode` for every tool but the duplicate tool, whose
-//! op inserts a pattern and its two projections as one undo.
+//! through the session's ordinary commit door as one action
+//! ([`crate::tools`] says which actions take more than one edit).
 //!
 //! The seat vocabulary, the pick rule, the survival step and the
 //! id-reuse hazard it does not cover (issue #1384) are all
@@ -22,8 +21,10 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
+use pncad::document::AuthoredNode;
 use pncad::document::{
-    BooleanOp, Doc, Evaluation, Expr, Node, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
+    BooleanOp, Doc, Evaluation, Formula, HeldNodes, Node, NodeStanding, PartSelect, PatternKind,
+    ProfileProgram, RecipeNodeId, Said, Speaker, SpokenNode, held_by,
 };
 use pncad::geom_core::{Tol, Vec3};
 use pncad::select::SplitHalf;
@@ -39,7 +40,7 @@ use crate::vocab::vocabulary;
 /// The operand order is DATA, not a convenience: `Subtract` keeps the
 /// first pick and removes the second, so the panel says which held pick
 /// is which and the seats are named for it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BooleanTool {
     seats: Seats,
 }
@@ -89,8 +90,15 @@ impl BooleanTool {
         self.seats.reconcile(doc)
     }
 
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
+    }
+
     /// **The one committed edit**: the session op that inserts the
-    /// boolean node through the ordinary commit door.
+    /// boolean node through the ordinary commit door, declaring no
+    /// contact. A contact the door refuses is declared through the
+    /// offer its refusal makes ([`crate::session::DeclareOffer`]).
     ///
     /// # Errors
     ///
@@ -102,6 +110,7 @@ impl BooleanTool {
             op,
             a: self.seats.require(0)?,
             b: self.seats.require(1)?,
+            declare: Vec::new(),
         })
     }
 }
@@ -113,7 +122,7 @@ impl BooleanTool {
 /// tool operand is the plane the cut is taken on, which is why this
 /// tool's two seats want different kinds where the boolean's want the
 /// same one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SplitTool {
     seats: Seats,
 }
@@ -163,6 +172,11 @@ impl SplitTool {
         self.seats.reconcile(doc)
     }
 
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
+    }
+
     /// **The one committed edit**.
     ///
     /// # Errors
@@ -178,7 +192,7 @@ impl SplitTool {
 
 /// **The transform tool**: one body pick plus the placement fields,
 /// committing one [`SessionOp::AddTransform`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TransformTool {
     seats: Seats,
 }
@@ -224,6 +238,11 @@ impl TransformTool {
         self.seats.reconcile(doc)
     }
 
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
+    }
+
     /// **The one committed edit**: the rigid placement.
     ///
     /// # Errors
@@ -231,9 +250,9 @@ impl TransformTool {
     /// [`SeatError::Empty`] until a body is picked.
     pub fn op(
         &self,
-        translation: [Expr; 3],
-        rotation_axis: [Expr; 3],
-        rotation_angle: Expr,
+        translation: [Formula; 3],
+        rotation_axis: [Formula; 3],
+        rotation_angle: Formula,
     ) -> Result<SessionOp, SeatError> {
         Ok(SessionOp::AddTransform {
             input: self.seats.require(0)?,
@@ -297,7 +316,7 @@ vocabulary! {
 /// would either carry an axis the linear arm ignores or an `Option`
 /// every caller has to fill. The chrome's rule choice picks the door,
 /// which is the same decision it was already making.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PatternTool {
     seats: Seats,
 }
@@ -347,6 +366,11 @@ impl PatternTool {
         self.seats.reconcile(doc)
     }
 
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
+    }
+
     /// **The one committed edit**, stepping along a direction.
     ///
     /// # Errors
@@ -359,8 +383,8 @@ impl PatternTool {
         &self,
         output: PatternOutputChoice,
         count: i64,
-        direction: [Expr; 3],
-        spacing: Expr,
+        direction: [Formula; 3],
+        spacing: Formula,
     ) -> Result<SessionOp, SeatError> {
         Ok(pattern_op(
             output,
@@ -380,7 +404,7 @@ impl PatternTool {
         &self,
         output: PatternOutputChoice,
         count: i64,
-        step: Expr,
+        step: Formula,
     ) -> Result<SessionOp, SeatError> {
         // The BODY seat first, so an empty form names the pick a user
         // makes first rather than the one this rule adds.
@@ -411,7 +435,7 @@ fn pattern_op(
 /// Lower one pattern spec to its node, placing the authored
 /// expressions and minting the STRUCTURAL count.
 ///
-/// The count is [`Expr::count`] — an exact integer — and not a
+/// The count is `Formula::count` — an exact integer — and not a
 /// continuous literal, because `SlotId::Count` is Count-dimensioned and
 /// the structural/continuous split is typed rather than emergent (spec
 /// D3). That is the same reason it is authored as an `i64` all the way
@@ -424,14 +448,10 @@ fn pattern_op(
 /// slot it lands in is the edit door's question
 /// (`EditError::SlotDimensionMismatch`), asked of authored and
 /// hand-written documents alike.
-pub fn pattern_node(
-    input: RecipeNodeId,
-    count: i64,
-    rule: PatternRuleSpec,
-) -> Node<ProfileProgram> {
+pub fn pattern_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
     Node::Pattern {
         input,
-        count: Expr::count(count),
+        count: Formula::count(count),
         kind: rule_kind(rule),
     }
 }
@@ -451,46 +471,22 @@ pub fn pattern_node(
 /// edit door's question. Whether the placements are DISJOINT is not
 /// asked here either — that certificate is evaluation's, reported on
 /// the node's own badge.
-pub fn placed_union_node(
-    input: RecipeNodeId,
-    count: i64,
-    rule: PatternRuleSpec,
-) -> Node<ProfileProgram> {
+pub fn placed_union_node(input: RecipeNodeId, count: i64, rule: PatternRuleSpec) -> AuthoredNode {
     Node::PlacedUnion {
         input,
-        count: Some(Expr::count(count)),
+        count: Some(Formula::count(count)),
         kind: rule_kind(rule),
     }
 }
 
 /// The rule vocabulary the two pattern nodes SHARE, lowered once: a
 /// spec is a `PatternKind`, whichever node is about to carry it.
-fn rule_kind(rule: PatternRuleSpec) -> PatternKind {
+fn rule_kind(rule: PatternRuleSpec) -> PatternKind<Formula> {
     match rule {
         PatternRuleSpec::Linear { direction, spacing } => {
             PatternKind::Linear { direction, spacing }
         }
         PatternRuleSpec::Circular { axis, step } => PatternKind::Circular { axis, step },
-    }
-}
-
-/// Lower one rigid placement to its node, placing the authored
-/// expressions in the [`Node::Transform`] slots (translation Length,
-/// rotation axis Scalar, rotation angle Angle).
-///
-/// Total, for the reason [`pattern_node`] is: slot dimensions are the
-/// edit door's question.
-pub fn transform_node(
-    input: RecipeNodeId,
-    translation: [Expr; 3],
-    rotation_axis: [Expr; 3],
-    rotation_angle: Expr,
-) -> Node<ProfileProgram> {
-    Node::Transform {
-        input,
-        translation,
-        rotation_axis,
-        rotation_angle,
     }
 }
 
@@ -507,7 +503,7 @@ pub fn transform_node(
 /// either, and the half-against-a-pattern pairing checked somewhere
 /// below — would be a second authority on a question the seat already
 /// answers.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartTool {
     seats: Seats,
 }
@@ -557,6 +553,11 @@ impl PartTool {
         self.seats.reconcile(doc)
     }
 
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
+    }
+
     /// **The one committed edit**, selecting a split's named half.
     ///
     /// # Errors
@@ -599,7 +600,7 @@ impl PartTool {
 /// numbers
 /// land in ordinary slots of the pattern node the gesture authors,
 /// editable in the property panel the moment the edit lands.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DuplicateTool {
     seats: Seats,
 }
@@ -644,6 +645,11 @@ impl DuplicateTool {
     /// The survival step ([`crate::seats`]).
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
         self.seats.reconcile(doc)
+    }
+
+    /// The held picks spoken again from `doc` ([`Seats::respeak`]).
+    pub fn respeak(&mut self, doc: &Doc<ProfileProgram>) {
+        self.seats.respeak(doc);
     }
 
     /// **The one committed edit**.
@@ -711,11 +717,19 @@ pub enum DuplicateFault {
     /// the same id may name a different node altogether (issue #1384).
     Stale,
     /// The picture on screen — which answers the current document —
-    /// holds no value for the input: its evaluation failed, or was
-    /// poisoned by a failure upstream.
+    /// holds no value for the input, and the input's standing, as the
+    /// feature tree draws it ([`crate::tree::standing_as_drawn`]), says
+    /// why and where the repair is.
+    ///
+    /// Its `through` may be a mate, which is not the DAG ancestor
+    /// `NodeStanding` documents
+    /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
     NoValue {
-        /// The node picked.
-        input: RecipeNodeId,
+        /// The input's standing, as the tree draws it.
+        standing: NodeStanding,
+        /// The nodes `standing` names, as the landed document held them
+        /// ([`held_by`]).
+        held: HeldNodes,
     },
     /// The input's VALUE is several bodies. A pattern of two over it
     /// would index the flat list of those bodies, so its two
@@ -727,20 +741,20 @@ pub enum DuplicateFault {
     /// (`work/forms/body-seat-reads-through-the-placer-chain`); this
     /// door asks the value, which is the evaluator's own question.
     NotOneBody {
-        /// The node picked.
-        input: RecipeNodeId,
+        /// The node picked, as the landed document held it.
+        input: SpokenNode,
     },
     /// The measuring tessellation refused.
     Unmeasured {
-        /// The node picked.
-        input: RecipeNodeId,
+        /// The node picked, as the landed document held it.
+        input: SpokenNode,
         /// The tessellator's own refusal.
         error: pncad::mesh::TessellateError,
     },
     /// The body's mesh has no extent to step by.
     NoExtent {
-        /// The node picked.
-        input: RecipeNodeId,
+        /// The node picked, as the landed document held it.
+        input: SpokenNode,
     },
 }
 
@@ -755,27 +769,23 @@ impl core::fmt::Display for DuplicateFault {
                 "the picture is older than the document — wait for the latest edit to evaluate, \
                  so the copy's step is measured off the body as it now is",
             ),
-            Self::NoValue { input } => write!(
+            Self::NoValue { standing, held } => write!(
                 f,
-                "feature {} did not evaluate, so there is no body to copy",
-                input.0
+                "there is no body to copy: {}",
+                Said(standing, Speaker::held(held))
             ),
             Self::NotOneBody { input } => write!(
                 f,
-                "feature {}'s value is several bodies; a duplicate copies ONE — project the one \
-                 you mean first",
-                input.0
+                "{input}'s value is several bodies; a duplicate copies ONE — project the one \
+                 you mean first"
             ),
             Self::Unmeasured { input, error } => write!(
                 f,
-                "feature {}'s body could not be measured for the copy's step: {error}",
-                input.0
+                "{input}'s body could not be measured for the copy's step: {error}"
             ),
-            Self::NoExtent { input } => write!(
-                f,
-                "feature {}'s body has no width to step a copy by",
-                input.0
-            ),
+            Self::NoExtent { input } => {
+                write!(f, "{input}'s body has no width to step a copy by")
+            }
         }
     }
 }
@@ -820,39 +830,76 @@ impl core::error::Error for DuplicateFault {}
 /// [`DuplicateFault::NoValue`], [`DuplicateFault::NotOneBody`],
 /// [`DuplicateFault::Unmeasured`], [`DuplicateFault::NoExtent`].
 pub fn duplicate_step(
+    doc: &Doc<ProfileProgram>,
     eval: &Evaluation<f64>,
     input: RecipeNodeId,
     tol: Tol,
 ) -> Result<f64, DuplicateFault> {
-    let value = eval.value(input).ok_or(DuplicateFault::NoValue { input })?;
-    let body = one_body(&value.payload).ok_or(DuplicateFault::NotOneBody { input })?;
+    let value = eval.usable(input).map_err(|standing| {
+        let standing = crate::tree::standing_as_drawn(standing, eval);
+        let held = held_by(&standing, doc);
+        DuplicateFault::NoValue { standing, held }
+    })?;
+    let spoken = || doc.spoken(input);
+    let body =
+        one_body(&value.payload).ok_or_else(|| DuplicateFault::NotOneBody { input: spoken() })?;
     let measured = |chord: f64| {
-        pncad::mesh::tessellate(body, chord, tol)
-            .map_err(|error| DuplicateFault::Unmeasured { input, error })
+        pncad::mesh::tessellate(body, chord, tol).map_err(|error| DuplicateFault::Unmeasured {
+            input: spoken(),
+            error,
+        })
     };
     let floor = measured(crate::scene::SCALE_PROBE_DELTA)?;
     // The floor mesh's box diagonal: the body's size, read before a
     // chord can be chosen for it.
-    let [wx, wy, wz] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-        .map(|axis| width_along(&floor.positions, axis).unwrap_or(0.0));
-    let scale = Vec3::new(wx, wy, wz).norm();
+    let scale = Vec3::from_array(
+        [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+            .map(|axis| width_along(&floor.positions, axis).unwrap_or(0.0)),
+    )
+    .norm();
     if !(scale.is_finite() && scale > 0.0) {
-        return Err(DuplicateFault::NoExtent { input });
+        return Err(DuplicateFault::NoExtent { input: spoken() });
     }
     let chord = scale * MEASURE_CHORD;
     let mesh = measured(chord)?;
     let width = width_along(&mesh.positions, STEP_DIRECTION)
         .filter(|w| w.is_finite() && *w > 0.0)
-        .ok_or(DuplicateFault::NoExtent { input })?;
+        .ok_or_else(|| DuplicateFault::NoExtent { input: spoken() })?;
     Ok((width + 2.0 * (chord + tol.eps())) * (1.0 + DUPLICATE_GAP))
+}
+
+impl DuplicateFault {
+    /// This fault with its nodes spoken from `doc`, a later version of
+    /// the document it was raised in
+    /// ([`crate::session::Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        let again = |node: SpokenNode| node.respoken(doc);
+        match self {
+            Self::NoValue { standing, held } => Self::NoValue {
+                standing,
+                held: held.respoken(doc),
+            },
+            Self::NotOneBody { input } => Self::NotOneBody {
+                input: again(input),
+            },
+            Self::Unmeasured { input, error } => Self::Unmeasured {
+                input: again(input),
+                error,
+            },
+            Self::NoExtent { input } => Self::NoExtent {
+                input: again(input),
+            },
+            unspoken @ (Self::NotLanded | Self::Stale) => unspoken,
+        }
+    }
 }
 
 /// How far `points` spread along `direction` (normalized here): the
 /// largest projection less the smallest. `None` for no points or a
 /// zero direction.
 fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) -> Option<f64> {
-    let [dx, dy, dz] = direction;
-    let direction = Vec3::new(dx, dy, dz);
+    let direction = Vec3::from_array(direction);
     let norm = direction.norm();
     if !(norm.is_finite() && norm > 0.0) {
         return None;
@@ -876,11 +923,11 @@ fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) ->
 /// number is authorable keeps ONE home, the expression door.
 pub fn duplicate_rule(step: f64) -> Result<PatternRuleSpec, pncad::document::DimensionError> {
     use pncad::document::Dimension;
-    let scalar = |v: f64| Expr::literal(v, Dimension::Scalar);
+    let scalar = |v: f64| Formula::literal(v, Dimension::Scalar);
     let [x, y, z] = STEP_DIRECTION;
     Ok(PatternRuleSpec::Linear {
         direction: [scalar(x)?, scalar(y)?, scalar(z)?],
-        spacing: Expr::literal(step, Dimension::Length)?,
+        spacing: Formula::literal(step, Dimension::Length)?,
     })
 }
 
@@ -894,7 +941,7 @@ pub const DUPLICATE_COUNT: i64 = 2;
 
 /// Lower one part spec to its node, minting the STRUCTURAL index.
 ///
-/// The index is [`Expr::count`] — an exact integer — for the reason
+/// The index is `Formula::count` — an exact integer — for the reason
 /// [`pattern_node`]'s count is: `SlotId::Instance` is Count-dimensioned
 /// and the structural/continuous split is typed rather than emergent
 /// (spec D3).
@@ -902,12 +949,12 @@ pub const DUPLICATE_COUNT: i64 = 2;
 /// Total, for [`pattern_node`]'s reason: whether the selection suits
 /// the value it reads is evaluation's question, asked of authored and
 /// hand-written documents alike.
-pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> Node<ProfileProgram> {
+pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> AuthoredNode {
     Node::Part {
         of,
         select: match select {
             PartSelectSpec::SplitHalf(half) => PartSelect::SplitHalf(half),
-            PartSelectSpec::Instance(index) => PartSelect::Instance(Expr::count(index)),
+            PartSelectSpec::Instance(index) => PartSelect::Instance(Formula::count(index)),
         },
     }
 }
@@ -945,10 +992,7 @@ pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> Node<ProfileProgra
 /// among the bodies it collects, because collecting several is what it
 /// does. This answers the narrower question a single-body operand seat
 /// asks.
-///
-/// The match is exhaustive on purpose: a new node variant does not
-/// compile until someone decides which side of this line it is on.
-pub fn denotes_body(node: &Node<ProfileProgram>) -> bool {
+pub fn denotes_body<P, S: pncad::document::Slot>(node: &Node<P, S>) -> bool {
     match node {
         Node::Extrude { .. }
         | Node::Revolve { .. }
@@ -979,8 +1023,9 @@ pub fn denotes_body(node: &Node<ProfileProgram>) -> bool {
         | Node::Profile(_)
         | Node::Split { .. }
         | Node::Pattern { .. }
-        | Node::Declare { .. }
         | Node::Mate { .. }
+        // A frame other placements stand on; no body.
+        | Node::Gauge { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => false,
     }

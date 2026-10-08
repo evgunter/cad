@@ -250,6 +250,13 @@ document-level mark existed, which was wrong):
   carries no cause, and `frame::badge_site` leaves `RootFailed` to the
   tree.
 
+**Moved since (2026-10-01, `at-rest-badge-repeats-a-gather-refusal-another-channel-carries`):**
+the at-rest badge now takes no verdict on any gather refusal, so the
+document mark the two bullets above describe is gone: a Band-reached
+assembly's only marks are its rows. Option (b)'s badge half has no
+badge to put the cause into any more and would need a channel of its
+own; (a) and (c) are N loud marks, not N+1.
+
 The options:
 
 - **(a) Status quo.** Every reached row `FAILED`, `Actionable`, the

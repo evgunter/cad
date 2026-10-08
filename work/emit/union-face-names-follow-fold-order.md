@@ -2,10 +2,12 @@
 id: union-face-names-follow-fold-order
 kind: issue
 title: A union's face names follow fold order: merged-then-cut is Merged(set)#SideOf, cut-then-merged is the merge plus a bare constituent, and two-step cuts stack SideOf
-status: open
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: H
+branch: emit/union-face-names
+closed: 2026-09-30
 ---
 
 
@@ -71,3 +73,18 @@ This row is now the build. It is expected to close
 `a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires`
 along with it, since under the rule a constituent is never published
 beside its merge.
+
+## Closed: PR 3241
+
+A union names each face for its parent, re-derived from the finished
+body.
+
+- Parents are the merge closure of member-face entities, never names.
+- A parent held as several pieces qualifies each piece with
+  `Fragment(Borders)` over its divider walls (N2, as ruled on #3454).
+- The walls come from the kernel's discard record, chained across the
+  fold steps.
+
+Merged-then-cut and cut-then-merged now give one table in every member
+order. `tests/emit_union_borders.rs` pins it for every fixture from the
+reviews and the mechanism probe, in every order.

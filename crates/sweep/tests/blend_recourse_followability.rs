@@ -23,7 +23,7 @@
 //! next witness will come from. Two of these rows were wrong in
 //! exactly that way and are gone: `FILLET3_GEOMETRY_RECOURSE` and
 //! `FILLET3_RING_RECOURSE` are both front-door reachable, on a
-//! non-circular ring and off the clearance screen's sample lattice
+//! ring that is neither lines nor circles and off the clearance screen's sample lattice
 //! respectively, and `review_fillet_e2_probes.rs` holds both witnesses
 //! (issue 1278's dead-recourse class, and PR 1753's).
 //! Wording a fixture's reach as a door's reach is what hid them.
@@ -56,15 +56,18 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Sign, Tol, Vec2, Vec3};
+use crate::common::operands::half_round_end;
+use geom_core::{Affine3, Band, Point2, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
+use sweep::blend::battery::corner_config;
 use sweep::blend::build::{chamfer_edges, fillet_edges};
 use sweep::blend::{
-    ALL_RECOURSES, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig, FILLET3_ASSEMBLY_RECOURSE,
-    FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
-    FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE,
-    FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
-    FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
+    ALL_RECOURSES, BlendDecision, BlendError, CHAMFER_ARM_RECOURSE, CornerConfig,
+    FILLET3_ASSEMBLY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
+    FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_INDEPENDENCE_RECOURSE, FILLET3_CORNER_RECOURSE,
+    FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
+    FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
 };
 use sweep::test_support::{
     ROD_FILLET, cube, dome, one_edge_rim_at, prism, realized, rim_arcs_at, rod_creases,
@@ -169,9 +172,9 @@ fn edges_at_first_vertex(body: &Body<f64>) -> Vec<EdgeKey> {
 /// The refusal a request meets, or a panic naming what built instead.
 fn refusal(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str, chamfer: bool) -> BlendError {
     let out = if chamfer {
-        chamfer_edges(body, edges, r, tol())
+        chamfer_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol())
     } else {
-        fillet_edges(body, edges, r, tol())
+        fillet_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol())
     };
     match out {
         Err(e) => e.error,
@@ -182,7 +185,7 @@ fn refusal(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str, chamfer: boo
 /// Execute the second request a recourse names and assert the outcome
 /// it promises: a body that builds and passes tier-3 validation.
 fn builds(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
-    let out = fillet_edges(body, edges, r, tol())
+    let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol())
         .unwrap_or_else(|e| panic!("{what}: the recourse's own request must build, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{what}: and the result must be tier-3 valid, got {e:?}"));
@@ -190,7 +193,7 @@ fn builds(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
 
 /// [`builds`] for the chamfer verb.
 fn chamfers(body: &Body<f64>, edges: &[EdgeKey], r: f64, what: &str) {
-    let out = chamfer_edges(body, edges, r, tol())
+    let out = chamfer_edges(&sweep::test_support::at_rest(body, tol()), edges, r, tol())
         .unwrap_or_else(|e| panic!("{what}: the recourse's own request must build, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{what}: and the result must be tier-3 valid, got {e:?}"));
@@ -292,90 +295,226 @@ fn the_tangential_recourse_names_a_definite_angle_edge_that_builds() {
     );
 }
 
-/// **`FILLET3_CHAIN_RECOURSE` — all three of its clauses, on one cube.**
+/// **`FILLET3_CHAIN_RECOURSE` — at the junction it still fires at.**
 ///
-/// Two adjacent cube edges are connected but not tangent-continuous.
-/// The sentence then says three things, and each is executed:
-///
-/// - splitting at a CORNER "refuses again as a run-out" — the
-///   sentence's own named alternative refusal, asserted as such;
-/// - "request every edge of EVERY corner the chain terminates at" —
-///   the whole cube, which builds. The clause carried no `EVERY`
-///   before this unit: read literally it endorsed the three edges at
-///   the shared corner, and that request re-refuses as a run-out at
-///   the three FAR corners, which the row also pins.
+/// Chain G1 refuses only where a CURVED link meets another at a
+/// definite angle: between two plane–plane links a turn breaks the
+/// chain into two ends instead. The witness is a prism's top front edge
+/// and the half-round arc it meets at a kink. The sentence then says
+/// to supply a tangent-continuous chain, and the row executes one: a
+/// whole smooth rim, the dome's equator, builds. Its retired clause —
+/// "request every edge of EVERY corner the chain terminates at" — is
+/// gone with the run-out it answered: one edge of a cube, and the three
+/// edges of one corner, each build now (`band_planar_cut_off`).
 #[test]
-fn the_chain_recourse_is_followed_by_requesting_every_terminating_corner() {
-    let body = cube(1.0, tol());
-    let edges = query::all_edges(&body);
-
-    let err = refusal(&body, &edges[..2], 0.1, "two adjacent edges", false);
+fn the_chain_recourse_is_followed_by_a_tangent_continuous_chain() {
+    let (body, front) = half_round_end();
+    let arc = query::all_edges(&body)
+        .into_iter()
+        .find(|&e| {
+            query::edge_adjacent_matches(
+                &body,
+                e,
+                query::SurfaceKindSet::just(geom::SurfaceKind::Plane),
+                query::SurfaceKindSet::just(geom::SurfaceKind::Cylinder),
+            ) && {
+                let he = body.get_edge(e).unwrap().he_plus;
+                let v = body.get_half_edge(he).unwrap().start;
+                body.get_point(body.get_vertex(v).unwrap().point).unwrap().z > 0.5
+            }
+        })
+        .expect("the half-round's top arc");
+    let err = refusal(
+        &body,
+        &[front, arc],
+        0.1,
+        "a line and an arc at a kink",
+        false,
+    );
     assert!(
         matches!(err, BlendError::ChainNotG1 { .. }),
-        "adjacent cube edges break tangency at their shared corner, got {err:?}"
+        "a line meeting an arc at a kink is not tangent-continuous, got {err:?}"
     );
     carries(&err, FILLET3_CHAIN_RECOURSE, "chain not G1");
-
-    // Clause: splitting at a corner refuses again as a run-out.
-    for half in [&edges[..1], &edges[1..2]] {
-        let split = refusal(&body, half, 0.1, "one half of the split", false);
-        assert!(
-            matches!(split, BlendError::UnsupportedRunOut { .. }),
-            "the sentence names this outcome for the split, got {split:?}"
-        );
-    }
-
-    // Clause: one corner's three edges is NOT enough — the far corners
-    // are then the partly-requested ones. This is why the clause is
-    // scoped to every corner the chain terminates at.
-    let corner = edges_at_first_vertex(&body);
-    assert_eq!(corner.len(), 3, "a cube corner is trivalent");
-    let partial = refusal(&body, &corner, 0.1, "one corner's three edges", false);
     assert!(
-        matches!(partial, BlendError::UnsupportedRunOut { .. }),
-        "three edges at ONE corner still run out at the far ones, got {partial:?}"
+        !FILLET3_CHAIN_RECOURSE.contains("EVERY corner"),
+        "the retired clause is gone: {FILLET3_CHAIN_RECOURSE}"
     );
-
-    assert!(
-        FILLET3_CHAIN_RECOURSE.contains("EVERY corner the chain terminates at"),
-        "the clause is scoped to every terminating corner: {FILLET3_CHAIN_RECOURSE}"
+    let d = dome(1.0, tol());
+    builds(
+        &d,
+        &[one_edge_rim_at(&d, 1.0, 0.0)],
+        0.1,
+        "a whole smooth rim",
     );
-    builds(&body, &edges, 0.1, "every edge of every terminating corner");
 }
 
-/// **`FILLET3_CORNER_RECOURSE` — "a chain that terminates only in FULLY
-/// REQUESTED trivalent vertices whose three edges are all convex".**
+/// **`FILLET3_CORNER_RECOURSE` — the ends it names, each built, and the
+/// residue it names, refused.**
 ///
-/// One cube edge leaves both its corners partly requested. The
-/// sentence's positive clause is then executed: the whole cube, whose
-/// every corner is a fully-requested all-convex trihedron over
-/// plane–plane supports, builds.
-///
-/// The `FULLY REQUESTED` condition is this unit's: without it the
-/// sentence endorsed a chain terminating in an all-convex trivalent
-/// vertex, which is exactly what the three-edges-at-one-corner request
-/// is — and that request refuses with this same variant (pinned in the
-/// chain row above). Its sibling `FILLET3_ASSEMBLY_RECOURSE` carried
-/// the condition already.
-///
-/// The negative clause ("mixed-convexity corners and general run-outs
-/// are not implemented") endorses no request and is unpinnable.
+/// An edge ending at a curved end face refuses as a run-out with this
+/// sentence. Its three positive clauses are then executed on a cube: the
+/// edge alone, cut off in the plane end faces at both ends; two edges
+/// of one corner, whose faces are symmetric about the third, meeting in
+/// a mitre; and every edge of every corner, the corner patch. Of the
+/// residue, the turn whose faces are not symmetric refuses with this
+/// sentence too, and so does the third edge of a mitred corner blended
+/// in a later call — whose last clause, requesting it in the same call,
+/// builds.
 #[test]
 fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
-    let body = cube(1.0, tol());
-    let edges = query::all_edges(&body);
-    let err = refusal(&body, &edges[..1], 0.1, "one cube edge", false);
+    let (round, edge) = half_round_end();
+    let err = refusal(&round, &[edge], 0.1, "a curved end face", false);
     assert!(
         matches!(err, BlendError::UnsupportedRunOut { .. }),
-        "one edge leaves its corners partly requested, got {err:?}"
+        "a curved end face is a run-out, got {err:?}"
     );
     carries(&err, FILLET3_CORNER_RECOURSE, "run-out");
-    assert!(
-        FILLET3_CORNER_RECOURSE.contains("FULLY REQUESTED"),
-        "the endorsed corner is conditioned on being wholly requested: \
-         {FILLET3_CORNER_RECOURSE}"
-    );
+    let body = cube(1.0, tol());
+    let edges = query::all_edges(&body);
+    let corner = edges_at_first_vertex(&body);
+    builds(&body, &edges[..1], 0.1, "the edge alone, cut off");
+    builds(&body, &corner[..2], 0.1, "two edges of a symmetric corner");
     builds(&body, &edges, 0.1, "every corner fully requested");
+    // Of the turns that are not isosceles, the leaning wall's bands meet
+    // past the mitre; the sheared box's supplementary corner's chamfer
+    // feet coincide on the third edge. Each refusal claims only what its
+    // input shows: angles that differ, and no overrun where the feet
+    // coincide.
+    let (leaning, _) = crate::common::operands::leaning_turn(0.5);
+    let sheared = crate::common::operands::parallelepiped(0.3);
+    let turn_at = |body: &topo::Body<f64>, v: [f64; 3], ends: [[f64; 3]; 3]| {
+        let p = geom_core::Point3::new(v[0], v[1], v[2]);
+        let out = ends.map(|q| (geom_core::Point3::new(q[0], q[1], q[2]) - p).normalize());
+        let edges = [
+            crate::band_planar_cut_off::edge(body, v, ends[0]),
+            crate::band_planar_cut_off::edge(body, v, ends[1]),
+        ];
+        // The two face angles' cosines against the third edge.
+        (edges, [out[0].dot(out[2]), out[1].dot(out[2])])
+    };
+    for (what, body, (edges, cos)) in [
+        (
+            "an asymmetric turn",
+            &leaning,
+            turn_at(
+                &leaning,
+                [0.5, 0.0, 1.0],
+                [[2.0, 0.0, 1.0], [0.5, -1.5, 1.0], [0.0, 0.0, 0.0]],
+            ),
+        ),
+        (
+            "a supplementary turn",
+            &sheared,
+            turn_at(
+                &sheared,
+                [2.3, 0.3, 1.0],
+                [[0.3, 0.3, 1.0], [2.3, 1.8, 1.0], [2.0, 0.0, 0.0]],
+            ),
+        ),
+    ] {
+        let refused = refusal(body, &edges, 0.1, what, false);
+        assert!(
+            matches!(refused, BlendError::UnsupportedRunOut { .. }),
+            "{what} is a run-out, got {refused:?}"
+        );
+        carries(&refused, FILLET3_CORNER_RECOURSE, what);
+        let text = refused.to_string();
+        let sine = |c: f64| (1.0 - c * c).sqrt();
+        assert!(
+            text.contains("different angles") && (cos[0] - cos[1]).abs() > 1e-9,
+            "{what}: the refusal names the angles, which differ ({cos:?}): {text}"
+        );
+        if (sine(cos[0]) - sine(cos[1])).abs() < 1e-12 {
+            assert!(
+                !text.contains("overrun"),
+                "{what}: the chamfer's feet coincide, so no band overruns: {text}"
+            );
+        }
+    }
+    let mitred = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &corner[..2],
+        0.1,
+        tol(),
+    )
+    .expect("the mitre builds");
+    let third = mitred
+        .naming
+        .as_ref()
+        .expect("births")
+        .meridian_remnants
+        .iter()
+        .find(|(_, source)| *source == corner[2])
+        .map(|(e, _)| *e)
+        .expect("the third edge's surviving piece");
+    let later = refusal(&mitred.body, &[third], 0.1, "the third edge later", false);
+    assert!(
+        matches!(
+            later,
+            BlendError::UnsupportedCorner {
+                corner: sweep::blend::CornerConfig::NEdgeVertex { valence: 4 },
+                ..
+            }
+        ),
+        "the turn foot has four edges, got {later:?}"
+    );
+    carries(&later, FILLET3_CORNER_RECOURSE, "turn foot");
+    builds(&body, &corner, 0.1, "the third edge in the same call");
+}
+
+/// **`FILLET3_CORNER_INDEPENDENCE_RECOURSE` — followed by each of its
+/// levers, at the corner classifier itself.**
+///
+/// **No fixture in this suite reaches `fillet3_corner_independence` in
+/// band through a door.** The PREMISE: an in-band determinant at a
+/// uniform trivalent corner needs three faces all nearly parallel to
+/// one line — two faces nearly coplanar, or the apex of a tall, sharp
+/// three-sided pyramid — and no builder these rows use mints either. So
+/// the row runs the classifier both doors run (`battery::corner_config`)
+/// on such a trihedron, reads the refusal it carries, and executes each
+/// lever the sentence names on the same corner: a face tilted clear, a
+/// larger blend size, and the tolerance the ending offers.
+#[test]
+fn the_corner_independence_recourse_is_followed_by_each_of_its_levers() {
+    let vertex = topo::VertexKey::default();
+    let band = Band::linear(tol()).unwrap();
+    let k = band.escalate() / band.zero();
+    // `det(x, y, n) = n.z`, so the third face's tilt off the first is the
+    // margin at size 1, inside the band.
+    let t = (band.zero() + band.escalate()) / 2.0;
+    let (x, y) = (Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0));
+    let near = [x, y, Vec3::new((1.0 - t * t).sqrt(), 0.0, t)];
+    let err = corner_config(vertex, 3, 3, near, 1.0, band).unwrap_err();
+    assert!(
+        matches!(
+            err,
+            BlendError::Escalated {
+                decision: BlendDecision::CornerIndependence,
+                ..
+            }
+        ),
+        "a nearly flat trihedron escalates the independence decision, got {err:?}"
+    );
+    let text = err.to_string();
+    assert!(
+        text.contains(FILLET3_CORNER_INDEPENDENCE_RECOURSE) && !text.contains("declare"),
+        "{text}"
+    );
+    // The faces tilted clear of one line.
+    corner_config(vertex, 3, 3, [x, y, Vec3::new(0.0, 0.0, 1.0)], 1.0, band)
+        .expect("an orthonormal corner passes");
+    // A larger size, which the margin grows with.
+    corner_config(vertex, 3, 3, near, 2.0 * k, band).expect("the same corner at a larger size");
+    // The tolerance the ending names, at the margin's own value.
+    let offered: f64 = text
+        .split_once("tighten the tolerance below ")
+        .and_then(|(_, tail)| tail.strip_suffix(" m"))
+        .and_then(|v| v.parse().ok())
+        .unwrap_or_else(|| panic!("the ending offers a valued tolerance: {text}"));
+    assert_eq!(offered, t / k, "{text}");
+    let tighter = Band::new(offered / 2.0, offered / 2.0 * k).unwrap();
+    corner_config(vertex, 3, 3, near, 1.0, tighter).expect("decided passing below the offer");
 }
 
 /// **`FILLET3_ASSEMBLY_RECOURSE` — the refusal it rides carries it, and
@@ -421,8 +560,8 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
             query::edge_adjacent_matches(
                 &wedge,
                 e,
-                query::SurfaceKindSet::just(geom_brep::SurfaceKind::Plane),
-                query::SurfaceKindSet::just(geom_brep::SurfaceKind::Sphere),
+                query::SurfaceKindSet::just(geom::SurfaceKind::Plane),
+                query::SurfaceKindSet::just(geom::SurfaceKind::Sphere),
             )
         })
         .expect("a wedge has an edge between a flat wall and the sphere zone");
@@ -448,9 +587,9 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     // that is not trivalent, or is of mixed convexity, still refuses.
     // Pinned one by one, so dropping either is red.
     for condition in [
-        "fully requested trivalent plane\u{2013}plane corners",
-        "of one convexity",
-        "junction carry-through and run-outs are not implemented",
+        "trivalent plane\u{2013}plane vertices of one convexity",
+        "chains whose links share both faces",
+        "junction carry-through and the other run-outs are not implemented",
     ] {
         assert!(
             FILLET3_ASSEMBLY_RECOURSE.contains(condition),
@@ -467,6 +606,44 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
         &query::all_edges(&boxy),
         0.1,
         "single plane–plane links at fully-requested corners",
+    );
+    // The joined clause: a cube whose bottom side was authored as a
+    // declared straight continuation, its walls merged — two of its
+    // rims are two links each on one support pair.
+    let t = tol();
+    let joined: profile::ProfileLoop<f64> = profile::Open
+        .at(Point2::new(0.0, 0.0))
+        .angle(0.0, t)
+        .and_then(|p| p.line(0.5, t))
+        .and_then(|p| p.continue_to(Point2::new(1.0, 0.0), t))
+        .and_then(|p| p.turn(core::f64::consts::FRAC_PI_2, t))
+        .and_then(|p| p.line(1.0, t))
+        .and_then(|p| p.turn(core::f64::consts::FRAC_PI_2, t))
+        .and_then(|p| p.line(1.0, t))
+        .and_then(|p| p.line_to(profile::Start, t))
+        .expect("the continuation authors")
+        .into();
+    let prof = Profile::new(SketchPlane::xy(), vec![joined])
+        .validate(t)
+        .expect("the profile validates");
+    let mut merged = sweep::extrude(
+        &prof,
+        sweep::Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        t,
+    )
+    .expect("the prism extrudes")
+    .body;
+    merged
+        .merge_coplanar_faces(t)
+        .expect("the continuation's walls merge");
+    builds(
+        &merged,
+        &query::all_edges(&merged),
+        0.1,
+        "plane–plane links joined where consecutive links share both supports",
     );
     builds(&d, &[equator], 0.1, "a closed circular plane–sphere rim");
     let body = waisted(tol());
@@ -489,34 +666,6 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
         &neck,
         0.05,
         "a closed rim whose ONE host face carries every arc",
-    );
-}
-
-/// **`FILLET3_BODY_RECOURSE` — "a body that is a single solid with a
-/// single shell".**
-///
-/// Two cubes grafted into one body are valid input the in-place
-/// surgery is not built for. The single-solid body the sentence names
-/// is the same cube, and it builds.
-#[test]
-fn the_body_recourse_names_a_single_solid_that_builds() {
-    let mut two = cube(1.0, tol());
-    let other = cube(1.0, tol());
-    topo::instance::graft_disjoint_all(&mut two, &other, tol()).expect("a disjoint graft");
-    let e = query::all_edges(&two);
-    let err = refusal(&two, &e[..1], 0.1, "a two-solid body", false);
-    assert!(
-        matches!(err, BlendError::UnsupportedBody { solids: 2, .. }),
-        "the body inventory is what refuses, got {err:?}"
-    );
-    carries(&err, FILLET3_BODY_RECOURSE, "two-solid body");
-
-    let one = cube(1.0, tol());
-    builds(
-        &one,
-        &query::all_edges(&one),
-        0.1,
-        "the single-solid single-shell body",
     );
 }
 
@@ -544,7 +693,8 @@ fn the_spine_kind_recourse_names_an_analytic_pair_that_builds() {
         .into_iter()
         .filter(|k| {
             matches!(
-                fillet_edges(&s, &[*k], 0.05, tol()).map_err(|r| r.error),
+                fillet_edges(&sweep::test_support::at_rest(&s, tol()), &[*k], 0.05, tol())
+                    .map_err(|r| r.error),
                 Err(BlendError::SpineUnsupported { .. })
             )
         })
@@ -723,7 +873,7 @@ fn a_repeated_edge_gives_advice_the_recourse_table_says_it_has_none_of() {
 /// that is when the composed row is owed.
 #[test]
 fn the_spine_recourse_has_no_witness_in_this_suite_the_clearance_screen_answers_first() {
-    let body = dome(1.0, tol());
+    let body = sweep::test_support::finished("body", dome(1.0, tol()), tol());
     let rim = [one_edge_rim_at(&body, 1.0, 0.0)];
     let (mut built, mut clearance) = (0, 0);
     for r in [0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7] {
@@ -803,11 +953,12 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
 /// **`FILLET3_GEOMETRY_RECOURSE` names a ring and an order that
 /// builds.**
 ///
-/// The refusal is reached at a support face's non-circular RING:
-/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_a_line_ring`
-/// is the witness — a square pocket through a cube's top face, the
-/// twelve outer edges refused at every radius, because `ring_circle`
-/// reads circle rings only.
+/// The refusal is reached at a support face's RING of a carrier no
+/// meter reads:
+/// `review_fillet_e2_probes::the_geometry_recourse_reaches_the_front_door_at_an_elliptical_ring`
+/// is the witness — a tilted bore through a cube's top face, the
+/// twelve outer edges refused, because the ring is an ellipse and the
+/// ring meters read lines and circles only.
 ///
 /// This row follows the sentence. The old wording described only the
 /// REQUEST ("blend edges whose supports are planes … carriers are lines
@@ -816,35 +967,24 @@ fn the_convexity_recourse_has_no_witness_in_this_suite() {
 /// offending shape need not be one you requested and gives the lever
 /// that exists: **cut the feature that leaves the ring AFTER the blend
 /// rather than before it.** Executed here, on the same body, at the
-/// same radius the pocketed body refuses.
+/// same radius the bored body refuses.
 ///
 /// Red if that order stops working, or if the sentence stops naming
 /// the ring — either way the caller is back to advice they cannot act
 /// on.
 #[test]
 fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
-    let pocket = topo::transform_rigid(
-        &cube(0.3, tol()),
-        &Affine3::translation(Vec3::new(0.35, 0.35, 0.8)),
-        tol(),
-    )
-    .unwrap();
-    let pocketed = subtract(&cube(1.0, tol()), &pocket);
-    let outer = outer_box_edges(&pocketed);
+    let bore = crate::common::tilted_bore();
+    let bored = subtract(&cube(1.0, tol()), &bore);
+    let outer = outer_box_edges(&bored);
     assert_eq!(outer.len(), 12, "the outer box's twelve edges");
 
     // The refusal, and that it is about the RING rather than anything
     // the caller named.
-    let err = refusal(
-        &pocketed,
-        &outer,
-        0.1,
-        "the outer edges of a pocketed box",
-        false,
-    );
+    let err = refusal(&bored, &outer, 0.1, "the outer edges of a bored box", false);
     assert!(
         matches!(err, BlendError::UnsupportedGeometry { .. }),
-        "the ring's line carriers are what refuse, got {err:?}"
+        "the ring's ellipse carriers are what refuse, got {err:?}"
     );
     let shown = err.to_string();
     assert!(
@@ -858,18 +998,18 @@ fn the_geometry_recourse_names_a_ring_and_an_order_that_builds() {
          answers it: {FILLET3_GEOMETRY_RECOURSE}"
     );
 
-    // Followed: blend first, cut the pocket second.
+    // Followed: blend first, cut the bore second.
     let blended = fillet_edges(
-        &cube(1.0, tol()),
+        &sweep::test_support::at_rest(&cube(1.0, tol()), tol()),
         &outer_box_edges(&cube(1.0, tol())),
         0.1,
         tol(),
     )
     .expect("the bare cube's twelve edges blend")
     .body;
-    let after = subtract(&blended, &pocket);
+    let after = subtract(&blended, &bore);
     validate_geometric(&after, tol())
-        .expect("and cutting the pocket into the blended cube leaves a tier-3 valid body");
+        .expect("and cutting the bore into the blended cube leaves a tier-3 valid body");
 }
 
 /// **On a LATTICE-ALIGNED dimple the clearance screen answers before

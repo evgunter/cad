@@ -26,3 +26,20 @@ Difficulty S/M. Not scheduled.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to PATHS (opened at this exit as S-BOOL's successor for the profile lattice) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Conditioning, found beside `PendingRunOut::rides` (2026-09-26)
+
+Whatever the ruling decides, the measurement is ill-conditioned when a
+side is rebuilt from a chord. `family.rs`'s `FusedIncoming::FromTip`
+arm compares `inc.carrier` with the derived circle; an arc leg's
+`Incoming.carrier` is `path.rs`'s `arc_carrier(at, p, bulge)`, whose
+centre carries a rounding error of about ε_mach·R²/chord. At R = 1 a
+chord of ~1e-7 m puts that error at the linear band, so the d + |Δr|
+margin can escalate or answer "different carrier" for a leg that is on
+the circle. `PendingRunOut::rides` (PR 3266) hit exactly this with its
+first spelling — the reviewer's `line_arc_internal` repro escalated at
+a 1e-7 rad run out and misnamed one at 3e-8 — and now measures point
+deviations (the end's and the arc midpoint's radial misses) instead,
+which round at ε·R whatever the chord. This arm was not reproduced
+end-to-end; a unit that keeps the identity question should measure it
+the same way or say why a short incoming arc cannot reach it.

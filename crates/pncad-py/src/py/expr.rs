@@ -1,4 +1,4 @@
-//! The expression READ side: `Expr`, and the two typed refusals the
+//! The expression READ side: `Formula`, and the two typed refusals the
 //! doors that make and read one raise.
 //!
 //! The document layer's fourth vocabulary, after nodes, names and
@@ -11,14 +11,14 @@
 //!
 //! # Two doors, and the receiver they hang off
 //!
-//! The curated free functions are `parse_expr`, `eval` and
-//! `eval_count`, and all three take a per-document table — `parse_expr`
+//! The curated free functions are `parse_formula`, `eval` and
+//! `eval_count`, and all three take a per-document table — `parse_formula`
 //! the declared DIMENSIONS, the two evaluators the bound VALUES. So
 //! all three arrive in Python as `Doc` methods (`py/doc.rs`), the
 //! shape `Evaluation.face_frame` already has and for its reason: the
 //! answer is only meaningful against the document that supplies the
 //! table, and threading the table in separately would let the two
-//! drift. `ParamEnv` itself therefore never crosses — it is built
+//! drift. `VarEnv` itself therefore never crosses — it is built
 //! inside the door from the document in hand, exactly as
 //! `Evaluation` already builds one for `select_where`.
 //!
@@ -43,7 +43,7 @@
 //! (`count_expr_in_continuous_eval`), never a silent promotion.
 //!
 //! Inward there are two doors, and they answer different questions.
-//! `parse_expr` is the checking parser whose every reduction runs the
+//! `parse_formula` is the checking parser whose every reduction runs the
 //! smart constructors, so it reaches the whole algebra — the
 //! operators, the functions, the unit suffixes, the parameter
 //! references — through a single call, with exactly the refusals the
@@ -54,13 +54,13 @@
 //! The LITERAL constructors are the other door, and they are not a
 //! second spelling of the parser: they are what an authoring caller
 //! holding a `Length` has, where the parser wants a string it would
-//! have to build. `Expr.literal` stores the canonical row for the
-//! value's own dimension, `Expr.written_length` / `Expr.written_angle`
-//! store the notation the author wrote, and `Expr.count` is the exact
+//! have to build. `Formula.literal` stores the canonical row for the
+//! value's own dimension, `Formula.written_length` / `Formula.written_angle`
+//! store the notation the author wrote, and `Formula.count` is the exact
 //! integer a structural slot takes. They are the four kernel
 //! constructors a Rust author reaches for, mirrored — and since every
-//! dimensioned slot door takes an `Expr`, they are how a slot is
-//! given a number at all. `Expr.length_in` and `Expr.angle_in` are
+//! dimensioned slot door takes a `Formula`, they are how a slot is
+//! given a number at all. `Formula.length_in` and `Formula.angle_in` are
 //! the kernel's sugar over the written pair, mirrored too: one call
 //! at an authored number, and exactly the composition they spell.
 
@@ -68,7 +68,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAny, PyString};
 
 use crate::errors::{ErrorClass, dimension_tag};
-use crate::py::doc::ParamName;
+use crate::py::doc::VarName;
 use crate::py::typed_err;
 use crate::tags::{eval_error_tag, expr_dimension_error_tag, parse_error_tag};
 use pncad::document as d;
@@ -116,24 +116,25 @@ fn literal_err(py: Python<'_>, value: f64, err: &d::DimensionError) -> PyErr {
 }
 
 /// Build a dimensioned literal expression, refusing at the boundary.
-pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult<d::Expr> {
-    d::Expr::literal(value, dim).map_err(|err| literal_err(py, value, &err))
+pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult<d::Formula> {
+    d::Formula::literal(value, dim).map_err(|err| literal_err(py, value, &err))
 }
 
 /// **A dimension-checked expression** — the recipe's arithmetic, as a
 /// value.
 ///
-/// Built by `Doc.parse_expr` or by one of the four literal
+/// Built by `Doc.parse_formula` or by one of the four literal
 /// constructors below (or `length_in` / `angle_in`, the composition
 /// of two of them): the dimension checker runs at CONSTRUCTION, so
 /// an ill-dimensioned tree does not exist to be handed around, and
 /// every door runs those checks on the way in.
 ///
 /// It is what every dimensioned slot takes — `Node.extrude(profile,
-/// Expr.written_length(w))` — which is the Rust slot's own type
-/// (`Node::Extrude { distance: Expr }`) reaching Python unchanged. A
-/// slot therefore holds a literal, a written literal or a parsed tree
-/// with no second seat and no conversion.
+/// Formula.written_length(w))` — which is the Rust edit's own
+/// authored type (`AuthoredNode`'s `Extrude { distance: Formula }`)
+/// reaching Python unchanged, lowered to the stored [`Expr`] at the
+/// edit door. A slot therefore takes a literal, a written literal or
+/// a parsed tree with no second seat and no conversion.
 ///
 /// Read it three ways. `dimension` says what it measures, and it is
 /// the fact that decides which evaluator answers. `text` is the
@@ -142,28 +143,34 @@ pub(crate) fn literal(py: Python<'_>, value: f64, dim: d::Dimension) -> PyResult
 /// the document parameters it references, which is what tells a
 /// consumer when a value it displayed has gone stale.
 ///
+/// **It nests at most 128 levels** along its longest chain from the
+/// root to a leaf; a constructor that would nest deeper refuses
+/// `nested_too_deep`. The operators associate to the left, so a flat
+/// chain of more than 128 terms refuses, and the same terms grouped
+/// (`(a + b) + (c + d)`) nest less.
+///
 /// **No `__hash__`.** Equality is the kernel's own `PartialEq`, and
 /// that is an IEEE comparison of the literals inside — so `0.0` and
 /// `-0.0` are equal expressions while their bit patterns are not, and
 /// there is no hash that respects the first without lying about the
-/// second. `DocParam` folds `-0.0` and hashes; an expression TREE has
+/// second. `FreeVar` folds `-0.0` and hashes; an expression TREE has
 /// no such cheap fold, so it stays unhashable rather than shipping a
 /// hash that disagrees with `==` on a value a document can hold.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct Expr(pub(crate) d::Expr);
+pub(crate) struct Formula(pub(crate) d::Formula);
 
 #[pymethods]
-impl Expr {
+impl Formula {
     /// A continuous literal in the CANONICAL unit for its dimension
-    /// — `Expr::literal`, and the door a slot takes a computed
+    /// — `Formula::literal`, and the door a slot takes a computed
     /// quantity through.
     ///
     /// `value` is a `Length`, an `Angle` or a bare `float`, and the
     /// argument's own type is the literal's dimension: there is no
     /// second fact to keep in step and no dimension to spell. What it
     /// stores is the canonical row — metres, radians, the
-    /// dimensionless one — so `Expr.literal(25 * mm)` reads back
+    /// dimensionless one — so `Formula.literal(25 * mm)` reads back
     /// `0.025 m`. A value written in a unit the document should
     /// remember is [`Self::written_length`]'s or
     /// [`Self::written_angle`]'s, not this door's.
@@ -172,7 +179,7 @@ impl Expr {
     /// not a narrowing: a count is an exact integer, so it has its
     /// own door ([`Self::count`]).
     ///
-    /// The refusal is `Expr::literal`'s OWN error type, matched — not
+    /// The refusal is `Formula::literal`'s OWN error type, matched — not
     /// predicted: the binding carries no pre-check of its own, so it
     /// cannot drift from what the kernel refuses. The exception
     /// carries `kind` (the stable tag) AND `value`, the offending
@@ -186,7 +193,7 @@ impl Expr {
 
     /// A continuous literal from an AUTHORED length — the value and
     /// the notation it was written in, together
-    /// (`Expr::written_length`).
+    /// (`Formula::written_length`).
     ///
     /// The door a recipe records `25 mm` through rather than the
     /// canonical `0.025 m`: the unit is presentation metadata, it
@@ -200,7 +207,7 @@ impl Expr {
     /// cannot be written, so the mismatch has no door here.
     #[staticmethod]
     fn written_length(py: Python<'_>, written: &super::quantity::WrittenLength) -> PyResult<Self> {
-        d::Expr::written_length(written.0)
+        d::Formula::written_length(written.0)
             .map(Self)
             .map_err(|err| literal_err(py, written.0.meters(), &err))
     }
@@ -210,14 +217,14 @@ impl Expr {
     /// says holds here with an `AngleUnit`.
     #[staticmethod]
     fn written_angle(py: Python<'_>, written: &super::quantity::WrittenAngle) -> PyResult<Self> {
-        d::Expr::written_angle(written.0)
+        d::Formula::written_angle(written.0)
             .map(Self)
             .map_err(|err| literal_err(py, written.0.radians(), &err))
     }
 
     /// A length authored as `value` in `unit`, in ONE call — exactly
-    /// `Expr.written_length(WrittenLength.in_unit(value, unit))`
-    /// (`Expr::length_in`).
+    /// `Formula.written_length(WrittenLength.in_unit(value, unit))`
+    /// (`Formula::length_in`).
     ///
     /// Sugar over the two doors and nothing besides: the same stored
     /// notation, the same `LiteralError` for a non-finite value, no
@@ -227,23 +234,23 @@ impl Expr {
     /// already in hand.
     #[staticmethod]
     fn length_in(py: Python<'_>, value: f64, unit: &super::quantity::LengthUnit) -> PyResult<Self> {
-        d::Expr::length_in(value, unit.0)
+        d::Formula::length_in(value, unit.0)
             .map(Self)
             .map_err(|err| literal_err(py, value, &err))
     }
 
     /// An angle authored as `value` in `unit`, in one call —
     /// [`Self::length_in`]'s mirror, exactly
-    /// `Expr.written_angle(WrittenAngle.in_unit(value, unit))`.
+    /// `Formula.written_angle(WrittenAngle.in_unit(value, unit))`.
     #[staticmethod]
     fn angle_in(py: Python<'_>, value: f64, unit: &super::quantity::AngleUnit) -> PyResult<Self> {
-        d::Expr::angle_in(value, unit.0)
+        d::Formula::angle_in(value, unit.0)
             .map(Self)
             .map_err(|err| literal_err(py, value, &err))
     }
 
     /// A `Count` literal — an exact integer, and the door every
-    /// structural slot takes its value through (`Expr::count`).
+    /// structural slot takes its value through (`Formula::count`).
     ///
     /// Total: a count is an integer and every integer is a count, so
     /// there is nothing to refuse. It is a separate door from
@@ -252,7 +259,57 @@ impl Expr {
     /// promotion the kernel refuses.
     #[staticmethod]
     fn count(value: i64) -> Self {
-        Self(d::Expr::count(value))
+        Self(d::Formula::count(value))
+    }
+
+    /// The exact rational constant `num / den` (`Formula::ratio`):
+    /// inside a formula a constant, at a slot's root a written
+    /// dimensionless value. `LiteralError` with `kind`
+    /// `"constant_out_of_range"` for a denominator that is not
+    /// positive, or where the reduced numerator or denominator exceeds
+    /// 2^53 — any Python int, however wide; its `value` is the
+    /// quotient, or the numerator where there is none.
+    #[staticmethod]
+    fn ratio(py: Python<'_>, num: &Bound<'_, PyAny>, den: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let wide = |part: &Bound<'_, PyAny>| -> PyResult<Option<i128>> {
+            match part.extract::<i128>() {
+                Ok(n) => Ok(Some(n)),
+                Err(err) if err.is_instance_of::<pyo3::exceptions::PyOverflowError>(py) => Ok(None),
+                Err(err) => Err(err),
+            }
+        };
+        let (n, q) = (wide(num)?, wide(den)?);
+        let out = || d::DimensionError::ConstantOutOfRange {
+            text: format!("{num}/{den}"),
+        };
+        #[allow(clippy::cast_precision_loss)]
+        let value = match (n, q) {
+            (Some(n), Some(q)) if q > 0 => n as f64 / q as f64,
+            (Some(n), _) => n as f64,
+            (None, _) => num.extract::<f64>().unwrap_or(0.0),
+        };
+        let reduced = match (n, q) {
+            (Some(n), Some(q)) if q > 0 => {
+                let (mut a, mut b) = (n.unsigned_abs(), q.unsigned_abs());
+                while b != 0 {
+                    (a, b) = (b, a % b);
+                }
+                let g = a.max(1);
+                let (n, q) = (n / g.cast_signed(), q / g.cast_signed());
+                i64::try_from(n).ok().zip(u64::try_from(q).ok())
+            }
+            _ => None,
+        };
+        let refused = |err: d::DimensionError| literal_err(py, value, &err);
+        let (n, q) = reduced.ok_or_else(|| refused(out()))?;
+        d::Formula::ratio(n, q).map(Self).map_err(refused)
+    }
+
+    /// One full rotation, the exact angle constant (`Formula::turn`): a
+    /// right angle is a quarter of it.
+    #[staticmethod]
+    fn turn() -> Self {
+        Self(d::Formula::turn())
     }
 
     /// What this expression measures: `"length"`, `"angle"`,
@@ -269,12 +326,15 @@ impl Expr {
     /// The source text this expression reads back as (`unparse`).
     ///
     /// The text door OUTWARD: what a panel shows in an edit box, and
-    /// what `Doc.parse_expr` reads back to an equal expression. It is
+    /// what `Doc.parse_formula` reads back to an equal expression. It is
     /// a RENDERING, not the caller's original string — whitespace and
-    /// redundant parentheses are the parser's to normalise.
+    /// redundant parentheses are the parser's to normalise. A name is
+    /// written as authored; a reader of a variable by id has no name
+    /// here and writes its full id, `#<ordinal>:<16 hex>`, which the parser does
+    /// not read.
     #[getter]
     fn text(&self) -> String {
-        d::unparse(&self.0)
+        d::unparse(&self.0, &|_| None)
     }
 
     /// The number a BARE literal carries, in canonical kernel units
@@ -291,8 +351,8 @@ impl Expr {
         self.0.literal_value()
     }
 
-    /// The document parameters this expression references, in sorted
-    /// order and without repeats.
+    /// The variable names this expression reads, in sorted order and
+    /// without repeats.
     ///
     /// What tells a consumer WHEN to re-evaluate: a displayed value
     /// is stale exactly when one of these parameters moves. Sorted
@@ -300,17 +360,17 @@ impl Expr {
     /// question is which names are involved and not how many times
     /// each is written.
     #[getter]
-    fn params(&self) -> Vec<ParamName> {
+    fn params(&self) -> Vec<VarName> {
         let mut refs = Vec::new();
-        self.0.param_refs(&mut refs);
+        self.0.named_reads(&mut refs);
         let mut names: Vec<_> = refs.into_iter().map(|(name, _)| name).collect();
         names.sort();
         names.dedup();
-        names.into_iter().map(ParamName).collect()
+        names.into_iter().map(VarName).collect()
     }
 
     fn __repr__(&self) -> String {
-        format!("Expr({:?}, {})", d::unparse(&self.0), self.dimension())
+        format!("Formula({:?}, {})", self.text(), self.dimension())
     }
 
     /// The kernel's own `PartialEq`: same tree, and IEEE-equal
@@ -318,6 +378,185 @@ impl Expr {
     /// layer's replay-identity comparison and a different question.
     fn __eq__(&self, other: &Self) -> bool {
         self.0 == other.0
+    }
+}
+
+/// **What a slot takes** (VARIABLES-DESIGN VR9; INTENT-LITERALS Q9): a
+/// variable the document holds, read by every slot handed it — which
+/// is how two slots share one; a [`Formula`]; or a value, written
+/// (`WrittenLength`, `WrittenAngle`, which keep their unit) or bare (a
+/// `Length` or an `Angle` in the canonical unit, a `float` as a
+/// dimensionless number, an `int` as a count). A value or a formula
+/// mints the slot's own anonymous variable at the edit door; a `Var`
+/// is the variable itself.
+#[derive(FromPyObject)]
+pub(crate) enum SlotArg {
+    /// A variable the document holds.
+    Var(super::doc::Var),
+    /// A formula.
+    Formula(Formula),
+    /// A length and the unit it was written in.
+    WrittenLength(super::quantity::WrittenLength),
+    /// An angle and the unit it was written in.
+    WrittenAngle(super::quantity::WrittenAngle),
+    /// A length, canonical.
+    Length(super::quantity::Length),
+    /// An angle, canonical.
+    Angle(super::quantity::Angle),
+    /// A count. Before `Scalar`: a Python `int` is also a `float`.
+    Count(i64),
+    /// A dimensionless number.
+    Scalar(f64),
+}
+
+impl SlotArg {
+    /// The formula this argument is, at a slot that reads `dim`: a
+    /// variable is read at the slot's own dimension (the edit door
+    /// refuses one whose kind is another), a value is the literal of
+    /// its own dimension.
+    pub(crate) fn formula(&self, py: Python<'_>, dim: d::Dimension) -> PyResult<d::Formula> {
+        match self {
+            Self::Var(var) => Ok(d::Formula::var(var.0, dim)),
+            Self::Formula(formula) => Ok(formula.0.clone()),
+            Self::WrittenLength(w) => {
+                d::Formula::written_length(w.0).map_err(|err| literal_err(py, w.0.meters(), &err))
+            }
+            Self::WrittenAngle(w) => {
+                d::Formula::written_angle(w.0).map_err(|err| literal_err(py, w.0.radians(), &err))
+            }
+            Self::Length(l) => literal(py, l.0.meters(), d::Dimension::Length),
+            Self::Angle(a) => literal(py, a.0.radians(), d::Dimension::Angle),
+            Self::Count(n) => Ok(d::Formula::count(*n)),
+            Self::Scalar(x) => literal(py, *x, d::Dimension::Scalar),
+        }
+    }
+}
+
+/// **A stored expression** — what a document holds once the edit door
+/// has lowered a [`Formula`]: every variable it reads, read by id.
+///
+/// Read-only: a document hands one back (`Doc.definition`), and a
+/// caller reads it — what it measures, the text it reads back as, the
+/// number a bare literal carries — or writes it into another formula
+/// through its text. `Doc.unparse` reads one; nothing else takes one,
+/// for an edit carries a `Formula`.
+///
+/// **No `__hash__`**, for [`Formula`]'s reason.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Expr(pub(crate) d::Expr);
+
+/// The one door that reads either form: `Doc.unparse`.
+#[derive(FromPyObject)]
+pub(crate) enum EitherForm {
+    Formula(Formula),
+    Expr(Expr),
+}
+
+#[pymethods]
+impl Expr {
+    /// What this expression measures: `"length"`, `"angle"`,
+    /// `"count"` or `"scalar"`.
+    #[getter]
+    fn dimension(&self) -> &'static str {
+        dimension_tag(self.0.dim())
+    }
+
+    /// The source text this expression reads back as (`unparse`), a
+    /// variable written as its full id, `#<ordinal>:<16 hex>`; `Doc.unparse`
+    /// writes the names a document holds.
+    #[getter]
+    fn text(&self) -> String {
+        d::unparse(&self.0, &|_| None)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("Expr({:?}, {})", self.text(), self.dimension())
+    }
+
+    /// The kernel's own `PartialEq`, as [`Formula`]'s.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+/// Raise `EvalError` for a name a formula reads that the document's
+/// lowering does not answer ([`d::NameFault`]): a name no variable
+/// holds, or one a variable holds at another kind. The word is
+/// [`crate::tags::name_fault_tag`]'s, the one map: `unlowered_name`
+/// is the edit door's lowering refusal, which no kernel `EvalError`
+/// spells, and `var_kind_mismatch` the word the evaluator's own arm
+/// speaks for the same fact. It rides `EvalError` because the doors
+/// that raise it (`Doc.eval`, `Doc.eval_count`,
+/// `GeomPred.datum_distance`) are the evaluation surface's, with
+/// `name` the name as written and, for a kind, `expected` the dimension
+/// it is read at and `found` the one its variable holds.
+pub(crate) fn name_fault_err(py: Python<'_>, fault: &d::NameFault) -> PyErr {
+    let none = || py.None();
+    let text = |s: &str| PyString::new(py, s).unbind().into_any();
+    let dim = |d: d::Dimension| text(dimension_tag(d));
+    let (expected, found, message) = match fault.why {
+        d::Unlowered::Unheld => (
+            none(),
+            none(),
+            format!(
+                "the name {} reads no variable — no variable holds it at the dimension it is \
+                 read at; declare it, or read a declared variable",
+                fault.name
+            ),
+        ),
+        d::Unlowered::Kind { declared, .. } => (
+            dim(fault.dim),
+            text(crate::errors::var_kind_tag(declared)),
+            fault.to_string(),
+        ),
+    };
+    let fields = [
+        ("variant", text(crate::tags::name_fault_tag(fault))),
+        ("name", text(fault.name.as_str())),
+        ("expected", expected),
+        ("found", found),
+        ("count", none()),
+    ];
+    typed_err(py, ErrorClass::Eval, message, &fields)
+}
+
+/// Raise the refusal of a formula that does not lower against a
+/// document: a name, as [`name_fault_err`] raises it, or a fresh-table
+/// read, which only an edit's own table resolves (a formula Python
+/// builds holds none).
+pub(crate) fn lower_fault_err(py: Python<'_>, fault: &d::LowerFault) -> PyErr {
+    match fault {
+        d::LowerFault::Name(fault) => name_fault_err(py, fault),
+        d::LowerFault::Fresh(fault) => {
+            let none = || py.None();
+            let text = |s: &str| PyString::new(py, s).unbind().into_any();
+            let fields = [
+                ("variant", text(crate::tags::fresh_fault_tag(fault))),
+                ("name", none()),
+                ("expected", text(dimension_tag(fault.dim))),
+                (
+                    "found",
+                    fault
+                        .held
+                        .map_or_else(none, |held| text(dimension_tag(held))),
+                ),
+                ("count", none()),
+            ];
+            typed_err(py, ErrorClass::Eval, fault.to_string(), &fields)
+        }
+        d::LowerFault::Quantity { dim } => {
+            let none = || py.None();
+            let text = |s: &str| PyString::new(py, s).unbind().into_any();
+            let fields = [
+                ("variant", text(crate::tags::lower_fault_tag(fault))),
+                ("name", none()),
+                ("expected", text(dimension_tag(*dim))),
+                ("found", none()),
+                ("count", none()),
+            ];
+            typed_err(py, ErrorClass::Eval, fault.to_string(), &fields)
+        }
     }
 }
 
@@ -408,7 +647,9 @@ pub(crate) fn parse_err(py: Python<'_>, err: &d::ParseError) -> PyErr {
             none(),
             none(),
         ),
-        P::MalformedNumber { pos, text: t } | P::IntegerOverflow { pos, text: t } => (
+        P::MalformedNumber { pos, text: t }
+        | P::IntegerOverflow { pos, text: t }
+        | P::RatioPartNotInteger { pos, text: t } => (
             *pos,
             none(),
             none(),
@@ -497,11 +738,22 @@ pub(crate) fn parse_err(py: Python<'_>, err: &d::ParseError) -> PyErr {
 /// payload is `variant` plus the fields, on the shape [`parse_err`]
 /// uses. The dimension fields cross as the tag strings
 /// `crate::errors::dimension_tag` names, which is the spelling
-/// `Expr.dimension` and `Measurement.dimension` already answer in —
+/// `Formula.dimension` and `Measurement.dimension` already answer in —
 /// the kernel's `Dimension` type itself does not cross, by the
 /// census's own reading of it.
-pub(crate) fn eval_err(py: Python<'_>, err: &d::EvalError) -> PyErr {
+///
+/// `doc` names the variables an id-keyed arm carries; with none, or for
+/// a variable it holds no name for, the arm carries the full id.
+pub(crate) fn eval_err(
+    py: Python<'_>,
+    err: &d::EvalError,
+    doc: Option<&pncad::document::ProfileDoc>,
+) -> PyErr {
     use d::EvalError as E;
+    let var_text = |var: &d::VarId| {
+        doc.and_then(|doc| doc.var_name(*var))
+            .map_or_else(|| var.full().to_string(), |name| name.as_str().to_owned())
+    };
 
     let none = || py.None();
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
@@ -515,12 +767,16 @@ pub(crate) fn eval_err(py: Python<'_>, err: &d::EvalError) -> PyErr {
     };
 
     let (name, expected, found, count) = match err {
-        E::UnknownParam(param) => (text(&param.0), none(), none(), none()),
-        E::ParamDimensionMismatch {
-            name,
-            expected,
-            found,
-        } => (text(&name.0), dim(*expected), dim(*found), none()),
+        // A leaf only the edit door resolves: the lowering's own words.
+        E::Unlowered(fault) => return lower_fault_err(py, fault),
+        // The defined variable read; its definition's own refusal is
+        // the sentence's.
+        E::UnresolvedVar { var } | E::OutputRead { var } | E::DefinitionRefused { var, .. } => {
+            (text(&var_text(var)), none(), none(), none())
+        }
+        E::VarKindMismatch { var, bound, read } => {
+            (text(&var_text(var)), dim(*read), dim(*bound), none())
+        }
         E::ContinuousExprInCountEval { found } => (none(), none(), dim(*found), none()),
         E::CountToScalarOutOfRange(value) => (none(), none(), none(), int(*value)),
         E::CountExprInContinuousEval | E::CountOverflow | E::NonFiniteResult => {
@@ -539,6 +795,7 @@ pub(crate) fn eval_err(py: Python<'_>, err: &d::EvalError) -> PyErr {
 
 /// Register the expression vocabulary on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<Formula>()?;
     m.add_class::<Expr>()?;
     Ok(())
 }

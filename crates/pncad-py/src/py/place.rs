@@ -12,7 +12,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 
-use super::expr::Expr;
+use super::expr::SlotArg;
 use super::quantity::{Angle, Length};
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
@@ -154,7 +154,7 @@ pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> P
         py,
         ErrorClass::Frame,
         // `FrameError` implements `Display`, so the human message is
-        // the kernel's own prose (including its coincidence recourse);
+        // the kernel's own prose (including its recourse);
         // the machine payload is the `variant` tag and the fields.
         err.to_string(),
         &[
@@ -451,29 +451,42 @@ impl Frame {
 /// takes no count at all.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
-pub(crate) struct PatternKind(pub(crate) d::PatternKind);
+pub(crate) struct PatternKind(pub(crate) d::PatternKind<d::Formula>);
 
 #[pymethods]
 impl PatternKind {
     /// Instances stepped along `direction`, `spacing` apart.
     ///
     /// The direction's three slots are dimensionless
-    /// (`SlotId::Direction` is `Scalar`); the spacing's is a `Length`.
+    /// (`SlotId::Direction` is `Scalar`); the spacing's is a `Length`,
+    /// and a size: the direction says which way the copies step, so a
+    /// spacing below zero refuses at `evaluate` (`negative_spacing`,
+    /// naming the direction negated) and a zero one too
+    /// (`degenerate_spacing`), wherever a second copy reads it.
     #[staticmethod]
-    fn linear(py: Python<'_>, direction: (Expr, Expr, Expr), spacing: &Expr) -> PyResult<Self> {
+    fn linear(
+        py: Python<'_>,
+        direction: (SlotArg, SlotArg, SlotArg),
+        spacing: SlotArg,
+    ) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Linear {
             direction: super::doc::direction_expr(py, d::VectorSlot::Direction, &direction)?,
-            spacing: super::doc::slot_expr(py, d::SlotId::Spacing, spacing)?,
+            spacing: super::doc::slot_expr(py, d::SlotId::Spacing, &spacing)?,
         }))
     }
 
     /// Instances stepped `step` apart around `axis`, an upstream
     /// `datum_axis` node.
+    ///
+    /// The step is signed by the right-hand rule about the axis and
+    /// lies within a turn: a zero step refuses at `evaluate`
+    /// (`degenerate_step`), and so does one at or past a full turn
+    /// (`full_range_step`), wherever a second copy reads it.
     #[staticmethod]
-    fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: &Expr) -> PyResult<Self> {
+    fn circular(py: Python<'_>, axis: &super::doc::NodeId, step: SlotArg) -> PyResult<Self> {
         Ok(Self(d::PatternKind::Circular {
             axis: axis.0,
-            step: super::doc::slot_expr(py, d::SlotId::Step, step)?,
+            step: super::doc::slot_expr(py, d::SlotId::Step, &step)?,
         }))
     }
 
@@ -492,9 +505,132 @@ impl PatternKind {
     }
 }
 
+/// Where a `Node.transform_by` puts its input: a CHAIN of steps, each
+/// a rigid step of expressions or a literal frame (`Placement`,
+/// crossing whole).
+///
+/// The chain composes as a product: `a.compose(b)` is `a ∘ b`, in
+/// `Frame.compose`'s order, so `b` is expressed in the frame `a` builds
+/// and acts on the body first — `aim.compose(spin)` turns the body by
+/// `spin` inside the frame `aim` points.
+///
+/// A rigid step's three components are slot expressions a parameter
+/// can drive; a literal frame is a number, held to the same bar a
+/// placement frame is (finite, proper and rigid) at the edit door.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct Placement(pub(crate) d::Placement<d::Formula>);
+
+#[pymethods]
+impl Placement {
+    /// One rigid step: rotate by `angle` about the axis through the
+    /// ORIGIN with direction `axis`, then translate by `translation` —
+    /// `Node.transform`'s own convention. Keyword-only, so two vectors
+    /// cannot trade places unread.
+    ///
+    /// `translation`'s components are `Length`s, the axis's
+    /// dimensionless and the angle an `Angle`, checked where the step
+    /// lands (`Node.transform_by`), whose refusal names that step's
+    /// slot.
+    #[staticmethod]
+    #[pyo3(signature = (*, translation, axis, angle))]
+    pub(crate) fn rigid(
+        py: Python<'_>,
+        translation: (SlotArg, SlotArg, SlotArg),
+        axis: (SlotArg, SlotArg, SlotArg),
+        angle: SlotArg,
+    ) -> PyResult<Self> {
+        let (length, scalar) = (d::Dimension::Length, d::Dimension::Scalar);
+        Ok(Self(
+            d::Step::Rigid {
+                translation: [
+                    translation.0.formula(py, length)?,
+                    translation.1.formula(py, length)?,
+                    translation.2.formula(py, length)?,
+                ],
+                axis: [
+                    axis.0.formula(py, scalar)?,
+                    axis.1.formula(py, scalar)?,
+                    axis.2.formula(py, scalar)?,
+                ],
+                angle: angle.formula(py, d::Dimension::Angle)?,
+            }
+            .into(),
+        ))
+    }
+
+    /// The empty chain: the identity, and the unit of `compose` — the
+    /// offset an inserted instance carries on the world.
+    #[staticmethod]
+    fn identity() -> Self {
+        Self(d::Placement::IDENTITY)
+    }
+
+    /// One literal step: exactly `frame`, bit for bit.
+    #[staticmethod]
+    fn literal(frame: &Frame) -> Self {
+        Self(d::Placement::literal(&frame.0))
+    }
+
+    /// One literal step: `Frame.point_at`'s frame, whose local +Z aims
+    /// from `eye` at `target`, rolled by `roll_reference`.
+    #[staticmethod]
+    fn point_at(
+        py: Python<'_>,
+        eye: (Length, Length, Length),
+        target: (Length, Length, Length),
+        roll_reference: (f64, f64, f64),
+    ) -> PyResult<Self> {
+        Frame::point_at(py, eye, target, roll_reference).map(|f| Self(d::Placement::literal(&f.0)))
+    }
+
+    /// One literal step: `Frame.path_start_frame`'s frame, whose local
+    /// +Z is the path `tangent` at `origin`.
+    #[staticmethod]
+    fn path_start_frame(
+        py: Python<'_>,
+        origin: (Length, Length, Length),
+        tangent: (f64, f64, f64),
+    ) -> PyResult<Self> {
+        Frame::path_start_frame(py, origin, tangent).map(|f| Self(d::Placement::literal(&f.0)))
+    }
+
+    /// The composition `self ∘ inner`, in `Frame.compose`'s order:
+    /// `inner` acts on the body first, in the frame `self` builds.
+    fn compose(&self, inner: &Self) -> Self {
+        Self(self.0.compose(&inner.0))
+    }
+
+    /// How many steps the chain holds.
+    fn __len__(&self) -> usize {
+        self.0.steps.len()
+    }
+
+    /// BIT-exact equality, `Frame.__eq__`'s rule over every step: a
+    /// rigid step's expressions and a literal's coordinates compare by
+    /// bits, so `0.0` and `-0.0` are different placements.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0.bit_eq(&other.0)
+    }
+
+    pub(crate) fn __repr__(&self) -> String {
+        let steps: Vec<&str> = self
+            .0
+            .steps
+            .iter()
+            .map(|step| match step {
+                d::Step::Rigid { .. } => "rigid",
+                d::Step::Literal(_) => "literal",
+            })
+            .collect();
+        format!("Placement([{}])", steps.join(", "))
+    }
+}
+
 /// Register the placement vocabulary on the module.
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Frame>()?;
     m.add_class::<PatternKind>()?;
+    m.add_class::<Placement>()?;
     Ok(())
 }

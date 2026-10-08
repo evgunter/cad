@@ -18,12 +18,16 @@ use crate::common::census::{genus_of, rings_of};
 use crate::common::charts::{charts, moves_by};
 use crate::common::oracles::box_volume;
 use crate::common::shell_operands::{
-    hollow_box, outer_and_void, roles_by_solid, tube, two_void_box, vessel,
+    capped_vessel, hollow_box, hollow_capped_vessel, outer_and_void, roles_by_solid, tube,
+    two_void_box, vessel,
 };
-use crate::common::torus_walls::klein_elbow;
+use crate::common::stations::cut_stations;
+use crate::common::torus_walls::{klein_elbow, props_door};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::test_support::{block, corners, prism, tube_frame};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
@@ -53,9 +57,17 @@ fn plane_face_at(body: &Body<f64>, y: f64) -> FaceKey {
 #[test]
 fn a_sealed_shelled_box_is_an_outer_and_a_void() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
-    let hollow = topo::shell(&block(w, d, h, Tol::witness()), t, Tol::witness())
-        .expect("a box thicker than twice the wall shells")
-        .body;
+    let hollow = topo::shell(
+        &finished(
+            "the operand",
+            block(w, d, h, Tol::witness()),
+            Tol::witness(),
+        ),
+        t,
+        Tol::witness(),
+    )
+    .expect("a box thicker than twice the wall shells")
+    .body;
 
     assert_eq!(
         topo::validate_geometric(&hollow, Tol::witness()),
@@ -97,9 +109,8 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
 /// its checks decide predicates the boolean shares:
 ///
 /// - `bool_ring_run_winding` — the planar-boundary check decides it
-///   against the same margin the boolean's ring-run test uses. The name
-///   has **three** owners, not two — `topo::validate`,
-///   `topo::boolean::join`, and `topo::merge_faces`' role normalization.
+///   through the one winding predicate the boolean's ring-run test also
+///   reads (`topo::loop_winding`).
 /// - the point-in-solid walk's planar family — check 10 (shell winding)
 ///   probes a vertex of each shell of a multi-shell solid against the
 ///   other shells through `topo::boolean::solid_contain::point_in_solid_faces`,
@@ -107,7 +118,7 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
 ///   decides only its planar predicates, listed below. It is a
 ///   containment read, never a crossing.
 ///
-/// That several owners share these names is exactly why a silent prefix
+/// That the validator shares these names is exactly why a silent prefix
 /// filter would be the wrong shape here. Allowing them by name keeps
 /// the claim exact.
 ///
@@ -122,6 +133,8 @@ const VALIDATOR_SHARED: &[&str] = &[
     "bool_ring_run_winding",
     "bool_point_in_solid_plane",
     "bool_point_in_solid_denom",
+    "bool_point_in_solid_clearance",
+    "bool_point_in_solid_beside",
     "bool_point_in_solid_advance",
     "bool_point_in_solid_order",
     "bool_point_in_solid_infinity",
@@ -131,9 +144,13 @@ const VALIDATOR_SHARED: &[&str] = &[
 fn shell_runs_no_intersection_machinery() {
     let body = block(2.0, 3.0, 4.0, Tol::witness());
     let bracket = Bracket::open();
-    let hollow = topo::shell(&body, 0.25, Tol::witness())
-        .expect("it shells")
-        .body;
+    let hollow = topo::shell(
+        &finished("the operand", body.clone(), Tol::witness()),
+        0.25,
+        Tol::witness(),
+    )
+    .expect("it shells")
+    .body;
     let verdicts = bracket.finish().verdicts;
     assert!(!verdicts.is_empty(), "the verb decided something");
     let crossing: Vec<&'static str> = verdicts
@@ -153,9 +170,13 @@ fn shell_runs_no_intersection_machinery() {
 #[test]
 fn a_sealed_shelled_vessel_matches_its_closed_form() {
     let (r, h, t) = (1.0, 2.0, 0.2);
-    let hollow = topo::shell(&vessel(r, h), t, Tol::witness())
-        .expect("the vessel shells")
-        .body;
+    let hollow = topo::shell(
+        &finished("the operand", vessel(r, h), Tol::witness()),
+        t,
+        Tol::witness(),
+    )
+    .expect("the vessel shells")
+    .body;
     assert_eq!(
         topo::validate_geometric(&hollow, Tol::witness()),
         Ok(()),
@@ -187,9 +208,14 @@ fn an_opened_shelled_box_is_a_closed_thin_solid_with_a_rim() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
     let body = block(w, d, h, Tol::witness());
     let top = plane_face_at(&body, h);
-    let cup = topo::shell_open(&body, t, &[top], Tol::witness())
-        .expect("a box opens at its top")
-        .body;
+    let cup = topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        &[top],
+        Tol::witness(),
+    )
+    .expect("a box opens at its top")
+    .body;
 
     assert_eq!(
         topo::validate_geometric(&cup, Tol::witness()),
@@ -224,9 +250,14 @@ fn opening_two_faces_gives_two_rims_and_one_shell() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
     let body = block(w, d, h, Tol::witness());
     let (top, bottom) = (plane_face_at(&body, h), plane_face_at(&body, 0.0));
-    let tubey = topo::shell_open(&body, t, &[top, bottom], Tol::witness())
-        .expect("a box opens at both caps")
-        .body;
+    let tubey = topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        &[top, bottom],
+        Tol::witness(),
+    )
+    .expect("a box opens at both caps")
+    .body;
     assert_eq!(
         topo::validate_geometric(&tubey, Tol::witness()),
         Ok(()),
@@ -264,7 +295,8 @@ const INNER_TERM: fn() -> f64 = || box_volume(1.6, 2.6, 3.6) - box_volume(1.5, 2
 fn shelling_a_hollow_box_thickens_every_boundary() {
     let tol = Tol::witness();
     let hollow = hollow_box();
-    let shelled = topo::shell(&hollow, 0.05, tol).expect("a hollow box shells");
+    let shelled = topo::shell(&finished("the operand", hollow.clone(), tol), 0.05, tol)
+        .expect("a hollow box shells");
     let body = &shelled.body;
     assert_eq!(topo::validate_geometric(body, tol), Ok(()), "tier 3");
     assert_eq!(body.solids().count(), 2, "one thin solid per operand shell");
@@ -310,7 +342,8 @@ fn the_hollow_boxs_record_names_both_walls_and_their_thin_solids() {
     let hollow = hollow_box();
     let (outer, void) = outer_and_void(&hollow);
     let (operand_solid, _) = hollow.solids().next().expect("one solid");
-    let shelled = topo::shell(&hollow, t, tol).expect("a hollow box shells");
+    let shelled = topo::shell(&finished("the operand", hollow.clone(), tol), t, tol)
+        .expect("a hollow box shells");
     let (body, record) = (&shelled.body, &shelled.naming);
 
     let operand_faces: Vec<FaceKey> = hollow.faces().map(|(k, _)| k).collect();
@@ -368,7 +401,12 @@ fn the_hollow_boxs_record_names_both_walls_and_their_thin_solids() {
 fn the_clearance_gate_reads_across_shells() {
     let hollow = hollow_box();
     let (outer, void) = outer_and_void(&hollow);
-    let e = topo::shell(&hollow, 0.15, Tol::witness()).expect_err("0.25 < 0.30 refuses");
+    let e = topo::shell(
+        &finished("the operand", hollow.clone(), Tol::witness()),
+        0.15,
+        Tol::witness(),
+    )
+    .expect_err("0.25 < 0.30 refuses");
     let ShellError::WallClearance {
         face,
         other,
@@ -394,6 +432,136 @@ fn the_clearance_gate_reads_across_shells() {
     );
 }
 
+/// **The clearance gate reads a footprint off its arcs, not its
+/// vertices.** Two cylindrical voids, each rim two semicircles meeting
+/// at azimuths 0 and π, stacked with `0.4` of material between the
+/// lower one's roof and the upper one's floor and their axes `1.0`
+/// apart in `y`: the discs (radius 1) overlap in plan, so `t = 0.3`
+/// cannot fit two walls. Every vertex of both caps lies on the line
+/// through its own centre along `x`, so the vertex boxes — grown by
+/// `t` — stand `0.4` apart in `y`; only the arcs carry the overlap.
+#[test]
+fn the_clearance_gate_reads_arc_bounded_footprints() {
+    let tol = Tol::witness();
+    let void = |cy: f64, z0: f64| {
+        sweep::test_support::cylinder_of_arcs_at(2, 1.0, Point2::new(3.0, cy), z0, 1.8, tol)
+    };
+    let one = crate::common::cavity::cut("lower void", &block(6.0, 6.0, 6.0, tol), &void(2.5, 1.0));
+    let body = crate::common::cavity::cut("upper void", &one, &void(3.5, 3.2));
+    assert_eq!(body.shells().count(), 3, "outer plus two voids");
+    let e = topo::shell(&finished("the operand", body.clone(), tol), 0.3, tol)
+        .expect_err("0.4 < 0.6 under overlapping caps refuses");
+    let ShellError::WallClearance {
+        face,
+        other,
+        gap,
+        needed,
+    } = e
+    else {
+        panic!("expected the wall-clearance gate, got {e}");
+    };
+    assert!((gap - 0.4).abs() < 1e-12, "the wall is 0.4, got {gap}");
+    assert!(
+        (needed - 0.6).abs() < 1e-12,
+        "two walls need 0.6, got {needed}"
+    );
+    let mut named = [face, other];
+    named.sort();
+    let mut caps = [plane_face_at(&body, 2.8), plane_face_at(&body, 3.2)];
+    caps.sort();
+    assert_eq!(
+        named, caps,
+        "the lower void's roof and the upper void's floor"
+    );
+}
+
+/// **An arm between two nearly antiparallel walls**: the prism of an
+/// L-shaped profile extruded `h`, whose arm stands on the shelf
+/// `y = 0.5` for `len`, between the wall `x = 3` and a notch wall
+/// `w_top` from it at the arm's top and `w_foot` at its foot.
+fn arm_prism(len: f64, w_top: f64, w_foot: f64, h: f64) -> Body<f64> {
+    let top = 0.5 + len;
+    prism(
+        corners(&[
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, top),
+            (3.0 - w_top, top),
+            (3.0 - w_foot, 0.5),
+            (0.0, 0.5),
+        ]),
+        h,
+        Tol::witness(),
+    )
+}
+
+/// `body` shelled at `t` refuses `WallClearance`, naming the arm's two
+/// walls.
+fn assert_the_arm_walls_refuse(body: &Body<f64>, t: f64, why: &str) {
+    let e = topo::shell(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        Tol::witness(),
+    )
+    .expect_err(why);
+    let ShellError::WallClearance { face, other, .. } = e else {
+        panic!("{why}: expected the wall-clearance gate, got {e}");
+    };
+    let normal_x = |f: FaceKey| match body.get_surface(body.get_face(f).unwrap().surface) {
+        Some(geom::Surface::Plane { normal, .. }) => normal.x.abs(),
+        _ => panic!("{f:?} is planar"),
+    };
+    assert!(
+        normal_x(face) > 0.99 && normal_x(other) > 0.99,
+        "{why}: the refusal names the two arm walls"
+    );
+}
+
+/// **A wall tilted a little off antiparallel is still a wall.** The
+/// arm is `0.25`–`0.26` wide, tilted `0.02` rad: far outside any
+/// coincidence band, but its drift across the pair is under one wall
+/// `t = 0.15`, so the gate reads it, and `0.26 < 0.3` refuses.
+#[test]
+fn the_clearance_gate_reads_a_slightly_tilted_wall() {
+    assert_the_arm_walls_refuse(
+        &arm_prism(0.5, 0.25, 0.26, 1.0),
+        0.15,
+        "a 0.26 arm cannot hold two 0.15 walls",
+    );
+}
+
+/// **A tall part keeps the window the cosine read.** A prism `100`
+/// tall with an arm `2` long and `0.0015` wide at its top, shelled at
+/// `t = 0.001`, its notch wall tilted by `0.3·√(2ε)` — inside the
+/// cosine's window at this run's `ε`. At the coarse rows (`ε ≥ 1e-9`)
+/// the planes drift by more than one wall across the part's extent, so
+/// only that window reads the pair; at `1e-12` the drift is under a
+/// wall and the levered window reads it too. Either way it refuses.
+#[test]
+fn the_clearance_gate_reads_a_near_parallel_wall_on_a_tall_part() {
+    let tilt = 0.3 * (2.0 * Tol::witness().eps()).sqrt();
+    assert_the_arm_walls_refuse(
+        &arm_prism(2.0, 0.0015, 0.0015 + 2.0 * tilt, 100.0),
+        0.001,
+        "an arm 0.0015 wide cannot hold two 0.001 walls",
+    );
+}
+
+/// **The gap is taken short by the drift.** The arm is `0.104` wide at
+/// its top and `0.098` at its foot, at `t = 0.05`: the walls cross at
+/// the foot, while the plane gap the gate measures between the faces'
+/// origins is `0.101`, over two walls. Read as parallel the pair would
+/// clear and the verb would build crossing offsets; the drift across
+/// the pair takes the gap under `2t`, and it refuses.
+#[test]
+fn the_clearance_gate_takes_a_tilted_gap_short_by_its_drift() {
+    assert_the_arm_walls_refuse(
+        &arm_prism(1.0, 0.104, 0.098, 1.0),
+        0.05,
+        "an arm 0.098 wide at its foot cannot hold two 0.05 walls",
+    );
+}
+
 /// **Two voids.** With material `g = 0.4` between them, `t > g/2`
 /// refuses naming two VOID faces, and `t < g/2` builds three solids
 /// with the closed-form volume.
@@ -409,7 +577,8 @@ fn two_voids_refuse_across_their_gap_and_build_three_solids_below_it() {
         .collect();
     assert_eq!(void_shells.len(), 2);
 
-    let e = topo::shell(&body, 0.25, tol).expect_err("0.4 < 0.5 refuses");
+    let e = topo::shell(&finished("the operand", body.clone(), tol), 0.25, tol)
+        .expect_err("0.4 < 0.5 refuses");
     let ShellError::WallClearance {
         face, other, gap, ..
     } = e
@@ -425,7 +594,8 @@ fn two_voids_refuse_across_their_gap_and_build_three_solids_below_it() {
     assert_ne!(shell_of(face), shell_of(other), "one face of each void");
 
     let t = 0.15;
-    let shelled = topo::shell(&body, t, tol).expect("0.4 > 0.3 builds");
+    let shelled =
+        topo::shell(&finished("the operand", body.clone(), tol), t, tol).expect("0.4 > 0.3 builds");
     let out = &shelled.body;
     assert_eq!(topo::validate_geometric(out, tol), Ok(()), "tier 3");
     assert_eq!(out.solids().count(), 3);
@@ -449,10 +619,11 @@ fn two_voids_refuse_across_their_gap_and_build_three_solids_below_it() {
 #[test]
 fn shelling_a_hollow_vessel_thickens_every_boundary() {
     let tol = Tol::witness();
-    let hollow = topo::shell(&vessel(1.0, 2.0), 0.2, tol)
+    let hollow = topo::shell(&finished("the operand", vessel(1.0, 2.0), tol), 0.2, tol)
         .expect("the vessel shells")
         .body;
-    let shelled = topo::shell(&hollow, 0.05, tol).expect("a hollow vessel shells");
+    let shelled = topo::shell(&finished("the operand", hollow.clone(), tol), 0.05, tol)
+        .expect("a hollow vessel shells");
     let body = &shelled.body;
     assert_eq!(topo::validate_geometric(body, tol), Ok(()), "tier 3");
     assert_eq!(body.solids().count(), 2);
@@ -522,7 +693,8 @@ fn the_full_period_torus_shells_solid_and_hollow_alike() {
     let pi2r = 2.0 * core::f64::consts::PI.powi(2) * big_r;
     let ring = |a: f64, b: f64| a * a - b * b;
 
-    let shelled = topo::shell(&solid, t, tol).expect("the solid torus shells");
+    let shelled = topo::shell(&finished("the operand", solid.clone(), tol), t, tol)
+        .expect("the solid torus shells");
     let body = &shelled.body;
     assert_eq!(topo::validate_geometric(body, tol), Ok(()), "solid: tier 3");
     assert_eq!(body.solids().count(), 1);
@@ -536,7 +708,8 @@ fn the_full_period_torus_shells_solid_and_hollow_alike() {
         props.volume_pad
     );
 
-    let shelled = topo::shell(&hollow, t, tol).expect("the hollow torus shells");
+    let shelled = topo::shell(&finished("the operand", hollow.clone(), tol), t, tol)
+        .expect("the hollow torus shells");
     let body = &shelled.body;
     assert_eq!(
         topo::validate_geometric(body, tol),
@@ -571,8 +744,15 @@ fn opening_the_hollow_boxs_outer_top_cups_the_outer_wall_only() {
     let (outer, void) = outer_and_void(&hollow);
     let top = plane_face_at(&hollow, 4.0);
     assert_eq!(hollow.get_face(top).expect("the top").shell, outer);
-    let sealed = topo::shell(&hollow, t, tol).expect("sealed");
-    let opened = topo::shell_open(&hollow, t, &[top], tol).expect("opens at the outer top");
+    let sealed =
+        topo::shell(&finished("the operand", hollow.clone(), tol), t, tol).expect("sealed");
+    let opened = topo::shell_open(
+        &finished("the operand", hollow.clone(), tol),
+        t,
+        &[top],
+        tol,
+    )
+    .expect("opens at the outer top");
     let body = &opened.body;
     assert_eq!(topo::validate_geometric(body, tol), Ok(()), "tier 3");
     assert_eq!(body.solids().count(), 2);
@@ -640,9 +820,15 @@ fn opening_the_hollow_boxs_void_ceiling_cups_the_inner_wall_only() {
     let (_, void) = outer_and_void(&hollow);
     let ceiling = plane_face_at(&hollow, 4.0 - 0.25);
     assert_eq!(hollow.get_face(ceiling).expect("the ceiling").shell, void);
-    let sealed = topo::shell(&hollow, t, tol).expect("sealed");
-    let opened =
-        topo::shell_open(&hollow, t, &[ceiling], tol).expect("opens at the void's ceiling");
+    let sealed =
+        topo::shell(&finished("the operand", hollow.clone(), tol), t, tol).expect("sealed");
+    let opened = topo::shell_open(
+        &finished("the operand", hollow.clone(), tol),
+        t,
+        &[ceiling],
+        tol,
+    )
+    .expect("opens at the void's ceiling");
     let body = &opened.body;
     assert_eq!(topo::validate_geometric(body, tol), Ok(()), "tier 3");
     assert_eq!(body.solids().count(), 2);
@@ -734,9 +920,13 @@ fn opening_the_hollow_boxs_void_ceiling_cups_the_inner_wall_only() {
 fn shell_of_a_hollow_runs_no_intersection_machinery() {
     let hollow = hollow_box();
     let bracket = Bracket::open();
-    let shelled = topo::shell(&hollow, 0.05, Tol::witness())
-        .expect("it shells")
-        .body;
+    let shelled = topo::shell(
+        &finished("the operand", hollow.clone(), Tol::witness()),
+        0.05,
+        Tol::witness(),
+    )
+    .expect("it shells")
+    .body;
     let verdicts = bracket.finish().verdicts;
     assert!(!verdicts.is_empty(), "the verb decided something");
     let crossing: Vec<&'static str> = verdicts
@@ -759,8 +949,16 @@ fn shell_of_a_hollow_runs_no_intersection_machinery() {
 #[test]
 fn a_nonpositive_thickness_refuses_typed() {
     for t in [0.0_f64, -0.1] {
-        let e = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), t, Tol::witness())
-            .expect_err("a non-positive wall must not build");
+        let e = topo::shell(
+            &finished(
+                "the operand",
+                block(2.0, 3.0, 4.0, Tol::witness()),
+                Tol::witness(),
+            ),
+            t,
+            Tol::witness(),
+        )
+        .expect_err("a non-positive wall must not build");
         assert!(
             matches!(e, ShellError::Thickness { .. }),
             "t = {t}: expected the thickness gate, got {e}"
@@ -777,8 +975,12 @@ fn a_wall_past_the_reach_refuses_typed() {
     // two cap planes are 6 m apart and a 1.2 m wall needs 2.4, so the
     // clearance gate (which runs first, and rightly) passes and the
     // refusal under test is the one the row is about.
-    let e = topo::shell(&vessel(1.0, 6.0), 1.2, Tol::witness())
-        .expect_err("a wall past the radius collapses the wall");
+    let e = topo::shell(
+        &finished("the operand", vessel(1.0, 6.0), Tol::witness()),
+        1.2,
+        Tol::witness(),
+    )
+    .expect_err("a wall past the radius collapses the wall");
     assert!(
         matches!(
             e,
@@ -806,15 +1008,26 @@ fn the_open_face_designation_gates_refuse_typed() {
     let bottom = plane_face_at(&body, 0.0);
     let t = 0.25;
 
-    let e = topo::shell_open(&body, t, &[top, top], Tol::witness())
-        .expect_err("a face designated twice");
+    let e = topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        &[top, top],
+        Tol::witness(),
+    )
+    .expect_err("a face designated twice");
     assert!(
         matches!(e, ShellError::OpenFaceRepeated { face } if face == top),
         "got {e}"
     );
 
     let all: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
-    let e = topo::shell_open(&body, t, &all, Tol::witness()).expect_err("every face designated");
+    let e = topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        &all,
+        Tol::witness(),
+    )
+    .expect_err("every face designated");
     assert!(
         matches!(e, ShellError::OpenFacesExhaustShell { .. }),
         "got {e}"
@@ -827,35 +1040,15 @@ fn the_open_face_designation_gates_refuse_typed() {
         .copied()
         .filter(|f| *f != top && *f != bottom)
         .collect();
-    let e = topo::shell_open(&body, t, &walls, Tol::witness())
-        .expect_err("the remainder is disconnected");
+    let e = topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        &walls,
+        Tol::witness(),
+    )
+    .expect_err("the remainder is disconnected");
     assert!(
         matches!(e, ShellError::OpenFacesDisconnect { components: 2, .. }),
-        "got {e}"
-    );
-
-    // A curved designation: its rim would be a curved face with a ring.
-    let v = vessel(1.0, 2.0);
-    let wall = v
-        .faces()
-        .find(|(_, f)| {
-            matches!(
-                v.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { .. })
-            )
-        })
-        .map(|(k, _)| k)
-        .unwrap();
-    let e = topo::shell_open(&v, 0.2, &[wall], Tol::witness())
-        .expect_err("a curved rim has no closed-form reading");
-    assert!(
-        matches!(
-            e,
-            ShellError::OpenFaceRingUnsupported {
-                kind: geom_brep::SurfaceKind::Cylinder,
-                ..
-            }
-        ),
         "got {e}"
     );
 }
@@ -867,13 +1060,14 @@ fn the_open_face_designation_gates_refuse_typed() {
 ///
 /// Nothing structural forbids that body: `step-import`'s adoption
 /// shares surface keys outright, so the sharing is not always a
-/// revolve's two co-oriented wall bands. This row builds the
-/// configuration the honest way available from outside the kernel —
-/// sharing the outer wall's chart onto the inner wall, whose sense is
-/// the opposite — and pins that the verb decides it rather than reading
-/// the first face's bit and hoping.
+/// revolve's two co-oriented wall bands. The way available from
+/// outside the kernel to build it — sharing the outer wall's chart onto
+/// the inner wall, whose sense is the opposite — is not a finished
+/// body: the inner wall's edges do not lie on the shared carrier. The
+/// operand gate refuses it, so the verb's own `ChartSenseMixed` is not
+/// reached from here.
 #[test]
-fn a_mixed_sense_chart_refuses_typed() {
+fn a_mixed_sense_chart_built_from_outside_is_refused_at_the_gate() {
     let mut body = tube(0.6, 1.0, 2.0);
     let cyl = |b: &Body<f64>, r: f64| -> FaceKey {
         b.faces()
@@ -891,14 +1085,26 @@ fn a_mixed_sense_chart_refuses_typed() {
         "the tube's two walls face opposite ways, which is the point"
     );
     let shared = body.get_face(outer).unwrap().surface;
-    body.set_face_surface(inner, topo::FaceSurface::Shared(shared))
-        .expect("the attach-layer door shares a live key");
+    let inner_sense = body.get_face(inner).unwrap().sense;
+    // Lifts RechartStrandsDescriptions: a chart worn by faces of opposite sense is the row.
+    body.set_face_surface_unvouched_for_tests(
+        inner,
+        topo::FaceSurface::Shared {
+            key: shared,
+            sense: inner_sense,
+        },
+    )
+    .expect("the attach-layer door shares a live key");
 
-    let e = topo::shell(&body, 0.1, Tol::witness())
-        .expect_err("a mixed-sense chart has no single inward");
+    // The inner wall now wears a carrier its edges do not lie on, so
+    // the body is not finished and the verb is never handed it.
+    let errors = topo::AtRestBody::validate(body, Tol::witness())
+        .expect_err("the re-charted tube is not a finished body");
     assert!(
-        matches!(e, ShellError::ChartSenseMixed { .. }),
-        "expected the chart-sense gate, got {e}"
+        errors
+            .iter()
+            .any(|e| matches!(e, topo::ValidationError::DescriptionNotAdjacent { .. })),
+        "the gate refuses the inner wall's edges off its chart: {errors:?}"
     );
 }
 
@@ -912,9 +1118,13 @@ fn a_mixed_sense_chart_refuses_typed() {
 /// retired this row says so.
 #[test]
 fn a_curved_two_shell_shell_refuses_step_export() {
-    let hollow = topo::shell(&tube(0.6, 1.0, 2.0), 0.1, Tol::witness())
-        .expect("the tube shells")
-        .body;
+    let hollow = topo::shell(
+        &finished("the operand", tube(0.6, 1.0, 2.0), Tol::witness()),
+        0.1,
+        Tol::witness(),
+    )
+    .expect("the tube shells")
+    .body;
     assert_eq!(hollow.shells().count(), 2);
     let e = step_export::step_string(
         &hollow,
@@ -984,9 +1194,14 @@ fn the_shell_cost_is_measured_not_asserted() {
             k.len()
         };
         let start = Instant::now();
-        let hollow = topo::shell_open(&body, t, &open, Tol::witness())
-            .expect("the fixture shells")
-            .body;
+        let hollow = topo::shell_open(
+            &finished("the operand", body.clone(), Tol::witness()),
+            t,
+            &open,
+            Tol::witness(),
+        )
+        .expect("the fixture shells")
+        .body;
         let build = start.elapsed();
         let start = Instant::now();
         topo::validate_geometric(&hollow, Tol::witness()).expect("valid");
@@ -1018,7 +1233,34 @@ fn circle_loop(r: f64) -> ProfileLoop<f64> {
     ])
 }
 
-/// **The `r ± t/2` wall pair — and the wall that stops it retiring.**
+/// **Shelling the hand-built wall pair decides its caps' ring nesting.**
+/// Hollowing the annular elbow by `0.01` assembles a thin solid whose two
+/// planar end caps each carry a ring inside an outer loop with a spiric
+/// edge, every ring vertex inside the ball that spiric's arc lies in.
+/// Check 9 reads each ring against its outer loop across the spiric
+/// itself, so tier 3's one refusal is check 7's: the spiric-bounded
+/// cap's area (`Unimplemented`).
+#[test]
+fn the_hand_built_klein_wall_hollows_past_ring_nesting_to_the_props_door() {
+    let by_hand = klein_elbow(vec![
+        circle_loop(KLEIN_R + KLEIN_WALL / 2.0),
+        circle_loop(KLEIN_R - KLEIN_WALL / 2.0),
+    ]);
+    let e = topo::shell(
+        &finished("the operand", by_hand.clone(), Tol::witness()),
+        0.01,
+        Tol::witness(),
+    )
+    .expect_err("check 7's volume");
+    let (face, source) = props_door(&e).unwrap_or_else(|| panic!("not the props door: {e:?}"));
+    assert_eq!(
+        source,
+        geom_brep::PropsError::Unimplemented,
+        "a spiric-bounded cap's area, at {face:?}"
+    );
+}
+
+/// **The `r ± t/2` wall pair, spelled as one `shell_open` call.**
 ///
 /// Klein's `elbow` spells the thickness twice: `circle(R + WALL/2)` for
 /// the outer wall and `circle(R − WALL/2)` for the inner, revolved as
@@ -1027,58 +1269,27 @@ fn circle_loop(r: f64) -> ProfileLoop<f64> {
 /// the elbow meets the rest of the bottle. That is the "paid once per
 /// wall" debt the demo's own findings list records.
 ///
-/// **It does not retire yet, and this row is why.** A partial revolve
-/// of a disc gives a TORUS wall and two PLANAR meridian end caps, so
-/// every rim is a torus × meridian-plane seam vertex. The corner
-/// SOLVES (the carried-datum arm), and the rim EDGE between wall and
-/// moved cap now MINTS: the moved cap stands `t` off the axis,
-/// parallel to it, and cuts the torus in a spiric, which the axial
-/// door mints as the exact `Curve3::Spiric` it is. What this row pins
-/// now is the door AFTER the carrier: the elbow's EQUATOR SEAMS, the
-/// disc's two profile vertices revolved as `RevolvedPoint`-declared
-/// chart seams, whose re-author refuses a corner the moved cap has
-/// displaced off the family's own sketch plane
-/// (`offset_axial_reauthor_plane`).
+/// **The opened arm builds it.** A partial revolve of a disc gives a
+/// TORUS wall and two PLANAR meridian end caps. The cavity's caps are
+/// those planes translated one wall inward, so they stand parallel to
+/// the axis and beside it, and its rims are the spirics they cut. The
+/// rim stage's LIFT puts each designated cap's counterpart back onto
+/// the meridian plane through the axial door — the gate admits a plane
+/// parallel to the axis at any stand-off, so the lifted solid is on
+/// the same door the cavity was — and the rims it mints there are the
+/// plane×torus section's meridian CIRCLES. The opened elbow matches
+/// the hand-built one: same topology, no spiric left, volume equal to
+/// it and to Pappus within `1e-12`.
 ///
-/// **The old door, verbatim (measured at the unit's head before the
-/// mint):** `ShellError::Face { error: TogetherAxialEdge { what: "a
-/// circular edge between two charts whose centre is off the axis" } }`
-/// — the latitude mint's `offset_axial_centre` predicate, on the same
-/// door face, edge and predicate for the open and the sealed arm.
+/// **The sealed arm still stops at the props door** (check 7): its
+/// cavity keeps both off-axis caps, and a spiric-bounded cap's area is
+/// FLUX's `spiric-bounded-face-area-is-unimplemented`.
 ///
-/// **This is not a torus gap — and it is not every curved wall's gap
-/// either.** A partial revolve whose wall is a CYLINDER hollows today:
-/// `sf2b_axial`'s quarter-turn wedge is that body, and its rim vertex
-/// carries TWO profile constraints (the cylinder's line and the cap's)
-/// with the meridian plane supplying only the azimuth. And the SPHERE
-/// half of the circle-profile family is BUILT: `torax_axial`'s lune
-/// solves its rim end to end through the meridian-pair corner arm and
-/// the off-axis-circle mint (a plane cuts a sphere in a circle,
-/// always), and now waits only on the props inventory's sphere flux
-/// premise — a wall its OPERAND already stands behind. What is missing
-/// here is exactly the torus's moved-rim CARRIER.
-///
-/// **What would retire it**, concretely, is two doors: a re-author
-/// for a revolved point's declaration whose corner leaves the sketch
-/// plane (the seam's family still passes through the moved corner —
-/// rotated to the corner's own azimuth — but that re-authoring is a
-/// design question, not this row's), and then the props quadrature
-/// lane for a spiric-bounded face, where the sectioned vessel already
-/// stands (`spiric_rim`). The C5 table is not involved: the axial
-/// door mints the rim inline, and `plane_torus_section` keeps refusing
-/// the tilted pose. `torax_axial` carries the section's own
-/// measurement — on this elbow's numbers the half-width and
-/// half-height differ by `2.03e-4` m, a circle's do not.
-///
-/// The comparison this row would make once that lands: topology exactly
-/// equal, stored radii within one ulp (the two spellings reach the
-/// inner radius by different routes — `R − WALL/2` against
-/// `(R + WALL/2) − WALL`), volume within `1e-12`. Under the demo rule
-/// the contract is **naturalness, not byte-identity**: one radius
-/// instead of two, and the wall stops being a number the author has to
-/// keep consistent across two call sites.
+/// Under the demo rule the contract is **naturalness, not
+/// byte-identity**: one radius instead of two, and the wall stops being
+/// a number the author has to keep consistent across two call sites.
 #[test]
-fn the_klein_wall_pair_waits_on_the_partial_revolve_rim() {
+fn the_klein_wall_pair_seals_to_the_props_door_and_opens_to_the_hand_built_tube() {
     // The hand construction still builds, unchanged — the debt is real
     // and the demo is not broken, it is just paid by hand.
     let by_hand = klein_elbow(vec![
@@ -1104,34 +1315,293 @@ fn the_klein_wall_pair_waits_on_the_partial_revolve_rim() {
         .collect();
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian end caps");
 
-    let seam_reauthor = |e: ShellError<f64>| {
-        let ShellError::Face { face, error } = e else {
-            panic!("expected the offset door's refusal, got {e}");
-        };
-        let topo::ReplaceFaceError::TogetherAxialEdge { edge, what } = *error else {
-            panic!("expected the seam re-author's refusal, got {error}");
-        };
-        assert_eq!(
-            what,
-            "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
-        );
-        (face, edge, what)
-    };
-    let open = seam_reauthor(
-        topo::shell_open(&solid, KLEIN_WALL, &caps, Tol::witness())
-            .expect_err("the opened elbow's equator seam cannot be re-authored off its plane"),
+    // The sealed arm hollows to tier 3 and stops at the props door.
+    let sealed = topo::shell(
+        &finished("the operand", solid.clone(), Tol::witness()),
+        KLEIN_WALL,
+        Tol::witness(),
+    )
+    .expect_err("the sealed arm's volume");
+    let (face, source) =
+        props_door(&sealed).unwrap_or_else(|| panic!("the sealed arm's props door: {sealed:?}"));
+    assert_eq!(
+        source,
+        geom_brep::PropsError::Unimplemented,
+        "a spiric-bounded cap's area, at {face:?}"
     );
 
-    // The sealed arm stops at the same wall, on the same edge — the
-    // blocker is the seam, not the opening — asserted on the PAYLOAD
-    // (same door face, same edge, same predicate).
-    let sealed = seam_reauthor(
-        topo::shell(&solid, KLEIN_WALL, Tol::witness())
-            .expect_err("the sealed arm meets the same seam"),
+    // The opened arm SHELLS: the lift takes the axial door (the cavity's
+    // caps stand parallel to the axis, which the gate admits at any
+    // stand-off), and the rims it puts back on the meridian planes are
+    // the section's meridian circles, not spirics.
+    let open = topo::shell_open(
+        &finished("the operand", solid.clone(), Tol::witness()),
+        KLEIN_WALL,
+        &caps,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the opened klein elbow shells: {e:?}"))
+    .body;
+    assert_eq!(
+        topo::validate_geometric(&open, Tol::witness()),
+        Ok(()),
+        "tier 3 on the opened elbow"
+    );
+    let census = |b: &Body<f64>| {
+        (
+            b.shells().count(),
+            b.faces().count(),
+            b.edges().count(),
+            b.vertices().count(),
+        )
+    };
+    assert_eq!(
+        census(&open),
+        census(&by_hand),
+        "the opened elbow has the hand-built tube's topology"
+    );
+    let spirics = open
+        .edges()
+        .filter(|(k, _)| topo::query::edge_carrier_kind(&open, *k) == Some(geom::CurveKind::Spiric))
+        .count();
+    assert_eq!(spirics, 0, "every rim on a meridian plane is a circle");
+    let volume = |b: &Body<f64>| {
+        topo::mass_properties(b, Tol::witness())
+            .expect("the elbow's props")
+            .volume
+    };
+    // Pappus: a quarter turn of the annulus about the spine radius.
+    let (r_out, r_in) = (KLEIN_R + KLEIN_WALL / 2.0, KLEIN_R - KLEIN_WALL / 2.0);
+    let want = core::f64::consts::PI.powi(2) / 2.0 * 1.2 * (r_out.powi(2) - r_in.powi(2));
+    let (got, hand) = (volume(&open), volume(&by_hand));
+    println!("[measured] opened elbow volume {got}, hand-built {hand}, Pappus {want}");
+    assert!(
+        (got - want).abs() <= 1e-12,
+        "opened volume {got}, want {want}"
+    );
+    assert!(
+        (hand - want).abs() <= 1e-12,
+        "hand-built volume {hand}, want {want}"
+    );
+}
+
+/// **ONE klein cap designated, not both.** The lift moves one cavity
+/// cap back onto its meridian plane while the other cavity cap stays
+/// where the cavity door left it, off the axis, its spiric rims held
+/// (an edge whose two charts do not move keeps its carrier). So the
+/// opened arm builds through every stage and stops where the sealed
+/// arm does: at check 7's props door, on that held cap, whose
+/// spiric-bounded area is FLUX's
+/// `spiric-bounded-face-area-is-unimplemented`.
+#[test]
+fn the_klein_elbow_opens_at_one_cap() {
+    let solid = klein_elbow(vec![circle_loop(KLEIN_R + KLEIN_WALL / 2.0)]);
+    let cap = solid
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                solid.get_surface(f.surface),
+                Some(geom::Surface::Plane { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("a partial revolve has a meridian end cap");
+    let open = topo::shell_open(
+        &finished("the operand", solid, Tol::witness()),
+        KLEIN_WALL,
+        &[cap],
+        Tol::witness(),
+    )
+    .expect_err("the held cap's area");
+    let (face, source) =
+        props_door(&open).unwrap_or_else(|| panic!("the one-cap arm's props door: {open:?}"));
+    assert_eq!(
+        source,
+        geom_brep::PropsError::Unimplemented,
+        "a spiric-bounded cap's area, at {face:?}"
+    );
+}
+
+/// **A sealed hex prism with a coaxial bore**: every side plane stands
+/// parallel to the bore's axis and beside it, the ends normal to it, so
+/// the solid is axial and hollows through the axial door at once. The
+/// wall is the holed prism less the cavity: the hexagon eroded by `t`
+/// (its apothem shortened by `t`) less the bore dilated by `t`, over
+/// the height less `2t`.
+#[test]
+fn a_hex_prism_with_a_coaxial_bore_hollows_to_its_closed_form() {
+    let (big, bore, h, t) = (1.0, 0.3, 0.8, 0.05);
+    let hex = bulge_loop(
+        (0..6)
+            .map(|i| {
+                let a = core::f64::consts::TAU * f64::from(i) / 6.0;
+                (Point2::new(big * a.cos(), big * a.sin()), 0.0)
+            })
+            .collect(),
+    );
+    let hole = bulge_loop(vec![
+        (Point2::new(bore, 0.0), 1.0),
+        (Point2::new(-bore, 0.0), 1.0),
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![hex, hole])
+        .validate(Tol::witness())
+        .expect("a bored hexagon validates");
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the bored hex prism extrudes")
+    .body;
+    assert!(
+        topo::is_axial(&body, band()).expect("the axis gate decides"),
+        "hexagon sides parallel to the bore's axis, ends normal to it"
+    );
+    let pi = core::f64::consts::PI;
+    let apothem = big * (pi / 6.0).cos();
+    let hex_area = |a: f64| 2.0 * 3.0f64.sqrt() * a * a;
+    let operand = hex_area(apothem) * h - pi * bore * bore * h;
+    let cavity = (hex_area(apothem - t) - pi * (bore + t).powi(2)) * (h - 2.0 * t);
+    let want = operand - cavity;
+    let hollow = topo::shell(
+        &finished("the operand", body, Tol::witness()),
+        t,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("the bored hex prism hollows: {e:?}"))
+    .body;
+    assert_eq!(
+        topo::validate_geometric(&hollow, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    assert_eq!(hollow.shells().count(), 2, "the wall and its cavity");
+    let got = topo::mass_properties(&hollow, Tol::witness())
+        .expect("props")
+        .volume;
+    println!("[measured] bored hex prism hollow {got}, closed form {want}");
+    assert!((got - want).abs() <= 1e-12, "hollow {got}, want {want}");
+}
+
+/// A profile extruded `h` along `z` and hollowed by `t`, matched to its
+/// closed form `want`: it is axial (every side parallel to `z` or
+/// normal to it), hollows through the axial door at once, and passes
+/// tier 3 as a wall and its cavity.
+fn assert_extrusion_hollows_axially(
+    what: &str,
+    loops: Vec<ProfileLoop<f64>>,
+    h: f64,
+    t: f64,
+    want: f64,
+) {
+    let profile = Profile::new(SketchPlane::xy(), loops)
+        .validate(Tol::witness())
+        .unwrap_or_else(|e| panic!("{what}: the profile validates: {e:?}"));
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{what}: extrudes: {e:?}"))
+    .body;
+    assert!(
+        topo::is_axial(&body, band()).expect("the axis gate decides"),
+        "{what}: sides parallel to the axis, ends normal to it"
+    );
+    let hollow = topo::shell(
+        &finished("the operand", body, Tol::witness()),
+        t,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("{what} hollows: {e:?}"))
+    .body;
+    assert_eq!(
+        topo::validate_geometric(&hollow, Tol::witness()),
+        Ok(()),
+        "{what}: tier 3"
     );
     assert_eq!(
-        sealed, open,
-        "the sealed arm's refusal is the open arm's: same wall, same edge, same predicate"
+        hollow.shells().count(),
+        2,
+        "{what}: the wall and its cavity"
+    );
+    let got = topo::mass_properties(&hollow, Tol::witness())
+        .expect("props")
+        .volume;
+    println!("[measured] {what} hollow {got}, closed form {want}");
+    assert!(
+        (got - want).abs() <= 1e-12,
+        "{what}: hollow {got}, want {want}"
+    );
+}
+
+/// **A D-shaft**: a disc of radius `R` cut by a flat at `x = s`,
+/// extruded. The flat stands parallel to the cylinder's axis and beside
+/// it, on either side, so the shaft hollows through the axial door. The
+/// cavity is the D eroded by `t` — the disc's radius and the flat's
+/// stand-off both less `t` — over the height less `2t`, for the area
+/// `A(R, s) = R²(π − acos(s/R)) + s√(R² − s²)` of the disc's part with
+/// `x ≤ s`.
+#[test]
+fn a_d_shaft_hollows_to_its_closed_form_with_the_flat_either_side_of_the_axis() {
+    let (big, h, t): (f64, f64, f64) = (1.0, 0.8, 0.05);
+    let area = |r: f64, s: f64| {
+        r * r * (core::f64::consts::PI - (s / r).acos()) + s * (r * r - s * s).sqrt()
+    };
+    for s in [0.6f64, -0.6] {
+        let y = (big * big - s * s).sqrt();
+        let sweep = core::f64::consts::TAU - 2.0 * (s / big).acos();
+        let d = bulge_loop(vec![
+            (Point2::new(s, -y), 0.0),
+            (Point2::new(s, y), (sweep / 4.0).tan()),
+        ]);
+        let want = area(big, s) * h - area(big - t, s - t) * (h - 2.0 * t);
+        assert_extrusion_hollows_axially(
+            &format!("the D-shaft with its flat at x = {s}"),
+            vec![d],
+            h,
+            t,
+            want,
+        );
+    }
+}
+
+/// **A box with an off-centre coaxial bore**: a square with a round
+/// hole off its centre, extruded. Every side plane stands parallel to
+/// the bore's axis and beside it, the ends normal to it, so the solid
+/// is axial though no side is centred on the axis. The cavity is the
+/// square eroded by `t` less the bore dilated by `t`, over the height
+/// less `2t`.
+#[test]
+fn a_box_with_an_off_centre_coaxial_bore_hollows_to_its_closed_form() {
+    let (side, bore, h, t) = (1.0, 0.2, 0.8, 0.05);
+    let (cx, cy) = (0.15, 0.1);
+    let half = side / 2.0;
+    let square = bulge_loop(vec![
+        (Point2::new(-half, -half), 0.0),
+        (Point2::new(half, -half), 0.0),
+        (Point2::new(half, half), 0.0),
+        (Point2::new(-half, half), 0.0),
+    ]);
+    let hole = bulge_loop(vec![
+        (Point2::new(cx + bore, cy), 1.0),
+        (Point2::new(cx - bore, cy), 1.0),
+    ]);
+    let pi = core::f64::consts::PI;
+    let operand = (side * side - pi * bore * bore) * h;
+    let cavity = ((side - 2.0 * t).powi(2) - pi * (bore + t).powi(2)) * (h - 2.0 * t);
+    assert_extrusion_hollows_axially(
+        "the box with an off-centre bore",
+        vec![square, hole],
+        h,
+        t,
+        operand - cavity,
     );
 }
 
@@ -1153,22 +1623,22 @@ fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
 
 /// **The AXIS-TOUCHING cap: one rim annulus, and it meshes.**
 ///
-/// A full revolve of an axis-touching meridian wears its cap on two
-/// half-disc faces that meet at the axis apex, and the cavity
-/// counterpart's boundary is the same shape one wall in. Gluing that
-/// counterpart on as a ring would put it ON the designated boundary —
-/// the #1082 class. The rim is instead built on the chart as ONE
-/// region, so the mouth comes back as a single annulus carrying a
-/// single ring, the cup is genus 0 exactly as `topo::shell`'s docs say,
-/// and the CDT accepts it.
+/// A full revolve of an axis-touching meridian wears its cap on one disc
+/// face whose rim is two half-circles, and the cavity counterpart's
+/// boundary is the same shape one wall in. Gluing that counterpart on
+/// as a ring would put it ON the designated boundary — the #1082
+/// class. The rim is instead built on the chart as ONE region, so the
+/// mouth comes back as a single annulus carrying a single ring, the cup
+/// is genus 0 exactly as `topo::shell`'s docs say, and the CDT accepts
+/// it.
 #[test]
 fn a_revolved_cap_opens_to_one_annular_rim() {
     let tol = Tol::witness();
     let (r, h, t) = (0.5, 0.4, 0.05);
     let body = vessel(r, h);
     let chart = plane_chart_at_y(&body, h);
-    assert_eq!(chart.len(), 2, "a full revolve's cap is two half-discs");
-    let cup = topo::shell_open(&body, t, &chart, tol)
+    assert_eq!(chart.len(), 1, "a full revolve builds its cap whole");
+    let cup = topo::shell_open(&finished("the operand", body.clone(), tol), t, &chart, tol)
         .expect("the drum opens")
         .body;
 
@@ -1180,7 +1650,7 @@ fn a_revolved_cap_opens_to_one_annular_rim() {
         "one rim annulus with one ring, and a cup is genus 0"
     );
     let mouth: Vec<FaceKey> = plane_chart_at_y(&cup, h);
-    assert_eq!(mouth.len(), 1, "the two half-discs became ONE rim face");
+    assert_eq!(mouth.len(), 1, "the mouth is ONE rim face");
 
     for delta in [1e-2, 1e-3, 2e-4] {
         mesh::tessellate(&cup, delta, tol)
@@ -1198,8 +1668,8 @@ fn a_revolved_cap_opens_to_one_annular_rim() {
 
 /// **The ANNULAR cap: TWO disjoint rim annuli**, which is a face SPLIT
 /// and not a ring placement — the second shape of the #1082 class. A
-/// full revolve of a CLOSED off-axis meridian closes its own seam, so
-/// the mouth is one slit annular face; its cavity counterpart is a
+/// full revolve of a CLOSED off-axis meridian builds its cap whole, so
+/// the mouth is one annular face; its cavity counterpart is a
 /// smaller annulus sitting strictly inside it, and the material between
 /// them is two disjoint rings of wall. Both are built: the hole is
 /// promoted to its own rim face before the glue and collects the
@@ -1213,9 +1683,9 @@ fn an_annular_cap_opens_to_two_disjoint_rims() {
     assert_eq!(
         chart.len(),
         1,
-        "a closed off-axis meridian closes its own seam, so this cap is ONE face"
+        "a full revolve builds its annular cap whole, so this cap is ONE face"
     );
-    let cup = topo::shell_open(&body, t, &chart, tol)
+    let cup = topo::shell_open(&finished("the operand", body.clone(), tol), t, &chart, tol)
         .expect("the tube opens")
         .body;
 
@@ -1223,8 +1693,8 @@ fn an_annular_cap_opens_to_two_disjoint_rims() {
     assert_eq!(cup.shells().count(), 1);
     assert_eq!(
         (rings_of(&cup), genus_of(&cup)),
-        (2, 1),
-        "two rim annuli, one ring each; the bore keeps the cup genus 1"
+        (4, 1),
+        "two rim annuli and the two floor annuli, one ring each; the bore keeps the cup genus 1"
     );
     // The two rims, named by the radii they run between.
     let mut radii: Vec<(f64, f64)> = plane_chart_at_y(&cup, h)
@@ -1277,108 +1747,151 @@ fn an_annular_cap_opens_to_two_disjoint_rims() {
     );
 }
 
-/// **The validator's net, shown firing** — tier 3's check 9, on the
-/// exact anatomy the rim construction above removes.
-///
-/// The wrong body #1082 named cannot be built through `shell_open` any
-/// more, so it is built here through the PUBLIC doors the verb used to
-/// compose: shell it sealed, lift the cavity's counterpart chart onto
-/// the designated one (`replace_faces_offset`, the same distance the
-/// verb derives from the two planes), then `kfmrh` each pair straight
-/// on — skipping the step that makes the chart one region. That is the
-/// old construction exactly, and what it mints is a ring standing on
-/// its own face's outer loop.
-///
-/// Both contact shapes are covered, one per fixture, because the arms
-/// of the check are independent: the axis-touching cap shares a VERTEX
-/// position (the apex both loops own), while the annular cap shares
-/// none and is caught only through an outer EDGE — the radial seam,
-/// whose counterpart's seam sits strictly inside it.
+/// **The wrong body #1082 named no longer composes.** It was built
+/// through the PUBLIC doors the verb used to compose: shell it sealed,
+/// lift the cavity's counterpart chart onto the designated one
+/// (`replace_faces_offset`, the same distance the verb derives from the
+/// two planes), then `kfmrh` each pair straight on — skipping the step
+/// that makes the chart one region. On an annular cap that minted a
+/// ring standing on its own face's outer loop, through the cap's radial
+/// seam. A full revolve now builds the annular cap whole, its bore a
+/// ring, so the counterpart the glue would demote carries a ring of its
+/// own and `kfmrh` refuses it before any body exists. (An axis-touching
+/// cap's glue still composes, and fails at check 2:
+/// `common::cert_corpus::f64_only_corpus`.)
 #[test]
-fn a_ring_standing_on_its_outer_loop_refuses_at_tier_3() {
-    // NOT `common::cert_corpus::f64_only_corpus`'s ring: the same body, built
-    // here step by step because this row asserts each step.
+fn the_old_rim_composition_refuses_at_the_glue_on_an_annular_cap() {
     let tol = Tol::witness();
     let t = 0.05;
-    for (what, body, y, want_vertex) in [
-        ("an axis-touching cap", vessel(0.5, 0.4), 0.4, true),
-        ("an annular cap", tube(0.30, 0.50, 0.40), 0.40, false),
-    ] {
-        let mut sealed = topo::shell(&body, t, tol).expect("the sealed shell").body;
-        let mouth = plane_chart_at_y(&sealed, y);
-        let counterpart = plane_chart_at_y(&sealed, y - t);
-        assert_eq!(
-            mouth.len(),
-            counterpart.len(),
-            "{what}: the counterpart chart mirrors the designated one"
-        );
-        // The verb's own lift distance: read off the two planes rather
-        // than negated from the way in.
-        let plane_of =
-            |b: &Body<f64>, f: FaceKey| match b.get_surface(b.get_face(f).expect("face").surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
-                other => panic!("{what}: a non-planar cap: {other:?}"),
-            };
-        let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
-        let (o_onto, _) = plane_of(&sealed, mouth[0]);
-        let back = (o_onto - o_from).dot(n_from);
-        topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
-            .expect("the counterpart chart lifts onto the mouth plane");
-        for (&rim, &source) in mouth.iter().zip(&counterpart) {
-            sealed.kfmrh(rim, source).expect("the raw glue");
-        }
-        let errors = topo::validate_geometric(&sealed, tol)
-            .expect_err("a ring standing on its outer loop must refuse");
-        let contacts: Vec<&topo::ValidationError> = errors
-            .iter()
-            .filter(|e| matches!(e, topo::ValidationError::RingMeetsOuter { .. }))
-            .collect();
-        assert!(
-            !contacts.is_empty(),
-            "{what}: tier 3 must name the ring-vs-outer contact; got {errors:?}"
-        );
-        let vertex_arm = contacts.iter().any(|e| {
-            matches!(
-                e,
-                topo::ValidationError::RingMeetsOuter {
-                    contact: topo::RingContact::Vertex { .. },
-                    ..
-                }
+    let (body, y) = (tube(0.30, 0.50, 0.40), 0.40);
+    let mut sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+        .expect("the sealed shell")
+        .body;
+    let mouth = plane_chart_at_y(&sealed, y);
+    let counterpart = plane_chart_at_y(&sealed, y - t);
+    assert_eq!(
+        (mouth.len(), counterpart.len()),
+        (1, 1),
+        "the annular cap and its counterpart are one face each"
+    );
+    let plane_of =
+        |b: &Body<f64>, f: FaceKey| match b.get_surface(b.get_face(f).expect("face").surface) {
+            Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+            other => panic!("a non-planar cap: {other:?}"),
+        };
+    let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
+    let (o_onto, _) = plane_of(&sealed, mouth[0]);
+    let back = (o_onto - o_from).dot(n_from);
+    topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
+        .expect("the counterpart chart lifts onto the mouth plane");
+    assert_eq!(
+        sealed.kfmrh(mouth[0], counterpart[0]),
+        Err(topo::EulerOpError::FaceHasRings {
+            face: counterpart[0]
+        }),
+        "the ringed counterpart refuses the raw glue"
+    );
+}
+
+/// **The validator's net, shown firing** — tier 3's check 9 through an
+/// outer EDGE, on the anatomy the rim construction removes, and the
+/// composed door's vector equal to the battery's there.
+///
+/// A full revolve builds the annular cap unslit (the row above), so
+/// the old slit shape is restored by hand: one public `mekr_chord` on
+/// the mouth and one on its counterpart joins each bore ring to its
+/// outer cycle. The old composition is then replayed — lift the
+/// counterpart onto the mouth plane, `kfmrh` straight on — and the
+/// counterpart's slit runs along the mouth's own, so the ring it leaves
+/// stands on the outer loop with no vertex position shared.
+///
+/// Which outer-EDGE arm fires is a fact about arm ORDER: the
+/// counterpart's slit runs from radius ri+t to ro-t along the mouth's
+/// slit, so its ENDPOINTS are interior points of that edge — the
+/// vertex-on-edge arm sees them before the edge-along-edge arm gets to
+/// the edge. The row pins "an edge of the outer loop is involved, and
+/// no vertex of it is", which is what separates this fixture from the
+/// vertex arm `topo`'s own samples carry.
+#[test]
+fn a_re_slit_annular_caps_old_glue_reaches_check_9_through_an_outer_edge() {
+    let tol = Tol::witness();
+    let t = 0.05;
+    let (body, y) = (tube(0.30, 0.50, 0.40), 0.40);
+    let mut sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+        .expect("the sealed shell")
+        .body;
+    let mouth = plane_chart_at_y(&sealed, y);
+    let counterpart = plane_chart_at_y(&sealed, y - t);
+    assert_eq!(
+        (mouth.len(), counterpart.len()),
+        (1, 1),
+        "the annular cap and its counterpart are one face each"
+    );
+    let anchor = |b: &Body<f64>, lp| match b.get_loop(lp).expect("loop").boundary {
+        LoopBoundary::Cycle { first } => first,
+        ref other => panic!("a cycle, got {other:?}"),
+    };
+    for face in [mouth[0], counterpart[0]] {
+        let fd = sealed.get_face(face).expect("face").clone();
+        let [ring] = fd.rings[..] else {
+            panic!(
+                "an unslit annulus carries its bore as one ring, got {:?}",
+                fd.rings
             )
-        });
-        // The two arms that involve an outer EDGE. Which of them fires
-        // on the annular cap is a fact about arm ORDER, not about the
-        // body: the counterpart's seam edge runs from radius ri+t to
-        // ro-t along the outer loop's own seam edge, so its ENDPOINTS
-        // are interior points of that edge — arm 2 sees the vertex on
-        // the edge before arm 3 gets to the edge along the edge. Both
-        // are the same contact named at different granularity, so the
-        // row pins "an edge of the outer loop is involved, and no
-        // vertex of it is", which is the claim that separates this
-        // fixture from the axis-touching one.
-        let edge_arm = contacts.iter().any(|e| {
-            matches!(
-                e,
-                topo::ValidationError::RingMeetsOuter {
-                    contact: topo::RingContact::Edge { .. }
-                        | topo::RingContact::VertexOnEdge { .. },
-                    ..
-                }
-            )
-        });
-        if want_vertex {
-            assert!(
-                vertex_arm,
-                "{what}: the apex both loops own is a VERTEX contact; got {contacts:?}"
-            );
-        } else {
-            assert!(
-                edge_arm && !vertex_arm,
-                "{what}: no shared vertex position here — the contact must be carried by an \
-                 outer EDGE; got {contacts:?}"
-            );
-        }
+        };
+        let site = topo::MekrSite::Cycles {
+            target: anchor(&sealed, fd.outer),
+            ring: anchor(&sealed, ring),
+        };
+        sealed.mekr_chord(site, tol).expect("the slit mekr");
     }
+    let plane_of =
+        |b: &Body<f64>, f: FaceKey| match b.get_surface(b.get_face(f).expect("face").surface) {
+            Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+            other => panic!("a non-planar cap: {other:?}"),
+        };
+    let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
+    let (o_onto, _) = plane_of(&sealed, mouth[0]);
+    let back = (o_onto - o_from).dot(n_from);
+    topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
+        .expect("the counterpart chart lifts onto the mouth plane");
+    let carried = sealed
+        .kfmrh_carried_redescriptions(mouth[0], counterpart[0])
+        .expect("the glue's restatements");
+    sealed
+        .kfmrh_describing(mouth[0], counterpart[0], &carried, tol)
+        .expect("the slit counterpart takes the raw glue");
+    let composed = topo::validate_geometric(&sealed, tol)
+        .expect_err("a ring standing on its outer loop must refuse");
+    let battery = topo::contact_marks(&sealed, tol).expect_err("the battery");
+    assert_eq!(
+        composed, battery,
+        "the split must not move or drop an error on a check-9 body"
+    );
+    let contacts: Vec<&topo::ValidationError> = composed
+        .iter()
+        .filter(|e| matches!(e, topo::ValidationError::RingMeetsOuter { .. }))
+        .collect();
+    assert!(
+        contacts.iter().any(|e| matches!(
+            e,
+            topo::ValidationError::RingMeetsOuter {
+                contact: topo::RingContact::VertexOnEdge { .. },
+                ..
+            }
+        )),
+        "tier 3 names the counterpart's slit end on the mouth's slit; got {composed:?}"
+    );
+    assert!(
+        !contacts.iter().any(|e| matches!(
+            e,
+            topo::ValidationError::RingMeetsOuter {
+                contact: topo::RingContact::Vertex { .. },
+                ..
+            }
+        )),
+        "no vertex position is shared, so no vertex contact; got {contacts:?}"
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -1449,7 +1962,7 @@ fn oblique_planar_prisms_hollow_with_their_closed_forms() {
         ),
     ] {
         let body = prism(corners(&pts), 0.25, tol);
-        let hollow = topo::shell(&body, t, tol)
+        let hollow = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
             .unwrap_or_else(|e| panic!("{what}: an oblique planar junction hollows now, got {e}"))
             .body;
         assert_eq!(
@@ -1496,7 +2009,7 @@ fn oblique_planar_prisms_open_at_their_cap() {
     ] {
         let body = prism(corners(&pts), 0.25, tol);
         let cap = plane_face_at(&body, 0.25);
-        match topo::shell_open(&body, t, &[cap], tol) {
+        match topo::shell_open(&finished("the operand", body.clone(), tol), t, &[cap], tol) {
             Ok(s) => {
                 let props = topo::mass_properties(&s.body, tol).expect("props");
                 // The sealed wall plus the lid: the footprint's inset
@@ -1566,7 +2079,7 @@ fn a_curved_face_at_the_junction_moves_by_its_kind() {
     )
     .expect("the frustum revolves")
     .body;
-    let hollow = topo::shell(&frustum, t, tol)
+    let hollow = topo::shell(&finished("the operand", frustum.clone(), tol), t, tol)
         .expect("a cone frustum's junction is inside the axial door")
         .body;
     assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
@@ -1578,7 +2091,8 @@ fn a_curved_face_at_the_junction_moves_by_its_kind() {
     // `sf2b_axial.rs` carries the closed form that says the branch
     // change did not move the answer.
     let drum = vessel(r, h);
-    topo::shell(&drum, t, tol).expect("the drum still hollows");
+    topo::shell(&finished("the operand", drum.clone(), tol), t, tol)
+        .expect("the drum still hollows");
 }
 
 /// **The simultaneous door names its own scope, at the door.**
@@ -1614,18 +2128,37 @@ fn the_simultaneous_door_names_its_scope() {
     );
 
     // **The third gate: a corner whose planes do not determine a
-    // point.** A footprint with a STRAIGHT vertex extrudes into two
-    // side faces that are COPLANAR and share an edge — and MEASURED
-    // here, `extrude` gives them one surface key, so the corner where
-    // that edge meets a cap has exactly TWO distinct planes. Two
-    // planes determine a line, not a point: solved on what it has, the
-    // door would place the corner anywhere along that line. Refused
-    // instead, naming the shape and the count.
+    // point.** A footprint with a STRAIGHT vertex extrudes into one
+    // wall over the run, with one rim edge on each cap; a station cut
+    // back into both rims (the shape a boolean's cut leaves) is a
+    // corner with exactly TWO distinct planes, the cap and the wall.
+    // Two planes determine a line, not a point: solved on what it has,
+    // the door would place the corner anywhere along that line.
+    // Refused instead, naming the shape and the count.
     let mut straight = prism(
         corners(&[(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
         0.4,
         tol,
     );
+    for z in [0.0, 0.4] {
+        let rim = straight
+            .edges()
+            .find(|(_, e)| {
+                let p = |h| {
+                    let v = straight.get_half_edge(h).unwrap().start;
+                    *straight
+                        .get_point(straight.get_vertex(v).unwrap().point)
+                        .unwrap()
+                };
+                let (a, b) = (p(e.he_plus), p(e.he_minus));
+                [a, b]
+                    .iter()
+                    .all(|q| q.y.abs() < 1e-12 && (q.z - z).abs() < 1e-12)
+            })
+            .map(|(k, _)| k)
+            .expect("the run's rim on this cap");
+        straight = cut_stations(straight, rim, &[Point3::new(0.5, 0.0, z)], tol);
+    }
     let moves = moves_by(charts(&straight), -0.05);
     let e = topo::offset_planes_together(&mut straight, &moves, band(), tol)
         .expect_err("a coplanar-adjacent corner determines no point");
@@ -1633,7 +2166,7 @@ fn the_simultaneous_door_names_its_scope() {
         panic!("the corner gate must name the shape, got {e}");
     };
     println!("[scope] coplanar-adjacent corner: {planes} planes — {what}");
-    assert_eq!(*planes, 2, "the two coplanar side faces share one key");
+    assert_eq!(*planes, 2, "the cap and the run's one wall");
     assert!(
         what.contains("fewer than three distinct planes"),
         "the refusal must say what is missing, got {what}"
@@ -1704,11 +2237,10 @@ fn inset(pts: &[(f64, f64)], t: f64) -> Vec<(f64, f64)> {
 fn r2_probe_composed_door_vs_old_battery_on_a_check_9_body() {
     let tol = Tol::witness();
     let t = 0.05;
-    for (what, body, y) in [
-        ("an axis-touching cap", vessel(0.5, 0.4), 0.4),
-        ("an annular cap", tube(0.30, 0.50, 0.40), 0.40),
-    ] {
-        let mut sealed = topo::shell(&body, t, tol).expect("the sealed shell").body;
+    for (what, body, y) in [("an axis-touching cap", vessel(0.5, 0.4), 0.4)] {
+        let mut sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+            .expect("the sealed shell")
+            .body;
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
         let plane_of =
@@ -1722,7 +2254,10 @@ fn r2_probe_composed_door_vs_old_battery_on_a_check_9_body() {
         topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
             .expect("the counterpart chart lifts onto the mouth plane");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
-            sealed.kfmrh(rim, source).expect("the raw glue");
+            // Lifts RechartStrandsDescriptions: the old raw glue's body, stranded descriptions and all, is the probe's input.
+            sealed
+                .lifting_rechart_refusals_for_tests(|b| b.kfmrh(rim, source))
+                .expect("the raw glue");
         }
         let new_door = topo::validate_geometric(&sealed, tol).expect_err("must refuse");
         let old_door = topo::contact_marks(&sealed, tol).expect_err("must refuse");
@@ -1772,20 +2307,25 @@ fn r2_probe_other_two_passes_dump() {
         ("tube".into(), tube(0.30, 0.50, 0.40)),
         (
             "vessel_sealed".into(),
-            topo::shell(&vessel(0.5, 0.4), t, tol).expect("sealed").body,
+            topo::shell(&finished("the operand", vessel(0.5, 0.4), tol), t, tol)
+                .expect("sealed")
+                .body,
         ),
     ];
     corpus.push((
         "tube_sealed".into(),
-        topo::shell(&tube(0.30, 0.50, 0.40), t, tol)
-            .expect("sealed")
-            .body,
+        topo::shell(
+            &finished("the operand", tube(0.30, 0.50, 0.40), tol),
+            t,
+            tol,
+        )
+        .expect("sealed")
+        .body,
     ));
-    for (what, body, y) in [
-        ("corrupt_vessel", vessel(0.5, 0.4), 0.4),
-        ("corrupt_tube", tube(0.30, 0.50, 0.40), 0.40),
-    ] {
-        let mut sealed = topo::shell(&body, t, tol).expect("sealed").body;
+    for (what, body, y) in [("corrupt_vessel", vessel(0.5, 0.4), 0.4)] {
+        let mut sealed = topo::shell(&finished("the operand", body.clone(), tol), t, tol)
+            .expect("sealed")
+            .body;
         let mouth = plane_chart_at_y(&sealed, y);
         let counterpart = plane_chart_at_y(&sealed, y - t);
         let plane_of =
@@ -1798,7 +2338,12 @@ fn r2_probe_other_two_passes_dump() {
         let back = (o_onto - o_from).dot(n_from);
         topo::replace_faces_offset(&mut sealed, &counterpart, back, tol).expect("lift");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
-            sealed.kfmrh(rim, source).expect("glue");
+            let carried = sealed
+                .kfmrh_carried_redescriptions(rim, source)
+                .expect("the glue's restatements");
+            sealed
+                .kfmrh_describing(rim, source, &carried, tol)
+                .expect("glue");
         }
         corpus.push((what.into(), sealed));
     }
@@ -1831,69 +2376,53 @@ fn r2_probe_other_two_passes_dump() {
 /// half-edge without its stored pcurve, leaves the same edges naming a
 /// surface they no longer lie on — so check 2 fires first and the
 /// battery never reaches check 7 either. The probe above measures
-/// exactly that (`lost=0` on both bodies), and R1's corpus reproduces
-/// it on a third construction (a diagonal chord split, `ScaffoldAtRest`
-/// beside `Pcurve`).
+/// exactly that (`lost=0`), and R1's corpus reproduces it on a second
+/// construction (a diagonal chord split, `ScaffoldAtRest` beside
+/// `Pcurve`), which is this row's fixture.
 ///
 /// So the widening is **unobservable in-tree, not absent**, and what
 /// can honestly be pinned is the other half of the claim: on a body
-/// that fails checks 8/9, the composed door's vector is the battery's
+/// that fails check 8 or 9, the composed door's vector is the battery's
 /// vector — same errors, same order, nothing dropped and nothing
 /// reordered by the split. That is what this row asserts.
 #[test]
-fn the_composed_doors_vector_is_the_batterys_on_a_check_9_body() {
+fn the_composed_doors_vector_is_the_batterys_on_a_check_8_body() {
     let tol = Tol::witness();
-    let t = 0.05;
-    for (what, body, y) in [
-        ("an axis-touching cap", vessel(0.5, 0.4), 0.4),
-        ("an annular cap", tube(0.30, 0.50, 0.40), 0.40),
-    ] {
-        let mut sealed = topo::shell(&body, t, tol).expect("the sealed shell").body;
-        let mouth = plane_chart_at_y(&sealed, y);
-        let counterpart = plane_chart_at_y(&sealed, y - t);
-        let plane_of =
-            |b: &Body<f64>, f: FaceKey| match b.get_surface(b.get_face(f).expect("face").surface) {
-                Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
-                other => panic!("{what}: a non-planar cap: {other:?}"),
-            };
-        let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
-        let (o_onto, _) = plane_of(&sealed, mouth[0]);
-        let back = (o_onto - o_from).dot(n_from);
-        topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
-            .expect("the counterpart chart lifts onto the mouth plane");
-        for (&rim, &source) in mouth.iter().zip(&counterpart) {
-            sealed.kfmrh(rim, source).expect("the raw glue");
-        }
-        let composed = topo::validate_geometric(&sealed, tol).expect_err("the composed door");
-        let battery = topo::contact_marks(&sealed, tol).expect_err("the battery");
-        assert_eq!(
-            composed, battery,
-            "{what}: the split must not move or drop an error on a check-9 body"
-        );
-        // Non-vacuity in both directions: the body really does reach
-        // check 9, and check 2 really is what stops either pass short of
-        // check 7 — which is why the widening cannot be seen here.
-        assert!(
-            composed
-                .iter()
-                .any(|e| matches!(e, topo::ValidationError::RingMeetsOuter { .. })),
-            "{what}: the fixture must reach check 9"
-        );
-        assert!(
-            composed
-                .iter()
-                .any(|e| matches!(e, topo::ValidationError::DescriptionNotAdjacent { .. })),
-            "{what}: check 2 is what pre-empts check 7 in BOTH passes"
-        );
-        assert!(
-            !composed.iter().any(|e| matches!(
-                e,
-                topo::ValidationError::NegativeVolume { .. }
-                    | topo::ValidationError::VolumeUncomputable { .. }
-            )),
-            "{what}: neither pass reaches check 7, so the widening is invisible here"
-        );
-    }
+    // The chord split: no revolve cap reaches check 9 now that a full
+    // revolve builds its caps whole (`f64_only_corpus`'s docs).
+    let (what, sealed) = crate::common::cert_corpus::f64_only_corpus()
+        .into_iter()
+        .find(|(n, _)| n == "chord_split")
+        .expect("the corpus carries the chord split");
+    let composed = topo::validate_geometric(&sealed, tol).expect_err("the composed door");
+    let battery = topo::contact_marks(&sealed, tol).expect_err("the battery");
+    assert_eq!(
+        composed, battery,
+        "{what}: the split must not move or drop an error on a check-8 body"
+    );
+    // Non-vacuity in both directions: the body really does reach
+    // check 8, and check 2 really is what stops either pass short of
+    // check 7 — which is why the widening cannot be seen here.
+    assert!(
+        composed
+            .iter()
+            .any(|e| matches!(e, topo::ValidationError::Pcurve { .. })),
+        "{what}: the fixture must reach check 8"
+    );
+    assert!(
+        composed
+            .iter()
+            .any(|e| matches!(e, topo::ValidationError::ScaffoldAtRest { .. })),
+        "{what}: check 2 is what pre-empts check 7 in BOTH passes"
+    );
+    assert!(
+        !composed.iter().any(|e| matches!(
+            e,
+            topo::ValidationError::NegativeVolume { .. }
+                | topo::ValidationError::VolumeUncomputable { .. }
+        )),
+        "{what}: neither pass reaches check 7, so the widening is invisible here"
+    );
 }
 
 // =====================================================================
@@ -2004,9 +2533,16 @@ fn holed_box(side: f64, bore: f64, h: f64) -> Body<f64> {
     )
     .validate(Tol::witness())
     .expect("a square with a square hole is a valid profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("the holed square extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("the holed square extrudes")
+    .body
 }
 
 /// **The whole audit of one record, against the operand AND the result.**
@@ -2116,7 +2652,18 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
             .filter(|&t| body.get_face(t).is_some()),
     );
     for rim in &record.rims {
-        named.push(rim.rim);
+        // On a void designation the rim is a cavity twin, which the
+        // twin channel already names; so is a void band's every branch.
+        if rim.side == RimShell::Outer {
+            named.push(rim.rim);
+            // A seamed band keeps every face of its chart as a rim face.
+            named.extend(
+                rim.sources
+                    .iter()
+                    .copied()
+                    .filter(|&f| f != rim.rim && body.get_face(f).is_some()),
+            );
+        }
         named.extend(rim.holes.iter().map(|h| h.face));
     }
     let (named, dups) = sorted_dedup(&named);
@@ -2187,9 +2734,14 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
     // ---- rims.
     let mut designated_seen: Vec<FaceKey> = Vec::new();
     for rim in &record.rims {
+        let host_of = |f: FaceKey| match rim.side {
+            RimShell::Outer => Some(f),
+            RimShell::Void => record.inner_of(f),
+        };
         assert_eq!(
-            rim.rim, rim.sources[0],
-            "{what}: the rim is the FIRST designated face of its chart"
+            Some(rim.rim),
+            host_of(rim.sources[0]),
+            "{what}: the rim is the FIRST designated face of its chart, or its twin on a void"
         );
         for &src in &rim.sources {
             assert!(
@@ -2208,6 +2760,72 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
             );
         }
         let data = body.get_face(rim.rim).expect("the rim resolves");
+        if record.dead.loops.contains(&rim.ring) {
+            // A seamed band: the ring was absorbed into the band's outer
+            // loops, so its rows each lie on one of the band's faces —
+            // the designated chart's own on the outer shell, its twins on
+            // a void.
+            let faces: Vec<&topo::Face> = rim
+                .sources
+                .iter()
+                .filter_map(|&f| host_of(f))
+                .filter_map(|f| body.get_face(f))
+                .collect();
+            assert_eq!(
+                faces.len(),
+                rim.sources.len(),
+                "{what}: every branch survives"
+            );
+            assert!(
+                faces.iter().all(|f| f.rings.is_empty()),
+                "{what}: a seamed band carries no ring"
+            );
+            let band_e: Vec<topo::EdgeKey> = faces
+                .iter()
+                .flat_map(|f| loop_edges(body, f.outer))
+                .collect();
+            let band_v: Vec<topo::VertexKey> = faces
+                .iter()
+                .flat_map(|f| loop_vertices(body, f.outer))
+                .collect();
+            let bounding_e = boundary_edges(source, &rim.sources);
+            let bounding_v = boundary_vertices(source, &rim.sources);
+            for pair in &rim.ring_edges {
+                assert!(
+                    band_e.contains(&pair.0),
+                    "{what}: {pair:?} bounds no band face"
+                );
+                assert!(
+                    bounding_e.contains(&pair.1),
+                    "{what}: {pair:?} names no chart boundary"
+                );
+                assert!(
+                    match rim.side {
+                        RimShell::Outer => record.inner_edges.contains(pair),
+                        RimShell::Void => pair.0 == pair.1,
+                    },
+                    "{what}: {pair:?} reads neither as a twin row nor as the chart's own"
+                );
+            }
+            for pair in &rim.ring_vertices {
+                assert!(
+                    band_v.contains(&pair.0),
+                    "{what}: {pair:?} is no band corner"
+                );
+                assert!(
+                    bounding_v.contains(&pair.1),
+                    "{what}: {pair:?} names no chart corner"
+                );
+                assert!(
+                    match rim.side {
+                        RimShell::Outer => record.inner_vertices.contains(pair),
+                        RimShell::Void => pair.0 == pair.1,
+                    },
+                    "{what}: {pair:?} reads neither as a twin row nor as the chart's own"
+                );
+            }
+            continue;
+        }
         assert!(
             data.rings.contains(&rim.ring),
             "{what}: the row's ring is not a ring of the rim"
@@ -2215,6 +2833,7 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
         assert_ring_rows(
             what,
             "rim",
+            rim.side,
             source,
             body,
             record,
@@ -2235,6 +2854,7 @@ fn audit_record(what: &str, source: &Body<f64>, chart: &[FaceKey], shelled: &top
             assert_ring_rows(
                 what,
                 "hole",
+                rim.side,
                 source,
                 body,
                 record,
@@ -2284,6 +2904,7 @@ fn assert_dead_arena<K: Ord + Copy + core::fmt::Debug>(
 fn assert_ring_rows(
     what: &str,
     which: &str,
+    side: RimShell,
     source: &Body<f64>,
     body: &Body<f64>,
     record: &topo::ShellNaming,
@@ -2305,8 +2926,12 @@ fn assert_ring_rows(
     let bounding_e = boundary_edges(source, sources);
     for &pair in edges {
         assert!(
-            record.inner_edges.contains(&pair),
-            "{what}: the {which} row {pair:?} is not verbatim in inner_edges"
+            match side {
+                RimShell::Outer => record.inner_edges.contains(&pair),
+                RimShell::Void => pair.0 == pair.1,
+            },
+            "{what}: the {which} row {pair:?} is neither verbatim in inner_edges (outer) nor \
+             the chart's own (void)"
         );
         assert!(
             bounding_e.contains(&pair.1),
@@ -2317,8 +2942,12 @@ fn assert_ring_rows(
     let bounding_v = boundary_vertices(source, sources);
     for &pair in vertices {
         assert!(
-            record.inner_vertices.contains(&pair),
-            "{what}: the {which} vertex row {pair:?} is not verbatim in inner_vertices"
+            match side {
+                RimShell::Outer => record.inner_vertices.contains(&pair),
+                RimShell::Void => pair.0 == pair.1,
+            },
+            "{what}: the {which} vertex row {pair:?} is neither verbatim in inner_vertices \
+             (outer) nor the chart's own (void)"
         );
         assert!(
             bounding_v.contains(&pair.1),
@@ -2348,6 +2977,20 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
                 Some(geom::Surface::Plane { origin, .. }) if (origin.z - 0.6).abs() < 1e-12)
         })
         .collect();
+    let (capped, _, _) = capped_vessel(0.5, 0.6, 60.0);
+    let hollow = hollow_box();
+    let ceiling = plane_face_at(&hollow, 4.0 - 0.25);
+    let (hollow_cap, void_cap, _) = hollow_capped_vessel();
+    let capped_chart: Vec<FaceKey> = capped
+        .faces()
+        .filter(|(_, f)| {
+            matches!(
+                capped.get_surface(f.surface),
+                Some(geom::Surface::Sphere { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
     vec![
         (
             "the sealed box",
@@ -2371,19 +3014,32 @@ fn audit_cases() -> Vec<(&'static str, Body<f64>, Vec<FaceKey>, f64)> {
         ),
         ("the annular cup", tube_body, tube_chart, 0.05),
         ("the holed square cup", slab, slab_chart, 0.05),
+        ("the capped cup", capped, capped_chart, 0.05),
+        ("the hollow box's void ceiling", hollow, vec![ceiling], 0.05),
+        (
+            "the hollow capped vessel's void cap",
+            hollow_cap,
+            void_cap,
+            0.05,
+        ),
     ]
 }
 
 /// **The audit, over every arm and both cap shapes.** One row, seven
 /// operands: the sealed box, the box cup, the two-ended box, the
-/// revolved cup in each designation order, the revolve's slit annular
-/// cap, and an extruded holed square.
+/// revolved cup in each designation order, the revolve's annular cap,
+/// and an extruded holed square.
 #[test]
 fn the_record_reads_against_the_body_on_every_arm() {
     let tol = Tol::witness();
     for (what, source, chart, t) in audit_cases() {
-        let shelled = topo::shell_open(&source, t, &chart, tol)
-            .unwrap_or_else(|e| panic!("{what} must shell: {e}"));
+        let shelled = topo::shell_open(
+            &finished("the operand", source.clone(), tol),
+            t,
+            &chart,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{what} must shell: {e}"));
         audit_record(what, &source, &chart, &shelled);
     }
 }
@@ -2397,7 +3053,8 @@ fn the_sealed_boxs_record_names_every_wall_and_its_twin() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
     let tol = Tol::witness();
     let source = block(w, d, h, Tol::witness());
-    let shelled = topo::shell(&source, t, tol).expect("the box shells");
+    let shelled =
+        topo::shell(&finished("the operand", source.clone(), tol), t, tol).expect("the box shells");
     let (body, record) = (&shelled.body, &shelled.naming);
     let roles = face_roles(body);
     let role = |face: FaceKey| {
@@ -2431,20 +3088,25 @@ fn the_sealed_boxs_record_names_every_wall_and_its_twin() {
     );
 }
 
-/// **The revolved cup's rim row, read against the surgery.** `dead` is
-/// non-empty on BOTH sides of the glue and in every arena the chart
-/// reduction touches — which is what says the retirements were written
-/// at the Euler calls rather than inferred afterwards from what stopped
-/// resolving. Exactness is the audit row's; this row is about which
-/// arenas are reached at all.
+/// **The revolved cup's rim row, read against the surgery.** The full
+/// revolve builds the mouth disc whole, so the chart reduction has
+/// nothing to merge on either side: what retires is the counterpart
+/// disc the glue consumes and the cavity shell that fuses into the
+/// outer one — written at the Euler calls, and nothing else.
 #[test]
-fn the_revolved_cups_surgery_retires_on_both_sides() {
+fn the_revolved_cups_surgery_retires_the_counterpart_and_the_cavity_shell() {
     let tol = Tol::witness();
     let (r, h, t) = (0.5, 0.4, 0.05);
     let source = vessel(r, h);
     let chart = plane_chart_at_y(&source, h);
-    assert_eq!(chart.len(), 2, "a full revolve's cap is two half-discs");
-    let shelled = topo::shell_open(&source, t, &chart, tol).expect("the drum opens");
+    assert_eq!(chart.len(), 1, "a full revolve builds its cap whole");
+    let shelled = topo::shell_open(
+        &finished("the operand", source.clone(), tol),
+        t,
+        &chart,
+        tol,
+    )
+    .expect("the drum opens");
     let record = &shelled.naming;
 
     assert_eq!(record.rims.len(), 1, "one designated chart, one rim");
@@ -2452,12 +3114,15 @@ fn the_revolved_cups_surgery_retires_on_both_sides() {
     assert_eq!(rim.sources, chart, "the row names the designation");
     assert!(rim.holes.is_empty(), "a disc mouth has no hole to promote");
 
-    // Two half-discs merge on each side, and the counterpart dies.
-    assert_eq!(record.dead.faces.len(), 3, "{:?}", record.dead.faces);
-    // A seam edge dies on each side (kef), and the apex spur with it.
-    assert_eq!(record.dead.edges.len(), 4, "{:?}", record.dead.edges);
-    assert_eq!(record.dead.vertices.len(), 2, "{:?}", record.dead.vertices);
-    assert_eq!(record.dead.loops.len(), 2, "{:?}", record.dead.loops);
+    // The counterpart disc dies; no edge, vertex or loop does.
+    assert_eq!(record.dead.faces.len(), 1, "{:?}", record.dead.faces);
+    assert!(record.dead.edges.is_empty(), "{:?}", record.dead.edges);
+    assert!(
+        record.dead.vertices.is_empty(),
+        "{:?}",
+        record.dead.vertices
+    );
+    assert!(record.dead.loops.is_empty(), "{:?}", record.dead.loops);
     assert_eq!(
         record.dead.shells.len(),
         1,
@@ -2467,22 +3132,24 @@ fn the_revolved_cups_surgery_retires_on_both_sides() {
 
 /// **The hole rows.** A designated face carrying a hole yields one
 /// extra rim region per hole. The row's `ring` is a RESULT loop key —
-/// the operand's own ring on an extruded slab, a loop `kemr` minted
-/// during the chart reduction on a revolve's slit cap — so the row a
-/// consumer names the hole by is the edge-level one, which this checks
-/// resolves back to operand edges on both shapes.
+/// here the operand's own ring, on a revolve's annular cap and on an
+/// extruded slab alike — and the row a consumer names the hole by is
+/// the edge-level one, which this checks resolves back to operand edges
+/// on both shapes.
 #[test]
 fn a_designated_face_with_a_hole_records_its_promoted_rim() {
     let tol = Tol::witness();
     let (ri, ro, h, t) = (0.30, 0.50, 0.40, 0.05);
-    let slit = tube(ri, ro, h);
-    let slit_chart = plane_chart_at_y(&slit, h);
-    assert!(
-        slit.get_face(slit_chart[0])
+    let annular = tube(ri, ro, h);
+    let annular_chart = plane_chart_at_y(&annular, h);
+    assert_eq!(
+        annular
+            .get_face(annular_chart[0])
             .expect("the cap")
             .rings
-            .is_empty(),
-        "a full revolve of a closed meridian slits its cap: no ring in the operand"
+            .len(),
+        1,
+        "a full revolve builds its annular cap whole: the bore is the operand's ring"
     );
     let seamless = holed_box(1.0, 0.4, 0.6);
     let seamless_chart: Vec<FaceKey> = seamless
@@ -2497,11 +3164,16 @@ fn a_designated_face_with_a_hole_records_its_promoted_rim() {
     assert_eq!(seamless_chart.len(), 1, "one holed mouth face");
 
     for (what, source, chart, t, ring_is_the_operands) in [
-        ("the slit annular cap", slit, slit_chart, t, false),
+        ("the annular cap", annular, annular_chart, t, true),
         ("the holed square", seamless, seamless_chart, 0.05, true),
     ] {
-        let shelled = topo::shell_open(&source, t, &chart, tol)
-            .unwrap_or_else(|e| panic!("{what} must open: {e}"));
+        let shelled = topo::shell_open(
+            &finished("the operand", source.clone(), tol),
+            t,
+            &chart,
+            tol,
+        )
+        .unwrap_or_else(|e| panic!("{what} must open: {e}"));
         let (body, record) = (&shelled.body, &shelled.naming);
         let rim = &record.rims[0];
         assert_eq!(rim.holes.len(), 1, "{what}: one hole to pair");
@@ -2545,17 +3217,22 @@ fn the_record_is_a_function_of_the_construction() {
     let tol = Tol::witness();
     for (what, source, chart, t) in audit_cases() {
         let build = || {
-            topo::shell_open(&source, t, &chart, tol)
-                .unwrap_or_else(|e| panic!("{what}: {e}"))
-                .naming
+            topo::shell_open(
+                &finished("the operand", source.clone(), tol),
+                t,
+                &chart,
+                tol,
+            )
+            .unwrap_or_else(|e| panic!("{what}: {e}"))
+            .naming
         };
         assert_eq!(build(), build(), "{what}: the record is not deterministic");
     }
 }
 
 // **The ring-edge lookup's refusal has no row here, deliberately.** A
-// ring edge with no `inner_edges` row is `ShellError::Corrupt`, and it
-// is not constructible through these doors: the ring `kfmrh` returns is
+// ring edge with no `inner_edges` row is a kernel bug the verb panics
+// on, naming the edge (D2 row 4), and it is not constructible through these doors: the ring `kfmrh` returns is
 // the cavity counterpart's own outer loop, and the graft map wrote a
 // row for every cavity entity before the surgery began. Reaching it
 // would take a hand-built body planted past the doors, which would pin

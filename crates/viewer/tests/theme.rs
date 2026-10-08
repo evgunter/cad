@@ -1,10 +1,10 @@
 //! The palette's own invariants — the rows that hold whatever colours
 //! a theme happens to state.
 //!
-//! Every row here runs with **no `app` feature**: `viewer::theme` names
-//! no toolkit, so the palette is asserted on in ordinary headless CI
-//! with neither `egui` nor `wgpu` compiled. That is the whole reason
-//! the module sits outside `app`.
+//! `viewer::theme` names no toolkit, so the palette is asserted on in
+//! ordinary headless CI with neither `egui` nor `wgpu` compiled. A row
+//! that measures a colour against the chrome egui draws reads egui's
+//! own `Visuals`, and is gated on the `app` feature.
 //!
 //! The colourblind check lives at the bottom, in [`cvd`]. It runs
 //! only over themes that CLAIM [`Safety::ColorblindSafe`] — a palette
@@ -399,6 +399,40 @@ fn a_claimed_theme_has_as_much_shading_range_as_the_light_neutral_one() {
     }
 }
 
+/// **The loud row stays loud for every reader its theme claims.**
+///
+/// [`Theme::actionable`] is the one chrome colour a palette states,
+/// and what it carries is salience, not meaning: the row to act on is
+/// drawn in it, and a row showing someone else's failure is drawn in
+/// egui's weak text beside ordinary text. So it is measured against
+/// the three things it is seen with: the panel behind it, plain text
+/// and weak text, each read from egui's own `Visuals` for the theme's
+/// polarity rather than copied into the palette, and weak text
+/// composited over the panel, since egui states it translucent.
+///
+/// Under the vision types the theme claims ([`cvd`]'s `kinds_of`): a
+/// [`Safety::ColorblindSafe`] palette under all three dichromacies,
+/// any other palette under normal vision only.
+#[cfg(feature = "app")]
+#[test]
+fn the_actionable_voice_is_told_from_the_panel_and_both_text_voices() {
+    for theme in Theme::ALL {
+        let measured = cvd::actionable_against_the_chrome(theme);
+        for (pair, d) in &measured {
+            println!("{}: actionable/{pair}: {d:.4}", theme.name);
+        }
+        for (pair, d) in measured {
+            assert!(
+                d >= cvd::MIN_SEPARATION,
+                "{}: actionable/{pair} separated by only {d:.4} in OKLab, under the \
+                 suite's {:.4} bar",
+                theme.name,
+                cvd::MIN_SEPARATION,
+            );
+        }
+    }
+}
+
 /// The simulation, and the rows that check the oracle before the
 /// oracle is used to check anything else.
 ///
@@ -713,6 +747,78 @@ mod cvd {
             }
         }
         worst
+    }
+
+    /// egui's panel, plain text and weak text for `theme`'s polarity,
+    /// each as the opaque colour the eye receives over the panel.
+    ///
+    /// egui states weak text as plain text at a fraction of its alpha,
+    /// premultiplied, so it is composited over the panel in the display
+    /// encoding, where the gamma-space framebuffer blends it.
+    #[cfg(feature = "app")]
+    pub(super) fn chrome_voices(theme: &Theme) -> [(&'static str, Rgba8); 3] {
+        use viewer::theme::Polarity;
+        let visuals = match theme.polarity {
+            Polarity::Light => egui::Visuals::light(),
+            Polarity::Dark => egui::Visuals::dark(),
+        };
+        let panel = visuals.panel_fill;
+        assert_eq!(panel.a(), 255, "{}: egui's panel is opaque", theme.name);
+        let over_panel = |c: egui::Color32| {
+            let under = |ch: u8, p: u8| {
+                let blended = f32::from(ch) + f32::from(p) * (1.0 - f32::from(c.a()) / 255.0);
+                // A premultiplied channel never exceeds its alpha, so
+                // this is in [0, 255]; the clamp is the cast's range.
+                blended.round().clamp(0.0, 255.0) as u8
+            };
+            Rgba8::opaque(
+                under(c.r(), panel.r()),
+                under(c.g(), panel.g()),
+                under(c.b(), panel.b()),
+            )
+        };
+        [
+            ("panel", over_panel(panel)),
+            ("plain text", over_panel(visuals.text_color())),
+            ("weak text", over_panel(visuals.weak_text_color())),
+        ]
+    }
+
+    /// [`Theme::actionable`] against [`chrome_voices`] under each vision
+    /// type the theme claims, every pair named.
+    #[cfg(feature = "app")]
+    pub(super) fn actionable_against_the_chrome(theme: &Theme) -> Vec<(String, f64)> {
+        let color = |c: Rgba8| {
+            let [r, g, b] = linear(c);
+            Color::new(f64::from(r), f64::from(g), f64::from(b))
+        };
+        let actionable = color(theme.actionable);
+        let mut out = Vec::new();
+        for (name, against) in chrome_voices(theme) {
+            for kind in kinds_of(theme) {
+                let d = distance(seen(actionable, *kind), seen(color(against), *kind));
+                out.push((format!("{name} under {}", name_of(*kind)), d));
+            }
+        }
+        out
+    }
+
+    /// **Weak text is composited as the premultiplied colour it is.**
+    /// egui's light visuals draw plain text in grey 80 on a grey 248
+    /// panel, and weak text at 0.6 of plain text's alpha, so the eye
+    /// gets 80 × 0.6 + 248 × 0.4 = 147.2. Reading egui's premultiplied
+    /// bytes as straight alpha would give 128 instead.
+    #[cfg(feature = "app")]
+    #[test]
+    fn weak_text_is_composited_premultiplied_over_the_panel() {
+        let light = Theme::ALL
+            .iter()
+            .find(|theme| theme.polarity == viewer::theme::Polarity::Light)
+            .expect("a light theme is registered");
+        let [panel, text, weak] = chrome_voices(light);
+        assert_eq!(panel, ("panel", Rgba8::opaque(248, 248, 248)));
+        assert_eq!(text, ("plain text", Rgba8::opaque(80, 80, 80)));
+        assert_eq!(weak, ("weak text", Rgba8::opaque(147, 147, 147)));
     }
 
     /// No deficiency is no change.

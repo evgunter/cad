@@ -33,10 +33,11 @@
 //! the chooser needs from a session arrives as [`PartCensus`], which
 //! the session mints.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use pncad::document::DocumentId;
-use pncad::workspace::WorkspaceError;
+use pncad::workspace::Workspace;
 
 use crate::docio::DirResolver;
 use crate::frame::Tone;
@@ -78,15 +79,21 @@ impl PartEntry {
     /// when the path names no file (which the scan cannot produce, and
     /// which is shown rather than hidden if it ever does).
     pub fn file_name(&self) -> String {
-        self.path.file_name().map_or_else(
-            || self.path.display().to_string(),
-            |n| n.to_string_lossy().into_owned(),
-        )
+        file_name(&self.path)
     }
 }
 
-/// The documents the resolver's directory offers as parts, with the
-/// open document's own entry marked.
+/// A path's file name, as the chrome names a document — the whole path
+/// when it names no file.
+fn file_name(path: &Path) -> String {
+    path.file_name().map_or_else(
+        || path.display().to_string(),
+        |n| n.to_string_lossy().into_owned(),
+    )
+}
+
+/// The documents one scan of the session's store offers as parts, with
+/// the open document's own entry marked.
 ///
 /// **Ordered by FILE NAME**, with the id as the tie-break. The
 /// workspace answers a `BTreeMap<DocumentId, _>`, so its own iteration
@@ -96,18 +103,11 @@ impl PartEntry {
 /// id tie-break keeps two same-named files (different directories
 /// cannot arise here, but a rename race can) in a deterministic order.
 ///
-/// # Errors
-///
-/// The scan's own refusal, verbatim — [`WorkspaceError::DuplicateId`]
-/// naming both claimants, [`WorkspaceError::Header`] naming an
-/// unreadable sibling, [`WorkspaceError::Io`] naming the directory.
-/// The catalogue never partially succeeds: a directory that is not a
-/// healthy store cannot answer "which parts are here" honestly.
-pub fn catalogue(
-    resolver: &DirResolver,
-    open: DocumentId,
-) -> Result<Vec<PartEntry>, WorkspaceError> {
-    let workspace = resolver.workspace()?;
+/// It takes the store already scanned, so the scan's refusal — a
+/// duplicate id, an unreadable sibling, an unreadable directory — is
+/// the caller's to say, and the catalogue never partially succeeds: a
+/// directory that is not a healthy store answers no listing at all.
+pub fn catalogue(workspace: &Workspace, open: DocumentId) -> Vec<PartEntry> {
     let mut entries: Vec<PartEntry> = workspace
         .documents()
         .iter()
@@ -120,7 +120,7 @@ pub fn catalogue(
         })
         .collect();
     entries.sort_by(|a, b| a.file_name().cmp(&b.file_name()).then(a.id.cmp(&b.id)));
-    Ok(entries)
+    entries
 }
 
 /// The `Add part…` chooser's held state: the catalogue as of its
@@ -214,5 +214,110 @@ impl PartChooser {
             Ok(entries) if !entries.is_empty() => Tone::Advisory,
             Ok(_) | Err(_) => Tone::Actionable,
         }
+    }
+}
+
+/// **Which file each document in the session's directory is**, by file
+/// name: how the feature tree names a part, where the document layer
+/// can only name it by its id.
+///
+/// A snapshot of one scan, like [`PartCensus`], and for the same
+/// reason: the tree is drawn every frame and a scan reads every file's
+/// header. The session takes it when a run lands, the moment its
+/// resolver has just read the same directory, so a file renamed or
+/// removed on disk is named as it was until the next landing.
+///
+/// It says which of three things it knows, and a surface names a part
+/// by that, never by its id ([`PartFiles::name`]): no scan yet, a scan
+/// that refused, or a scan that found no file for this id.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum PartFiles {
+    /// No scan has been taken: the session has landed no run of a
+    /// document that instantiates a part.
+    #[default]
+    Unscanned,
+    /// The directory could not be scanned. The refusal is not lost: the
+    /// same scan refuses every resolution through that directory, typed,
+    /// on the instance rows it reaches.
+    Refused,
+    /// One scan's file names, by document id. A session with no
+    /// directory has scanned nothing, so it names no file.
+    Scanned(BTreeMap<DocumentId, String>),
+}
+
+impl PartFiles {
+    /// What a surface names a part before any scan.
+    pub const UNSCANNED: &str = "part files not read yet";
+    /// What a surface names a part when the scan refused.
+    pub const REFUSED: &str = "part files unreadable";
+    /// What a surface names a part the scan found no file for.
+    pub const NO_FILE: &str = "no file for this part";
+
+    /// The file names one scan of `workspace` found.
+    #[must_use]
+    pub fn of(workspace: &Workspace) -> Self {
+        Self::Scanned(
+            workspace
+                .documents()
+                .iter()
+                .map(|(&id, path)| (id, file_name(path)))
+                .collect(),
+        )
+    }
+
+    /// One scan of `resolver`'s directory; with no directory, a scan
+    /// that found nothing.
+    #[must_use]
+    pub fn scanned(resolver: Option<&DirResolver>) -> Self {
+        match resolver.map(DirResolver::workspace) {
+            None => Self::Scanned(BTreeMap::new()),
+            Some(Ok(workspace)) => Self::of(&workspace),
+            Some(Err(_)) => Self::Refused,
+        }
+    }
+
+    /// The file `id` lives in, by name, or which of the three things
+    /// this value knows instead.
+    #[must_use]
+    pub fn name(&self, id: DocumentId) -> &str {
+        match self {
+            Self::Unscanned => Self::UNSCANNED,
+            Self::Refused => Self::REFUSED,
+            Self::Scanned(files) => files.get(&id).map_or(Self::NO_FILE, String::as_str),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PartFiles;
+    use crate::docio::DirResolver;
+    use pncad::document::DocumentId;
+
+    /// **What a part is named by says which of three things is known**:
+    /// no scan yet, a scan that refused, or a scan with no file for the
+    /// id — never one of them in the words of another.
+    #[test]
+    fn a_part_with_no_name_says_why() {
+        let id = DocumentId::derive("parts-three-states");
+        let missing = std::env::temp_dir().join("parts-three-states-no-such-directory");
+        assert!(!missing.exists(), "the fixture path names no directory");
+        let refused = PartFiles::scanned(Some(&DirResolver::new(missing)));
+        assert_eq!(
+            refused,
+            PartFiles::Refused,
+            "a directory that cannot be read"
+        );
+        let none = PartFiles::scanned(None);
+        let named = [
+            PartFiles::Unscanned.name(id),
+            refused.name(id),
+            none.name(id),
+        ];
+        assert_eq!(
+            named,
+            [PartFiles::UNSCANNED, PartFiles::REFUSED, PartFiles::NO_FILE],
+            "each state names the part in its own words"
+        );
     }
 }

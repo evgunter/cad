@@ -4,6 +4,7 @@ kind: issue
 title: A seam chord bordering a merged face that holds several faces of one operand has no naming rule
 status: open
 opened: 2026-09-28
+priority: P0
 ---
 
 
@@ -46,3 +47,107 @@ corpus reaches that arm (`emit_topo`'s `([_], [], _, _)` in the seam
 vertex pass); only `display_contract` and the concision rows pin its
 sentence. A search over seven variants of the split fixture found none.
 Whether the arm is still reachable is part of this row.
+
+## The arm is reachable (EMIT, 2026-09-29, on origin/main `f207b7e118`)
+
+`NamingError::SeamVertexParentage` has live end-to-end witnesses again:
+the three `wire_legal_union_refusals::no_order_of_…_refuses_a_fold_contact`
+rows reach it. Each row puts a block covering `a`'s top cap over the
+split fixture's area-overlap declaration (`a` against `s` on the two
+y-walls), and pins every member order:
+- `{a, s, big}`: 2 of 6 orders, `[a,big,s]` and `[big,a,s]`;
+- `{a, s, big, p}`: 8 of 24, every order that folds `big` into `a`
+  before `s` joins;
+- the split fixture plus `big`: 18 of 24.
+
+Before CONTACT-8, 25 of those 28 orders already refused
+`SeamVertexParentage`, so the merge's glue did not reach them. The
+other three (`[s,a,big,c]`, `[s,big,a,c]` and `[big,s,a,c]` of the
+split fixture) refused at an earlier step, a fold step's contact
+verdict (`work/emit/a-legal-union-refuses-a-fold-minted-contact-verdict-in-some-member-orders`).
+The rows name this row as the owner, and a fix flips their entries to
+`Fused`.
+
+## A pair boolean reaches it with no declaration (EMIT, 2026-09-30)
+
+A slot subtracted across a cylinder boss sunk into a plate reaches
+this refusal on an everyday recipe, which is why this row is now P0:
+- plate `[0,3]² × [0,1]`; boss of radius 0.3 about (1.5, 1.5), z 0.5
+  to 1.5, drawn as `circle_split(.., 2, ..)`, so its wall is two
+  semicircular pieces; the two joined by a pair union or a `Union` in
+  either member order;
+- slab x 1.4 to 1.6, y −1 to 4, z 0.8 to 2.0, subtracted.
+
+The slab cuts each wall piece in two, and the subtract merges the two
+cosurface pieces on each side of the slot. Each merged face holds
+BOTH boss pieces, so the chord where a slab wall meets it has two
+A-side constituents. It refused `Duplicate` at the face pass until
+`a-slot-across-a-sunk-cylinder-boss-refuses-duplicate-merged-face-name`
+closed; it now reaches `chord_descent`.
+`emit_union_borders::a_slot_across_a_sunk_boss_divides_its_merged_wall_by_the_slot_walls`
+pins it, and the chord rule flips its expectation.
+
+A UNION reaches it too: joining the same plate and boss to a bar at
+x 1.4 to 1.6, y 0.5 to 2.5, z 0.8 to 2.0 with a plain pair union
+refuses `MergedChordConstituents { several: 2 }` as well. The bar
+passes through the boss wall on both sides, so each merged wall face
+again holds both boss pieces. Measured on PR 3547's head.
+
+What it adds to the rule: the two constituents lie on ONE curved
+surface, so the pick cannot read carriers. It has to ask which
+constituent's operand face holds the chord as a region, on a cylinder.
+`topo::point_in_face` answers for planar faces only
+(`KindUnsupported` otherwise), so the pick needs a curved in-face test
+or a combinatorial record of which pre-merge face the chord bordered.
+
+A `PlacedUnion` operand reaches it with planar faces only (SHOW,
+2026-10-02, measured against the heat-sink recipe of
+`demos/tour/src/heatsink.rs`): a `3 × 1 × 0.25` base and five
+`0.1875 × 1` fins standing flush on it and running its full depth, so
+each fin's two end faces are coplanar with the base's long side faces.
+`find_flush_candidates(base, group)` reports 15 pairs (five feet
+`Rest`, ten end walls `SameOriented`); declaring all 15 and unioning
+refuses `Naming(MergedChordConstituents { several: 5 })`. Each merged
+side face holds the five fins' end faces from the one group operand.
+This is the shape a real extruded heat sink has; the tour's scene
+stops its fins 1/8 short of the long sides.
+
+## Now on the document crosslap's path (REACH, 2026-10-01)
+
+Since the continuation ruling (PR 3613, built on
+`reach/cosurface-continuation`) an undeclared continuation refuses at
+the reduction. The north-star crosslap's beams have four: their tops
+and bottoms carry on into each other across the notch edges. Declaring
+only the mate (the five `Rest` findings) now refuses
+`undeclared_contact` on one of them, and following the menu to its end
+(all nine findings declared) reaches this row's
+`merged_chord_constituents`. So the document-layer crosslap, which used
+to glue on the mate alone (to a body whose coplanar tops and bottoms
+were left unmerged), waits on this rule. The kernel tour's crosslap
+declares the whole inventory and glues; only the naming layer stops.
+Pinned in `crates/pncad-py/tests/test_north_star.py`
+(`TestCrosslapAtTheNamingWall`).
+
+## More orders once declarations stop refusing by order (EMIT, 2026-10-06)
+
+Once `DeclareResolve` stops refusing by order (INTENT's stage 4, or a
+fan-out), `NamingError::SeamVertexParentage` gains `near` (the ZIP
+document, `emit_union_flush_names.rs`) `[0,2,1]` and `[2,0,1]`, which
+refuse `DeclareResolve` today. Measured in
+`work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`,
+"Re-measured on main (2026-10-06)".
+
+## The arm loses its witnesses again (FUSE, 2026-10-06, `fuse/set-names`)
+
+With maximal edges at every boolean output stage (PR 4140) and joined
+edges named for the set of the edges they cover, every
+`SeamVertexParentage` order in the three
+`wire_legal_union_refusals::no_order_of_…_refuses_a_fold_contact` rows
+fuses at the volume the geometry says: 2 of 6, 8 of 24 and 18 of 24
+orders flip to `Fused`. The vertex the arm refused was a cut vertex
+the join now removes, or a vertex on a joined edge that the set's
+constituents now name. No document in the editor-core suite reaches
+`emit_topo`'s `([_], [], _, _)` arm on that branch; only
+`display_contract` and the concision rows pin its sentence. The
+`MergedChordConstituents` orders of the split fixture (`[c,s,a,big]`)
+remain, and are this row's subject.

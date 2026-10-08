@@ -23,6 +23,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
 use editor_core::{
     Alignment, AssemblyError, AxisSense, CapEnd, ChecksConfig, ContactClass, DocEdit, DocRef,
@@ -52,19 +55,19 @@ fn block(
         Node::Extrude {
             profile: p,
             distance: len(dz),
+            side: ExtrudeSide::Along,
         },
     )
 }
 
-fn cube_part(label: &str) -> ProfileDoc {
-    let (doc, _) = block(
+fn cube_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
+    block(
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
         (0.0, 1.0),
         (0.0, 1.0),
         0.0,
         1.0,
-    );
-    doc
+    )
 }
 
 /// A reference whose inner name answers to nothing of the part —
@@ -76,7 +79,7 @@ fn vanished(instance: RecipeNodeId) -> StableName {
         path: vec![RoleSeg::InPart {
             of: StableName {
                 kind: EntityKind::Face,
-                node: RecipeNodeId(99),
+                node: RecipeNodeId::new(0, 99),
                 path: vec![RoleSeg::Cap(CapEnd::End)],
             }
             .into(),
@@ -84,20 +87,12 @@ fn vanished(instance: RecipeNodeId) -> StableName {
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    }
+fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0], geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
-fn mate_node(
-    a: StableName,
-    b: StableName,
-    class: ContactClass,
-    seat: f64,
-) -> Node<editor_core::ProfileProgram> {
+fn mate_node(a: StableName, b: StableName, class: ContactClass, seat: f64) -> AuthoredNode {
     Node::Mate {
         a: crate::fixture::head(a),
         b: crate::fixture::head(b),
@@ -112,7 +107,13 @@ fn mate_node(
     }
 }
 
-fn stand(label: &str, part: DocRef, seat: f64) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
+/// Two instances of `part`, whose body is `body`, seated at `seat`.
+fn stand(
+    label: &str,
+    part: DocRef,
+    body: RecipeNodeId,
+    seat: f64,
+) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..2 {
@@ -123,12 +124,13 @@ fn stand(label: &str, part: DocRef, seat: f64) -> (ProfileDoc, Vec<RecipeNodeId>
     let (doc, mate) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_node(
-                in_part(ids[0], CapEnd::End),
-                in_part(ids[1], CapEnd::Start),
+            node: Box::new(mate_node(
+                in_part(ids[0], body, CapEnd::End),
+                in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Rest,
                 seat,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     (doc, ids, mate.expect("the mate inserts"))
@@ -150,9 +152,12 @@ fn row_of(
             let dx = spacing * i as f64;
             let (next, _) = step(
                 doc,
-                DocEdit::SetPlacement {
-                    node: id,
-                    frame: Frame::translation([dx, 0.0, 0.0]),
+                DocEdit::SetOffset {
+                    instance: id,
+                    offset: Some(editor_core::Placement::literal(&Frame::translation([
+                        dx, 0.0, 0.0,
+                    ]))),
+                    fresh: Vec::new(),
                 },
             );
             doc = next;
@@ -193,28 +198,30 @@ fn headline(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Strin
 #[test]
 fn p1_both_bad_mates_refuse_badref_heading_the_list() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("m6r2-p1-cube"), Tol::witness());
-    let (doc, ids, _) = stand("m6r2-p1-stand", part, 1.5);
+    let (part, body) = store.insert_part(cube_part("m6r2-p1-cube"), Tol::witness());
+    let (doc, ids, _) = stand("m6r2-p1-stand", part, body, 1.5);
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_node(
+            node: Box::new(mate_node(
                 vanished(ids[0]),
-                in_part(ids[1], CapEnd::Start),
+                in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Rest,
                 1.5,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_node(
-                in_part(ids[0], CapEnd::End),
-                in_part(ids[1], CapEnd::Start),
+            node: Box::new(mate_node(
+                in_part(ids[0], body, CapEnd::End),
+                in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Tangent,
                 1.5,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -239,28 +246,30 @@ fn p1_both_bad_mates_refuse_badref_heading_the_list() {
 #[test]
 fn p2_both_bad_mates_refuse_tangent_heading_the_list() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("m6r2-p2-cube"), Tol::witness());
-    let (doc, ids, _) = stand("m6r2-p2-stand", part, 1.5);
+    let (part, body) = store.insert_part(cube_part("m6r2-p2-cube"), Tol::witness());
+    let (doc, ids, _) = stand("m6r2-p2-stand", part, body, 1.5);
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_node(
-                in_part(ids[0], CapEnd::End),
-                in_part(ids[1], CapEnd::Start),
+            node: Box::new(mate_node(
+                in_part(ids[0], body, CapEnd::End),
+                in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Tangent,
                 1.5,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_node(
+            node: Box::new(mate_node(
                 vanished(ids[0]),
-                in_part(ids[1], CapEnd::Start),
+                in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Rest,
                 1.5,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -283,8 +292,8 @@ fn p2_both_bad_mates_refuse_tangent_heading_the_list() {
 #[test]
 fn p3_checks_over_the_seam_document() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("m6r2-p3-cube"), Tol::witness());
-    let (inner, _, _) = stand("m6r2-p3-stand", part, 1.0);
+    let (part, body) = store.insert_part(cube_part("m6r2-p3-cube"), Tol::witness());
+    let (inner, _, _) = stand("m6r2-p3-stand", part, body, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p3-row", inner_ref, 3, 4.0);
     let ev = run(&outer, &with_resolver(store));
@@ -301,8 +310,8 @@ fn p3_checks_over_the_seam_document() {
 #[test]
 fn p4_checks_over_a_correctly_mated_document() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("m6r2-p4-cube"), Tol::witness());
-    let (doc, _, _) = stand("m6r2-p4-stand", part, 1.0);
+    let (part, body) = store.insert_part(cube_part("m6r2-p4-cube"), Tol::witness());
+    let (doc, _, _) = stand("m6r2-p4-stand", part, body, 1.0);
     let ev = run(&doc, &with_resolver(store));
     let report =
         run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("the checks run");
@@ -320,7 +329,7 @@ fn p4_checks_over_a_correctly_mated_document() {
 #[test]
 fn p5_checks_with_a_bad_mate_before_a_good_one() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("m6r2-p5-cube"), Tol::witness());
+    let (part, body) = store.insert_part(cube_part("m6r2-p5-cube"), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive("m6r2-p5"), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..3 {
@@ -332,21 +341,25 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
     // (unmintable, and not touching, so it contributes no pair).
     let (next, _) = step(
         doc,
-        DocEdit::SetPlacement {
-            node: ids[2],
-            frame: Frame::translation([10.0, 0.0, 0.0]),
+        DocEdit::SetOffset {
+            instance: ids[2],
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                10.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
         },
     );
     doc = next;
     let (next, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_node(
-                in_part(ids[2], CapEnd::End),
-                in_part(ids[1], CapEnd::Start),
+            node: Box::new(mate_node(
+                in_part(ids[2], body, CapEnd::End),
+                in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Tangent,
                 5.0,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     doc = next;
@@ -354,12 +367,13 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
     let (doc, _) = step(
         doc,
         DocEdit::InsertNode {
-            node: mate_node(
-                in_part(ids[0], CapEnd::End),
-                in_part(ids[1], CapEnd::Start),
+            node: Box::new(mate_node(
+                in_part(ids[0], body, CapEnd::End),
+                in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Rest,
                 1.0,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let ev = run(&doc, &with_resolver(store));
@@ -377,8 +391,8 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
 #[test]
 fn p6_carried_penetration_is_loud() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("m6r2-p6-cube"), Tol::witness());
-    let (inner, _, _) = stand("m6r2-p6-stand", part, 0.5);
+    let (part, body) = store.insert_part(cube_part("m6r2-p6-cube"), Tol::witness());
+    let (inner, _, _) = stand("m6r2-p6-stand", part, body, 0.5);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p6-row", inner_ref, 1, 4.0);
     let ev = run(&outer, &with_resolver(store));
@@ -393,8 +407,8 @@ fn p6_carried_penetration_is_loud() {
 #[test]
 fn p7_seam_gate_by_arm() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("m6r2-p7-cube"), Tol::witness());
-    let (inner, _, _) = stand("m6r2-p7-stand", part, 1.0);
+    let (part, body) = store.insert_part(cube_part("m6r2-p7-cube"), Tol::witness());
+    let (inner, _, _) = stand("m6r2-p7-stand", part, body, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p7-row", inner_ref, 3, 4.0);
     let ev = run(&outer, &with_resolver(store));
@@ -427,7 +441,7 @@ fn p7_seam_gate_by_arm() {
 #[test]
 fn p8_inner_mint_refusals_reach_the_outer_gate() {
     let mut store = PartStore::default();
-    let part = store.insert(cube_part("m6r2-p8-cube"), Tol::witness());
+    let (part, body) = store.insert_part(cube_part("m6r2-p8-cube"), Tol::witness());
     let mut inner = ProfileDoc::empty(DocumentId::derive("m6r2-p8-stand"), Tol::witness());
     let mut ids = Vec::new();
     for _ in 0..2 {
@@ -438,12 +452,13 @@ fn p8_inner_mint_refusals_reach_the_outer_gate() {
     let (inner, _) = step(
         inner,
         DocEdit::InsertNode {
-            node: mate_node(
-                in_part(ids[0], CapEnd::End),
-                in_part(ids[1], CapEnd::Start),
+            node: Box::new(mate_node(
+                in_part(ids[0], body, CapEnd::End),
+                in_part(ids[1], body, CapEnd::Start),
                 ContactClass::Tangent,
                 5.0,
-            ),
+            )),
+            fresh: Vec::new(),
         },
     );
     let inner_ev = run(&inner, &with_resolver(store.clone()));

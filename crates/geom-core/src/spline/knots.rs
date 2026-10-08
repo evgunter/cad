@@ -112,7 +112,7 @@ impl core::error::Error for SplineError {}
 
 /// The exact structural violation behind
 /// [`SplineError::KnotVectorInvalid`].
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KnotVectorIssue {
     /// Degree 0 is refused: a degree-0 "curve" is a step-function
     /// locus, not a curve — a designed absence until a consumer
@@ -1528,10 +1528,7 @@ mod tests {
             match arm {
                 SplineError::KnotVectorInvalid { .. } => {
                     for reason in &knot_vector_issue_arms() {
-                        let msg = SplineError::KnotVectorInvalid {
-                            reason: reason.clone(),
-                        }
-                        .to_string();
+                        let msg = SplineError::KnotVectorInvalid { reason: *reason }.to_string();
                         assert!(
                             msg.contains(&reason.to_string()),
                             "carrier not rendered whole: {msg}"

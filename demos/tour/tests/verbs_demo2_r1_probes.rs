@@ -10,10 +10,10 @@
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::Surface;
-use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
+use pncad::prelude::SurfaceKind;
 use pncad::prelude::{Open, Start, SurfaceKindSet, fillet_edges, query};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 
 /// The spine frame the tube doors take: ring centre, spine axis, and
 /// the reference radial the window's angles start from. The axis is
@@ -46,7 +46,7 @@ fn tube_frame(
 use pncad::sweep::{
     Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow,
 };
-use pncad::topo::{Body, EdgeKey};
+use pncad::topo::{AtRestBody, Body, EdgeKey};
 
 /// P1 — TEETH of the cross-scene mesh pin. The scene asserts the
 /// hollow elbow's outer-wall triangle counts equal the solid tube's at
@@ -178,7 +178,7 @@ const TOP: f64 = 0.75;
 const ROLL: f64 = 0.05;
 
 fn bud(tol: Tol) -> Body<f64> {
-    let meridian: ProfileLoop<f64> = Open
+    let meridian: ConstructedLoop<f64> = Open
         .at(Point2::new(BORE, 0.0))
         .line_to(Point2::new(1.0, 0.0), tol)
         .expect("base")
@@ -269,16 +269,28 @@ fn p3_the_shared_pair_builds_and_matches_the_sequential_composition() {
 
     // The shared pair BUILDS in one call — and is the sequential
     // composition to the bit.
-    let one = fillet_edges(&sharp, &[mouth, lip], ROLL, tol)
-        .expect("mouth + lip share the pucker cone; one call serves the pair (#935)");
+    let one = fillet_edges(
+        &finished("sharp", sharp.clone(), tol),
+        &[mouth, lip],
+        ROLL,
+        tol,
+    )
+    .expect("mouth + lip share the pucker cone; one call serves the pair (#935)");
     assert_eq!(one.band_faces.len(), 2, "two bands from the shared pair");
-    let first = fillet_edges(&sharp, &[mouth], ROLL, tol).expect("the mouth alone");
+    let first = fillet_edges(&finished("sharp", sharp.clone(), tol), &[mouth], ROLL, tol)
+        .expect("the mouth alone");
     let lip2 = {
         let hits = rims_between(&first.body, SurfaceKind::Cone, SurfaceKind::Plane);
         assert_eq!(hits.len(), 1);
         hits[0]
     };
-    let second = fillet_edges(&first.body, &[lip2], ROLL, tol).expect("the lip on the result");
+    let second = fillet_edges(
+        &finished("first.body", first.body.clone(), tol),
+        &[lip2],
+        ROLL,
+        tol,
+    )
+    .expect("the lip on the result");
     let volume = |b: &pncad::topo::Body<f64>| {
         pncad::topo::mass_properties(b, tol)
             .expect("mass properties")
@@ -291,7 +303,18 @@ fn p3_the_shared_pair_builds_and_matches_the_sequential_composition() {
     );
 
     // Two rims with disjoint supports roll together in ONE call.
-    let rolled = fillet_edges(&sharp, &[mouth, base], ROLL, tol)
-        .expect("mouth + bore base share no support face, so one call composes");
+    let rolled = fillet_edges(
+        &finished("sharp", sharp.clone(), tol),
+        &[mouth, base],
+        ROLL,
+        tol,
+    )
+    .expect("mouth + bore base share no support face, so one call composes");
     assert_eq!(rolled.band_faces.len(), 2, "two bands from the one call");
+}
+
+/// `body` finished for a blend door, which takes finished bodies only.
+fn finished(what: &str, body: Body<f64>, tol: Tol) -> AtRestBody<f64> {
+    AtRestBody::validate(body, tol)
+        .unwrap_or_else(|e| panic!("{what} is not a finished body: {e:?}"))
 }

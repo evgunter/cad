@@ -42,9 +42,10 @@
 //! often.** A box that is too BIG cannot make a wrong certificate —
 //! it can only withhold one — but withholding is this door's whole
 //! output. What remains is the looseness the RULES themselves state —
-//! a whole ball for a sphere band, a full turn for an arc — not slack
-//! in the code: each arm claims exactly its construction, which the
-//! `boxes` module's ceiling rows pin.
+//! a whole ball for a sphere face outside the chart-rectangle class, a
+//! full turn for an arc — not slack in the code: each arm claims
+//! exactly its construction, which the `boxes` module's ceiling rows
+//! pin.
 //!
 //! **This door needs no surface-kind gate of its own.** It shares the one
 //! [`crate::boolean::boxes::FaceBoxRule`]; what differs is only what a
@@ -161,7 +162,7 @@ impl Separation {
         let pad = sweep_pad(band);
         let mut boxes = Vec::new();
         for (f, _) in proto.faces() {
-            boxes.push(face_box(proto, f, pad)?);
+            boxes.push(face_box(proto, f, pad, band)?);
         }
         // A face-less prototype encloses nothing; the hull of nothing is
         // the poison box, which overlaps everything — so a face-less
@@ -247,23 +248,11 @@ fn relative<T: Decide>(mi: &Affine3<T>, mj: &Affine3<T>) -> Affine3<T> {
 /// yields the poison box, which overlaps everything.
 fn image<T: Decide + Bounds>(b: &Aabb, m: &Affine3<T>) -> Aabb {
     let br = |v: T| (v.lo(), v.hi());
-    let cols = [m.linear.c0, m.linear.c1, m.linear.c2];
-    // Row r of the linear part, bracketed: column j's r-th component.
-    let row = |r: usize| {
-        [0usize, 1, 2].map(|j| {
-            let c = cols[j];
-            br(match r {
-                0 => c.x,
-                1 => c.y,
-                _ => c.z,
-            })
-        })
-    };
-    let trans = [
-        br(m.translation.x),
-        br(m.translation.y),
-        br(m.translation.z),
-    ];
+    // The linear part's columns, bracketed entry by entry.
+    let cols = m.linear.cols().map(|c| c.to_array().map(br));
+    // Row r of the linear part: column j's r-th component.
+    let row = |r: usize| cols.map(|c| c[r]);
+    let trans = m.translation.to_array().map(br);
     let mut lo = [f64::INFINITY; 3];
     let mut hi = [f64::NEG_INFINITY; 3];
     let xs = [b.min_x, b.max_x];
@@ -425,7 +414,7 @@ impl SolidSeparation {
                             what: "solid separation: a solid names a shell the body lost",
                         })?;
                 for &face in &shell.faces {
-                    boxes.push(face_box(body, face, pad)?);
+                    boxes.push(face_box(body, face, pad, band)?);
                 }
             }
             // A face-less solid encloses nothing, and the hull of
@@ -636,9 +625,9 @@ mod owner_index {
         let mut body = quad_prism(&UNIT_SQUARE, 1.0, tol);
         let brick = body.solids().next().expect("the box's solid").0;
 
-        let bare = body.mvfs(Point3::new(5.0, 0.0, 0.0)).unwrap();
+        let bare = body.mvfs(Point3::new(5.0, 0.0, 0.0), true).unwrap();
 
-        let grown = body.mvfs(Point3::new(9.0, 0.0, 0.0)).unwrap();
+        let grown = body.mvfs(Point3::new(9.0, 0.0, 0.0), true).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
@@ -682,10 +671,10 @@ mod owner_index {
     fn solid_owners_and_the_scope_walk_place_every_entity_alike() {
         let (body, solids, lone) = lone_vertices();
         let owners = SolidOwners::of(&body);
-        let whole = Scope::whole(&body).expect("a tier-1 body scopes");
+        let whole = Scope::whole(&body);
         let each: Vec<Scope> = solids
             .iter()
-            .map(|&s| Scope::of_solids(&body, &[s]).expect("a tier-1 body scopes"))
+            .map(|&s| Scope::of_solids(&body, &[s]))
             .collect();
 
         assert_eq!(

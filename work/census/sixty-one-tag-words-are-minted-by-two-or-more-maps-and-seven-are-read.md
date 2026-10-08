@@ -64,7 +64,6 @@ from rather than this list.
 - non_finite (4): distribution_fault_tag expr_dimension_error_tag fmt_quantity_error_tag persist_error_tag
 - unknown_param (4): eval_error_tag param_box_error_tag parse_error_tag seed_error_tag
 - cap_plane (3): extrude_error_tag loft_error_tag revolve_error_tag
-- corrupt (3): shell_error_tag transform_error_tag unexaminable_tag
 - face (3): entity_id_tag entity_kind_tag shell_error_tag
 - join (3): boolean_error_tag cluster_maintenance_tag split_op_error_tag
 - node_not_evaluated (3): eval_reason_tag hit_test_error_tag interrogate_error_tag
@@ -77,8 +76,9 @@ from rather than this list.
 - assertion_dimension (2): edit_error_tag node_error_tag
 - certify (2): blend_error_tag transform_error_tag
 - contact_contradicted (2): boolean_error_tag validation_error_tag
+- corrupt (2): transform_error_tag unexaminable_tag — `shell_error_tag` no longer mints it (2026-10-04: `ShellError::Corrupt` is deleted)
 - cosurface_escalated (2): extrude_error_tag revolve_error_tag
-- dangling_geometry (2): readback_error_tag validation_error_tag
+- dangling_geometry (2): readback_error_tag validation_error_tag — `readback_error_tag` no longer mints it (2026-10-04: `DanglingRef` is deleted), so it is `validation_error_tag`'s alone
 - dimension (2): edit_error_tag parse_error_tag
 - edge (2): entity_id_tag entity_kind_tag
 - empty (2): band_error_tag subgroup_tag
@@ -160,3 +160,19 @@ are dispositioned as ONE fact under the convention stated on
 `editor_core::EditError`'s enum doc.
 
 Population 63 → 67. Read-count 8 → 12.
+
+## Four more dispositioned, by MSOLVE-9 (PR #2934)
+
+`face_refusal_tag` (the inner arm of `mate_face_unresolved`) shares
+four words, each dispositioned as ONE fact and pinned in
+`crates/pncad-py/src/tests.rs`'s
+`a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do`:
+`part_unresolved` and `not_an_instance` with `lever_refusal_tag`
+(`FaceRefusal` mirrors `LeverRefusal` over the member walk and the
+resolver), and `no_such_name` and `ambiguous` with
+`interrogate_error_tag` (the name table's own two answers). The first
+three words were already shared; `no_such_name` is new to the roster.
+
+Read-count 12 → 16. The roster's doc stopped carrying that count
+("all but twelve are unread" → "most are unread"): it was the prose
+count of this population the same doc says goes stale.

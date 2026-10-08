@@ -9,15 +9,40 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{ang, len, scl};
-use editor_core::{Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, RecipeNodeId, SlotId};
+use editor_core::ExtrudeSide;
+use editor_core::{Dimension, Doc, DocEdit, Formula, FreeVar, Node, RecipeNodeId, SlotId, VarName};
 use geom_core::Tol;
 
 /// Opaque profile payload (spec D1/D3): tests never look inside.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 struct FakeProfile(&'static str);
 // The v4 payload trait: fake payloads take the slot-free, check-free
 // defaults (LIB-SWITCH §4c — exactly the retired opaque behavior).
-impl editor_core::ProfilePayload for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::VarId> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
+impl editor_core::ProfilePayload for FakeProfile {
+    type Authored = Self;
+    fn lower<E>(
+        authored: &Self,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
+    ) -> Result<Self, E> {
+        Ok(authored.clone())
+    }
+    fn authored_with(
+        &self,
+        _: &mut dyn FnMut(editor_core::VarId, editor_core::Dimension) -> editor_core::Formula,
+    ) -> Self {
+        self.clone()
+    }
+    fn drawn_pieces(
+        &self,
+        _env: &editor_core::VarEnv<f64>,
+        _tol: geom_core::Tol,
+    ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
+    {
+        Ok(std::collections::BTreeSet::new())
+    }
+}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;
@@ -92,9 +117,9 @@ fn author_die() -> Die {
     let (doc, _) = step(
         doc,
         &mut log,
-        TEdit::SetDocParam {
-            name: ParamName::new("pip_depth"),
-            value: DocParam::continuous(Dimension::Length, 0.002),
+        TEdit::DeclareVar {
+            name: VarName::from_static("pip_depth"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.002)),
         },
     );
     // Cube: profile wrap + extrude.
@@ -102,17 +127,20 @@ fn author_die() -> Die {
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("square-20mm")),
+            node: Box::new(Node::Profile(FakeProfile("square-20mm"))),
+            fresh: Vec::new(),
         },
     );
     let (doc, cube) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: cube_profile.unwrap(),
                 distance: len(2.0 * HALF),
-            },
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         },
     );
     // Pip tool: profile wrap + extrude by the pip_depth parameter.
@@ -120,17 +148,20 @@ fn author_die() -> Die {
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Profile(FakeProfile("circle-2mm")),
+            node: Box::new(Node::Profile(FakeProfile("circle-2mm"))),
+            fresh: Vec::new(),
         },
     );
     let (mut doc, pip_extrude) = step(
         doc,
         &mut log,
         TEdit::InsertNode {
-            node: Node::Extrude {
+            node: Box::new(Node::Extrude {
                 profile: pip_profile.unwrap(),
-                distance: Expr::param(ParamName::new("pip_depth"), Dimension::Length),
-            },
+                distance: Formula::named(VarName::from_static("pip_depth"), Dimension::Length),
+                side: ExtrudeSide::Along,
+            }),
+            fresh: Vec::new(),
         },
     );
     let pip_extrude = pip_extrude.unwrap();
@@ -154,24 +185,28 @@ fn author_die() -> Die {
                 doc,
                 &mut log,
                 TEdit::InsertNode {
-                    node: Node::Transform {
-                        input: pip_extrude,
-                        translation: [len(t[0]), len(t[1]), len(t[2])],
-                        rotation_axis: [scl(rot_axis[0]), scl(rot_axis[1]), scl(rot_axis[2])],
-                        rotation_angle: ang(rot_angle),
-                    },
+                    node: Box::new(Node::transform(
+                        pip_extrude,
+                        editor_core::Step::Rigid {
+                            translation: [len(t[0]), len(t[1]), len(t[2])],
+                            axis: [scl(rot_axis[0]), scl(rot_axis[1]), scl(rot_axis[2])],
+                            angle: ang(rot_angle),
+                        },
+                    )),
+                    fresh: Vec::new(),
                 },
             );
             let (d3, cut) = step(
                 d2,
                 &mut log,
                 TEdit::InsertNode {
-                    node: Node::Boolean {
+                    node: Box::new(Node::Boolean {
                         op: editor_core::BooleanOp::Subtract,
                         a: body,
                         b: placed.unwrap(),
-                        declare: None,
-                    },
+                        declare: Vec::new(),
+                    }),
+                    fresh: Vec::new(),
                 },
             );
             doc = d3;
@@ -194,12 +229,7 @@ fn die_authors_replays_and_diffs() {
     assert_eq!(die.doc.len(), 46);
 
     // Replay identity (spec D7): from empty, BIT-IDENTICAL.
-    let replayed = TDoc::replay(
-        die.doc.id(),
-        &editor_core::LoggedEdit::bare_all(&die.log),
-        Tol::witness(),
-    )
-    .unwrap();
+    let replayed = TDoc::replay(die.doc.id(), &die.log.to_vec(), Tol::witness()).unwrap();
     assert_eq!(replayed, die.doc);
     assert!(replayed.diff(&die.doc).is_empty());
     assert_eq!(replayed.epsilon().to_bits(), die.doc.epsilon().to_bits());
@@ -213,6 +243,7 @@ fn die_authors_replays_and_diffs() {
                 node: die.pip_extrude,
                 slot: SlotId::Distance,
                 expr: len(0.003),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -224,16 +255,28 @@ fn die_authors_replays_and_diffs() {
         d.nodes,
         vec![editor_core::NodeChange::Changed(die.pip_extrude)]
     );
-    assert!(d.params.is_empty() && !d.order_changed && !d.epsilon_changed);
+    // The typed value is a variable of its own, minted by the edit.
+    let typed = variant
+        .doc
+        .slot(die.pip_extrude, SlotId::Distance)
+        .expect("the extrude reads its distance");
+    let retired: Vec<_> = die
+        .doc
+        .slot(die.pip_extrude, SlotId::Distance)
+        .filter(|old| variant.doc.var(*old).is_none())
+        .into_iter()
+        .collect();
+    assert_eq!(d.vars, [retired, vec![typed]].concat());
+    assert!(!d.epsilon_changed);
 
     // Variant 2: pip depth changed through the DOC PARAM the pip
     // extrude references — node payloads identical, param diff only.
     let variant2 = die
         .doc
         .apply(
-            &TEdit::SetDocParam {
-                name: ParamName::new("pip_depth"),
-                value: DocParam::continuous(Dimension::Length, 0.003),
+            &TEdit::SetVarValue {
+                var: VarName::from_static("pip_depth").into(),
+                value: editor_core::FreeValue::Continuous(0.003),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -241,21 +284,17 @@ fn die_authors_replays_and_diffs() {
         .unwrap();
     let d2 = die.doc.diff(&variant2.doc);
     assert!(d2.nodes.is_empty());
-    assert_eq!(d2.params, vec![ParamName::new("pip_depth")]);
+    assert_eq!(
+        d2.vars,
+        vec![die.doc.var_named("pip_depth").expect("the die declares it")]
+    );
 
     // The original document is untouched by all of the above (D2:
     // apply is pure).
     assert_eq!(die.doc.len(), 46);
     assert!(
         die.doc
-            .diff(
-                &TDoc::replay(
-                    die.doc.id(),
-                    &editor_core::LoggedEdit::bare_all(&die.log),
-                    Tol::witness()
-                )
-                .unwrap()
-            )
+            .diff(&TDoc::replay(die.doc.id(), &die.log.to_vec(), Tol::witness()).unwrap())
             .is_empty()
     );
 }

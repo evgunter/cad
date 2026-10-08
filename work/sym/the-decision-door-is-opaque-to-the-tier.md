@@ -2,10 +2,11 @@
 id: the-decision-door-is-opaque-to-the-tier
 kind: issue
 title: a frame minted through Real::select_le_zero is opaque to the tier, and SYM-5's tilted derived-boss acceptance row goes red on it
-status: open
+status: closed
 opened: 2026-09-15
 priority: P0
 cost: H
+closed: 2026-10-01
 ---
 
 
@@ -131,3 +132,11 @@ manifestly-positive factor stripping before the enclosure. Each is an
 identity of reals or a gated read; none is a value read that lands in
 `symbolic_zero`. Whether the three reach the row is what SYM-10's
 Phase 1 renders before any rule is written.
+
+## Closed (2026-10-01, LINALG orchestrator)
+
+The three rows this item named are green on #2468's landing head
+`b3d386d10`, with their assertions untouched. That covers the tilted
+derived boss, the derived frame's refusal, and the walk ledgers, which
+were re-measured with their causes. The fold arrived as DECIDE-3's
+canonical root (#3039). Hosted run 36845857746 executed the slow set.

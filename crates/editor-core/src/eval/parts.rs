@@ -16,18 +16,44 @@
 //! evaluation ran at). Each answers a different question, and unifying
 //! any two would answer one of them wrongly.
 //!
-//! The cache is LAZY: a memo-hit instantiate node never asks, so a
-//! re-evaluation that changed nothing across the seam does no
-//! cross-document work at all.
+//! The top-level cache is LAZY: a memo-hit instantiate node never
+//! asks, so a re-evaluation that changed nothing across the seam does
+//! no cross-document work at all.
+//!
+//! # The descent runs on the heap
+//!
+//! Below the top, the descent is bottom-up on an explicit stack
+//! (`PartCache::resolve_and_evaluate`): a referenced document is
+//! evaluated once every part it instantiates has its row, and its cache
+//! starts with those rows. So one nested evaluation is on the thread's
+//! stack at a time, how deep an assembly nests costs heap and never
+//! stack, and every depth either evaluates or refuses typed on whatever
+//! thread the evaluation runs on.
+//!
+//! A nested cache never descends: every reference a nested evaluation
+//! can ask for is entered first ([`instantiated`], the one census of
+//! the asks), and a miss below the top is the typed kernel defect
+//! [`PartFault::NotEntered`], never a recursion.
+//!
+//! **Below the top, every part a document instantiates is evaluated,
+//! whether or not its instance asks.** The instance that declines to
+//! ask is one whose placement refused (a mate fault); its part's row,
+//! failed or not, sits in a cache that dies with the nested evaluation
+//! and reaches no node, product or refusal. What it does reach is
+//! what counts or records work as it happens: `part_evaluations`
+//! counts it, and a shape report, a symbolic session's counts or a
+//! sample sink installed around the evaluation sees its decisions —
+//! and sees every nested document's decisions bottom-up, a part's
+//! before its instantiator's.
 //!
 //! # Cycles are decided, not waited out
 //!
 //! The cache also carries the DESCENT CHAIN — the references this
 //! evaluation was reached through. A reference already in the chain is
 //! a cycle by A4's own rule (same id, same pin ⇒ same content), so it
-//! refuses immediately, NAMING the loop. `MAX_DEPTH` is what is left
-//! over once that is handled: runaway insurance for acyclic descent,
-//! diagnosing nothing.
+//! refuses immediately, NAMING the loop, and that check runs before
+//! the depth check, so a loop that closes at [`MAX_DEPTH`] is still
+//! named as a loop.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -37,22 +63,26 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use geom_core::Decide;
 use topo::Body;
 
+use crate::ProfileDoc;
+use crate::assembly::PartRow;
 use crate::ident::DocRef;
 use crate::names::NameTable;
 use crate::node::RecipeNodeId;
 use crate::part::{PartResolver, ResolveFault};
+use crate::sentence::{PASS_A_RESOLVER, Recourse};
+use crate::spoken::{HeldNodes, Say, Speaker};
 use geom_core::Tol;
 
-/// Pure runaway insurance: the depth at which instantiation gives up,
-/// having ruled out the reason it would ordinarily run away.
+/// **How deep an assembly may nest**: a document `MAX_DEPTH` documents
+/// below the top evaluates, and one more refuses with
+/// [`PartFault::DepthExceeded`], whose sentence states this number and
+/// whose recourse is to flatten the assembly.
 ///
-/// CYCLES are caught structurally, one level up, by the descent chain
-/// (see [`PartCache`]) — a revisited reference refuses NAMING the
-/// cycle, which is the diagnosis an author can act on. This constant
-/// is what remains after that: a bound on genuinely deep, genuinely
-/// acyclic nesting, high enough that no real assembly meets it and
-/// finite so that nothing recurses without end. It diagnoses nothing;
-/// reaching it means the descent chain was long, not that it looped.
+/// An author reaches it with a file: any acyclic chain of references
+/// that long. CYCLES are decided before it, structurally, by the
+/// descent chain (see [`PartCache`]) — a revisited reference refuses
+/// NAMING the cycle — so reaching the bound means the chain was long,
+/// not that it looped.
 pub(crate) const MAX_DEPTH: usize = 1024;
 
 /// A resolved part: the referenced document's product, the product
@@ -61,27 +91,35 @@ pub(crate) const MAX_DEPTH: usize = 1024;
 /// seam with its geometry, in the same keys), and the MATE BOOKKEEPING
 /// that says whose declaration each record is and which of the
 /// document's mates it could not mint at all.
+///
+/// Each of the three row lists (`minted`, `unminted`, `unplaced`) is
+/// the referenced document's OWN rows first, then what it carried up
+/// from ITS parts, each as a [`PartRow`] that already holds the
+/// document's nodes it names. Instantiation adds its own instance to
+/// the route; nothing below is re-read.
 pub(crate) struct PartValue<T: Decide> {
     pub body: Arc<Body<T>>,
     pub names: Arc<NameTable>,
     pub contacts: Arc<topo::ContactRecords>,
-    /// The referenced document's OWN minted declarations — which of
-    /// its mates authored which of those records, keyed in the same
-    /// arena the records are. The records already crossed the seam;
-    /// without these rows a finding against one names nobody.
-    pub minted: Arc<Vec<crate::assembly::MintedDeclaration>>,
-    /// The referenced document's own MINT REFUSALS: mates it could not
-    /// mint at all. Carried because inner mint health is the outermost
-    /// gate's business — a part with an unverifiable contact is a
-    /// broken part, and the document that instantiates it is not at
-    /// rest over it.
-    pub unminted: Arc<Vec<crate::assembly::MintRefusal>>,
-    /// What the referenced document itself carried up from ITS parts,
-    /// route and all. Instantiation extends the route; nothing below
-    /// is re-read.
-    pub carried: Arc<Vec<crate::assembly::CarriedDeclaration>>,
-    /// The same for the refusals it carried up.
-    pub carried_unminted: Arc<Vec<crate::assembly::CarriedRefusal>>,
+    /// The minted declarations — which mate authored which of those
+    /// records, keyed in the same arena the records are. The records
+    /// already crossed the seam; without these rows a finding against
+    /// one names nobody.
+    pub minted: Arc<Vec<PartRow<crate::assembly::MintedDeclaration>>>,
+    /// The MINT REFUSALS: mates that could not be minted at all.
+    /// Carried because inner mint health is the outermost gate's
+    /// business — a part with an unverifiable contact is a broken part,
+    /// and the document that instantiates it is not at rest over it.
+    pub unminted: Arc<Vec<PartRow<crate::assembly::MintRefusal>>>,
+    /// The UNPLACED GROUPS, by root, with their causes, in their
+    /// documents' order: material a world product leaves out (A9),
+    /// which the instantiating document must still be able to name.
+    pub unplaced: Arc<Vec<PartRow<crate::assembly::UnplacedGroup>>>,
+    /// How many parts the referenced document's product is: its
+    /// distinct root outputs ([`crate::product::Product::solid_roots`]),
+    /// each counted at its own value's `parts`, so a sub-assembly's
+    /// parts count through (`NodeValue::parts`).
+    pub parts: usize,
 }
 
 impl<T: Decide> Clone for PartValue<T> {
@@ -92,8 +130,8 @@ impl<T: Decide> Clone for PartValue<T> {
             contacts: Arc::clone(&self.contacts),
             minted: Arc::clone(&self.minted),
             unminted: Arc::clone(&self.unminted),
-            carried: Arc::clone(&self.carried),
-            carried_unminted: Arc::clone(&self.carried_unminted),
+            unplaced: Arc::clone(&self.unplaced),
+            parts: self.parts,
         }
     }
 }
@@ -101,6 +139,13 @@ impl<T: Decide> Clone for PartValue<T> {
 /// Why an instantiation could not produce a part body. Cloneable and
 /// self-contained: the cache stores one of these per reference, so
 /// every instance of a broken part reports the same typed cause.
+///
+/// An arm that names the part's nodes keeps them as the pinned part
+/// holds them (`held`), so every frame says them with the part's labels
+/// (DESIGN.md Band 1, "Node labels"). Equality compares those labels
+/// too, deliberately: two faults with equal ids from parts labelled apart
+/// (two pins, since a label is in the pin) are unequal, here and in the
+/// refusals that hold a `PartFault` (`ReachRefusal`, `FacePoseRefusal`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PartFault {
     /// The evaluation carries no resolver, so the document seam cannot
@@ -118,35 +163,72 @@ pub enum PartFault {
     /// failed — the ordinary "my part is broken, why?" path.
     ///
     /// The nested [`super::Evaluation`] dies with the resolution that
-    /// produced it, so a caller can never be sent to look at it. The
-    /// cause therefore travels: `cause` when the failing root was
-    /// itself an instantiate node (the fault CHAINS, typed, however
-    /// many documents deep the real reason lies — a nesting-depth
-    /// refusal at the bottom of a cycle arrives here intact), and
-    /// `message` otherwise, carrying that node error's own rendering.
+    /// produced it, so a caller can never be sent to look at it: the
+    /// root's own refusal travels here instead, typed and unaltered. A
+    /// root that is itself an instantiate node carries
+    /// [`super::NodeErrorKind::Part`] in turn, so a part inside a part
+    /// is a chain of these however many documents deep, and every
+    /// level keeps the reference it crossed.
+    ///
+    /// The sentence is the instance's own and never renders `refusal`:
+    /// that is another node's refusal, in another document, with its
+    /// own recourse, and it is drawn as its own line (the exception
+    /// written over [`super::NodeErrorKind`]'s `Display`).
     PartRootFailed {
         /// The failing root, in the REFERENCED document's id space.
         node: RecipeNodeId,
-        /// The seam fault that root reported, when it had one.
-        cause: Option<Box<PartFault>>,
-        /// Otherwise the failing node error's rendering, kind included.
-        message: String,
+        /// That root's own refusal.
+        refusal: super::NodeRefusal,
+        /// The part's nodes this fault names, as the pinned part holds
+        /// them ([`PartFault::held`]).
+        held: Arc<HeldNodes>,
+    },
+    /// The referenced document evaluated, but one of its PRODUCT ROOTS
+    /// never ran: a node upstream of it inside the part failed. The
+    /// part's typical broken shape — a transform or a boolean over the
+    /// node that failed.
+    ///
+    /// `through` is the node the author repairs, so its refusal is the
+    /// one carried, as [`Self::PartRootFailed`] carries a failed
+    /// root's; `root` says which of the part's roots it cost.
+    PartRootPoisoned {
+        /// The poisoned root, in the REFERENCED document's id space.
+        root: RecipeNodeId,
+        /// Its nearest failed ancestor, in the same id space.
+        through: RecipeNodeId,
+        /// That ancestor's own refusal.
+        refusal: super::NodeRefusal,
+        /// The part's nodes this fault names, as the pinned part holds
+        /// them ([`PartFault::held`]).
+        held: Arc<HeldNodes>,
+    },
+    /// The product door named a node as failed — a failed root, or a
+    /// poisoned root's failed ancestor — and the evaluation it read
+    /// holds no failure there. The two disagree about one node, so this
+    /// is a kernel bug, reported typed rather than as a failure with no
+    /// cause.
+    RootFailureUnrecorded {
+        /// The node the product door named as failed, in the
+        /// REFERENCED document's id space.
+        node: RecipeNodeId,
+        /// The part's nodes this fault names, as the pinned part holds
+        /// them ([`PartFault::held`]).
+        held: Arc<HeldNodes>,
     },
     /// The referenced document has no product for a reason that is not
-    /// a failing root (no body-denoting root, an invalid gather, a
-    /// name collision).
+    /// a failed or poisoned root (no body-denoting root, an invalid
+    /// gather, a name collision).
     ///
-    /// The refusal crosses in both halves, the
-    /// [`crate::checks::ChecksError::Product`] shape: `kind` is the
-    /// class a consumer branches on, `message` the gather's own
-    /// sentence a reader reads — it carries the node ids and finding
-    /// lists the class drops. Neither half is a substring hunt through
-    /// the other, and both come off ONE [`crate::product::ProductError`].
+    /// The gather's refusal crosses whole, its ids the part's: its
+    /// class ([`crate::ProductRefusal::kind`]) is what a consumer
+    /// branches on.
     PartProduct {
-        /// Which arm of the product door refused.
-        kind: crate::product::ProductErrorKind,
-        /// The product door's diagnosis.
-        message: String,
+        /// The product door's refusal, in the REFERENCED document's id
+        /// space.
+        refusal: crate::product::ProductRefusal,
+        /// The part's nodes this fault names, as the pinned part holds
+        /// them ([`PartFault::held`]).
+        held: Arc<HeldNodes>,
     },
     /// The reference CHAIN returned to a document it had already
     /// entered — the same (id, pin), so the same content: descending
@@ -154,7 +236,8 @@ pub enum PartFault {
     ///
     /// A4 makes this unconstructible through an honest store (a
     /// document would have to contain its own hash), so the fault names
-    /// a broken RESOLVER or a hand-built cycle. It carries the loop
+    /// a resolver that checks no pins. Every shipped resolver checks
+    /// them, so it renders as a kernel defect. It carries the loop
     /// itself, first repeated reference through last, because the loop
     /// is the diagnosis.
     ReferenceCycle {
@@ -162,18 +245,94 @@ pub enum PartFault {
         cycle: Vec<DocRef>,
     },
     /// Instantiation nested past [`MAX_DEPTH`] without repeating a
-    /// reference — runaway insurance, not a cycle diagnosis.
+    /// reference: the assembly nests deeper than the bound allows.
     DepthExceeded,
+    /// A document below the top of the descent asked for a part the
+    /// descent had not entered before evaluating it. The descent enters
+    /// every reference [`instantiated`] names, which is every reference
+    /// a nested evaluation can ask for, so this is a kernel defect: an
+    /// ask that escaped that census.
+    NotEntered,
 }
 
-impl core::fmt::Display for PartFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+impl PartFault {
+    /// **The refusal this fault carries, when it carries one**: a
+    /// failed root, or a poisoned root's failed ancestor, and that
+    /// node's own refusal, in the referenced document's id space ([`super::NodeErrorKind::carried`]). Exhaustive, for the
+    /// reason [`crate::MateFault::carried`] states.
+    #[must_use]
+    pub fn carried(&self) -> Option<(RecipeNodeId, &super::NodeRefusal)> {
+        self.carried_held()
+            .map(|(node, refusal, _)| (node, refusal))
+    }
+
+    /// [`PartFault::carried`], with the part's nodes the fault holds.
+    pub(crate) fn carried_held(&self) -> Option<(RecipeNodeId, &super::NodeRefusal, &HeldNodes)> {
         match self {
+            Self::PartRootFailed {
+                node,
+                refusal,
+                held,
+            } => Some((*node, refusal, &**held)),
+            Self::PartRootPoisoned {
+                through,
+                refusal,
+                held,
+                ..
+            } => Some((*through, refusal, &**held)),
+            Self::NoResolver
+            | Self::Unresolved { .. }
+            | Self::RootFailureUnrecorded { .. }
+            | Self::PartProduct { .. }
+            | Self::ReferenceCycle { .. }
+            | Self::DepthExceeded
+            | Self::NotEntered => None,
+        }
+    }
+}
+
+impl PartFault {
+    /// **The part's nodes this fault names**, as the version its
+    /// reference pins holds them: the nodes of its own sentence and of
+    /// each level it carries in the part ([`super::CarriedLevel`]).
+    /// `None` for an arm that names no node of the part.
+    #[must_use]
+    pub fn held(&self) -> Option<&HeldNodes> {
+        match self {
+            Self::PartRootFailed { held, .. }
+            | Self::PartRootPoisoned { held, .. }
+            | Self::RootFailureUnrecorded { held, .. }
+            | Self::PartProduct { held, .. } => Some(&**held),
+            Self::NoResolver
+            | Self::Unresolved { .. }
+            | Self::ReferenceCycle { .. }
+            | Self::DepthExceeded
+            | Self::NotEntered => None,
+        }
+    }
+
+    /// **Who says this fault's nodes**: the part's, as it holds them
+    /// ([`Speaker::held`]). Its ids are numbered in the part, so no
+    /// other document says them.
+    pub(crate) fn speaker(&self) -> Speaker<'_> {
+        self.held().map_or(Speaker::TAG, Speaker::held)
+    }
+
+    /// The sentence, each of the part's nodes said by `by`: the fault's
+    /// [`speaker`](Self::speaker), or the part itself while
+    /// [`product_fault`] records them.
+    fn say_by(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        match self {
+            // Raised only at an API door, each of which takes a
+            // resolver; the viewer always carries one of its own.
             Self::NoResolver => write!(
                 f,
-                "this evaluation carries no part resolver, so a referenced document cannot be \
-                 reached"
+                "no part resolver was given, so a referenced document cannot be reached. {}",
+                Recourse(PASS_A_RESOLVER)
             ),
+            // The resolver knows what went wrong in its store, so its
+            // message states the recourse of a pin or a lookup. The ε
+            // seam's is the same whatever the store.
             Self::Unresolved { fault, message } => match fault {
                 ResolveFault::PinMismatch => {
                     write!(f, "the reference's pin does not hold: {message}")
@@ -181,27 +340,53 @@ impl core::fmt::Display for PartFault {
                 ResolveFault::EpsilonSeam => write!(
                     f,
                     "the referenced document's recorded tolerance disagrees with this process's: \
-                     {message}"
+                     {message}. {}",
+                    Recourse(crate::part::EPSILON_SEAM_RECOURSE)
                 ),
                 ResolveFault::Unresolved => write!(f, "the reference did not resolve: {message}"),
             },
-            Self::PartRootFailed {
-                node,
-                cause,
-                message,
-            } => {
+            Self::PartRootFailed { node, .. } => {
+                let node = by.node(*node);
                 write!(
                     f,
-                    "the referenced document's product root {} failed: ",
-                    node.0
-                )?;
-                match cause {
-                    Some(cause) => write!(f, "{cause}"),
-                    None => write!(f, "{message}"),
-                }
+                    "the part's {node} failed, so the part has no body. {}",
+                    InThePart(format_args!("repair {node}")),
+                )
             }
-            Self::PartProduct { message, .. } => {
-                write!(f, "the referenced document has no product: {message}")
+            Self::PartRootPoisoned { root, through, .. } => {
+                let through = by.node(*through);
+                write!(
+                    f,
+                    "the part's {through} failed and poisoned its root, {}, so the part has \
+                     no body. {}",
+                    by.node(*root),
+                    InThePart(format_args!("repair {through}")),
+                )
+            }
+            Self::RootFailureUnrecorded { node, .. } => {
+                let node = by.node(*node);
+                write!(
+                    f,
+                    "the part's product names its {node} as failed and the part's evaluation \
+                     holds no failure there; the two disagree, so this is a kernel bug. {}",
+                    InThePart(format_args!(
+                        "see {node} as it evaluates, then report it with the part's file"
+                    )),
+                )
+            }
+            Self::PartProduct { refusal, .. } => {
+                write!(
+                    f,
+                    "the part has no product: {}",
+                    refusal.error().bare_said(by)
+                )?;
+                match product_recourse(refusal.kind()) {
+                    ProductRecourse::InThePart(action) => write!(f, ". {}", InThePart(action)),
+                    ProductRecourse::KernelDefect => {
+                        write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING)
+                    }
+                    ProductRecourse::Carried => Ok(()),
+                }
             }
             Self::ReferenceCycle { cycle } => {
                 write!(
@@ -214,14 +399,97 @@ impl core::fmt::Display for PartFault {
                     }
                     write!(f, "{r}")?;
                 }
-                Ok(())
+                // A pin is its document's hash, so a store that checks
+                // pins cannot hold a loop: every door resolves through
+                // one, and a loop is a resolver's defect.
+                write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING)
             }
             Self::DepthExceeded => write!(
                 f,
                 "instantiation nested deeper than {MAX_DEPTH} documents without repeating a \
-                 reference"
+                 reference. {}",
+                Recourse("flatten the assembly so its parts nest fewer documents deep")
+            ),
+            Self::NotEntered => write!(
+                f,
+                "the part was asked for by a nested document the descent evaluated before \
+                 entering it, so the part has no body. {}",
+                geom_core::KERNEL_DEFECT_ENDING
             ),
         }
+    }
+}
+
+/// The fault, each of the part's nodes as the pinned part holds it.
+impl core::fmt::Display for PartFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.say_by(f, self.speaker())
+    }
+}
+
+/// **Every sentence a fault says in its part**: its own, then each
+/// carried level in the part — the levels [`product_fault`] records the
+/// nodes of. A level in a part below is that part's, and its own fault
+/// holds its nodes.
+struct InPart<'a>(&'a PartFault);
+
+impl Say for InPart<'_> {
+    fn say(&self, f: &mut core::fmt::Formatter<'_>, by: Speaker<'_>) -> core::fmt::Result {
+        self.0.say_by(f, by)?;
+        let levels =
+            super::CarriedChain::from_first(self.0.carried(), super::CarriedIn::ThisDocument);
+        for level in
+            levels.take_while(|level| matches!(level.document, super::CarriedIn::ThisDocument))
+        {
+            write!(f, "\n{}", level.refusal.line_at(level.node, by))?;
+        }
+        Ok(())
+    }
+}
+
+/// The recourse of a repair the author makes inside the part: open it,
+/// and act there.
+struct InThePart<A>(A);
+
+impl<A: core::fmt::Display> core::fmt::Display for InThePart<A> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{}",
+            Recourse(format_args!("open the part and {}", self.0))
+        )
+    }
+}
+
+/// What a part with no product states after the gather's own sentence.
+enum ProductRecourse {
+    /// The repair is in the part, and the gather's sentence does not
+    /// say what it is.
+    InThePart(&'static str),
+    /// The gather's sentence already states the one recourse: its own,
+    /// or the kernel refusal it forwards.
+    Carried,
+    /// A class a nested evaluation cannot reach.
+    KernelDefect,
+}
+
+/// [`ProductRecourse`] by the gather's class. A nested evaluation runs
+/// its own document to completion, and the failed and poisoned roots
+/// cross as their own arms, so the classes it cannot reach end in the
+/// kernel-defect recourse.
+fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
+    use crate::product::ProductErrorKind as K;
+    match kind {
+        K::NoBodyRoots => ProductRecourse::InThePart("give it a root that denotes a body"),
+        K::Naming => ProductRecourse::InThePart("repair it there"),
+        K::Unplaced | K::PlacedUnderTwoRoots | K::Graft | K::RootInvalid | K::ProductInvalid => {
+            ProductRecourse::Carried
+        }
+        K::ContactLineage
+        | K::EvaluationOfAnotherDocument
+        | K::UnknownNode
+        | K::RootFailed
+        | K::RootPoisoned => ProductRecourse::KernelDefect,
     }
 }
 
@@ -255,10 +523,12 @@ pub(crate) struct PartCache<'a, T: Decide> {
     /// instantiator is being elaborated.
     profile_lift: super::ProfileLift,
     entries: Mutex<Rows<T>>,
-    /// How many referenced-document evaluations happened at or BELOW
-    /// this level — the D-3 sharing evidence. A counter, not a timing
-    /// claim. Nested crossings fold in (see `resolve_and_evaluate`), so
-    /// the outermost evaluation reports every crossing the run made.
+    /// How many referenced documents this cache's descents evaluated,
+    /// at every depth — the D-3 sharing evidence. A counter, not a
+    /// timing claim. Only a top-level cache descends
+    /// (`resolve_and_evaluate` evaluates every document below it on
+    /// this cache), so the top's count is every crossing the run made
+    /// and a nested cache's is zero.
     evaluations: AtomicUsize,
 }
 
@@ -266,6 +536,7 @@ impl<'a, T: Decide> PartCache<'a, T> {
     pub(crate) fn new(
         resolver: Option<&'a Arc<dyn PartResolver>>,
         chain: &'a [DocRef],
+        reached: Reached<T>,
         boolean_sweep: topo::SweepStrategy,
         profile_lift: super::ProfileLift,
         tol: Tol,
@@ -276,7 +547,7 @@ impl<'a, T: Decide> PartCache<'a, T> {
             eps_bits: tol.eps().to_bits(),
             boolean_sweep,
             profile_lift,
-            entries: Mutex::new(BTreeMap::new()),
+            entries: Mutex::new(reached.0),
             evaluations: AtomicUsize::new(0),
         }
     }
@@ -297,6 +568,13 @@ impl<'a, T: Decide> PartCache<'a, T> {
 
 impl<T: super::EvalScalar> PartCache<'_, T> {
     /// The part `doc_ref` denotes, evaluated at most once per key.
+    ///
+    /// Only the top of a descent (an empty chain) evaluates on a miss.
+    /// A nested cache starts with every row its document can ask for
+    /// ([`instantiated`]), so a miss there is an ask that escaped that
+    /// census: it refuses [`PartFault::NotEntered`] rather than
+    /// descending from inside a nested evaluation, which would put a
+    /// second evaluation on the thread's stack per level.
     ///
     /// The lock is held across the miss path on purpose: it is what
     /// makes "evaluated ONCE" true when two instances of one part race,
@@ -325,30 +603,76 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
         if let Some(hit) = entries.get(&key) {
             return hit.clone();
         }
+        if !self.chain.is_empty() {
+            return Err(PartFault::NotEntered);
+        }
         let _shield = geom_core::k_stats::Bracket::open();
         let value = self.resolve_and_evaluate(doc_ref, tol);
         entries.insert(key, value.clone());
         value
     }
 
+    /// The descent below `doc_ref`, run BOTTOM-UP on an explicit stack.
+    ///
+    /// Every document on the way down is resolved and entered before
+    /// any is evaluated, and each is evaluated once every part it
+    /// instantiates has its row, which its evaluation then finds in its
+    /// own cache (a [`Reached`]) instead of descending for. So the
+    /// thread's stack holds one nested evaluation however deep the
+    /// assembly nests, and [`MAX_DEPTH`] is the one bound on nesting.
+    ///
+    /// A document's rows are [`instantiated`]'s census of it, each
+    /// decided against that document's own chain. So every row is the
+    /// one a descent at the ask would produce: the same cycle and depth
+    /// decisions, the same sharing within a document and none across
+    /// two. Rows no instance asks for are evaluated too (the module
+    /// docs say what that reaches).
     fn resolve_and_evaluate(&self, doc_ref: &DocRef, tol: Tol) -> Result<PartValue<T>, PartFault> {
         let resolver = self.resolver.ok_or(PartFault::NoResolver)?;
-        // The cycle, decided structurally and named: the loop runs from
-        // the reference's earlier appearance to this repeat of it.
-        if let Some(at) = self.chain.iter().position(|r| r == doc_ref) {
-            let mut cycle = self.chain[at..].to_vec();
-            cycle.push(*doc_ref);
-            return Err(PartFault::ReferenceCycle { cycle });
+        let mut path = Vec::new();
+        let mut current = Entered::enter(resolver, &path, doc_ref, tol)?;
+        path.push(*doc_ref);
+        let mut waiting: Vec<Entered<T>> = Vec::new();
+        loop {
+            if let Some(child) = current.next_unreached(self.eps_bits) {
+                match Entered::enter(resolver, &path, &child, tol) {
+                    Ok(entered) => {
+                        path.push(child);
+                        waiting.push(core::mem::replace(&mut current, entered));
+                    }
+                    Err(fault) => {
+                        current.reached.insert((child, self.eps_bits), Err(fault));
+                    }
+                }
+                continue;
+            }
+            let reached = core::mem::take(&mut current.reached);
+            let value = self.evaluate_entered(&current.doc, current.doc_ref, &path, reached, tol);
+            path.pop();
+            let Some(parent) = waiting.pop() else {
+                return value;
+            };
+            let done = core::mem::replace(&mut current, parent);
+            current.reached.insert((done.doc_ref, self.eps_bits), value);
         }
-        if self.chain.len() >= MAX_DEPTH {
-            return Err(PartFault::DepthExceeded);
-        }
-        let doc = resolver
-            .resolve(doc_ref, tol)
-            .map_err(|e| PartFault::Unresolved {
-                fault: e.fault,
-                message: e.message,
-            })?;
+    }
+
+    /// One entered document's evaluation, at the end of `chain` (its
+    /// own reference, `doc_ref`, last), over the parts it instantiates,
+    /// reached.
+    ///
+    /// The rows its value hands up hold the nodes they name in `doc`
+    /// ([`PartRow`]): this is the one place the version `doc_ref` pins
+    /// is in hand, and the pin is in every instance's key, so no later
+    /// label reaches them.
+    fn evaluate_entered(
+        &self,
+        doc: &ProfileDoc,
+        doc_ref: DocRef,
+        chain: &[DocRef],
+        reached: Rows<T>,
+        tol: Tol,
+    ) -> Result<PartValue<T>, PartFault> {
         self.evaluations.fetch_add(1, Ordering::Relaxed);
         // AQ4: the referenced document evaluates at its OWN parameters
         // — v1 instantiation takes no arguments. Sequentially, with a
@@ -361,96 +685,362 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             resolver: self.resolver.map(Arc::clone),
             profile_lift: self.profile_lift,
             // NOT inherited, unlike the two rows above: a parameter box
-            // is a set of THIS document's parameter names, and a
-            // referenced document is a different document with its own
-            // names (AQ4 — v1 instantiation takes no arguments). A box
-            // that crossed the seam would either name nothing there or,
-            // worse, collide by name with an unrelated parameter.
+            // is keyed by THIS document's variable ids, and a referenced
+            // document is a different document with its own variables
+            // (AQ4 — v1 instantiation takes no arguments). A box that
+            // crossed the seam would name nothing there: an id is minted
+            // by one document's chain and read by no other.
             param_box: None,
-            // NOT inherited, by the same argument: a seed is a name of
-            // THIS document's parameters. A part's geometry is constant
+            // NOT inherited, by the same argument: a seed is one of THIS
+            // document's variable ids. A part's geometry is constant
             // with respect to them (AQ4 — v1 instantiation takes no
             // arguments), which the unseeded nested run states exactly:
             // every tangent it carries is zero.
             seed: None,
         };
-        let mut chain = self.chain.to_vec();
-        chain.push(*doc_ref);
-        let evaluation =
-            super::evaluate_nested::<T>(&doc, &super::CancelToken::new(), &opts, &chain, tol);
-        // The nested run's own crossings are crossings of THIS run:
-        // fold them in, so the outermost counter is the whole run's
-        // evidence rather than one level's.
-        self.evaluations
-            .fetch_add(evaluation.part_evaluations, Ordering::Relaxed);
+        let evaluation = super::evaluate_nested::<T>(
+            doc,
+            &super::CancelToken::new(),
+            &opts,
+            chain,
+            Reached(reached),
+            tol,
+        );
         // A2's uniformity: what a document MEANS is its product, one
         // rule everywhere. A failed node inside the part surfaces
-        // through the product door's own typed refusal — and its cause
-        // travels with it, because the evaluation holding that cause
+        // through the product door's own typed refusal — and its
+        // refusal travels with it, because the evaluation holding it
         // does not outlive this call.
         // A part is its PRODUCT, however many solids that product
         // holds. The count is not consulted here at all — the
         // placing path maps all N as one body and the gather grafts
         // them as N, so a narrower rule at this door would be a second
         // truth about what instantiating a document means.
-        let product = crate::product::product_recorded(&doc, &evaluation, tol)
-            .map_err(|e| product_fault(&e, &evaluation))?;
+        let product = match crate::product::product_recorded(doc, &evaluation, tol) {
+            Ok(product) => product,
+            Err(e) => return Err(product_fault(e, evaluation, doc)),
+        };
+        // The part's unplaced groups are not in its product (A9), so
+        // they cross beside it: its own, and those its parts carried up
+        // to it, read off the evaluation rather than the product so a
+        // group below an instance no root gathers is named too.
+        let unplaced = evaluation
+            .unplaced_groups()
+            .into_iter()
+            .map(|(group, cause)| {
+                PartRow::own(
+                    doc,
+                    doc_ref.id,
+                    crate::assembly::UnplacedGroup { group, cause },
+                )
+            })
+            .chain(evaluation.all_unplaced_below().into_iter().map(|row| {
+                PartRow::below(
+                    doc,
+                    row.route,
+                    crate::assembly::UnplacedGroup {
+                        group: row.group,
+                        cause: row.cause,
+                    },
+                    row.held,
+                )
+            }))
+            .collect();
         // The whole product crosses the seam, not a slice of it: what
         // a document MEANS is its product, and its mates' identity and
         // mint health are as much part of that as its records are. The
         // `Arc`s are the cache's, so every instance of one part shares
         // one row set.
+        let parts = product
+            .solid_roots
+            .iter()
+            .map(|o| (o.node, o.output))
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .map(|(node, _)| {
+                let Some(value) = evaluation.value(node) else {
+                    unreachable!("a gathered root's value is the one the product read")
+                };
+                value.parts
+            })
+            .sum();
         Ok(PartValue {
+            parts,
             body: Arc::new(product.body.into_body()),
             names: Arc::new(product.names),
             contacts: Arc::new(product.contacts),
-            minted: Arc::new(product.minted),
-            unminted: Arc::new(product.unminted),
-            carried: Arc::new(product.carried),
-            carried_unminted: Arc::new(product.carried_unminted),
+            minted: Arc::new(
+                product
+                    .minted
+                    .into_iter()
+                    .map(|own| PartRow::own(doc, doc_ref.id, own))
+                    .chain(
+                        product
+                            .carried
+                            .into_iter()
+                            .map(|row| PartRow::below(doc, row.route, row.declaration, row.held)),
+                    )
+                    .collect(),
+            ),
+            unminted: Arc::new(
+                product
+                    .unminted
+                    .into_iter()
+                    .map(|own| PartRow::own(doc, doc_ref.id, own))
+                    .chain(
+                        product
+                            .carried_unminted
+                            .into_iter()
+                            .map(|row| PartRow::below(doc, row.route, row.refusal, row.held)),
+                    )
+                    .collect(),
+            ),
+            unplaced: Arc::new(unplaced),
         })
     }
 }
 
-/// Turns the referenced document's product refusal into a fault that
-/// still NAMES its cause (review MAJOR-1).
-///
-/// A `RootFailed` refusal's own text points at
-/// `Evaluation::node_error` — an object the caller cannot reach, since
-/// the nested evaluation is local to the resolution. So the cause is
-/// read here, while it still exists: typed and chained when the
-/// failing root was itself an instantiate node, rendered otherwise.
-///
-/// Every OTHER refusal crosses as its class beside its sentence, both
-/// read off the one error — the pairing
-/// [`PartFault::PartProduct`] states.
-fn product_fault<T: Decide>(
-    error: &crate::product::ProductError,
-    evaluation: &super::Evaluation<T>,
-) -> PartFault {
-    let crate::product::ProductError::RootFailed { node } = error else {
-        return PartFault::PartProduct {
-            kind: error.kind(),
-            message: error.to_string(),
-        };
-    };
-    let Some(failure) = evaluation.node_error(*node) else {
-        return PartFault::PartRootFailed {
-            node: *node,
-            cause: None,
-            message: "the evaluation records no cause for it".to_string(),
-        };
-    };
-    // A nested seam fault chains VERBATIM: a depth refusal, a pin
-    // mismatch or an ε disagreement any number of documents down
-    // arrives at the top typed, not as prose about prose.
-    let cause = match &failure.kind {
-        super::NodeErrorKind::Part { fault, .. } => Some(Box::new(fault.clone())),
+/// **The parts a nested evaluation instantiates, already evaluated** —
+/// the rows its cache starts from.
+pub(crate) struct Reached<T: Decide>(Rows<T>);
+
+impl<T: Decide> Reached<T> {
+    /// No part reached: the top of a descent, whose cache asks lazily.
+    pub(crate) fn none() -> Self {
+        Self(BTreeMap::new())
+    }
+}
+
+/// **The one census of what a document's evaluation can ask its part
+/// cache for**: the reference `id` instantiates, when `id` is an
+/// instantiate node. Both askers read it: the instantiate node's own op
+/// (`wire::wire_instantiate_part`) and the mate solve's reach over a
+/// member's instance (`mate::solve`'s `part_of`, which the lever's
+/// `pair_reach` and a face-based side's face pose both ask through).
+/// The descent enters every reference it names before the document
+/// evaluates, and a nested cache refuses any other ask
+/// ([`PartFault::NotEntered`]).
+pub(crate) fn instantiated<P>(doc: &crate::Doc<P>, id: RecipeNodeId) -> Option<DocRef> {
+    match doc.node(id) {
+        Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => Some(*doc_ref),
         _ => None,
+    }
+}
+
+/// A document on the descent stack: resolved, and waiting for the
+/// parts it instantiates.
+struct Entered<T: Decide> {
+    doc_ref: DocRef,
+    doc: ProfileDoc,
+    /// Its `InstantiatePart` references in document order, repeats
+    /// included; `next` is how far the descent has read them.
+    refs: Vec<DocRef>,
+    next: usize,
+    reached: Rows<T>,
+}
+
+impl<T: Decide> Entered<T> {
+    /// Enters `doc_ref` from the document at the end of `path`, or says
+    /// why it cannot be entered.
+    fn enter(
+        resolver: &Arc<dyn PartResolver>,
+        path: &[DocRef],
+        doc_ref: &DocRef,
+        tol: Tol,
+    ) -> Result<Self, PartFault> {
+        // The cycle, decided structurally and named: the loop runs from
+        // the reference's earlier appearance to this repeat of it.
+        if let Some(at) = path.iter().position(|r| r == doc_ref) {
+            let mut cycle = path[at..].to_vec();
+            cycle.push(*doc_ref);
+            return Err(PartFault::ReferenceCycle { cycle });
+        }
+        if path.len() >= MAX_DEPTH {
+            return Err(PartFault::DepthExceeded);
+        }
+        let doc = resolver
+            .resolve(doc_ref, tol)
+            .map_err(|e| PartFault::Unresolved {
+                fault: e.fault,
+                message: e.message,
+            })?;
+        let refs = if super::recorded_at_process_eps(&doc, tol) {
+            doc.ids()
+                .iter()
+                .filter_map(|&id| instantiated(&doc, id))
+                .collect()
+        } else {
+            Vec::new()
+        };
+        Ok(Self {
+            doc_ref: *doc_ref,
+            doc,
+            refs,
+            next: 0,
+            reached: BTreeMap::new(),
+        })
+    }
+
+    /// The next reference this document instantiates that has no row
+    /// yet.
+    fn next_unreached(&mut self, eps_bits: u64) -> Option<DocRef> {
+        while let Some(r) = self.refs.get(self.next).copied() {
+            self.next += 1;
+            if !self.reached.contains_key(&(r, eps_bits)) {
+                return Some(r);
+            }
+        }
+        None
+    }
+}
+
+/// Turns the referenced document's product refusal into a fault that
+/// still NAMES its cause.
+///
+/// A failed root, and a poisoned root's failed ancestor, hold their
+/// refusal in the nested evaluation, which is local to the resolution
+/// and cannot be reached from the caller. So the evaluation is taken
+/// here by value and the failure is moved out of it: the fault carries
+/// the very refusal the part's evaluation raised, a seam fault any
+/// number of documents down included.
+///
+/// Every OTHER refusal crosses whole ([`PartFault::PartProduct`]).
+///
+/// `part` is the document evaluated, at the version its reference pins:
+/// the fault keeps the nodes it names as `part` holds them
+/// ([`PartFault::held`]), the one place the pinned part is in hand.
+fn product_fault<T: Decide>(
+    error: crate::product::ProductError,
+    mut evaluation: super::Evaluation<T>,
+    part: &ProfileDoc,
+) -> PartFault {
+    use super::NodeStanding;
+    // Each arm is built from its held nodes: once to say its sentence
+    // over `part`, recording what it names, and once holding them.
+    type Arm = Box<dyn Fn(Arc<HeldNodes>) -> PartFault>;
+    let unrecorded = |node: RecipeNodeId| -> Arm {
+        Box::new(move |held| PartFault::RootFailureUnrecorded { node, held })
     };
-    PartFault::PartRootFailed {
-        node: *node,
-        cause,
-        message: failure.kind.to_string(),
+    let mut refusal_at = |failed: RecipeNodeId| match evaluation.nodes.remove(&failed) {
+        Some(super::NodeResult::Failed(failure)) => Ok(super::NodeRefusal::from(failure.kind)),
+        _ => Err(failed),
+    };
+    let arm: Arm = match error {
+        crate::product::ProductError::Root(NodeStanding::Failed { node }) => {
+            match refusal_at(node) {
+                Ok(refusal) => Box::new(move |held| PartFault::PartRootFailed {
+                    node,
+                    refusal: refusal.clone(),
+                    held,
+                }),
+                Err(failed) => unrecorded(failed),
+            }
+        }
+        crate::product::ProductError::Root(NodeStanding::Poisoned { node, through }) => {
+            match refusal_at(through) {
+                Ok(refusal) => Box::new(move |held| PartFault::PartRootPoisoned {
+                    root: node,
+                    through,
+                    refusal: refusal.clone(),
+                    held,
+                }),
+                Err(failed) => unrecorded(failed),
+            }
+        }
+        _ => {
+            let refusal: crate::product::ProductRefusal = error.into();
+            Box::new(move |held| PartFault::PartProduct {
+                refusal: refusal.clone(),
+                held,
+            })
+        }
+    };
+    let held = crate::spoken::held_by(&InPart(&arm(Arc::default())), part);
+    arm(Arc::new(held))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::{PartCache, PartFault, Reached};
+    use crate::ProfileDoc;
+    use crate::ident::{ContentPin, DocRef, DocumentId};
+    use crate::part::{PartResolver, ResolveFailure, ResolveFault};
+    use geom_core::Tol;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// A resolver that counts its calls and resolves nothing.
+    #[derive(Debug, Default)]
+    struct Counting(AtomicUsize);
+
+    impl PartResolver for Counting {
+        fn resolve(&self, _: &DocRef, _: Tol) -> Result<ProfileDoc, ResolveFailure> {
+            self.0.fetch_add(1, Ordering::Relaxed);
+            Err(ResolveFailure {
+                fault: ResolveFault::Unresolved,
+                message: "the counting resolver holds no document".into(),
+            })
+        }
+    }
+
+    fn doc_ref(seed: &str) -> DocRef {
+        DocRef {
+            id: DocumentId::derive(seed),
+            pin: ContentPin([1; 32]),
+        }
+    }
+
+    /// **A nested cache never descends.** Below the top, an ask the
+    /// descent did not enter refuses `NotEntered` without reaching the
+    /// resolver; at the top the same ask resolves. Goes red if a miss
+    /// below the top descends again, which would put one more nested
+    /// evaluation on the thread's stack per level.
+    #[test]
+    fn a_miss_below_the_top_refuses_not_entered_and_never_resolves() {
+        let counting = Arc::new(Counting::default());
+        let resolver: Arc<dyn PartResolver> = counting.clone();
+        let chain = [doc_ref("parts-unit-above")];
+        let defaults = super::super::EvalOptions::default();
+        let cache = |chain| {
+            PartCache::<f64>::new(
+                Some(&resolver),
+                chain,
+                Reached::none(),
+                defaults.boolean_sweep,
+                defaults.profile_lift,
+                Tol::witness(),
+            )
+        };
+        let asked = doc_ref("parts-unit-asked");
+
+        let nested = cache(&chain);
+        assert!(
+            matches!(
+                nested.get(&asked, Tol::witness()),
+                Err(PartFault::NotEntered)
+            ),
+            "a nested cache's miss is the kernel defect"
+        );
+        assert_eq!(
+            counting.0.load(Ordering::Relaxed),
+            0,
+            "a nested cache's miss reaches no resolver"
+        );
+        assert_eq!(nested.evaluations(), 0, "and evaluates nothing");
+
+        let top = cache(&[]);
+        assert!(
+            matches!(
+                top.get(&asked, Tol::witness()),
+                Err(PartFault::Unresolved { .. })
+            ),
+            "the top's miss descends, and this resolver refuses it"
+        );
+        assert_eq!(
+            counting.0.load(Ordering::Relaxed),
+            1,
+            "the top's miss resolves once"
+        );
     }
 }

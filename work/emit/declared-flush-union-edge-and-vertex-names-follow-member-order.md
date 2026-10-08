@@ -253,7 +253,7 @@ on this branch.
 
 **The body-level cause is ZIP's.** A declared merge leaves a collinear
 valence-2 vertex that an earlier step's cut made:
-`work/zip/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`.
+`work/fuse/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`.
 The flush-slab measurement above reproduces there.
 
 **Where the rules do not reach:**

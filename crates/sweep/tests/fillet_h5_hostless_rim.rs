@@ -195,8 +195,13 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
             )
         };
         let c0 = census(body);
-        let out = fillet_edges(body, &arcs, 0.05, tol())
-            .unwrap_or_else(|e| panic!("{name}: the hostless-crossing rim carves, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(body, tol()),
+            &arcs,
+            0.05,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{name}: the hostless-crossing rim carves, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid at rest, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name}: ONE band over both arcs");
@@ -280,8 +285,13 @@ fn the_plane_hosted_shape_reaches_either_material_side() {
     ] {
         let arcs = rim_arcs_at(&body, r, y);
         let before = volume(&body);
-        let out = fillet_edges(&body, &arcs, 0.05, tol())
-            .unwrap_or_else(|e| panic!("{name} carves before the repair, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &arcs,
+            0.05,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{name} carves before the repair, got {e:?}"));
         let delta = volume(&out.body) - before;
         assert_eq!(
             delta > 0.0,
@@ -292,39 +302,30 @@ fn the_plane_hosted_shape_reaches_either_material_side() {
     }
 }
 
-/// **The shape has no NATIVE revolve instance.** A full revolve of a
-/// pole-touching profile is the wire case, which sweeps every segment
-/// of the loop in two π-bands — the split is a property of the BODY,
-/// not of the segment, so a plane annulus that does not touch the axis
-/// is minted as two half-annuli just the same. The spec's own "dome on
-/// a wider flat top" is therefore the ordinary seam-split annulus:
-/// TWO planar supports, valence-4 crossings, and it carves today.
+/// **A pole-touching revolve builds each plane wall whole**, the
+/// annulus that does not touch the axis included: the boss's flat top
+/// is ONE face whose inner circle is a ring (`crates/sweep/README.md`,
+/// "Walls: one per run"), so its dome rim is the ring-hosted ladder rim
+/// below, as built.
 #[test]
-fn a_pole_touching_revolve_splits_the_walls_that_do_not_touch_the_axis_too() {
+fn a_pole_touching_revolve_builds_its_plane_walls_whole() {
     for up in [true, false] {
         let name = if up { "boss" } else { "dimple" };
         let body = boss(up, tol());
         assert_eq!(
             body.faces().count(),
-            8,
-            "{name}: four profile segments, every one of them split in two"
+            6,
+            "{name}: base disc and flat top whole, cylinder and dome in π halves"
         );
         let arcs = rim_arcs_at(&body, 0.5, 1.0);
         assert_full_revolve_rim(&arcs, name);
+        let hosts = planar_supports(&body, &arcs);
+        assert_eq!(hosts.len(), 1, "{name}: the flat top is one face");
         assert_eq!(
-            planar_supports(&body, &arcs).len(),
-            2,
-            "{name}: the flat top is TWO half-annuli, not one face"
+            body.get_face(hosts[0]).unwrap().rings.len(),
+            1,
+            "{name}: an annulus"
         );
-        for v in rim_vertices(&body, &arcs) {
-            assert_eq!(
-                body.edges_of_vertex(v).unwrap().len(),
-                4,
-                "{name}: a crossing carries a co-surface seam per SIDE"
-            );
-        }
-        fillet_edges(&body, &arcs, 0.1, tol())
-            .unwrap_or_else(|e| panic!("{name} is the seam-split annulus and carves, got {e:?}"));
     }
 }
 
@@ -355,8 +356,13 @@ fn a_repaired_boss_is_ring_hosted_and_takes_the_ladder_door() {
                 .all(|a| loop_edges(&body, fd.rings[0]).contains(a)),
             "{name}: the rim lies in that RING, not in the outer cycle — a ladder rim"
         );
-        let out = fillet_edges(&body, &arcs, 0.1, tol())
-            .unwrap_or_else(|e| panic!("{name}: the ladder rim carves, got {e:?}"));
+        let out = fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &arcs,
+            0.1,
+            tol(),
+        )
+        .unwrap_or_else(|e| panic!("{name}: the ladder rim carves, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
     }
@@ -412,7 +418,7 @@ fn the_hostless_carves_match_their_hand_closed_forms() {
     ] {
         let arcs = rim_arcs_at(&body, rim.0, rim.1);
         let before = mass_properties(&body, tol()).unwrap();
-        let out = fillet_edges(&body, &arcs, r, tol())
+        let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name} tier-3 valid, got {e:?}"));
@@ -448,7 +454,13 @@ fn the_hostless_carves_match_their_hand_closed_forms() {
 fn a_hostless_band_is_naming_total() {
     let source = repaired(lantern(tol()));
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
-    let out = fillet_edges(&source, &arcs, 0.05, tol()).expect("the repaired neck carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &arcs,
+        0.05,
+        tol(),
+    )
+    .expect("the repaired neck carves");
     assert_naming_totality(&source, &out, &arcs, "the repaired lantern neck");
 }
 
@@ -476,8 +488,13 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
     let mut both = rim_arcs_at(&source, neck.0, neck.1);
     both.extend(rim_arcs_at(&source, shoulder.0, shoulder.1));
     assert_eq!(both.len(), 4, "two rims of two arcs each");
-    let one_call = fillet_edges(&source, &both, r, tol())
-        .expect("the hostless neck and the shoulder carve in ONE call");
+    let one_call = fillet_edges(
+        &sweep::test_support::at_rest(&source, tol()),
+        &both,
+        r,
+        tol(),
+    )
+    .expect("the hostless neck and the shoulder carve in ONE call");
     validate_geometric(&one_call.body, tol()).expect("the one-call result is tier-3 valid");
     assert_eq!(one_call.band_faces.len(), 2, "one band per rim");
     let one = mass_properties(&one_call.body, tol()).unwrap();
@@ -487,7 +504,7 @@ fn a_hostless_rim_composes_with_a_shared_wall_neighbour() {
         let mut body = repaired(lantern(tol()));
         for (rim_r, rim_y) in order {
             let arcs = rim_arcs_at(&body, rim_r, rim_y);
-            body = fillet_edges(&body, &arcs, r, tol())
+            body = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
                 .unwrap_or_else(|e| panic!("the ({rim_r}, {rim_y}) rim carves alone, got {e:?}"))
                 .body;
         }
@@ -550,7 +567,7 @@ fn the_plane_sphere_hostless_carve_matches_its_hand_closed_form() {
     ] {
         let arcs = rim_arcs_at(&body, 1.0, 0.0);
         let before = mass_properties(&body, tol()).unwrap();
-        let out = fillet_edges(&body, &arcs, r, tol())
+        let out = fillet_edges(&sweep::test_support::at_rest(&body, tol()), &arcs, r, tol())
             .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
         validate_geometric(&out.body, tol())
             .unwrap_or_else(|e| panic!("{name} tier-3 valid, got {e:?}"));

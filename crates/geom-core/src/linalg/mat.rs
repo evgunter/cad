@@ -38,6 +38,34 @@ impl<T: Real> Mat3<T> {
         Self { c0, c1, c2 }
     }
 
+    /// The matrix whose COLUMNS are the three inner arrays, in order —
+    /// the column-major stored form read as geometry, each column
+    /// through [`Vec3::from_array`].
+    pub const fn from_cols_array(cols: [[T; 3]; 3]) -> Self {
+        let [c0, c1, c2] = cols;
+        Self::from_cols(
+            Vec3::from_array(c0),
+            Vec3::from_array(c1),
+            Vec3::from_array(c2),
+        )
+    }
+
+    /// The columns `[c0, c1, c2]`. Binds every field by pattern, so a
+    /// field added to this type is an E0027 here rather than a column
+    /// silently left out of a reader that walks these.
+    pub const fn cols(self) -> [Vec3<T>; 3] {
+        let Self { c0, c1, c2 } = self;
+        [c0, c1, c2]
+    }
+
+    /// The column-major stored form — [`Self::cols`], each through
+    /// [`Vec3::to_array`]; the inverse of [`Self::from_cols_array`],
+    /// bit for bit.
+    pub const fn to_cols_array(self) -> [[T; 3]; 3] {
+        let [c0, c1, c2] = self.cols();
+        [c0.to_array(), c1.to_array(), c2.to_array()]
+    }
+
     /// The identity map.
     pub fn identity() -> Self {
         Self::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z())
@@ -373,6 +401,34 @@ mod tests {
         ] {
             assert_vec3_bits_eq(Mat3::identity() * v, v);
         }
+    }
+
+    /// `Mul<Vec3>` and `Mul` against hand-computed literals. Every
+    /// entry and product here is exact except row 0's sum, whose
+    /// summands `1`, `2^53` and `−2^53` make the fixed association
+    /// `(1 + 2^53) − 2^53 = 0` (the inner sum ties to even) while any
+    /// grouping that adds the two large terms first gives `1`. So a
+    /// regrouped or reordered sum, a permuted column, a transpose or a
+    /// swapped operand each moves at least one literal.
+    #[test]
+    fn products_are_pinned_to_hand_computed_literals() {
+        let two52 = 4_503_599_627_370_496.0; // 2^52
+        let two51 = 2_251_799_813_685_248.0; // 2^51
+        let a = Mat3::from_cols(
+            Vec3::new(1.0, 2.0, 3.0),
+            Vec3::new(two52, 5.0, -7.0),
+            Vec3::new(-two51, 11.0, 13.0),
+        );
+        // (1·1 + 2^52·2) + (−2^51)·4 = 0;  2 + 10 + 44;  3 − 14 + 52.
+        let v = Vec3::new(1.0, 2.0, 4.0);
+        assert_vec3_bits_eq(a * v, Vec3::new(0.0, 56.0, 41.0));
+
+        let b = Mat3::from_cols(v, Vec3::new(0.0, 1.0, 0.0), Vec3::new(3.0, 0.0, 1.0));
+        let ab = a * b;
+        assert_vec3_bits_eq(ab.c0, Vec3::new(0.0, 56.0, 41.0));
+        assert_vec3_bits_eq(ab.c1, Vec3::new(two52, 5.0, -7.0));
+        // 3 − 2^51 is exact: the spacing at 2^51 is 0.5.
+        assert_vec3_bits_eq(ab.c2, Vec3::new(-2_251_799_813_685_245.0, 17.0, 22.0));
     }
 
     #[test]
@@ -749,7 +805,7 @@ mod tests {
             [1.0, 2.0, 3.0],
             [1.0, 1.0e-9, 0.0],
         ] {
-            let axis = Vec3::new(ax[0], ax[1], ax[2]);
+            let axis = Vec3::from_array(ax);
             for k in -40..=40i32 {
                 let angle = f64::from(k) * 0.17;
                 let r = Mat3::rotation_about(axis, angle);
@@ -844,7 +900,7 @@ mod tests {
         fn rotation_fixes_its_axis(axis in vec3(), theta in angle()) {
             let r = Mat3::rotation_about(axis, theta);
             let ra = r * axis;
-            let m = axis.x.abs().max(axis.y.abs()).max(axis.z.abs());
+            let m = axis.norm_inf();
             prop_assert!((ra.x - axis.x).abs() <= 1e-12 * m);
             prop_assert!((ra.y - axis.y).abs() <= 1e-12 * m);
             prop_assert!((ra.z - axis.z).abs() <= 1e-12 * m);
@@ -866,7 +922,7 @@ mod tests {
             let b = Mat3::rotation_about(ax2, th2);
             let lhs = (a * b) * v;
             let rhs = a * (b * v);
-            let m = v.x.abs().max(v.y.abs()).max(v.z.abs());
+            let m = v.norm_inf();
             prop_assert!((lhs.x - rhs.x).abs() <= 1e-12 * m);
             prop_assert!((lhs.y - rhs.y).abs() <= 1e-12 * m);
             prop_assert!((lhs.z - rhs.z).abs() <= 1e-12 * m);
@@ -882,5 +938,37 @@ mod tests {
             let r = Mat3::rotation_about(axis, theta);
             assert_mat3_entrywise_close(r.inverse(), r.transpose(), 1e-12);
         }
+    }
+
+    /// The stored form is COLUMN-major: each inner array is a column.
+    /// A row-major reading would put `4.0` at `c0.y` rather than
+    /// `c1.x`, and a column swap in `cols` would misplace `c1`.
+    #[test]
+    fn cols_array_doors_are_column_major_and_round_trip() {
+        let stored = [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]];
+        let m = Mat3::from_cols_array(stored);
+        assert_eq!(
+            (m.c0.x, m.c0.y, m.c1.x, m.c2.z),
+            (1.0, 2.0, 4.0, 9.0),
+            "from_cols_array reads columns"
+        );
+        let [c0, c1, c2] = m.cols();
+        assert_eq!(
+            [c0.to_array(), c1.to_array(), c2.to_array()],
+            stored,
+            "cols order"
+        );
+        assert_eq!(
+            m.to_cols_array(),
+            stored,
+            "to_cols_array inverts from_cols_array"
+        );
+        // Applying the matrix to e₂ reads the second column — the
+        // stored layout agrees with the map's own meaning.
+        assert_eq!(
+            (m * Vec3::unit_y()).to_array(),
+            stored[1],
+            "second column is the image of e₂"
+        );
     }
 }

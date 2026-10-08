@@ -12,18 +12,11 @@
 //! `(4/64, 1/64)` and the mouth at `(3/64, 8/64)`, so both junction
 //! residuals are exactly `0.0` in `f64`.
 //!
-//! # The mouth is TWO faces, and the document names both
+//! # The mouth is ONE face
 //!
-//! A FULL revolve emits every profile segment as two faces — the
-//! `[0, π)` band and the `[π, 2π)` band — on ONE chart, so the mouth
-//! disc is two half-discs on one plane. The kernel's rim surgery lifts
-//! a chart as a whole and refuses a partial designation
-//! (`ShellError::OpenFaceChartPartial`), and the document layer does
-//! not complete charts on the author's behalf (that is a kernel rule,
-//! and the seat's), so `open` names both halves. The order is the
-//! rim's identity: the first named carries it, so the rim here is
-//! `Rim(Band(mouth))`, and a document naming the halves the other way
-//! round mints `Rim(BandPi(mouth))` and keys apart from this one.
+//! A FULL revolve builds a plane wall whole (`crates/sweep/README.md`,
+//! "Walls: one per run"), so the mouth disc is one face on its plane
+//! and `open` names it alone; the rim is `Rim(Band(mouth))`.
 //!
 //! # No mass pin
 //!
@@ -39,9 +32,10 @@
 //! docs): a dual has no shell door, and registry membership requires
 //! every document green at `Dual64`.
 
+use editor_core::Formula;
 use editor_core::{
     DocEdit, LoopProgram, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, band, band_pi,
+    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, band,
 };
 
 use crate::fixture::{ang, axis_in_plane, frame, len, len2};
@@ -78,7 +72,7 @@ pub const SEG_BELLY: u32 = 2;
 pub const SEG_MOUTH: u32 = 3;
 
 /// The meridian as a program (module docs).
-pub fn meridian() -> LoopProgram {
+pub fn meridian() -> LoopProgram<Formula> {
     LoopProgram::Chain(vec![
         ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::LineTo(ProgramTarget::Point(len2([R_FOOT, 0.0]))),
@@ -93,11 +87,10 @@ pub fn meridian() -> LoopProgram {
     ])
 }
 
-/// The vessel with its `open` list AUTHORED by the caller — two names,
-/// whatever faces they are: the mouth's two halves in either order
-/// (which decides which half carries the rim), or a designation the
-/// kernel refuses. [`document`] names the mouth's `Band` half first.
-pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> [StableName; 2]) -> CorpusDoc {
+/// The vessel with its `open` list AUTHORED by the caller — whatever
+/// faces they are: the mouth, or a designation the kernel refuses.
+/// [`document`] names the mouth.
+pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>) -> CorpusDoc {
     let mut r = Recorder::new();
 
     // u = +X (the radius), v = +Z (the axis): the meridian's own axis
@@ -115,7 +108,7 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> [StableName; 2]
         angle: ang(std::f64::consts::TAU),
     });
     let open = open(&r.doc, pot);
-    let vessel = r.insert(Node::shell(pot, len(WALL), open.to_vec()));
+    let vessel = r.insert(Node::shell(pot, len(WALL), open));
 
     CorpusDoc {
         name: "vessel",
@@ -130,6 +123,7 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> [StableName; 2]
             node: vessel,
             slot: SlotId::ShellThickness,
             expr: len(WALL_BUMPED),
+            fresh: Vec::new(),
         },
         bump_root: vessel,
     }
@@ -141,7 +135,56 @@ pub fn mouth(doc: &ProfileDoc, pot: RecipeNodeId) -> ProfileEdgeRef {
     crate::fixture::piece(doc, pot, 0, SEG_MOUTH as usize)
 }
 
-/// The vessel's corpus document: the mouth's `Band` half named first.
+/// The vessel's corpus document: the mouth opened.
 pub fn document() -> CorpusDoc {
-    document_with_open(|doc, pot| [band(pot, mouth(doc, pot)), band_pi(pot, mouth(doc, pot))])
+    document_with_open(|doc, pot| vec![band(pot, mouth(doc, pot))])
+}
+
+/// The capped vessel's cap: a sphere of radius `5/64` about `(0, −2/64)`,
+/// meeting the foot at `(4/64, 1/64)` (the 3-4-5 point again) and the
+/// axis at its pole `(0, 3/64)`, so the cap is pole-touching and the
+/// full revolve wears it on two half-faces.
+pub const Y_CAP_C: f64 = -2.0 / 64.0;
+/// The cap's pole.
+pub const Y_POLE: f64 = 3.0 / 64.0;
+/// The cap's segment in the capped meridian: base disc, foot, cap.
+pub const SEG_CAP: u32 = 2;
+
+/// The capped vessel's meridian: the foot under a pole-touching cap.
+pub fn capped_meridian() -> LoopProgram<Formula> {
+    LoopProgram::Chain(vec![
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([R_FOOT, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([R_FOOT, Y_FOOT]))),
+        ProgramStep::ArcTo(ProgramArcData::Center {
+            c: len2([0.0, Y_CAP_C]),
+            winding: profile::ArcSweep::Ccw,
+            target: ProgramTarget::Point(len2([0.0, Y_POLE])),
+        }),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ])
+}
+
+/// **The capped vessel**: [`capped_meridian`] revolved a full turn and
+/// hollowed to [`WALL`] with its cap opened, the cap named by both of
+/// the half-faces the revolve wears it on. Returns the document, the
+/// shell node and the revolve node.
+pub fn capped_document() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let mut r = Recorder::new();
+    let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
+    let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
+    let profile = r.insert(Node::Profile(ProfileProgram {
+        plane,
+        loops: vec![capped_meridian()],
+        ids: Vec::new(),
+    }));
+    let pot = r.insert(Node::Revolve {
+        profile,
+        axis,
+        angle: ang(std::f64::consts::TAU),
+    });
+    let cap = crate::fixture::piece(&r.doc, pot, 0, SEG_CAP as usize);
+    let open = vec![band(pot, cap), editor_core::band_pi(pot, cap)];
+    let shell = r.insert(Node::shell(pot, len(WALL), open));
+    (r.doc, shell, pot)
 }

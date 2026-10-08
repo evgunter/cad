@@ -18,7 +18,7 @@ Opened 2026-09-20 by TINT's priority-seam cut
 | P3 | `chamfered-cube-and-steiner-oracles-outside-sweep` | E | The chamfered-cube and Steiner closed forms are restated outside crates/sweep too |
 | P3 | `m10-p-lift-interval-plane-is-sketch-plane-map-by-hand` | E | editor-core/tests/m10_p_lift.rs interval_plane rebuilds a SketchPlane from twelve from_f64 calls, which is plane.map(Interval::from_f64) |
 | P3 | `pointwise-net-rebuilds-outside-d385s-lifts` | E | 44 test sites rebuild a validated NURBS net through new(..).unwrap() where map_points is the door |
-| P3 | `three-part-resolver-stub-residues-resist-the-shared-fixture` | E | Three editor-core stub residues the shared part-resolver fixture cannot absorb as written |
+| P3 | `three-part-resolver-stub-residues-resist-the-shared-fixture` | E | asm2a_instantiate's seam-refusing StubStore is the one part-resolver stub left beside the shared fixture |
 | P4 | `D384` | E | Give the trv()/healthy() finite-bracket fixture one home for its three verbatim copies |
 | P4 | `D385` | E | Replace hand-written NURBS and profile-vertex payload lifts in test crates with map_scalar, deciding per file |
 | P4 | `cross-crate-test-helper-copies-outside-the-geometry-fixtures` | E | cross-crate duplicated test helpers outside the geometry-fixture rows: validated/vp at 10 byte-identical copies, and twelve more classes no row names |

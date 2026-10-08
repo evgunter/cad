@@ -11,10 +11,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
-    Attr, CapEnd, Dimension, DocEdit, DocParam, DocRef, DocumentId, EntityKind, MetaValue, Node,
-    ParamName, PersistError, ProfileDoc, Rgba8, RoleSeg, StableName, WitnessDatum, content_pin,
+    Attr, CapEnd, Dimension, DocEdit, DocRef, DocumentId, EntityKind, FreeVar, MetaValue, Node,
+    PersistError, ProfileDoc, Rgba8, RoleSeg, StableName, VarName, WitnessDatum, content_pin,
     header_document_id, load, save,
 };
 use fixture::{desc, insert, len, on_frame, step};
@@ -42,13 +43,14 @@ fn exemplar(
         Node::Extrude {
             profile,
             distance: len(0.5),
+            side: ExtrudeSide::Along,
         },
     );
     let (doc, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.75),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("depth"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.75)),
         },
     );
     (doc, profile, extrude)
@@ -76,24 +78,27 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
     // Path A: set the param to 0.9 in one step.
     let (a, _) = step(
         base.clone(),
-        DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.9),
+        DocEdit::DefineVar {
+            var: VarName::from_static("depth").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
+            fresh: Vec::new(),
         },
     );
     // Path B: wander through 0.1 first, then land on 0.9.
     let (b, _) = step(
         base,
-        DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.1),
+        DocEdit::DefineVar {
+            var: VarName::from_static("depth").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.1)),
+            fresh: Vec::new(),
         },
     );
     let (b, _) = step(
         b,
-        DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.9),
+        DocEdit::DefineVar {
+            var: VarName::from_static("depth").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(
@@ -103,32 +108,24 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
     // And through the persistence door: the two saves carry DIFFERENT
     // edit logs over one origin; both load-replay to the same pin.
     let (origin, _, _) = exemplar("asm1-row2");
-    let log_a = vec![DocEdit::SetDocParam {
-        name: ParamName::new("depth"),
-        value: DocParam::continuous(Dimension::Length, 0.9),
+    let log_a = vec![DocEdit::DefineVar {
+        var: VarName::from_static("depth").into(),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
+        fresh: Vec::new(),
     }];
-    let mut log_b = vec![DocEdit::SetDocParam {
-        name: ParamName::new("depth"),
-        value: DocParam::continuous(Dimension::Length, 0.1),
+    let mut log_b = vec![DocEdit::DefineVar {
+        var: VarName::from_static("depth").into(),
+        def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.1)),
+        fresh: Vec::new(),
     }];
     log_b.extend(log_a.clone());
     let loaded_a = load(
-        &save(
-            &origin,
-            &editor_core::LoggedEdit::bare_all(&log_a),
-            Tol::witness(),
-        )
-        .unwrap(),
+        &save(&origin, &log_a.to_vec(), Tol::witness()).unwrap(),
         Tol::witness(),
     )
     .unwrap();
     let loaded_b = load(
-        &save(
-            &origin,
-            &editor_core::LoggedEdit::bare_all(&log_b),
-            Tol::witness(),
-        )
-        .unwrap(),
+        &save(&origin, &log_b.to_vec(), Tol::witness()).unwrap(),
         Tol::witness(),
     )
     .unwrap();
@@ -160,9 +157,10 @@ fn row2_undone_edit_pin_unchanged() {
     let before = content_pin(&doc, Tol::witness()).unwrap();
     let (edited, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.9),
+        DocEdit::DefineVar {
+            var: VarName::from_static("depth").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.9)),
+            fresh: Vec::new(),
         },
     );
     assert_ne!(
@@ -172,9 +170,10 @@ fn row2_undone_edit_pin_unchanged() {
     );
     let (undone, _) = step(
         edited,
-        DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.75),
+        DocEdit::DefineVar {
+            var: VarName::from_static("depth").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.75)),
+            fresh: Vec::new(),
         },
     );
     assert_eq!(content_pin(&undone, Tol::witness()).unwrap(), before);
@@ -206,6 +205,7 @@ fn row4_node_edit_moves_pin() {
             node: extrude,
             slot: editor_core::SlotId::Distance,
             expr: len(0.625),
+            fresh: Vec::new(),
         },
     );
     assert_ne!(content_pin(&edited, Tol::witness()).unwrap(), before);
@@ -218,9 +218,10 @@ fn row4_param_edit_moves_pin() {
     let before = content_pin(&doc, Tol::witness()).unwrap();
     let (edited, _) = step(
         doc,
-        DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.8),
+        DocEdit::DefineVar {
+            var: VarName::from_static("depth").into(),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.8)),
+            fresh: Vec::new(),
         },
     );
     assert_ne!(content_pin(&edited, Tol::witness()).unwrap(), before);
@@ -274,13 +275,13 @@ fn row4_metadata_edit_moves_pin() {
         path: vec![],
     };
     let mut m = std::collections::BTreeMap::new();
-    m.insert("v".to_owned(), MetaValue::Int(1));
+    m.insert("v".to_owned(), MetaValue::Int(1.into()));
     let (annotated, _) = step(
         doc,
         DocEdit::SetAppearanceMeta {
             name: body,
             key: "tool.example/pin-row".into(),
-            value: MetaValue::Map(m),
+            value: MetaValue::map(m).expect("a shallow value"),
         },
     );
     assert_ne!(content_pin(&annotated, Tol::witness()).unwrap(), before);
@@ -398,13 +399,14 @@ fn row4_doc_metadata_in_preimage_via_crafted_save() {
     );
 }
 
-/// The spec's stated `next_id` consequence (D-3 as amended; R2
-/// MINOR-3, ruled compliant): an undone INSERT moves the pin —
-/// delete never decrements the monotone counter, and the counter is
-/// document state in the include-by-default preimage. "Undo must not
-/// move pins" holds exactly for value edits (row 2b); structural
-/// insert/delete pairs leave counter residue. Documented behavior,
-/// pinned so a silent preimage change is caught in both directions.
+/// The spec's stated mint consequence (D-3 as amended; R2 MINOR-3,
+/// ruled compliant): an undone INSERT moves the pin — the insert
+/// extended the mint's chain and log, a delete takes neither back, and
+/// the mint is document state in the include-by-default preimage.
+/// "Undo must not move pins" holds exactly for value edits (row 2b);
+/// structural insert/delete pairs leave mint residue. Documented
+/// behavior, pinned so a silent preimage change is caught in both
+/// directions.
 #[test]
 fn stated_consequence_undone_insert_moves_pin() {
     let (doc, _, _) = exemplar("asm1-next-id");
@@ -413,7 +415,7 @@ fn stated_consequence_undone_insert_moves_pin() {
     // One node in, one node out: the profile alone, on a frame the
     // document already carries, so the delete restores the count.
     // The exemplar's own frame: node 0, ahead of its profile.
-    let plane = doc.order()[0];
+    let plane = doc.ids()[0];
     let (with_extra, extra) = insert(
         doc,
         Node::Profile(desc(
@@ -426,6 +428,6 @@ fn stated_consequence_undone_insert_moves_pin() {
     assert_ne!(
         content_pin(&undone, Tol::witness()).unwrap(),
         before,
-        "counter residue pins as a new version — the spec's stated consequence"
+        "mint residue pins as a new version — the spec's stated consequence"
     );
 }

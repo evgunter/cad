@@ -74,14 +74,12 @@ use topo::{BooleanResult, subtract};
 
 /// Audited, documented non-length comparands still awaiting their own
 /// units (docs/predicate-dimension-audit.md FLAG rows). Everything
-/// else must scale linearly.
-/// (F3 and F4 were on this list until this unit; the module docs
-/// record what they were and what retired them.)
-const KNOWN_NONLINEAR: &[&str] = &[
-    // F2: ray-caster denominators (dimensionless / 1/m).
-    "bool_point_in_solid_denom",
-    "bool_ray_cylinder_disc",
-];
+/// else must scale linearly. EMPTY: F3 and F4 were on this list until
+/// their unit (the module docs record what retired them), and F2's
+/// ray-caster denominators until they were levered by the selection's
+/// reach. These bricks have no curved wall, so the wall arm's two rungs
+/// are pinned by `sweep`'s `ray_wall_margin_twins`, on a pipe.
+const KNOWN_NONLINEAR: &[&str] = &[];
 
 /// Predicates whose DECISION COUNT may differ between the twins.
 /// EMPTY since the F3 fix: the only entry was
@@ -113,10 +111,15 @@ fn box_at<F: Fn(f64) -> f64>(
 /// rows where the mm pocket subtract refused in-band).
 fn margins_at(scale: f64) -> BTreeMap<&'static str, Vec<(SampleOutcome, f64)>> {
     let s = |v: f64| v * scale;
-    k_stats::start_recording();
+    let fin = |what, b| topo::test_support::finished(what, b, Tol::witness());
     // Corner overlap: generic crossing subtract.
-    let a = box_at(&s, (0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
-    let b = box_at(&s, (1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
+    let a = fin("a", box_at(&s, (0.0, 2.0), (0.0, 2.0), (0.0, 2.0)));
+    let b = fin("b", box_at(&s, (1.0, 3.0), (1.0, 3.0), (1.0, 3.0)));
+    // Through-pocket: the tool pierces the top and bottom faces, so
+    // the result carries ring loops (the point-in-loop lane).
+    let a2 = fin("a2", box_at(&s, (0.0, 4.0), (0.0, 4.0), (0.0, 1.0)));
+    let b2 = fin("b2", box_at(&s, (1.0, 2.0), (1.0, 2.0), (-1.0, 2.0)));
+    k_stats::start_recording();
     let r = subtract(&a, &b, Tol::witness()).expect("corner subtract");
     let BooleanResult::Body(rb) = r else {
         panic!("corner: body out");
@@ -126,13 +129,10 @@ fn margins_at(scale: f64) -> BTreeMap<&'static str, Vec<(SampleOutcome, f64)>> {
     // `pm_census_ee_parallel` — decide every entity pair.
     topo::validate_pseudomanifold(&rb.body, &topo::ContactRecords::default(), Tol::witness())
         .expect("corner census");
-    // Through-pocket: the tool pierces the top and bottom faces, so
-    // the result carries ring loops (the point-in-loop lane). This is
-    // the configuration whose mm twin refused in-band on F4's area
-    // comparand at ε = 1e-6; with the winding metered to a mean width
-    // it computes at every ε row, so ANY refusal here is now a finding.
-    let a2 = box_at(&s, (0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
-    let b2 = box_at(&s, (1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
+    // The pocket is the configuration whose mm twin refused in-band on
+    // F4's area comparand at ε = 1e-6; with the winding metered to a
+    // mean width it computes at every ε row, so ANY refusal here is now
+    // a finding.
     match subtract(&a2, &b2, Tol::witness()) {
         Ok(BooleanResult::Body(_)) => {}
         Ok(other) => panic!("pocket: expected a body, got {other:?}"),
@@ -250,10 +250,12 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
     // refactor stops one from firing, the pin goes vacuous — fail
     // loudly instead so the pin moves with the code.
     //
-    // `bool_ring_run_winding` (F4) and the two `volume_backstop*`
+    // `bool_ring_run_winding` (F4) and the three `volume_backstop*`
     // gates (F3) are on this list BECAUSE of this unit: their
     // presence here is what makes their absence from KNOWN_NONLINEAR
-    // a claim rather than a silence — they fire, and they scale.
+    // a claim rather than a silence — they fire, and they scale. So is
+    // `bool_point_in_solid_denom` (F2): the plane arm's cosine, levered
+    // by the selection's reach.
     //
     // `bool_join_chord` is here for the ASSIGNMENT, not the metering:
     // it decides the germ-chord LENGTH, so its samples are the join
@@ -268,6 +270,8 @@ fn boolean_margin_streams_scale_linearly_with_the_model() {
         "bool_ring_run_winding",
         "volume_backstop",
         "volume_backstop_operand",
+        "volume_backstop_violation",
+        "bool_point_in_solid_denom",
     ] {
         assert!(
             mm.contains_key(fixed),

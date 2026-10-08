@@ -62,9 +62,15 @@ fn mev_disp(t0: f64, t1: f64) -> Disp {
     let a = c.eval(t0);
     let b = c.eval(t1);
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
-    body.set_face_surface(seed.face, FaceSurface::New(sphere()))
-        .unwrap();
+    let seed = body.mvfs(a, true).unwrap();
+    body.set_face_surface(
+        seed.face,
+        FaceSurface::New {
+            surface: sphere(),
+            sense: true,
+        },
+    )
+    .unwrap();
     let r = body.mev(
         MevSite::Lone {
             r#loop: seed.r#loop,
@@ -91,7 +97,7 @@ fn mev_disp(t0: f64, t1: f64) -> Disp {
 fn parse_disp<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> Disp {
     match r {
         Ok(_) => Disp::Admit,
-        Err(PropsError::Escalated { cause }) if cause.predicate == Some(NAME) => Disp::Escalate,
+        Err(PropsError::Escalated { cause, .. }) if cause.predicate == Some(NAME) => Disp::Escalate,
         Err(PropsError::NotIsoRectangle { what }) if *what == NAME => Disp::Refuse,
         Err(e) => Disp::Other(format!("{e:?}")),
     }

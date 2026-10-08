@@ -10,30 +10,41 @@
 use crate::common::operands::{plate6, plate6_cyl};
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::brick;
+use sweep::ExtrudeSide;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
 use topo::{
-    Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FacePairDeclaration,
-    mass_properties,
+    AtRestBody, Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass,
+    FacePairDeclaration, mass_properties,
 };
 
-fn body_of(r: BooleanResult<f64>) -> Body<f64> {
+fn body_of(r: BooleanResult<f64>) -> AtRestBody<f64> {
     match r {
         BooleanResult::Body(b) => b.body,
         BooleanResult::Empty => panic!("operand cannot be empty"),
     }
 }
 
-fn plate_with_pegs(cx1: f64, cx2: f64, r: f64) -> Body<f64> {
-    let p0 = plate6(0.0);
-    let p1 = body_of(topo::union(&p0, &plate6_cyl(cx1, 0.4, 1.6, r), Tol::witness()).unwrap());
-    body_of(topo::union(&p1, &plate6_cyl(cx2, 0.4, 1.6, r), Tol::witness()).unwrap())
+/// [`plate6`], finished.
+fn plate(z0: f64) -> AtRestBody<f64> {
+    finished("the plate", plate6(z0), Tol::witness())
 }
 
-fn plate_with_bores() -> Body<f64> {
-    let q0 = plate6(1.0);
-    let q1 = body_of(topo::subtract(&q0, &plate6_cyl(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap());
-    body_of(topo::subtract(&q1, &plate6_cyl(4.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
+/// [`plate6_cyl`], finished.
+fn cyl(cx: f64, z0: f64, h: f64, r: f64) -> AtRestBody<f64> {
+    finished("the cylinder", plate6_cyl(cx, z0, h, r), Tol::witness())
+}
+
+fn plate_with_pegs(cx1: f64, cx2: f64, r: f64) -> AtRestBody<f64> {
+    let p0 = plate(0.0);
+    let p1 = body_of(topo::union(&p0, &cyl(cx1, 0.4, 1.6, r), Tol::witness()).unwrap());
+    body_of(topo::union(&p1, &cyl(cx2, 0.4, 1.6, r), Tol::witness()).unwrap())
+}
+
+fn plate_with_bores() -> AtRestBody<f64> {
+    let q0 = plate(1.0);
+    let q1 = body_of(topo::subtract(&q0, &cyl(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap());
+    body_of(topo::subtract(&q1, &cyl(4.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
 }
 
 fn walls_at(body: &Body<f64>, cx: f64) -> Vec<topo::FaceKey> {
@@ -76,7 +87,8 @@ fn declarations(
     skip_second: bool,
     cross_wire: bool,
 ) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
+    // The plates' flush outer walls and peg ends are continuations.
+    let mut decls = crate::mate2_common::continuations(p, q);
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(p, 1.0, true),
         plane_face(q, 1.0, false),
@@ -183,7 +195,6 @@ fn probe_peg_offset_one_ulp_characterized() {
                     BooleanError::Escalated { .. }
                         | BooleanError::ContactContradicted { .. }
                         | BooleanError::RestZipUnsupported { .. }
-                        | BooleanError::JoinDesync { .. }
                         | BooleanError::CurvedPierceUnsupported { .. }
                 ),
                 "typed only: {err:?}"
@@ -258,16 +269,16 @@ fn probe_tangent_on_conformal_walls_contradicts() {
 #[test]
 fn probe_partial_engagement_never_silent() {
     let p = {
-        let p0 = plate6(0.0);
-        body_of(topo::union(&p0, &plate6_cyl(2.0, 0.4, 1.1, 0.5), Tol::witness()).unwrap())
+        let p0 = plate(0.0);
+        body_of(topo::union(&p0, &cyl(2.0, 0.4, 1.1, 0.5), Tol::witness()).unwrap())
     };
     let q = {
-        let q0 = plate6(1.0);
-        body_of(topo::subtract(&q0, &plate6_cyl(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
+        let q0 = plate(1.0);
+        body_of(topo::subtract(&q0, &cyl(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
     };
     let vp = mass_properties(&p, Tol::witness()).unwrap().volume;
     let vq = mass_properties(&q, Tol::witness()).unwrap().volume;
-    let mut decls = BooleanDeclarations::none();
+    let mut decls = crate::mate2_common::continuations(&p, &q);
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&p, 1.0, true),
         plane_face(&q, 1.0, false),
@@ -302,20 +313,10 @@ fn probe_partial_engagement_never_silent() {
         }
         Err(err) => {
             eprintln!("partial engagement refused: {err:?}");
-            // `JoinDesync { "minted-edge description failed
-            // certification" }` is the F7 output stage's edge
-            // re-description refusing a `Line` chord the declared-REST
-            // zip minted on a bore wall where a cap rim cuts it
-            // (`work/curved/rest-zip-seam-chord-on-cylinder-wall`);
-            // the merge door's own arm for a cylindrical declared pair
-            // records, and that is what exposed it. Typed and loud,
-            // which is all this probe asserts — where the frontier
-            // SITS is not a baseline this row defends.
             assert!(
                 matches!(
                     err,
                     BooleanError::RestZipUnsupported { .. }
-                        | BooleanError::JoinDesync { .. }
                         | BooleanError::Join(_)
                         | BooleanError::CurvedPierceUnsupported { .. }
                         | BooleanError::CurvedBooleanUnsupported { .. }
@@ -329,16 +330,24 @@ fn probe_partial_engagement_never_silent() {
 /// A plate with `holes` square through-holes (two-ring patches when
 /// stacked): the ring-capable glue must handle TWO rings per patch
 /// face, and the volume must be exactly additive.
-fn holed_plate(z0: f64, z1: f64, holes: &[(f64, f64)]) -> Body<f64> {
-    let mut b = brick((0.0, 6.0), (0.0, 3.0), (z0, z1), Tol::witness());
+fn holed_plate(z0: f64, z1: f64, holes: &[(f64, f64)]) -> AtRestBody<f64> {
+    let mut b = finished(
+        "the plate",
+        brick((0.0, 6.0), (0.0, 3.0), (z0, z1), Tol::witness()),
+        Tol::witness(),
+    );
     for &(hx, hy) in holes {
         b = body_of(
             topo::subtract(
                 &b,
-                &brick(
-                    (hx, hx + 1.0),
-                    (hy, hy + 1.0),
-                    (z0 - 0.5, z1 + 0.5),
+                &finished(
+                    "the hole's brick",
+                    brick(
+                        (hx, hx + 1.0),
+                        (hy, hy + 1.0),
+                        (z0 - 0.5, z1 + 0.5),
+                        Tol::witness(),
+                    ),
                     Tol::witness(),
                 ),
                 Tol::witness(),
@@ -350,7 +359,8 @@ fn holed_plate(z0: f64, z1: f64, holes: &[(f64, f64)]) -> Body<f64> {
 }
 
 fn flush_rest_decls(bot: &Body<f64>, top: &Body<f64>, z: f64) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
+    // The plates' flush outer walls and hole walls are continuations.
+    let mut decls = crate::mate2_common::continuations(bot, top);
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(bot, z, true),
         plane_face(top, z, false),
@@ -416,7 +426,6 @@ fn probe_ring_count_mismatch_never_silent() {
                     err,
                     BooleanError::RestZipUnsupported { .. }
                         | BooleanError::Join(_)
-                        | BooleanError::JoinDesync { .. }
                         | BooleanError::ZipCorrespondence { .. }
                 ),
                 "typed only: {err:?}"
@@ -434,19 +443,27 @@ fn lying_plane() -> SketchPlane<f64> {
     ))
 }
 
-fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> Body<f64> {
+fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> AtRestBody<f64> {
     let profile = Profile::new(
         lying_plane(),
         vec![bulge_loop(vertices).with_tangent_joints(tangent_joints)],
     )
     .validate(Tol::witness())
     .unwrap();
-    extrude(&profile, Extrusion::Distance(4.0), Tol::witness())
-        .unwrap()
-        .body
+    let body = extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 4.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body;
+    finished("the lying extrusion", body, Tol::witness())
 }
 
-fn quarter_round_below() -> Body<f64> {
+fn quarter_round_below() -> AtRestBody<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
     lying_extrude(
         vec![
@@ -459,7 +476,7 @@ fn quarter_round_below() -> Body<f64> {
     )
 }
 
-fn quarter_round_above() -> Body<f64> {
+fn quarter_round_above() -> AtRestBody<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
     lying_extrude(
         vec![
@@ -498,7 +515,7 @@ fn probe_tube_chain_additivity_error_measured() {
     let b = quarter_round_above();
     let va = mass_properties(&a, Tol::witness()).unwrap().volume;
     let vb = mass_properties(&b, Tol::witness()).unwrap().volume;
-    let mut decls = BooleanDeclarations::none();
+    let mut decls = crate::mate2_common::continuations(&a, &b);
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&a, 1.0, true),
         plane_face(&b, 1.0, false),
@@ -535,7 +552,7 @@ fn probe_tube_chain_additivity_error_measured() {
 fn probe_rim_wall_pair_undeclared_refuses_typed() {
     let a = quarter_round_below();
     let b = quarter_round_above();
-    let mut decls = BooleanDeclarations::none();
+    let mut decls = crate::mate2_common::continuations(&a, &b);
     decls.coincident_faces.push(FacePairDeclaration::new(
         plane_face(&a, 1.0, true),
         plane_face(&b, 1.0, false),

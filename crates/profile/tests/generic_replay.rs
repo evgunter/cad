@@ -71,16 +71,27 @@ fn the_corpus_replays_at_dual_with_bit_identical_values() {
                 b.y.value.to_bits(),
                 "row {i} vertex {k}: y value channel"
             );
-            assert_eq!(
-                base.bulges()[k].to_bits(),
-                dual.bulges()[k].value.to_bits(),
-                "row {i} vertex {k}: bulge value channel"
-            );
-            for (what, d) in [
-                ("x", b.x.deriv),
-                ("y", b.y.deriv),
-                ("bulge", dual.bulges()[k].deriv),
-            ] {
+            let mut tangents = vec![("x", b.x.deriv), ("y", b.y.deriv)];
+            match (base.segments()[k], dual.segments()[k]) {
+                (profile::Segment::Line, profile::Segment::Line) => {}
+                (profile::Segment::Arc(f), profile::Segment::Arc(d)) => {
+                    for (what, f, d) in [
+                        ("centre x", f.centre.x, d.centre.x),
+                        ("centre y", f.centre.y, d.centre.y),
+                        ("radius", f.radius, d.radius),
+                        ("sweep", f.sweep, d.sweep),
+                    ] {
+                        assert_eq!(
+                            f.to_bits(),
+                            d.value.to_bits(),
+                            "row {i} segment {k}: {what} value channel"
+                        );
+                        tangents.push((what, d.deriv));
+                    }
+                }
+                (f, d) => panic!("row {i} segment {k}: {f:?} at f64 vs {d:?} at Dual"),
+            }
+            for (what, d) in tangents {
                 assert_eq!(
                     d, 0.0,
                     "row {i} vertex {k}: {what} tangent — a constant-seeded \
@@ -126,11 +137,13 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
             "row {i}: vertex count"
         );
         for (k, (a, b)) in base.vertices().iter().zip(iv.vertices()).enumerate() {
-            for (what, exact, enc) in [
-                ("x", a.x, b.x),
-                ("y", a.y, b.y),
-                ("bulge", base.bulges()[k], iv.bulges()[k]),
-            ] {
+            let mut channels = vec![("x", a.x, b.x), ("y", a.y, b.y)];
+            if let (profile::Segment::Arc(f), profile::Segment::Arc(e)) =
+                (base.segments()[k], iv.segments()[k])
+            {
+                channels.push(("sweep", f.sweep, e.sweep));
+            }
+            for (what, exact, enc) in channels {
                 assert!(
                     enc.lo() <= exact && exact <= enc.hi(),
                     "row {i} vertex {k}: the {what} enclosure [{}, {}] excludes the \
@@ -202,22 +215,18 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
 /// # What the path door RELAYS, and why it is not a row of this census
 ///
 /// The door reads every fillet arc it is about to emit the way
-/// `Profile::validate` reads it — `seg::build_seg` on the stored chord
-/// and bulge, `seg::joint_tangency` on each joint the fillet declares —
+/// `Profile::validate` reads it — `seg::build_seg` on the stored
+/// segment, `seg::joint_tangency` on each joint the fillet declares —
 /// and an in-band classification leaves as `PathError::Escalated`
 /// carrying that predicate verbatim. So an escalation naming one of
 /// those classifications is validation's OWN verdict about the loop,
 /// arriving at the door instead of after it: the same refusal, earlier,
 /// and the loop it withholds is one nothing downstream could have used.
 ///
-/// At `eps = 1e-12` on this lane exactly one corpus row is in that
-/// state: a fused `ArcFilletArc` whose fillet joint's internal-carrier
-/// clearance encloses `[-1.06e-12, 1.06e-12]` against a band of
-/// `(1e-12, 1e-11)`. Built with the door's read suppressed, that loop
-/// reaches `Profile::validate` and is refused there with the same
-/// predicate and the same enclosure — and with the recourse that names
-/// the fillet door as the way to make the joint exact, which is the
-/// disagreement the door's read exists to end.
+/// No corpus row is in that state at any ε row: a fillet arc stores
+/// the carrier its construction built — its centre and the authored
+/// radius — so its clearance against each carrier it is tangent to is
+/// read on those values, not on a carrier re-derived from its chord.
 ///
 /// The census therefore keeps its teeth where its subject is: the
 /// escalations that are NOT the door relaying a stored-form
@@ -252,28 +261,10 @@ fn no_corpus_row_escalates_at_interval() {
         };
         source.predicate.filter(|name| STORED_FORM.contains(name))
     }
-    // The relayed set is PINNED, not merely printed. Both entries are
-    // the door reading back a fillet joint whose carrier clearance the
-    // enclosure lane cannot classify at the tightest ε — a fillet arc
-    // is tangent to its two carriers BY CONSTRUCTION, so the centre
-    // separation sits exactly on `r1 ± r2` and an enclosure of it
-    // straddles the classifier's own edge. Measured, and named here by
-    // index and predicate; a relay joining or leaving this set is a
-    // new fact about the door and reds this row, so the exemption is
-    // this list and not a standing pass for eight predicate names.
-    //
-    // Row 13 is the `Radius`-arrival fused chain, the corpus's only
-    // reach to the `Carrier2` emission role; its fillet is EXTERNALLY
-    // tangent to the arrival carrier where row 1's is internally
-    // tangent to its own, which is the whole difference between the
-    // two predicate names.
-    let pinned: &[(usize, &str)] = match format!("{:e}", tol().eps()).as_str() {
-        "1e-12" => &[
-            (1, "carrier_circles_internal"),
-            (13, "carrier_circles_external"),
-        ],
-        _ => &[],
-    };
+    // The relayed set is PINNED, not merely printed, and it is empty:
+    // a relay joining it is a new fact about the door and reds this
+    // row, so there is no standing pass for eight predicate names.
+    let pinned: &[(usize, &str)] = &[];
     let mut escalated: Vec<(usize, Vec<Verb>, String)> = Vec::new();
     let mut relayed: Vec<(usize, String)> = Vec::new();
     for (i, closed) in coverage_corpus().into_iter().enumerate() {
@@ -408,13 +399,13 @@ fn the_anchor_coincident_corner_reduces_to_input_width_at_interval() {
         let mut widest = 0.0f64;
         let mut widest_rel = 0.0f64;
         for (k, v) in iv.vertices().iter().enumerate() {
-            for (what, enc, is_length) in [
-                ("x", v.x, true),
-                ("y", v.y, true),
-                // The bulge is a TANGENT — dimensionless, so it does not
-                // scale and is measured against 1, not against `scale`.
-                ("bulge", iv.bulges()[k], false),
-            ] {
+            let mut channels = vec![("x", v.x, true), ("y", v.y, true)];
+            // The sweep is an ANGLE — dimensionless, so it does not
+            // scale and is measured against 1, not against `scale`.
+            if let profile::Segment::Arc(arc) = iv.segments()[k] {
+                channels.push(("sweep", arc.sweep, false));
+            }
+            for (what, enc, is_length) in channels {
                 let w = enc.hi() - enc.lo();
                 let unit = if is_length { scale } else { 1.0 };
                 let rel = w / unit;
@@ -475,13 +466,14 @@ fn the_stored_form_names_are_segs_own() {
     let code = test_utils::source::code_only(&seg);
     let with_literals = test_utils::source::code_and_literals(&seg);
     // The predicates the DOOR's read can fire are exactly those of the
-    // four bodies it calls — `build_seg` for the stored segment, and
+    // four bodies it calls — `classify` for the stored segment (the
+    // body `build_constructed_seg` runs, with no consistency check), and
     // `joint_tangency` with the two helpers it dispatches to. `seg.rs`
     // fires others (the pair contacts, the ray cast); they are not this
     // exemption's business and the scan does not take them.
     let mut fired: Vec<String> = Vec::new();
     for name in [
-        "fn build_seg",
+        "fn classify",
         "fn joint_tangency",
         "fn line_circle_joint",
         "fn chord_side",

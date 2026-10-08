@@ -7,10 +7,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::brick;
+use sweep::test_support::{brick, finished};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -19,9 +20,16 @@ fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: z1 - z0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .unwrap()
+    .body
 }
 
 /// The steinmetz partner wall, as the probe fixture builds it: the
@@ -134,7 +142,8 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
         Tol::witness(),
     )
     .unwrap();
-    let b = turned();
+    let spun = finished("the spun cylinder", spun, Tol::witness());
+    let b = finished("B", turned(), Tol::witness());
     let err =
         topo::union(&spun, &b, Tol::witness()).expect_err("B's seam tangency still has no arm");
     // MEASUREMENT (first run refuted the B prediction): print the whole
@@ -174,27 +183,80 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
     );
 }
 
-/// **Claim 2/(Zero,Zero): an edge exactly ON the wall keeps the
-/// cosurface door.** A box whose corners all sit exactly on the pipe's
-/// wall carrier (x = +-sqrt(1 - 0.09), y = +-0.3) has four long edges
-/// that are RULINGS of the wall — axis-parallel lines lying on the
-/// carrier with both endpoints at residual 0. The ring lane's
-/// structural separation says those must answer `Constant` and keep the
-/// pierce door (an undeclared cosurface is never an event), even though
-/// the same box's x- and y-edges are honest secant chords.
+/// **Claim 2/(Zero,Zero): an edge exactly ON the wall is an ON event
+/// when its faces are distinct carriers.** A box whose corners all sit
+/// exactly on the pipe's wall carrier (x = +-sqrt(1 - 0.09), y = +-0.3)
+/// has four long edges that are RULINGS of the wall — axis-parallel
+/// lines lying on the carrier with both endpoints at residual 0 — while
+/// its x- and y-edges are honest secant chords. Each ruling's two faces
+/// are planes decided distinct from the wall, so it is a curve where two
+/// carriers meet, not a cosurface: every op builds undeclared at its
+/// closed form, valid at tiers 3 and 3′. The union is the pipe, the
+/// intersection the box, `b ∖ p` empty, and `p ∖ b` the pipe with a
+/// box-shaped void touching the wall along the four rulings, its eight
+/// corners recorded on the wall.
 #[test]
-fn r2_a_box_with_on_carrier_rulings_keeps_the_cosurface_door() {
+fn r2_a_box_with_on_carrier_rulings_builds_every_op_undeclared() {
+    let tol = Tol::witness();
+    let none = topo::BooleanDeclarations::none();
     let x = (1.0f64 - 0.09).sqrt();
-    let err = topo::union(
-        &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &brick((-x, x), (-0.3, 0.3), (-0.3, 0.3), Tol::witness()),
-        Tol::witness(),
-    )
-    .expect_err("an undeclared on-carrier contact must refuse");
-    assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "the rulings on the carrier keep the pierce door: {err:?}"
+    let p = finished("the pipe", cyl(0.0, 0.0, 1.0, -2.0, 2.0), tol);
+    let b = finished(
+        "the box",
+        brick((-x, x), (-0.3, 0.3), (-0.3, 0.3), tol),
+        tol,
     );
+    let (pipe, boxed) = (PI * 4.0, 2.0 * x * 0.6 * 0.6);
+    let whole = Some((pipe, (4, 6, 4, 1), [0, 0]));
+    let common = Some((boxed, (6, 12, 8, 1), [0, 0]));
+    for (op, r, want) in [
+        ("p ∪ b", topo::union_with(&p, &b, &none, tol), whole),
+        ("b ∪ p", topo::union_with(&b, &p, &none, tol), whole),
+        (
+            "p ∖ b",
+            topo::subtract_with(&p, &b, &none, tol),
+            Some((pipe - boxed, (10, 18, 12, 2), [0, 8])),
+        ),
+        ("b ∖ p", topo::subtract_with(&b, &p, &none, tol), None),
+        ("p ∩ b", topo::intersect_with(&p, &b, &none, tol), common),
+        ("b ∩ p", topo::intersect_with(&b, &p, &none, tol), common),
+    ] {
+        let bb = match (r, want) {
+            (Ok(topo::BooleanResult::Empty), None) => continue,
+            (Ok(topo::BooleanResult::Body(bb)), Some(_)) => bb,
+            (r, _) => panic!("{op}: {want:?}: {r:?}"),
+        };
+        let (volume, census, contacts) = want.unwrap();
+        let body = &bb.body;
+        topo::validate_geometric(body, tol).unwrap_or_else(|e| panic!("{op}: tier 3: {e:?}"));
+        topo::validate_pseudomanifold(body, &bb.contacts, tol)
+            .unwrap_or_else(|e| panic!("{op}: tier 3′: {e:?}"));
+        let v = topo::mass_properties(body, tol).unwrap().volume;
+        assert!(
+            (v - volume).abs() <= 1e-12 * volume,
+            "{op}: the closed form: {v} vs {volume}"
+        );
+        assert_eq!(
+            (
+                body.faces().count(),
+                body.edges().count(),
+                body.vertices().count(),
+                body.shells().count()
+            ),
+            census,
+            "{op}: F, E, V, shells"
+        );
+        let c = &bb.contacts;
+        assert_eq!(
+            [c.vv.len(), c.a_on_b.len() + c.b_on_a.len()],
+            contacts,
+            "{op}: [v-v, v-f] records"
+        );
+        assert!(
+            c.curves.is_empty() && c.patches.is_empty(),
+            "{op}: no curve or patch records"
+        );
+    }
 }
 
 /// **Claim 3, the transient chord's certification, re-measured.** The
@@ -272,8 +334,12 @@ fn r2_the_cone_fixture_door_is_measured_not_just_excluded() {
     .unwrap()
     .body;
     let err = topo::union(
-        &frustum,
-        &brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
+        &finished("the frustum", frustum, tol),
+        &finished(
+            "the bar",
+            brick((-1.0, 1.0), (-0.05, 0.05), (0.25, 0.35), tol),
+            tol,
+        ),
         tol,
     )
     .expect_err("a cone wall has no roots anywhere");
@@ -281,72 +347,45 @@ fn r2_the_cone_fixture_door_is_measured_not_just_excluded() {
     // the ring lane gave a cone roots; any typed refusal that names the
     // cone's own absence is consistent with the fence.
     match &err {
-        BooleanError::Join(topo::SplitJoinError::SectionArcWindow { .. }) => {
-            panic!("the cone reached the ring lane's join door: {err:?}")
-        }
+        BooleanError::Join(_) => panic!("the cone reached the ring lane's join: {err:?}"),
         other => {
             eprintln!("cone fixture door, measured: {other:?}");
         }
     }
 }
 
-/// **Claim 2/belly + requeue: an off-centre bar still routes to the
-/// join.** The acceptance bar is symmetric about the pipe axis; this
+/// **Claim 2/belly + requeue: an off-centre bar builds.** The acceptance bar is symmetric about the pipe axis; this
 /// one is offset so the four wall crossings sit at four distinct
 /// unrelated parameters, exercising the split-then-requeue path with no
 /// symmetry to hide an off-by-one in the second root's rediscovery.
 ///
-/// MEASUREMENT (first run): the crossings ARE found and the union DOES
-/// reach the join, but the refusal is `SectionArcWindow {
-/// NeitherContained }` rather than the acceptance rows' `NoChartedRun`
-/// — the ring-join residue is pose-dependent. Pinned as measured; the
-/// interpretation question (is NeitherContained here an honest window
-/// degeneracy or mis-bookkept runs on an asymmetric pose?) goes to the
-/// review report.
+/// The union builds, long and shortened, and meets its closed form: the
+/// pipe and the bar less what they share, the bar's height times the
+/// strip `y ∈ [0.15, 0.7]` of the unit disc.
 #[test]
-fn r2_an_off_centre_bar_reaches_the_same_join_door() {
-    // RE-DERIVED after this probe was written (authorship otherwise
-    // untouched). The review's MAJ-1 landed the sector-side curvature
-    // charge, and this pose's long edge fragments (the bar spans
-    // `x = ±3` against `r = 1`) are exactly the ones no first-order
-    // verdict can certify — so the asymmetric pose now stops one layer
-    // EARLIER and never hands the join anything.
-    //
-    // **The probe's question survives its own fixture and is not lost**:
-    // whether the `NeitherContained` this pose used to reach was
-    // mis-bookkept run/chord pairing or an honest degenerate window is
-    // recorded, with the site's own answer (a run that does not end
-    // where its chord starts fails the x₁ rows — the PAIRING reading),
-    // on the ring-join unit #1291, together with the fixture debt this
-    // row can no longer pay.
-    let err = topo::union(
-        &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &brick((-3.0, 3.0), (0.15, 0.7), (-0.4, 0.1), Tol::witness()),
-        Tol::witness(),
-    )
-    .expect_err("no join arm for a pierce ring");
-    eprintln!("off-centre bar refusal, measured: {err:?}");
-    assert!(
-        matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
-        "{err:?}"
-    );
-    // The same pose SHORTENED so the arms are certifiable: the
-    // asymmetric crossings are still found and still route, which is
-    // what this probe set out to exercise.
-    let short = topo::union(
-        &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &brick((-1.1, 1.1), (0.15, 0.7), (-0.4, 0.1), Tol::witness()),
-        Tol::witness(),
-    )
-    .expect_err("no join arm for a pierce ring");
-    eprintln!("off-centre SHORT bar refusal, measured: {short:?}");
-    assert!(
-        matches!(
-            short,
-            BooleanError::Join(topo::SplitJoinError::SectionArcWindow { .. })
-        ),
-        "{short:?}"
-    );
+fn r2_an_off_centre_bar_unions_to_the_closed_form() {
+    let strip = |y: f64| y * (1.0 - y * y).sqrt() + y.asin();
+    let shared = 0.5 * (strip(0.7) - strip(0.15));
+    for x in [(-3.0, 3.0), (-1.1, 1.1)] {
+        let out = topo::union(
+            &finished("the pipe", cyl(0.0, 0.0, 1.0, -2.0, 2.0), Tol::witness()),
+            &finished(
+                "the bar",
+                brick(x, (0.15, 0.7), (-0.4, 0.1), Tol::witness()),
+                Tol::witness(),
+            ),
+            Tol::witness(),
+        )
+        .unwrap_or_else(|e| panic!("bar {x:?}: refused {e:?}"));
+        let body = &out.body().expect("a body").body;
+        assert_eq!(topo::validate_geometric(body, Tol::witness()), Ok(()));
+        let v = topo::mass_properties(body, Tol::witness()).unwrap().volume;
+        let truth = core::f64::consts::PI * 4.0 + (x.1 - x.0) * 0.55 * 0.5 - shared;
+        assert!(
+            (v - truth).abs() <= 1e-12 * truth,
+            "bar {x:?}: volume {v} against {truth}"
+        );
+    }
 }
 
 /// Fixture inspection (measurement aid, no claim): the pipe's face

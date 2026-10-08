@@ -56,3 +56,15 @@ length: the size noun is the wedge's. Once the gate hands its verdict
 back, give the arm its own `WedgeCheck` (or route it with this row's
 `CertCheck`) and its own size noun.
 
+
+## The SSI march reads the same gate (PR 3707)
+
+`ssi/march.rs` `march` runs `decide_positive("ssi_transversality_arm", …)`
+on the folded lever arm before `ssi_transversality`. Its escalation is
+`SsiError::Escalated { decision: TraceDecision::TransversalityArm, .. }`,
+and `TraceDecision::ending` (`crates/geom-brep/src/ssi.rs`) routes it
+through `CertCheck::Transversality`, the decision it guards. An in-band
+arm therefore reads "if this angle is intended, tighten the tolerance
+below m/K" with `m` the arm, a length. When this row's gate gets its own
+`CertCheck` and size noun, route `TraceDecision::TransversalityArm` the
+same way.

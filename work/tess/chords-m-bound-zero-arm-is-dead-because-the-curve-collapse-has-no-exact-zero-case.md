@@ -38,8 +38,8 @@ calls documentation rather than a decision.
 The zero IS reachable: a collinear degree-2 carrier with exact
 coordinates (control points `(0,0,0), (1,0,0), (2,0,0)` on a clamped
 degree-2 knot vector) has exactly-zero second differences, and
-`RingInterval`'s backend keeps `0 + 0` and `0²` exact since SCALAR's
-RING-2, so `sum_sq` is `[0, 0]`. TESS-3 measured the surface analogue
+certification arithmetic, on `Interval`'s backend since SCALAR's RING-2,
+keeps `0 + 0` and `0²` exact, so `sum_sq` is `[0, 0]`. TESS-3 measured the surface analogue
 of exactly that and found the exact zero surviving to `cell_component`.
 
 ## Why it is not urgent
@@ -51,7 +51,7 @@ wrong mesh.
 
 Note that a degree-1 carrier never reaches either site:
 `nurbs_chord_count` decides `p < 2 ⇒ Ok(1)` from the knot vector, the
-never-infer doctrine's answer, before the ring is touched. What is left
+never-infer doctrine's answer, before any `Interval` is touched. What is left
 here is the degree-≥2 carrier whose net is straight.
 
 ## The repair

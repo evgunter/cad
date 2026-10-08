@@ -24,6 +24,7 @@ use geom::Surface;
 use geom_brep::Nappe;
 use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use sweep::test_support::finished;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
 
@@ -98,70 +99,6 @@ fn corners(body: &Body<f64>, face: FaceKey) -> Vec<Point3<f64>> {
         }
     }
     out
-}
-
-// ---------------------------------------------------------------
-// P1. `sf2b_r2_probes::r2_per_chart_door_on_a_mirror_nappe_cone`
-//     claims to carry "the whole differential, in one number". Measure
-//     the differential and the row's own tolerance.
-// ---------------------------------------------------------------
-
-/// **The gap row cannot see the turn it says it measures.** The shipped
-/// row asserts `|gap − |d|·sin α| <= 1e-15` on all four (nappe × sign)
-/// cases. The PR body reports the turn moved those gaps by ~1e-17
-/// between the two signs on the mirror nappe. This row measures both
-/// numbers and asserts the spread is far INSIDE the tolerance — i.e.
-/// the assertion is invariant under `d ↦ −d` and under the nappe, so it
-/// would pass unchanged with the turn deleted.
-#[test]
-fn r2p1_the_shipped_gap_row_is_blind_to_the_turn() {
-    let tol = Tol::witness();
-    let alpha = ((R_WIDE - R_NARROW) / H).atan();
-    let mut gaps: Vec<(String, f64, f64)> = Vec::new();
-    for (what, body) in [
-        ("narrowing upward (mirror)", mirror_frustum()),
-        ("widening upward (opening)", opening_frustum()),
-    ] {
-        let faces = cone_faces(&body);
-        for signed in [-T, T] {
-            let mut work = body.clone();
-            match topo::replace_faces_offset(&mut work, &faces, signed, tol) {
-                Err(ReplaceFaceError::ReanchorOffCarrier { gap, .. }) => {
-                    println!("[r2p1] {what} d={signed:+}: gap = {gap:.20}");
-                    gaps.push((what.to_string(), signed, gap));
-                }
-                other => panic!("[r2p1] {what} d={signed}: unexpected {other:?}"),
-            }
-        }
-    }
-    let want = T * alpha.sin();
-    println!("[r2p1] |d|·sin α = {want:.20}");
-    let spread = gaps
-        .iter()
-        .map(|(_, _, g)| (g - want).abs())
-        .fold(0.0f64, f64::max);
-    println!("[r2p1] max |gap − |d|·sin α| over all four rows = {spread:.3e}");
-    println!(
-        "[r2p1] the shipped row's tolerance                = {:.3e}",
-        1e-15
-    );
-    assert!(
-        spread < 1e-15 / 10.0,
-        "[r2p1] the four gaps sit {spread:.3e} from the closed form, so the shipped \
-         row's 1e-15 tolerance cannot separate the nappes or the signs"
-    );
-    // And the two mirror-nappe signs really do differ — by an amount
-    // the shipped tolerance swallows whole.
-    let m: Vec<f64> = gaps
-        .iter()
-        .filter(|(w, _, _)| w.contains("mirror"))
-        .map(|(_, _, g)| *g)
-        .collect();
-    println!(
-        "[r2p1] mirror-nappe gaps: {:?}, difference {:.3e}",
-        m,
-        (m[0] - m[1]).abs()
-    );
 }
 
 // ---------------------------------------------------------------
@@ -333,7 +270,7 @@ fn r2p7_end_to_end_a_user_hollows_both_nappes_then_tries_the_per_chart_door() {
             "[r2p7] {what}: the operand itself"
         );
 
-        let hollow = match topo::shell(&body, T, tol) {
+        let hollow = match topo::shell(&finished("the operand", body.clone(), tol), T, tol) {
             Ok(topo::Shelled { body: h, .. }) => h,
             Err(e) => panic!("[r2p7] {what}: `shell` REFUSED — a user gets nothing: {e}"),
         };

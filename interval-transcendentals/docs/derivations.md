@@ -149,7 +149,11 @@ Ogita–Rump–Oishi, *Accurate Sum and Dot Product*, SIAM J. Sci. Comput.
 2005; floor ≈ `2^−969` for binary64). We gate BOTH the sqrt witness and
 `round.rs::mul_exact` at `2^−960` — nine spare binades over the
 literature floor — so the residual can never be flushed to an
-untruthful zero. Below the gate: always pad.
+untruthful zero. Below the gate: always pad, with one exception. An
+upper endpoint of exactly zero (`sqrt_hi(0) = 0`) is exact by
+inspection: `√0 = 0`, and no witness is needed. This is the same
+argument as the zero-factor corner of `mul_lo`/`mul_hi`. The lower end
+needs no exception, because its pad is clamped at zero.
 
 **The gate is on magnitude, not on `is_normal()`.** `is_normal()` of the
 ROUNDED product is not the 2Prod validity condition: a barely-normal

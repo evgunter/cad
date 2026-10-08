@@ -71,21 +71,25 @@
 //!   own.
 
 use geom::Surface;
-use geom_brep::{EdgeCurve, EdgeDescription, PcurveCache};
+use geom_brep::{EdgeCurve, PcurveCache};
 use geom_core::{Point3, Real};
 use slotmap::{SecondaryMap, SlotMap};
 
+use crate::attach::Named;
 use crate::entity::{
-    Edge, EdgeKey, EntityId, Face, FaceKey, HalfEdge, HalfEdgeKey, Loop, LoopKey, Shell, ShellKey,
-    Solid, SolidKey, Vertex, VertexKey,
+    Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopKey, Shell,
+    ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
+use crate::euler::RunSite;
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
+use crate::joint::JointElement;
 use crate::null::{CurveGeom, NullEdge, NullFacePair};
 use crate::param_source::{FieldSources, ParamAttachError, ParamSource, SurfaceField};
 use crate::provenance::Provenance;
 use crate::source::{
     AxisAttachError, AxisRecord, AxisSource, GeomOrigin, GeomSource, SourceAttachError,
 };
+use crate::validate::ValidatorSeal;
 
 /// Outcome of a bounded half-edge traversal (crate-internal; the public
 /// wrappers collapse the failure cases to `None`).
@@ -96,18 +100,62 @@ use crate::source::{
 /// pass, so the walk itself stays silent about it — while `Overrun`
 /// means every link resolved but the walk failed to return to its start
 /// within the arena bound (a corruption with no more-local witness, so it
-/// gets its own error variant).
+/// gets its own error variant). [`Body::orbit_walk`] also answers
+/// `Broken` for a member that starts at another vertex; the validator
+/// names those itself, through [`Body::orbit_walk_reading_no_start`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Walk {
     /// The walk returned to its starting half-edge; the members are in
     /// walk order, starting with the start itself.
     Closed(Vec<HalfEdgeKey>),
-    /// A link failed to resolve mid-walk (stale key, or a mate that
-    /// does not exist).
-    Broken,
+    /// The step from `at` failed: a link did not resolve (stale key, or
+    /// a mate that does not exist), an orbit walk reached a half-edge
+    /// that does not start at its first member's vertex, or a claimed
+    /// loop walk ([`Body::loop_cycle_of`]) one that does not claim its
+    /// loop. `at` is the walk's first key where that key itself does
+    /// not resolve.
+    Broken {
+        /// The member whose step failed.
+        at: HalfEdgeKey,
+    },
     /// Every link resolved but the walk did not return to its start
     /// within the arena-length bound.
     Overrun,
+}
+
+/// The premise a walk that does not close breaks: every such panic
+/// names it ([`Walk::closed`]), and the rows that drive a torn body
+/// match on it.
+pub(crate) const WALKS_CLOSE: &str =
+    "every public door keeps the body tier-1-valid, where every such walk closes";
+
+/// The premise a loop walk that strays from its loop's claimants breaks.
+pub(crate) const CYCLES_ARE_CLAIMANTS: &str =
+    "on a tier-1-valid body a loop's next cycle is the half-edges that claim it";
+
+impl Walk {
+    /// The members of a walk a tier-1-valid body closes: the `what` walk
+    /// from `first`, which every public door keeps closing (each `next`
+    /// and mate resolves, an orbit stays at its vertex, and a cycle is no
+    /// longer than its arena) and every operator mid-operation keeps
+    /// closing ([`crate::live::OPERATORS_KEEP_LINKS`]), so a walk that does not is a
+    /// kernel bug and panics naming the hop and both premises.
+    #[track_caller]
+    pub(crate) fn closed(self, what: &str, first: HalfEdgeKey) -> Vec<HalfEdgeKey> {
+        match self {
+            Self::Closed(members) => members,
+            Self::Broken { at } => unreachable!(
+                "the {what} walk from {first:?} breaks at {at:?}: its step from there does not \
+                 resolve or leaves the walk, and {WALKS_CLOSE}; {}",
+                crate::live::OPERATORS_KEEP_LINKS
+            ),
+            Self::Overrun => unreachable!(
+                "the {what} walk from {first:?} does not close within the half-edge arena's \
+                 length, and {WALKS_CLOSE}; {}",
+                crate::live::OPERATORS_KEEP_LINKS
+            ),
+        }
+    }
 }
 
 /// A manifold B-rep body: topology arenas (scalar-free) plus geometry
@@ -148,7 +196,7 @@ pub(crate) enum Walk {
 /// use topo::Body;
 ///
 /// let mut body = Body::<f64>::new();
-/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
+/// let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0), true).unwrap();
 /// // A `VertexKey` is not a `ShellKey`: this example must NOT compile.
 /// let _ = body.get_shell(seed.vertex);
 /// ```
@@ -168,20 +216,32 @@ pub struct Body<T: Real> {
     pub(crate) curves: SlotMap<CurveKey, CurveGeom<T>>,
     pub(crate) surfaces: SlotMap<SurfaceKey, Surface<T>>,
     // M5 PR 6 pcurve caches (C4): the per-HALF-EDGE certified chart
-    // image of an edge's carrier. Parallel to the half-edge arena
-    // exactly as provenance is — and per half-edge, not per edge and
-    // not per (edge, face), because a SEAM edge's two half-edges lie
-    // on the SAME surface with DIFFERENT pcurves (the u = 0 vs u = 2π
-    // branches), which any coarser key cannot hold (C4, spec §1). A
-    // row is present only where a cache was minted and certified
+    // image of an edge's carrier, a function of the edge and the face's
+    // chart alone. Parallel to the half-edge arena exactly as
+    // provenance is — per half-edge, because a SEAM edge's two
+    // half-edges lie on the SAME surface with one image and two joint
+    // elements (`joints`), which a coarser key cannot hold (C4, spec
+    // §1). A row is present only where a cache was minted and certified
     // (`crate::pcurves`); planar faces store nothing (M2's
     // derive-on-demand status, C4 verbatim), so an all-planar body
-    // carries an empty map. Absence is never a claim about geometry.
+    // carries an empty map. On every other chart a row is mandatory at
+    // rest, and the tier-3 pcurve pass reports one that is missing —
+    // except on a face whose rows are not owed (an uncovered class, or
+    // a fitted face at a scalar with no fitted door: C4's exemption,
+    // `crate::pcurves`' `not_owed`), which may store none.
     pub(crate) pcurves: SecondaryMap<HalfEdgeKey, PcurveCache<T>>,
-    // M3 PR 1 null-face annotations (F9): typed loop-role attributes on
-    // null (section-polygon) faces, parallel to the face arena like the
-    // provenance maps — a record never outlives its face (kill-op
-    // hygiene; the validator makes leaks loud). See `crate::null`.
+    // The other half of a pcurve row (C4, `crate::joint`): per
+    // half-edge, the element of the joint INTO it — the deck
+    // transformation carrying its image onto the end of its `prev`'s
+    // image. Present where both images of the joint are stored and the
+    // writer decided or summed it; a door that leaves either side
+    // rowless leaves no element there.
+    pub(crate) joints: SecondaryMap<HalfEdgeKey, JointElement>,
+    // Null-face annotations (F9): typed loop-role attributes on null
+    // (section-polygon) faces, parallel to the face arena like the
+    // provenance maps. A record lives only while its face holds both
+    // loops it names (kill-op hygiene; the validator makes leaks loud).
+    // See `crate::null`.
     pub(crate) null_faces: SecondaryMap<FaceKey, NullFacePair>,
     // D5 provenance, parallel to the topology arenas (see
     // `crate::provenance` for the SecondaryMap-vs-inline rationale).
@@ -252,6 +312,7 @@ impl<T: Real> Body<T> {
             curves: SlotMap::with_key(),
             surfaces: SlotMap::with_key(),
             pcurves: SecondaryMap::new(),
+            joints: SecondaryMap::new(),
             null_faces: SecondaryMap::new(),
             solid_provenance: SecondaryMap::new(),
             shell_provenance: SecondaryMap::new(),
@@ -484,7 +545,7 @@ impl<T: Real> Body<T> {
     /// a no-op returning `false`.
     ///
     /// A removed curve's description was a live surface reference
-    /// ([`Body::description_surfaces`] — the same references that keep
+    /// ([`Named::keys`] — the same references that keep
     /// [`Body::remove_surface_if_orphaned`] from dangling it), so
     /// dropping the curve can orphan a surface whose faces are already
     /// gone: sweep its description surfaces through the same guarded
@@ -500,17 +561,28 @@ impl<T: Real> Body<T> {
             return false;
         };
         self.curve_origins.remove(curve);
-        for surface in Self::description_surfaces(&removed) {
+        for surface in Named::of(&removed).keys() {
             self.remove_surface_if_orphaned(surface);
         }
         true
+    }
+
+    /// Drops every null-face record naming `r#loop`, whichever face
+    /// carries it. A null-face record lives only while its face holds
+    /// both loops it names ([`crate::null`]), so every op that removes a
+    /// loop or moves it off its face calls this in its mutation phase,
+    /// as F9's kill-op hygiene. Maintenance, not a refusal, so the op
+    /// stays `Ok`.
+    pub(crate) fn drop_null_face_records_naming(&mut self, r#loop: LoopKey) {
+        self.null_faces
+            .retain(|_, pair| !pair.loops().contains(&r#loop));
     }
 
     /// Removes `surface` from the surface arena iff nothing references
     /// it, returning whether it was removed. Used by face-killing
     /// operators (`kfmrh`, `kef`) and the surface-attachment setter.
     /// References counted (M2 PR 3): faces' `surface` keys AND edge
-    /// descriptions' surface keys ([`Body::description_surfaces`]) — an
+    /// descriptions' surface keys ([`Named::keys`]) — an
     /// `Intersection`/`Seam` description keeps its surfaces alive
     /// exactly like a face does, so removal can never dangle a
     /// description. Deterministic (D9), same shape as
@@ -522,7 +594,7 @@ impl<T: Real> Body<T> {
         if self
             .curves
             .values()
-            .any(|curve| Self::description_surfaces(curve).contains(&surface))
+            .any(|curve| Named::of(curve).keys().any(|k| k == surface))
         {
             return false;
         }
@@ -574,32 +646,86 @@ impl<T: Real> Body<T> {
         self.surface_axis_sources.remove(key);
     }
 
-    /// The surface keys an edge description references: the two
-    /// intrinsic arms' pair, a chart image's chart, none for the
-    /// scaffolding door (whose pushforward carries its own defining
-    /// data and names no surface). Consulted by orphan hygiene and by
-    /// the validator's referential-integrity pass.
-    pub(crate) fn description_surfaces(curve: &CurveGeom<T>) -> Vec<SurfaceKey> {
-        match curve {
-            CurveGeom::Certified(curve) => match curve.description() {
-                EdgeDescription::Intersection { s1, s2, .. }
-                | EdgeDescription::TangentIntersection { s1, s2, .. } => vec![*s1, *s2],
-                EdgeDescription::Chart(c) => vec![c.surface],
-                EdgeDescription::Scaffold(_) => Vec::new(),
-            },
-            // Null scaffolding has no description and keeps no surface
-            // alive.
-            CurveGeom::NullScaffold(_) => Vec::new(),
+    /// Whether an intrinsic description's surface pair `(d1, d2)` is
+    /// exactly the edge's two face surfaces `{s1, s2}`, in either order.
+    /// This is the one spelling of "the description cites this edge's two
+    /// faces", read by the validator's adjacency check, the merge's
+    /// stale-description re-describe, and the boolean's structural
+    /// tangency source.
+    pub(crate) fn cites_pair(
+        (d1, d2): (SurfaceKey, SurfaceKey),
+        s1: SurfaceKey,
+        s2: SurfaceKey,
+    ) -> bool {
+        (d1, d2) == (s1, s2) || (d1, d2) == (s2, s1)
+    }
+
+    /// **The one door that moves vertices**: mints ONE fresh point at
+    /// `point`, rebinds every vertex in `vertices` to it, and frees each
+    /// old point that no vertex sits on any longer. Returns the new
+    /// key, or `None` (body untouched) if a vertex does not resolve.
+    /// Its sibling [`Body::share_point`] rebinds vertices too, but onto
+    /// an existing point they already sit at, so it moves none.
+    ///
+    /// It never writes an old point in place: an op's copies of one
+    /// vertex share its point (`Body::mev_null`, D1 tier 3′), so an
+    /// in-place write would drag every copy along. A copy left out of
+    /// `vertices` stays on the old point, parted from the ones that
+    /// moved; copies passed together stay on one point. Which vertices
+    /// move, and together with which, is the caller's to decide.
+    pub(crate) fn move_vertices(
+        &mut self,
+        vertices: &[VertexKey],
+        point: Point3<T>,
+    ) -> Option<PointKey> {
+        let old: Vec<PointKey> = vertices
+            .iter()
+            .map(|&v| self.vertices.get(v).map(|d| d.point))
+            .collect::<Option<_>>()?;
+        let new = self.add_point(point);
+        for &v in vertices {
+            self.vertices[v].point = new;
         }
+        for k in old {
+            self.remove_point_if_orphaned(k);
+        }
+        Some(new)
+    }
+
+    /// Rebinds every vertex in `vertices` onto the existing point
+    /// `onto`, and frees each old point no vertex sits on any longer.
+    /// `None` (body untouched) if a vertex or `onto` does not resolve.
+    ///
+    /// The sibling of [`Body::move_vertices`], the one door that moves
+    /// vertices: this one changes which key a vertex sits on, never
+    /// where. No coordinate is read or written, so the premise that the
+    /// vertices already sit at `onto`'s point is the caller's, held by
+    /// its own records. The boolean's one caller (`zip::share_points`)
+    /// passes the keys the seam correspondence ties, whose pairs the
+    /// zips' scaffolding certifies coincident before any rebind.
+    pub(crate) fn share_point(&mut self, vertices: &[VertexKey], onto: PointKey) -> Option<()> {
+        self.points.get(onto)?;
+        let old: Vec<PointKey> = vertices
+            .iter()
+            .map(|&v| self.vertices.get(v).map(|d| d.point))
+            .collect::<Option<_>>()?;
+        for &v in vertices {
+            self.vertices[v].point = onto;
+        }
+        for k in old {
+            if k != onto {
+                self.remove_point_if_orphaned(k);
+            }
+        }
+        Some(())
     }
 
     /// Removes `point` from the point arena iff no vertex references it,
     /// returning whether it was removed. Used by vertex-killing operators
-    /// (PR 4's `kev`/`kvfs`): with M1's per-vertex point minting the
-    /// killed vertex's point is always orphaned in practice, but the scan
-    /// is the rule — it keeps the op sound standalone if points are ever
-    /// shared. Deterministic (D9), same shape as
-    /// [`Body::remove_curve_if_orphaned`].
+    /// (`kev`/`kvfs`) and [`Body::move_vertices`]: an op's copies of one
+    /// vertex share its point (`Body::mev_null`), so the point outlives
+    /// a vertex while a twin still sits on it. Deterministic (D9), same
+    /// shape as [`Body::remove_curve_if_orphaned`].
     pub(crate) fn remove_point_if_orphaned(&mut self, point: PointKey) -> bool {
         if self.vertices.values().any(|vertex| vertex.point == point) {
             return false;
@@ -1044,11 +1170,10 @@ impl<T: Real> Body<T> {
     ///
     /// - **A refusal that distinguishes the hops.**
     ///   `offset_together::scope_of_moves` names the caller's own
-    ///   stale face key on hop 1 and the body's incoherence on hop 2;
-    ///   [`Body::kfmrh`](crate::Body::kfmrh) does it twice, with
-    ///   `StaleKey` naming an `EntityId::Face` on hop 1 and an
-    ///   `EntityId::Shell` on hop 2.
-    ///   `offset_together::scope_walks::the_two_hops_refuse_differently`
+    ///   stale face key on hop 1 and panics naming the face's `shell`
+    ///   link on hop 2; [`Body::kfmrh`](crate::Body::kfmrh) does it
+    ///   twice, the same way.
+    ///   `offset_together::scope_walks::the_two_hops_answer_differently`
     ///   reds on either way of collapsing `scope_of_moves`'s two.
     /// - **A caller still using the intermediate shell key.**
     ///   `seqgen::fusion_remake_shell` refuses uniformly, but its
@@ -1167,12 +1292,11 @@ impl<T: Real> Body<T> {
     /// actually honor the bit.
     ///
     /// Deliberately NOT a construction operator. Legitimate writers
-    /// keep the two orientation encodings coherent: constructors mint
-    /// the honest bit for the wall they are building (M5 S11,
-    /// [`Body::set_face_sense`] — the loop winding is already the
+    /// keep the two orientation encodings coherent: constructors state
+    /// the honest bit with the chart they give the face
+    /// ([`crate::FaceSurface`] — the loop winding is already the
     /// material-true one, so a concave wall's `false` agrees with it),
-    /// and curved `revert` (the follow-on unit) will flip *every* face
-    /// of a body at once. Flipping a single face makes the body
+    /// and [`Body::revert`] flips *every* face of a body at once. Flipping a single face makes the body
     /// **inside-out at that
     /// face** — geometrically incoherent by construction, which is
     /// exactly the point: it is the discriminating input for "does this
@@ -1329,13 +1453,7 @@ impl<T: Real> Body<T> {
     pub fn mate(&self, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
         let half_edge = self.half_edges.get(he)?;
         let edge = self.edges.get(half_edge.edge)?;
-        if edge.he_plus == he {
-            Some(edge.he_minus)
-        } else if edge.he_minus == he {
-            Some(edge.he_plus)
-        } else {
-            None
-        }
+        edge.claim(he).map(|claim| claim.mate)
     }
 
     /// The end vertex of `he`, derived as `start(next(he))` — end
@@ -1348,6 +1466,21 @@ impl<T: Real> Body<T> {
         Some(next.start)
     }
 
+    /// The two vertices of `edge`: the starts of its `he_plus` and
+    /// `he_minus` halves. `None` if the edge or either half is stale.
+    pub(crate) fn edge_vertices(&self, edge: EdgeKey) -> Option<(VertexKey, VertexKey)> {
+        let e = self.edges.get(edge)?;
+        let start = |he| self.half_edges.get(he).map(|h| h.start);
+        Some((start(e.he_plus)?, start(e.he_minus)?))
+    }
+
+    /// The position of `he`'s start vertex. `None` if `he`, its vertex
+    /// or the vertex's point is stale.
+    pub fn half_edge_start_point(&self, he: HalfEdgeKey) -> Option<Point3<T>> {
+        let vertex = self.get_vertex(self.get_half_edge(he)?.start)?;
+        self.get_point(vertex.point).copied()
+    }
+
     /// The full cycle of `he`'s loop in `next` order, starting at `he`.
     ///
     /// **Bounded** (D9): the walk caps at the half-edge arena length and
@@ -1355,11 +1488,52 @@ impl<T: Real> Body<T> {
     /// link is stale, or if `he` itself is stale — it never spins on a
     /// corrupted body. A foreign `he` on a live slot
     /// [walks another loop's cycle](self#key-validity-stale-vs-foreign) and returns it whole.
+    ///
+    /// The walk steps `next` and reads no `parent_loop`, so on a torn
+    /// body a `Some` need not be the loop's cycle: a torn `next` can
+    /// close it through another loop's half-edges, or short of a member.
     pub fn loop_cycle(&self, he: HalfEdgeKey) -> Option<Vec<HalfEdgeKey>> {
         match self.loop_walk(he) {
             Walk::Closed(members) => Some(members),
-            Walk::Broken | Walk::Overrun => None,
+            Walk::Broken { .. } | Walk::Overrun => None,
         }
+    }
+
+    /// [`Body::loop_cycle`] proven to stay in `r#loop`: `None` also
+    /// where a member, `he` included, does not claim `r#loop`
+    /// ([`Body::claims`]), so a torn `next` that strays into another
+    /// loop does not hand that loop's half-edges to a reader of this
+    /// one. Each step checks the member it reaches, and the step that
+    /// closes the walk reaches `he`. A `Some` can still close short of a
+    /// member that claims the loop; [`Body::require_run_of`]'s `Whole`
+    /// proof is the one that sees that.
+    ///
+    /// **A `next` tear paired with a `parent_loop` tear passes both.**
+    /// Divert the walk through another loop's member `x` and re-point
+    /// `x.parent_loop` at `r#loop`: every member the walk reaches claims
+    /// the loop, and no half-edge outside it does, so the walk answers
+    /// with `x` as a member. Only `x`'s untouched `prev` disagrees, and
+    /// nothing here reads `prev`.
+    pub(crate) fn loop_cycle_of(
+        &self,
+        he: HalfEdgeKey,
+        r#loop: LoopKey,
+    ) -> Option<Vec<HalfEdgeKey>> {
+        let walk = self.bounded_walk(he, |body, member| {
+            let next = body.half_edges.get(member)?.next;
+            body.claims(next, r#loop).then_some(next)
+        });
+        match walk {
+            Walk::Closed(members) => Some(members),
+            Walk::Broken { .. } | Walk::Overrun => None,
+        }
+    }
+
+    /// Whether `he` resolves and its `parent_loop` is `r#loop`.
+    pub(crate) fn claims(&self, he: HalfEdgeKey, r#loop: LoopKey) -> bool {
+        self.half_edges
+            .get(he)
+            .is_some_and(|data| data.parent_loop == r#loop)
     }
 
     /// The orbit of half-edges starting at `he`'s start vertex, walked
@@ -1373,21 +1547,145 @@ impl<T: Real> Body<T> {
     /// [`crate::entity`] module docs (orientation conventions).
     ///
     /// **Bounded** (D9): caps at the half-edge arena length; `None` on
-    /// stale keys, a broken mate (corrupt edge ↔ half-edge bijection), or
-    /// non-closure within the bound. On a *valid* body the orbit always
-    /// closes and visits exactly the half-edges starting at the vertex
-    /// (the validator's manifoldness check). A foreign `he` on a live
-    /// slot [walks another vertex's orbit](self#key-validity-stale-vs-foreign).
+    /// stale keys, a broken mate (corrupt edge ↔ half-edge bijection), a
+    /// member that starts at another vertex than `he` does, or
+    /// non-closure within the bound. So a `Some` lists half-edges that
+    /// all start at `he`'s vertex, though on a torn body not
+    /// necessarily all of them: a torn `next` elsewhere can close
+    /// another vertex's walk into this one without this walk leaving
+    /// the vertex. On a *valid* body the orbit always closes and visits
+    /// exactly the half-edges starting at the vertex (the validator's
+    /// manifoldness check). A foreign `he` on a live slot
+    /// [walks another vertex's orbit](self#key-validity-stale-vs-foreign).
     pub fn vertex_orbit(&self, he: HalfEdgeKey) -> Option<Vec<HalfEdgeKey>> {
         match self.orbit_walk(he) {
             Walk::Closed(members) => Some(members),
-            Walk::Broken | Walk::Overrun => None,
+            Walk::Broken { .. } | Walk::Overrun => None,
         }
     }
 
+    /// The orbit of `vertex` read from its stored [`Vertex::emanating`]:
+    /// [`Body::vertex_orbit`] from that half-edge, once the half-edge is
+    /// proven to start at `vertex`. `Some(empty)` for a vertex with no
+    /// emanating half-edge; `None` on a stale vertex, an `emanating` that
+    /// does not resolve or starts at another vertex, a walk
+    /// [`Body::vertex_orbit`] refuses, or a walk a member's inverse step
+    /// `mate(prev(·))` does not walk back ([`Body::orbit_inverts`]).
+    /// Every vertex-keyed orbit read starts here, so none answers for a
+    /// walk another vertex's `emanating` lends it, or, while the `prev`
+    /// links are untorn, with part of an orbit a torn `next` split or
+    /// closed past some of its members. A `next` tear paired with a
+    /// `prev` tear that inverts it can still close the walk past
+    /// members, and this answers that part.
+    pub(crate) fn vertex_orbit_of(&self, vertex: VertexKey) -> Option<Vec<HalfEdgeKey>> {
+        let Some(first) = self.get_vertex(vertex)?.emanating else {
+            return Some(Vec::new());
+        };
+        if self.half_edges.get(first)?.start != vertex {
+            return None;
+        }
+        self.vertex_orbit(first)
+            .filter(|orbit| self.orbit_inverts(orbit))
+    }
+
+    /// [`Body::vertex_orbit_of`] for a vertex this call resolved or read
+    /// out of a record: on a tier-1-valid body every hop of it resolves
+    /// and the walk closes, so each miss panics naming the hop.
+    #[track_caller]
+    pub(crate) fn vertex_orbit_linked(&self, vertex: VertexKey) -> Vec<HalfEdgeKey> {
+        let data = crate::live::proven(&self.vertices, vertex, EntityId::Vertex);
+        let Some(first) = data.emanating else {
+            return Vec::new();
+        };
+        let start = crate::live::linked(
+            &self.half_edges,
+            first,
+            EntityId::HalfEdge,
+            EntityId::Vertex(vertex),
+            "emanating",
+        )
+        .start;
+        if start != vertex {
+            unreachable!(
+                "{}'s emanating {} starts at {}: {}",
+                EntityId::Vertex(vertex),
+                EntityId::HalfEdge(first),
+                EntityId::Vertex(start),
+                crate::live::NAMES_ONLY_LIVE
+            );
+        }
+        let orbit = self.orbit_walk(first).closed("orbit", first);
+        if !self.orbit_inverts(&orbit) {
+            unreachable!(
+                "the orbit walk from {first:?} does not walk back by mate(prev), and {WALKS_CLOSE}"
+            );
+        }
+        orbit
+    }
+
+    /// [`Body::edges_of_vertex`] for a vertex this call resolved or read
+    /// out of a record: the orbit is [`Body::vertex_orbit_linked`]'s.
+    #[track_caller]
+    pub(crate) fn edges_of_vertex_linked(&self, vertex: VertexKey) -> Vec<EdgeKey> {
+        let mut out: Vec<EdgeKey> = Vec::new();
+        for he in self.vertex_orbit_linked(vertex) {
+            let edge = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge).edge;
+            if !out.contains(&edge) {
+                out.push(edge);
+            }
+        }
+        out
+    }
+
+    /// [`Body::faces_of_vertex`] for a vertex this call resolved or read
+    /// out of a record: the orbit is [`Body::vertex_orbit_linked`]'s,
+    /// and each member's loop and face are links of the record before.
+    #[track_caller]
+    pub(crate) fn faces_of_vertex_linked(&self, vertex: VertexKey) -> Vec<FaceKey> {
+        let mut out: Vec<FaceKey> = Vec::new();
+        for he in self.vertex_orbit_linked(vertex) {
+            let face = self.face_of_linked(he);
+            if !out.contains(&face) {
+                out.push(face);
+            }
+        }
+        out
+    }
+
+    /// The face of `he`'s loop, for a half-edge this call resolved or
+    /// read out of a record: its `parent_loop` and that loop's `face`
+    /// are links, and the face lists the loop; a miss of either panics
+    /// naming the record.
+    #[track_caller]
+    pub(crate) fn face_of_linked(&self, he: HalfEdgeKey) -> FaceKey {
+        let parent = crate::live::proven(&self.half_edges, he, EntityId::HalfEdge).parent_loop;
+        let face = crate::live::linked(
+            &self.loops,
+            parent,
+            EntityId::Loop,
+            EntityId::HalfEdge(he),
+            "parent_loop",
+        )
+        .face;
+        let data = crate::live::linked(
+            &self.faces,
+            face,
+            EntityId::Face,
+            EntityId::Loop(parent),
+            "face",
+        );
+        assert!(
+            data.outer == parent || data.rings.contains(&parent),
+            "loop {parent:?} names face {face:?}, which does not list it: on a tier-1-valid \
+             body a loop's face lists it"
+        );
+        face
+    }
+
     /// The edges meeting `vertex`, each ONCE — or `None` where the
-    /// vertex key is stale or its orbit does not walk
-    /// ([`Body::vertex_orbit`]'s `None`). A foreign key on a live slot
+    /// vertex key is stale, its stored [`Vertex::emanating`] starts at
+    /// another vertex, or its orbit does not walk
+    /// ([`Body::vertex_orbit_of`]'s `None`). A foreign key on a live slot
     /// [answers another vertex's edges](self#key-validity-stale-vs-foreign).
     ///
     /// **The order is the orbit's, and it is part of the answer**: the
@@ -1436,19 +1734,16 @@ impl<T: Real> Body<T> {
         self.orbit_projection(vertex, |he| self.face_of_half_edge(he))
     }
 
-    /// The engine of the two vertex doors: `project` over the vertex's
-    /// orbit, each value kept at its first appearance; `None` on a
-    /// stale vertex, a broken orbit, or a projection that refuses.
+    /// The engine of the two vertex doors: `project` over
+    /// [`Body::vertex_orbit_of`], each value kept at its first
+    /// appearance; `None` where that read or a projection refuses.
     fn orbit_projection<K: PartialEq>(
         &self,
         vertex: VertexKey,
         project: impl Fn(HalfEdgeKey) -> Option<K>,
     ) -> Option<Vec<K>> {
-        let Some(first) = self.get_vertex(vertex)?.emanating else {
-            return Some(Vec::new());
-        };
         let mut out: Vec<K> = Vec::new();
-        for he in self.vertex_orbit(first)? {
+        for he in self.vertex_orbit_of(vertex)? {
             let k = project(he)?;
             if !out.contains(&k) {
                 out.push(k);
@@ -1465,13 +1760,62 @@ impl<T: Real> Body<T> {
         })
     }
 
-    /// Bounded vertex-orbit walk with the three-way outcome the validator
-    /// needs (see [`Walk`]). Step: `next(mate(he))` — the clockwise
-    /// orbit; see [`Body::vertex_orbit`].
+    /// Bounded vertex-orbit walk (see [`Walk`]). Step: `next(mate(he))`
+    /// — the clockwise orbit; see [`Body::vertex_orbit`]. `Broken` at
+    /// the first member that does not start where `first` does, so a
+    /// `Closed` walk is proven to stay at `first`'s vertex.
     pub(crate) fn orbit_walk(&self, first: HalfEdgeKey) -> Walk {
+        let Some(origin) = self.half_edges.get(first).map(|half_edge| half_edge.start) else {
+            return Walk::Broken { at: first };
+        };
         self.bounded_walk(first, |body, he| {
-            let mate = body.mate(he)?;
-            body.half_edges.get(mate).map(|half_edge| half_edge.next)
+            let next = body.orbit_step(he)?;
+            (body.half_edges.get(next)?.start == origin).then_some(next)
+        })
+    }
+
+    /// Whether each member of a `Closed` orbit walk has the member
+    /// before it as its inverse step `mate(prev(·))`. While the `prev`
+    /// links are untorn, a walk that inverts is its vertex's whole
+    /// orbit; a `prev` tear matching a `next` tear can make a walk past
+    /// some members invert too. O(valence).
+    pub(crate) fn orbit_inverts(&self, orbit: &[HalfEdgeKey]) -> bool {
+        let before = orbit.iter().cycle().skip(orbit.len().saturating_sub(1));
+        orbit.iter().zip(before).all(|(&member, &before)| {
+            self.half_edges
+                .get(member)
+                .and_then(|data| self.mate(data.prev))
+                == Some(before)
+        })
+    }
+
+    /// [`Body::orbit_walk`] without the start proof: a torn `next` can
+    /// close it `Closed` through other vertices' half-edges. The
+    /// [`ValidatorSeal`] only `validate` can mint keeps it the
+    /// validator's, which walks it to name each foreign member.
+    pub(crate) fn orbit_walk_reading_no_start(&self, first: HalfEdgeKey, _: ValidatorSeal) -> Walk {
+        self.bounded_walk(first, Self::orbit_step)
+    }
+
+    /// One clockwise step of `he`'s vertex orbit, `next(mate(he))`
+    /// ([`Body::vertex_orbit`]); `None` on a stale key or a broken mate.
+    pub(crate) fn orbit_step(&self, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
+        let mate = self.mate(he)?;
+        self.half_edges.get(mate).map(|half_edge| half_edge.next)
+    }
+
+    /// Where a null edge moving the orbit run `first ..= last` (walked
+    /// clockwise, [`Body::orbit_step`]) to a new vertex lands: the
+    /// run's fan end is the orbit successor of `last`, read in the body
+    /// as it stands, so earlier splices at the vertex are counted.
+    /// [`RunSite::WholeOrbit`] when that successor is `first` again;
+    /// `None` on a stale key or a broken mate.
+    pub(crate) fn run_site(&self, first: HalfEdgeKey, last: HalfEdgeKey) -> Option<RunSite> {
+        let he2 = self.orbit_step(last)?;
+        Some(if he2 == first {
+            RunSite::WholeOrbit { corner: first }
+        } else {
+            RunSite::Fan { he1: first, he2 }
         })
     }
 
@@ -1485,17 +1829,17 @@ impl<T: Real> Body<T> {
         step: impl Fn(&Self, HalfEdgeKey) -> Option<HalfEdgeKey>,
     ) -> Walk {
         if !self.half_edges.contains_key(first) {
-            return Walk::Broken;
+            return Walk::Broken { at: first };
         }
         let cap = self.half_edges.len();
         let mut members = vec![first];
         let mut current = first;
         loop {
             let Some(next) = step(self, current) else {
-                return Walk::Broken;
+                return Walk::Broken { at: current };
             };
             if !self.half_edges.contains_key(next) {
-                return Walk::Broken;
+                return Walk::Broken { at: current };
             }
             if next == first {
                 return Walk::Closed(members);
@@ -1549,6 +1893,29 @@ impl<T: Real> Body<T> {
         self.vertices.iter()
     }
 
+    /// **Every live vertex with its point**, in vertex slot-index order
+    /// (deterministic per D9): [`Body::vertices`], then each record's
+    /// point, made once.
+    ///
+    /// # Panics
+    ///
+    /// Where a live vertex's point key does not resolve: every public
+    /// door keeps the body tier-1-valid (D2 row 4).
+    pub fn vertex_points(&self) -> impl Iterator<Item = (VertexKey, Point3<T>)> + '_ {
+        self.vertices.iter().map(|(k, v)| (k, self.point_of(k, v)))
+    }
+
+    /// The point `vertex`'s record names: the one read of a vertex's
+    /// point key, behind both [`Body::vertex_points`] and
+    /// [`readback::vertex_point`](crate::readback::vertex_point). A
+    /// miss panics naming the vertex (D2 row 4).
+    #[track_caller]
+    pub(crate) fn point_of(&self, key: VertexKey, vertex: &Vertex) -> Point3<T> {
+        self.points.get(vertex.point).copied().unwrap_or_else(|| {
+            crate::live::dangling_link(EntityId::Vertex(key), "point", GeomRef::Point(vertex.point))
+        })
+    }
+
     /// All points, in slot-index order (deterministic per D9).
     pub fn points(&self) -> impl Iterator<Item = (PointKey, &Point3<T>)> {
         self.points.iter()
@@ -1563,20 +1930,106 @@ impl<T: Real> Body<T> {
     /// All stored pcurve caches (C4 — see [`crate::pcurves`]), in
     /// half-edge-slot order (deterministic per D9).
     ///
-    /// Emptiness is the normal state: planar faces keep M2's
-    /// derive-on-demand status and store nothing, and only the charts
-    /// with a certified closed-form image mint caches at M5, so a
-    /// prism, a box, or any all-planar body yields zero rows here.
+    /// Planar faces keep derive-on-demand status and store nothing, so
+    /// a prism, a box, or any all-planar body yields zero rows here. On
+    /// every other chart the row is mandatory at rest: every half-edge
+    /// of the face stores its certified row once its producer has
+    /// returned, and the tier-3 pcurve pass reports one that does not
+    /// ([`crate::pcurves::validate_pcurves`]). The exemption is a face
+    /// whose rows are not owed — one that meets an uncovered class, or a
+    /// fitted face at a scalar with no fitted door — which may store
+    /// none until its class's route lands (C4's exemption, named in
+    /// [`crate::pcurves::validate_pcurves`]' docs).
     pub fn pcurves(&self) -> impl Iterator<Item = (HalfEdgeKey, &PcurveCache<T>)> {
         self.pcurves.iter()
     }
 
-    /// The stored pcurve cache of `half_edge`, or `None` when the
-    /// half-edge stores none (derive it on demand through
-    /// [`crate::pcurves::pcurve_of`]) or the key is stale;
+    /// The stored pcurve cache of `half_edge` — the edge's IMAGE in the
+    /// face's chart, a function of the edge and the chart alone, which
+    /// a seam's two halves share — or `None` when the half-edge stores
+    /// none (derive it on demand through [`crate::pcurves::pcurve_of`])
+    /// or the key is stale;
     /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
+    /// Where the face's loop sits in the chart is the lift's
+    /// ([`Body::loop_lift`]).
     pub fn pcurve(&self, half_edge: HalfEdgeKey) -> Option<&PcurveCache<T>> {
         self.pcurves.get(half_edge)
+    }
+
+    /// The element of the joint into `half_edge` (C4,
+    /// [`crate::joint`]): the deck transformation carrying its image
+    /// onto the end of its `prev`'s image, or `None` where the joint
+    /// stores none — a side of it is rowless, or the key is stale.
+    pub fn joint(&self, half_edge: HalfEdgeKey) -> Option<JointElement> {
+        self.joints.get(half_edge).copied()
+    }
+
+    /// Every stored joint element, in half-edge-slot order (D9).
+    pub fn joints(&self) -> impl Iterator<Item = (HalfEdgeKey, JointElement)> + '_ {
+        self.joints.iter().map(|(he, e)| (he, *e))
+    }
+
+    /// **A loop's lift** ([`crate::pcurves::loop_lift`]): each half-edge
+    /// of `r#loop` in cycle order from its `first`, with its image moved
+    /// by the elements summed along the loop — the chain of chart curves
+    /// the loop's readers draw.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::pcurves::LiftGap`] naming the first half-edge whose
+    /// image or joint element is missing.
+    ///
+    /// # Panics
+    ///
+    /// [`crate::pcurves::loop_lift`]'s.
+    #[track_caller]
+    pub fn loop_lift(
+        &self,
+        r#loop: crate::entity::LoopKey,
+    ) -> Result<Vec<crate::pcurves::LiftedRow<'_, T>>, crate::pcurves::LiftGap>
+    where
+        T: geom_core::Decide,
+    {
+        crate::pcurves::loop_lift(self, r#loop)
+    }
+
+    /// Writes one row — `half_edge`'s image and the element of the joint
+    /// into it, or no element where the writer decided none.
+    pub(crate) fn write_row(
+        &mut self,
+        half_edge: HalfEdgeKey,
+        image: PcurveCache<T>,
+        element: Option<JointElement>,
+    ) {
+        self.pcurves.insert(half_edge, image);
+        self.write_joint(half_edge, element);
+    }
+
+    /// Writes the element of the joint into `half_edge`: `None` clears
+    /// it.
+    pub(crate) fn write_joint(&mut self, half_edge: HalfEdgeKey, element: Option<JointElement>) {
+        match element {
+            Some(element) => {
+                self.joints.insert(half_edge, element.canonical());
+            }
+            None => {
+                self.joints.remove(half_edge);
+            }
+        }
+    }
+
+    /// Attaches the element of the joint into `half_edge`, returning the
+    /// one it replaced — [`Body::attach_pcurve`]'s companion, under the
+    /// same trust posture: the tier-3 pcurve pass re-decides every joint
+    /// ([`crate::pcurves::validate_pcurves`]). The element is stored in
+    /// its canonical form ([`JointElement::canonical`]: a reset's
+    /// azimuth periods dropped).
+    pub fn attach_joint(
+        &mut self,
+        half_edge: HalfEdgeKey,
+        element: JointElement,
+    ) -> Option<JointElement> {
+        self.joints.insert(half_edge, element.canonical())
     }
 
     /// Attaches a **certified** pcurve cache to `half_edge`, returning
@@ -1604,11 +2057,17 @@ impl<T: Real> Body<T> {
 
     /// Removes and returns `half_edge`'s stored pcurve cache —
     /// [`Body::attach_pcurve`]'s inverse (same trust posture: the
-    /// tier-3 pcurve pass owns coherence, and a face left HALF-minted
-    /// fails it loudly as `MissingCache`). Consumers of caches refuse
+    /// tier-3 pcurve pass owns coherence, and a curved face left
+    /// missing a row fails it loudly). Consumers of caches refuse
     /// typed on absence; nothing re-derives a branch silently.
     pub fn detach_pcurve(&mut self, half_edge: HalfEdgeKey) -> Option<PcurveCache<T>> {
         self.pcurves.remove(half_edge)
+    }
+
+    /// Removes and returns the element of the joint into `half_edge` —
+    /// [`Body::attach_joint`]'s inverse.
+    pub fn detach_joint(&mut self, half_edge: HalfEdgeKey) -> Option<JointElement> {
+        self.joints.remove(half_edge)
     }
 
     /// All null-face annotations (F9 — see [`crate::null`]), in
@@ -1641,7 +2100,6 @@ impl<T: Real> Default for Body<T> {
 mod tests {
     use super::*;
     use crate::EntityId;
-    use crate::ReplaceFaceError;
     use crate::fixtures::{mvfs_state, ops_strut_cube, pillow, prov, refile_shells};
     use geom_core::Tol;
 
@@ -1713,7 +2171,7 @@ mod tests {
     fn faces_of_solid_restricts_the_face_arena_to_one_solid() {
         let t = pillow(Tol::witness());
         let mut body = t.body;
-        let second = body.mvfs(origin()).unwrap();
+        let second = body.mvfs(origin(), true).unwrap();
 
         // Arena order, and a restriction: `faces` yields all three.
         assert_eq!(body.faces().count(), 3);
@@ -1754,7 +2212,7 @@ mod tests {
     fn faces_of_solid_answers_arena_order_where_the_shell_walk_would_not() {
         let t = pillow(Tol::witness());
         let mut body = t.body;
-        let second = body.mvfs(origin()).unwrap();
+        let second = body.mvfs(origin(), true).unwrap();
 
         // One solid, two shells, the minted shell listed LAST; then
         // move `face_b` into it so the shells interleave with the
@@ -1807,7 +2265,7 @@ mod tests {
     fn shells_of_solid_answers_the_solids_own_list_order_not_the_arenas() {
         let t = pillow(Tol::witness());
         let mut body = t.body;
-        let second = body.mvfs(origin()).unwrap();
+        let second = body.mvfs(origin(), true).unwrap();
 
         // The pillow's shell refiled under the MINTED solid, so that
         // solid lists its own shell first and its list runs against
@@ -1959,42 +2417,47 @@ mod tests {
         assert_eq!(t.body.face_of_half_edge(t.hes_a[0]), None);
     }
 
-    /// All three refusal postures over the one door, because a fold
-    /// that flattened any of them into another leaves every other row
-    /// green.
+    /// The walk consumers over one torn `parent_loop`: the public edge
+    /// door names WHICH faces on a sound body, and every consumer —
+    /// that door, the vertex fan, and the sector walk — panics naming
+    /// the torn link (D2 row 4) rather than answering a refusal a caller
+    /// could mistake for one about its own keys.
     #[test]
-    fn the_walk_consumers_keep_their_own_refusal() {
+    fn the_walk_consumers_panic_naming_the_torn_link() {
         let mut t = pillow(Tol::witness());
-        // `Option`: the edge door names WHICH faces, in
-        // `he_plus`-then-`he_minus` order. `is_some()` would pass on an
-        // `(f_plus, f_plus)` — the typo a re-spelling of two
-        // near-identical lines makes — so the pair is asserted.
+        // `is_ok()` would pass on an `(f_plus, f_plus)` — the typo a
+        // re-spelling of two near-identical lines makes — so the pair
+        // is asserted.
         let e = t.body.get_edge(t.edges[0]).unwrap().clone();
         assert_eq!(e.he_plus, t.hes_a[0]);
         assert_eq!(e.he_minus, t.hes_b[0]);
-        assert_eq!(
-            crate::replace_face::edge_faces(&t.body, t.edges[0]),
-            Some((t.face_a, t.face_b))
-        );
+        let faces = |b: &Body<f64>| crate::readback::edge_sides(b, t.edges[0]).map(|s| s.faces());
+        assert_eq!(faces(&t.body), Ok((t.face_a, t.face_b)));
         assert_ne!(t.face_a, t.face_b);
         let v = t.body.get_half_edge(t.hes_a[0]).unwrap().start;
+        assert_eq!(
+            t.body.faces_of_vertex_linked(v).len(),
+            2,
+            "both faces meet the untorn vertex"
+        );
         t.body.get_half_edge_mut(t.hes_a[0]).unwrap().parent_loop = LoopKey::default();
-        assert_eq!(crate::replace_face::edge_faces(&t.body, t.edges[0]), None);
-        // Typed `Result`, entity-AGNOSTIC: the same staleness is a
-        // REFUSAL, not a `None` a caller may drop.
-        assert!(matches!(
-            crate::offset_together::faces_at_vertex(&t.body, v),
-            Err(ReplaceFaceError::Corrupt)
-        ));
-        // Typed `Result` that NAMES the entity. This is the arm the
-        // door cannot express, so it is the arm a fold would flatten
-        // silently; the agnostic arm above is never at risk.
-        assert!(matches!(
-            crate::sector_face::resolve(&t.body, v, t.hes_b[0]),
-            Err(crate::sector_face::SectorFaceError::Corrupt(
-                EntityId::Loop(_)
-            ))
-        ));
+        let premise = format!(
+            "{}'s parent_loop names {}",
+            EntityId::HalfEdge(t.hes_a[0]),
+            EntityId::Loop(LoopKey::default())
+        );
+        let edge_door = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = faces(&t.body);
+        }));
+        let fan = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = t.body.faces_of_vertex_linked(v);
+        }));
+        let sector = crate::surgery::tests::panic_message(std::panic::AssertUnwindSafe(|| {
+            let _ = crate::sector_face::resolve(&t.body, v, t.hes_b[0]);
+        }));
+        for (label, report) in [("edge door", edge_door), ("fan", fan), ("sector", sector)] {
+            assert!(report.contains(&premise), "{label}: {report}");
+        }
     }
 
     /// The door removes the one entity and repairs nothing: the
@@ -2105,6 +2568,47 @@ mod tests {
         assert_eq!(t.body.vertex_orbit(HalfEdgeKey::default()), None);
     }
 
+    /// A run's fan end is its last member's orbit successor, and a run
+    /// holding the whole orbit is the strut in the corner before its
+    /// first member, from whichever member the run starts.
+    #[test]
+    fn run_site_reads_the_fan_end_and_names_the_whole_orbit() {
+        let cube = crate::test_support_fixtures::geometric_cube::<f64>(Tol::witness());
+        let body = cube.body;
+        let (_, v) = body.vertices().next().unwrap();
+        let orbit = body.vertex_orbit(v.emanating.unwrap()).unwrap();
+        let [h0, h1, h2] = orbit[..] else {
+            panic!("a cube corner has valence 3: {orbit:?}");
+        };
+        assert_eq!(
+            body.run_site(h0, h1),
+            Some(RunSite::Fan { he1: h0, he2: h2 }),
+            "a two-edge run ends at the third"
+        );
+        assert_eq!(
+            body.run_site(h2, h2),
+            Some(RunSite::Fan { he1: h2, he2: h0 }),
+            "a one-edge run ends at its successor"
+        );
+        for (first, last) in [(h0, h2), (h1, h0), (h2, h1)] {
+            let site = body.run_site(first, last);
+            assert_eq!(
+                site,
+                Some(RunSite::WholeOrbit { corner: first }),
+                "the run {first:?} ..= {last:?} holds the whole orbit"
+            );
+            assert_eq!(
+                site.unwrap().mev_site(),
+                crate::MevSite::Fan {
+                    he1: first,
+                    he2: first
+                },
+                "the whole orbit's null edge is the strut before {first:?}"
+            );
+        }
+        assert_eq!(body.run_site(h0, HalfEdgeKey::default()), None);
+    }
+
     /// The vertex doors answer the orbit's projection, each entity once
     /// at its FIRST reach, in orbit order — pinned against the orbit
     /// itself rather than against a sorted set, so a door that sorted,
@@ -2170,6 +2674,143 @@ mod tests {
         assert_eq!(orphan.faces_of_vertex(root), None);
     }
 
+    /// A walk a torn `next` closes through another vertex's half-edges
+    /// is not this vertex's orbit, and the read doors refuse it rather
+    /// than list the other vertex's edges and faces among this one's.
+    #[test]
+    fn the_vertex_doors_refuse_a_walk_closed_through_another_vertex() {
+        let (body, _, v) = crate::fixtures::torn_cube_closing_through_another_vertex();
+        if let Some(edges) = body.edges_of_vertex(v) {
+            for e in &edges {
+                let data = body.get_edge(*e).unwrap();
+                assert!(
+                    [data.he_plus, data.he_minus].iter().any(|&h| body
+                        .get_half_edge(h)
+                        .unwrap()
+                        .start
+                        == v),
+                    "edges_of_vertex({v:?}) = {edges:?} lists {e:?}, which no half of \
+                     starts at {v:?}"
+                );
+            }
+        }
+        let first = body.get_vertex(v).unwrap().emanating.unwrap();
+        assert_eq!(body.vertex_orbit(first), None, "vertex_orbit");
+        assert_eq!(body.edges_of_vertex(v), None, "edges_of_vertex");
+        assert_eq!(body.faces_of_vertex(v), None, "faces_of_vertex");
+    }
+
+    /// A vertex whose stored `emanating` is another vertex's half-edge
+    /// lends the vertex-keyed reads a walk that is proven, but at the
+    /// wrong vertex: `v` borrows `u`'s `emanating`, and without the
+    /// check that it starts at `v` both doors answer `u`'s edges and
+    /// faces for `v`.
+    #[test]
+    fn the_vertex_doors_refuse_an_emanating_that_starts_at_another_vertex() {
+        let mut body = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
+        let vertices: Vec<VertexKey> = body.vertices().map(|(k, _)| k).collect();
+        let (v, u) = (vertices[0], vertices[1]);
+        let edges_of_u = body.edges_of_vertex(u).unwrap();
+        let faces_of_u = body.faces_of_vertex(u).unwrap();
+        body.get_vertex_mut(v).unwrap().emanating = body.get_vertex(u).unwrap().emanating;
+        assert_eq!(body.vertex_orbit_of(v), None, "vertex_orbit_of");
+        assert_eq!(body.edges_of_vertex(v), None, "edges_of_vertex");
+        assert_eq!(body.faces_of_vertex(v), None, "faces_of_vertex");
+        assert_eq!(body.edges_of_vertex(u), Some(edges_of_u), "u still reads");
+        assert_eq!(body.faces_of_vertex(u), Some(faces_of_u), "u still reads");
+    }
+
+    /// The start proof never refuses a valid body: on every fixture
+    /// below, the walk from EVERY half-edge (not only the stored
+    /// `emanating`) closes, and visits exactly the half-edges that start
+    /// where it does. A proof that read another vertex than the first
+    /// member's — its end, its mate's start — reds here.
+    #[test]
+    fn the_orbit_walk_refuses_no_half_edge_of_a_valid_body() {
+        let tol = Tol::witness();
+        let fixtures: Vec<(&str, Body<f64>)> = vec![
+            ("pillow", pillow(tol).body),
+            ("ngon_pillow(5)", crate::fixtures::ngon_pillow(5, tol).body),
+            ("mvfs_state", mvfs_state().body),
+            ("ops_holed_box", crate::fixtures::ops_holed_box(tol).body),
+            (
+                "ops_two_ring_face",
+                crate::fixtures::ops_two_ring_face(tol).body,
+            ),
+            ("ops_genus2", crate::fixtures::ops_genus2(tol)),
+            (
+                "ops_ring_bridge",
+                crate::fixtures::ops_ring_bridge(tol).body,
+            ),
+            ("ops_strut_cube", ops_strut_cube(tol).body),
+            ("ops_segment", crate::fixtures::ops_segment(tol).0),
+            ("ops_strutted", crate::fixtures::ops_strutted(tol).0),
+            (
+                "declined_cube",
+                crate::test_support_fixtures::declined_cube::<f64>(tol).body,
+            ),
+            (
+                "geometric_cube",
+                crate::test_support_fixtures::geometric_cube::<f64>(tol).body,
+            ),
+            (
+                "holed_block",
+                crate::test_support_fixtures::holed_block::<f64>(4.0, &[1.0, 3.0], tol),
+            ),
+        ];
+        let mut walked = 0usize;
+        for (name, body) in &fixtures {
+            assert_eq!(crate::validate::validate(body), Ok(()), "{name} is valid");
+            for (he, data) in body.half_edges() {
+                let orbit = body
+                    .vertex_orbit(he)
+                    .unwrap_or_else(|| panic!("{name}: the walk from {he:?} refuses"));
+                assert!(
+                    orbit
+                        .iter()
+                        .all(|&m| body.get_half_edge(m).unwrap().start == data.start),
+                    "{name}: the walk from {he:?} leaves its vertex"
+                );
+                let incident = body
+                    .half_edges()
+                    .filter(|(_, d)| d.start == data.start)
+                    .count();
+                assert_eq!(orbit.len(), incident, "{name}: the walk from {he:?}");
+                walked += 1;
+            }
+            for (v, _) in body.vertices() {
+                assert!(
+                    body.edges_of_vertex(v).is_some(),
+                    "{name}: edges_of_vertex({v:?})"
+                );
+                assert!(
+                    body.faces_of_vertex(v).is_some(),
+                    "{name}: faces_of_vertex({v:?})"
+                );
+            }
+        }
+        assert!(walked > 200, "the row walked {walked} half-edges");
+    }
+
+    /// The validator's pass 6 names each half-edge of a torn walk that
+    /// starts at another vertex, which the proven walk collapses into
+    /// `Broken`: it walks without the proof.
+    #[test]
+    fn pass_six_names_each_foreign_member_of_a_walk_closed_through_another_vertex() {
+        let (body, halves, v) = crate::fixtures::torn_cube_closing_through_another_vertex();
+        let foreign: Vec<(VertexKey, HalfEdgeKey)> = crate::validate::validate(&body)
+            .unwrap_err()
+            .into_iter()
+            .filter_map(|e| match e {
+                crate::validate::ValidationError::OrbitForeignMember { vertex, half_edge } => {
+                    Some((vertex, half_edge))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(foreign, vec![(v, halves[6]), (v, halves[5])]);
+    }
+
     #[test]
     fn walks_are_bounded_on_corrupt_bodies() {
         // Overrun: point a0's next into loop B's cycle — the walk from a0
@@ -2231,6 +2872,57 @@ mod tests {
         // And so does the projection the recipe layer reads.
         assert_eq!(body.point_source(point), None);
         assert_eq!(body.surface_source(surface), None);
+    }
+
+    /// The door against the chain it replaces, on the validator's own
+    /// point tear (`validate`'s `dangling_geometry_is_reported`): the
+    /// `filter_map` chain loses the torn vertex and reports a shorter
+    /// cloud; the door panics naming the vertex and its dangling key.
+    #[test]
+    fn vertex_points_panics_on_a_torn_point_where_the_chain_drops_it() {
+        let chain = |b: &Body<f64>| -> Vec<(VertexKey, [f64; 3])> {
+            b.vertices()
+                .filter_map(|(k, _)| b.get_vertex(k).map(|v| (k, v)))
+                .filter_map(|(k, v)| b.get_point(v.point).map(|p| (k, p.to_array())))
+                .collect()
+        };
+        let mut t = pillow(Tol::witness());
+        let read: Vec<_> = t
+            .body
+            .vertex_points()
+            .map(|(k, p)| (k, p.to_array()))
+            .collect();
+        assert_eq!(
+            read,
+            chain(&t.body),
+            "on a valid body the door yields exactly get_vertex/get_point's points"
+        );
+        assert_eq!(read.len(), t.vertices.len(), "one row per live vertex");
+
+        let dead = t.body.add_point(origin());
+        t.body.points.remove(dead);
+        t.body.get_vertex_mut(t.vertices[0]).unwrap().point = dead;
+        assert_eq!(
+            chain(&t.body).len(),
+            t.vertices.len() - 1,
+            "the chain silently drops the torn vertex"
+        );
+        let report = crate::surgery::tests::panic_message(|| {
+            t.body.vertex_points().for_each(drop);
+        });
+        for fragment in [
+            format!(
+                "{}'s point names {}",
+                EntityId::Vertex(t.vertices[0]),
+                GeomRef::Point(dead)
+            ),
+            crate::live::NAMES_ONLY_LIVE.to_owned(),
+        ] {
+            assert!(
+                report.contains(&fragment),
+                "the torn vertex panics naming itself and its point key: {report}"
+            );
+        }
     }
 
     #[test]

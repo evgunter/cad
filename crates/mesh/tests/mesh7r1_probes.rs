@@ -142,15 +142,18 @@ fn pole_crossing_three_faces() -> (Body<f64>, [FaceKey; 3]) {
     }
     let t_end = g.param_near(a, 0.0).unwrap();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
-            radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Sphere {
+                center: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e_rim = body
@@ -264,15 +267,18 @@ fn pole_crossing_three_faces_with_seam() -> (Body<f64>, [FaceKey; 3]) {
     let t_pole = gd.param_near(s_pole, 0.0).unwrap();
     assert!(t_pole > 0.0 && (gd.eval(t_pole) - s_pole).norm() < 1e-9);
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(a).unwrap();
+    let seed = body.mvfs(a, true).unwrap();
     body.set_face_surface(
         seed.face,
-        FaceSurface::New(Surface::Sphere {
-            center: Point3::new(0.0, 0.0, 0.0),
-            radius: 1.0,
-            axis: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }),
+        FaceSurface::New {
+            surface: Surface::Sphere {
+                center: Point3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+            sense: true,
+        },
     )
     .unwrap();
     let e_rim = body

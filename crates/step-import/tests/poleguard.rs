@@ -59,11 +59,12 @@
 //! the profile, the pcurve lane far beyond); the **plane split** and
 //! **boolean** doors (review rows `r2_split_door.rs` /
 //! `r2_bool_door.rs` / `r1_probe_bool_route.rs`: every sphere-face
-//! cut refuses typed at every probed height — as
+//! cut within a few ε of a pole refuses typed — as
 //! `CurvedBooleanUnsupported` / `CurvedPierceUnsupported` at the
 //! default band, and at earlier profile/adoption escalations on the
 //! coarser bands; R1's eleven near-tangent plane×sphere
-//! configurations all refuse typed). Reasoned or measured shut by
+//! configurations all refuse typed; a boolean cut a macroscopic
+//! distance below the pole builds and meshes with the guard quiet). Reasoned or measured shut by
 //! review: `transform_rigid` (an isometry moves junctions and poles
 //! together), `split_edge` (its interiority gate is metred against
 //! the same band). **Named unmeasured**: blend/fillet, `shell`,
@@ -217,8 +218,8 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
     let pole = pole.expect("a sphere face");
     assert!(radius > 0.0);
     let nearest = body
-        .vertices()
-        .map(|(_, v)| (*body.get_point(v.point).unwrap() - pole).norm())
+        .vertex_points()
+        .map(|(_, p)| (p - pole).norm())
         .fold(f64::INFINITY, f64::min);
     assert!(
         (0.9e-9..=1.1e-9).contains(&nearest),
@@ -259,10 +260,13 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
         // the door, naming the premise, before any mesh is minted; at
         // 1e-9 that overshoot is sub-band — the arc ENDS at the pole
         // as far as this run can tell, which is precisely the case the
-        // door must admit (CERT-1's split-vertex row) — and the
-        // refusal comes from the chord certificate downstream instead.
-        // Both are typed refusals, neither is a panic or a mesh; which
-        // one answers is the two-tolerance shape of a banded premise.
+        // door must admit (CERT-1's split-vertex row). The walk then
+        // carries the arc's end vertex and the witness vertex on one UV
+        // point, two mesh ids on one CDT handle, and the curved lane
+        // refuses that (`PinchWedge`) before its chord certificate is
+        // read. Both are typed refusals, neither is a panic or a mesh;
+        // which one answers is the two-tolerance shape of a banded
+        // premise.
         let expected_at_this_band = if (0.99e-12..=1.01e-12).contains(&eps) {
             matches!(
                 err,
@@ -272,7 +276,7 @@ fn the_halfcap_eps7_witness_is_band_shaped() {
                 }
             )
         } else {
-            matches!(err, mesh::TessellateError::CertificateExceeded { .. })
+            matches!(err, mesh::TessellateError::PinchWedge { .. })
         };
         assert!(
             expected_at_this_band,

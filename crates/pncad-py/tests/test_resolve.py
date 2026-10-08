@@ -52,10 +52,12 @@ from pncad import (
     Doc,
     DocEdit,
     EntityKind,
-    Expr,
+    Formula,
     Node,
     NodePick,
+    Open,
     PncadError,
+    Start,
     deg,
     evaluate,
     m,
@@ -89,10 +91,10 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
     return doc.insert(
         Node.polygon(
             [
-                (Expr.length_in(x + 0.0, m), Expr.length_in(y + 0.0, m)),
-                (Expr.length_in(x + side, m), Expr.length_in(y + 0.0, m)),
-                (Expr.length_in(x + side, m), Expr.length_in(y + side, m)),
-                (Expr.length_in(x + 0.0, m), Expr.length_in(y + side, m)),
+                (Formula.length_in(x + 0.0, m), Formula.length_in(y + 0.0, m)),
+                (Formula.length_in(x + side, m), Formula.length_in(y + 0.0, m)),
+                (Formula.length_in(x + side, m), Formula.length_in(y + side, m)),
+                (Formula.length_in(x + 0.0, m), Formula.length_in(y + side, m)),
             ],
             plane=doc.sketch_frame(),
         )
@@ -101,7 +103,7 @@ def square(doc, side=1.0, at=(0.0, 0.0)):
 
 def unit_cube(doc, at=(0.0, 0.0)):
     """A 1 m cube on the ground plane — z from 0 to 1."""
-    return doc.insert(Node.extrude(square(doc, at=at), Expr.length_in(1.0, m)))
+    return doc.insert(Node.extrude(square(doc, at=at), Formula.length_in(1.0, m)))
 
 
 class TestAResolvedVerdict(unittest.TestCase):
@@ -197,14 +199,14 @@ class TestEvaluationWideVersusNodeScoped(unittest.TestCase):
         self.cube = unit_cube(self.doc)
         self.moved = self.doc.insert(
             Node.transform(self.cube, (
-                Expr.length_in(3, m),
-                Expr.length_in(0, m),
-                Expr.length_in(0, m),
+                Formula.length_in(3, m),
+                Formula.length_in(0, m),
+                Formula.length_in(0, m),
             ), (
-                Expr.literal(0.0),
-                Expr.literal(0.0),
-                Expr.literal(1.0),
-            ), Expr.angle_in(0, deg))
+                Formula.literal(0.0),
+                Formula.literal(0.0),
+                Formula.literal(1.0),
+            ), Formula.angle_in(0, deg))
         )
         self.other = unit_cube(self.doc, at=(9.0, 9.0))
         self.ev = evaluate(self.doc)
@@ -246,9 +248,9 @@ class TestEvaluationWideVersusNodeScoped(unittest.TestCase):
 def plate(doc, corners):
     """A 0.1 m-thick plate over `corners`, on the sketch plane."""
     profile = doc.insert(
-        Node.polygon([(Expr.length_in(x, m), Expr.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame())
+        Node.polygon([(Formula.length_in(x, m), Formula.length_in(y, m)) for x, y in corners], plane=doc.sketch_frame())
     )
-    return profile, doc.insert(Node.extrude(profile, Expr.length_in(0.1, m)))
+    return profile, doc.insert(Node.extrude(profile, Formula.length_in(0.1, m)))
 
 
 SQUARE = ((0.0, 0.0), (1.0, 0.0), (1.0, 0.5), (0.0, 0.5))
@@ -279,7 +281,8 @@ class TestAFailedVerdict(unittest.TestCase):
                 # there is nothing to refine here, so the rebind is
                 # onto a different feature entirely.
                 self.assertEqual(verdict.variant, "node_gone")
-                self.assertIn("no longer in the document", verdict.detail)
+                self.assertIn("is stranded: node ", verdict.detail)
+                self.assertIn(" was deleted", verdict.detail)
                 # Nothing structural offers itself for a node that is
                 # simply gone, and the empty list is the answer — not
                 # an absence.
@@ -288,25 +291,31 @@ class TestAFailedVerdict(unittest.TestCase):
     def test_a_vanished_name_fails_while_its_node_still_evaluates(self):
         """The other way: the minting node is alive and well and the
         NAME is gone from its table — a side face of a square plate has
-        no counterpart on a triangular one.
+        no counterpart once the plate is reshaped into a triangle.
 
-        The two documents are the same recipe with one argument
-        changed, so the node ids match; the test asserts that, because
-        a comparison between two unrelated recipes would prove
-        nothing. It also asserts the extrude still SUCCEEDS on the
-        second, which is what makes this a `failed` and not an
-        `indeterminate`."""
-        wide = Doc()
-        _, wide_extrude = plate(wide, SQUARE)
-        narrow = Doc()
-        _, narrow_extrude = plate(narrow, TRIANGLE)
-        self.assertEqual(str(wide_extrude), str(narrow_extrude))
+        The reshaping keeps every step but the fourth corner's leg, so
+        every other name keeps its spelling and the one on the dropped
+        step is the only one to go. It also asserts the extrude still
+        SUCCEEDS after the edit, which is what makes this a `failed`
+        and not an `indeterminate`."""
+        doc = Doc()
+        profile, extrude = plate(doc, SQUARE)
+        before = evaluate(doc)
+        (s,) = doc.step_ids(profile)
+        triangle = Open.at((0 * m, 0 * m))
+        steps = [triangle.step]
+        for x, y in TRIANGLE[1:]:
+            triangle = triangle.line_to((x * m, y * m))
+            steps.append(triangle.step)
+        closed = triangle.line_to(Start)
+        steps.append(closed.step)
+        keep = dict(zip(steps, [s[0], s[1], s[2], s[4]], strict=True))
+        doc.apply(DocEdit.set_program(profile, closed, [keep]))
+        after = evaluate(doc)
+        self.assertTrue(after.succeeded(extrude))
 
-        before, after = evaluate(wide), evaluate(narrow)
-        self.assertTrue(after.succeeded(narrow_extrude))
-
-        was = set(before.all_faces(wide_extrude))
-        now = set(after.all_faces(narrow_extrude))
+        was = set(before.all_faces(extrude))
+        now = set(after.all_faces(extrude))
         vanished = sorted(was - now)
         self.assertEqual(len(vanished), 1)
 
@@ -334,41 +343,43 @@ def blank(radius):
     downstream evaluates; at 0.6 it cannot fit on a 1 m cube, so the
     fillet node FAILS and the boolean below it is poisoned. The recipe
     is otherwise identical, which is what makes the two documents
-    comparable.
+    comparable: both are authored at 0.12 and the radius is then edited
+    to `radius`, so they insert the same nodes and mint the same ids.
     """
     doc = Doc()
     cube = unit_cube(doc)
     edges = evaluate(doc).all_edges(cube)
     assert len(edges) == 12
-    blended = doc.insert(Node.fillet(cube, Expr.length_in(radius, m), edges))
+    blended = doc.insert(Node.fillet(cube, Formula.length_in(0.12, m), edges))
     peg = doc.insert(
         Node.extrude(
             doc.insert(
                 Node.polygon(
                     [
-                        (Expr.length_in(0.6, m), Expr.length_in(0.3, m)),
-                        (Expr.length_in(1.4, m), Expr.length_in(0.3, m)),
-                        (Expr.length_in(1.4, m), Expr.length_in(0.7, m)),
-                        (Expr.length_in(0.6, m), Expr.length_in(0.7, m)),
+                        (Formula.length_in(0.6, m), Formula.length_in(0.3, m)),
+                        (Formula.length_in(1.4, m), Formula.length_in(0.3, m)),
+                        (Formula.length_in(1.4, m), Formula.length_in(0.7, m)),
+                        (Formula.length_in(0.6, m), Formula.length_in(0.7, m)),
                     ],
                     plane=doc.sketch_frame(),
                 )
             ),
-            Expr.length_in(0.4, m),
+            Formula.length_in(0.4, m),
         )
     )
     lifted = doc.insert(
         Node.transform(peg, (
-            Expr.length_in(0, m),
-            Expr.length_in(0, m),
-            Expr.length_in(0.3, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0, m),
+            Formula.length_in(0.3, m),
         ), (
-            Expr.literal(0.0),
-            Expr.literal(0.0),
-            Expr.literal(1.0),
-        ), Expr.angle_in(0, deg))
+            Formula.literal(0.0),
+            Formula.literal(0.0),
+            Formula.literal(1.0),
+        ), Formula.angle_in(0, deg))
     )
     fused = doc.insert(Node.boolean(BooleanOp.Union, blended, lifted))
+    doc.apply(DocEdit.set_param(blended, "radius", Formula.length_in(radius, m)))
     return doc, blended, fused
 
 
@@ -431,7 +442,7 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
                 self.assertEqual(verdict.status, "indeterminate")
                 # The arm says which node to look at: this one's own.
                 self.assertEqual(verdict.variant, "target_failed")
-                self.assertIn("failed this evaluation", verdict.detail)
+                self.assertIn("failed, so it has no value", verdict.detail)
                 # Not a rebind candidate: there is nothing to rebind to
                 # and nothing to suggest.
                 self.assertIsNone(verdict.offers)
@@ -453,7 +464,9 @@ class TestAnIndeterminateVerdict(unittest.TestCase):
                 # which is the whole difference between the two arms
                 # of one state.
                 self.assertEqual(verdict.variant, "target_poisoned")
-                self.assertIn("poisoned by the failure at node", verdict.detail)
+                # The frame holding the document speaks the ancestor
+                # by its kind.
+                self.assertIn("poisoned by the failure at Fillet ", verdict.detail)
                 self.assertIn("the repair is upstream", verdict.detail)
 
     def test_a_run_that_never_reached_the_node_is_the_third_arm(self):

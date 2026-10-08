@@ -21,6 +21,8 @@
 use crate::common::census::{genus_of, rings_of};
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use sweep::ExtrudeSide;
+use sweep::test_support::finished;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, LoopBoundary, ShellError};
 
@@ -49,9 +51,16 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
         .expect("profile validates");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("profile extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("profile extrudes")
+    .body
 }
 
 /// Every planar face whose plane origin sits at height `y` about the
@@ -131,7 +140,12 @@ fn p1_partial_revolve_cap_is_never_a_validated_wrong_body() {
     let chart = plane_chart_at_y(&body, 0.4);
     println!("[p1] wedge cap chart: {} face(s)", chart.len());
     assert!(!chart.is_empty(), "the wedge has a top cap");
-    match topo::shell_open(&body, 0.05, &chart, Tol::witness()) {
+    match topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        0.05,
+        &chart,
+        Tol::witness(),
+    ) {
         Err(e) => println!("[p1] REFUSED typed: {e}"),
         Ok(topo::Shelled { body: cup, .. }) => {
             println!(
@@ -176,7 +190,12 @@ fn p2_counterbore_mouth_two_half_annuli_split_into_two_rims() {
     // merge whose leftover duplicate is anchored at BOTH ends) stays
     // door-unreachable here. Pinned as the typed refusal it is: never
     // a validated wrong body.
-    match topo::shell_open(&body, t, &chart, Tol::witness()) {
+    match topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        &chart,
+        Tol::witness(),
+    ) {
         Err(ShellError::OpenFacesDisconnect { components, .. }) => {
             println!("[p2] refused typed at the designation gate: {components} components");
             assert_eq!(components, 2);
@@ -260,20 +279,24 @@ fn p3_vase_opened_at_its_bottom_mints_one_annular_rim() {
         (0.0, 0.31),
     ]);
     let chart = plane_chart_at_y(&body, 0.0);
-    assert_eq!(chart.len(), 2, "the base is two half-discs");
-    let cup = topo::shell_open(&body, t, &chart, Tol::witness())
-        .unwrap_or_else(|e| panic!("[p3] the vase opens at its base, got {e}"))
-        .body;
+    assert_eq!(chart.len(), 1, "the base is one disc");
+    let cup = topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        &chart,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("[p3] the vase opens at its base, got {e}"))
+    .body;
     assert_eq!(cup.shells().count(), 1);
+    let rim = plane_chart_at_y(&cup, 0.0);
+    assert_eq!(rim.len(), 1, "ONE rim face");
+    // The shoulders are annuli too, each plane wall built whole with its
+    // inner circle a ring, so the rim's own ring is the one counted.
     assert_eq!(
-        (rings_of(&cup), genus_of(&cup)),
+        (cup.get_face(rim[0]).unwrap().rings.len(), genus_of(&cup)),
         (1, 0),
         "one rim annulus, genus 0"
-    );
-    assert_eq!(
-        plane_chart_at_y(&cup, 0.0).len(),
-        1,
-        "the two half-discs became ONE rim face"
     );
     let pi = core::f64::consts::PI;
     let v_solid = pi * (0.21f64.powi(2) * 0.07 + 0.34f64.powi(2) * 0.12 + 0.11f64.powi(2) * 0.12);
@@ -294,15 +317,24 @@ fn p4_annular_split_holds_on_fresh_radii() {
     let (ri, ro, h, t) = (0.7, 1.1, 0.6, 0.08);
     let body = revolved_full(&[(ri, 0.0), (ro, 0.0), (ro, h), (ri, h)]);
     let chart = plane_chart_at_y(&body, h);
-    assert_eq!(chart.len(), 1, "a closed off-axis meridian closes its seam");
-    let cup = topo::shell_open(&body, t, &chart, Tol::witness())
-        .unwrap_or_else(|e| panic!("[p4] the tube opens, got {e}"))
-        .body;
+    assert_eq!(
+        chart.len(),
+        1,
+        "a full revolve builds its annular cap whole"
+    );
+    let cup = topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        &chart,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("[p4] the tube opens, got {e}"))
+    .body;
     assert_eq!(cup.shells().count(), 1);
     assert_eq!(
         (rings_of(&cup), genus_of(&cup)),
-        (2, 1),
-        "two rim annuli; the bore keeps genus 1"
+        (4, 1),
+        "two rim annuli and two floor annuli; the bore keeps genus 1"
     );
     assert_eq!(plane_chart_at_y(&cup, h).len(), 2);
     let pi = core::f64::consts::PI;
@@ -336,7 +368,12 @@ fn p5_two_holed_designation_refuses_typed() {
         2,
         "carrying two holes"
     );
-    match topo::shell_open(&body, t, &top, Tol::witness()) {
+    match topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        &top,
+        Tol::witness(),
+    ) {
         Err(ShellError::OpenFaceRimNotExpressible { what, .. }) => {
             println!("[p5] refused: {what}");
             assert!(
@@ -375,7 +412,12 @@ fn p6_single_square_hole_splits_on_line_carriers() {
     let body = extruded(vec![outer, hole], h);
     let top = plane_chart_at_z(&body, h);
     assert_eq!(top.len(), 1);
-    match topo::shell_open(&body, t, &top, Tol::witness()) {
+    match topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        &top,
+        Tol::witness(),
+    ) {
         Err(e) => {
             // A refusal here is a FINDING (an undisclosed narrowing to
             // circular splits) — record it loudly.
@@ -427,7 +469,12 @@ fn p7_thickness_gate_shields_check_9s_band_at_this_door() {
     let top = plane_chart_at_z(&body, 4.0);
     // In the band or below: the thickness gate refuses first.
     for t in [3e-7, 5e-6] {
-        match topo::shell_open(&body, t, &top, Tol::witness()) {
+        match topo::shell_open(
+            &finished("the operand", body.clone(), Tol::witness()),
+            t,
+            &top,
+            Tol::witness(),
+        ) {
             Err(ShellError::Thickness { .. }) => println!("[p7] t = {t}: thickness gate"),
             Err(e) => println!("[p7] t = {t}: refused elsewhere: {e}"),
             Ok(topo::Shelled { body: cup, .. }) => {
@@ -439,9 +486,14 @@ fn p7_thickness_gate_shields_check_9s_band_at_this_door() {
     // At the escalation floor: certifiably positive, must build, and
     // the ring at 1e-5 from the outer loop must NOT trip check 9.
     let t = 2e-5;
-    let cup = topo::shell_open(&body, t, &top, Tol::witness())
-        .unwrap_or_else(|e| panic!("[p7] t = {t} is certifiably positive, got {e}"))
-        .body;
+    let cup = topo::shell_open(
+        &finished("the operand", body.clone(), Tol::witness()),
+        t,
+        &top,
+        Tol::witness(),
+    )
+    .unwrap_or_else(|e| panic!("[p7] t = {t} is certifiably positive, got {e}"))
+    .body;
     assert_eq!(
         topo::validate_geometric(&cup, Tol::witness()),
         Ok(()),
@@ -461,12 +513,20 @@ fn p8_hollow_operand_thickens_every_boundary() {
         vec![polygon(&[(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.0, 3.0)])],
         4.0,
     );
-    let sealed = topo::shell(&body, 0.25, Tol::witness())
-        .expect("seals")
-        .body;
-    let shelled = topo::shell(&sealed, 0.05, Tol::witness())
-        .expect("a hollow operand thickens every boundary")
-        .body;
+    let sealed = topo::shell(
+        &finished("the operand", body.clone(), Tol::witness()),
+        0.25,
+        Tol::witness(),
+    )
+    .expect("seals")
+    .body;
+    let shelled = topo::shell(
+        &finished("the operand", sealed.clone(), Tol::witness()),
+        0.05,
+        Tol::witness(),
+    )
+    .expect("a hollow operand thickens every boundary")
+    .body;
     assert_coherent("p8 shell of a hollow", &shelled, None);
     assert_eq!(shelled.solids().count(), 2);
     assert_eq!(shelled.shells().count(), 4);
