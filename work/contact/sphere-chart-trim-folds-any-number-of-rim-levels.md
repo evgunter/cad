@@ -4,6 +4,8 @@ kind: issue
 title: sphere_chart_trim reads a trimmed sphere face as the latitude window its rim levels span however many levels there are, so a stepped outline (three or more rim latitudes) is misread; no door builds one today
 status: open
 opened: 2026-09-26
+priority: P4
+cost: E
 ---
 
 

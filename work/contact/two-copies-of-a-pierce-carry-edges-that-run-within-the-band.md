@@ -4,7 +4,7 @@ kind: issue
 title: A near-tangent two-run pierce leaves its copies apart on one point, and the two edges leaving them run within the band for a stretch the census passes, at 89 poses main refused
 status: open
 opened: 2026-10-04
-priority: P0
+priority: P1
 cost: M
 refs: [boolean-bound-parallelism-verdicts-are-levered-at-a-short-or-unit-arm, the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start, near-tangent-boolean-results-ship-with-an-escalated-tier-3-census, a-pierce-with-two-out-runs-at-one-vertex-refuses-every-op]
 ---
@@ -187,3 +187,18 @@ correspondence fuses them, which is where the kernel reads them as one
 cone; it no longer matters whether a face meets both. The pinned
 witness is unchanged (copies apart in ∪, one vertex in ∖), but the
 row's count of poses may move and was not re-measured.
+
+## Measured (JOIN's near-tangent census measurement, main `047d10d5`)
+
+The census does not always pass this pair: on 30 near-tangent runs at
+ε = 1e-9 it escalates `pm_census_ee_span` on two edges leaving two vertices
+on one point the same way, within K·ε for 0.06 to 1.0 from it. The exact
+crossing is at the point, so the escalation is f64 error alone
+(`the-census-crossing-lane-misplaces-a-shared-points-crossing-on-a-near-collinear-pair`).
+Fixing that error passes them, as this row describes. The one-vertex form
+of the same sliver (262 runs) is JOIN's
+`a-near-tangent-split-leaves-a-face-corner-that-runs-within-the-band`.
+
+## CONTACT close-out triage (2026-10-08)
+
+P0 to P1: the weld it rests on was retired by PR 4139 and its 89 poses were not re-measured. Re-measure first; drop to P2 if they no longer reach a wrong answer. Parallelism is still levered at the full arm (`census.rs`, ~:2000).

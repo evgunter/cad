@@ -964,19 +964,7 @@ fn split_one_solid<T: geom_core::Decide + crate::props::AtRestPolicy>(
             // The naming sides were recorded against the MIRRORED
             // plane; swap them back with the bodies so `sections`
             // states sides in the caller's orientation.
-            naming: finish::SplitNaming {
-                sections: naming
-                    .sections
-                    .into_iter()
-                    .map(|(f, s)| (f, s.opposite()))
-                    .collect(),
-                face_fragments: naming.face_fragments,
-                // Pairs stay (copy, original): the mirrored run's
-                // copies land on the caller's BELOW side, but
-                // consumers resolve pair roles by which body holds
-                // each key, so no swap is needed here.
-                vertex_pairs: naming.vertex_pairs,
-            },
+            naming: naming.mirrored(),
         }),
         Err(_) => split_direct(operand, plane, tol),
     }
@@ -1002,6 +990,38 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
         (PlaneSide::Below, &mut result.below),
     ] {
         if let finish::SplitPart::Body(body) = part {
+            crate::validate::validate_closed(body)
+                .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
+            // Every finisher ends with the join (`docs/DESIGN.md`, maximal edges).
+            let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
+            // Taken before the kills, which drop it (`SplitNaming::joined_lineage`).
+            let split_from: std::collections::BTreeMap<
+                crate::entity::EdgeKey,
+                crate::entity::EdgeKey,
+            > = body
+                .edges()
+                .filter_map(|(e, _)| match body.edge_provenance_of(e) {
+                    Some(crate::provenance::Provenance::SplitEdge { edge }) => Some((e, *edge)),
+                    _ => None,
+                })
+                .collect();
+            // On this run's own output: a refusal discards it.
+            let joins = body
+                .join_edges_within(band, tol, &|_| true)
+                .map_err(|refusal| SplitFinishError::EdgeJoin {
+                    side,
+                    refusal: crate::boolean::JoinRefusal::of(&refusal),
+                })?;
+            result.naming.joined_lineage.extend(
+                joins
+                    .iter()
+                    .filter_map(|j| split_from.get(&j.gone).map(|&from| (j.gone, from))),
+            );
+            result
+                .naming
+                .edge_joins
+                .extend(joins.into_iter().map(|j| (side, j)));
+            // The side's tier-2 gate again, on the body as joined.
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
             crate::pcurves::mint_pcurves(body, tol)?;

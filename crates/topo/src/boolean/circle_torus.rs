@@ -21,10 +21,16 @@
 //! on a circle its third and fourth harmonics are rounding, charged to
 //! the noise.
 //!
-//! The ladder's rows here are `bool_circle_torus_pole`, `_conditioning`,
-//! `_noise` and the quartic's `bool_circle_torus_*`, and every in-band
-//! sign escalates as [`BooleanDecision::ArcTorusRoots`]; the answer is
-//! the certified subdivision's (`bool_circle_torus_sub_*`).
+//! The door's rows are the special poses' (`bool_circle_torus_coaxial_*`,
+//! the parallel arm's `bool_circle_torus_contour_residual`,
+//! `_contour_side`, `_plane_height` and `_root_slack`, and
+//! `bool_circle_torus_meridian`, below), then the ladder's:
+//! `bool_circle_torus_pole`, `_pole_conditioning`, `_noise` and the
+//! quartic's `bool_circle_torus_*`. An in-band classifying sign
+//! escalates as [`BooleanDecision::ArcTorusRoots`]; an in-band coaxial
+//! tilt or offset only routes the pose ([`circle_torus_roots`],
+//! "Errors"). The ladder's answer is the certified subdivision's
+//! (`bool_circle_torus_sub_*`).
 //!
 //! # The noise meter's floor, and what it costs
 //!
@@ -86,13 +92,20 @@
 //!   millimetres clear of a contour reads as a tangency at a coarse
 //!   band (measured on the lily at ε = 1e-6: the arch's outer seam,
 //!   8 mm inside the stem's outer contour).
-//! - **The circle lies ON the torus** (a rim, meridian or Villarceau
-//!   circle, none of them parallel-axes except the rims, which are
-//!   coaxial): `F ≡ 0`, so the pole is on the torus at every anchor and
-//!   the answer is `Uncertain`, which keeps a meridian or Villarceau
-//!   circle from every recording arm. A coaxial rim is answered on the
-//!   coaxial arm instead (`OnSurface`), and the reduction records it only
-//!   under `reduce::lying_on`'s certificates.
+//! - **A meridian** (the carrier's plane through the torus axis, its
+//!   centre on the centre circle, its radius the minor radius): `F ≡
+//!   0`, so the pole is on the torus at every anchor and the ladder
+//!   cannot answer. It is decided before the ladder, on one margin
+//!   bounding every carrier point's distance from the torus
+//!   (`bool_circle_torus_meridian`, [`meridian_deviation`]): Zero is
+//!   [`CircleRoots::OnSurface`], in band an escalation, and a definite
+//!   deviation takes the ladder. The reduction records an
+//!   `OnSurface` arc only under `reduce::lying_on`'s certificates.
+//! - **A Villarceau circle** also has `F ≡ 0` and no rung: the ladder
+//!   answers it `Uncertain`, so no arm records it as lying on the
+//!   carrier. The reduction still reads an `Uncertain` span through
+//!   `carrier_touch::off_face`, which can place every touch off the
+//!   face.
 //! - **A tangency** — the carrier grazing the tube, a double root — is a
 //!   contour-reach margin in band on the parallel arm, and on the
 //!   general arm a piece neither clear nor monotone down to the band's
@@ -149,8 +162,10 @@ fn escalated(diag: Indeterminate) -> BooleanError {
 /// circle or `torus` not a torus — the caller dispatched on those kinds.
 /// An escalation as [`BooleanDecision::ArcTorusRoots`] for an in-band
 /// classifying sign: a coaxial carrier's constant residual, a rung of the
-/// parallel arm, or one of the ladder's. An in-band sign at the coaxial
-/// tilt is not an error: the pose takes the ladder.
+/// parallel arm, a meridian deviation, or one of the ladder's. An
+/// in-band sign at the coaxial tilt is not an error: the pose takes the
+/// ladder. A meridian deviation read negative is a
+/// [`BooleanError::ClassificationInvariant`].
 pub(super) fn circle_torus_roots<T: Decide>(
     carrier: &geom::Curve3<T>,
     t0: T,
@@ -255,6 +270,41 @@ pub(super) fn circle_torus_roots<T: Decide>(
         };
     }
 
+    // A meridian: `F ≡ 0`, which the ladder cannot answer, decided on
+    // its point deviation (module docs, "The special poses"). Its bound
+    // leans on the ring (`R − r > 0`); a torus off D3's convention takes
+    // the ladder.
+    if matches!(
+        geom::ring_torus(major_radius, minor_radius, band).map(|d| d.sign),
+        Ok(Sign::Positive)
+    ) {
+        // The centre term's rounding: `w₀` and its split along the axis
+        // are read off coordinates as large as `|C| + |c|`.
+        let origin = Point3::new(T::zero(), T::zero(), T::zero());
+        let rounding =
+            rounding_charge((center - origin).norm() + (t_center - origin).norm() + major_radius);
+        let deviation = meridian_deviation(
+            axis,
+            radius,
+            w_perp,
+            offset,
+            h0,
+            t_axis,
+            major_radius,
+            minor_radius,
+        ) + rounding;
+        match decide("bool_circle_torus_meridian", Margin::of(deviation), band) {
+            Ok(Sign::Zero) => return Ok(CircleRoots::OnSurface),
+            Ok(Sign::Positive) => {}
+            Ok(Sign::Negative) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "a meridian deviation, a sum of lengths, read negative",
+                });
+            }
+            Err(diag) => return Err(escalated(diag)),
+        }
+    }
+
     // `F` along the carrier from the torus's one home along a conic
     // ([`geom_brep::ConicTorusHarmonics`]): of degree two on a circle, its
     // third and fourth harmonics no more than the frame's rounding, which
@@ -293,6 +343,66 @@ pub(super) fn circle_torus_roots<T: Decide>(
         None,
         band,
     )
+}
+
+/// **A bound on every carrier point's distance from the torus, read as
+/// a meridian's** (where the centre is at least `R/2` from the axis;
+/// below): the sum of three point deviations, each the most one
+/// condition of a meridian failing moves a carrier point off the torus.
+/// The carrier is compared with the circle of radius `r` about `C*`,
+/// the foot of its centre on the centre circle, in its own plane: a
+/// meridian once that plane holds the axis.
+///
+/// - **The centre on the centre circle**: `|C − C*| = √(h₀² + (d −
+///   R)²)` in the centre's height `h₀` and distance `d` from the axis.
+///   Every point moves with the centre.
+/// - **The radius**: `|ρ − r|`, compared as lengths. The squared
+///   difference `ρ² − r²` is `(ρ + r)` times it, a different length.
+/// - **The plane through the axis**: the meridian plane at `C*` has
+///   normal `t̂ = â × ê`, `ê` the radial direction, and a point of the
+///   compared circle is `r·e` from `C*`, `e = a·ê + b·â + s·t̂` with `|s|
+///   ≤ σ = |n̂ × t̂|`. Its distance `x` from the centre circle has `x² −
+///   r² = −r²s² + 2r·a·η + η²`, where `0 ≤ η ≤ r²s²/2(R − r)` is the
+///   growth of its distance from the axis along `t̂`. So `|x² − r²| ≤ X
+///   = r²σ² + 2r·η + η²`, and `|x − r| = |x² − r²|/(x + r) ≤ X/(r +
+///   √(r² − X))`. A tilt moves points along the centre circle's
+///   tangent, so it costs `≈ rσ²·R/2(R − r)`, second order: the
+///   tilt's point deviation, levered by the tube radius it acts on.
+///
+/// The three compose by the triangle inequality into one margin, so a
+/// Zero reading puts the whole carrier within the band of the torus;
+/// deciding them one at a time would accept a carrier up to three
+/// bands off. A coaxial carrier (`n̂ ∥ â`) has `σ = 1` and a tilt term
+/// of at least `r`; a centre on the axis has a centre term of `R`.
+/// Neither is a meridian. The caller has decided `R − r` positive, so
+/// `R` is past the escalation threshold.
+///
+/// **It is a bound only where `d ≥ R/2`.** Nearer the axis `t̂` is read
+/// over `R/2` rather than `d`, so `σ` and the tilt term may be short.
+/// The sum is then no bound, but it is never Zero, because its centre
+/// term alone is at least `R/2`, which is past the band.
+#[allow(clippy::too_many_arguments)]
+fn meridian_deviation<T: geom_core::Real>(
+    axis: Vec3<T>,
+    radius: T,
+    w_perp: Vec3<T>,
+    offset: T,
+    h0: T,
+    t_axis: Vec3<T>,
+    major_radius: T,
+    minor_radius: T,
+) -> T {
+    let r = minor_radius;
+    let off_centre = (h0.powi(2) + (offset - major_radius).powi(2)).sqrt();
+    // `t̂` over the centre's distance from the axis, floored at `R/2`:
+    // exact wherever the centre term can read Zero, and finite on the
+    // axis, where the centre term alone is `R`.
+    let normal = t_axis.cross(w_perp) / offset.max(major_radius * T::from_f64(0.5));
+    let sigma_sq = axis.cross(normal).norm().powi(2);
+    let eta = r.powi(2) * sigma_sq / (T::from_f64(2.0) * (major_radius - r));
+    let x = r.powi(2) * sigma_sq + T::from_f64(2.0) * r * eta + eta.powi(2);
+    let tilt = x / (r + (r.powi(2) - x).max(T::zero()).sqrt());
+    off_centre + (radius - r).abs() + tilt
 }
 
 /// The parallel-axes pose's data ([`parallel_axes_roots`]).
@@ -512,6 +622,9 @@ fn parallel_axes_roots<T: Decide>(
         CircleRoots::Certified { count, thetas }
     })
 }
+
+#[cfg(test)]
+mod meridian_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
@@ -826,19 +939,17 @@ mod tests {
         }
     }
 
-    /// A carrier ON the torus but not coaxial (a meridian circle of the
-    /// tube): `F ≡ 0`, so no pole is definite and the door refuses,
-    /// which keeps a non-coaxial on-carrier circle from any recording
-    /// arm.
+    /// A meridian circle of the tube lies ON the torus: `F ≡ 0`, which
+    /// the meridian rung decides before the ladder.
     #[test]
-    fn a_circle_lying_on_the_torus_is_uncertain() {
+    fn a_meridian_lying_on_the_torus_is_on_the_surface() {
         let pose = Pose {
             c: [R, 0.0, 0.0],
             n: [0.0, 1.0, 0.0],
             rho: RT,
             u: [1.0, 0.0, 0.0],
         };
-        assert!(matches!(door(pose, 0.0, 1.0), CircleRoots::Uncertain));
+        assert!(matches!(door(pose, 0.0, 1.0), CircleRoots::OnSurface));
     }
 
     /// Clear of the torus: a certified zero count.
@@ -1053,13 +1164,14 @@ mod tests {
             );
         }
     }
-    /// **Circles lying ON the torus refuse, whatever their pose.** `F`
-    /// is identically zero along them, so its coefficients are rounding
-    /// noise and the conditioning ratio can read anything; the pole's
-    /// own residual decision is what refuses them. Meridian circles at
-    /// several azimuths and a Villarceau circle.
+    /// **Circles lying ON the torus, whatever their pose.** `F` is
+    /// identically zero along them, so its coefficients are rounding
+    /// noise and the conditioning ratio can read anything. A meridian
+    /// circle, at several azimuths, is the meridian rung's
+    /// `OnSurface`; a Villarceau circle has no rung, and the pole's own
+    /// residual decision refuses it.
     #[test]
-    fn circles_lying_on_the_torus_are_uncertain() {
+    fn circles_lying_on_the_torus_are_meridians_or_uncertain() {
         let mut poses = Vec::new();
         let tilt = (RT / R).asin();
         for k in 0..24 {
@@ -1085,9 +1197,20 @@ mod tests {
         }
         for (i, pose) in poses.into_iter().enumerate() {
             for (t0, t1) in [(0.0, 1.0), (2.0, 4.5)] {
+                let got = door(pose, t0, t1);
+                let want_meridian = i % 2 == 0;
                 assert!(
-                    matches!(door(pose, t0, t1), CircleRoots::Uncertain),
-                    "pose {i}, arc [{t0}, {t1}]: an on-torus circle is not a root set"
+                    if want_meridian {
+                        matches!(got, CircleRoots::OnSurface)
+                    } else {
+                        matches!(got, CircleRoots::Uncertain)
+                    },
+                    "pose {i} (a {}), arc [{t0}, {t1}]: {got:?}",
+                    if want_meridian {
+                        "meridian"
+                    } else {
+                        "Villarceau circle"
+                    }
                 );
             }
         }
