@@ -165,3 +165,11 @@ several families and the integer alone names nothing. (c) Agreed, and worth sayi
 census is derived from the pose formula being affine in the index, never declared.
 
 Where we now stand: one answer in two spellings. Ev's call is the construct of point 1; everything else has converged.
+
+## Round 3 (grids)
+
+**I hold flat (likely), and A's round 3 holds flat too, so this is converged.** One list kind `[K]`, a family keyed by
+its index tuple outer-first, `xs[i, j]` the member read, `Member { (i, j), of }` the name. `within` supplies both the
+dependent bound (pairs `j within k`) and the tuple's order, so nesting adds a second shape, `[[K]]`, for the same family
+and a flattening rule in every list reader. A grid of cutters is then one `union` over one family, which was A's reason
+for nesting, and it comes for free from flatness rather than from a special case in the union.
