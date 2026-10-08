@@ -120,27 +120,27 @@ enum GestureTarget {
         slot: SlotId,
         unit: Option<UnitDef>,
     },
-    /// A document parameter, with the dimension it is declared at.
+    /// A document variable, with the dimension it is declared at.
     ///
     /// **No unit, and it is not the slot arm's omission.** A slot's
     /// edit rebuilds the literal, so the notation has to be carried
-    /// into it or the drag rewrites it; a parameter's edit is the
+    /// into it or the drag rewrites it; a variable's edit is the
     /// value door (`DocEdit::SetVarValue`), which writes a number
     /// into the standing declaration and leaves the authored unit
     /// beside it untouched. There is nothing here for a captured unit
-    /// to protect. The panel still SHOWS the drag in the parameter's
+    /// to protect. The panel still SHOWS the drag in the variable's
     /// written unit — it converts before the value crosses into this
     /// layer, which is canonical throughout.
-    Param { var: VarId, dimension: Dimension },
+    Variable { var: VarId, dimension: Dimension },
 }
 
 impl GestureTarget {
     /// This target's dimension — a slot's from its `SlotId`, a
-    /// parameter's from its declaration.
+    /// variable's from its declaration.
     fn dimension(&self) -> Dimension {
         match self {
             Self::Slot { slot, .. } => slot.dimension(),
-            Self::Param { dimension, .. } => *dimension,
+            Self::Variable { dimension, .. } => *dimension,
         }
     }
 
@@ -173,13 +173,13 @@ impl GestureTarget {
                 node: *node,
                 slot: *slot,
             },
-            Self::Param { var, .. } => ValueGestureName::Param(*var),
+            Self::Variable { var, .. } => ValueGestureName::Variable(*var),
         }
     }
 
     /// The edit that writes `value` into this target.
     ///
-    /// A parameter's edit is the VALUE door, so the parameter's
+    /// A variable's edit is the VALUE door, so the variable's
     /// declaration — its dimension and any distribution — is read off
     /// the document by the edit itself rather than reassembled here.
     fn edit(
@@ -189,7 +189,7 @@ impl GestureTarget {
     ) -> Result<DocEdit<ProfileProgram>, DimensionError> {
         match self {
             Self::Slot { node, slot, unit } => props::slot_edit(doc, *node, *slot, value, *unit),
-            Self::Param { var, .. } => Ok(props::param_edit(*var, value)),
+            Self::Variable { var, .. } => Ok(props::variable_edit(*var, value)),
         }
     }
 }
@@ -261,10 +261,10 @@ fn guard_driven(
     let (driver, current) = driver_of(doc, node, slot)?;
     match driver {
         SlotDriver::Literal => Ok(()),
-        SlotDriver::Expression { params } => Err(Refusal::DrivenByExpression {
+        SlotDriver::Expression { variables } => Err(Refusal::DrivenByExpression {
             node,
             slot,
-            params,
+            variables,
             current,
             notation,
         }),
@@ -507,6 +507,34 @@ struct Derived {
     /// field it invalidates rather than leaving one of them to a route
     /// a reader of the walk cannot see.
     bounds: Option<BoundsReading>,
+    /// The slot whose typed value is offered the variables of equal
+    /// value ([`DocSession::offered`]), and the variable that typing
+    /// minted. It stands until it is accepted or declined, or until the
+    /// slot no longer reads that variable at the value typed — a retype,
+    /// a drag of that very variable, a move of it by its own door — or
+    /// the history steps (an undo, a redo), so an offer is only ever
+    /// made about a value as it was typed. An edit elsewhere leaves it.
+    offer: Option<SlotOffer>,
+}
+
+/// A typed value's offer: the slot it was typed at, the variable it
+/// minted there, and the value typed.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct SlotOffer {
+    node: RecipeNodeId,
+    slot: SlotId,
+    var: VarId,
+    typed: props::SlotValue,
+}
+
+impl SlotOffer {
+    /// Whether the slot still reads the variable typing minted, at the
+    /// bits typed.
+    fn stands(&self, doc: &Doc<ProfileProgram>) -> bool {
+        doc.slot(self.node, self.slot) == Some(self.var)
+            && props::variable_value(doc, self.var)
+                .is_some_and(|now| props::bit_equal(now, self.typed))
+    }
 }
 
 impl Derived {
@@ -520,6 +548,7 @@ impl Derived {
             scratch: None,
             landed: None,
             bounds: None,
+            offer: None,
         }
     }
 }
@@ -545,6 +574,7 @@ impl core::fmt::Debug for Derived {
             scratch,
             landed,
             bounds,
+            offer,
         } = self;
         f.debug_struct("Derived")
             .field("selection", selection)
@@ -553,6 +583,7 @@ impl core::fmt::Debug for Derived {
             .field("scratch", &scratch.as_ref().map(|_| format_args!("<Doc>")))
             .field("landed", landed)
             .field("bounds", bounds)
+            .field("offer", offer)
             .finish()
     }
 }
@@ -935,7 +966,7 @@ impl DocSession {
                 node: *node,
                 present: self.doc().node(*node).is_some(),
             },
-            Selection::Param(var) => Standing::Param {
+            Selection::Variable(var) => Standing::Variable {
                 var: self.doc().spoken_var(*var),
                 present: self.doc().var(*var).is_some(),
             },
@@ -1047,6 +1078,23 @@ impl DocSession {
     /// and after every document change (`request_eval`'s discard).
     pub fn bounds(&self) -> Option<&BoundsReading> {
         self.derived.bounds.as_ref()
+    }
+
+    /// **The variables a value typed at `slot` on `node` is offered**
+    /// (D10: typing a value offers an existing variable of equal
+    /// value): empty unless a value was typed there, still stands as
+    /// typed, and has not been accepted or declined — a drag, a retype,
+    /// an undo or a redo closes it — and empty where no variable
+    /// equals it ([`props::equal_variables`]). Read off the committed
+    /// document, which is the one the accepting edit applies to.
+    pub fn offered(&self, node: RecipeNodeId, slot: SlotId) -> Vec<props::Offered> {
+        let doc = self.committed_doc();
+        match self.derived.offer {
+            Some(offer) if offer.node == node && offer.slot == slot && offer.stands(doc) => {
+                props::equal_variables(doc, node, slot)
+            }
+            Some(_) | None => Vec::new(),
+        }
     }
 
     /// **The gathered product of the landed run** — the aggregate a
@@ -1436,7 +1484,7 @@ impl DocSession {
     /// [`DisplayState::begin_free_move`] for the probe — with the same
     /// refusal a row here would raise, off the same state. So each
     /// begin is `true` in the table that would otherwise pre-empt it —
-    /// [`SessionOp::BeginGesture`] and [`SessionOp::BeginParamGesture`]
+    /// [`SessionOp::BeginGesture`] and [`SessionOp::BeginVariableGesture`]
     /// in the value table, [`SessionOp::BeginFreeMove`] in the
     /// free-move one — and the set of operations a drag refuses is its
     /// table plus that one rule, held once for both drags rather than
@@ -1448,6 +1496,12 @@ impl DocSession {
         // them. A landing changes only the landed run, an earlier
         // version of the shown document.
         self.derived.said = self.derived.said.respoken(self.doc());
+        // And the one place an offer closes once its value no longer
+        // stands as typed: closed for good, so a value moved away and
+        // back is never offered again — an offer is made straight after
+        // a typing op and never by any other.
+        let doc = self.history.doc();
+        self.derived.offer = self.derived.offer.filter(|offer| offer.stands(doc));
         outcome
     }
 
@@ -1477,9 +1531,16 @@ impl DocSession {
             SessionOp::SetSlotExpression { node, slot, text } => {
                 self.set_slot_expression(node, slot, &text)
             }
-            SessionOp::SetParam { var, value } => self.set_param(var, value),
-            SessionOp::SetParamUnit { var, unit } => self.set_param_unit(var, unit),
-            SessionOp::SetParamText { var, text } => self.set_param_text(var, &text),
+            SessionOp::SetSlotVariable { node, slot, var } => {
+                self.set_slot_variable(node, slot, var)
+            }
+            SessionOp::DeclineOffer { node, slot } => {
+                self.close_offer(node, slot);
+                OpOutcome::default()
+            }
+            SessionOp::SetVariable { var, value } => self.set_variable(var, value),
+            SessionOp::SetVariableUnit { var, unit } => self.set_variable_unit(var, unit),
+            SessionOp::SetVariableText { var, text } => self.set_variable_text(var, &text),
             SessionOp::DeclareVar { name, value } => self.declare_var(name, value),
             SessionOp::RenameVar { var, name } => self.commit(DocEdit::RenameVar {
                 var: var.into(),
@@ -1487,18 +1548,18 @@ impl DocSession {
             }),
             SessionOp::DeleteVar { var } => self.commit(DocEdit::DeleteVar { var: var.into() }),
             SessionOp::BeginGesture { node, slot } => self.begin_gesture(node, slot),
-            SessionOp::BeginParamGesture { var } => self.begin_param_gesture(var),
+            SessionOp::BeginVariableGesture { var } => self.begin_variable_gesture(var),
             SessionOp::PreviewGesture { node, slot, value } => {
                 self.preview_gesture(&ValueGestureName::Slot { node, slot }, value)
             }
             SessionOp::CommitGesture { node, slot } => {
                 self.commit_gesture(&ValueGestureName::Slot { node, slot })
             }
-            SessionOp::PreviewParamGesture { var, value } => {
-                self.preview_gesture(&ValueGestureName::Param(var), value)
+            SessionOp::PreviewVariableGesture { var, value } => {
+                self.preview_gesture(&ValueGestureName::Variable(var), value)
             }
-            SessionOp::CommitParamGesture { var } => {
-                self.commit_gesture(&ValueGestureName::Param(var))
+            SessionOp::CommitVariableGesture { var } => {
+                self.commit_gesture(&ValueGestureName::Variable(var))
             }
             SessionOp::CancelGesture => match self.gesture.cancel(gesture_words()) {
                 // Only a drag that actually put a scratch document on
@@ -1841,9 +1902,73 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         let unit = props::slot_unit(self.committed_doc(), node, slot);
-        match props::slot_edit(self.committed_doc(), node, slot, value, unit) {
-            Ok(edit) => self.commit_written(edit),
+        match props::slot_typed_edit(node, slot, value, unit) {
+            Ok(edit) => {
+                let outcome = self.commit_written(edit);
+                self.offer_after(node, slot, &outcome);
+                outcome
+            }
             Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
+        }
+    }
+
+    /// **Open the offer a typed value earns** (D10), once the edit that
+    /// typed it has landed: the slot now reads a variable that typing
+    /// minted, and [`Self::offered`] answers the variables of equal
+    /// value. Text that reads a variable or computes one mints no typed
+    /// value and opens nothing; a refused or empty edit leaves the
+    /// standing offer as it was.
+    fn offer_after(&mut self, node: RecipeNodeId, slot: SlotId, outcome: &OpOutcome) {
+        if outcome.refusal.is_some() || outcome.committed.is_empty() {
+            return;
+        }
+        let doc = self.committed_doc();
+        self.derived.offer = doc
+            .slot(node, slot)
+            .filter(|&var| doc.is_typed_value(var))
+            .and_then(|var| {
+                let typed = props::variable_value(doc, var)?;
+                Some(SlotOffer {
+                    node,
+                    slot,
+                    var,
+                    typed,
+                })
+            });
+    }
+
+    /// **Accept an offer**: the slot reads `var` — the slot-write
+    /// gesture, one edit and one undo step. Only a variable on offer
+    /// there ([`Self::offered`]) is accepted, so a stale button can
+    /// never join a slot to a variable chosen against a value it no
+    /// longer holds; the door checks the kind.
+    fn set_slot_variable(&mut self, node: RecipeNodeId, slot: SlotId, var: VarId) -> OpOutcome {
+        if !self
+            .offered(node, slot)
+            .iter()
+            .any(|offered| offered.var == var)
+        {
+            let spoken = self.committed_doc().spoken_var(var);
+            return OpOutcome::refused(Refusal::NotOffered(spoken));
+        }
+        let outcome = self.commit_written(props::slot_read_edit(node, slot, var));
+        if outcome.refusal.is_none() {
+            self.close_offer(node, slot);
+        }
+        outcome
+    }
+
+    /// **Decline an offer**: the slot keeps the variable its typed value
+    /// minted, which is what makes it distinct from the ones offered
+    /// (D10). It changes no document; declining where nothing is
+    /// offered is the same nothing.
+    fn close_offer(&mut self, node: RecipeNodeId, slot: SlotId) {
+        if self
+            .derived
+            .offer
+            .is_some_and(|offer| offer.node == node && offer.slot == slot)
+        {
+            self.derived.offer = None;
         }
     }
 
@@ -1858,7 +1983,7 @@ impl DocSession {
         // so a range of numbers for it is not an answer to any question
         // they can act on: the probe refuses it with the same
         // affordance the write and the drag do, which names the
-        // parameters to probe instead. A parameter has no driver and
+        // variables to probe instead. A variable has no driver and
         // reaches this door unguarded.
         if let BoundsTarget::Slot { node, slot } = target
             && let Err(refusal) = guard_driven(self.committed_doc(), node, slot, self.notation)
@@ -1948,29 +2073,31 @@ impl DocSession {
         // offered is the expression standing — and the `unparse` /
         // `parse_formula` round trip preserves both the bits and the
         // display unit, so a source re-typed as itself compares equal.
-        self.commit_written(edit)
+        let outcome = self.commit_written(edit);
+        self.offer_after(node, slot, &outcome);
+        outcome
     }
 
-    /// The value door: write a declared parameter's value.
+    /// The value door: write a declared variable's value.
     ///
     /// A variable the document does not hold takes the commit path so
     /// the typed refusal comes from the door rather than from here —
     /// `DocEdit::SetVarValue` carries an existing definition forward
     /// and refuses `EditError::UnknownVar` when there is none.
-    fn set_param(&mut self, var: VarId, value: SlotValue) -> OpOutcome {
-        self.commit_written(props::param_edit(var, value))
+    fn set_variable(&mut self, var: VarId, value: SlotValue) -> OpOutcome {
+        self.commit_written(props::variable_edit(var, value))
     }
 
-    /// The notation door: rewrite a declared parameter's display unit,
+    /// The notation door: rewrite a declared variable's display unit,
     /// its value untouched.
     ///
-    /// No pre-check, for [`Self::set_param`]'s reason: every way this
+    /// No pre-check, for [`Self::set_variable`]'s reason: every way this
     /// can refuse — a variable the document does not hold, a `Count`,
     /// a unit that does not measure the declared dimension — is refused by
     /// `DocEdit::SetVarUnit` in the door's own words, and a
     /// second opinion here could only agree or disagree.
-    fn set_param_unit(&mut self, var: VarId, unit: UnitDef) -> OpOutcome {
-        self.commit_written(props::param_unit_edit(var, unit))
+    fn set_variable_unit(&mut self, var: VarId, unit: UnitDef) -> OpOutcome {
+        self.commit_written(props::variable_unit_edit(var, unit))
     }
 
     /// The text door: a number, and the notation to write it in, from
@@ -1984,7 +2111,7 @@ impl DocSession {
     ///
     /// **One action, therefore one undo.** The value and the notation
     /// go through [`Self::commit_action`], which is all-or-nothing: a
-    /// unit that does not measure the parameter's dimension refuses
+    /// unit that does not measure the variable's dimension refuses
     /// the whole action rather than landing a value in a notation the
     /// document would then refuse to save. The notation edit is first
     /// for that reason — the pairing is judged before any value moves.
@@ -1995,7 +2122,7 @@ impl DocSession {
     /// field handed back at itself is not something a person typed.
     /// This one is about the document: an edit that writes what the
     /// declaration already holds is submitted by nobody, so `50 mm`
-    /// typed over a parameter already declared `50 mm` costs no undo
+    /// typed over a variable already declared `50 mm` costs no undo
     /// step even though the text is not the field's render of it. It
     /// is asked over the PAIR, because this door carries a pair —
     /// `0.05 m` over `50 mm` moves the notation and not the value.
@@ -2004,7 +2131,7 @@ impl DocSession {
     /// one fact, and a number that reads back as the one standing
     /// cannot have got past the field's guard as anything but a
     /// deliberate re-type.
-    fn set_param_text(&mut self, var: VarId, text: &str) -> OpOutcome {
+    fn set_variable_text(&mut self, var: VarId, text: &str) -> OpOutcome {
         let expr = match parse_formula(text, &self.committed_doc().var_scope()) {
             Ok(expr) => expr,
             Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
@@ -2039,16 +2166,16 @@ impl DocSession {
         let Some(held) = doc.var(var) else {
             // An undeclared variable takes the commit path so the typed
             // refusal comes from the door rather than from here, the
-            // way [`Self::set_param`]'s does.
-            return self.commit(props::param_edit(var, value));
+            // way [`Self::set_variable`]'s does.
+            return self.commit(props::variable_edit(var, value));
         };
         let kind = held.kind();
         let defined = held.def().defined().is_some();
         let notation = match (value, expr.display_unit()) {
-            (SlotValue::Continuous(_), Some(unit)) => Some(props::param_unit_edit(var, unit)),
+            (SlotValue::Continuous(_), Some(unit)) => Some(props::variable_unit_edit(var, unit)),
             _ => None,
         };
-        let written = props::param_edit(var, value);
+        let written = props::variable_edit(var, value);
         // A value typed over a definition frees the variable first, at
         // its own kind and in its kind's canonical notation, and then
         // writes the value through the same doors a free variable's
@@ -2119,17 +2246,17 @@ impl DocSession {
         })
     }
 
-    /// The parameter door: a drag over a declared parameter's value. A
+    /// The variable door: a drag over a declared variable's value. A
     /// defined one opens too, at its kind, and its first preview is
     /// refused by the value door in its own words
     /// ([`pncad::document::EditError::NotAFreeVar`]).
-    fn begin_param_gesture(&mut self, var: VarId) -> OpOutcome {
+    fn begin_variable_gesture(&mut self, var: VarId) -> OpOutcome {
         self.start(move |doc| {
             let dimension = doc
                 .var(var)
                 .map(|held| held.kind().dimension())
-                .ok_or(Refusal::NoSuchParam(var))?;
-            Ok(GestureTarget::Param { var, dimension })
+                .ok_or(Refusal::NoSuchVariable(var))?;
+            Ok(GestureTarget::Variable { var, dimension })
         })
     }
 
@@ -2138,14 +2265,14 @@ impl DocSession {
     ///
     /// **Rule 1 is [`g1::Slot::begin`]'s and is spelled nowhere else**
     /// — the same door the probe's begin goes through, with this
-    /// gesture's words. `BeginGesture` and `BeginParamGesture` are
+    /// gesture's words. `BeginGesture` and `BeginVariableGesture` are
     /// therefore `true` in
     /// [`SessionOp::permitted_during_value_gesture`]: a row there
     /// would refuse the same state with the same
     /// [`Refusal::GestureInFlight`] one layer up, and the door's own
     /// arm would never run.
     ///
-    /// `target` is the caller's check — a driven slot, a parameter the
+    /// `target` is the caller's check — a driven slot, a variable the
     /// document does not declare — and runs inside the slot's closure
     /// rather than ahead of it, so a begin arriving under an open drag
     /// is answered *finish the drag first* rather than told about a

@@ -2,16 +2,17 @@
 id: a-pierce-whose-run-chords-enclose-one-another-needs-a-tree-ring
 kind: issue
 title: A pierce whose Out runs have one between others needs a tree of ring struts; it refuses typed (PierceRunsEnclose)
-status: open
+status: closed
 opened: 2026-10-08
+closed: 2026-10-08
 priority: P1
 cost: H
 design: true
 ---
 
 
-Needs a designer pair (the orchestrator's ruling on the PR that filed
-this): the representation below is new topology for the pierced side.
+Weighed by a designer pair, who both recommended the tree below and
+agreed on its final state; built in the PR that filed this.
 
 ## What
 
@@ -20,11 +21,11 @@ Out run at one ring vertex `w` in the pierced face, in the order of the
 ring's corners (`ring_corners`). Where one run has other runs on both
 sides of it about the pierced face's normal, it refuses
 `BooleanError::PierceRunsEnclose` before any write. The result there is
-a manifold (`zip::split_cones` splits the point per cone); the refusal
-is a limit of the star ring, not of the pose.
+a typed success: a pinch at the point, one vertex per region outside
+the result (tier 3′), which `zip::split_cones` splits per cone. The
+refusal is a limit of the star ring, not of the pose.
 
-Witnesses, each refusing in all six ops against the plate
-(`holes_meeting_at_a_vertex::runs_one_between_others_refuse_typed_in_every_op`):
+Witnesses, each refusing in all six ops against the plate:
 - `topo::test_support::meeting::arch`, three wedges leant across one
   another. Its germs, in degrees about +z: run 0 30 → 120, run 1
   150 → 0, run 2 270 → 240. Clockwise from run 0's start:
@@ -72,3 +73,29 @@ the loop passes the germs in clockwise order.
 - Rows: `meeting::arch` and `meeting::arch_cone` building in every op,
   with `corners_disjoint`, tiers 3 and 3′, and a point-membership oracle,
   and a mutant that hangs every strut at `w` dying.
+
+## Closed
+
+`crate::null::ring_tree` reads the tree off `ring_order`'s clockwise
+sort with a stack, no predicate of its own: each germ opens its run's
+chord, hung at the far end of the open chord it lies under or at the
+root, the half leaving that node facing it. The root is the region
+bordering the most runs (the hub, where there is one, so every star
+ring hangs as before), the walk starting at its corner before the
+lowest run. A child strut's site is `MevSite::Fan` on its parent's half
+leaving the parent's far end; its record's `at_vertex` and attribute
+name the parent's far end, and `PierceRingRecord::ring_vertex` stays the
+ring vertex. Struts at one node face alike; facings differ by depth.
+Crossing chords would break the derivation, so they refuse
+`ClassificationInvariant`. `PierceRunsEnclose` is retired.
+
+`zip::split_side` splits a vertex's cones one at a time, each a cone
+whose runs lie together: a ring deeper than a path nests cones round
+the point, which the one-pass split refused as interleaved
+(`meeting::branching_cone`'s P − U).
+
+Rows (`crates/topo/tests/holes_meeting_at_a_vertex.rs`):
+`meeting::arch`, `meeting::arch_cone` and `meeting::branching_cone`
+build in every op and pose, with `corners_disjoint`, tiers 3 and 3′, a
+point-membership oracle and the cones' closed-form volumes; every root
+of each ring builds. `null::tests` pins the tree for each shape.

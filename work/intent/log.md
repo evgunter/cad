@@ -236,6 +236,125 @@ Closed: `range-synthetic-name-mints-a-name`,
 `unproven-coincidence-lint-binds-every-variable-as-a-symbol`.
 - 2026-10-06 — Note from ZIP: filed `the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms` (P0/H) on this slate as stage-4 input, on Ev's direction in chat. Two designers converged on retiring the declared-REST zip (`boolean/rest.rs`) with declared pairs. Before then the join gains a partner-edge chord, ring re-homing on a curved chart in aligned contact, and the `mekr` `NotSameFace` cause. The row carries the measurement. ZIP's REST-lane rows are parked on `d10-one-way-to-say-intent-is-unbuilt`. Units ZIP already started finish: the zip's admission check (PR 4127, a live wrong body; Ev, in chat, "finish it"), `Fusions` (PR 4116) and pins (PR 4130). (ZIP orchestrator)
 
+## 2026-10-07 — the GUI's variables (`intent/gui-variables`, PR 4247)
+
+`typing-a-value-mints-or-offers-a-variable`, with
+`viewer-param-vocabulary-names-a-variable` and
+`viewer-value-doors-read-a-defined-variable-as-absent` (both closed in
+the PR). Nine GUI choices are built provisionally and put to Ev on the
+PR (`needs_ev`). The evidence behind it:
+
+### Rows (each goes red without its guard)
+
+These are mutation-checked: each guard was removed in turn and the named row went red.
+
+| Guard | Row |
+|---|---|
+| typing mints (`slot_typed_edit` at `set_slot`) | `panel_edits::a_literal_slot_edit_routes_through_setparam…`, `gui_variables::a_value_typed_at_a_shared_slot_makes_it_its_own` |
+| kind filter in `equal_variables` | `gui_variables::a_typed_value_is_offered_the_variables_of_equal_value_and_kind` (+2) |
+| offer stands only while the slot reads the typed variable | `gui_variables::an_offer_stands_only_while_the_slot_reads_what_was_typed` |
+| typed text opens the offer | `gui_variables::typed_text_is_offered_and_a_formula_is_not` |
+| decline closes the offer | `gui_variables::declining_keeps_the_typed_variable_and_moves_no_document` |
+| a name is stored only on commit | `gui_variables::a_name_is_stored_only_when_committed` (was `a_proposed_name_is_stored_only_when_committed`; see Ev's ruling below) |
+| probe refuses a defined variable as defined | `gui_variables::the_range_probe_says_a_defined_variable_is_defined` |
+| exists-notice reads a defined variable | `gui_variables::the_exists_notice_reads_a_defined_variable_as_holding_its_name` |
+
+Panel rows (the `app` feature suite, the real pane, with clicks through to the session):
+- `properties_pane_tests::the_offer_is_drawn_and_its_button_makes_the_slot_read_the_variable`
+- `properties_pane_tests::keep_separate_declines_the_offer_and_moves_no_document`
+- `properties_pane_tests::the_naming_field_opens_empty_and_stores_only_on_commit` (was `a_name_is_proposed_in_the_pane_and_stored_on_commit`)
+
+Accepting is also covered by `gui_variables::accepting_an_offer_makes_the_slot_read_the_variable`.
+
+### Sweep
+
+Pattern: every viewer identifier in the item's list and its siblings, i.e. `(Selection|ValueGestureName|Standing|BoundsTarget|Self|Subject|GestureTarget)::Param`, `SetParam(Unit|Text)?` under `SessionOp::`/`Self::`, `*ParamGesture`, `NoSuchParam`, `ParamRow`, `param_rows`, `param_(edit|unit_edit|showing|doors|unit_ui|bounds_ui)`, `add_param_ui`, `new_param_*`, `doc_param`, `set_param*` and `begin_param_gesture`, over `crates/viewer`, `demos`, `docs` and `work`.
+
+- **Hits fixed:** every one in `crates/viewer` (src, tests, examples, README) and in 12 open items under `work/`.
+- **Hits left:** `work/*/log.md`, closed items, `docs/MODEL-AB-LOG.md` and `docs/DUAL-REVIEW-LOG.md`. These are history, not citations to keep live.
+- **Blind spot:** prose that says "parameter" for a document variable without naming an identifier.
+  - I swept that with a phrase pass ("document parameter", "add-parameter", "parameter row", "(un)declared parameter"), then a word pass in the variable-centred viewer files.
+  - The word pass excluded type parameters, function parameters and curve or ray parameters, and I reviewed every converted line. Four test files where "parameter" means a ray or curve parameter were restored whole.
+  - What is left is "parameter" meaning a feature's slot, a function argument or a curve parameter.
+
+### Runs (local, CARGO_TARGET_DIR outside the worktree)
+
+| Run | Result |
+|---|---|
+| workspace `ci` profile, default ε | 12377 passed, 604 skipped, 0 failed |
+| ε 1e-6, workspace `ci` profile | 12377 passed, 604 skipped, 0 failed |
+| ε 1e-6, workspace slow set | 259 passed, **1 failed**: `editor-core name_words_rows::a_large_table_of_names_alike_at_no_citation_is_said_in_bounded_time` (12.9 s for 1000 names). It **fails identically on bare main** (merge base `7c506747a`, same seed `0x5ae437797e2c1b75`, run alone: 13.6 s). This PR touches no editor-core code |
+| ε 1e-12, whole workspace, default profile (slow set included) | 12636 passed, 344 skipped, **1 failed**: the same row (14.2 s). It **fails identically on bare main** at 1e-12 (12.8 s, run alone) |
+| `cargo nextest run -p viewer --features app` | 1183 passed, 1 skipped, 2 failed: `gpu::tests::every_pass_builds_on_a_real_device` and `the_culled_passes_draw_every_face_that_faces_the_eye`, "NO WGPU ADAPTER" (this box has no Vulkan ICD; hosted CI has one) |
+| doctests (`cargo test --doc --workspace`) | 172 passed, 6 ignored, 0 failed |
+| Python (wheel built with maturin, `PNCAD_TY` set) | Ran 944 tests, OK |
+| `cargo clippy --workspace --all-targets --all-features -D warnings` | clean |
+| `cargo fmt --all --check` (+ benches) | clean |
+| `scripts/gates/*.sh` + `payload-rung-sweep --check` | all pass |
+| tour: fmt, clippy `-D warnings`, `nextest --release` | clean, clean, 97 passed |
+| wild: fmt, clippy `-D warnings` | clean, clean |
+| `work.py lint` | ok (0 problems, 0 warnings) |
+| editor-core `--profile default` | not run: the diff does not touch editor-core |
+| ruff (`check-python-lint.py`) | skipped locally (ruff 0.16.8 here, CI pins 0.16.1); no Python file changed |
+
+### The review's fix pass
+
+The single review (APPROVE-WITH-FIXES, `review/intent-gui-variables`)
+found the offer outliving a drag, a redo reviving it, a naming field
+that named whatever the slot read at commit, a non-bit equality, and a
+mutant the formula row could not kill. The fixes change none of the
+nine choices: each makes the code do what the choice already says.
+New rows, each mutation-checked red without its guard:
+
+| Guard | Row |
+|---|---|
+| the offer stands only while the slot reads the minted variable at the bits typed (`SlotOffer::stands`) | `gui_variables::a_drag_of_the_typed_slot_closes_its_offer`, `gui_variables::moving_the_typed_variable_closes_its_offer` |
+| `perform` closes an offer for good once it stops standing | `gui_variables::a_redo_does_not_revive_an_offer`, `gui_variables::a_value_moved_back_is_not_offered_again` |
+| an edit elsewhere leaves the offer (choice 2 rejects closing it on any later edit) | `gui_variables::an_edit_elsewhere_leaves_the_offer_standing` (guards the choice; no mutant: it pins that the fix is not the history-state key a first cut used) |
+| the `is_typed_value` filter in `offer_after` (the review's surviving M7) | `gui_variables::typed_text_is_offered_and_a_formula_is_not`, now with `b` holding an equal typed value |
+| bit equality in `equal_variables` | `gui_variables::a_negative_zero_is_not_offered_for_a_typed_zero` |
+| `SetSlotVariable` refuses `NotOffered` | `gui_variables::accepting_what_is_not_offered_is_refused` |
+| the naming field closes when its slot stops reading the variable it was opened for (`NameDraft::var`) | `properties_pane_tests::a_naming_field_closes_when_its_slot_reads_another_variable` |
+| a refused rename keeps the field and its text | `properties_pane_tests::a_refused_name_keeps_the_field_and_its_text` |
+
+A first cut keyed the offer to the history state its typing recorded;
+that closed it on an edit anywhere, which is choice 2's rejected
+alternative, so the key is the typed value's bits instead. An
+undo/redo-specific clear was dropped as redundant: a step that changes
+what the slot reads closes the offer through the same check, and the
+mutant removing it survived every row.
+
+Runs on the fix pass: `cargo fmt --all --check` and `cargo clippy --workspace
+--all-targets --all-features -D warnings` clean; `scripts/gates/*.sh`
+and `payload-rung-sweep --check` pass; viewer default 910 passed;
+viewer `--features app` 1194 passed with lavapipe installed, so the two
+GPU rows ran and passed; editor-core `--profile ci` 2776 passed (one
+row, `sym_9_the_drive_writes_the_ladders_receipt`, was cut by the
+run's own wall-clock limit and passed alone in 249 s); `work.py lint`
+ok. The editor-core change is two doc citations of the renamed
+`Refusal::NoSuchVariable`.
+
+### Ev's ruling on choice 7 (2026-10-08)
+
+Ev, on PR 4247: "there's no need to recommend a name now; `distance_1`
+as a naming scheme is uninspiring enough that i think it doesn't really
+beat requiring the user to type something". The **name…** field now
+opens empty, and `props::proposed_name` and its stepping are gone. The
+pane row `the_naming_field_opens_empty_and_stores_only_on_commit` pins
+that the field opens empty, that **Name** on an empty field names
+nothing, and that typed text stores nothing until it is committed.
+Choices 1–6, 8 and 9 stand as built. Ev's question about anonymous
+variables is open on the PR, and nothing here changes for it.
+
+Runs on this change: with current main merged in (a merge commit; the conflicts
+were this branch's renames against main's `VarId::new(0, …)` and
+`Doc::ids`/`var_ids`, resolved by keeping both), `cargo fmt --all
+--check` and workspace clippy `--all-features -D warnings` clean;
+`scripts/gates/*.sh` and `payload-rung-sweep --check` pass; viewer
+default 910 passed; viewer `--features app` 1194 passed (GPU rows run
+on lavapipe); `work.py lint` ok. The branch changes no Python or
+`pncad` file, so the Python suite was not re-run.
+
 ## 2026-10-07 — INTENT-LITERALS PR D, Expr holds no float (`intent/literals-d`)
 
 A stored expression's leaves are variable readers, exact rationals

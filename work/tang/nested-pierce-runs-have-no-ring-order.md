@@ -87,17 +87,14 @@ retires, and a k ≥ 3 row with a bisector run pins the facing.
 
 `classify_vertex_on_face` sorts all the runs' germs clockwise about the
 pierced face's normal (`ring_order`, the existing `bool_strut_side` and
-`bool_strut_order` decides) and reads the ring's corners off that sort
-(`ring_corners`, no predicate of its own): where each run's two germs are
-neighbours, the struts hang in their pairs' order, each facing the germ
-its corner meets first. The order detector is retired. The comb cone
-(`meeting::comb`: one run above the top over two others) hangs in an
-order other than run order, every strut facing `Above` at k = 3, and
-builds in every op and pose
-(`holes_meeting_at_a_vertex::a_cone_whose_runs_nest_under_one_builds_in_every_op`).
-Below and Above cannot mix at one vertex: where the star applies, one
-region borders every run and fixes the facing for all of them.
-
-The case where one run lies between others (`meeting::arch`, the arch
-cone) needs a tree of struts, not a star. It refuses `PierceRunsEnclose`
-and moved to `a-pierce-whose-run-chords-enclose-one-another-needs-a-tree-ring`.
+`bool_strut_order` decides) and hangs the ring's struts as the tree that
+sort gives (`crate::null::ring_tree`, no predicate of its own). The
+order detector is retired. Runs nested under one hang as a star in an
+order other than run order, every strut facing `Above` at k = 3
+(`meeting::comb`); a run between others, and deeper nests, hang as a
+path or a tree (`meeting::arch`, `meeting::arch_cone`,
+`meeting::branching_cone`), and all build in every op and pose. The
+enclosing case, filed as
+`a-pierce-whose-run-chords-enclose-one-another-needs-a-tree-ring`, is
+closed in the same PR. Struts at one node face alike; facings differ by
+depth, so `Below` and `Above` mix at one point only across nodes.

@@ -804,12 +804,34 @@ slate `ball-lever-reads-the-3d-distance-not-the-axial-travel`,
 `plane-cylinder-gap-reads-the-3d-distance-not-the-in-section-stand-off`;
 the sweep's siblings went to OFFSET, CLEAVE, CHART, CONTACT, FLUX and
 GERM.
-## 2026-10-08 — pierce struts hang in the ring's corner order (TANG implementer)
+## 2026-10-08 — the pierce ring is a tree of struts (TANG implementer)
 
-A pierce's ring struts hang in the order of the ring's corners, read off
-one clockwise sort of all its runs' germs; the order detector
-(`PierceRunsNested`) is retired. Runs nested under one build (the comb
-cone, every op and pose, facing `Above` at k = 3). A run between others
-refuses `PierceRunsEnclose`, a limit of the star ring, filed as
-`a-pierce-whose-run-chords-enclose-one-another-needs-a-tree-ring` for a
-designer pair. Closes `nested-pierce-runs-have-no-ring-order`.
+A pierce's ring struts hang as the tree of its runs' chords, read off
+one clockwise sort of their germs (`crate::null::ring_tree`): a star
+where one region borders every run, a path or a deeper tree otherwise,
+each child at its parent's far end. The order detector
+(`PierceRunsNested`) is retired, and `zip::split_cones` splits nested
+cones one at a time. `meeting::arch`, the comb, arch and branching
+cones build in every op and pose, from every root. Closes
+`nested-pierce-runs-have-no-ring-order` and
+`a-pierce-whose-run-chords-enclose-one-another-needs-a-tree-ring`.
+
+## 2026-10-08 — a conic arc's reach over the span it holds (TANG implementer)
+
+A plane or cylinder face's reach reads each conic edge over its span
+(`Reach::span_reach_from`): a circle arc exactly (its ends, and the
+crest opposite the pivot where it lies in the span), an ellipse arc by
+the parallelograms its quarters lie in, both capped at the whole turn.
+So a rim patch is levered at its own size, not its rim's. Sphere, torus,
+cone and spline faces keep the whole-turn edge lever. The plane×cylinder
+section on the declared-tangency path (the germ frame, and chord_join's
+cylinder lane for every caller, the Boolean's germ join among them)
+serves only where the whole-turn and the span-bounded reach agree; the
+split's rows take the span alone. `Reach::turn_lever` reads `at`'s
+distance across the wall from the normal's own off-axis part, so a
+normal on the axis to rounding no longer reads zero. Closes
+`whole-turn-conic-reach-over-states-a-rim-faces-lever`. Filed on this
+slate `pc-face-lever-sums-two-maxima-not-the-support-from-the-hinge`
+and `germ-takes-the-span-bounded-face-reach-alone` (parked on D10's
+declared path); the sweep's siblings went to SHELF, CLEAVE (two) and
+REACH.

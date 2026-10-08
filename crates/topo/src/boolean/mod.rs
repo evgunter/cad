@@ -2350,26 +2350,6 @@ pub enum BooleanError {
         /// That vertex: a key of the operand's working copy.
         vertex: VertexKey,
     },
-    /// A vertex of `operand` pierces a face of the other solid with
-    /// `runs` Out runs, one of which has others on both sides
-    /// (`vtxfac::classify_vertex_on_face`): in the clockwise order of
-    /// the runs' germs about the face's normal, that run's start and end
-    /// germs are not neighbours. The runs are chords of the vertex's
-    /// link above the face that do not cross, and one encloses another
-    /// with a third outside it. The result is a manifold; this is a limit
-    /// of the ring, whose struts all hang at one vertex, and that star
-    /// carries the runs' corners only where each run's germs are
-    /// neighbours
-    /// (`work/tang/a-pierce-whose-run-chords-enclose-one-another-needs-a-tree-ring.md`).
-    PierceRunsEnclose {
-        /// The piercing operand.
-        operand: Operand,
-        /// Its piercing vertex: a key of the operand's working copy,
-        /// which the sweep may have minted on one of its edges.
-        vertex: VertexKey,
-        /// How many Out runs it has against the face.
-        runs: usize,
-    },
     /// A vertex of `operand` is read by two sector passes where the
     /// first read cannot be taken with the second: it pierces two faces
     /// of the other solid, or pierces one and coincides with a vertex of
@@ -2991,8 +2971,6 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PinchConesOnSeparateKeys`].
     PinchConesOnSeparateKeys,
-    /// [`BooleanError::PierceRunsEnclose`].
-    PierceRunsEnclose,
     /// [`BooleanError::VertexReadTwice`].
     VertexReadTwice,
     /// [`BooleanError::NonManifoldResult`].
@@ -3206,7 +3184,6 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PinchConesOnSeparateKeys { .. } => BooleanErrorKind::PinchConesOnSeparateKeys,
-            Self::PierceRunsEnclose { .. } => BooleanErrorKind::PierceRunsEnclose,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
@@ -3698,14 +3675,6 @@ impl core::fmt::Display for BooleanError {
                  several corners that only touch each other, and the result would keep \
                  them apart in a way its checks cannot read. There is no way through this \
                  in the kernel yet",
-                operand_word(*operand)
-            ),
-            Self::PierceRunsEnclose { operand, runs, .. } => write!(
-                f,
-                "a corner of the {} solid sits on a face of the other with {runs} separate \
-                 wedges of the corner outside that face, and seen along the face one of \
-                 those wedges has others on both sides of it, which the Boolean cannot yet \
-                 lay out round the point. There is no way through this in the kernel yet",
                 operand_word(*operand)
             ),
             Self::VertexReadTwice { operand, reads, .. } => write!(
@@ -6512,11 +6481,6 @@ mod tests {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
             },
-            BooleanError::PierceRunsEnclose {
-                operand: Operand::A,
-                vertex: VertexKey::default(),
-                runs: 3,
-            },
             BooleanError::VertexReadTwice {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
@@ -6694,7 +6658,6 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PinchConesOnSeparateKeys => "PinchConesOnSeparateKeys",
-                BooleanErrorKind::PierceRunsEnclose => "PierceRunsEnclose",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",

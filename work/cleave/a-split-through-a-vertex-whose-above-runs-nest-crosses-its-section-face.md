@@ -40,11 +40,10 @@ order that assumes the runs' germ intervals lie one after another about
 the plane's normal. The above runs are chords of the vertex's link that
 do not cross but can nest. The boolean's pierce ring had the same
 assumption: `boolean/vtxfac.rs` now sorts the runs' germs clockwise
-(`ring_order`) and reads the corners off that sort (`ring_corners`),
-which carries runs nested under one, and refuses
-`PierceRunsEnclose` where a run lies between others (TANG's
-`a-pierce-whose-run-chords-enclose-one-another-needs-a-tree-ring`). The
-split lane wants the same reading, or a typed refusal, rather than a
+(`ring_order`) and hangs its struts as the tree that sort gives
+(`crate::null::ring_tree`), a star where one region borders every run,
+a path or deeper tree otherwise. The split lane wants the same reading,
+or a typed refusal, rather than a
 crossed section face.
 
 ## Rows owed
@@ -52,3 +51,9 @@ crossed section face.
 The table above as a row, each pose, asserting `corners_disjoint` on
 both sides with the closed-form volumes (the pyramid's volume is a
 third of half a unit times the base polygon's area, split by `z = 0`).
+
+The boolean's reading is now the pure `crate::null::ring_tree(order,
+root)` (germs in clockwise order to the tree of struts, star or not),
+which the split lane can call. Both designers who weighed the pierce
+ring judged this split half the more urgent: it ships an unsound body
+where the boolean refused.

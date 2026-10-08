@@ -584,7 +584,8 @@ fn cones(sigma_a: &[usize], sigma_b: &[usize]) -> (Vec<usize>, Vec<usize>) {
 }
 
 /// Splits each of one side's vertices per cone, its first cone's runs
-/// staying; whether any vertex was split.
+/// staying, one cone at a time: a cone whose runs lie together round the
+/// vertex, first in orbit order; whether any vertex was split.
 ///
 /// The null edge each `mev_null` leaves lies between two section
 /// corners, on the section faces the zips consume, and is killed there:
@@ -595,8 +596,11 @@ fn cones(sigma_a: &[usize], sigma_b: &[usize]) -> (Vec<usize>, Vec<usize>) {
 /// # Errors
 ///
 /// [`BooleanError::ZipCorrespondence`] where a vertex's cones interleave
-/// round it. No battery line reaches it: two cones' runs alternating
-/// round one vertex would need their boundary cycles to cross there.
+/// round it. Cones nest round a vertex, one's runs between two of
+/// another's, where a pierce ring is a tree deeper than a path; each
+/// split takes a cone whose runs lie together, which nesting always
+/// leaves, so only two cones' runs alternating, their boundary cycles
+/// crossing there, refuse. No battery line reaches that.
 /// The Euler operators' refusals, typed.
 fn split_side<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
@@ -608,25 +612,29 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
 ) -> Result<bool, BooleanError> {
     let mut moved = false;
     for at in runs.values() {
-        let r = at.len();
-        let cones_here: BTreeSet<usize> = at.iter().map(|&k| cone_of[k]).collect();
-        if cones_here.len() < 2 {
-            continue;
-        }
-        let edges = (0..r)
-            .filter(|&i| cone_of[at[i]] != cone_of[at[(i + 1) % r]])
-            .count();
-        if edges != cones_here.len() {
-            return Err(BooleanError::ZipCorrespondence {
-                what: "a vertex's cones interleave round it",
-            });
-        }
-        // Group starts: the runs whose cone differs from the run before.
-        let starts: Vec<usize> = (0..r)
-            .filter(|&i| cone_of[at[i]] != cone_of[at[(i + r - 1) % r]])
-            .collect();
-        for (g, &s) in starts.iter().enumerate().skip(1) {
-            let end = starts[(g + 1) % starts.len()];
+        let mut at = at.clone();
+        loop {
+            let r = at.len();
+            let cones_here: BTreeSet<usize> = at.iter().map(|&k| cone_of[k]).collect();
+            if cones_here.len() < 2 {
+                break;
+            }
+            // Group starts: the runs whose cone differs from the run
+            // before. A group whose cone has no other group is split off;
+            // the first group stays.
+            let starts: Vec<usize> = (0..r)
+                .filter(|&i| cone_of[at[i]] != cone_of[at[(i + r - 1) % r]])
+                .collect();
+            let whole = |g: usize| {
+                let c = cone_of[at[starts[g]]];
+                (0..starts.len()).all(|h| h == g || cone_of[at[starts[h]]] != c)
+            };
+            let Some(g) = (1..starts.len()).find(|&g| whole(g)) else {
+                return Err(BooleanError::ZipCorrespondence {
+                    what: "a vertex's cones interleave round it",
+                });
+            };
+            let (s, end) = (starts[g], starts[(g + 1) % starts.len()]);
             let made = body.mev_null(
                 MevSite::Fan {
                     he1: he_of(at[s]),
@@ -644,6 +652,12 @@ fn split_side<T: Decide + crate::props::AtRestPolicy>(
             } else {
                 let killed = body.kef_minting(made.he_plus, tol)?.killed_face;
                 sections.retain(|&f| f != killed);
+            }
+            if end > s {
+                at.drain(s..end);
+            } else {
+                at.drain(s..);
+                at.drain(..end);
             }
         }
     }

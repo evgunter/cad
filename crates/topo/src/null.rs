@@ -64,7 +64,7 @@ use geom_brep::EdgeCurve;
 use geom_core::Real;
 
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, LoopKey, VertexKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::{EulerOpError, MevCreated, MevSite};
@@ -300,6 +300,67 @@ impl<T: geom_core::Decide> Body<T> {
         );
         Ok(created)
     }
+
+    /// One run's null edge, minted at `site` on the vertex `at` with
+    /// the sense its facing gives (the sense theorem,
+    /// `boolean::join`'s module docs): the half facing the run's start
+    /// germ is UP exactly when the run is above/OUT.
+    ///
+    /// `run_side` is the run's side, which the copy takes when
+    /// `plus_faces_start` (`he_plus`, old → copy, faces the start germ);
+    /// otherwise the copy takes the other side. The mint side, the
+    /// attribute and the halves come from these two inputs alone, so
+    /// the body's scaffold attribute and the caller's record are one
+    /// datum.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::mev_null`].
+    pub(crate) fn mev_null_run(
+        &mut self,
+        site: MevSite,
+        at: VertexKey,
+        run_side: NewVertexSide,
+        plus_faces_start: bool,
+    ) -> Result<NullRunMint, EulerOpError> {
+        let side = match (run_side, plus_faces_start) {
+            (side, true) => side,
+            (NewVertexSide::Above, false) => NewVertexSide::Below,
+            (NewVertexSide::Below, false) => NewVertexSide::Above,
+        };
+        let created = self.mev_null(site, side)?;
+        let attr = match side {
+            NewVertexSide::Below => NullEdge {
+                below_end: created.vertex,
+                above_end: at,
+            },
+            NewVertexSide::Above => NullEdge {
+                below_end: at,
+                above_end: created.vertex,
+            },
+        };
+        let halves = if plus_faces_start {
+            [created.he_plus, created.he_minus]
+        } else {
+            [created.he_minus, created.he_plus]
+        };
+        Ok(NullRunMint {
+            created,
+            attr,
+            halves,
+        })
+    }
+}
+
+/// What [`Body::mev_null_run`] minted.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct NullRunMint {
+    pub(crate) created: MevCreated,
+    /// The attribute the mint recorded.
+    pub(crate) attr: NullEdge,
+    /// `[start half, end half]`: the halves facing the run's start and
+    /// end germs.
+    pub(crate) halves: [HalfEdgeKey; 2],
 }
 
 // The marker setters make no geometric decision, so they stay at the
@@ -364,6 +425,124 @@ impl<T: Real> Body<T> {
     }
 }
 
+/// One strut of a pierce ring ([`ring_tree`]): its run, the run whose
+/// strut's far end it hangs at (`None`: the ring vertex), and whether
+/// the half leaving that node faces the run's start germ.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct RingStrut {
+    pub run: usize,
+    pub parent: Option<usize>,
+    pub plus_faces_start: bool,
+}
+
+/// **A pierce ring's struts, as the tree of its corners**, from its
+/// runs' germs in clockwise `order` about the pierced face's outward
+/// normal (germ `2i` is run `i`'s start, `2i + 1` its end), in mint
+/// order: each strut after the one it hangs at, and a node's struts
+/// clockwise. A read of `order` alone, so it adds no predicate.
+///
+/// The runs are chords of the vertex's link above the face that do not
+/// cross, their germs on the face's circle of directions. The ring is
+/// one loop of null struts at the point, each strut's halves facing its
+/// run's two germs, and its corners lie disjoint about the normal
+/// exactly when the loop passes the germs in clockwise order. That loop
+/// is the walk round a plane tree with one node per region of the link
+/// above the face and one strut per chord, so the tree is forced up to
+/// the node taken as the ring vertex. A walk from a corner with a stack
+/// reads it: a germ opens its run's chord, hung at the far end of the
+/// open chord it lies under or at the root, the half leaving that node
+/// facing it; the run's other germ closes it. Struts at one node face
+/// alike, their germs met in the same turn about the node; struts at
+/// different depths may differ.
+///
+/// The root is `root` where given (a region, numbered as a walk from
+/// the corner before `order[0]` first enters them), otherwise the
+/// region bordering the most chords, the lowest numbered of those
+/// tied: where one borders every chord, the ring is a star. The walk
+/// starts at the root's corner whose next germ is the lowest run's.
+/// `None` where `order` pairs crossing chords, or `root` names no
+/// region.
+pub(crate) fn ring_tree(order: &[usize], root: Option<usize>) -> Option<Vec<RingStrut>> {
+    let m = order.len();
+    let k = m / 2;
+    // The region of each corner `j` (after `order[j]`), and how many
+    // chords border each region.
+    let (mut region_of, mut degree) = (vec![0; m], vec![0usize; k + 1]);
+    let mut open: Vec<(usize, usize)> = Vec::new();
+    let (mut here, mut regions) = (0, 1);
+    for (j, &g) in order.iter().enumerate() {
+        let run = g / 2;
+        if open.last().is_some_and(|&(r, _)| r == run) {
+            here = open.pop()?.1;
+        } else if open.iter().any(|&(r, _)| r == run) {
+            return None;
+        } else {
+            open.push((run, here));
+            degree[here] += 1;
+            here = regions;
+            *degree.get_mut(here)? += 1;
+            regions += 1;
+        }
+        region_of[j] = here;
+    }
+    if !open.is_empty() || regions != k + 1 {
+        return None;
+    }
+    let root = match root {
+        Some(r) => r,
+        None => (0..=k).max_by_key(|&r| (degree[r], std::cmp::Reverse(r)))?,
+    };
+    let cut = (0..m)
+        .filter(|&j| region_of[j] == root)
+        .min_by_key(|&j| order[(j + 1) % m] / 2)?;
+    let mut struts = Vec::with_capacity(k);
+    let mut open: Vec<usize> = Vec::new();
+    for t in 1..=m {
+        let g = order[(cut + t) % m];
+        let run = g / 2;
+        if open.last() == Some(&run) {
+            open.pop();
+        } else {
+            struts.push(RingStrut {
+                run,
+                parent: open.last().copied(),
+                plus_faces_start: g.is_multiple_of(2),
+            });
+            open.push(run);
+        }
+    }
+    Some(struts)
+}
+
+#[cfg(any(test, feature = "test-support"))]
+thread_local! {
+    static RING_ROOT: core::cell::Cell<Option<usize>> = const { core::cell::Cell::new(None) };
+}
+
+/// The ring root a test pinned on this thread ([`with_ring_root`]);
+/// `None`, [`ring_tree`]'s own choice, outside the test arms.
+pub(crate) fn ring_root() -> Option<usize> {
+    #[cfg(any(test, feature = "test-support"))]
+    {
+        RING_ROOT.with(core::cell::Cell::get)
+    }
+    #[cfg(not(any(test, feature = "test-support")))]
+    {
+        None
+    }
+}
+
+/// Runs `f` with every pierce ring on this thread rooted at region
+/// `root` ([`ring_tree`]), for the rows that build a ring from each of
+/// its roots.
+#[cfg(any(test, feature = "test-support"))]
+pub fn with_ring_root<R>(root: usize, f: impl FnOnce() -> R) -> R {
+    let before = RING_ROOT.with(|c| c.replace(Some(root)));
+    let out = f();
+    RING_ROOT.with(|c| c.set(before));
+    out
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
@@ -372,6 +551,110 @@ mod tests {
     use crate::test_support_fixtures::declined_cube;
     use crate::validate::{ValidationError, validate, validate_closed};
     use geom_core::Tol;
+
+    fn ring_strut(run: usize, parent: Option<usize>, plus_faces_start: bool) -> RingStrut {
+        RingStrut {
+            run,
+            parent,
+            plus_faces_start,
+        }
+    }
+
+    /// **A pierce ring's tree from its germs' clockwise order**, one
+    /// row per shape, each in mint order:
+    /// - three runs apart, each start germ first: a star of struts each
+    ///   facing its start;
+    /// - three runs nested under one (`meeting::comb`'s order): a star
+    ///   in an order other than the runs', each facing its end;
+    /// - a run between two others (`meeting::arch`'s order): a path,
+    ///   run 2 hung off run 1's far end and facing the other way;
+    /// - five runs, one over two each over one more (`meeting::branching_cone`'s
+    ///   order): three struts at the ring vertex facing alike, and one
+    ///   hung off each of two of them, facing the other way;
+    /// - two runs whose chords cross: none.
+    #[test]
+    fn a_ring_tree_is_read_off_its_germs_order() {
+        type Row<'a> = (&'a str, &'a [usize], Option<Vec<RingStrut>>);
+        let rows: [Row; 5] = [
+            (
+                "apart",
+                &[0, 1, 2, 3, 4, 5],
+                Some(vec![
+                    ring_strut(0, None, true),
+                    ring_strut(1, None, true),
+                    ring_strut(2, None, true),
+                ]),
+            ),
+            (
+                "nested under one",
+                &[0, 5, 4, 3, 2, 1],
+                Some(vec![
+                    ring_strut(0, None, false),
+                    ring_strut(2, None, false),
+                    ring_strut(1, None, false),
+                ]),
+            ),
+            (
+                "one between others",
+                &[0, 3, 4, 5, 2, 1],
+                Some(vec![
+                    ring_strut(0, None, false),
+                    ring_strut(1, None, false),
+                    ring_strut(2, Some(1), true),
+                ]),
+            ),
+            (
+                "branching",
+                &[0, 1, 4, 3, 2, 5, 8, 7, 6, 9],
+                Some(vec![
+                    ring_strut(0, None, true),
+                    ring_strut(2, None, true),
+                    ring_strut(1, Some(2), false),
+                    ring_strut(4, None, true),
+                    ring_strut(3, Some(4), false),
+                ]),
+            ),
+            ("crossing", &[0, 2, 1, 3], None),
+        ];
+        for (what, order, want) in rows {
+            assert_eq!(ring_tree(order, None), want, "{what}");
+        }
+    }
+
+    /// **Every root of a ring tree holds every run once, each after the
+    /// strut it hangs at, each half facing the germ its node meets
+    /// first**: from each region of the arch's and the branching cone's
+    /// orders, the struts are the runs, a parent precedes its child, and
+    /// a region outside the tree is none.
+    #[test]
+    fn every_root_of_a_ring_tree_mints_each_run_after_its_parent() {
+        for order in [
+            &[0usize, 3, 4, 5, 2, 1][..],
+            &[0, 1, 4, 3, 2, 5, 8, 7, 6, 9],
+        ] {
+            let k = order.len() / 2;
+            for root in 0..=k {
+                let tree = ring_tree(order, Some(root)).unwrap();
+                let mut runs: Vec<usize> = tree.iter().map(|s| s.run).collect();
+                runs.sort_unstable();
+                assert_eq!(runs, (0..k).collect::<Vec<_>>(), "{order:?} at {root}");
+                for (i, s) in tree.iter().enumerate() {
+                    if let Some(p) = s.parent {
+                        assert!(
+                            tree[..i].iter().any(|t| t.run == p),
+                            "{order:?} at {root}: run {} before its parent {p}",
+                            s.run
+                        );
+                    }
+                }
+            }
+            assert_eq!(
+                ring_tree(order, Some(k + 1)),
+                None,
+                "{order:?}: no region k + 1"
+            );
+        }
+    }
 
     /// A null strut (`he1 == he2`) on a cube vertex: the new vertex on
     /// the old one's point, F9 attribute recorded per side, tier 1

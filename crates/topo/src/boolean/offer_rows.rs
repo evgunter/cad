@@ -112,6 +112,9 @@ enum Because {
     /// where it is a defect, F3 where it offers no tolerance and nothing
     /// smaller passes.
     Refuses(&'static str),
+    /// It refuses as the join's invariant break with this `what`, so a
+    /// different desync turns the row red.
+    Desyncs(&'static str),
     /// It passes on this pose: the offer is withdrawn for a pose where it
     /// would be false, which the case's comment names.
     Passes,
@@ -349,7 +352,7 @@ cases! {
     // a clear cylinder radius is a pair that does not meet: decided, it
     // is no section, which a real germ pair never is (the frame's defect).
     coaxial_tiny_sphere: "Radius(Sphere)", D, FRAME_SITE,
-        Withdrawn(Because::Refuses("JoinDesync")) =>
+        Withdrawn(Because::Desyncs("cylinder×sphere section is not a locus")) =>
         coaxial_frame(0.5, D);
     // The transverse frame's reach a band past and short of the walls'
     // tangency. The section's coincidence names its lever and no
@@ -2024,6 +2027,9 @@ fn every_withdrawn_tolerance_stays_withdrawn() {
         let below = run(&row(&case), eps);
         let met = match (&below, because) {
             (Outcome::Refused { key, .. }, Because::Refuses(want)) => key == want,
+            (Outcome::Refused { key, text, .. }, Because::Desyncs(what)) => {
+                key == "JoinDesync" && text.contains(what)
+            }
             (Outcome::Pass, Because::Passes) => true,
             _ => false,
         };
@@ -2142,7 +2148,6 @@ fn quoting(kind: BooleanErrorKind, diag: Indeterminate) -> Vec<BooleanError> {
         | BooleanErrorKind::PairingMismatch
         | BooleanErrorKind::SharedVertexCrossings
         | BooleanErrorKind::PinchConesOnSeparateKeys
-        | BooleanErrorKind::PierceRunsEnclose
         | BooleanErrorKind::VertexReadTwice
         | BooleanErrorKind::ClassificationInvariant
         | BooleanErrorKind::CurvedPairUnsupported

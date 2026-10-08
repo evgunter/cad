@@ -190,13 +190,14 @@ pub fn arch() -> Vec<Hole> {
 }
 
 /// A pyramid's base corners in the plane half a unit along +x from
-/// [`MEET`], from `(y, z)` on a grid of unit steps: `y` from 0 to 5,
-/// centred and scaled by 0.15, `z` scaled by 0.2. Each crossing of
-/// `z = 0` is a germ of [`apex_pyramid`]'s apex on the plate's top, in
-/// order along `y`.
+/// [`MEET`], from `(y, z)` on a grid of unit steps, `y` from 0 to its
+/// largest: `y` centred and scaled to span 0.75, `z` scaled by 0.2.
+/// Each crossing of `z = 0` is a germ of [`apex_pyramid`]'s apex on the
+/// plate's top, in order along `y`.
 fn meander(path: &[(f64, f64)]) -> Vec<[f64; 3]> {
+    let top = path.iter().map(|&(y, _)| y).fold(0.0, f64::max);
     path.iter()
-        .map(|&(y, z)| [0.5, (y - 2.5) * 0.15, z * 0.2])
+        .map(|&(y, z)| [0.5, (y - top / 2.0) * (0.75 / top), z * 0.2])
         .collect()
 }
 
@@ -226,12 +227,41 @@ pub fn comb() -> Vec<[f64; 3]> {
 /// [`apex_pyramid`]'s base for three runs one inside another above the
 /// top, the arch cone: the middle run has the outer on one side and the
 /// inner on the other, so its two germs are not neighbours along the
-/// top.
+/// top, and the ring's struts form a path.
 #[must_use]
 pub fn arch_cone() -> Vec<[f64; 3]> {
     meander(&[
         (0.0, 3.0),
         (5.0, 3.0),
+        (5.0, -2.0),
+        (2.0, -2.0),
+        (2.0, 1.0),
+        (3.0, 1.0),
+        (3.0, -1.0),
+        (4.0, -1.0),
+        (4.0, 2.0),
+        (1.0, 2.0),
+        (1.0, -1.0),
+        (0.0, -1.0),
+    ])
+}
+
+/// [`apex_pyramid`]'s base for five runs above the top: one over two,
+/// each over one more. The ring's struts form a tree with a node of
+/// three struts and two of two, deeper than a path.
+#[must_use]
+pub fn branching_cone() -> Vec<[f64; 3]> {
+    meander(&[
+        (0.0, 3.0),
+        (9.0, 3.0),
+        (9.0, -2.0),
+        (6.0, -2.0),
+        (6.0, 1.0),
+        (7.0, 1.0),
+        (7.0, -1.0),
+        (8.0, -1.0),
+        (8.0, 2.0),
+        (5.0, 2.0),
         (5.0, -2.0),
         (2.0, -2.0),
         (2.0, 1.0),

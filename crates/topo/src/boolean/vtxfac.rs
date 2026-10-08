@@ -32,8 +32,10 @@
 //!    (KemrResult: he1's strictly-between side is empty ⇒ the ring is
 //!    the lone new vertex — the dangling chord exists only between the
 //!    two ops), then one `mev_null` **strut per piercing-side run**
-//!    hangs the paired null edges off the ring vertex
-//!    (`MevSite::Lone` for the first, `Fan{he,he}` after). Dangling
+//!    hangs the paired null edges as a tree from the ring vertex
+//!    ([`crate::null::ring_tree`]: `MevSite::Lone` for the first,
+//!    `Fan{he,he}` after, at the ring vertex or another strut's far
+//!    end). Dangling
 //!    ring null edges are the documented ch. 15 transient; joining
 //!    consumes them in PR 5. Tier 1 holds after every op (pinned by the
 //!    acceptance test).
@@ -84,7 +86,7 @@ use crate::contact::BooleanCoincidence;
 use crate::entity::{EntityId, HalfEdgeKey, VertexKey};
 use crate::euler::{MevSite, RunSite};
 use crate::live::{Proven, linked, proven};
-use crate::null::{NewVertexSide, NullEdge};
+use crate::null::NewVertexSide;
 use crate::validate::decide;
 use geom_core::Tol;
 
@@ -868,8 +870,8 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             ))
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
-    // The ring's corners (step 3, [`ring_corners`]), read before any
-    // write.
+    // The ring's struts (step 3, [`crate::null::ring_tree`]), read
+    // before any write.
     let ring = if runs.len() > 1 {
         let germs: Vec<_> = runs
             .iter()
@@ -881,14 +883,18 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 ]
             })
             .collect();
-        let ring = ring_corners(&ring_order(&germs, n_pierced.vec(), band)?);
-        ring.ok_or(BooleanError::PierceRunsEnclose {
-            operand: piercing,
-            vertex,
-            runs: runs.len(),
-        })?
+        let order = ring_order(&germs, n_pierced.vec(), band)?;
+        crate::null::ring_tree(&order, crate::null::ring_root()).ok_or(
+            BooleanError::ClassificationInvariant {
+                what: "a pierce's runs read as crossing chords about the pierced face's normal",
+            },
+        )?
     } else {
-        vec![(0, false)]
+        vec![crate::null::RingStrut {
+            run: 0,
+            parent: None,
+            plus_faces_start: false,
+        }]
     };
     let mut run_edges = Vec::new();
     for (run, &(start_germ, end_germ)) in runs.iter().zip(&run_germs) {
@@ -946,15 +952,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 )
             }
         };
-        // Sense theorem (join module docs): the half facing the run's
-        // START germ (forward code Out) is the UP half, starting at
-        // `below_end`. A fan puts he_plus (old → copy) at the start
-        // germ's cut, so the copy is the above end. A strut faces its
-        // germs by the one facing rule ([`super::insert::strut_faces_first`]),
-        // and the side follows the facing: the copy is the below end
-        // exactly when he_minus (copy → old) faces the start germ. The
-        // mint side follows, keeping the body's scaffold attribute and
-        // the record one datum.
+        // Whether he_plus (old → copy) faces the run's start germ: a fan
+        // puts it at the start germ's cut, and a strut faces its germs
+        // by the one facing rule ([`super::insert::strut_faces_first`]).
         let start_on_plus = match strut_corner {
             None => true,
             Some(corner) => {
@@ -989,27 +989,9 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 })?
             }
         };
-        let side = if start_on_plus {
-            NewVertexSide::Above
-        } else {
-            NewVertexSide::Below
-        };
-        let created = piercing_body.mev_null(site, side)?;
-        let (start_he, end_he) = if start_on_plus {
-            (created.he_plus, created.he_minus)
-        } else {
-            (created.he_minus, created.he_plus)
-        };
-        let attr = match side {
-            NewVertexSide::Below => NullEdge {
-                below_end: created.vertex,
-                above_end: vertex,
-            },
-            NewVertexSide::Above => NullEdge {
-                below_end: vertex,
-                above_end: created.vertex,
-            },
-        };
+        // The piercing run is Out.
+        let mint = piercing_body.mev_null_run(site, vertex, NewVertexSide::Above, start_on_plus)?;
+        let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
         let rec = BoolNullEdgeRecord {
             operand: piercing,
             at_vertex: vertex,
@@ -1066,55 +1048,62 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         ring_vertex: w,
     });
     // (3) one ring null-edge strut per piercing-side run, hung at the
-    // ring vertex in the order of its corners (`ring`), each after the
-    // first spliced just before the first strut's leaving half. The half
-    // leaving the ring vertex faces the run's germ its corner meets first
-    // clockwise; with one run either half may face either germ. The op
-    // does not enter. Where the struts leave both operands one vertex at
-    // a pinch, `zip::split_cones` splits it per cone before the zips.
-    // Side labels are DERIVED sense data (PR 5.5, join module docs):
-    // the half facing the run's start germ is the pierced DOWN half,
-    // the one starting at `above_end`, so the copy is the below end
-    // exactly when the half leaving the ring vertex faces it.
-    let mut ring_anchor: Option<HalfEdgeKey> = None;
-    for &(i, leaving_faces_start) in &ring {
+    // ring vertex or at another strut's far end, as the tree of the
+    // ring's corners says ([`crate::null::ring_tree`]). A strut hangs at
+    // its node just before the half leaving it towards the root, after
+    // the node's earlier struts: at the ring vertex, before the first
+    // strut's leaving half. The half leaving its node faces the germ its
+    // run's corner meets first clockwise; with one run either half may
+    // face either germ. The op does not enter. Where the struts leave
+    // both operands one vertex at a pinch, `zip::split_cones` splits it
+    // per cone before the zips.
+    let mut root_anchor: Option<HalfEdgeKey> = None;
+    // Per run: its strut's far end, and the half leaving it towards
+    // the root.
+    let mut nodes: BTreeMap<usize, (VertexKey, HalfEdgeKey)> = BTreeMap::new();
+    for strut in &ring {
+        let (i, leaving_faces_start) = (strut.run, strut.plus_faces_start);
         let (run_edge, &(start_germ, end_germ)) = (&run_edges[i], &run_germs[i]);
-        let side = if leaving_faces_start {
-            NewVertexSide::Below
-        } else {
-            NewVertexSide::Above
-        };
-        let site = match ring_anchor {
-            None => MevSite::Lone { r#loop: kemr.ring },
-            Some(he) => MevSite::Fan { he1: he, he2: he },
-        };
-        let created = pierced_body.mev_null(site, side)?;
-        ring_anchor.get_or_insert(created.he_plus);
-        let (attr, down, up) = match side {
-            NewVertexSide::Above => (
-                NullEdge {
-                    below_end: w,
-                    above_end: created.vertex,
+        let (at, site) = match strut.parent {
+            None => (
+                w,
+                match root_anchor {
+                    None => MevSite::Lone { r#loop: kemr.ring },
+                    Some(he) => MevSite::Fan { he1: he, he2: he },
                 },
-                created.he_minus,
-                created.he_plus,
             ),
-            NewVertexSide::Below => (
-                NullEdge {
-                    below_end: created.vertex,
-                    above_end: w,
-                },
-                created.he_plus,
-                created.he_minus,
-            ),
+            Some(parent) => {
+                let &(node, back) =
+                    nodes
+                        .get(&parent)
+                        .ok_or(BooleanError::ClassificationInvariant {
+                            what: "a ring strut's parent is minted after it",
+                        })?;
+                (
+                    node,
+                    MevSite::Fan {
+                        he1: back,
+                        he2: back,
+                    },
+                )
+            }
         };
+        // The pierced run is In; the half leaving the strut's node is
+        // he_plus.
+        let mint =
+            pierced_body.mev_null_run(site, at, NewVertexSide::Below, leaving_faces_start)?;
+        let (created, attr, [start_he, end_he]) = (mint.created, mint.attr, mint.halves);
+        if strut.parent.is_none() {
+            root_anchor.get_or_insert(created.he_plus);
+        }
+        nodes.insert(i, (created.vertex, created.he_minus));
         let rec = BoolNullEdgeRecord {
             operand: pierced,
-            at_vertex: w,
+            at_vertex: at,
             edge: created.edge,
             attr,
             dangling: true,
-            germs: [half_germ(down, start_germ), half_germ(up, end_germ)],
+            germs: [half_germ(start_he, start_germ), half_germ(end_he, end_germ)],
         };
         out.edges.push(rec);
         let (a_edge, b_edge, site) = match piercing {
@@ -1169,42 +1158,6 @@ fn ring_order<T: Decide>(
         order.insert(at, i);
     }
     Ok(order)
-}
-
-/// **The ring's corners**, from the runs' germs in clockwise `order`
-/// ([`ring_order`]; run `i`'s start germ is `2i`, its end `2i + 1`):
-/// each run with whether its corner meets its start germ first, in the
-/// corners' clockwise order from run 0's. A read of `order` alone, so it adds no
-/// predicate.
-///
-/// The ring is one loop of null struts at the pierce point, each
-/// strut's halves facing its run's two germs. Its corners alternate:
-/// one at each strut's far end, between that strut's halves, and one at
-/// the ring vertex between consecutive struts. They lie disjoint about
-/// the normal exactly when the loop passes the germs in clockwise
-/// order, so each run's two germs are neighbours there and the struts
-/// hang in their pairs' order. The runs are chords of the vertex's link
-/// above the face that do not cross. Where one has others on both
-/// sides its germs are not neighbours, and no ring of struts at one
-/// vertex carries the corners: `None`, which refuses
-/// [`BooleanError::PierceRunsEnclose`]. Otherwise one region of the
-/// link above the face borders every run, so every run meets the same
-/// germ first: its start where that region is outside the piercing
-/// solid.
-fn ring_corners(order: &[usize]) -> Option<Vec<(usize, bool)>> {
-    let m = order.len();
-    let mut corners = Vec::with_capacity(m / 2);
-    let lead = if order[0] / 2 == order[1] / 2 { 0 } else { 1 };
-    for k in (lead..m + lead).step_by(2) {
-        let (g, h) = (order[k % m], order[(k + 1) % m]);
-        if g / 2 != h / 2 {
-            return None;
-        }
-        corners.push((g / 2, g % 2 == 0));
-    }
-    let first = corners.iter().position(|&(i, _)| i == 0)?;
-    corners.rotate_left(first);
-    Some(corners)
 }
 
 /// On-edge resolution (module docs; the deliberate divergence), after
