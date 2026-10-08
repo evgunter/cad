@@ -333,13 +333,7 @@ impl BooleanNaming {
     /// every later join.
     #[must_use]
     pub fn joined_edge(&self, edge: EdgeKey) -> EdgeKey {
-        let mut at = edge;
-        for j in &self.edge_joins {
-            if j.gone == at {
-                at = j.kept;
-            }
-        }
-        at
+        super::edge_join::joined_edge(&self.edge_joins, edge)
     }
 
     /// Each vertex the output stage's joins removed → the live edge
