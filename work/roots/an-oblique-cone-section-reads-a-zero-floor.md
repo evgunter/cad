@@ -25,7 +25,8 @@ the cutting plane's slope `m` along the axis's normal with
 `k·m ∈ [0, 0.9)` (`k = tan α`), at scales 1e-3, 1 and 1e3 and
 random poses. Every one is on the cone to 1e-10 by a sampled oracle.
 553 read `Uncertain`, about equally at each scale, and every failure
-has `k·m ≳ 0.5`. Coaxial circles on the cone, circles on a sphere in
+has `k·m ≥ 0.5`. PR 4343's review probe found the threshold sharp
+there. Coaxial circles on the cone, circles on a sphere in
 any plane, and coaxial circles and oblique ellipses on a cylinder all
 read `OnSurface` (1200 each).
 

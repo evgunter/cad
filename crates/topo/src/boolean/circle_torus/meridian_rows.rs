@@ -5,11 +5,19 @@
 //! `|√((ρ_axis − R)² + h²) − r|`, without the door's residual or its
 //! bound.
 //!
-//! The rows: a meridian at any pose and scale lies on the torus; a
-//! near-meridian off by one condition reads at its deviation (on within
-//! the band, an escalation in it, the ladder past it); a circle with no
-//! zero of `F` stays off; and a circle whose axis is the torus's is
-//! never a meridian.
+//! The rows:
+//!
+//! - at any pose, scale, band and tube, a meridian lies on the torus,
+//!   and no carrier more than the band off reads on it;
+//! - a near-meridian off by one condition reads at its deviation (on
+//!   within the band, an escalation in it, the ladder past it);
+//! - a circle with no zero of `F` stays off;
+//! - a circle whose axis is the torus's is never a meridian;
+//! - a spindle torus takes no meridian rung.
+//!
+//! Its fixtures pose the torus as well as the carrier, so they keep
+//! their own vocabulary rather than the tests module's circle poses
+//! against one torus at the origin.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
@@ -86,8 +94,11 @@ impl Circle {
     /// The oracle's reading: the largest and smallest distance from the
     /// torus over a dense sample of the whole circle.
     fn reach(self, torus: Torus) -> (f64, f64) {
+        self.reach_at(torus, 4096)
+    }
+
+    fn reach_at(self, torus: Torus, samples: u32) -> (f64, f64) {
         let v = self.n.cross(self.u);
-        let samples = 4096;
         (0..samples).fold((0.0_f64, f64::INFINITY), |(hi, lo), i| {
             let th = core::f64::consts::TAU * f64::from(i) / f64::from(samples);
             let p = self.c + (self.u * th.cos() + v * th.sin()) * self.rho;
@@ -133,20 +144,92 @@ fn fixed_band() -> Band {
     Band::new(1e-9, 1e-8).unwrap()
 }
 
-/// **A meridian lies on the torus at any pose and scale**: tori of
-/// major radius about 1e-3, 1 and 1e3, centred at the origin or 1e3
-/// from it, their axes, azimuths and the carrier's phase drawn at
-/// random. Each reads `OnSurface`.
+/// A rotation by `angle` about the unit `axis` (Rodrigues).
+fn rotate(v: Vec3<f64>, axis: Vec3<f64>, angle: f64) -> Vec3<f64> {
+    let (s, c) = angle.sin_cos();
+    v * c + axis.cross(v) * s + axis * (axis.dot(v) * (1.0 - c))
+}
+
+/// The faults a carrier near a meridian carries, as multiples of one
+/// size `t`: the centre moved radially and along the axis, the radius
+/// off, and the plane turned about a diameter mixed from the axis and
+/// radial directions by a second-order angle, so every fault's
+/// deviation grows about linearly in `t`.
+#[derive(Clone, Copy, Debug)]
+struct Faults {
+    radial: f64,
+    vertical: f64,
+    radius: f64,
+    tilt: f64,
+    /// The turning diameter's share along the torus axis (the rest is
+    /// radial).
+    tilt_axial: f64,
+}
+
+impl Faults {
+    /// The faulted carrier about the meridian at azimuth `e` of the
+    /// unit-axis torus at the origin, in that torus's frame.
+    fn carrier(self, torus: Torus, e: Vec3<f64>, phase: f64, t: f64) -> Circle {
+        let m = torus.meridian(e, phase);
+        let (big, small) = (torus.big, torus.small);
+        let angle = self.tilt * (2.0 * t * (big - small) / (small * big)).sqrt();
+        let turn = (torus.a * self.tilt_axial + e * (1.0 - self.tilt_axial.abs())).normalize();
+        Circle {
+            c: m.c + e * (self.radial * t) + torus.a * (self.vertical * t),
+            n: rotate(m.n, turn, angle),
+            rho: m.rho + self.radius * t,
+            u: rotate(m.u, turn, angle),
+        }
+    }
+}
+
+/// The posed copy of a torus and a carrier built in its frame: turned
+/// by `(axis, angle)` and moved to `at`.
+fn posed(
+    torus: Torus,
+    circle: Circle,
+    (axis, angle): (Vec3<f64>, f64),
+    at: Vec3<f64>,
+) -> (Torus, Circle) {
+    let place = |p: Point3<f64>| Point3::new(0.0, 0.0, 0.0) + at + rotate(p - torus.c, axis, angle);
+    (
+        Torus {
+            c: place(torus.c),
+            a: rotate(torus.a, axis, angle),
+            ..torus
+        },
+        Circle {
+            c: place(circle.c),
+            n: rotate(circle.n, axis, angle),
+            u: rotate(circle.u, axis, angle),
+            ..circle
+        },
+    )
+}
+
+/// **The meridian rung at any pose, scale, band and tube**, held to the
+/// oracle in both directions. For every torus of major radius 1e-3, 1
+/// or 1e3, centred at the origin or 1e3 from it, tube ratio 0.05 to
+/// 0.99, under bands of 1e-9, 1e-6 and 1e-12:
 ///
-/// The band is the run's ε, raised to the model's own rounding floor
-/// (`1e-13` per metre of the farthest coordinate): a model 3e3 from the
-/// origin cannot place a point closer than that, and below it the row
-/// would measure the f64 grid, not the rung.
+/// - an exact meridian at a random azimuth and phase reads `OnSurface`;
+/// - a carrier faulted from it, one fault or all five at once, sized by
+///   bisection to lie 1.02 to 1.5 bands off the torus by the oracle,
+///   never reads `OnSurface`.
+///
+/// The second half is what goes red on an unsound rung: a term short of
+/// a fault's point deviation serves such a carrier. Each carrier is
+/// built and measured in the torus's frame, where the oracle's f64
+/// distance is good to about `1e-16` of the extent, and then posed. The
+/// band is raised to the posed model's own rounding floor (`1e-13` per
+/// metre of the farthest coordinate): a model 3e3 from the origin cannot
+/// place a point closer than that, and below it the row would measure
+/// the f64 grid, not the rung.
 #[test]
-fn a_meridian_at_any_pose_and_scale_lies_on_the_torus() {
+fn the_meridian_rung_at_any_pose_scale_and_band() {
     use test_utils::fuzz;
     let mut rng = fuzz::start("boolean::circle_torus::meridian_poses");
-    let per_cell = fuzz::scaled(8);
+    let per_cell = fuzz::scaled(1);
     let unit = |rng: &mut fuzz::Rng| loop {
         let v = Vec3::new(
             rng.range(-1.0, 1.0),
@@ -158,34 +241,145 @@ fn a_meridian_at_any_pose_and_scale_lies_on_the_torus() {
             break v / n;
         }
     };
-    for scale in [1e-3, 1.0, 1e3] {
-        for offset in [0.0, 1e3] {
-            let eps = Tol::witness().eps().max(1e-13 * (offset + 3.0 * scale));
-            let band = Band::linear_at(Tol::witness(), eps).unwrap();
-            for i in 0..per_cell {
-                let a = unit(&mut rng);
-                let big = scale * rng.range(1.0, 2.0);
-                let torus = Torus {
-                    c: Point3::new(0.0, 0.0, 0.0) + unit(&mut rng) * offset,
-                    a,
-                    big,
-                    small: big * rng.range(0.05, 0.8),
-                };
-                let e = a.cross(unit(&mut rng)).normalize();
-                let m = torus.meridian(e, rng.range(0.0, core::f64::consts::TAU));
-                let (hi, _) = m.reach(torus);
-                let label = format!("scale {scale}, offset {offset}, draw {i}");
-                assert!(
-                    hi <= eps,
-                    "{label}: the drawn meridian is {hi:e} off the torus"
-                );
-                let got = door(m, torus, band);
-                assert!(
-                    matches!(got, Ok(CircleRoots::OnSurface)),
-                    "{label}: a meridian lies on the torus, read {got:?} — {}",
-                    fuzz::replay()
-                );
+    let mixes: [(&str, [f64; 4]); 6] = [
+        ("radial centre", [1.0, 0.0, 0.0, 0.0]),
+        ("vertical centre", [0.0, 1.0, 0.0, 0.0]),
+        ("radius", [0.0, 0.0, 1.0, 0.0]),
+        ("tilt", [0.0, 0.0, 0.0, 1.0]),
+        ("all at once", [1.0, 1.0, 1.0, 1.0]),
+        ("all, mixed", [0.0; 4]),
+    ];
+    let mut faulted = 0;
+    for eps in [1e-9_f64, 1e-6, 1e-12] {
+        for scale in [1e-3, 1.0, 1e3] {
+            for offset in [0.0, 1e3] {
+                let eps = eps.max(1e-13 * (offset + 3.0 * scale));
+                let band = Band::linear_at(Tol::witness(), eps).unwrap();
+                for ratio in [0.05, 0.5, 0.9, 0.99] {
+                    for (name, weights) in mixes {
+                        for i in 0..per_cell {
+                            let local = Torus {
+                                c: Point3::new(0.0, 0.0, 0.0),
+                                a: Vec3::new(0.0, 0.0, 1.0),
+                                big: scale,
+                                small: scale * ratio,
+                            };
+                            let az = rng.range(0.0, core::f64::consts::TAU);
+                            let e = Vec3::new(az.cos(), az.sin(), 0.0);
+                            let phase = rng.range(0.0, core::f64::consts::TAU);
+                            let sign =
+                                |rng: &mut fuzz::Rng| if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+                            let faults = if name == "all, mixed" {
+                                Faults {
+                                    radial: rng.range(-1.0, 1.0),
+                                    vertical: rng.range(-1.0, 1.0),
+                                    radius: rng.range(-1.0, 1.0),
+                                    tilt: rng.range(0.0, 1.0),
+                                    tilt_axial: rng.range(-1.0, 1.0),
+                                }
+                            } else {
+                                Faults {
+                                    radial: weights[0] * sign(&mut rng),
+                                    vertical: weights[1] * sign(&mut rng),
+                                    radius: weights[2] * sign(&mut rng),
+                                    tilt: weights[3],
+                                    // The worst turn (about the axis) half
+                                    // the time, any diameter otherwise.
+                                    tilt_axial: if rng.unit() < 0.5 {
+                                        1.0
+                                    } else {
+                                        rng.range(-1.0, 1.0)
+                                    },
+                                }
+                            };
+                            let turn = (unit(&mut rng), rng.range(0.0, core::f64::consts::TAU));
+                            let at = unit(&mut rng) * offset;
+                            let label = format!(
+                                "ε {eps:e}, scale {scale}, offset {offset}, r/R {ratio}, {name} \
+                                 {faults:?}, draw {i}"
+                            );
+
+                            let exact = faults.carrier(local, e, phase, 0.0);
+                            let (torus, circle) = posed(local, exact, turn, at);
+                            let got = door(circle, torus, band);
+                            assert!(
+                                matches!(got, Ok(CircleRoots::OnSurface)),
+                                "{label}: a meridian lies on the torus, read {got:?} — {}",
+                                fuzz::replay()
+                            );
+
+                            // Bisect the fault size onto a target deviation.
+                            let target = eps * rng.range(1.02, 1.5);
+                            let off =
+                                |t: f64| faults.carrier(local, e, phase, t).reach_at(local, 256).0;
+                            let mut hi = eps;
+                            while off(hi) < target {
+                                hi *= 2.0;
+                            }
+                            let mut lo = 0.0;
+                            for _ in 0..28 {
+                                let mid = 0.5 * (lo + hi);
+                                if off(mid) < target {
+                                    lo = mid;
+                                } else {
+                                    hi = mid;
+                                }
+                            }
+                            let carrier = faults.carrier(local, e, phase, hi);
+                            let dev = carrier.reach(local).0;
+                            assert!(dev > 1.01 * eps, "{label}: the fixture's deviation {dev:e}");
+                            let (torus, circle) = posed(local, carrier, turn, at);
+                            let got = door(circle, torus, band);
+                            assert!(
+                                !matches!(got, Ok(CircleRoots::OnSurface)),
+                                "{label}: {:.3} bands off the torus by the oracle, read on it — {}",
+                                dev / eps,
+                                fuzz::replay()
+                            );
+                            faulted += 1;
+                        }
+                    }
+                }
             }
+        }
+    }
+    println!("{faulted} faulted carriers held off the torus");
+}
+
+/// **A torus off D3's ring convention takes the ladder**: on a spindle
+/// torus (`r = 1.2R`, `1.5R`) the meridian bound does not hold
+/// (`R − r` is negative, and so is its `η`), so neither the meridian nor
+/// a tilted one reads `OnSurface` from the rung, and neither reaches the
+/// invariant a negative deviation raises. The tilted one is off the
+/// spindle torus by the oracle.
+#[test]
+fn a_spindle_torus_takes_no_meridian_rung() {
+    let band = fixed_band();
+    for ratio in [1.2, 1.5] {
+        let torus = Torus {
+            small: ratio,
+            ..unit_torus()
+        };
+        let e = Vec3::new(0.6, 0.8, 0.0);
+        let plain = torus.meridian(e, 0.4);
+        let tilted = Circle {
+            n: rotate(plain.n, torus.a, 1e-3),
+            u: rotate(plain.u, torus.a, 1e-3),
+            ..plain
+        };
+        assert!(
+            tilted.reach(torus).0 > 1e3 * band.escalate(),
+            "r/R {ratio}: tilted is off"
+        );
+        for (label, circle) in [("plain", plain), ("tilted", tilted)] {
+            let got = door(circle, torus, band);
+            assert!(
+                !matches!(
+                    got,
+                    Ok(CircleRoots::OnSurface) | Err(BooleanError::ClassificationInvariant { .. })
+                ),
+                "r/R {ratio}, {label}: read {got:?}"
+            );
         }
     }
 }
