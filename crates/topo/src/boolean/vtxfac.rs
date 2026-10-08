@@ -266,10 +266,16 @@ pub(super) fn touch_classes<T: geom_core::Real>(
 /// where they are met and inside it where they are joined. Which side
 /// of a link a partner calls its cone does not matter here: just beyond
 /// an outermost cone lies outside every cone, since no other holds its
-/// link. Where a partner reads nothing (no corner of two faces or
-/// more, or no arc to its faces that misses its link), an edge is left
-/// undecided, or the outermost disagree, each pair's rows stand as
-/// read, as for one pair. A nesting read in band refuses.
+/// link. Where a partner reads nothing, an edge is left undecided, or
+/// the outermost disagree, each pair's rows stand as read, as for one
+/// pair: a silent path, filed as
+/// `work/tang/pair-classes-falls-back-to-per-pair-rows-beside-a-partner-that-reads-none.md`.
+/// A partner reads nothing (`sectors::wedge_classes`' `None`) where its
+/// sectors lie on fewer than two faces; where they lie on two with no
+/// bisector to read the wedge by; or where its corner is read as a
+/// polygon cone and some edge has no reference whose every reading is
+/// decided, with none escalating (`sectors::cone_side`'s `None`). A
+/// nesting read in band refuses.
 pub(super) fn pair_classes<T: Decide>(
     pairs: &[PairRead<T>],
     band: Band,

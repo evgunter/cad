@@ -12,7 +12,9 @@
 //! cones (`sectors::cone_read`): darts of four and five faces, whose
 //! apex is a reflex edge, on the plate, bare, and beside an arch; the
 //! apex of a pyramid over an L; a saddle, bare and under an arch; a
-//! crown with a thin fin folded at a short edge, bare and buried; and
+//! crown with a thin fin folded at a short edge, bare and buried; a
+//! crown flat but for one corner dented beside a short edge, bare and
+//! buried; and
 //! near-flat quadrilateral voids, dented 1e-3 and ten zero bands (1e-8
 //! at the default ε) either way, buried with an island and under the
 //! plate's top. Every scene builds in every op and classes every edge
@@ -754,6 +756,61 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 ));
             }
         }
+        // A crown whose top is flat but for one corner dented beside a
+        // 1 mm edge, probed by pyramids whose top edge runs 2e-7 rad
+        // under or over the face beyond the dent (PR 4289's second
+        // review): the dented face's reference lies within the band of
+        // the flat faces' plane, and the arc to it crosses one of them
+        // far from it.
+        let dir = |a: f64, z: f64, l: f64| [l * a.cos(), l * a.sin(), l * z];
+        let dented = vec![
+            dir(-0.01, 1.5e-5 * 0.06f64.sin(), 0.4),
+            dir(0.05, 0.0, 1e-3),
+            dir(0.5, 0.0, 0.4),
+            dir(2.0, 3e-7, 0.4),
+            dir(3.5, -3e-7, 0.4),
+            dir(5.0, 3e-7, 0.4),
+        ];
+        // The height over z = 0, per unit, of the face from bearing 0.5
+        // to 2.0 along bearing `a`.
+        let beyond = |a: f64| {
+            let (b, c) = (dir(0.5, 0.0, 1.0), dir(2.0, 3e-7, 1.0));
+            let n = [
+                b[1] * c[2] - b[2] * c[1],
+                b[2] * c[0] - b[0] * c[2],
+                b[0] * c[1] - b[1] * c[0],
+            ];
+            -(a.cos() * n[0] + a.sin() * n[1]) / n[2]
+        };
+        let dented_b = posed_crown(&dented, [0.0, 0.0, -0.6], &pose, t());
+        let dented_g = G::Crown(dented.clone());
+        let dented_void_b = built("a dented crown void", subtract(&block_b, &dented_b, t()));
+        let dented_void_g = dd(G::All, dented_g.clone());
+        // The probes 0.8 rad round from the dent, under the face beyond
+        // it, and 1.0 rad round, over it. Others at 0.6 to 1.2 rad
+        // refuse `bool_sector_within` in band in every op (the sector
+        // pair search, as on head), so they are left out.
+        let dented_probe = |a: f64, s: f64| {
+            pyr([
+                dir(a, beyond(a) - 2e-7 * s, 0.5),
+                dir(a + 0.3 * s, -0.6 * s, 0.5),
+                dir(a - 0.3 * s, -0.6 * s, 0.5),
+            ])
+        };
+        let (under, over) = (dented_probe(0.8, 1.0), dented_probe(1.0, -1.0));
+        scenes.extend([
+            (
+                "a dented crown void, under",
+                pick(&under),
+                (&dented_void_b, &dented_void_g),
+            ),
+            ("a dented crown, over", pick(&over), (&dented_b, &dented_g)),
+            (
+                "a dented crown void, over",
+                pick(&over),
+                (&dented_void_b, &dented_void_g),
+            ),
+        ]);
         let dents = ["-1e-3", "+1e-3", "-ten zero bands", "+ten zero bands"];
         let labels: Vec<_> = dents
             .iter()
