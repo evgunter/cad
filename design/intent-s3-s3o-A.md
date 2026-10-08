@@ -167,3 +167,76 @@ Having read B's report: I move on the table splits (3) and on what "redundant" m
 > "a placement's mates fold by decided coset intersection to DETERMINED (`Trivial`) or UNDER (the residual named), or refuse OVERCONSTRAINED: a mate whose subgroup contains the fold of the rest, nothing measured, or an excess equation the door does not prove, its residual quoted as the recourse. A case split in the sliver band escalates `Indeterminate`."
 
 "Exact" and "measured clash" go, and CONTRADICTORY retires.
+
+## Round 3 (after #4322: structure is decided by replaying the evaluation at `Sym`)
+
+**1. Does admitting a mate under #4325 need the symbolic evaluation? Yes.**
+
+#4325 admits a mate only when the door proves its excess equations. Since #4322, the door proves things by replaying the evaluation at `Sym`, so a symbolic evaluation would run at the mate door and in the solve, not only in the lint.
+
+- **Decidable from pose definitions alone** (editor-core arithmetic, no kernel): a side that is an authored pose, such as `InFrame` or `Offset` on a seed or `Through`/`Meet` over such poses. Its invariants are rational functions of scalar variables, so the replay is cheap and stays in editor-core.
+- **Needing the kernel replay**: a side that is a `FaceFrame`, or a projection of one. This covers:
+  - a box's cap/wall angle (the mitre identity);
+  - a peg's axis from an extruded circle;
+  - the three faces of a box in a corner.
+
+  So does every face the mate tool picks.
+- **How common each is.** I did not measure. A grep of main finds:
+  - `FrameCoincidence` 86 times, `Coaxial` 52 and `PlanarRest` 46 across tests and tour;
+  - no `.pncad` corpus document holding a mate;
+  - face bases rare today (authored part-frame vectors dominate).
+- **What that implies.**
+  - Single `Frame` mates have no excess equations, so they need nothing.
+  - Every multi-mate bundle has an excess of at least 1. Two `Plane` mates carry an angle equation, plane plus axis carries at least one, and three planes carry three.
+  - After stage 3 B, the mate tool authors `FaceFrame`s, so nearly every such bundle would need the kernel replay.
+
+**2. Cost and coupling under #4325.**
+
+- **Cost.** One `Sym` replay of each mated part, up to its minting operations, per part version. It can be memoised by content key, because the part is pinned. It needs `Sym` as a `SolveScalar`, which nobody has measured.
+- **Coupling.** Whether a placement is admitted then depends on how far rung 3 reaches:
+  - a numerical routine's output is one opaque symbol;
+  - a fillet rail or SSI never proves;
+  - `cos(turn/4)` needs exact constants at `Sym`.
+- **What fails, and how loudly.** When the replay cannot decide, a correct assembly refuses `Overconstrained`. That is loud, but it blames the author for the tier's limit, and it does so at edit time.
+- **Verdict.** This is the wrong coupling: a construction's admission should not wait on a theorem prover.
+
+**3. Final states.**
+
+**(a) Keep #4325 and accept the coupling.**
+- Makes true: no mate is admitted on a value.
+- Costs: the `Sym` replay sits on the edit path, and the tier's limits become false refusals.
+- Text: as #4325.
+
+**(b) Decide excess from pose definitions only.**
+- Makes true: no symbolic tier at placement.
+- Costs: nearly every face-picked bundle refuses, which is close to "only one `Frame` mate", minus the constructions that make that usable. I reject it.
+
+**(c) Subgroup algebra only, excess recorded for the lint.**
+- Makes true: it is permissive.
+- Costs: a mate checks, refusing `Contradictory` when an edit to a value makes it disagree. A rewrite through a recorded excess equation is also unsound (round 2).
+
+**(d) Recommended (likely): an ordered bundle, as a datum scheme.**
+
+The bundle stays a list of mates, and its order is the authored priority: primary, secondary, tertiary, as in a GD&T datum reference frame.
+
+- **The fold.** Each mate fixes only what the mates before it left free (its equation projected onto the residual `Subgroup`), exactly, by construction. It never imposes, and never checks, the equations those mates already fixed.
+- **Refusals.**
+  - A mate that fixes nothing refuses `Overconstrained`, by subgroup algebra alone; on a pinned copy no predicate runs.
+  - A degenerate configuration (a secondary plane parallel to the primary) is the construction's own typed refusal, by margin, as `Meet` refuses parallel planes (FORK-1b).
+  - `Contradictory` retires, because nothing is checked.
+- **Example: two pegs at spacing `s` in holes at spacing `t`.**
+  - Peg 1 coaxial is the primary, and pins all but slide and spin.
+  - Peg 2's axis is the secondary, and fixes only the spin. If `s ≠ t`, peg 2 sits off-centre in its hole by the difference. Nothing refuses: the clearance or interference is what stage 5's census and an `Assert` report.
+- **The door needs no rewrite system.**
+  - The copy's frame is this construction. The lint's `Sym` replay evaluates it as it evaluates any construction (#4322: "read by evaluating that code with every variable a symbol").
+  - So the primary face's contact is zero as a polynomial, and a secondary face's contact is zero exactly when its excess equation holds symbolically.
+  - The transitivity hazard is gone: nothing is assumed, only evaluated.
+- **The answer to Ev's question becomes "no".** Symbolic evaluation stays the lint's, and admitting a mate is subgroup algebra plus a construction's degeneracy margin.
+- **Costs.**
+  - Order carries meaning, so the GUI must show the primary, secondary and tertiary mates. This answers B's (Plane, Frame) versus (Frame, Plane) objection: the order is the author's statement, not an accident.
+  - A mismatch is not refused at placement; it shows up as a finding.
+  - It needs `Sym` as a `SolveScalar` for the lint, which was already B's requirement.
+- **Ratified text.**
+  - D10 Spaces: keep "a mate added to a pinned copy refuses as an overconstraint, decided by subgroup algebra (A11 (1)) without measuring". Add: "a placement's mates are taken in order, each fixing only what those before it left free; one that fixes nothing refuses, and none checks what another fixed".
+  - A11 (1): "several mates on one pair fold by exact coset intersection … to DETERMINED, UNDER or CONTRADICTORY …" becomes "a placement's mates fold in order, each projected onto the residual subgroup, to DETERMINED or UNDER, or refuse OVERCONSTRAINED (a mate that fixes nothing); a degenerate configuration refuses as its construction does".
+  - #4325's excess clause is withdrawn.
