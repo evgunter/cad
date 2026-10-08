@@ -2,11 +2,12 @@
 id: shell-of-a-tangent-dome-refuses-at-the-axial-corner
 kind: issue
 title: shell of a hemisphere tangent to its cylinder wall refuses TogetherAxialCorner: the moved corner has two equidistant solutions
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
 refs: [shell-open-refuses-a-curved-designated-face]
+pr: 4356
 ---
 
 

@@ -2,11 +2,12 @@
 id: shell-of-a-cone-tip-refuses-at-the-nappe-decision
 kind: issue
 title: shell of a body with a cone tip refuses NappeStraddles: a cone face reaching its apex has no nappe to turn the offset by
-status: open
+status: closed
 opened: 2026-10-06
 priority: P2
 cost: M
 refs: [shell-open-refuses-a-curved-designated-face]
+pr: 4356
 ---
 
 
