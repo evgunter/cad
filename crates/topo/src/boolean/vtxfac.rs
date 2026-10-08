@@ -868,25 +868,27 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
             ))
         })
         .collect::<Result<Vec<_>, BooleanError>>()?;
-    // The struts hang in run order, the order along the vertex's link
-    // (step 3), which is their order round the ring vertex only while the
-    // runs' Out wedges lie one after another about the normal. Refused
-    // before any write where the start germs' angular order disagrees.
-    if runs.len() > 2 {
-        let starts: Vec<_> = runs
+    // The ring's corners (step 3), read before any write.
+    let ring = if runs.len() > 1 {
+        let germs: Vec<_> = runs
             .iter()
             .zip(&run_germs)
-            .map(|(run, (s, _))| (s.1, sectors[(run.0 + n - 1) % n].arm))
+            .flat_map(|(run, (s, e))| {
+                [
+                    (s.1, sectors[(run.0 + n - 1) % n].arm),
+                    (e.1, sectors[(run.0 + run.1 - 1) % n].arm),
+                ]
+            })
             .collect();
-        let angular = ring_order(&starts, n_pierced.vec(), band)?;
-        if angular.iter().enumerate().any(|(k, &j)| k != j) {
-            return Err(BooleanError::PierceRunsNested {
-                operand: piercing,
-                vertex,
-                runs: runs.len(),
-            });
-        }
-    }
+        let ring = ring_corners(&ring_order(&germs, n_pierced.vec(), band)?);
+        ring.ok_or(BooleanError::PierceRunsNested {
+            operand: piercing,
+            vertex,
+            runs: runs.len(),
+        })?
+    } else {
+        vec![(0, false)]
+    };
     let mut run_edges = Vec::new();
     for (run, &(start_germ, end_germ)) in runs.iter().zip(&run_germs) {
         let members = (0..run.1).map(|j| entries[(run.0 + j) % n]);
@@ -1063,57 +1065,24 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
         ring_vertex: w,
     });
     // (3) one ring null-edge strut per piercing-side run, hung at the
-    // ring vertex in run order, which the check above holds to the runs'
-    // angular order. With one run either half may face either germ. With
-    // more, the half leaving the ring vertex faces the run's germ that the
-    // walk clockwise about the pierced face's outward normal meets first
-    // from the next run's start germ, in the same order
-    // ([`super::insert::strut_order`]); the op does not enter. Where the
-    // struts leave both operands one vertex at a pinch, `zip::split_cones`
-    // splits it per cone before the zips.
+    // ring vertex in the order of its corners (`ring`), each after the
+    // first spliced just before the first strut's leaving half. The half
+    // leaving the ring vertex faces the run's germ its corner meets first
+    // clockwise; with one run either half may face either germ. The op
+    // does not enter. Where the struts leave both operands one vertex at
+    // a pinch, `zip::split_cones` splits it per cone before the zips.
     // Side labels are DERIVED sense data (PR 5.5, join module docs):
     // the half facing the run's start germ is the pierced DOWN half,
     // the one starting at `above_end`, so the copy is the below end
     // exactly when the half leaving the ring vertex faces it.
-    // Each germ with the arm of its transition sector; every reading of
-    // two or three of them is levered at the shortest of their arms.
-    let germ = |t: usize, g: &Germ<T>| (g.1, sectors[t].arm);
-    let ends: Vec<_> = runs
-        .iter()
-        .zip(&run_germs)
-        .map(|(run, (s, e))| {
-            (
-                germ((run.0 + n - 1) % n, s),
-                germ((run.0 + run.1 - 1) % n, e),
-            )
-        })
-        .collect();
-    let sides = (0..runs.len())
-        .map(|i| {
-            let ((start, start_arm), (end, end_arm)) = ends[i];
-            let leaving_faces_start = match runs.len() {
-                1 => false,
-                k => {
-                    let (from, from_arm) = ends[(i + 1) % k].0;
-                    super::insert::strut_order(
-                        from,
-                        n_pierced.vec(),
-                        (start, end),
-                        from_arm.min(start_arm).min(end_arm),
-                        band,
-                    )?
-                }
-            };
-            Ok(if leaving_faces_start {
-                NewVertexSide::Below
-            } else {
-                NewVertexSide::Above
-            })
-        })
-        .collect::<Result<Vec<_>, BooleanError>>()?;
     let mut ring_anchor: Option<HalfEdgeKey> = None;
-    for i in 0..runs.len() {
-        let (run_edge, &(start_germ, end_germ), &side) = (&run_edges[i], &run_germs[i], &sides[i]);
+    for &(i, leaving_faces_start) in &ring {
+        let (run_edge, &(start_germ, end_germ)) = (&run_edges[i], &run_germs[i]);
+        let side = if leaving_faces_start {
+            NewVertexSide::Below
+        } else {
+            NewVertexSide::Above
+        };
         let site = match ring_anchor {
             None => MevSite::Lone { r#loop: kemr.ring },
             Some(he) => MevSite::Fan { he1: he, he2: he },
@@ -1168,24 +1137,20 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
     Ok(out)
 }
 
-/// **The runs' order round the ring vertex**: their Out wedges
-/// clockwise about the pierced face's outward `normal`, from run 0's,
-/// read off each run's start germ and its arm (`starts`). The struts
-/// hang in run order, and each after the first splices just before the
-/// first strut's leaving half, so the face's corners at the ring vertex
-/// run clockwise only when this is the identity; step 3 refuses
-/// `PierceRunsNested` otherwise.
+/// **The germs' order round the ring vertex**: indices into `germs`
+/// (each a direction and its arm), clockwise about the pierced face's
+/// outward `normal` from `germs[0]`.
 fn ring_order<T: Decide>(
-    starts: &[(Vec3<T>, T)],
+    germs: &[(Vec3<T>, T)],
     normal: Vec3<T>,
     band: Band,
 ) -> Result<Vec<usize>, BooleanError> {
-    let (from, from_arm) = starts[0];
+    let (from, from_arm) = germs[0];
     let mut order = vec![0];
-    for (i, &(g, g_arm)) in starts.iter().enumerate().skip(1) {
+    for (i, &(g, g_arm)) in germs.iter().enumerate().skip(1) {
         let mut at = order.len();
         for (slot, &j) in order.iter().enumerate().skip(1) {
-            let (h, h_arm) = starts[j];
+            let (h, h_arm) = germs[j];
             if super::insert::strut_order(
                 from,
                 normal,
@@ -1200,6 +1165,25 @@ fn ring_order<T: Decide>(
         order.insert(at, i);
     }
     Ok(order)
+}
+
+/// **The ring's corners**, from the runs' germs in clockwise `order`
+/// ([`ring_order`]; run `i`'s start germ is `2i`, its end `2i + 1`):
+/// each run with whether its corner meets its start germ first, in the
+/// corners' clockwise order. `None` where a run's two germs are not
+/// neighbours in `order`.
+fn ring_corners(order: &[usize]) -> Option<Vec<(usize, bool)>> {
+    let m = order.len();
+    let mut corners = Vec::with_capacity(m / 2);
+    let lead = if order[0] / 2 == order[1] / 2 { 0 } else { 1 };
+    for k in (lead..m + lead).step_by(2) {
+        let (g, h) = (order[k % m], order[(k + 1) % m]);
+        if g / 2 != h / 2 {
+            return None;
+        }
+        corners.push((g / 2, g % 2 == 0));
+    }
+    Some(corners)
 }
 
 /// On-edge resolution (module docs; the deliberate divergence), after
