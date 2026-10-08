@@ -541,7 +541,7 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
     );
     assert_ne!(text, doctored, "the falsifier applied");
 
-    let Err(StepImportError::Adoption { id, attempts }) =
+    let Err(StepImportError::Adoption { id, attempts, file }) =
         import_step(&doctored, &ImportOptions::default(), Tol::witness())
     else {
         panic!("a carrier displaced 1e-3 m off the locus is NEVER trusted");
@@ -565,7 +565,7 @@ fn a_displaced_seam_carrier_refuses_with_the_measured_residual() {
         "the measured bound is the displacement the falsifier planted \
          (~5e-4 m at mid-parameter): {measured:e}"
     );
-    let text = StepImportError::Adoption { id, attempts }.to_string();
+    let text = StepImportError::Adoption { id, attempts, file }.to_string();
     assert!(
         text.contains("not on both surfaces"),
         "the refusal text states the declare-and-check verdict: {text}"

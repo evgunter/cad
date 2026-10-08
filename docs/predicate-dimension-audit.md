@@ -239,14 +239,15 @@ retired (`bool_sector_*` / `split_sector_*`, unified to `sector_*` by
 #652). Re-deriving:
 
 ```sh
-# code half — every funnel site, all fourteen spellings, both crates.
+# code half — every funnel site, all fifteen spellings, both crates.
 # It also matches doc-comment prose and `fn` definitions; the ledger
 # above says which, and they are subtractions, not sites.
 # `decide_positive` / `decide_negative` / `decide_nonzero` / `decide_magnitude` are `decide`
-# with the caller's sign requirement folded in, so their sites are rows of this table
-# like any other; `gate_measured` is deliberately absent — it classifies
-# no margin and has no comparand to dimension.
-grep -rnE '\b(decide|decide_flagged|decide_invariant|decide_positive|decide_negative|decide_nonzero|decide_magnitude|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
+# with the caller's sign requirement folded in, and `decide_reported` is
+# `decide` keeping the verdict for the refusal's words, so their sites
+# are rows of this table like any other; `gate_measured` is deliberately
+# absent — it classifies no margin and has no comparand to dimension.
+grep -rnE '\b(decide|decide_reported|decide_flagged|decide_invariant|decide_positive|decide_negative|decide_nonzero|decide_magnitude|check_residual|classify|classify_len|require_zero|require_extent|gap_is_zero|signed_is_zero)\s*(::<[^()]*>)?\s*\(' \
   crates/geom-brep/src crates/topo/src
 # behavioural half — what the committed baseline emitted
 zcat docs/k-report-data/m7-eps-1e-9.csv.gz | tail -n +2 | cut -d, -f2 | sort -u

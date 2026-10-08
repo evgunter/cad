@@ -239,12 +239,28 @@ fn the_surgery_names_every_entity_of_the_composed_die() {
         RoleSeg::BandCross { .. } => "band cross",
         RoleSeg::BandCut(_) => "band cut",
         RoleSeg::BandSlit { .. } => "slit",
+        // An edge the closing join made (`docs/DESIGN.md`, maximal
+        // edges): the set of the trims or survivors it covers.
+        RoleSeg::Merged(cs)
+            if cs.iter().all(|c| {
+                matches!(
+                    c.path.first(),
+                    Some(
+                        RoleSeg::BandTrim { .. }
+                            | RoleSeg::TrimEdge { .. }
+                            | RoleSeg::FromTarget(_)
+                    )
+                )
+            }) =>
+        {
+            "joined"
+        }
         other => panic!("a non-fillet role leaked into the fillet's table: {other:?}"),
     };
     let seen: BTreeSet<&str> = v.name_table.iter().map(|(n, _)| role(n)).collect();
     assert_eq!(
         seen.len(),
-        13,
+        14,
         "every fillet role the composed die can produce is produced, got {seen:?}"
     );
 }

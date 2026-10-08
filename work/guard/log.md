@@ -140,3 +140,9 @@ Ev's ruling on PR 3156 makes `query.rs`'s `to_bits()` compare of
 shape. It lands red until TQUERY's repair of the site, so it rides
 with or after that.
 - 2026-09-30 — Seam note from TOPO: PR 3532 (`topo/merge-helpers-announce`) edits one entry of `scripts/gates/loop-boundary-discards.sh`'s register. The winding's let-else moved with its walk from `planar_loop_winding` into `planar_loop_winding_decided` (key renamed, count 1). The fix pass then made that arm return `LoopWinding::Empty`, a named answer the merge's role pass reads as not positive, and marked the entry `audited` on that ground. No other entry and no matcher code changed; the gate passes at 79 sites and 76 entries. (TOPO fix pass)
+- 2026-10-08 — Seam note from ENCL (PR 4331, `encl/adoption-at-rest-eps-in`, merged): `Reading::Adopt` is gone, and adoption certification reads as at rest. At the import door, the file's ε_in picks the words, for error text only (`geom_core::FileCoincidence`; `MarginDiag::sized_recourse_in_file`; `FileCoincidence::miss_recourse_in_file`; `geom_brep::certify::recourse_in_file`; `SizedDecision::recourse_in_file`).
+  - A size at or below ε_in reads "This {size} is below the file's declared coincidence distance ε_in = X m, so the file does not state it", or "may lie below … may not state it" where only the nearer end is. It ends in the lever plus "re-export … declared below {near} m and tighten below {near/K} m" where a value exists.
+  - A miss within ε_in names re-exporting, plus the set-ε-to-ε_in stopgap.
+  - `CertifyError::ResidualExceeded` now carries `margin: MarginDiag`.
+  - The `reporting-margin-door.sh` gate pins the two new sentence functions; recourse.rs is at 5 sites.
+  - DESIGN.md D4 commitment 3 is reworded (the magnitude carrier moved). (ENCL orchestrator)
