@@ -146,3 +146,62 @@ relative poses. No world coordinate is read to do it.
   number rather than a profusion" (Ev, 2) from it.
 - **Off-question:** the spec's per-kind `sense` on a `Frame` keeps today's hidden "half-turn about x" convention.
   Worth a line in B whichever way the fork goes.
+
+## Round 2
+
+**1. What `Place` reads: I move to one shape (`Body` or `Bodies`).** D10 already has a kind for "several bodies, ordered,
+in one space", so a list slot would be a second spelling of `Bodies`, and a slot holds its own kind. My only reason for
+a list was point 2's per-body ports, and that reason goes there. Reversal cost: low, since a list is sugar over a
+`Bodies` construction.
+
+**2. The instance: I move to `bodies: Bodies` + `frame: Frame`, with one amendment.** The part's product is one thing
+the part said once, so one port is right. The per-body ports would duplicate it, which was my own objection to
+`world: Bodies`. My amendment is about picking one body: it should name the **part's placement** (by its id, as a face
+is named by `StableName`), not a position. Under DM3's position index, an `UpdateReference` that reorders or deletes
+the part's placements silently re-points the pick to another body, against DM6 ("no edit infers a re-point"). Named,
+the same update leaves the pick unresolved and typed. So I keep FORK-1's identity (one body per part placement) and
+drop its ports. This is a small fork on DM3 that Ev could weigh; reversal cost is low, and the named pick is the one
+that cannot lie.
+
+**3. A `frame` output on `Place`: I hold no port.** A's `P.frame` is exactly `Carried(P.copy, <the source space's own
+frame>)`. A frame of an instance's copy is `Carried(copy, I.frame)`. So the port is a derived value given a second
+spelling, which has to be canonicalised back at the coincidence door. On the sibling question: the port is opaque
+only if the door treats it as an atom. Read as sugar for `Carried`, it is transparent. The rewrite the door wants (a
+pinned copy's `on` pose carried equals its `to` pose, modulo the kind's subgroup) needs the reference to name the
+placement and a source-space pose, and `Carried(copy, pose)` names both directly. With a port, every read must first
+be un-sugared, or a door built on the atom proves only "same copy", which is the FORK-S3O concern. A's "another one,
+10 mm over" is `to = InFrame { Carried(P.copy, seed), 10 mm }`, so no use is lost. Is A's argument answered? Yes:
+"where the instance sits" is `Carried(copy, I.frame)`. Not a choice for Ev unless A holds. Reversal cost: adding a
+port later is additive, while removing one strands its readers.
+
+**4. Sense: I move to A's `Flip`.** Equality-only matches D10's "an incidence is a construction over one variable,
+never a check between two". `Flip` is undefined on a `Point`, so the sense gap becomes a type error instead of a door
+rule. And a `Sense` slot on two kinds only is a per-kind special case. My worry about two spellings (`Flip(a) ≅ b` vs
+`a ≅ Flip(b)`) is answered by canonical form, because `Flip` is an involution and the door normalises it to one side.
+We already agree on an explicit `turn/2` for a `Frame`.
+
+**5. A clocked coaxial: I move; mine was wrong.** A `Frame` mate pins the slide. Today `Coaxial` + rider leaves
+`Prismatic` (slide free), so my spelling would change what the mate leaves free and the migration's solved poses. A's
+`Axis`–`Axis` + `Direction`–`Direction` keeps `Prismatic`. Cost: `Direction`'s subgroup (dim 4: translations plus spin
+about it) enters the fold table in stage 3 B, as one arm of the shared `Subgroup`. The spec's §3 line has the same
+error.
+
+**Proposed text.**
+- D10 Operations, replacing "…one `Body` variable per world placement of the part" and "an assertion or a mate defines
+  none":
+  - "…an instance of a part defines the part's product, one `Bodies` whose members are named by the part's
+    placements, and the part's world as a `Frame`, both in one space of the instance's own; possibly none: an
+    assertion defines none, and a mate is a clause of a placement, not an operation."
+- D10 Operations, replacing "A world placement is an operation reading one `Body` and defining its copy":
+  - "A placement is an operation reading one shape (`Body` or `Bodies`) and a bundle of mates, and defining the copy,
+    of the shape's kind. The product is every copy whose space is the world's."
+- D10 Spaces, replacing "the bundle of mates that pins one copy of a part relative to others":
+  - "the bundle of mates that pins one copy of a shape: each mate equates, modulo its kind's symmetry, a pose of the
+    shape's space with a pose of the space the copy is placed into; a pose of another copy is read as that copy
+    carries it."
+  - The world becomes "one undeletable valueless frame that only a mate's target side and export read".
+- A10:
+  - "A world placement (`PlaceInWorld`) is an operation reading one `Body` and defining its copy as an output"
+    becomes "A placement (`Place`) reads one shape and defines its copy; the product is the copies in the world's
+    space, in placement order".
+  - "the copies the document's world placements define" becomes "every copy in the world's space".
