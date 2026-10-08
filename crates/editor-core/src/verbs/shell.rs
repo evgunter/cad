@@ -204,6 +204,19 @@ pub(crate) fn fold_shell_error<T: Real>(
             gap: end(gap, Infimum),
             needed: end(needed, Supremum),
         },
+        // The same pessimistic reading: the overlap as long as the
+        // bracket admits, the wall as thick.
+        E::OffsetsCross {
+            face,
+            other,
+            overlap,
+            thickness,
+        } => E::OffsetsCross {
+            face,
+            other,
+            overlap: end(overlap, Supremum),
+            thickness: end(thickness, Supremum),
+        },
         E::ChartSenseMixed { face, other } => E::ChartSenseMixed { face, other },
         E::Face { face, error } => E::Face {
             face,
@@ -225,6 +238,7 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::Rim { face, error } => E::Rim { face, error },
         E::Escalated { source } => E::Escalated { source },
         E::Pcurve { source } => E::Pcurve { source },
+        E::Join { refusal } => E::Join { refusal },
         E::NotValid { errors } => E::NotValid { errors },
     }
 }

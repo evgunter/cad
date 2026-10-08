@@ -139,3 +139,16 @@ supports, which on this fixture is coarser than the gap.
 ## Re-pointed from the D10 hold (2026-10-08)
 
 Waits on `intent-stage4-is-built`, not on the whole program: the residue comes from the door bridging a declared pair inside the band; under D10 in-band refuses and only Zero glues, so the class is redefined at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
+
+## A curved instance inside the zero band (TANG, 2026-10-08)
+
+The tube of `crates/sweep/tests/pi_seam_and_kiss_through_the_boolean.rs`
+at radius `R − k·zero`, unioned with `dome_on_the_cap()`, its discs
+declared `Rest`, at `k = ¼` and `½`. The dome's disc overhangs the
+tube's by less than the zero band, so this is the Zero glue that D10
+keeps, not an in-band one. Both member orders refuse
+`vol(A ∪ B) ≤ vol(A) + vol(B)` at every ε row. At ε 1e-9, `k = ½`: got
+6.971041463505098 (order 0) and 6.971041464552296 (order 1), bound
+6.971041462457901. The same offsets outward (`R + k·zero`) build in both
+orders. Pinned by
+`a_rim_offset_inside_the_zero_band_answers_alike_in_both_member_orders`.
