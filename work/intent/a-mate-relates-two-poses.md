@@ -8,6 +8,7 @@ priority: P0
 cost: H
 blocked_on: [poses-are-variables, a-mate-reads-face-variables]
 refs: [intent-stage3-is-built]
+needs_ev: true
 ---
 
 INTENT stage 3, PR B. Spec: `docs/INTENT-STAGE3-SPEC.md` §3.
@@ -15,3 +16,20 @@ INTENT stage 3, PR B. Spec: `docs/INTENT-STAGE3-SPEC.md` §3.
 `Mate { a, b, sense, class }`: `a` and `b` are pose variables of one kind, and the kinds are the primitive (FORK-S3-3). `Alignment`, `MateFrame`, `FrameBase`, `MatePrimitive`, the clocking rider, `PlanarRest.offset`, `MateFrame::authored` and `table_gap` (`mate.rs`) retire into pose definitions. The spanning tree and gauges still decide what places until C. Every MSOLVE fixture's `SolvedPoses` is bit-equal.
 
 Closes `a-clocking-rider-is-levered-unreduced`, `a-face-frame-cannot-turn-its-roll`, `a-face-base-puts-its-reference-on-local-y`, `mate-primitive-unit-variants-load-from-a-null-payload` and `a-mate-frame-axis-is-decided-against-a-length-band`. It subsumes MSOLVE-15 (#3681).
+
+FORK-S3-3 was weighed with FORK-S3-2 and S3-5 as FORK-S3M (fork log row
+97) and went to Ev in an `[ev]` PR; this unit builds on the answer
+provisionally. A mate is `{ on, to }`, two pose variables of one kind,
+and the kind is the primitive. There is no `sense` operand: the sense is
+`Flip { pose }`, a construction (an involution the door normalises to
+one side), and `Flip` has no `Point` arm. A `Frame` "opposed" becomes an
+explicit `turn/2` in an `Offset`, which retires `opposed()`'s hidden
+half-turn about `x`. Offsets read through `Offset`/`InFrame`, so a
+`turn/2` there must evaluate to an exact half-turn, or B's
+unmoved-poses check moves an ulp. A clocked coaxial (today's `Coaxial`
+plus rider, residual `Prismatic`) migrates to `Axis`–`Axis` plus
+`Direction`–`Direction` over the two reference directions, one turned by
+the clock angle. That needs `Direction`'s arm (translations and spin
+about it, dim 4) in the shared `Subgroup` in this unit; the spec's Q6
+line ("a `Plane`–`Plane` mate through the axis") pins the slide and is
+wrong.
