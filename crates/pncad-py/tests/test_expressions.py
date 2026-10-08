@@ -36,6 +36,7 @@ from pncad import (
     EvalError,
     Formula,
     Length,
+    LiteralError,
     VarName,
     ParseError,
     PncadError,
@@ -146,6 +147,50 @@ class TestTheTextDoorBuildsCheckedTrees(unittest.TestCase):
             {self.doc.parse_formula("width")}
 
 
+class TestConstantsAreExact(unittest.TestCase):
+    """A number inside a formula is an exact constant (VARIABLES-DESIGN
+    VR5): a reduced rational, or `turn`, one full rotation."""
+
+    def setUp(self):
+        self.doc = plate()
+
+    def test_a_ratio_is_its_reduced_value(self):
+        self.assertEqual(Formula.ratio(2, 4), Formula.ratio(1, 2))
+        self.assertNotEqual(Formula.ratio(1, 2), Formula.ratio(1, 3))
+        self.assertEqual(Formula.ratio(1, 3).text, "1/3")
+        self.assertEqual(Formula.ratio(1, 10).text, "0.1")
+        self.assertEqual(self.doc.parse_formula("0.1"), Formula.ratio(1, 10))
+        self.assertEqual(self.doc.eval(Formula.ratio(1, 10)), 0.1)
+
+    def test_a_ratio_out_of_range_refuses(self):
+        """Every int pair the constant cannot hold refuses typed, with a
+        finite `value` — a denominator that is not positive, and parts
+        past 2^53 however wide — never an `OverflowError`."""
+        for num, den in [
+            (1, 0),
+            (1, -3),
+            (2**54, 1),
+            (1, 2**70),
+            (2**100, 3),
+            (-(2**64), 1),
+        ]:
+            with self.subTest(num=num, den=den):
+                with self.assertRaises(LiteralError) as caught:
+                    Formula.ratio(num, den)
+                self.assertEqual(caught.exception.kind, "constant_out_of_range")
+                self.assertTrue(math.isfinite(caught.exception.value))
+
+    def test_a_wide_pair_that_reduces_into_range_is_its_constant(self):
+        self.assertEqual(Formula.ratio(2**60, 2**10), Formula.ratio(2**50, 1))
+
+    def test_a_quarter_turn_is_a_right_angle(self):
+        turn = Formula.turn()
+        self.assertEqual(turn.dimension, "angle")
+        self.assertEqual(turn.text, "turn")
+        right = self.doc.eval(self.doc.parse_formula("turn/4"))
+        self.assertEqual(right.radians, math.pi / 2)
+
+
 class TestTheTextDoorRefusesTyped(unittest.TestCase):
     def setUp(self):
         self.doc = plate()
@@ -171,6 +216,7 @@ class TestTheTextDoorRefusesTyped(unittest.TestCase):
             "sin(1 rad, 2 rad)",
             "height",
             "1 m + 1 rad",
+            "2/3.5",
         ]:
             with self.subTest(source=source):
                 err = self.refusal(source)

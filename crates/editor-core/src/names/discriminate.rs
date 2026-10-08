@@ -83,47 +83,57 @@ pub(crate) struct Extent<T> {
     pub max: T,
 }
 
-/// Ranks `extents` along their carrier via the margined pairwise
-/// order `name_frag_order_along` (margin: gap between extents).
-/// Returns `rank[i]` (0-based); `None` when some pair is genuinely
-/// unordered (overlapping extents — the N2 tie); in-band escalates
-/// typed.
-pub(crate) fn order_along<T: Decide>(
-    extents: &[Extent<T>],
+/// Whether extent `i` lies certainly before `j` along their carrier
+/// (`Some(true)`), certainly after it (`Some(false)`), or neither:
+/// `i` before `j` iff `max(i) ≤ min(j)`, decided through
+/// `name_frag_order_along`. Touching extents count as ordered; two
+/// that overlap, or two equal points, do not. In-band escalates typed.
+pub(crate) fn extent_before<T: Decide>(
+    i: &Extent<T>,
+    j: &Extent<T>,
     b: Band,
+) -> Result<Option<bool>, NamingError> {
+    let ij = decide(ORDER_ALONG, Margin::of(j.min - i.max), b);
+    let ji = decide(ORDER_ALONG, Margin::of(i.min - j.max), b);
+    match (ij, ji) {
+        (Ok(Sign::Positive | Sign::Zero), Ok(Sign::Negative)) => Ok(Some(true)),
+        (Ok(Sign::Negative), Ok(Sign::Positive | Sign::Zero)) => Ok(Some(false)),
+        (Err(source), _) | (_, Err(source)) => Err(NamingError::Escalated {
+            predicate: ORDER_ALONG,
+            source,
+        }),
+        _ => Ok(None),
+    }
+}
+
+/// Ranks `n` candidates along their carrier by the pairwise order
+/// `before(i, j)` (`i < j`) answers, [`extent_before`]'s or one built
+/// on it: `rank[i]` (0-based), or `None` when some pair is unordered
+/// (the N2 tie) or the pairs do not make one strict order.
+pub(crate) fn rank_by(
+    n: usize,
+    mut before: impl FnMut(usize, usize) -> Result<Option<bool>, NamingError>,
 ) -> Result<Option<Vec<u32>>, NamingError> {
-    let n = extents.len();
     // A rank is a `u32`, and every count below is at most `n − 1`.
     super::emit::to_u32(n, "a ranked group has more members than a rank holds")?;
-    let mut before = vec![0u32; n]; // before[i] = #{j : j certified-before i}
+    let mut ahead = vec![0u32; n]; // ahead[i] = #{j : j certified-before i}
     for i in 0..n {
         for j in (i + 1)..n {
-            // i before j iff max(i) ≤ min(j) (certified positive gap);
-            // Zero (touching extents) counts as ordered too.
-            let ij = decide(ORDER_ALONG, Margin::of(extents[j].min - extents[i].max), b);
-            let ji = decide(ORDER_ALONG, Margin::of(extents[i].min - extents[j].max), b);
-            match (ij, ji) {
-                (Ok(Sign::Positive | Sign::Zero), Ok(Sign::Negative)) => before[j] += 1,
-                (Ok(Sign::Negative), Ok(Sign::Positive | Sign::Zero)) => before[i] += 1,
-                (Err(source), _) | (_, Err(source)) => {
-                    return Err(NamingError::Escalated {
-                        predicate: ORDER_ALONG,
-                        source,
-                    });
-                }
-                // Overlapping or doubly-zero extents: unordered.
-                _ => return Ok(None),
+            match before(i, j)? {
+                Some(true) => ahead[j] += 1,
+                Some(false) => ahead[i] += 1,
+                None => return Ok(None),
             }
         }
     }
     // A consistent strict order yields distinct ranks 0..n.
     let mut seen = vec![false; n];
-    for &r in &before {
+    for &r in &ahead {
         let ix = r as usize;
         if ix >= n || seen[ix] {
             return Ok(None);
         }
         seen[ix] = true;
     }
-    Ok(Some(before))
+    Ok(Some(ahead))
 }

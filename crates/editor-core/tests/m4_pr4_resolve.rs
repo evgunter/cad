@@ -1,5 +1,5 @@
 //! M4 PR 4 spec D1/D3: the N5 resolution ladder end to end —
-//! Resolved / Ambiguous (direct tie and the order_along over-tie
+//! Resolved / Ambiguous (direct tie and the `rank_by` over-tie
 //! widening) / NodeGone / Vanished with the verdict-diff diagnosis
 //! (PredicateFlip, StructuralParam, Cascade) + tombstones / typed
 //! Indeterminate — plus N3 offers, the rebind suggestion ladder, and
@@ -303,7 +303,7 @@ fn tied_name_resolves_ambiguous_with_the_tie_witness() {
     }
 }
 
-// ---- Ambiguous: the order_along over-tie widening (hand-built
+// ---- Ambiguous: the `rank_by` over-tie widening (hand-built
 // table — the emitter's over-tie row is the widened BASE name; a
 // reference to a RANKED name must widen to it, never mis-bind) ----
 

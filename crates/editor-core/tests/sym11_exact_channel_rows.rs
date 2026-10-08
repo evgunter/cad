@@ -52,7 +52,7 @@ const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
     ("r1_annulus", [566, 0, 399, 804]),
     ("r2_link", [347, 9, 259, 486]),
     ("r2_filleted_bracket", [623, 0, 464, 806]),
-    ("r2_rounded_pad", [340, 0, 276, 302]),
+    ("r2_rounded_pad", [340, 0, 277, 302]),
 ];
 
 /// The scale, in multiples of ε, a document with no measured refusal

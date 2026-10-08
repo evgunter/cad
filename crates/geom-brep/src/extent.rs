@@ -12,7 +12,12 @@
 //! every point the ball covers is at most the position datum plus the
 //! tilt levered there: a reader that bridges a residue decides that
 //! SUM, never the two terms one at a time (each just inside the band
-//! would sum to nearly twice it). The tightest lever reads the position
+//! would sum to nearly twice it). The section rows that serve a verdict
+//! beside such a datum read that sum on each verdict's own side
+//! (`decide_across` in `crate::intersect`): `pc_parallel_gap`,
+//! `cc_coaxial`, `cc_parallel_gap`, `tangent_locus_internal_gap`,
+//! `coc_coaxial`, `pt_spiric_two_ovals`, `pt_cap_gap` and
+//! `pn_apex_section`. The tightest lever reads the position
 //! datum at the pivot nearest the ball's centre ([`ExtentBall::foot_on`]
 //! for an axis), where the lever is little more than the ball's radius.
 //!
@@ -534,12 +539,19 @@ impl<T: Real> Reach<T> {
     /// measure, and a tilt the length leaves in the band served.
     #[must_use]
     pub fn lever_between(&self, line1: (Point3<T>, Vec3<T>), line2: (Point3<T>, Vec3<T>)) -> T {
-        let lever = |(origin, axis)| {
-            let pivot = self.foot_on(origin, axis);
-            self.lever_from(pivot)
-                .max((self.reading_point() - pivot).norm())
-        };
-        lever(line1).min(lever(line2))
+        self.foot_lever(line1).1.min(self.foot_lever(line2).1)
+    }
+
+    /// One line's half of [`Self::lever_between`]: the foot on the line
+    /// `origin + s·axis` ([`Self::foot_on`]) and its lever, floored at the
+    /// foot's distance from the reach's point.
+    #[must_use]
+    pub fn foot_lever(&self, (origin, axis): (Point3<T>, Vec3<T>)) -> (Point3<T>, T) {
+        let pivot = self.foot_on(origin, axis);
+        let lever = self
+            .lever_from(pivot)
+            .max((self.reading_point() - pivot).norm());
+        (pivot, lever)
     }
 }
 
