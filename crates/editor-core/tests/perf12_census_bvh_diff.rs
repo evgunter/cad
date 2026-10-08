@@ -123,23 +123,25 @@ fn torus_on_cylinder() -> ProfileDoc {
         u: [scl(1.0), scl(0.0), scl(0.0)],
         v: [scl(0.0), scl(1.0), scl(0.0)],
     }));
-    r.insert(Node::Tube {
+    let body = r.insert(Node::Tube {
         frame: spine.into(),
         major_radius: len(2.0),
         window: TubeWindow::Full,
         minor_radius: len(0.5),
     });
+    r.place(body);
     let plane = r.insert(frame([0.0, 0.0, -1.5], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let disc = r.insert(Node::Profile(ProfileProgram {
         plane: plane.into(),
         loops: vec![LoopProgram::circle_split(0.0, 0.0, 3.0, 3, 0.0).unwrap()],
         ids: Vec::new(),
     }));
-    r.insert(Node::Extrude {
+    let body = r.insert(Node::Extrude {
         profile: disc.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
+    r.place(body);
     r.doc
 }
 
@@ -156,22 +158,24 @@ fn boss_on_plate() -> ProfileDoc {
         ],
         ids: Vec::new(),
     }));
-    r.insert(Node::Extrude {
+    let body = r.insert(Node::Extrude {
         profile: plate.into(),
         distance: len(0.8),
         side: ExtrudeSide::Along,
     });
+    r.place(body);
     let boss_plane = r.insert(frame([0.0, 0.0, 0.8], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let boss = r.insert(Node::Profile(ProfileProgram {
         plane: boss_plane.into(),
         loops: vec![LoopProgram::circle_split(1.2, 1.7, 0.35, 3, 0.0).unwrap()],
         ids: Vec::new(),
     }));
-    r.insert(Node::Extrude {
+    let body = r.insert(Node::Extrude {
         profile: boss.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
+    r.place(body);
     r.doc
 }
 
@@ -186,11 +190,12 @@ fn tangent_cylinders() -> ProfileDoc {
             loops: vec![LoopProgram::circle_split(cx, 0.0, 1.0, 3, 0.0).unwrap()],
             ids: Vec::new(),
         }));
-        r.insert(Node::Extrude {
+        let body = r.insert(Node::Extrude {
             profile: disc.into(),
             distance: len(1.0),
             side: ExtrudeSide::Along,
         });
+        r.place(body);
     }
     r.doc
 }
@@ -210,10 +215,11 @@ fn loft_with_brick() -> ProfileDoc {
     let bottom = section(&mut r, 0.0, PRISM_SQUARE);
     let middle = section(&mut r, 1.0, PRISM_TRAPEZOID);
     let top = section(&mut r, 2.0, PRISM_SQUARE);
-    r.insert(Node::Loft {
+    let body = r.insert(Node::Loft {
         profiles: vec![bottom.into(), middle.into(), top.into()],
         v_degree: Formula::count(2),
     });
+    r.place(body);
     let brick_plane = r.insert(frame([0.0, 0.0, 2.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let brick = r.insert(Node::Profile(ProfileProgram {
         plane: brick_plane.into(),
@@ -222,11 +228,12 @@ fn loft_with_brick() -> ProfileDoc {
         ],
         ids: Vec::new(),
     }));
-    r.insert(Node::Extrude {
+    let body = r.insert(Node::Extrude {
         profile: brick.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
+    r.place(body);
     r.doc
 }
 
@@ -252,11 +259,12 @@ fn grazing_notch() -> ProfileDoc {
         ],
         ids: Vec::new(),
     }));
-    r.insert(Node::Extrude {
+    let body = r.insert(Node::Extrude {
         profile: l.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
+    r.place(body);
     let brick_plane = r.insert(frame([0.0, 0.0, 1.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let brick = r.insert(Node::Profile(ProfileProgram {
         plane: brick_plane.into(),
@@ -265,11 +273,12 @@ fn grazing_notch() -> ProfileDoc {
         ],
         ids: Vec::new(),
     }));
-    r.insert(Node::Extrude {
+    let body = r.insert(Node::Extrude {
         profile: brick.into(),
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
+    r.place(body);
     r.doc
 }
 

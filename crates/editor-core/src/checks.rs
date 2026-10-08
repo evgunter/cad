@@ -403,11 +403,11 @@ pub enum CheckEvidence {
     /// An expectation with no subject: `expected_components` carries
     /// an entry at this `(root, output_ix)` and no evaluated subject
     /// consumed it — the body vanished (a boolean may have consumed
-    /// the whole part) or the key names no root output. Expectations
+    /// the whole part) or the key names no placement output. Expectations
     /// are two-directional: an entry that binds nothing is stale, not
     /// silently ignored. (The DEFAULT expectation — no entry — binds
-    /// only existing subjects: a root that legitimately denotes zero
-    /// bodies with nothing stated about it stays clean.)
+    /// only existing subjects: a placement whose copy legitimately
+    /// holds no body, with nothing stated about it, stays clean.)
     StaleExpectation {
         /// The entry's stated component count.
         expected: u32,
@@ -566,9 +566,9 @@ impl crate::finding::Finding for SaidFinding<'_> {
             CheckEvidence::StaleExpectation { expected } => write!(
                 f,
                 "an expectation of {expected} component(s) has no subject: the body \
-                 vanished (a boolean may have consumed the part) or the key names no root \
-                 output. Recourse: remove the ChecksConfig::expected_components entry, or \
-                 fix the root"
+                 vanished (a boolean may have consumed the part) or the key names no \
+                 placement output. Recourse: remove the ChecksConfig::expected_components \
+                 entry, or fix the placement"
             ),
             CheckEvidence::NotSeparated {
                 other_root,
@@ -1057,10 +1057,13 @@ impl<T: Decide> Subject<'_, T> {
 ///
 /// [`ChecksError`] — an evaluation of another document, a root without
 /// a value in `ev`, a band the tolerance cannot form, or a document
-/// whose roots do not gather into a product for a resident that reads
+/// whose placements do not gather into a product for a resident that reads
 /// one. These mean the checks could not run at all; a check that ran
 /// and disagreed is a FINDING, not an error.
-pub fn run_checks<P: crate::ProfilePayload, T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane>(
+pub fn run_checks<
+    P: crate::ProfilePayload,
+    T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane,
+>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
@@ -1106,7 +1109,10 @@ pub fn run_checks<P: crate::ProfilePayload, T: Decide + AtRestPolicy + Certified
 /// enabled resident reads the subject and finds
 /// [`Subject::Unavailable`] — after the residents that read no subject
 /// have answered, so their refusals still come first.
-pub fn run_checks_on<P: crate::ProfilePayload, T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane>(
+pub fn run_checks_on<
+    P: crate::ProfilePayload,
+    T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherenceLane,
+>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     subject: Subject<'_, T>,

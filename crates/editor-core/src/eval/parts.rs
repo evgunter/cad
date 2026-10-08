@@ -381,7 +381,6 @@ impl PartFault {
                     refusal.error().bare_said(by)
                 )?;
                 match product_recourse(refusal.kind()) {
-                    ProductRecourse::InThePart(action) => write!(f, ". {}", InThePart(action)),
                     ProductRecourse::KernelDefect => {
                         write!(f, ". {}", geom_core::KERNEL_DEFECT_ENDING)
                     }
@@ -463,9 +462,6 @@ impl<A: core::fmt::Display> core::fmt::Display for InThePart<A> {
 
 /// What a part with no product states after the gather's own sentence.
 enum ProductRecourse {
-    /// The repair is in the part, and the gather's sentence does not
-    /// say what it is.
-    InThePart(&'static str),
     /// The gather's sentence already states the one recourse: its own,
     /// or the kernel refusal it forwards.
     Carried,
@@ -480,9 +476,12 @@ enum ProductRecourse {
 fn product_recourse(kind: crate::product::ProductErrorKind) -> ProductRecourse {
     use crate::product::ProductErrorKind as K;
     match kind {
-        K::EmptyProduct => ProductRecourse::InThePart("place a body in its world"),
-        K::StrandedPlacement => ProductRecourse::InThePart("repair the placement there"),
-        K::Unplaced | K::Graft | K::RootInvalid | K::ProductInvalid => ProductRecourse::Carried,
+        K::EmptyProduct
+        | K::StrandedPlacement
+        | K::Unplaced
+        | K::Graft
+        | K::RootInvalid
+        | K::ProductInvalid => ProductRecourse::Carried,
         K::ContactLineage
         | K::EvaluationOfAnotherDocument
         | K::UnknownNode

@@ -1,7 +1,7 @@
-//! **The gather's at-rest refusal names the roots whose bodies fail.**
+//! **The gather's at-rest refusal names the placements whose copies fail.**
 //!
 //! The product is gated once, as the aggregate; a refusal re-gates each
-//! source body on its own and lists every one that fails, by root and
+//! source body on its own and lists every one that fails, by placement and
 //! output index (`ProductError::RootInvalid`). These rows hold the
 //! attribution, over the shapes a document can hand the gather: one
 //! source of one solid, two sources, one source of several solids, and
@@ -21,8 +21,9 @@
 use crate::fixture;
 use editor_core::ExtrudeSide;
 use editor_core::{
-    BooleanValue, CancelToken, DocEdit, DocumentId, EvalOptions, Evaluation, Frame,
-    Node, NodeResult, ProductError, ProfileDoc, RecipeNodeId, SourceFinding, ValuePayload, evaluate, product_recorded,
+    BooleanValue, CancelToken, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Node,
+    NodeResult, ProductError, ProfileDoc, RecipeNodeId, SourceFinding, ValuePayload, evaluate,
+    product_recorded,
 };
 use fixture::resolver::{PartStore, with_resolver};
 use fixture::{insert, len, on_frame, square, step};
@@ -135,39 +136,45 @@ fn turn_inside_out(ev: &mut Evaluation<f64>, node: RecipeNodeId) {
     *body = Arc::new(reversed);
 }
 
-/// The refusal's findings, as (root, output) pairs, in list order.
+/// The refusal's findings, as (placement, output) pairs, in list order.
 fn named(err: &ProductError) -> Vec<(RecipeNodeId, u32)> {
     let ProductError::RootInvalid { findings } = err else {
-        panic!("want the per-root refusal, got {err:?}");
+        panic!("want the per-placement refusal, got {err:?}");
     };
     assert!(
         findings.iter().all(|f| !f.errors.is_empty()),
-        "every listed root carries its findings: {findings:?}"
+        "every listed placement carries its findings: {findings:?}"
     );
     findings.iter().map(|f| (f.node, f.output)).collect()
 }
 
 /// **One source of one solid**: the part and the aggregate are the
-/// same body, and the refusal names that root rather than the product.
+/// same body, and the refusal names that placement rather than the product.
 #[test]
 fn a_lone_single_solid_source_is_named() {
     let (doc, a) = block(ProfileDoc::empty_derived("per-part-1", Tol::witness()), 0.0);
     let mut ev = run(&doc);
     assert_eq!(flip_one_face(&mut ev, a), 1);
-    let err = product_recorded(&doc, &ev, Tol::witness()).expect_err("an invalid root refuses");
+    let err =
+        product_recorded(&doc, &ev, Tol::witness()).expect_err("an invalid placement refuses");
     assert_eq!(named(&err), [(a, 0)]);
 }
 
 /// **Two single-solid sources, one inside-out**: the refusal names the
-/// failing root and not the clean one beside it.
+/// failing placement and not the clean one beside it.
 #[test]
 fn two_sources_name_only_the_failing_one() {
     let (doc, _a) = block(ProfileDoc::empty_derived("per-part-2", Tol::witness()), 0.0);
     let (doc, b) = block(doc, 5.0);
     let mut ev = run(&doc);
     assert_eq!(flip_one_face(&mut ev, b), 1);
-    let err = product_recorded(&doc, &ev, Tol::witness()).expect_err("an invalid root refuses");
-    assert_eq!(named(&err), [(b, 0)], "the refusal names the inverted root");
+    let err =
+        product_recorded(&doc, &ev, Tol::witness()).expect_err("an invalid placement refuses");
+    assert_eq!(
+        named(&err),
+        [(b, 0)],
+        "the refusal names the inverted placement"
+    );
 }
 
 /// A one-solid part document, for the store the sub-assembly reads.
@@ -215,18 +222,19 @@ fn a_lone_multi_solid_source_is_named() {
         2,
         "the one source holds two solids"
     );
-    let err = product_recorded(&doc, &ev, Tol::witness()).expect_err("an invalid root refuses");
+    let err =
+        product_recorded(&doc, &ev, Tol::witness()).expect_err("an invalid placement refuses");
     assert_eq!(named(&err), [(source, 0)]);
 }
 
-/// **The cascade the re-gate exists for.** Root `a` has one face's
-/// sense flipped (a check 1–6 finding, `LoopRoleInverted`); root `b` is
+/// **The cascade the re-gate exists for.** Placement `a` has one face's
+/// sense flipped (a check 1–6 finding, `LoopRoleInverted`); placement `b` is
 /// wholly inside out (a check 7 finding, `NegativeVolume`). Gated as
 /// one body, the battery's check 7 never runs once an earlier check has
 /// found anything, so the aggregate's own list reports `a`'s defect and
 /// not `b`'s. The refusal names BOTH, each with its own finding.
 #[test]
-fn a_defect_that_stops_check_7_does_not_hide_another_roots_inside_out_body() {
+fn a_defect_that_stops_check_7_does_not_hide_another_placements_inside_out_body() {
     let (doc, a) = block(ProfileDoc::empty_derived("per-part-4", Tol::witness()), 0.0);
     let (doc, b) = block(doc, 5.0);
     let mut ev = run(&doc);
@@ -254,8 +262,8 @@ fn a_defect_that_stops_check_7_does_not_hide_another_roots_inside_out_body() {
         "the aggregate's own list hides b's inside-out body: {together:?}"
     );
 
-    let err = product_recorded(&doc, &ev, Tol::witness()).expect_err("invalid roots refuse");
-    assert_eq!(named(&err), [(a, 0), (b, 0)], "both roots are named");
+    let err = product_recorded(&doc, &ev, Tol::witness()).expect_err("invalid placements refuse");
+    assert_eq!(named(&err), [(a, 0), (b, 0)], "both placements are named");
     let ProductError::RootInvalid { findings } = &err else {
         unreachable!("`named` read this arm");
     };
@@ -274,13 +282,13 @@ fn a_defect_that_stops_check_7_does_not_hide_another_roots_inside_out_body() {
     let text = err.to_string();
     assert!(
         text.contains(&format!(
-            "root {} output 0",
+            "placement {} output 0",
             test_utils::refusal::tag(a.0.digest())
         )) && text.contains(&format!(
-            "root {} output 0",
+            "placement {} output 0",
             test_utils::refusal::tag(b.0.digest())
         )),
-        "the message names both roots: {text}"
+        "the message names both placements: {text}"
     );
 }
 
@@ -296,4 +304,3 @@ fn flipped(body: &Body<f64>) -> Arc<Body<f64>> {
     );
     Arc::new(out)
 }
-
