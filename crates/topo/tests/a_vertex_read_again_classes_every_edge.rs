@@ -754,6 +754,66 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
                 ));
             }
         }
+        // Review 2 (PR 4289): a flat crown top with one corner dented
+        // 2e-7 m beside a 1 mm edge, probed by pyramids whose top edge
+        // runs 2e-7 rad under the top (exemption (a) in `cone_side`).
+        let rv2_dir = |a: f64, z: f64, l: f64| [l * a.cos(), l * a.sin(), l * z];
+        let rv2_ring = vec![
+            rv2_dir(-0.01, 1.5e-5 * 0.06f64.sin(), 0.4),
+            rv2_dir(0.05, 0.0, 1e-3),
+            rv2_dir(0.5, 0.0, 0.4),
+            rv2_dir(2.0, 3e-7, 0.4),
+            rv2_dir(3.5, -3e-7, 0.4),
+            rv2_dir(5.0, 3e-7, 0.4),
+        ];
+        // The B-C face's height over z = 0 along bearing `a`, per unit.
+        let rv2_bc = |a: f64| {
+            let (b, c) = (rv2_dir(0.5, 0.0, 1.0), rv2_dir(2.0, 3e-7, 1.0));
+            let n = [
+                b[1] * c[2] - b[2] * c[1],
+                b[2] * c[0] - b[0] * c[2],
+                b[0] * c[1] - b[1] * c[0],
+            ];
+            -(a.cos() * n[0] + a.sin() * n[1]) / n[2]
+        };
+        let rv2_b = posed_crown(&rv2_ring, [0.0, 0.0, -0.6], &pose, t());
+        let rv2_g = G::Crown(rv2_ring.clone());
+        let rv2_void_b = built("rv2 crown void", subtract(&block_b, &rv2_b, t()));
+        let rv2_void_g = dd(G::All, rv2_g.clone());
+        let rv2_probes: Vec<_> = [
+            (0.6, 1.0),
+            (0.8, 1.0),
+            (1.0, 1.0),
+            (1.2, 1.0),
+            (0.6, -1.0),
+            (1.0, -1.0),
+        ]
+        .iter()
+        .map(|&(a, s): &(f64, f64)| {
+            pyr([
+                rv2_dir(a, rv2_bc(a) - 2e-7 * s, 0.5),
+                rv2_dir(a + 0.3 * s, -0.6 * s, 0.5),
+                rv2_dir(a - 0.3 * s, -0.6 * s, 0.5),
+            ])
+        })
+        .collect();
+        let rv2_labels: Vec<&'static str> = (0..rv2_probes.len())
+            .flat_map(|k| {
+                [
+                    format!("rv2 dented crown, probe {k}"),
+                    format!("rv2 dented crown void, probe {k}"),
+                ]
+            })
+            .map(|l| &*Box::leak(l.into_boxed_str()))
+            .collect();
+        for (k, probe) in rv2_probes.iter().enumerate() {
+            scenes.push((rv2_labels[2 * k], pick(probe), (&rv2_b, &rv2_g)));
+            scenes.push((
+                rv2_labels[2 * k + 1],
+                pick(probe),
+                (&rv2_void_b, &rv2_void_g),
+            ));
+        }
         let dents = ["-1e-3", "+1e-3", "-ten zero bands", "+ten zero bands"];
         let labels: Vec<_> = dents
             .iter()
@@ -779,6 +839,9 @@ fn every_edge_a_vertex_read_again_reads_is_classed_against_the_germ() {
             ]);
         }
         for (label, x, y) in scenes {
+            if std::env::var("RV2_ONLY").is_ok() && !label.starts_with("rv2") {
+                continue;
+            }
             if !tallies.contains_key(label) {
                 order.push(label);
             }
