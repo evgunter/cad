@@ -728,3 +728,25 @@ coincidence is now a margined verdict (no declarations), checked by the
 - **Fix dispatched** on the same branch: pass `RootSlack`, measure the `conic_quadric` sibling (also `None`), rows red first, and a later-escape line under DR-54.
 - **Tier:** single review. The fix follows an existing door's reviewed pattern.
 - **Not a later escape of DR-16 (PR 3375):** that unit carried a root slack, and the regression came after it.
+
+## 2026-10-08 — the cone sector chain is specified; U-S1/2/6 dispatched
+
+The spec is `docs/GERM-CONE-SECTOR-SPEC.md` on `germ/cone-sector-spec` (`6a3dd12beb`), measured on 20 poses × 6 ops.
+
+- **The chain, with `Cone` on the rosters:**
+  - **D1** `sector_face`, and **D2** the vtxfac pierce normal;
+  - **D3** `pair_section_frame_at` NoArm. This one was missing from the item's chain;
+  - **D4** `bool_connect` `no_arm`;
+  - **D5** the planar chord spec;
+  - **D6** U4's guard;
+  - **D7** the ring volume.
+- **No wrong body on main.** With every door forced open, 51 bodies came back, all correct.
+- **D10:** nothing U7 needs is held. HELD are the tangent-lump second-order reading (declared-`Tangent` only) and a cone sector on a curved face (the `Rest` ladder). Both stay typed refusals and park on `d10-one-way-to-say-intent-is-unbuilt`.
+- **Rulings:**
+  - **Q1:** U-S3+U-S4 replace VERBS-CONE's U8.
+  - **Q2 ⚑ (cutting a cone through its apex):** a permanent typed refusal for now. Ev is asked only if a customer case needs it.
+  - **Q3/Q4:** the implementer's call.
+  - **Q5:** U-S5 after U7; U7 pins T1's ∪ refusal.
+  - **Q6:** U-H2 is probably the coincidence work's.
+  - **Q7:** the item's chain is corrected by the spec.
+- **Dispatched:** U-S1 (the cone pierce normal and its lever), U-S2 (the sector normal and apex refusal) and U-S6 (the near-apex NaN), as one PR with a single review. U-S3+U-S4 (the frame and the join lane; dual) follow when a lane frees.
