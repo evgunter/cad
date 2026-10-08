@@ -2476,6 +2476,22 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
         v_off: cross(image.v_off),
         v_sign: cross(image.v_sign),
     };
+    // An endpoint of a bracket that does not certify is an ordinary
+    // number, not a bound: every read here asks first, and refuses.
+    let lower = |v: geom_core::Interval| {
+        if v.is_certified() {
+            Ok(v.lo())
+        } else {
+            Err(refuse("a hull bound does not certify"))
+        }
+    };
+    let upper = |v: geom_core::Interval| {
+        if v.is_certified() {
+            Ok(v.hi())
+        } else {
+            Err(refuse("a hull bound does not certify"))
+        }
+    };
     let knots = image.breaks.knots();
     let pieces = (0..image.pieces())
         .map(|k| {
@@ -2486,16 +2502,16 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                 geom_core::Interval::from_bounds(b, b),
             );
             let tube_lo = match lifted.chart {
-                ProjectedChart::Torus { major } => lifted.tube_box(k, &fb, major).0.0.lo(),
+                ProjectedChart::Torus { major } => lower(lifted.tube_box(k, &fb, major).0.0)?,
                 _ => f64::INFINITY,
             };
-            PieceHull {
+            Ok(PieceHull {
                 range: (a, b),
-                x_lo: fb.x.0.lo(),
+                x_lo: lower(fb.x.0)?,
                 tube_lo,
-            }
+            })
         })
-        .collect();
+        .collect::<Result<_, PcurveCertifyError>>()?;
     let form = match *twin {
         Surface::Plane { .. } => CanonicalSurface::Plane,
         Surface::Cylinder { radius, .. } => CanonicalSurface::Cylinder {
@@ -2571,14 +2587,14 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                 .map_or(f64::NAN, |i| whole_sup[i]);
             let (rho, z) =
                 projected::part_floors(&projected::piece_controls(&twin_net, range.0, range.1));
-            SpanHull {
+            Ok(SpanHull {
                 range,
                 f_sup: part.min(whole),
-                rho_lo: rho.lo(),
-                z: (z.0.lo(), z.1.hi()),
-            }
+                rho_lo: lower(rho)?,
+                z: (lower(z.0)?, upper(z.1)?),
+            })
         })
-        .collect();
+        .collect::<Result<_, PcurveCertifyError>>()?;
     Ok(ProjectedHull { pieces, spans })
 }
 
