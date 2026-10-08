@@ -7,7 +7,6 @@ opened: 2026-10-04
 priority: P2
 cost: H
 design: true
-refs: [limb3-at-rest-proves-the-graph-not-the-arc]
 ---
 
 

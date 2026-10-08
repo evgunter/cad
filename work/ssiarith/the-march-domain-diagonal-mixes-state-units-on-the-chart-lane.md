@@ -6,7 +6,6 @@ status: open
 opened: 2026-10-03
 priority: P3
 cost: M
-refs: [ssi-step-max-is-a-sampling-heuristic, ssi-step-rungs-mix-state-and-carrier-units]
 ---
 
 (SSI implementer on `ssi/step-max-certify`, from PR 3998's review,

@@ -3,6 +3,7 @@ id: ssi-unsupported-certificate-carries-faults-that-are-not-boundaries
 kind: issue
 title: geom-brep: SsiError::UnsupportedCertificate is raised for kernel faults and a degenerate operand as well as per-arm boundaries, so those sites end in no way through yet
 status: open
+priority: P3
 opened: 2026-10-02
 ---
 
