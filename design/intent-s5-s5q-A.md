@@ -111,3 +111,27 @@ The principle underneath is the stratum, so the text should say stratum.
 - I did not read §11.
 - **Off-question.**
   - An assertion inside a part that is instanced several times cannot quiet its copies' findings under this rule (one assertion is needed per copy pair). This is worth a row when stage 3 lands.
+
+## Round 2
+
+I adopt B's framing: a holding assertion quiets a finding when it **entails** it, meaning everything the assertion admits lies in the finding's stratum. "Entails" is the right word for the principle my report called "commits to the stratum". Taking that principle seriously settles point 1 in my favour, and I move on point 3.
+
+1. **Which measures can quiet: hold (`Gap` only, over an opposed pair).** The argument is B's own entailment test, applied per arm.
+   - **`Distance` on two cylinders.** It is the axis offset, so `Distance = 0` holds for a coaxial clearance fit as much as for a contact. It no more entails contact than `≥ 0` does, which B rejects for exactly that reason.
+   - **`Gap` over an aligned pair** (two tops, two pins). The sign of the gap does not mean overlap. A block sitting with clearance in a pocket 1 mm below the plate's top gives `Gap(A.top, B.top) = −1 mm`, which would entail "interference" where nothing overlaps.
+   - So B's stratum table, filled in honestly, has a single row: `Gap` over an opposed pair. B's argument that "the verdict carries the role check" covers swapped roles, not aligned faces.
+   - I keep B's home for it: a stratum entry on the primitive, beside `dim()`, keyed by arm and face sense. Any future signed primitive adds a row there.
+   - **Is this a choice for Ev?** No. Each side's own principle decides it.
+2. **An interference's site: hold, but this one is a choice for Ev.** B's rule (the assertion names one bounding face of each copy) hides the sunk flange: the bore/bushing assertion quiets an overlap that also holds a 0.1 mm flange sink nobody stated. B's answer is that "the faces are listed". But a quiet finding is not read, and keeping such overlaps visible is what the finding is for. There are three candidates, from loosest to strictest:
+   - **B-base** (one face of each copy): hides the flange. Cost: name lookups.
+   - **B-strict** (the tightening B itself names: every opposed `Gap`-measurable pair bounding the overlap must be asserted). It catches the flange at the same cost as B-base. It still misses an incursion with no `Gap` arm, such as a pin's chamfer cone biting into the bore's edge.
+   - **Mine** (every bounding piece lies between the carriers of one holding asserted pair). It catches both. Cost: enclosures over the bounding pieces, measured, and only on pairs that have a candidate assertion.
+   - **I would accept B-strict as the build** if mine measures too slow on the heat sink. **I would not accept B-base.**
+   - Reversal costs are asymmetric. Loosening later quiets findings deliberately, at the cost of a line of text. Tightening later turns loud, in authored documents, overlaps that were real all along.
+3. **A contact's site: move to B (exactly the two cells the record names).** B's objection was to incident faces, which I never proposed. My structural-carrier widening only quiets more, so it is the safe one to add later as a separate step. Starting exact costs one extra assertion per coplanar face that is split by a feature. That is not worth bringing stage 4's door into stage 5.
+4. **An overlap the kernel cannot intersect: hold (a loud interference that no assertion can quiet, naming the intersection's refusal); a minor choice for Ev.** The census did look, and it decided the overlap exists; only localization failed. Calling that "could not look" is wrong in fact. It would also refuse at Warn a decided overlap that the user cannot fix: for example, a press fit whose carrier pair has no join arm. Either side is a one-line change to reverse, and the difference is only which severity refuses the finding.
+5. **Spelling zero: hold, as a separate small proposal.** It does not block this fork: until it lands, "zero" is a free `0 mm` variable, and the stratum test reads its sign at rest. B did not argue against it.
+
+**The D10 sentence I would now propose:**
+
+> A finding is quiet exactly when holding assertions entail it: each reads a measure's output directly, over cells of the finding's two copies, and admits only values that mean what the finding observed — today only C5's `Gap` over an opposed pair has such values: `= 0` for a contact, `≤ b` or `= b` with `b` negative for an interference. A contact's cells are the two the census found coincident; an interference is one connected overlap of the two copies' material, quiet when every face bounding it lies between the carriers of an asserted pair; an overlap the kernel cannot bound is loud.
