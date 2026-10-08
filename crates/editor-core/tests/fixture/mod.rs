@@ -499,6 +499,80 @@ pub fn place_all(doc: ProfileDoc, bodies: &[RecipeNodeId]) -> ProfileDoc {
     bodies.iter().fold(doc, |doc, &body| place(doc, body).0)
 }
 
+/// **`cut` and the world placements of what it moves**: every
+/// placement whose body a cut node defines, added to the cut, as a
+/// split moves a body with its placements (a part delivers only its
+/// world).
+pub fn with_placements(
+    doc: &ProfileDoc,
+    cut: &std::collections::BTreeSet<RecipeNodeId>,
+) -> std::collections::BTreeSet<RecipeNodeId> {
+    let mut out = cut.clone();
+    for placement in doc.placements() {
+        if let Some(Node::PlaceInWorld { body, .. }) = doc.node(placement)
+            && doc.operation_of(*body).is_some_and(|at| cut.contains(&at))
+        {
+            out.insert(placement);
+        }
+    }
+    out
+}
+
+/// [`editor_core::split`] of `cut` with the placements of what it
+/// moves ([`with_placements`]).
+///
+/// # Errors
+///
+/// The split's own refusal.
+pub fn split_world(
+    doc: &ProfileDoc,
+    cut: &std::collections::BTreeSet<RecipeNodeId>,
+    part_id: editor_core::DocumentId,
+    tol: Tol,
+    resolver: Option<&std::sync::Arc<dyn editor_core::PartResolver>>,
+) -> Result<editor_core::SplitOutcome, editor_core::SplitError> {
+    editor_core::split(doc, &with_placements(doc, cut), part_id, tol, resolver)
+}
+
+/// **A world the gather refuses while every copy evaluates**: one
+/// instance of a placed block, its group unplaced (no offset), placed
+/// at the identity. Its copy lives in the group's own space, so the
+/// world holds no copy and the gather refuses
+/// [`editor_core::ProductError::Unplaced`], while the placement itself
+/// evaluates. Answers the document and the options that resolve its
+/// part.
+pub fn unplaced_world(id: &str) -> (ProfileDoc, EvalOptions) {
+    let mut store = resolver::PartStore::default();
+    let part = ProfileDoc::empty_derived(&format!("{id}-part"), Tol::witness());
+    let (part, profile) = on_frame(
+        part,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![square(0.0, 0.0, 0.5)],
+    );
+    let (part, body) = insert(
+        part,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: editor_core::ExtrudeSide::Along,
+        },
+    );
+    let (part_ref, _) = store.insert_part((part, body), Tol::witness());
+    let doc = ProfileDoc::empty_derived(id, Tol::witness());
+    let (doc, instance) = insert(doc, Node::instantiate_part(part_ref));
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetOffset {
+            instance,
+            offset: None,
+            fresh: Vec::new(),
+        },
+    );
+    (place(doc, instance).0, resolver::with_resolver(store))
+}
+
 /// **The refusal inserting `node` into `doc` meets**, for a row about
 /// what the insert door refuses.
 ///

@@ -25,10 +25,10 @@ use crate::docm7_union_declare::block;
 use editor_core::{
     DocEdit, DocumentId, EvalOptions, Formula, FreeVar, InlineError, Node, ProfileDoc,
     RecipeNodeId, ResolveFault, RoleSeg, SitedRef, SplitError, StableName, VarName, content_pin,
-    inline, load, product_named, save, split,
+    inline, load, product_named, save,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{desc, insert, len, on_frame, run, square, step, xy_frame};
+use fixture::{desc, insert, len, on_frame, run, split_world as split, square, step, xy_frame};
 use geom_core::Tol;
 use std::sync::Arc;
 
@@ -52,7 +52,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(cx, 0.0, side / 2.0)],
     );
-    let (doc, _) = insert(
+    let (doc, body) = insert(
         doc,
         Node::Extrude {
             profile: profile.into(),
@@ -60,7 +60,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
             side: ExtrudeSide::Along,
         },
     );
-    doc
+    fixture::place(doc, body).0
 }
 
 /// A two-group assembly: two instances of `doc_ref`, the second at
@@ -85,7 +85,7 @@ fn two_group_assembly(label: &str) -> (PartStore, ProfileDoc, Vec<RecipeNodeId>)
             fresh: Vec::new(),
         },
     );
-    (store, doc, ids)
+    (store, fixture::place_all(doc, &ids), ids)
 }
 
 /// The structural census the A4 identity compares: solids, faces,

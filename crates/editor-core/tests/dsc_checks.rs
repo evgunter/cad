@@ -62,13 +62,14 @@ fn slab(doc: ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64) -> (ProfileDoc, Reci
     )
 }
 
-/// Two disjoint unit cubes, deliberately united: one root, one body,
-/// two components.
+/// Two disjoint unit cubes, deliberately united and placed: one copy,
+/// one body, two components. Answers the placement, the checks'
+/// subject.
 fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-disjoint", Tol::witness());
     let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
     let (doc, b) = slab(doc, 3.0, 0.5, 0.0, 1.0);
-    insert(
+    let (doc, result) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Union,
@@ -76,7 +77,8 @@ fn disjoint_union() -> (ProfileDoc, RecipeNodeId) {
             b: b.into(),
             declare: Vec::new(),
         },
-    )
+    );
+    fixture::place(doc, result)
 }
 
 /// `A ∖ B` with `B` strictly inside `A`: the void birth — one
@@ -85,7 +87,7 @@ fn voided() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-voided", Tol::witness());
     let (doc, a) = slab(doc, 0.0, 1.5, 0.0, 3.0);
     let (doc, b) = slab(doc, 0.0, 0.5, 1.0, 1.0);
-    insert(
+    let (doc, result) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Subtract,
@@ -93,7 +95,8 @@ fn voided() -> (ProfileDoc, RecipeNodeId) {
             b: b.into(),
             declare: Vec::new(),
         },
-    )
+    );
+    fixture::place(doc, result)
 }
 
 fn checks(doc: &editor_core::ProfileDoc, cfg: &ChecksConfig) -> ChecksReport {
@@ -221,7 +224,7 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-annihilated", Tol::witness());
     let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
     let (doc, b) = slab(doc, 3.0, 0.5, 0.0, 1.0);
-    insert(
+    let (doc, result) = insert(
         doc,
         Node::Boolean {
             op: BooleanOp::Intersect,
@@ -229,7 +232,8 @@ fn annihilated() -> (ProfileDoc, RecipeNodeId) {
             b: b.into(),
             declare: Vec::new(),
         },
-    )
+    );
+    fixture::place(doc, result)
 }
 
 #[test]
@@ -302,7 +306,8 @@ fn in_band_shell_escalates_typed_never_guessed() {
     let tol = Tol::witness();
     let dz = (1.0 + tol.k()) * tol.eps();
     let doc = ProfileDoc::empty_derived("dsc-checks-thin", Tol::witness());
-    let (doc, root) = slab(doc, 0.0, 0.5, 0.0, dz);
+    let (doc, thin) = slab(doc, 0.0, 0.5, 0.0, dz);
+    let (doc, root) = fixture::place(doc, thin);
     let report = checks(&doc, &ChecksConfig::default());
     // Exactly one finding: the typed escalation. NEVER a counted
     // verdict — an in-band orientation is not guessed to a side (F6).
@@ -340,7 +345,8 @@ fn in_band_shell_escalates_typed_never_guessed() {
 /// `V/A` is negative and in band, so its role does not read, and the
 /// Boolean door's result gate (tier 3) refuses the union naming that
 /// shell (check 10's `ShellRoleUndecided`): a solid whose shells cannot
-/// be wound is not built, so the checks run stops at the failed root.
+/// be wound is not built, so the checks run stops at its placement,
+/// poisoned through it.
 /// The refusal carries the escalation, and a margin on a side the
 /// decision accepts ends valued at `|m|/K`.
 ///
@@ -377,12 +383,17 @@ fn in_band_void_shell_escalates_with_its_valued_ending() {
             declare: Vec::new(),
         },
     );
+    let (doc, placement) = fixture::place(doc, root);
     let ev = run(&doc);
     let refused = run_checks(&doc, &ev, &ChecksConfig::default(), tol)
         .expect_err("the door refuses a solid whose cavity has no role");
     assert!(
-        matches!(&refused, ChecksError::Root(editor_core::NodeStanding::Failed { node }) if *node == root),
-        "expected the failed root, got: {refused:?}"
+        matches!(
+            &refused,
+            ChecksError::Root(editor_core::NodeStanding::Poisoned { node, through })
+                if *node == placement && *through == root
+        ),
+        "expected the placement poisoned through the failed boolean, got: {refused:?}"
     );
     let failed = ev.node_error(root).expect("the root's refusal");
     let editor_core::NodeErrorKind::Boolean(topo::BooleanError::ResultInvalid { errors }) =
@@ -478,13 +489,15 @@ fn a_findings_attribution_resolves_to_its_subject() {
 // - `Error` refuses at `enforce_checks` and nowhere else;
 // - the report is deterministic across runs.
 
-/// Two slabs as two SEPARATE product roots (no boolean joining them),
-/// `b` centered at `cx`. The gather lists both as sinks, which is
-/// exactly the shape a recipe grows when a feature is left dangling.
+/// Two slabs placed as two SEPARATE copies (no boolean joining them),
+/// `b` centered at `cx`: the two placements, the shape a document
+/// grows when a body is placed beside what it was meant to join.
 fn two_roots(cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("dsc-checks-two-roots", Tol::witness());
     let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
     let (doc, b) = slab(doc, cx, 0.5, 0.0, 1.0);
+    let (doc, a) = fixture::place(doc, a);
+    let (doc, b) = fixture::place(doc, b);
     (doc, a, b)
 }
 
@@ -512,11 +525,11 @@ fn overlapping_roots_are_one_finding_naming_both() {
     // is about.
     let rendered = report.findings[0].to_string();
     assert!(
-        rendered.contains(&format!("root {}", test_utils::refusal::tag(a.0.digest()))),
+        rendered.contains(&format!("placement {}", test_utils::refusal::tag(a.0.digest()))),
         "{rendered}"
     );
     assert!(
-        rendered.contains(&format!("root {}", test_utils::refusal::tag(b.0.digest()))),
+        rendered.contains(&format!("placement {}", test_utils::refusal::tag(b.0.digest()))),
         "{rendered}"
     );
     // And it denies the CERTIFICATE — it never claims the two overlap,
@@ -623,40 +636,10 @@ fn separation_off_is_visibly_skipped_and_independent() {
     // half a document that gathers cannot show: a document whose
     // gather REFUSES still reports, because with the only
     // subject-reading resident off there is nothing to gather for.
-    // Two `Transform`s of one extrude are two roots whose name rows
-    // collide in the product table.
-    let doc = ProfileDoc::empty_derived("dsc-checks-collide", Tol::witness());
-    let (doc, profile) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(0.0, 0.0, 0.5)],
-    );
-    let (doc, extrude) = insert(
-        doc,
-        Node::Extrude {
-            profile: profile.into(),
-            distance: len(1.0),
-            side: ExtrudeSide::Along,
-        },
-    );
-    let moved = |doc, dx: f64| {
-        insert(
-            doc,
-            Node::transform(
-                extrude,
-                editor_core::Step::Rigid {
-                    translation: [len(dx), len(0.0), len(0.0)],
-                    axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    angle: ang(0.0),
-                },
-            ),
-        )
-    };
-    let (doc, _) = moved(doc, 3.0);
-    let (doc, _) = moved(doc, 6.0);
-    let ev = run(&doc);
+    // An instance whose group nothing places, placed: the world holds
+    // no copy and the gather refuses, while the copy evaluates.
+    let (doc, opts) = fixture::unplaced_world("dsc-checks-unplaced");
+    let ev = fixture::run(&doc, &opts);
     assert!(
         editor_core::product_recorded(&doc, &ev, Tol::witness()).is_err(),
         "the premise: this document's gather refuses"
@@ -798,14 +781,15 @@ fn washer() -> (ProfileDoc, RecipeNodeId) {
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],
     );
     let (doc, axis) = insert(doc, fixture::axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
-    insert(
+    let (doc, washer) = insert(
         doc,
         Node::Revolve {
             profile: p.into(),
             axis: axis.into(),
             angle: ang(std::f64::consts::TAU),
         },
-    )
+    );
+    fixture::place(doc, washer)
 }
 
 /// Only the chart-coherence resident, at `knob`.
@@ -969,7 +953,7 @@ fn a_coherence_measurement_renders_its_length_and_its_band() {
     };
     let rendered = finding.to_string();
     assert!(
-        rendered.contains("check chart-coherence: root 000000000004 output 1"),
+        rendered.contains("check chart-coherence: placement 000000000004 output 1"),
         "{rendered}"
     );
     assert!(

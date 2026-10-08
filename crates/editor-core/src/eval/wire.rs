@@ -4259,7 +4259,8 @@ fn wire_transform<T: Decide + topo::AtRestPolicy>(
 /// **A world placement** (A10): the body read, at port `port` of the
 /// operation `of`, placed at `pose` as one copy named under this node
 /// ([`names::name_placed`]). A split's half is its port, as a read of
-/// any port is that output.
+/// any port is that output. A boolean's empty result places as itself:
+/// an empty copy, a typed success (F8) the gather finds no solid in.
 fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     of: RecipeNodeId,
@@ -4271,6 +4272,12 @@ fn wire_place_in_world<T: Decide + topo::AtRestPolicy>(
 ) -> OpResult<T> {
     let value = value_of(results, of)?;
     let (body, index) = match &value.payload {
+        ValuePayload::Boolean(BooleanValue::Empty) => {
+            return Ok(OpOut::plain(
+                ValuePayload::Boolean(BooleanValue::Empty),
+                names::empty(),
+            ));
+        }
         ValuePayload::Split { above, below } => {
             let half = if port == 0 {
                 SplitHalf::Above

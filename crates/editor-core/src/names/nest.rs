@@ -1920,6 +1920,7 @@ pub(super) mod tests {
                 R::Rim(r(b)),
                 R::HoleRim { of: r(a), hole: 4 },
                 R::InPart { of: r(b) },
+                R::Placed { of: r(a) },
                 R::Instance { i: 5, of: r(a) },
             ]
         }};
