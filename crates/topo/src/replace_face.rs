@@ -15,6 +15,15 @@
 //! part: the offset is a statement about the SURFACE, not about which
 //! side of it carries material.
 //!
+//! **So the door takes construction state, not a finished body.** Its
+//! argument is stated against a chart alone, and a door of that kind
+//! takes a [`Body`], tier 2 in and tier 2 out; a door whose argument
+//! means something about material takes an [`crate::AtRestBody`]
+//! (`crates/topo/README.md`, "Shell and offset surgery"). Its result
+//! becomes finished only through [`crate::AtRestBody::validate`]: on an
+//! inside-out body the chart moves as it would on any other, and the
+//! result refuses there as the operand would, `NegativeVolume`.
+//!
 //! # What moves and what does not
 //!
 //! **The neighbours' surfaces are untouched.** Only the named face's
@@ -86,7 +95,7 @@
 //! choice.** The pushforward follows the CONTINUOUS EXTENSION of the
 //! opening nappe's normal field, which is what makes the action a pure
 //! parameter shift; following the per-point normal would split the
-//! double cone. So a `v < 0` face's material moves `−d` along its own
+//! double cone. So a `v < 0` face's surface moves `−d` along its own
 //! chart normal — which is why this door turns the caller's number
 //! before the mint sees it, from the chart's own decided nappe. What it
 //! REFUSES is a chart with no nappe to turn onto: a face whose corners
@@ -1293,10 +1302,10 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     let old_surface = body.face_surface_linked(face, face_data).clone();
     // **The cone's mirror nappe is a consumer obligation, and this is
     // where this door discharges it.** `geom_brep::ConeOffset`'s action
-    // moves material along the OPENING nappe's normal field, so a
-    // mirror-nappe face's material moves `−d` along its own chart
-    // normal; `d` arrives at this door along the FACE's outward
-    // direction, so the two conventions are opposite below the apex and
+    // moves the surface along the OPENING nappe's normal field, so a
+    // mirror-nappe face's surface moves `−d` along its own chart
+    // normal; `d` arrives at this door along the FACE's chart normal,
+    // so the two conventions are opposite below the apex and
     // the number has to be turned over before it reaches the mint. The
     // nappe is decided at its one home, from the face's own corners.
     //
