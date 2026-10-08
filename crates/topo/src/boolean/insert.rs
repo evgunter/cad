@@ -152,6 +152,9 @@ pub(super) struct SideRun<T: geom_core::Real> {
 struct Held {
     /// How many of the plan's runs hold it: it mints after each.
     depth: usize,
+    /// The run that holds it directly (an index into
+    /// [`NullPlan::runs`]).
+    holder: usize,
     /// The innermost of them that is a fan (an index into
     /// [`NullPlan::runs`]): that fan's mint carried this run's germs to
     /// its copy, where this run mints. `None`: only struts hold it, and
@@ -522,6 +525,7 @@ fn held_by(holders: &[Option<usize>], strut: &[bool]) -> Vec<Option<Held>> {
             let chain: Vec<usize> = std::iter::successors(holders[k], |&h| holders[h]).collect();
             chain.first().map(|&h| Held {
                 depth: chain.len(),
+                holder: h,
                 fan: chain.iter().copied().find(|&h| !strut[h]),
                 by_strut: strut[h],
             })
@@ -791,13 +795,34 @@ pub(super) fn mint_plans<T: Decide>(
             // own vertex, whose struts another pair's strut may nest in
             // ([`held_cut`] leaves a nested strut to [`holds_whole`]), so
             // it sorts among that vertex's struts by its nesting `depth`,
-            // which counts its own holders. Then the vertex's struts before
-            // its fans.
+            // which counts its own holders: the walk's arcs and the
+            // sectors' geometry agree on them, asserted below. Ties at one
+            // `depth` break by `n`; a `holds_whole` read in band that
+            // called nested struts disjoint would leave a false tie, which
+            // no pose exercises. Then the vertex's struts before its fans.
             let held = run(at)
                 .held
                 .filter(|h| h.fan.is_some())
                 .map_or(0, |h| h.depth);
             keyed.push((held, depth.is_none(), depth.unwrap_or(0), n));
+        }
+        if cfg!(debug_assertions) {
+            for &(_, _, d, n) in &keyed {
+                let (i, k) = runs[n];
+                if let Some(h) = run((i, k)).held.filter(|h| h.fan.is_none()) {
+                    let m = runs.iter().position(|&r| r == (i, h.holder));
+                    let holder_d = m.map(|m| keyed.iter().find(|e| e.3 == m).map_or(0, |e| e.2));
+                    debug_assert!(
+                        shared_strut((i, k)).unwrap_or(false)
+                            && m.is_some_and(|m| shared_strut(runs[m]).unwrap_or(false))
+                            && holder_d.is_some_and(|hd| d > hd),
+                        "a run only struts hold nests deeper than its strut holder \
+                         by the sectors' geometry: run {k} of plan {i} at depth {d}, \
+                         its holder {} at {holder_d:?}",
+                        h.holder
+                    );
+                }
+            }
         }
         keyed.sort();
         let body = if slot == 0 {
