@@ -5140,21 +5140,46 @@ mod tests {
                     RefusedArm::Zero(Classified { margin, .. }) => Some(margin),
                     RefusedArm::SignCertain => None,
                 };
-                // A reading at or across zero has no nearer end any ε_in
-                // lies below.
+                // A reading at or across zero has its nearer end below
+                // every ε_in, so even the narrow one reads it in the door's
+                // sentence: "is below" where the whole reading is, "may lie
+                // below" where only that end is, then the at-rest ending.
+                // Its `at_zero` note there is the open question of
+                // `work/encl/import-door-appends-a-defect-note-to-a-sub-eps-in-zero-span.md`.
                 let reaches_zero = match banded.map(MarginDiag::diagnostic_f64_for_error_text) {
-                    Some(geom_core::ErrorTextReading::Value(m)) => m == 0.0,
-                    Some(geom_core::ErrorTextReading::Enclosure { lo, hi }) => {
-                        lo <= 0.0 && hi >= 0.0
+                    Some(geom_core::ErrorTextReading::Value(0.0)) => Some(0.0),
+                    Some(geom_core::ErrorTextReading::Enclosure { lo, hi })
+                        if lo <= 0.0 && hi >= 0.0 =>
+                    {
+                        Some(lo.abs().max(hi.abs()))
                     }
-                    _ => false,
+                    _ => None,
                 };
-                if !(reaches_zero && matches!(check.ending(), Ending::Sized(_))) {
-                    assert_eq!(
-                        recourse_in_file(check, arm, narrow),
-                        at_rest,
+                let narrow_door = recourse_in_file(check, arm, narrow);
+                match (check.ending(), reaches_zero) {
+                    (Ending::Sized(sized), Some(far))
+                        if !(sized.passes.passes_zero() && matches!(arm, RefusedArm::Zero(_))) =>
+                    {
+                        let (lies, states) = if far <= narrow.eps_in() {
+                            ("is below", "does not state")
+                        } else {
+                            ("may lie below", "may not state")
+                        };
+                        assert_eq!(
+                            narrow_door,
+                            format!(
+                                "This {} {lies} the file's declared coincidence distance ε_in = \
+                                 {:e} m, so the file {states} it. {at_rest}",
+                                sized.size,
+                                narrow.eps_in()
+                            ),
+                            "{check:?} {arm:?}: a reading at zero lies below every ε_in"
+                        );
+                    }
+                    _ => assert_eq!(
+                        narrow_door, at_rest,
                         "{check:?} {arm:?}: an ε_in below every margin picks no other words"
-                    );
+                    ),
                 }
                 let door = recourse_in_file(check, arm, wide);
                 assert_ne!(door, KERNEL_DEFECT_ENDING, "{check:?} {arm:?}");
@@ -5229,10 +5254,10 @@ mod tests {
         assert_eq!(
             fit,
             "This miss lies beyond the tolerance and within the file's declared coincidence \
-             distance ε_in = 1e-6 m, and may be the kernel's own approximation. Recourse: as a \
-             stopgap, set the tolerance to ε_in = 1e-6 m; this refusal may indicate a kernel bug \
-             worth reporting",
-            "a fit's miss names no re-export and vouches for no file data"
+             distance ε_in = 1e-6 m, and may be the kernel's own approximation. Recourse: \
+             re-export the file more precisely, or, as a stopgap, set the tolerance to ε_in = \
+             1e-6 m; this refusal may indicate a kernel bug worth reporting",
+            "a fit's miss keeps the kernel-bug note and vouches for no file data"
         );
         // An enclosure across ε_in may lie within it, so the stopgap is
         // named with the defect it leaves if the miss persists.

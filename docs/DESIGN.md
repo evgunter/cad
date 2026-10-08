@@ -894,9 +894,10 @@ Five commitments:
    sample, margin }`, wrapped by the attachment gates and by
    `ValidationError::EdgeCertification`; the residual MAGNITUDE rides
    both arms as the classifier's reporting margin — the definite arm's
-   `margin`, the escalated arm's `Indeterminate` — because no `f64`
-   projection of a generic `T` exists on every lane, and the classify
-   seam's `MarginDiag` is the one projection, for error text only.
+   `margin`, the escalated arm's `Indeterminate` — because no value
+   projection of a generic `T` to an `f64` exists on every lane; the
+   classify seam's `MarginDiag` is the one projection there is, and it
+   is for reporting only, never a value a decision reads.
    Geometry that can't meet ε almost always indicates a modeling
    mistake; surfacing it beats absorbing it.
 4. **Fixed internal units — meters and radians — with a documented

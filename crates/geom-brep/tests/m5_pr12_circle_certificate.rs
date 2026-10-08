@@ -231,17 +231,25 @@ fn tangent_cap_quarter<T: Decide>(r: f64, reversed: bool) -> Result<EdgeCurve<T>
 
 /// The refusal a right-angle crossing described as a tangency owes, in
 /// either order and at any scalar: its defect is first-order, and it
-/// carries the reading the scalar classified (`kind`: a point margin at
-/// `f64`, an enclosure at `Interval`).
+/// carries the reading the scalar classified — a point margin at `f64`,
+/// an enclosure at `Interval` (`kind`) — lying wholly past the band's
+/// far edge, which a poisoned or zero reading would not.
 fn is_parallelism_defect(refusal: Option<CertifyError>, kind: geom_core::MarginKind) -> bool {
-    matches!(
-        refusal,
-        Some(CertifyError::ResidualExceeded {
-            check: CertCheck::TangentParallel,
-            sample: 1,
-            margin,
-        }) if margin.kind() == kind
-    )
+    let Some(CertifyError::ResidualExceeded {
+        check: CertCheck::TangentParallel,
+        sample: 1,
+        margin,
+    }) = refusal
+    else {
+        return false;
+    };
+    let escalate = band().escalate();
+    margin.kind() == kind
+        && match margin.diagnostic_f64_for_error_text() {
+            geom_core::ErrorTextReading::Value(m) => m.abs() >= escalate,
+            geom_core::ErrorTextReading::Enclosure { lo, hi } => lo >= escalate || hi <= -escalate,
+            geom_core::ErrorTextReading::Invalid => false,
+        }
 }
 
 /// **A right-angle crossing described as a tangency is refused at the

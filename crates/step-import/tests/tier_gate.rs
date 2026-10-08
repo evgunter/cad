@@ -1160,7 +1160,8 @@ fn assert_adoption_reading(who: &str, e: &StepImportError, exposure: &mut Exposu
     }
     exposure.add(
         WITHHELD,
-        msg.matches("so the file does not state it").count(),
+        msg.matches("so the file does not state it").count()
+            + msg.matches("so the file may not state it").count(),
     );
 }
 
