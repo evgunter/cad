@@ -2581,7 +2581,10 @@ pub(crate) fn evaluate(
 /// materializers answer with; a tool cell (the plane a split cuts with)
 /// has no name and crosses as `(node, None)`. `rung` names the door's
 /// rung that proved the row structural, `None` where none did, and then
-/// `residual` says what separates the two constructions.
+/// `residual` says what separates the two constructions, or why a
+/// cell's could not be read (`coincide::Unwalked`, said by its sentence
+/// rather than crossed as a type: nothing a Python caller does branches
+/// on which node the walk stopped at).
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct Coincidence {
