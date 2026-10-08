@@ -13,18 +13,23 @@
 //! The rows, each in every member order:
 //! - three prisms over 50° sectors, with the plate and alone;
 //! - four prisms over 50° sectors;
-//! - one prism's corner moved off the line, within the band (it touches
-//!   the others' edges there) and outside it (a sliver apart).
+//! - a third prism crossing one wedge about the line, or both;
+//! - one prism tilted about the line within the zero;
+//! - a prism whose side face holds the line;
+//! - one prism's corner moved off the line, within the zero, inside the
+//!   band and past it.
 //!
-//! Each builds sound: its counts, tiers 3 and 3′, closed-form volume,
-//! corners angularly disjoint, one vertex at [`MEET`] where the plate
-//! is a member, the body of the first order compared by geometry, and
-//! its material at probes about the line against the analytic union
-//! of the members' closed forms.
+//! Each order that builds is sound: its counts, tiers 3 and 3′,
+//! closed-form volume, corners angularly disjoint, one vertex at
+//! [`MEET`] where the plate is a member, the body of the first order
+//! compared by geometry, and its material at probes about the line
+//! against the analytic union of the members' closed forms. Each that
+//! refuses refuses typed, as its row names.
 //!
 //! Three prisms over 60° sectors put one prism's lateral face in the
 //! plane of another's, an undeclared flush continuation along the line,
-//! and every order refuses it as one.
+//! and every order refuses it as one. A declaration at the line, or the
+//! steps' own records carried, never serves another body (D10).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -41,42 +46,70 @@ fn t() -> Tol {
     Tol::witness()
 }
 
-/// An upright prism over the triangle from `apex` to the points at the
-/// bearings `a0` and `a1` (degrees) 0.4 from [`MEET`], over `z`.
+/// An upright prism over the triangle `foot` (counterclockwise), over
+/// `z`; `moved` is how far a corner was moved off the line, and `tilt`
+/// the turn `(bearing, angle)` that tips its +z towards the bearing
+/// (degrees) by the angle (radians) about the point on the line at the
+/// plate's top.
 #[derive(Clone, Copy)]
 struct Prism {
-    apex: (f64, f64),
-    a0: f64,
-    a1: f64,
+    foot: [(f64, f64); 3],
     z: (f64, f64),
+    moved: f64,
+    tilt: (f64, f64),
+}
+
+/// The point at the bearing `a` (degrees) `r` from [`MEET`].
+fn bearing(a: f64, r: f64) -> (f64, f64) {
+    let (s, c) = f64::to_radians(a).sin_cos();
+    (r.mul_add(c, MEET[0]), r.mul_add(s, MEET[1]))
 }
 
 impl Prism {
+    /// Over the sector from `a0` to `a1` (degrees) of radius 0.4 about
+    /// [`MEET`].
     fn on_line(a0: f64, a1: f64, z: (f64, f64)) -> Self {
         Self {
-            apex: (MEET[0], MEET[1]),
-            a0,
-            a1,
+            foot: [(MEET[0], MEET[1]), bearing(a0, 0.4), bearing(a1, 0.4)],
             z,
+            moved: 0.0,
+            tilt: (0.0, 0.0),
         }
     }
 
+    /// The tilt as a rigid motion, by `sign` times its angle.
+    fn pose(&self, sign: f64) -> common::meeting::Pose {
+        let (s, c) = self.tilt.0.to_radians().sin_cos();
+        let axis = [-s, c, 0.0];
+        let turn = |t| common::meeting::Pose::turn("tilt", axis, sign * self.tilt.1, t);
+        let q = turn([0.0; 3]).at(MEET);
+        turn([MEET[0] - q.x, MEET[1] - q.y, MEET[2] - q.z])
+    }
+
     fn footprint(&self) -> [(f64, f64); 3] {
-        let at = |a: f64| {
-            let (s, c) = f64::to_radians(a).sin_cos();
-            (0.4f64.mul_add(c, MEET[0]), 0.4f64.mul_add(s, MEET[1]))
-        };
-        [self.apex, at(self.a0), at(self.a1)]
+        self.foot
     }
 
     fn body(&self) -> AtRestBody<f64> {
-        let body = common::prism_z(&self.footprint(), self.z.0, self.z.1, t()).body;
+        let pose = self.pose(1.0);
+        let mut body = topo::Body::<f64>::new();
+        common::prism_ops(
+            &mut body,
+            &self.footprint(),
+            self.z,
+            |x, y, z| pose.at([x, y, z]),
+            common::FaceGeometry::Certified,
+            t(),
+        );
+        common::describe_as_intersections(&mut body, t());
         finished("a prism on the line", body, t())
     }
 
     /// **The analytic oracle**: whether `q` is inside the prism, read
     /// off its closed form rather than any body.
     fn holds(&self, q: [f64; 3]) -> bool {
+        let q = self.pose(-1.0).at(q);
+        let q = [q.x, q.y, q.z];
         let p = self.footprint();
         let left = |(x0, y0): (f64, f64), (x1, y1): (f64, f64)| {
             (x1 - x0) * (q[1] - y0) - (y1 - y0) * (q[0] - x0) > 0.0
@@ -168,7 +201,8 @@ fn four() -> Vec<Prism> {
 /// line.
 fn three_off(d: f64) -> Vec<Prism> {
     let mut p = three();
-    p[1].apex.0 += d;
+    p[1].foot[0].0 += d;
+    p[1].moved = d;
     p
 }
 
@@ -185,13 +219,13 @@ fn on_the_line(witness: &str) -> bool {
     matches!(n[..], [x, y, _] if (x - MEET[0]).hypot(y - MEET[1]) < 1e-6)
 }
 
-/// The refusal of an edge that crosses two wedges about a contact line.
+/// The refusal of an edge that crosses two wedges about a contact line
+/// (`work/tang/an-edge-crossing-two-wedges-about-a-contact-line-refuses.md`).
 const TWO_GERMS: &str = "an edge crosses two wedges about a contact line on one ray (unbuilt)";
-const TWO_GERMS_ROW: &str = "work/tang/an-edge-crossing-two-wedges-about-a-contact-line-refuses.md";
 
-/// No order is unbuilt.
-fn none(_: &[usize]) -> bool {
-    false
+/// No order refuses.
+fn none(_: &[usize]) -> Option<&'static str> {
+    None
 }
 
 /// The left fold of `members` by union in `order`, or the step that
@@ -251,6 +285,10 @@ fn probes() -> Vec<[f64; 3]> {
 /// Folds `prisms` (and the plate, member 0, when `plate`) by union in
 /// every order and asserts each result (module docs).
 ///
+/// Where a prism is tilted within the zero, the 3′ census may say it
+/// cannot trace the touch at this tolerance, typed, in place of a
+/// verdict.
+///
 /// The 3′ verdict reads the last step's contact record alone, so it
 /// refuses the contacts between earlier members that the last one's do
 /// not cover, all on the line ([`DROPPED_RECORDS`]): `dropped[i]` of
@@ -261,7 +299,7 @@ fn every_order(
     plate: bool,
     counts: [usize; 3],
     dropped: &[usize],
-    unbuilt: &dyn Fn(&[usize]) -> bool,
+    refuses: &dyn Fn(&[usize]) -> Option<&'static str>,
 ) {
     let mut members = Vec::new();
     if plate {
@@ -273,26 +311,20 @@ fn every_order(
     // A corner moved off the line within the zero builds as on it: the
     // volume reads within the move's sweep, its offset times the
     // prism's height (under 2).
-    let moved: f64 = prisms
-        .iter()
-        .map(|p| (p.apex.0 - MEET[0]).hypot(p.apex.1 - MEET[1]))
-        .sum();
+    let moved: f64 = prisms.iter().map(|p| p.moved).sum();
     let slack = 2.0f64.mul_add(moved, 1e-9);
+    let tilted = prisms.iter().any(|p| p.tilt.1 != 0.0);
     let holds = |q: [f64; 3]| (plate && in_plate(q)) || prisms.iter().any(|p| p.holds(q));
     let probes = probes();
     let c = at(Point3::new(MEET[0], MEET[1], MEET[2]));
     let mut first = None;
     for order in orders(members.len()) {
         let what = format!("{label}, member order {order:?}");
-        let r = match fold(&members, &order) {
-            Err((_, BooleanError::ClassificationInvariant { what: why }))
-                if unbuilt(&order) && why == TWO_GERMS =>
-            {
-                continue;
-            }
-            Err((k, e)) => panic!("{what}: step {k} refused: {e:?}"),
-            Ok(_) if unbuilt(&order) => panic!("{what}: built ({TWO_GERMS_ROW} may be fixed)"),
-            Ok(r) => r,
+        let r = match (fold(&members, &order), refuses(&order)) {
+            (Err((_, e)), Some(want)) if format!("{e:?}").contains(want) => continue,
+            (Err((k, e)), _) => panic!("{what}: step {k} refused: {e:?}"),
+            (Ok(_), Some(want)) => panic!("{what}: built where it refuses {want}"),
+            (Ok(r), None) => r,
         };
         let body = &r.body;
         let got = [
@@ -302,24 +334,35 @@ fn every_order(
         ];
         assert_eq!(got, counts, "{what}: faces, edges, vertices");
         assert_eq!(validate_geometric(body, t()), Ok(()), "{what}: tier 3");
-        let on_line: Vec<_> = match validate_pseudomanifold(body, &r.contacts, t()) {
-            Ok(()) => Vec::new(),
-            Err(es) => es
-                .iter()
-                .map(|e| match e {
-                    topo::ValidationError::UndeclaredContact { witness, .. }
-                        if on_the_line(witness) =>
-                    {
-                        witness.clone()
-                    }
-                    other => panic!("{what}: tier 3′ refused off the line: {other:?}"),
-                })
-                .collect(),
-        };
+        let verdict = validate_pseudomanifold(body, &r.contacts, t()).err();
+        let undecided = verdict.iter().flatten().any(|e| {
+            matches!(
+                e,
+                topo::ValidationError::CensusUndecidable { .. }
+                    | topo::ValidationError::CensusEscalated { .. }
+            )
+        });
+        if undecided {
+            // A tilt within the zero leaves the census faces too nearly
+            // in line to trace; it says so, typed.
+            assert!(tilted, "{what}: tier 3′ undecided untilted: {verdict:?}");
+        }
+        let on_line: Vec<_> = verdict
+            .iter()
+            .flatten()
+            .filter(|_| !undecided)
+            .map(|e| match e {
+                topo::ValidationError::UndeclaredContact { witness, .. }
+                    if on_the_line(witness) =>
+                {
+                    witness.clone()
+                }
+                other => panic!("{what}: tier 3′ refused off the line: {other:?}"),
+            })
+            .collect();
         let last = order[order.len() - 1];
-        assert_eq!(
-            on_line.len(),
-            dropped[last],
+        assert!(
+            undecided || on_line.len() == dropped[last],
             "{what}: tier 3′ refused by other than the records {DROPPED_RECORDS} drops: \
              {on_line:?}"
         );
@@ -402,7 +445,7 @@ fn four_prisms_touching_along_one_line_build_one_body_in_every_member_order() {
 /// first prism's wedge and touches the second's edge along the line.
 /// Crossing both wedges (over 30°–140°), it crosses each edge of the
 /// line: folded last, its edge meets the line's two coincident edges,
-/// two crossings on one ray, and refuses typed ([`TWO_GERMS_ROW`]);
+/// two crossings on one ray, and refuses typed ([`TWO_GERMS`]);
 /// every other order builds.
 #[test]
 fn a_third_prism_crossing_the_wedges_about_the_line_builds_or_refuses_typed() {
@@ -436,7 +479,80 @@ fn a_third_prism_crossing_the_wedges_about_the_line_builds_or_refuses_typed() {
         true,
         [22, 55, 36],
         &[0; 4],
-        &|order| order[3] == 3,
+        &|order| (order[3] == 3).then_some(TWO_GERMS),
+    );
+}
+
+/// **A prism tilted within the zero about the line builds as the
+/// upright fixture does in every member order**: the 240° prism turned
+/// by 0.05ε or 0.2ε (radians, so its edge leaves the line by at most
+/// 0.2ε over its unit reach) towards 25°, 85° or 265° about the point on
+/// the line at the plate's top, with the plate and alone. The census of
+/// some prisms-alone orders cannot trace the touch at this tolerance and
+/// says so, typed.
+#[test]
+fn a_prism_tilted_within_the_zero_builds_as_upright() {
+    let eps = t().eps();
+    for k in [0.05, 0.2] {
+        for toward in [25.0, 85.0, 265.0] {
+            let mut prisms = three();
+            prisms[2].tilt = (toward, k * eps);
+            let label = format!("the 240° prism tilted {k}ε towards {toward}°");
+            every_order(
+                &format!("{label}, and the plate"),
+                &prisms,
+                true,
+                [18, 39, 24],
+                &[6, 0, 2, 0],
+                &none,
+            );
+            every_order(&label, &prisms, false, [15, 27, 18], &[2, 2, 0], &none);
+        }
+    }
+}
+
+/// A contact line whose ray holds a subdivision bisector of the other
+/// solid.
+const ON_A_BISECTOR: &str = "a contact line's ray holds a subdivision bisector (unbuilt)";
+
+/// **A prism whose side face holds the line builds or refuses typed in
+/// every member order**: the plate, the prisms over 0°–50° and
+/// 120°–170°, and a third over the triangle from 0.3 at 80° and 260° to
+/// 0.4 at 350°, its side through the line in no other face's plane.
+/// Folded last onto the plate, the third and the 120° prism, the 0°
+/// prism meets a contact line whose ray holds the third's subdivision
+/// bisector, and refuses typed (unbuilt). Nine orders refuse at a step
+/// that meets one edge of the line in the third's face,
+/// `ResultInvalid { RingMeetsRing }` or `VertexReadTwice`, as on main
+/// (`work/tang/an-edge-lying-in-a-face-at-a-pierce-refuses-ring-meets-ring.md`). The other twelve build.
+#[test]
+fn a_prism_whose_face_holds_the_line_builds_or_refuses_typed() {
+    let face = Prism {
+        foot: [bearing(80.0, 0.3), bearing(260.0, 0.3), bearing(350.0, 0.4)],
+        z: (0.44, 1.81),
+        moved: 0.0,
+        tilt: (0.0, 0.0),
+    };
+    let prisms = [
+        Prism::on_line(0.0, 50.0, (0.5, 2.0)),
+        Prism::on_line(120.0, 170.0, (0.47, 1.7)),
+        face,
+    ];
+    let refuses = |order: &[usize]| match order {
+        [3, 0, 2, 1] | [0, 3, 2, 1] | [0, 2, 3, 1] => Some(ON_A_BISECTOR),
+        [3, 2, 1, 0] | [2, 3, 1, 0] | [2, 0, 3, 1] => Some("VertexReadTwice"),
+        [2, 1, 3, 0] | [3, 1, 2, 0] | [1, 3, 2, 0] | [1, 2, 3, 0] | [3, 2, 0, 1] | [2, 3, 0, 1] => {
+            Some("RingMeetsRing")
+        }
+        _ => None,
+    };
+    every_order(
+        "a face through the line",
+        &prisms,
+        true,
+        [20, 47, 30],
+        &[0, 0, 0, 2],
+        &refuses,
     );
 }
 
@@ -447,7 +563,7 @@ fn a_third_prism_crossing_the_wedges_about_the_line_builds_or_refuses_typed() {
 /// order escalates, in the boolean or at a carrier's certification;
 /// at 100ε the slivers the move leaves read inside the band,
 /// and each order escalates or builds a body whose census escalates
-/// there; at 10⁴ε, and no less than the micron the corner and shape
+/// there, sound by tier 3, volume and the oracle; at 10⁴ε, and no less than the micron the corner and shape
 /// reads round to, it stands apart, and builds.
 #[test]
 fn a_prism_moved_off_the_line_builds_or_escalates_typed_in_every_member_order() {
@@ -470,10 +586,13 @@ fn a_prism_moved_off_the_line_builds_or_escalates_typed_in_every_member_order() 
         &[2, 0, 2, 0],
         &none,
     );
+    let probes = probes();
     for k in [3.0, 5.0, 100.0] {
+        let prisms = three_off(k * eps);
         let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
         let mut members = vec![finished("the plate", p, t())];
-        members.extend(three_off(k * eps).iter().map(Prism::body));
+        members.extend(prisms.iter().map(Prism::body));
+        let volume = union_volume(&prisms, true);
         for order in orders(members.len()) {
             let what = format!("one prism moved {k}ε, member order {order:?}");
             match fold(&members, &order) {
@@ -486,6 +605,24 @@ fn a_prism_moved_off_the_line_builds_or_escalates_typed_in_every_member_order() 
                         es.iter()
                             .any(|e| matches!(e, topo::ValidationError::CensusEscalated { .. })),
                         "{what}: built, and its census does not escalate: {es:?}"
+                    );
+                    assert_eq!(validate_geometric(&r.body, t()), Ok(()), "{what}: tier 3");
+                    let v = topo::mass_properties(&r.body, t()).unwrap().volume;
+                    assert!(
+                        (v - volume).abs() < 2.0f64.mul_add(k * eps, 1e-9),
+                        "{what}: volume {v}, closed form {volume}"
+                    );
+                    let holds = |q| in_plate(q) || prisms.iter().any(|p| p.holds(q));
+                    let mut read = 0;
+                    for &q in &probes {
+                        if let Some(got) = inside_of(&r.body, q) {
+                            assert_eq!(got, holds(q), "{what}: material at {q:?}");
+                            read += 1;
+                        }
+                    }
+                    assert!(
+                        read * 100 >= 99 * probes.len(),
+                        "{what}: {read} probes read"
                     );
                 }
             }
@@ -543,13 +680,31 @@ fn faces_on_the_line(body: &AtRestBody<f64>) -> Vec<topo::FaceKey> {
     out
 }
 
+/// The left fold of `members` in `order` from `body`, already the fold
+/// of its first `from` members, or the step that refused and why.
+fn fold_from(
+    members: &[AtRestBody<f64>],
+    order: &[usize],
+    from: usize,
+    mut body: AtRestBody<f64>,
+) -> Result<AtRestBody<f64>, (usize, BooleanError)> {
+    for (k, &i) in order.iter().enumerate().skip(from) {
+        match union(&body, &members[i], t()) {
+            Ok(BooleanResult::Body(r)) => body = r.body,
+            Ok(BooleanResult::Empty) => panic!("step {k} of {order:?} is empty"),
+            Err(e) => return Err((k, e)),
+        }
+    }
+    Ok(body)
+}
+
 /// **A declaration changes no verdict the contact line's route serves
-/// (D10)**: the last step of every member order of the 50° fixture,
-/// with each coincidence class declared on each pair of faces at the
-/// line, one pair at a time, builds the undeclared step's body or
-/// refuses typed. Every one refuses at the declaration door: no two
-/// faces there share a carrier, and a plane pair takes neither
-/// `Tangent` nor `Seam`.
+/// (D10)**: every step of every member order of the 50° fixture, with
+/// each coincidence class declared on each pair of faces at the line,
+/// one pair at a time and the other steps undeclared, builds the
+/// undeclared fold's body or refuses typed. Every one refuses at the
+/// declaration door: no two faces there share a carrier, and a plane
+/// pair takes neither `Tangent` nor `Seam`.
 #[test]
 fn a_declaration_at_the_contact_line_serves_the_undeclared_body_or_refuses() {
     use topo::{BooleanCoincidence, BooleanDeclarations, FacePairDeclaration, union_with};
@@ -564,45 +719,107 @@ fn a_declaration_at_the_contact_line_serves_the_undeclared_body_or_refuses() {
     members.extend(three().iter().map(Prism::body));
     let (mut served, mut refused) = (0, 0);
     for order in orders(members.len()) {
-        let what = format!("member order {order:?}");
-        let acc = fold(&members, &order[..3])
-            .unwrap_or_else(|(k, e)| panic!("{what}: step {k} refused: {e:?}"))
-            .body;
-        let b = &members[order[3]];
-        let undeclared = match union(&acc, b, t()) {
-            Ok(BooleanResult::Body(r)) => shape(&r.body),
-            other => panic!("{what}: the undeclared last step: {other:?}"),
-        };
-        for fa in faces_on_the_line(&acc) {
-            for fb in faces_on_the_line(b) {
-                for class in classes {
-                    let decls = BooleanDeclarations {
-                        coincident_faces: vec![FacePairDeclaration::new(fa, fb, class)],
-                        ..BooleanDeclarations::none()
-                    };
-                    match union_with(&acc, b, &decls, t()) {
-                        Ok(BooleanResult::Body(r)) => {
-                            assert!(
-                                shape(&r.body) == undeclared,
-                                "{what}: {class:?} on {fa:?} × {fb:?} serves another body"
-                            );
-                            served += 1;
+        let undeclared = shape(&fold(&members, &order).unwrap().body);
+        let mut acc = members[order[0]].clone();
+        for k in 1..order.len() {
+            let what = format!("member order {order:?}, step {k}");
+            let b = &members[order[k]];
+            for fa in faces_on_the_line(&acc) {
+                for fb in faces_on_the_line(b) {
+                    for class in classes {
+                        let decls = BooleanDeclarations {
+                            coincident_faces: vec![FacePairDeclaration::new(fa, fb, class)],
+                            ..BooleanDeclarations::none()
+                        };
+                        match union_with(&acc, b, &decls, t()) {
+                            Ok(BooleanResult::Body(r)) => {
+                                let rest = fold_from(&members, &order, k + 1, r.body)
+                                    .unwrap_or_else(|(s, e)| {
+                                        panic!(
+                                            "{what}: {class:?} on {fa:?} × {fb:?}, step {s}: {e:?}"
+                                        )
+                                    });
+                                assert!(
+                                    shape(&rest) == undeclared,
+                                    "{what}: {class:?} on {fa:?} × {fb:?} serves another body"
+                                );
+                                served += 1;
+                            }
+                            Ok(BooleanResult::Empty) => {
+                                panic!("{what}: {class:?} on {fa:?} × {fb:?} serves empty")
+                            }
+                            Err(
+                                BooleanError::ContactContradicted { .. }
+                                | BooleanError::ContinuationContradicted { .. }
+                                | BooleanError::UnsupportedDeclarationClass { .. },
+                            ) => refused += 1,
+                            Err(e) => {
+                                panic!("{what}: {class:?} on {fa:?} × {fb:?} refused {e:?}")
+                            }
                         }
-                        Ok(BooleanResult::Empty) => {
-                            panic!("{what}: {class:?} on {fa:?} × {fb:?} serves empty")
-                        }
-                        Err(
-                            BooleanError::ContactContradicted { .. }
-                            | BooleanError::ContinuationContradicted { .. }
-                            | BooleanError::UnsupportedDeclarationClass { .. },
-                        ) => refused += 1,
-                        Err(e) => panic!("{what}: {class:?} on {fa:?} × {fb:?} refused {e:?}"),
                     }
                 }
             }
+            acc = fold_from(&members, &order[..=k], k, acc)
+                .unwrap_or_else(|(s, e)| panic!("{what}: undeclared step {s}: {e:?}"));
         }
     }
-    // Measured: the door refuses all 2016, so no declaration reaches
-    // the contact line's route on this fixture.
-    assert_eq!((served, refused), (0, 2016), "served, refused at the door");
+    // Measured: the door refuses all 4320, so no declaration reaches the
+    // contact line's route on this fixture.
+    assert_eq!((served, refused), (0, 4320), "served, refused at the door");
+}
+
+/// **Carrying each step's own contact records serves the same body
+/// (D10)**: every member order of the 50° fixture, of four prisms, and
+/// of the 50° fixture with a corner moved 0.1ε, each step declaring the
+/// records the step before it returned (its vertex pairs and rests as
+/// `Rest`, then as `Tangent`; its vertex-edge and edge-edge contacts),
+/// builds the undeclared fold's body.
+#[test]
+fn carrying_each_steps_records_serves_the_same_body() {
+    use topo::{
+        BooleanDeclarations, CarriedContacts, CarriedVf, CarriedVv, ContactClass, union_with,
+    };
+    let eps = t().eps();
+    for (label, prisms) in [
+        ("three", three()),
+        ("four", four()),
+        ("three, one moved 0.1ε", three_off(0.1 * eps)),
+    ] {
+        let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
+        let mut members = vec![finished("the plate", p, t())];
+        members.extend(prisms.iter().map(Prism::body));
+        for class in [ContactClass::Rest, ContactClass::Tangent] {
+            for order in orders(members.len()) {
+                let what = format!("{label}, {class:?}, member order {order:?}");
+                let undeclared = shape(&fold(&members, &order).unwrap().body);
+                let mut body = members[order[0]].clone();
+                let mut carried = CarriedContacts::default();
+                for (k, &i) in order.iter().enumerate().skip(1) {
+                    let decls = BooleanDeclarations {
+                        carried_a: carried.clone(),
+                        ..BooleanDeclarations::none()
+                    };
+                    let r = match union_with(&body, &members[i], &decls, t()) {
+                        Ok(BooleanResult::Body(r)) => r,
+                        other => panic!("{what}: step {k}: {other:?}"),
+                    };
+                    let c = &r.contacts;
+                    carried = CarriedContacts {
+                        vv: c.vv.iter().map(|&pair| CarriedVv { pair, class }).collect(),
+                        vf: c
+                            .a_on_b
+                            .iter()
+                            .chain(&c.b_on_a)
+                            .map(|&rest| CarriedVf { rest, class })
+                            .collect(),
+                        ve: c.ve.clone(),
+                        ee: c.ee.clone(),
+                    };
+                    body = r.body;
+                }
+                assert!(shape(&body) == undeclared, "{what}: another body");
+            }
+        }
+    }
 }
