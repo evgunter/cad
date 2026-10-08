@@ -29,7 +29,7 @@ use crate::node::{
 use crate::placement::{FrameFault, FrameSite};
 use crate::roots::RootFault;
 use crate::spoken::{SpokenName, SpokenNode, SpokenVar};
-use crate::var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef};
+use crate::var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
 
@@ -778,7 +778,7 @@ fn mint_quantities<P>(new: &mut Doc<P>, formula: &Formula) -> Result<Vec<VarId>,
     formula
         .quantities()
         .into_iter()
-        .map(|free| mint_anonymous(new, VarDef::Free(free)))
+        .map(|free| mint_anonymous(new, WrittenDef::Free(free)))
         .collect()
 }
 
@@ -850,19 +850,19 @@ impl Lowering {
         let mut minted = Self::none();
         for decl in fresh {
             let def = match decl {
-                VarDecl::Free(free) => VarDef::Free(free.clone()),
+                VarDecl::Free(free) => WrittenDef::Free(free.clone()),
                 VarDecl::Defined(formula) => {
                     // A definition that does not lower draws no id (the
                     // anonymous draw reads what it holds), so a refusal
                     // of it speaks the entry by its kind's draw.
                     let spoken = SpokenVar::new(new.mint.would_declare(decl.kind()), None);
-                    VarDef::Defined(minted.lower_definition(new, &spoken, formula)?)
+                    WrittenDef::Defined(minted.lower_definition(new, &spoken, formula)?)
                 }
             };
             let dim = decl.dim();
             minted
                 .defined
-                .set(minted.defined.get() | def.defined().is_some());
+                .set(minted.defined.get() | matches!(def, WrittenDef::Defined(_)));
             let var = mint_anonymous(new, def)?;
             minted.fresh.push((var, dim));
         }
@@ -918,7 +918,7 @@ impl Lowering {
     fn slot<P>(&self, new: &mut Doc<P>, formula: &Formula) -> Result<VarId, SlotFault> {
         let root = formula.slot_root();
         if let SlotRoot::Value(free) = root {
-            return mint_anonymous(new, VarDef::Free(free)).map_err(SlotFault::Mint);
+            return mint_anonymous(new, WrittenDef::Free(free)).map_err(SlotFault::Mint);
         }
         // Every fault is asked before anything is minted for the
         // formula's quantities: a formula that does not lower, or reads
@@ -934,14 +934,14 @@ impl Lowering {
             (SlotRoot::Value(_), _) => unreachable!("a value is minted above"),
             (SlotRoot::Formula, _) => {
                 self.defined.set(true);
-                mint_anonymous(new, VarDef::Defined(expr)).map_err(SlotFault::Mint)
+                mint_anonymous(new, WrittenDef::Defined(expr)).map_err(SlotFault::Mint)
             }
             // A lone variable leaf, by id, name or fresh entry, lowers
             // to a lone reader: the variable itself.
             (SlotRoot::Var(_) | SlotRoot::Name(..) | SlotRoot::Fresh(..), Some(var)) => Ok(var),
             (SlotRoot::Var(_) | SlotRoot::Name(..) | SlotRoot::Fresh(..), None) => {
                 self.defined.set(true);
-                mint_anonymous(new, VarDef::Defined(expr)).map_err(SlotFault::Mint)
+                mint_anonymous(new, WrittenDef::Defined(expr)).map_err(SlotFault::Mint)
             }
         }
     }
@@ -973,13 +973,13 @@ impl Lowering {
 /// from the mint chain by its kind and what it holds
 /// ([`crate::Mint`]'s anonymous draw), the definition checked as a
 /// declare's is.
-fn mint_anonymous<P>(new: &mut Doc<P>, def: VarDef) -> Result<VarId, EditError> {
+fn mint_anonymous<P>(new: &mut Doc<P>, def: WrittenDef) -> Result<VarId, EditError> {
     check_var_def(
         &SpokenVar::new(new.mint.would_declare_anonymous(&def), None),
         &def,
     )?;
     let id = new.mint.declare_anonymous(&def);
-    new.vars.insert(id, Var::new(def));
+    new.vars.insert(id, Var::written(def));
     Ok(id)
 }
 
@@ -1142,12 +1142,12 @@ fn lower_decl<P>(
     lowering: &Lowering,
     var: &SpokenVar,
     decl: &VarDecl,
-) -> Result<VarDef, EditError> {
+) -> Result<WrittenDef, EditError> {
     match decl {
-        VarDecl::Free(free) => Ok(VarDef::Free(free.clone())),
+        VarDecl::Free(free) => Ok(WrittenDef::Free(free.clone())),
         VarDecl::Defined(formula) => lowering
             .lower_definition(doc, var, formula)
-            .map(VarDef::Defined),
+            .map(WrittenDef::Defined),
     }
 }
 
@@ -4828,10 +4828,10 @@ fn distribution_fault_error(var: &SpokenVar, fault: DistributionFault) -> EditEr
 /// because no unit in the table measures a count. Both refuse the same
 /// definitions; only this door can name the structural/continuous
 /// divide as the reason.
-fn check_var_def(var: &SpokenVar, def: &VarDef) -> Result<(), EditError> {
+fn check_var_def(var: &SpokenVar, def: &WrittenDef) -> Result<(), EditError> {
     // A definition holds no float; what it reads is
     // `check_definition`'s.
-    let VarDef::Free(value) = def else {
+    let WrittenDef::Free(value) = def else {
         return Ok(());
     };
     // Ruled door 1 (non-finite policy): recipe data never carries
@@ -4887,10 +4887,10 @@ fn write_free<P>(
     var: &SpokenVar,
     value: FreeVar,
 ) -> Result<EditRecord, EditError> {
-    let def = VarDef::Free(value);
+    let def = WrittenDef::Free(value);
     check_var_def(var, &def)?;
-    let structural = def.kind() == Some(VarKind::Count);
-    new.vars.insert(id, Var::new(def));
+    let structural = def.kind() == VarKind::Count;
+    new.vars.insert(id, Var::written(def));
     Ok(EditRecord {
         minted: None,
         minted_var: None,
@@ -4900,16 +4900,25 @@ fn write_free<P>(
     })
 }
 
-/// [`EditError::VarIsAnOutput`] where `id` is an operation's output.
-fn refuse_output<P>(doc: &Doc<P>, id: VarId, door: CarryForwardDoor) -> Result<(), EditError> {
-    match doc.var(id).and_then(|var| var.def().output()) {
-        Some((node, _)) => Err(EditError::VarIsAnOutput {
-            var: doc.spoken_var(id),
+impl EditError {
+    /// **[`EditError::VarIsAnOutput`] for `var` at `door`**, where `var`
+    /// is an operation's output in `doc`, and `None` otherwise: the one
+    /// spelling of the refusal, which every door that writes or deletes
+    /// a variable asks, and a client opening such an edit asks first.
+    #[must_use]
+    pub fn output_refusal<P>(doc: &Doc<P>, var: VarId, door: CarryForwardDoor) -> Option<Self> {
+        let (node, _) = doc.var(var)?.def().output()?;
+        Some(Self::VarIsAnOutput {
+            var: doc.spoken_var(var),
             node: doc.spoken(node),
             door,
-        }),
-        None => Ok(()),
+        })
     }
+}
+
+/// [`EditError::output_refusal`], as a door's early return.
+fn refuse_output<P>(doc: &Doc<P>, id: VarId, door: CarryForwardDoor) -> Result<(), EditError> {
+    EditError::output_refusal(doc, id, door).map_or(Ok(()), Err)
 }
 
 /// The live FREE variable an edit of a standing variable addresses, or
@@ -4932,11 +4941,8 @@ fn standing_var<P>(
     };
     match def {
         VarDef::Free(free) => Ok((id, doc.spoken_var(id), free.clone())),
-        &VarDef::Output { node, .. } => Err(EditError::VarIsAnOutput {
-            var: doc.spoken_var(id),
-            node: doc.spoken(node),
-            door,
-        }),
+        VarDef::Output { .. } => Err(EditError::output_refusal(doc, id, door)
+            .unwrap_or_else(|| unreachable!("an output's refusal is the output's"))),
         VarDef::Defined(_) => Err(EditError::NotAFreeVar {
             var: doc.spoken_var(id),
             door,
@@ -6080,20 +6086,20 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             // checks.
             let spoken = SpokenVar::new(new.mint.would_declare(def.kind()), Some(name.clone()));
             if let VarDecl::Free(free) = def {
-                check_var_def(&spoken, &VarDef::Free(free.clone()))?;
+                check_var_def(&spoken, &WrittenDef::Free(free.clone()))?;
             }
             let id = new.mint.declare(def.kind());
             // The declared variable mints first, its definition's
             // written quantities after it (`mint_quantities` says why
             // the slot door's order is the other way round).
             let def = lower_decl(new, &Lowering::none(), &spoken, def)?;
-            new.vars.insert(id, Var::new(def.clone()));
+            new.vars.insert(id, Var::written(def.clone()));
             new.var_names.insert(id, name.clone());
             check_definition(new, id)?;
             EditRecord {
                 minted: None,
                 minted_var: Some(id),
-                structural: def.kind() == Some(VarKind::Count),
+                structural: def.kind() == VarKind::Count,
                 fresh: Vec::new(),
                 outputs: Vec::new(),
             }
@@ -6120,10 +6126,10 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             let lowering = Lowering::start(new, fresh)?;
             let def = lower_decl(new, &lowering, &spoken, def)?;
             let record = match def {
-                VarDef::Free(value) => write_free(new, id, &spoken, value)?,
-                VarDef::Defined(_) => {
+                WrittenDef::Free(value) => write_free(new, id, &spoken, value)?,
+                WrittenDef::Defined(_) => {
                     check_var_def(&spoken, &def)?;
-                    new.vars.insert(id, Var::new(def));
+                    new.vars.insert(id, Var::written(def));
                     check_definition(new, id)?;
                     EditRecord {
                         minted: None,
@@ -6132,9 +6138,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                         fresh: Vec::new(),
                         outputs: Vec::new(),
                     }
-                }
-                VarDef::Output { .. } => {
-                    unreachable!("a declaration lowers to a free or a defined variable")
                 }
             };
             EditRecord {

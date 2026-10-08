@@ -1499,6 +1499,10 @@ impl<P> Doc<P> {
     /// **The variables `node` defines**, in port order: one per port of
     /// its signature ([`Node::outputs`]) while it is live, none once it
     /// is gone.
+    ///
+    /// One pass over the variable table, as [`Self::output`] is: an
+    /// edit already copies the document, so a door asking it per node
+    /// it removes stays linear in the table.
     pub fn outputs(&self, node: RecipeNodeId) -> Vec<VarId> {
         let mut ports: Vec<(u8, VarId)> = self
             .vars
@@ -2400,18 +2404,19 @@ mod tests {
     /// answer for.
     fn cyclic() -> (ProfileDoc, crate::var::VarId, crate::var::VarId) {
         use crate::expr::{Dimension, Expr};
-        use crate::var::{Var, VarDef, VarId};
+        use crate::var::{Var, VarId};
         let mut doc = ProfileDoc::empty_derived("doc-cyclic", Tol::witness());
         let (a, b) = (VarId::new(0, 1), VarId::new(0, 2));
         let read = |var| Expr::var(var, Dimension::Length);
         let one = read(VarId::new(0, 3));
         doc.vars.insert(
             a,
-            Var::new(VarDef::Defined(
+            Var::written(crate::WrittenDef::Defined(
                 Expr::add(read(b), one).expect("lengths add"),
             )),
         );
-        doc.vars.insert(b, Var::new(VarDef::Defined(read(a))));
+        doc.vars
+            .insert(b, Var::written(crate::WrittenDef::Defined(read(a))));
         doc.var_names.insert(a, super::VarName::from_static("a"));
         doc.var_names.insert(b, super::VarName::from_static("b"));
         (doc, a, b)
@@ -2446,12 +2451,12 @@ mod tests {
     #[test]
     fn an_expansion_count_saturates_past_the_bound() {
         use crate::expr::{Dimension, Expr};
-        use crate::var::{Var, VarDef, VarId};
+        use crate::var::{Var, VarId};
         let mut doc = ProfileDoc::empty_derived("doc-saturate", Tol::witness());
         let w = VarId::new(0, 1);
         doc.vars.insert(
             w,
-            Var::new(VarDef::Free(super::FreeVar::continuous(
+            Var::written(crate::WrittenDef::Free(super::FreeVar::continuous(
                 Dimension::Length,
                 1.0,
             ))),
@@ -2462,7 +2467,7 @@ mod tests {
             let read = Expr::var(prev, Dimension::Length);
             doc.vars.insert(
                 id,
-                Var::new(VarDef::Defined(
+                Var::written(crate::WrittenDef::Defined(
                     Expr::add(read.clone(), read).expect("adds"),
                 )),
             );

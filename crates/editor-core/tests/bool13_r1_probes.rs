@@ -480,6 +480,8 @@ fn the_older_shaped_document_loads_at_the_ambient_eps() {
     assert_eq!(loaded.doc.epsilon().to_bits(), eps.to_bits());
 }
 
+// ---- A break: the same bytes from before outputs refuse ----
+
 /// The minimal-vocabulary bytes as today's writer wrote them before
 /// an operation defined variables (INTENT stage 2): the same three
 /// nodes, and no output in the table. A break, so they refuse typed

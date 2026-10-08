@@ -2274,6 +2274,10 @@ NOT_BOUND = {
     # A pose value's subgroup, which the mate solve folds: Python holds
     # no pose value to ask it of.
     "PoseSymmetry": SHAPE,
+    # The free-or-defined half of `VarDef`, which a declaration writes:
+    # Python declares through `VarDecl`.
+    "WrittenDef": SHAPE,
+    "Uncarried": SHAPE,
     "Affine3": SHAPE,
     "Applied": SHAPE,
     "Axis3": SHAPE,

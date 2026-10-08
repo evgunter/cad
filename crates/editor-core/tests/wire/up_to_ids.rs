@@ -10,6 +10,10 @@
 //! meets ids and held injective both ways; everything else is equal.
 //! The mint chain is not compared: it is a digest over the ids.
 //!
+//! Where a refactoring hands over the node map it carried with, two
+//! live documents are `fixture::round_trip::same_up_to_ids`'s instead:
+//! this walk is for two saves no map joins.
+//!
 //! A map built by the walk is a bijection of the ids the two documents
 //! spell, so a dropped node, an added one, a moved value or two ids
 //! swapped in one place and not another all refuse, each naming the

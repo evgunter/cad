@@ -2128,12 +2128,10 @@ impl DocSession {
             let held = doc.var(var).ok_or(Refusal::NoSuchParam(var))?;
             // An operation's output is no parameter: the value door
             // refuses it in its words.
-            if let Some((node, _)) = held.def().output() {
-                return Err(Refusal::Edit(Box::new(EditError::VarIsAnOutput {
-                    var: doc.spoken_var(var),
-                    node: doc.spoken(node),
-                    door: pncad::document::CarryForwardDoor::Value,
-                })));
+            if let Some(refusal) =
+                EditError::output_refusal(doc, var, pncad::document::CarryForwardDoor::Value)
+            {
+                return Err(Refusal::Edit(Box::new(refusal)));
             }
             let Some(dimension) = held.kind().dimension() else {
                 unreachable!("a free or defined variable is a scalar")

@@ -4183,6 +4183,11 @@ pub enum PortKind {
     /// `Bodies` when the operand's first port is `Bodies`, `Body`
     /// otherwise. Evaluation refuses every operand that is neither
     /// (`WrongOperand`).
+    ///
+    /// Read off the operand once, at the insert that mints the output;
+    /// from then on the output's stored kind is the fact (VR3: a kind
+    /// is fixed at minting), and the load door only checks the two
+    /// still agree. No door re-points a transform's operand.
     PlacedFrom(RecipeNodeId),
 }
 

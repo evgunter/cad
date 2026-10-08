@@ -2,8 +2,9 @@
 //! identity minted from the document's mint chain, a kind fixed at
 //! minting, and a definition.
 //!
-//! The identity is a [`VarId`], minted by `DeclareVar` and never
-//! reused. A variable's name ([`crate::VarName`]) is held beside it in
+//! The identity is a [`VarId`], minted by `DeclareVar`, by an edit's
+//! lowering for an anonymous variable, or by `InsertNode` for its node's
+//! outputs, and never reused. A variable's name ([`crate::VarName`]) is held beside it in
 //! the document (`Doc::var_name`), unique within the document, and
 //! is not part of the identity: two declares of one definition mint
 //! two ids, and nothing that identifies a variable is text.
@@ -12,9 +13,9 @@ use crate::doc::FreeVar;
 use crate::expr::{Dimension, Expr};
 
 /// **A variable's identity** (VR1): minted from the document's mint
-/// chain ([`crate::Mint`]) by `DeclareVar`, never reused (a deleted
-/// variable's id stays in the mint log), ordered as declared
-/// ([`crate::MintId`]).
+/// chain ([`crate::Mint`]) by `DeclareVar`, a lowering or an insert's
+/// outputs ([`crate::Minted::Var`]), never reused (a deleted variable's
+/// id stays in the mint log), ordered as minted ([`crate::MintId`]).
 ///
 /// Its `Display` is `#` and the whole id (`#3:3fa9c1d2a0b1c3d4`), the
 /// text a nameless reader unparses to; [`VarId::full`] gives the id
@@ -113,26 +114,6 @@ impl VarKind {
             | Self::Body
             | Self::Bodies
             | Self::Profile => None,
-        }
-    }
-}
-
-impl VarKind {
-    /// The article [`Display`](core::fmt::Display)'s word takes
-    /// (`Dimension::article`'s twin).
-    pub(crate) fn article(self) -> &'static str {
-        match self {
-            Self::Angle | Self::Axis => "an",
-            Self::Length
-            | Self::Scalar
-            | Self::Count
-            | Self::Point
-            | Self::Direction
-            | Self::Plane
-            | Self::Frame
-            | Self::Body
-            | Self::Bodies
-            | Self::Profile => "a",
         }
     }
 }
@@ -250,6 +231,38 @@ impl VarDef {
     }
 }
 
+/// **A written definition**: free or defined by an expression — what a
+/// declaration or an edit's lowering writes, and every variable's
+/// definition but an operation's output, whose kind is its port's. Its
+/// kind is its own, so [`Var::written`] pairs it with no other.
+#[derive(Debug, Clone, PartialEq)]
+pub enum WrittenDef {
+    /// A free variable.
+    Free(FreeVar),
+    /// A variable defined by an expression over other variables.
+    Defined(Expr),
+}
+
+impl WrittenDef {
+    /// The kind this definition holds.
+    #[must_use]
+    pub fn kind(&self) -> VarKind {
+        match self {
+            Self::Free(free) => VarKind::from(free.dim()),
+            Self::Defined(expr) => VarKind::from(expr.dim()),
+        }
+    }
+}
+
+impl From<WrittenDef> for VarDef {
+    fn from(def: WrittenDef) -> Self {
+        match def {
+            WrittenDef::Free(free) => Self::Free(free),
+            WrittenDef::Defined(expr) => Self::Defined(expr),
+        }
+    }
+}
+
 /// **A variable's definition as an edit carries it** — the authored
 /// twin of [`VarDef`]. A defining expression may read variables by
 /// name; the edit door lowers each name to the variable it names and
@@ -305,7 +318,7 @@ impl VarDecl {
 }
 
 /// **A variable**: its kind and its definition. A free or defined
-/// variable's kind is its definition's ([`Var::new`] pairs them, and
+/// variable's kind is its definition's ([`Var::written`] pairs them, and
 /// the load door re-checks a file's pairing); an output's is its
 /// port's ([`Var::output`], checked at load against the operation's
 /// signature).
@@ -317,17 +330,13 @@ pub struct Var {
 }
 
 impl Var {
-    /// The free or defined variable `def` defines, of `def`'s own kind.
-    ///
-    /// # Panics
-    ///
-    /// On an output, whose kind is its port's: [`Self::output`] mints it.
+    /// The variable `def` defines, of `def`'s own kind.
     #[must_use]
-    pub fn new(def: VarDef) -> Self {
-        let Some(kind) = def.kind() else {
-            unreachable!("an output's kind is its port's, which `Var::output` takes")
-        };
-        Self { kind, def }
+    pub fn written(def: WrittenDef) -> Self {
+        Self {
+            kind: def.kind(),
+            def: def.into(),
+        }
     }
 
     /// **Port `port` of `node`**, of the port's kind `kind`.

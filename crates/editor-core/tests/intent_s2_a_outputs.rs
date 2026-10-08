@@ -400,6 +400,32 @@ fn the_up_to_ids_comparator_holds_a_document_and_refuses_each_mutant() {
     roots.swap(0, 1);
     let err = up_to_ids::equal_up_to_ids(&swapped, &new).expect_err("an inconsistent renaming");
     assert!(err.contains("earlier"), "{err}");
+    // A document that is an edit log alone, which the walk compares
+    // edit by edit: itself, and not with one number of one edit moved.
+    let log = wire_body(include_str!("corpus/tour/die_composed_tour.pncad"));
+    assert!(
+        log["snapshot"]["nodes"]
+            .as_object()
+            .is_some_and(serde_json::Map::is_empty),
+        "the tour corpus is an edit log alone"
+    );
+    up_to_ids::equal_up_to_ids(&up_to_ids::without_outputs(&log), &log)
+        .expect("an edit log is itself up to ids");
+    let mut moved = log.clone();
+    let number = first_number(&mut moved["edits"]).expect("the log writes a number");
+    *number = (number.as_f64().unwrap() + 1.0).into();
+    let err = up_to_ids::equal_up_to_ids(&moved, &log).expect_err("a moved number in an edit");
+    assert!(err.contains("$.edits["), "{err}");
+}
+
+/// The first number in `value`, depth first.
+fn first_number(value: &mut serde_json::Value) -> Option<&mut serde_json::Value> {
+    match value {
+        serde_json::Value::Number(_) => Some(value),
+        serde_json::Value::Array(items) => items.iter_mut().find_map(first_number),
+        serde_json::Value::Object(map) => map.values_mut().find_map(first_number),
+        _ => None,
+    }
 }
 
 /// **Every re-blessed document is its pre-outputs self up to ids**: a
@@ -720,4 +746,26 @@ fn a_slot_reading_an_output_refuses_naming_it() {
     let said = error.to_string();
     assert!(said.contains("an operation's output"), "{said}");
     assert!(!said.contains("deleted"), "{said}");
+}
+
+/// **A placer whose operand is gone is the structural walk's**: the
+/// output walk has no kind to hold its port to, and the walk after it
+/// refuses the dangling input, so the file refuses either way.
+#[test]
+fn a_placer_on_a_dangling_operand_refuses_at_the_structural_walk() {
+    let (doc, _, _, extrude) = block("s2a-dangling-placer");
+    let (doc, moved) = insert(doc, xform(extrude, [0.0, 0.0, 1.0], [0.0, 0.0, 1.0], 0.0));
+    let (doc, gone) = insert(doc, fixture::xy_frame());
+    let (doc, _) = fixture::step(doc, DocEdit::DeleteNode { id: gone });
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let (moved, gone) = (moved.0.to_string(), gone);
+    let dangling = doctored(&text, |wire| {
+        wire["snapshot"]["nodes"][&moved]["Transform"]["input"] = gone.0.to_string().into();
+    });
+    match load(&dangling, Tol::witness()) {
+        Err(PersistError::Snapshot(SnapshotError::DanglingInput { input, .. })) => {
+            assert_eq!(input.id(), gone);
+        }
+        other => panic!("a placer on a deleted node refuses DanglingInput, got {other:?}"),
+    }
 }

@@ -264,18 +264,14 @@ pub(crate) enum Held {
 
 impl Held {
     /// What `def` holds.
-    pub(crate) fn of(def: &crate::var::VarDef) -> Self {
+    pub(crate) fn of(def: &crate::var::WrittenDef) -> Self {
+        use crate::var::WrittenDef;
         match def {
-            crate::var::VarDef::Free(crate::doc::FreeVar::Continuous { value, .. }) => {
+            WrittenDef::Free(crate::doc::FreeVar::Continuous { value, .. }) => {
                 Self::Value(value.to_bits())
             }
-            crate::var::VarDef::Free(crate::doc::FreeVar::Count { value }) => Self::Count(*value),
-            crate::var::VarDef::Defined(expr) => Self::Defined(expr.clone()),
-            crate::var::VarDef::Output { .. } => {
-                unreachable!(
-                    "an anonymous variable is free or defined; its operation mints an output"
-                )
-            }
+            WrittenDef::Free(crate::doc::FreeVar::Count { value }) => Self::Count(*value),
+            WrittenDef::Defined(expr) => Self::Defined(expr.clone()),
         }
     }
 }
@@ -422,24 +418,23 @@ impl Mint {
     /// **The id an anonymous variable holding `def` draws here**: the
     /// chain extended by its kind and what it holds
     /// ([`MintingEdit::DeclareAnonymous`]), then once for the variable.
-    fn draw_anonymous(&self, def: &crate::var::VarDef) -> ([u8; 32], VarId) {
-        let held = Held::of(def);
-        let Some(kind) = def.kind() else {
-            unreachable!("a free or defined variable's kind is its definition's")
-        };
-        self.draw_var_of(&MintingEdit::DeclareAnonymous { kind, held })
+    fn draw_anonymous(&self, def: &crate::var::WrittenDef) -> ([u8; 32], VarId) {
+        self.draw_var_of(&MintingEdit::DeclareAnonymous {
+            kind: def.kind(),
+            held: Held::of(def),
+        })
     }
 
     /// The id an anonymous variable holding `def` would mint here —
     /// what a refusal of it speaks. Reads; mints nothing.
     #[must_use]
-    pub(crate) fn would_declare_anonymous(&self, def: &crate::var::VarDef) -> VarId {
+    pub(crate) fn would_declare_anonymous(&self, def: &crate::var::WrittenDef) -> VarId {
         self.draw_anonymous(def).1
     }
 
     /// **Mint the id of an anonymous variable holding `def`**
     /// ([`Self::draw_anonymous`]).
-    pub(crate) fn declare_anonymous(&mut self, def: &crate::var::VarDef) -> VarId {
+    pub(crate) fn declare_anonymous(&mut self, def: &crate::var::WrittenDef) -> VarId {
         let (chain, id) = self.draw_anonymous(def);
         self.chain = chain;
         self.log.push(Minted::Var(id));

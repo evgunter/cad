@@ -44,7 +44,7 @@ impl core::fmt::Display for NameFault {
             Unlowered::Kind { var: _, declared } => write!(
                 f,
                 "the variable named {name} is {} {declared}, read here as {} {dim}",
-                declared.article(),
+                crate::sentence::article(&declared.to_string()),
                 dim.article()
             ),
         }
