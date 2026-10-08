@@ -756,21 +756,23 @@ pub fn acts(op: &SessionOp) -> bool {
         SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::SetSlot { .. }
+        | SessionOp::SetSlotVariable { .. }
+        | SessionOp::DeclineOffer { .. }
         | SessionOp::ProbeBounds { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
-        | SessionOp::SetParam { .. }
-        | SessionOp::SetParamUnit { .. }
-        | SessionOp::SetParamText { .. }
+        | SessionOp::SetVariable { .. }
+        | SessionOp::SetVariableUnit { .. }
+        | SessionOp::SetVariableText { .. }
         | SessionOp::DeclareVar { .. }
         | SessionOp::RenameVar { .. }
         | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
-        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::BeginVariableGesture { .. }
         | SessionOp::PreviewGesture { .. }
         | SessionOp::CommitGesture { .. }
-        | SessionOp::PreviewParamGesture { .. }
-        | SessionOp::CommitParamGesture { .. }
+        | SessionOp::PreviewVariableGesture { .. }
+        | SessionOp::CommitVariableGesture { .. }
         | SessionOp::CancelGesture
         | SessionOp::Undo
         | SessionOp::Redo
@@ -864,21 +866,23 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::Select(_)
         | SessionOp::DeleteNode { .. }
         | SessionOp::SetSlot { .. }
+        | SessionOp::SetSlotVariable { .. }
+        | SessionOp::DeclineOffer { .. }
         | SessionOp::ProbeBounds { .. }
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
-        | SessionOp::SetParam { .. }
-        | SessionOp::SetParamUnit { .. }
-        | SessionOp::SetParamText { .. }
+        | SessionOp::SetVariable { .. }
+        | SessionOp::SetVariableUnit { .. }
+        | SessionOp::SetVariableText { .. }
         | SessionOp::DeclareVar { .. }
         | SessionOp::RenameVar { .. }
         | SessionOp::DeleteVar { .. }
         | SessionOp::BeginGesture { .. }
-        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::BeginVariableGesture { .. }
         | SessionOp::PreviewGesture { .. }
         | SessionOp::CommitGesture { .. }
-        | SessionOp::PreviewParamGesture { .. }
-        | SessionOp::CommitParamGesture { .. }
+        | SessionOp::PreviewVariableGesture { .. }
+        | SessionOp::CommitVariableGesture { .. }
         | SessionOp::CancelGesture
         | SessionOp::Undo
         | SessionOp::Redo
@@ -2879,12 +2883,12 @@ pub fn progress(outstanding: Outstanding, indexing: bool) -> Option<Progress> {
 
 /// The name a refused batch offers to CREATE.
 ///
-/// The parse door's unknown-parameter refusal is deliberate
-/// typo-safety — text naming an undeclared parameter never creates
+/// The parse door's unknown-variable refusal is deliberate
+/// typo-safety — text naming an undeclared variable never creates
 /// one. The ratified pattern is refuse-then-offer, and this is the
 /// offer as a value: the undeclared name, for the frame loop to
-/// prefill into the add-parameter affordance (name only — the
-/// expression's context does not determine the new parameter's
+/// prefill into the add-variable affordance (name only — the
+/// expression's context does not determine the new variable's
 /// DIMENSION, so that stays the user's explicit pick there). `None`
 /// for every other refusal and for a clean batch.
 pub fn creation_offer(refusal: Option<&Refusal>) -> Option<VarName> {
@@ -2913,7 +2917,7 @@ pub fn creation_offer(refusal: Option<&Refusal>) -> Option<VarName> {
 /// boolean's undeclared-contact refusal makes
 /// ([`crate::session::RefusedBoolean::offer`]), for the frame loop to
 /// hold for the boolean tool the way it holds [`creation_offer`]'s name
-/// for the add-parameter form. `None` for every other refusal and for a
+/// for the add-variable form. `None` for every other refusal and for a
 /// clean batch.
 ///
 /// The two offers go stale differently, and each says how where it is
@@ -2925,7 +2929,9 @@ pub fn declare_offer(refusal: Option<&Refusal>) -> Option<DeclareOffer> {
         Refusal::Contact(refused) => refused.offer(),
         Refusal::DrivenByExpression { .. }
         | Refusal::NoSuchSlot { .. }
-        | Refusal::NoSuchParam(_)
+        | Refusal::NoSuchVariable(_)
+        | Refusal::VariableIsDefined(_)
+        | Refusal::NotOffered(_)
         | Refusal::ConstantRefused { .. }
         | Refusal::EmptyName
         | Refusal::WrongNodeKind { .. }
@@ -2988,8 +2994,8 @@ pub fn version_offer(kind: &NodeErrorKind, files: &PartFiles) -> Option<VersionO
 /// The chrome clears the expression field the moment Set is clicked —
 /// a draft is transient state and a committed one leaves nothing
 /// behind. But a PARSE refusal means nothing was committed, and for
-/// the unknown-parameter case the offer above sends the user off to
-/// create the parameter first: coming back to an empty field would
+/// the unknown-variable case the offer above sends the user off to
+/// create the variable first: coming back to an empty field would
 /// make acting on the offer cost the very text that raised it. So a
 /// parse-refused batch restores the draft — the slot the text was
 /// aimed at and the text itself, read from the batch's own op.

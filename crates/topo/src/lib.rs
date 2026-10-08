@@ -217,6 +217,7 @@ mod review_m1_pr3;
 mod review_m1_pr4;
 #[cfg(test)]
 pub(crate) mod review_m1_pr5_internal;
+pub(crate) mod ring_path;
 #[cfg(test)]
 mod row_walk_proofs;
 // The shared vertex-neighborhood sector modules — top-level siblings

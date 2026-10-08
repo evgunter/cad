@@ -156,7 +156,7 @@ fn a_slab_crossing_one_section_circle_four_times_builds_under_every_boolean() {
 /// At `x > 0.5, θ = 10°, 70°, 110°, 170°` the walk pairs the crossings
 /// as above, and the section's loop on the ball's face is a ring clear
 /// of every edge of that face, whose island the ring lane winds without
-/// a chart (`chord_join::sphere_island_winding`): ∩ and slab ∖ ball
+/// a chart (`chord_join::path_island_winding`): ∩ and slab ∖ ball
 /// build at the slab's closed form. ∪ and ball ∖ slab keep the ring as a
 /// hole of the ball's face, which the result gate refuses
 /// (`work/flux/sphere-face-with-a-hole-has-no-closed-form.md`).

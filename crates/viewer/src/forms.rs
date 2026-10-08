@@ -375,8 +375,8 @@ pub(crate) fn drag_tick(dimension: Dimension) -> f64 {
 /// gesture made a thousand times coarser by a change of notation.
 ///
 /// **The two panel fields this answers for are the SLOT field
-/// (`ViewerBehavior::slot_value_ui`) and the DOCUMENT PARAMETER's
-/// (`ViewerBehavior::properties_ui`'s `Selection::Param` arm)** — the
+/// (`ViewerBehavior::slot_value_ui`) and the DOCUMENT VARIABLE's
+/// (`ViewerBehavior::properties_ui`'s `Selection::Variable` arm)** — the
 /// two a user drags to move the same kind of number. It is not the
 /// creation forms' answer: those hold canonical drafts and pick their
 /// tick from the four constants by hand at each field
