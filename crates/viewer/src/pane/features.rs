@@ -925,7 +925,7 @@ mod tests {
                 Notation::CANONICAL,
             );
         });
-        assert!(drawn.contains("0.5 rad"), "{drawn}");
+        assert!(drawn.contains("1.5707963268 rad"), "{drawn}");
     }
 
     /// **An empty value says so on its own row, beside its kind**, and
@@ -1225,7 +1225,7 @@ mod tests {
                 Notation::CANONICAL,
             );
         });
-        let comparison = compared(&fixture, fixture.angle_holds, "0.5 rad", "1 rad");
+        let comparison = compared(&fixture, fixture.angle_holds, "1.5707963268 rad", "2 rad");
         assert!(
             drawn.contains(&comparison),
             "`{comparison}` among {drawn:?}"
