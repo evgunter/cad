@@ -2,7 +2,7 @@
 id: msolve
 kind: program
 title: MSOLVE — the mate solve's correctness residue
-status: blocked
+status: ready
 opened: 2026-09-04
 area: kernel
 prefix: msolve/

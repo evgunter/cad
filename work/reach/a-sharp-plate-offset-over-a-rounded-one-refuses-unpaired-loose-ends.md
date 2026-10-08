@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 Found by the dual review of PR 3846 (lanes r1 and r2) and measured on
@@ -37,3 +37,7 @@ the likely route but has not been instrumented. The sharp plate's
 bottom edges now cross the fillets transversally (dy > 0) or miss them
 (dy < 0), so this is a seam-matching question about a `Rest` patch whose
 boundary mixes both operands' edges, not a tangency one.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: its repro reaches the chord join only after the declared-Rest zip declines; stage 4 retires that zip and moves its arms into the join, so the route is measured there. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

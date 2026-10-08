@@ -7,7 +7,7 @@ opened: 2026-10-04
 priority: P1
 cost: M
 refs: [a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms]
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -36,3 +36,7 @@ same battery's ten `StaleContactDeclaration` results are evidence on
 Read one pose's contact records through `remap_contacts`. Either the
 kissing vertex's record is dropped, or none was minted for a contact
 the result keeps. Fix it at the record's mint or its remap.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the tier-3′ UndeclaredContact{VertexOnFace} refusal becomes an unproven-coincidence finding recorded at the stage-4 door. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

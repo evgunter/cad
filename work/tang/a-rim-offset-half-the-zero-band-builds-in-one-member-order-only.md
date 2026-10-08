@@ -2,11 +2,10 @@
 id: a-rim-offset-half-the-zero-band-builds-in-one-member-order-only
 kind: issue
 title: A dome rim offset half the zero band off the tube builds in one member order and refuses in the other
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## What
@@ -36,3 +35,7 @@ reaches it; the owner of the merge stage (FUSE) may take it.
 A body that one member order builds and the other refuses breaks the
 op's symmetry. Either both orders should build (the zero band says the
 rim is on) or both should escalate.
+
+## Released from the D10 hold (2026-10-08)
+
+Nothing D10 changes gates this row, so it is open: an order asymmetry in merge-stage pcurve certification (geom-brep pcurve_cache.rs pcurve_envelope); the Zero-glue merge still runs it, so a fix now is kept. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

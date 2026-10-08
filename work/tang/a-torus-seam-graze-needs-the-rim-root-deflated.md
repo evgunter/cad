@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P1
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -43,3 +43,7 @@ side is not.
 
 The lily's stem: `torus-declared-rest-lane-banked` item 3. The sibling
 piece is `a-torus-meridian-lying-on-a-torus-is-unsettled`.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the proposed fix takes the verified declared Seam as the licence to deflate the rim root (seam_certifies_side); declared seams retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

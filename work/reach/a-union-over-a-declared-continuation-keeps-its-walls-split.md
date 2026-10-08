@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -31,3 +31,7 @@ counterpart) folds a declared continuation's split walls back into one
 face where the result is one surface patch, so `B ∪ A` returns A's 10
 faces. Measure first whether the curved fillet walls or the planar
 sides are the ones left split.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: fix site is merge_coplanar_faces_declared (the declared-continuation merge), which stage 4 rewrites into glue on Zero verdicts. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

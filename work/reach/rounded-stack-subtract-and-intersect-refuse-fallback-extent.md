@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-01
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 Found by the review of PR 3657, measured on `d2d5b09076`.
@@ -109,3 +109,7 @@ overlap reads `Zero` (in band), which is the escalation answer, not a
 definite "no patch". Whether an abutting continuation can be certified
 from its trims (a shared boundary curve on both faces, the interiors
 on either side of it) is the open question here.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the extent pass's exemption is keyed on declarations (ops.rs Exempt::Declared/Rest), which stage 4 retires. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
