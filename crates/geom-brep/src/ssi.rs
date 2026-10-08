@@ -222,43 +222,50 @@ impl<'a, T: geom_core::CertifiedBounds> SsiOperand<'a, T> {
     }
 }
 
-/// The two lengths a rung-3 certificate is stated over: the lever arm
-/// the transversality margin is levered by, and the feature extent that
-/// sets the tube ladder's widest rung.
-///
-/// **One type rather than two parallel parameters**, for the reason
-/// that made the tolerance one type: at three of the four call sites
-/// they are the same quantity, so as a pair of positional arguments
-/// they are a second copy waiting to drift — the same shape S25 named
-/// for ε, one line below it. [`TubeScale::uniform`] is the common
-/// case; [`TubeScale::split`] is for the caller that genuinely has a
-/// curvature arm narrower than the feature it sits on.
-#[derive(Clone, Copy, Debug)]
-pub struct TubeScale<T> {
-    /// The lever arm the transversality margin is stated over, in
-    /// meters.
-    pub(crate) arm: T,
-    /// The feature extent, in meters — the ladder's widest rung.
-    pub(crate) extent: f64,
+/// Which length levers the transversality decision at a point
+/// ([`SsiError::TransversalityBand`],
+/// [`crate::PlaneNurbsRefusal::NotTransverse`]): the shorter of the
+/// surfaces' curvature radius there and the feature extent.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PointLever {
+    /// The surfaces' curvature radius at the point: the reciprocal of
+    /// the larger principal curvature of either operand.
+    CurvatureRadius,
+    /// The feature extent, where no curvature radius is shorter.
+    Extent,
 }
 
-impl<T: geom_core::Bounds> TubeScale<T> {
-    /// One length for both: the caller's named feature, used as the
-    /// transversality lever arm and as the ladder's widest rung.
-    #[must_use]
-    pub fn uniform(arm: T) -> Self {
-        Self {
-            arm,
-            extent: geom_core::Bounds::hi(arm),
+impl PointLever {
+    /// The lever [`point_arm`] chose, from its `reach` `κ·E`: the
+    /// curvature radius where it is the shorter, `κ·E > 1`.
+    pub(crate) fn of(reach: f64) -> Self {
+        if reach > 1.0 {
+            Self::CurvatureRadius
+        } else {
+            Self::Extent
         }
     }
+}
 
-    /// A transversality lever arm distinct from the feature extent —
-    /// the ℝ³ analytic arm, where the folded curvature radius is
-    /// genuinely tighter than the domain's named extent.
-    #[must_use]
-    pub fn split(arm: T, extent: f64) -> Self {
-        Self { arm, extent }
+/// **The arm of a point transversality decision**, `min(1/κ, E)` with
+/// `κ` the larger principal curvature of either surface at the point
+/// and `E` the feature extent, spelled `E / max(1, κ·E)` so a flat pair
+/// (`κ = 0`) reads `E` and poison stays poison. Returns the arm and its
+/// reach `κ·E`, which names the lever ([`PointLever::of`]). Every point
+/// decision reads its arm here: the march's states, the Hermite's ends,
+/// refinement's chord midpoint ([`march::decide_transversality`]) and
+/// the at-rest plane × NURBS check ([`crate::plane_nurbs_limbs`]).
+pub(crate) fn point_arm<T: Real>(kappa: T, extent: T) -> (T, T) {
+    let reach = kappa * extent;
+    (extent / T::one().max(reach), reach)
+}
+
+impl core::fmt::Display for PointLever {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::CurvatureRadius => "the surfaces' curvature radius",
+            Self::Extent => "the feature extent",
+        })
     }
 }
 
@@ -307,6 +314,8 @@ pub enum SsiError {
         sin_theta: f64,
         /// The lever arm folded against it, in meters.
         arm: f64,
+        /// Which length the arm is.
+        lever: PointLever,
         /// Hoffmann's own σ₂ signal at the same state (diagnostic).
         sigma_min: f64,
         /// The verdict on `sin θ · arm`, with the margin it classified.
@@ -460,7 +469,7 @@ pub enum SsiError {
     /// (`work/iso/plane-nurbs-refusal-arms-with-no-ending.md`).
     TubeLadderEmpty {
         /// The extent the ladder was scaled from (meters): the caller's
-        /// [`TubeScale`] extent at [`certify_rung3`], the domain's
+        /// extent at [`certify_rung3`], the domain's
         /// feature extent at the marched doors.
         extent: f64,
         /// The floor every rung fell below (meters).
@@ -484,8 +493,8 @@ pub enum SsiError {
     /// escalate, typed, never retried.
     TubeStraddles {
         /// The verdict on the certified transversality clearance: a
-        /// dimensionless sine-like lower bound levered by the tube
-        /// scale's arm, so a length in metres (zero when the enclosure
+        /// dimensionless sine-like lower bound levered by the feature
+        /// extent, so a length in metres (zero when the enclosure
         /// straddles).
         verdict: crate::recourse::Refused,
         /// Boxes in the chain.
@@ -739,13 +748,14 @@ impl core::fmt::Display for SsiError {
             Self::TransversalityBand {
                 sin_theta,
                 arm,
+                lever,
                 sigma_min,
                 ..
             } => write!(
                 f,
                 "ssi: the surfaces meet nearly tangentially at a state the trace reads, a \
                  marched state or a refined gap's chord midpoint (sin θ = {sin_theta:e}, \
-                 arm = {arm:e} m, σ₂ = {sigma_min:e}): the tangency regime \
+                 arm = {arm:e} m, {lever}, σ₂ = {sigma_min:e}): the tangency regime \
                  (TangentIntersection), not a locus to march"
             ),
             Self::PairTangent { verdict } => write!(
@@ -2455,8 +2465,6 @@ fn finish_r3(
 ) -> Result<SsiBranch, SsiError> {
     use system::LocalSystem as _;
     let march_tol = seam_tol(ctx.tol, band)?;
-    let points = trace_points::<2, 3, _, _>(sys, trace);
-    let arm = crate::dihedral::folded_lever_arm(a, b, points[0], domain.extent);
     let (carrier, cert) =
         refine::refine_by_certificate(sys, trace.states.clone(), ctx, band, |states, limbs| {
             let points: Vec<Point3<f64>> = states.iter().map(|s| sys.point(s)).collect();
@@ -2467,7 +2475,7 @@ fn finish_r3(
                     pair: (a, b),
                     slab: domain.slab(),
                 },
-                TubeScale::split(arm, domain.extent),
+                domain.extent,
                 band,
                 limbs,
             )?;
@@ -2909,7 +2917,7 @@ fn trace_plane_nurbs_within(
                 b: &wall_op,
                 pcurve_b: fitted.2.as_ref(),
             },
-            TubeScale::uniform(domain.extent),
+            domain.extent,
             band,
             certify::Limbs::All,
         ) {
@@ -2962,13 +2970,13 @@ pub fn certify_rung3<T: geom_core::Decide + geom_core::Bounds + geom_core::Certi
     pcurve_b: Option<&NurbsCurve2<T>>,
     a: &SsiOperand<'_, T>,
     b: &SsiOperand<'_, T>,
-    scale: TubeScale<T>,
+    extent: T,
     band: Band,
 ) -> Result<SsiCertificate<T>, SsiError> {
     certify::certify_branch(
         carrier,
         certify::Lane::AtRest { a, b, pcurve_b },
-        scale,
+        extent,
         band,
         certify::Limbs::All,
         &mut Vec::new(),
@@ -3074,6 +3082,44 @@ mod ending_tests {
         }
     }
 
+    /// **A point's transversality refusal names the length its arm is.**
+    /// The arm is the shorter of the surfaces' curvature radius and the
+    /// extent; a tie, or a flat pair, is the extent.
+    #[test]
+    fn a_transversality_refusal_names_its_arms_length() {
+        use crate::ssi::{PointLever, point_arm};
+        for (kappa, arm, lever) in [
+            (4.0, 0.25, PointLever::CurvatureRadius),
+            (1.0, 1.0, PointLever::Extent),
+            (0.5, 1.0, PointLever::Extent),
+            (0.0, 1.0, PointLever::Extent),
+        ] {
+            let (got, reach) = point_arm(kappa, 1.0);
+            assert_eq!((got, PointLever::of(reach)), (arm, lever), "κ {kappa}");
+        }
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        for (lever, words) in [
+            (
+                PointLever::CurvatureRadius,
+                "arm = 2.5e-1 m, the surfaces' curvature radius",
+            ),
+            (PointLever::Extent, "arm = 2.5e-1 m, the feature extent"),
+        ] {
+            let shown = SsiError::TransversalityBand {
+                sin_theta: 2e-9,
+                arm: 0.25,
+                lever,
+                sigma_min: 1e-9,
+                verdict: Refused::Zero(Classified {
+                    margin: MarginDiag::value(5e-10),
+                    band,
+                }),
+            }
+            .to_string();
+            assert!(shown.contains(words), "{lever:?}: {shown}");
+        }
+    }
+
     /// The transversality decision's one lever, read at every door.
     const CROSS: &str = "Recourse: move the geometry so the surfaces cross at a clearer angle";
 
@@ -3107,6 +3153,7 @@ mod ending_tests {
             SsiError::TransversalityBand {
                 sin_theta: 5e-9,
                 arm: 1.0,
+                lever: crate::ssi::PointLever::Extent,
                 sigma_min: 1e-9,
                 verdict: zero,
             },
@@ -3290,6 +3337,7 @@ mod ending_tests {
         let death = SsiError::TransversalityBand {
             sin_theta: 5e-10,
             arm: 1.0,
+            lever: crate::ssi::PointLever::Extent,
             sigma_min: 1e-10,
             verdict: zero,
         };
@@ -3735,6 +3783,7 @@ mod ending_tests {
                 SsiError::TransversalityBand {
                     sin_theta: 5e-10,
                     arm: 1.0,
+                    lever: crate::ssi::PointLever::Extent,
                     sigma_min: 1e-10,
                     verdict: zero,
                 },

@@ -120,7 +120,7 @@ fn a_declared_half_rod_stack_unions_at_every_seam_turn() {
 /// no-crossings path's section certificate, the coaxial wall halves
 /// touching across the mating circle with no crossing event — the
 /// rounded plate stack's refusal
-/// (`work/reach/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
+/// (`work/reachhold/rounded-stack-subtract-and-intersect-refuse-fallback-extent.md`).
 /// Their oracle once built: ∩ empty, each difference its minuend, π.
 #[test]
 fn a_declared_half_rod_stack_keeps_its_intersect_and_subtract_refusals() {

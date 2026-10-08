@@ -2,8 +2,10 @@
 id: ssi-transversality-at-a-point-is-spelled-three-ways
 kind: issue
 title: ssi: transversality at a point is spelled three ways, and the march's lever reads the chart's parameterisation
-status: open
+status: closed
 opened: 2026-10-04
+closed: 2026-10-06
+branch: ssi/transversality-lever
 priority: P2
 design: true
 ---
@@ -28,3 +30,28 @@ Since PR 3983 a Hermite branch is decided by the march's spelling at its two end
 ## Design question
 
 Which length levers transversality: one that is a property of the geometry (a curvature radius of the surfaces, clamped by the extent), shared by all three decisions, or the extent alone? A chart-parameterisation lever makes the answer depend on how a surface is parameterised, which no other SSI decision does.
+
+## Closed (2026-10-06, `ssi/transversality-lever`)
+
+Settled by a two-designer fork (four rounds; probes on
+`analysis/design-fork/transversality-lever-a` and `-b`) and built as
+its converged state. Point decisions (the march's states, the
+Hermite's two ends, refinement's unsettled chord midpoint, and the
+at-rest per-sample check in `plane_nurbs_limbs`) read
+`sin θ · min(ρ, E)`, `ρ` the surfaces' curvature radius from the shape
+operator (`dihedral::max_principal_curvature`), replacing the ℝ⁴ chart
+arm. Region decisions (the boundary strip, limb 3's tube on both
+lanes) read the certified least sine levered by `E` alone:
+`TubeScale` holds only the extent, and the ℝ³ tube's arm read at the
+carrier's first point is gone. `SsiError::TransversalityBand` names
+which length its arm was (`PointLever`). README C3 states the rule.
+
+The live witness is `m5_pr7_ssi::a_flat_wall_whose_chart_path_bends_answers_as_the_plane_it_is`
+(the reviewer's witness no longer reaches the march on main).
+
+Residue, each its own row:
+`ssi-the-chart-lane-has-no-near-tangent-pose-decision`,
+`ssi-limb-three-takes-the-widest-one-arc-rungs-band-verdict`,
+`ssi-boundary-strip-sine-divides-by-the-whole-walls-speed`,
+`ssi-limb-three-chart-sine-reads-the-chart-perpendicular`,
+`ssi-a-chart-rung-can-be-narrower-than-eps-in-metres`.

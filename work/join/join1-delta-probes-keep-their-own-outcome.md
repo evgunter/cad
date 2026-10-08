@@ -6,6 +6,7 @@ status: open
 opened: 2026-10-04
 priority: P4
 cost: E
+branch: join/battery-hygiene
 ---
 
 
