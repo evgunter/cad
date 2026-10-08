@@ -115,7 +115,12 @@ fn rv_a_retyped_pattern_count_is_refused_at_both_doors() {
             ..
         })) => assert_eq!(
             (node.id(), slot, declared, referenced),
-            (pattern, SlotId::Count, Dimension::Length, Dimension::Count)
+            (
+                pattern,
+                SlotId::Count,
+                editor_core::VarKind::Length,
+                Dimension::Count
+            )
         ),
         other => panic!("the load door must refuse a length count, got {other:?}"),
     }
@@ -158,7 +163,7 @@ fn rv_the_slot_walk_shadows_a_structural_refusal_it_did_not_shadow_before() {
             (
                 pattern,
                 SlotId::Spacing,
-                Dimension::Angle,
+                editor_core::VarKind::Angle,
                 Dimension::Length
             ),
             "the earlier walk's refusal, at the address it is about"

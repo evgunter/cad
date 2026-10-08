@@ -901,6 +901,27 @@ class TestPersistence(unittest.TestCase):
         held["def"]["Defined"] = wire
         return header + "\n" + json.dumps(body)
 
+    def test_an_operation_defines_its_output_variable(self):
+        """An inserted operation defines one variable per port of its
+        signature, saved in the variable table as an output of its node:
+        an extrude defines one, at port 0, and no port 1."""
+        doc = Doc()
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        body = doc.output(box)
+        self.assertIsNotNone(body)
+        self.assertEqual(doc.output(box, 0), body)
+        self.assertEqual(body.kind, "body")
+        self.assertEqual(doc.slot(box, "distance").kind, "length")
+        with self.assertRaises(ValueError) as caught:
+            doc.output(box, 1)
+        self.assertIn("no port 1", str(caught.exception))
+        _, body_text = doc.save().split("\n", 1)
+        snapshot = json.loads(body_text)["snapshot"]
+        held = snapshot["vars"][body.hex]
+        self.assertEqual(held["kind"], "Body")
+        self.assertEqual(held["def"]["Output"]["port"], 0)
+        self.assertIn("Extrude", snapshot["nodes"][held["def"]["Output"]["node"]])
+
     def test_a_header_that_disagrees_with_the_snapshot_names_both_ids(self):
         """A tampered or hand-assembled file: the save door writes the
         snapshot's id, so the two agree by construction."""

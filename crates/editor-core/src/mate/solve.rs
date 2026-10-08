@@ -44,7 +44,7 @@ use geom_core::linalg::{Affine3, Mat3, OrthoFrame, Point3, UnitVec3, UnitVec3Err
 use geom_core::predicate::Band;
 use geom_core::{Decide, Real, Tol};
 
-use super::coset::{Arm, Coset, FoldStop, Measured, Subgroup};
+use super::coset::{Arm, Coset, FoldStop, Measured, PoseSymmetry, Subgroup};
 use super::member::{Member, Placing, Walk, check_reference, derived_offset, walk_of};
 use super::reach::MateReach;
 use super::{
@@ -1228,7 +1228,13 @@ fn mate_coset<T: SolveScalar>(
                     }));
                 }
             }
-            (fa, Subgroup::Trivial)
+            (
+                fa,
+                side_symmetry(&SideFrame {
+                    placement: fa,
+                    axis,
+                }),
+            )
         }
         MatePrimitive::Coaxial => match alignment.clocking {
             // The rider cuts the cylindrical residual to translation
@@ -1238,14 +1244,11 @@ fn mate_coset<T: SolveScalar>(
                 (target, Subgroup::Prismatic { direction: axis })
             }
             None => {
-                let point = Point3::origin() + fa.translation;
-                (
-                    fa,
-                    Subgroup::Cylindrical {
-                        point,
-                        direction: axis,
-                    },
-                )
+                let axis = topo::query::DatumValue::Axis {
+                    origin: Point3::origin() + fa.translation,
+                    dir: axis,
+                };
+                (fa, side_symmetry(&axis))
             }
         },
         MatePrimitive::PlanarRest { offset } => {
@@ -1256,7 +1259,11 @@ fn mate_coset<T: SolveScalar>(
                 return Err(Box::new(MateFault::TableLacks { mate, what }));
             }
             let target = fa * Affine3::translation(local_z * T::from_f64(offset));
-            (target, Subgroup::Planar { normal: axis })
+            let plane = topo::query::DatumValue::Plane {
+                origin: Point3::origin() + fa.translation,
+                normal: axis,
+            };
+            (target, side_symmetry(&plane))
         }
         MatePrimitive::Clocking => {
             // The table's other static gap, from the same home
@@ -1379,12 +1386,27 @@ pub(crate) fn part_of<P>(
 /// composed with its offset denotes, in the side's part coordinates,
 /// and its local +Z as a witness the coset table reads — at the solve's
 /// scalar.
+/// **The subgroup a mate side's pose folds** ([`PoseSymmetry`]): the
+/// side read as the pose its primitive pins — a frame, an axis or a
+/// plane, each of which has one.
+fn side_symmetry<T: Real>(pose: &impl PoseSymmetry<T>) -> Subgroup<T> {
+    pose.symmetry()
+        .unwrap_or_else(|| unreachable!("a frame, an axis and a plane each have a subgroup"))
+}
+
 #[derive(Debug, Clone, Copy)]
 struct SideFrame<T: Real> {
     /// The frame's placement.
     placement: Affine3<T>,
     /// Its axis, local +Z.
     axis: UnitVec3<T>,
+}
+
+/// A resolved side is a frame: known outright.
+impl<T: Real> PoseSymmetry<T> for SideFrame<T> {
+    fn symmetry(&self) -> Option<Subgroup<T>> {
+        Some(Subgroup::Trivial)
+    }
 }
 
 impl<T: SolveScalar> SideFrame<T> {

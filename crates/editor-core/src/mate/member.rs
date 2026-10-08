@@ -951,15 +951,16 @@ mod tests {
     use geom_core::Tol;
 
     /// The hand-pushed ids are chosen, not minted; the dangling one
-    /// names no node. Their ordinals follow the 57 log entries `build`
-    /// mints before them (its three inserts and every slot's variable).
-    const AXIS: RecipeNodeId = RecipeNodeId::new(58, 10);
-    const FRAME2: RecipeNodeId = RecipeNodeId::new(59, 11);
-    const T1: RecipeNodeId = RecipeNodeId::new(60, 12);
-    const T2: RecipeNodeId = RecipeNodeId::new(61, 13);
-    const PATTERN: RecipeNodeId = RecipeNodeId::new(62, 14);
-    const DANGLING: RecipeNodeId = RecipeNodeId::new(63, 40);
-    const MATE: RecipeNodeId = RecipeNodeId::new(64, 50);
+    /// names no node. Their ordinals follow the 60 log entries `build`
+    /// mints before them (its three inserts, every slot's variable and
+    /// each insert's output).
+    const AXIS: RecipeNodeId = RecipeNodeId::new(61, 10);
+    const FRAME2: RecipeNodeId = RecipeNodeId::new(62, 11);
+    const T1: RecipeNodeId = RecipeNodeId::new(63, 12);
+    const T2: RecipeNodeId = RecipeNodeId::new(64, 13);
+    const PATTERN: RecipeNodeId = RecipeNodeId::new(65, 14);
+    const DANGLING: RecipeNodeId = RecipeNodeId::new(66, 40);
+    const MATE: RecipeNodeId = RecipeNodeId::new(67, 50);
 
     fn xf(input: RecipeNodeId) -> crate::AuthoredNode {
         Node::transform(

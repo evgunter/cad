@@ -16,11 +16,15 @@ Scope: D10's **Operations** paragraph (`docs/DESIGN.md` §D10), as `work/intent/
   - A second identity placement is allowed.
 - **FORK-4** (#4221): DM6 is rewritten as "no edit infers a re-point". An operand slot is written by the one slot door.
 - **FORK-5** (#4218): D10 says a `Measure` defines an *observed* variable, read only by an assertion, and a construction reads what was written.
-- **FORK-1** and **FORK-3** (#4222) are still with Ev, so units A and E are marked *pending*. #4222 currently reads as follows:
-  - the kinds are the value kinds, the *shapes* (`Body`, `Bodies`, `Profile`) and the selections (`Face`, `Edge`, `Faces`, `Edges`);
-  - a split defines two ports;
-  - an instance defines one `Body` per world placement of its part;
-  - a selection is a definition, not a node.
+- **FORK-1** (#4222, approved as written): each `Node` variant states a fixed list of named, typed output ports.
+  - The kinds are the value kinds, the poses, the *shapes* (`Body`, `Bodies`, `Profile`), which only an operation defines, and the selections (`Face`, `Edge`, `Faces`, `Edges`).
+  - A split defines two `Body` ports, a pattern one `Bodies`, and `Transform` takes its operand's kind.
+  - An instance defines one `Body` per world placement of its part, its signature recorded on the node when the part is pinned.
+  - `Assertion`, `Mate` and `Gauge` define nothing.
+- **FORK-1b** (#4222, approved): D10's five poses stay (`Point`, `Direction`, `Axis`, `Plane`, `Frame`), and there is no `AxisInPlane` kind.
+  - Both axis datums define an `Axis`, and `Revolve` defines `body: Body` and `axis: Axis`.
+  - A pose kind names its symmetry as the mates' `Subgroup` (A11 (1)): `Frame` the trivial group, `Plane` the planar, `Axis` the cylindrical. `Point` and `Direction` name none until a reader needs theirs.
+- **FORK-3** (#4222, approved): sets. A selection is a definition, not a node, stating its body once, and the selection kinds are `Face`, `Edge`, `Faces` and `Edges`.
 - **The consuming-model holdover audit** (`audit/intent-consuming-holdovers`, hits H1–H14) is applied: §11 maps each hit to the unit that retires it.
 
 D10's last paragraph retires two things here: **A10's sink rule** and **A12's reading edges**. Stage 2 also closes `a-measured-part-is-not-a-product-root` and `a-failed-requirement-refuses-the-whole-product`, and completes VR4's interim exception (a `Measure`'s arithmetic stays in the node "until stage 2 makes `Measure` an operation").
@@ -39,7 +43,7 @@ The state of these mechanisms at the baseline:
 
 | PR | Unit (`work/intent/`) | Lands | Representation step it completes | Goldens |
 |---|---|---|---|---|
-| A | `operations-define-output-variables` | `VarDef::Output { node, port }`, the reference kinds, outputs minted at insert, persistence and the load walk | **an operation defines variables** | vars table grows. Node ids unmoved (Q6) |
+| A | `operations-define-output-variables` | `VarDef::Output { node, port }`, the reference kinds, outputs minted at insert, persistence and the load walk | **an operation defines variables** | re-blessed: vars table and log grow, ids move. Equal up to an id bijection; content keys and geometry unmoved (Q6) |
 | B | `operands-are-reads` | every operand field holds a `VarId` read of an output. `inputs()` is derived from reads. Kind-typed operand slots. Delete leaves readers unresolved | **reading is the only dependency** (for operands) | re-blessed: ids move. Roots and geometry unmoved |
 | C | `the-product-is-an-explicit-list` (id kept; the unit is "the product is the world") | `PlaceInWorld { body, pose }` and a derived product. `roots.rs` and A10's invariants and maintenance retire, and so do `PlacedUnderTwoRoots`/N4's once-per-product rule, D-2's consumer-ward closure (narrowed) and `InstanceConsumed` | **the product is the world** | re-blessed. A one-time migration check: one placement per body-denoting root, in root order |
 | D | `measure-is-an-operation` | one `Measure` is one primitive defining one *observed* scalar. Its arithmetic moves to a `Defined` variable, and `Assertion` reads a scalar variable. A construction slot reading an observed variable refuses | **VR4's exception closes** | re-blessed. Measured bits unmoved |
@@ -48,7 +52,7 @@ The state of these mechanisms at the baseline:
 
 Why this order:
 
-- **A before B.** Readers need something to read. A is the checkpoint where the variable table states every operation's outputs, and no id moves (Q6). Stage 1 had the same shape: its PR A added `Defined` before PR C made slots read it.
+- **A before B.** Readers need something to read. A is the checkpoint where the variable table states every operation's outputs, and every document equals its pre-A self up to an id bijection (Q6). Stage 1 had the same shape: its PR A added `Defined` before PR C made slots read it.
 - **B before C.** A world placement is an operation reading one `Body` *variable*, so `Body` variables must exist and be readable first. B is behaviour-preserving: the read graph equals today's edge graph, so A10's sink set computed over reads is today's root set. C's one-time migration reads that root set.
 - **C before D, E and F.** While A10 stands, a measure or a mate that becomes an ordinary reader makes its operand a non-sink, and the measured part or mated instance drops out of the product. That is the cut-plate bug, generalised to every assembly. Under the world rule a body appears only if a placement names it, whatever reads it, so C comes first.
 - **The audit's refactor and gather changes ride C, not B.** #4220 says D-2's narrowed closure, `InstanceConsumed` and `PlacedUnderTwoRoots`/N4 change "with units B and F". All three are stated over world placements, which do not exist until C. "A remainder read of a cut body crosses when the cut places that body" has no meaning in B, so B keeps the two-way closure over reads, unchanged in behaviour, and C narrows it. A5's minting lift is F's, as #4220 says.
@@ -66,7 +70,7 @@ Each intermediate state is a whole representation:
 
 **Rejected:**
 
-- **A+B as one PR.** It would be about 1,900 match and construction sites plus every golden with no checkpoint between them. A's no-id-moves golden check is cheap, and losing it costs more than the extra PR.
+- **A+B as one PR.** It would be about 1,900 match and construction sites plus every golden with no checkpoint between them. A's bijection check is cheap, and losing it costs more than the extra PR.
 - **C first, over node ids.** A placement would read a node id and be retyped in B, breaking the wire twice for no gain.
 - **E and F as one PR.** That mixes the eval-time ladder's relocation with the at-rest gate's resolution and the refactor doors, and the reviewers would have to separate them again.
 
@@ -74,20 +78,24 @@ Each intermediate state is a whole representation:
 
 **Kinds and definitions** (`var.rs`):
 
-- *Pending FORK-1 (#4222).* `VarKind` gains the shapes, which only an operation defines: `Body`, `Bodies` (an ordered list whose length is a `Count`) and `Profile`. It also gains the selections `Face`, `Edge`, `Faces` and `Edges`.
-- *Pending FORK-3 (#4222).* `VarDef` gains `Output { node: RecipeNodeId, port: u8 }` and `Select { body, names }`. A selection is a definition, not a node.
+- `VarKind` gains the poses (`Point`, `Direction`, `Axis`, `Plane`, `Frame`) and the shapes, which only an operation defines: `Body`, `Bodies` (an ordered list whose length is a `Count`) and `Profile`. It also gains the selections `Face`, `Edge`, `Faces` and `Edges` (FORK-3).
+- A pose kind names its symmetry as the mates' `Subgroup` family: `Frame` → trivial, `Plane` → planar, `Axis` → cylindrical. `Point` and `Direction` name none, since the family has no entry for theirs yet.
+- `VarDef` gains `Output { node: RecipeNodeId, port: u8 }` and `Select { body, names }`. A selection is a definition, not a node.
 - A reference-kind variable has no free arm. It is never an analysis axis, has no unit and has no distribution.
 - It reads as its definition. An unnamed one is shown as "the body of Extrude "base plate"".
 
-**Operations.** Each `Node` variant states an output signature: a fixed list of named, typed ports set by its variant (*pending FORK-1*, #4222). The signature is `Node::outputs()`, from which `Doc::outputs(node)` reads.
+**Operations.** Each `Node` variant states an output signature: a fixed list of named, typed ports set by its variant (FORK-1, #4222). The signature is `Node::outputs()`, from which `Doc::outputs(node)` reads.
 
-- `Extrude`, `Revolve`, `Boolean` and the rest each define one `Body`.
+- `Extrude`, `Boolean` and the rest each define one `Body`.
+- `Revolve` defines `body: Body` and `axis: Axis` (FORK-1b). Until the axis line moves onto the node, the `axis` port is the lift of the axis the revolve reads.
+- A datum defines its pose: `Plane` a `Plane`, `Point` a `Point`, `Frame` and `FaceFrame` a `Frame`, and both axis datums (`Axis`, `AxisInPlane`) an `Axis`. A `Profile` defines one `Profile`.
+- `Transform` defines one port of its operand's kind: `Bodies` over a `Bodies`, `Body` otherwise.
 - `Split` defines two, `above` and `below`, and DM3's split-half projection retires.
 - `Pattern` defines one `Bodies`. One copy is picked by an index operation.
 - `InstantiatePart` defines one `Body` per world placement of its part, a list fixed by the pin.
 - `Measure` defines one observed scalar (§D).
 - `PlaceInWorld` defines its copy, one `Body`.
-- `Assertion` and `Mate` define nothing.
+- `Assertion`, `Mate` and `Gauge` define nothing.
 
 `InsertNode` mints the outputs and the door returns them in `Applied`. `Doc::output(node, port) -> VarId` is the accessor.
 
@@ -137,9 +145,9 @@ Each intermediate state is a whole representation:
   - The load door refuses it in a new walk, `ObservedRead`.
   - Driven dimensions are deferred, not refused for good (Ev: "no need to support it now").
 
-**Select** (E; *pending FORK-3*): a selection variable (`Face`/`Edge`, or the sets `Faces`/`Edges` that #4222 writes) is defined by `VarDef::Select { body: VarId /* Body */, names }`, a definition, not a node. Evaluation runs `eval/wire.rs`'s three-rung ladder (`live` → `Tied` → `Absent`) **in the select and nowhere else**. A failed select poisons its readers with the `ResolveError`, and the post-evaluation diagnostic ladder (`resolve/mod.rs`) diagnoses that select.
+**Select** (E; FORK-3): a selection variable (`Face`/`Edge`, or the sets `Faces`/`Edges` that #4222 writes) is defined by `VarDef::Select { body: VarId /* Body */, names }`, a definition, not a node. Evaluation runs `eval/wire.rs`'s three-rung ladder (`live` → `Tied` → `Absent`) **in the select and nowhere else**. A failed select poisons its readers with the `ResolveError`, and the post-evaluation diagnostic ladder (`resolve/mod.rs`) diagnoses that select.
 
-- *Pending FORK-3.* #4222 writes sets: `Fillet.selection` and `Chamfer.selection` read one `Edges` variable, and `Shell.open` reads one `Faces`, stating the body once. If Ev rules singletons instead, these are `Vec<S>` of `Edge` and `Face`. A selection authored at two sites is two variables, and the GUI offers the existing one.
+- Sets (FORK-3): `Fillet.selection` and `Chamfer.selection` read one `Edges` variable, and `Shell.open` reads one `Faces`, stating the body once. A selection authored at two sites is two variables, and the GUI offers the existing one.
 - `Datum::FaceFrame { at, face }` becomes `{ face: S }`, because the body is the select's.
 - `Measure`'s operands read selects.
 - `Rebind` is addressed by body and name (`Rebind { body, from, to }`, #4222) and rewrites the selections of that body. The edit door's `payload_names` walk shrinks to the selects plus the declared pairs (Q2).
@@ -154,10 +162,12 @@ Each intermediate state is a whole representation:
 
 ## 2. PR A — `operations-define-output-variables` (cost M; ~40 files, 1.5–2.5k lines)
 
-1. `VarKind::{Body, …}` per FORK-1. `VarDef::Output { node, port }`, with no authored twin: an output is never declared, only minted by its operation.
-2. `Node::outputs()`, exhaustive per variant, so a new variant does not compile without its signature.
-3. **Minting.** `InsertNode` draws each output's id from the insert's own chain step, as `steps_of_insert` draws `StepId`s (`mint.rs`), under a new `OUTPUT_TAG` with the port as the index. The chain extends once per insert as today, so **no node id moves** (Q6).
-   - Each output is logged `Minted::Var`.
+1. `VarKind` gains the poses and the shapes per FORK-1 and FORK-1b (`Point`, `Direction`, `Axis`, `Plane`, `Frame`; `Body`, `Bodies`, `Profile`). `VarKind::symmetry` names a pose kind's `Subgroup` family (`Frame` → trivial, `Plane` → planar, `Axis` → cylindrical; `Point` and `Direction` none). The selection kinds are E's. `VarDef::Output { node, port }`, with no authored twin: an output is never declared, only minted by its operation.
+2. `Node::outputs()`, exhaustive per variant, so a new variant does not compile without its signature. `Revolve` has two ports, `body` and `axis`, and both axis datums define an `Axis`. An instance defines one `body` in A. The per-world-placement signature is C's, because world placements exist only from C (H11).
+3. **Minting.** `InsertNode` draws each output's id after the node's and its steps', as `steps_of_insert` draws `StepId`s (`mint.rs`), under a new `OUTPUT_TAG` with the port as the index, each extending the chain once.
+   - Each output is logged `Minted::Var`, ordered as minted (VR1, N1). The log's ordinal is its length plus one, and an insert's preimage holds its slot variables' ids, so **every id after the first output moves**, digests included (Q6, ruled 2026-10-08).
+   - `InstantiatePart` defines one `body: Body` in A. The per-world-placement signature recorded on the node when the part is pinned is C's (§4), because world placements exist only from C.
+   - `Transform`'s one port is `Bodies` when its operand's port 0 is `Bodies`, and `Body` otherwise. Every other operand refuses `WrongOperand` at evaluation, and B's slot-kind check refuses it at the door.
    - `SetProgram` and `SetMembers` mint nothing: a node's signature is fixed by its variant.
 4. **Lifecycle.**
    - An output is not anonymous-GC'd (VR7's "read by something" is about anonymous free and defined variables). It lives exactly as long as its node.
@@ -175,7 +185,7 @@ Each intermediate state is a whole representation:
 
 **Sites.** `var.rs` (277 lines), `mint.rs` (`MintingEdit::InsertNode` and `steps_of_insert`), `edit.rs` `insert_into` (:5121) and `remove_unread` (:6232), and `persist/check.rs`. Every exhaustive `match VarKind` (grep `VarKind::Count =>`; the tags census in `pncad-py` `tags.rs`) needs the new arms, which the compiler finds.
 
-**Goldens.** The vars table gains one row per node output, and `Minted::Var` entries join the log, in `tests/golden/golden.cad`, the 14 schema-bearing `bool13_goldens` (v6–v19), the four corpus `.pncad` files, `before_extrude_side/plate_param.cad`, `crates/pncad/tests/plate_param.pncad` and `crates/viewer/tests/gallery_ring.pncad`. Node ids, content keys and `order` are byte-equal.
+**Goldens.** The vars table gains one row per node output, and `Minted::Var` entries join the log, in `tests/golden/golden.cad`, the 14 schema-bearing `bool13_goldens` (v6–v19), the four corpus `.pncad` files, `before_extrude_side/plate_param.cad`, `crates/pncad/tests/plate_param.pncad` and `crates/viewer/tests/gallery_ring.pncad`. Ids move. The check is a bijection: replaying each golden's edits, the new document equals the old one up to an id bijection with the outputs removed, and content keys (except the sites that hash ids as payload, which the PR names) and every geometry digest are bit-equal. The comparator is a test helper shown to go red on a mutant.
 
 ## 3. PR B — `operands-are-reads` (cost H; ~250 files, 6–9k lines, mostly compile-driven)
 
@@ -202,6 +212,8 @@ Each intermediate state is a whole representation:
   - `SetMembers` (`node.rs:3695`) becomes that door on a list slot. Its edit arm stays as the list spelling, lowered through the same checks.
   - The ruling's row is `an-operand-slot-is-re-pointed-by-the-slot-door` (closed). `recipe/set-members-admits-a-forward-member-the-save-validator-refuses` (filed with #4221) lands on the same door, and B's rewrite of `SetMembers` should close it.
 - **Split and inline.** `refactor::remap_node` (`:1972`) re-points reads instead of ids. Its closure check (`:2370`) reads `Doc::upstream`, and a crossing output carries as stage 1's anonymous carry does: one fresh entry, minted on the far side. B keeps D-2's two-way closure unchanged in behaviour. C narrows the consumer-ward half, because the narrowing is stated over world placements.
+- **A placer's output kind is fixed.** A `Transform`'s output kind was read off its operand at insert (§2) and is stored with the output. Re-pointing its operand at a value of the other shape (`Body` ↔ `Bodies`) refuses at the slot door, because a kind is fixed at minting (VR3); re-pointing at the same shape is an ordinary write.
+- **The tube reads a `Frame`** (FORK-1b; `work/intent/tube-spine-reads-an-axis-origin.md`). `Tube` and `HollowTube` read one `frame: Frame` slot in place of `spine` and its three `u_ref` scalars. An `Axis` forgets the origin the tube takes as its centre, so the frame's own door decides `u_ref` (orthonormalized, refusing a degenerate pair), replacing the tube door's exact unit-and-perpendicular check. The PR states that change and rewrites the node's doc paragraph.
 - **Not converted** (Q3): `Gauge.parent`, `InstantiatePart.gauge` and the mate sides. Gauges retire in stage 3, and the mate sides are F's.
 
 **Persistence.**
@@ -253,7 +265,7 @@ The row keeps its id. Its title is restated as "the product is the world" (FORK-
   - `NoBodyRoots` becomes `EmptyProduct { unplaced: Vec<VarId> }` at `product.rs:200`, `checks.rs:983`, `eval/parts.rs:483` and `assembly.rs:1186`. Its recourse is "place a body in the world".
   - The unplaced bodies are the live `Body` outputs no placement reads, listed in document order.
 - **Retired with the gather** (audit H9): `placed_under_two_roots` (`product.rs:1246–1257`), `ProductError::Naming`'s once-per-product refusal in `carry_names` (`:1487`), and N4's gather sentence in `names/README.md`. Each copy is its own output, so its names are qualified by the copy as a pattern copy's are.
-- **Instances** (A2 as rewritten by #4220; *pending FORK-1* for the signature). `eval/parts.rs:719` takes the part's world: one `Body` output per world placement of the part, each at its world coordinates.
+- **Instances** (A2 as rewritten by #4220; FORK-1 for the signature, recorded on the node when the part is pinned). `eval/parts.rs:719` takes the part's world: one `Body` output per world placement of the part, each at its world coordinates.
 - **Export** (`pncad` `export.rs:63`, `:261`) writes the world. It refuses an empty world, naming the unplaced bodies, and a stranded placement (A11 (2), #3441 narrowed by #4220).
 - **Refactor** (`refactor.rs`; audit H3, H7, H8):
   - Split's anchor vote (`:2546`), `UnplaceableRoot` (`:2568`) and `NoMaterial` (`:2865`) read "the cut's world placements". "A cut of unplaced material alone refuses" (A4) stays, and is now the whole rule for a cut with no placement.
@@ -372,10 +384,10 @@ The row keeps its id. Its title is restated as "the product is the world" (FORK-
 
 ## 9. Test plan (each row names the runtime value that breaks it)
 
-1. **(A) Outputs exist, no id moves.**
+1. **(A) Outputs exist; the document is unmoved up to ids.**
    - After `InsertNode(extrude)`, `Doc::output(n, 0)` is `Some(v)`, `doc.var(v).kind == Body` and `def == Output { node: n, port: 0 }`.
-   - The node ids of `golden.cad` replayed are equal before and after A.
-   - *Breaks if* outputs are drawn by extending the chain (every later id moves) or are minted at port ≠ signature.
+   - `golden.cad` replayed equals its pre-A self up to an id bijection with the outputs removed.
+   - *Breaks if* an insert changes anything but ids and outputs, or outputs are minted at port ≠ signature.
 2. **(A) Load.**
    - A file with an `Output` row naming port 1 of an extrude refuses `OutputSignature`.
    - A live extrude with its output row removed refuses the same.
@@ -459,7 +471,7 @@ Loud census rows: `pncad-py` `tags.rs` / `surface_census` / `prose_census`, `dis
 
 Each FORK changed ratified text or turned on Ev's preference, and a designer pair weighed each one.
 
-**FORK-1 — The output signature of an operation.** *Pending with Ev on #4222* (row `operations-state-their-outputs`).
+**FORK-1 — The output signature of an operation.** *Ruled* (#4222, approved as written; row `operations-state-their-outputs`). FORK-1b (row `the-pose-kinds-are-one-order`) answers the split it left.
 
 - **The problem.** D10's kind list did not name a profile, a pattern's copies or a split's halves (REFERENCES DM3's `Part` projection), and stage 2 cannot type an operand slot until every operation states what it defines.
 - **The converged recommendation**, written into #4222's diff:
@@ -469,8 +481,8 @@ Each FORK changed ratified text or turned on Ev's preference, and a designer pai
   - one copy of a `Bodies` is picked by index;
   - an instance defines one `Body` per world placement of its part;
   - an assertion or a mate defines none.
-- **The stated split left to Ev**: whether `AxisInPlane` is a kind or a door check on `Axis`.
-- *Blocks A.* §1 and §2 are written to the recommendation and change with the ruling.
+- **FORK-1b answers the split left to Ev**: there is no `AxisInPlane` kind. D10's five poses stay, both axis datums define an `Axis`, and the revolve defines `body` and `axis`. A pose kind names its symmetry as the mates' `Subgroup`, one type shared with the fold.
+- A builds it.
 
 **FORK-2 — How the explicit product list is kept.** *Superseded by FORK-2b and ruled* (#4220, approved, merging on green; row `the-product-list-is-kept-by-a-default-at-the-edit`).
 
@@ -483,15 +495,15 @@ Each FORK changed ratified text or turned on Ev's preference, and a designer pai
 - **Text changed with the units:** D-2's closure, `PlacedUnderTwoRoots`/N4 and `InstanceConsumed` change with C; A5's minting lift changes with F.
 - §4 is the build.
 
-**FORK-3 — What a selection is.** *Pending with Ev on #4222* (row `a-selection-is-a-definition-of-a-body-s-faces-or-edges`).
+**FORK-3 — What a selection is.** *Ruled* (#4222, approved: sets; row `a-selection-is-a-definition-of-a-body-s-faces-or-edges`).
 
 - **The problem.** D10 said a `Face`/`Edge` variable is a selection of a `Body` by `StableName`. It did not say whether a selection is a node or a definition, one entity or a set, or shared or distinct, against SELECT-DESIGN §4's one-type rule.
 - **The converged recommendation:**
   - a definition, not a node, stating its body once;
   - distinct by authoring, with the GUI offering the existing one;
   - repair addressed by body and name (`Rebind { body, from, to }`).
-- **The stated choice left to Ev**: sets (`Faces`/`Edges`; both designers lean this way, and the diff writes it) or singletons.
-- *Blocks E.*
+- **Ev chose sets** (`Faces`/`Edges`). The edges that sharing a variable replaces are dependency-graph edges.
+- E builds it.
 
 **FORK-4 — Re-pointing an operand.** *Ruled* (#4221, merged; row `an-operand-slot-is-re-pointed-by-the-slot-door`).
 
@@ -512,7 +524,7 @@ Each FORK changed ratified text or turned on Ev's preference, and a designer pai
 3. **Gauges** (`Gauge.parent`, `InstantiatePart.gauge`) are not DAG edges today, and A11 (2)'s gauges retire in stage 3. **Recommendation:** leave them as node ids in stage 2, and keep `reading_edges`' gauge edges inside A9's partition when F deletes the mate half (test 16).
 4. **A9 and measures** (`a-measure-merges-free-instances-into-one-relative-freedom-component`). Stage 2 does not change the partition's behaviour. **Recommendation:** leave the row parked and move its trigger to stage 3, where spaces are decided. Its fix (stop at space-free values, as `spaces_with` does) belongs with the per-space frame.
 5. **Authored spelling of an operand.** **Recommendation:** a `RecipeNodeId` stays authored sugar for that node's port 0 in Rust and Python. A multi-output node (a split, an instance of a part with several world placements, per FORK-1) needs an explicit `Output { node, port }` and refuses the sugar with `AmbiguousOutput`. This keeps ~2,300 test sites and 743 Python sites unchanged.
-6. **Output minting.** **Recommendation:** draw output ids from the insert's own chain step under an `OUTPUT_TAG`, as `steps_of_insert` draws step ids, so A moves no node id and stays a cheap checkpoint. B then moves every id once, because the preimage spells reads.
+6. **Output minting.** *Ruled by the orchestrator (2026-10-08).* Each output is logged as an ordinary `Minted::Var`, ordered as minted, as VR1 and N1 say, so ids move in A and again in B. The recommendation was to keep A's ids byte-equal, but that cannot hold while outputs are logged: an id's ordinal is the log's length plus one, and an insert's preimage holds its slot variables' ids, so one logged output moves every later digest. Keeping outputs out of the ordinal count would change N1's log invariant and VR1's order, which is ratified text, for a cheaper checkpoint B discards anyway. A's check is therefore equality up to an id bijection.
 7. **Slot table.** Operand, measure, select and mate slots join `SlotId` and `tests/golden/slot_tables.txt`. **Recommendation:** name them by field (`SlotId::Operand(OperandSlot::Target)`, …), not positionally, so the Python slot words stay readable. `placement-step-slots-are-spelled-three-ways` stays separate (stage 3).
 8. **The mate's face across the at-rest gate.** The lift through consumers retires (#4220, audit H10).
    - **Recommendation:** the selection reads the member's `Body` output (the walk's minting instance). The gate mints the declaration on each world copy of that member: the copy is a `PlaceInWorld` output reading the member, and its face is the selection's entity under the placement's pose, recorded by `transform_rigid`'s graft map.
@@ -537,7 +549,7 @@ Each FORK changed ratified text or turned on Ev's preference, and a designer pai
 | H8 | `InstanceConsumed` | retires in C |
 | H9 | `PlacedUnderTwoRoots`, N4's once-per-product rule | retire in C |
 | H10 | A5's minting lift through consumers | retires in F (§7, Q8) |
-| H11 | A2's "takes its A10 product" | rewritten by #4220; instance outputs are per world placement (C, pending FORK-1's signature) |
+| H11 | A2's "takes its A10 product" | rewritten by #4220; instance outputs are per world placement (C, FORK-1's signature) |
 | H12 | A9's "consuming ∪ reading edges" | rewritten to "operand ∪ reading" by #4220; F rewords to "over reads" when `reading_edges` goes |
 | H13 | the guide's roots examples (`assembly.md:322–341`, `:1069`, `:1227`) | C |
 | H14 | `DeleteWouldDangle` | retires in B |
