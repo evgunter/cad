@@ -2291,6 +2291,42 @@ pub(crate) fn epsilon_admissible(eps: f64) -> bool {
     eps.is_finite() && eps > 0.0
 }
 
+/// The strict ancestors of `from` in ONE document, visited depth-first
+/// over [`Doc::upstream`] in deterministic order; `visit` sees each
+/// reached node once. The crate's one transitive walk over reads —
+/// [`strict_ancestors`] is it with nothing to refuse.
+pub(crate) fn walk_strict_ancestors<P: crate::ProfilePayload, E>(
+    doc: &Doc<P>,
+    from: RecipeNodeId,
+    seen: &mut std::collections::BTreeSet<RecipeNodeId>,
+    mut visit: impl FnMut(RecipeNodeId) -> Result<(), E>,
+) -> Result<(), E> {
+    let mut stack: Vec<RecipeNodeId> = doc.upstream(from);
+    while let Some(id) = stack.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        visit(id)?;
+        stack.extend(doc.upstream(id));
+    }
+    Ok(())
+}
+
+/// Every node `from` depends on through its reads in `doc`, itself
+/// excluded — [`walk_strict_ancestors`] collected.
+pub(crate) fn strict_ancestors<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    from: RecipeNodeId,
+) -> std::collections::BTreeSet<RecipeNodeId> {
+    let mut seen = std::collections::BTreeSet::new();
+    let walked: Result<(), core::convert::Infallible> =
+        walk_strict_ancestors(doc, from, &mut seen, |_| Ok(()));
+    match walked {
+        Ok(()) => seen,
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     #![allow(clippy::panic, clippy::expect_used)]
@@ -2571,40 +2607,5 @@ mod tests {
         let sizes = doc.expansion_nodes(&doc.definition_order());
         assert_eq!(sizes[&VarId::new(0, 2)], 3);
         assert_eq!(sizes[&prev], crate::edit::DEFINITION_NODE_BOUND + 1);
-    }
-}
-
-/// The strict ancestors of `from` in ONE document, visited depth-first
-/// over [`Doc::upstream`] in deterministic order; `visit` sees each
-/// reached node once. The crate's one transitive walk over reads —
-/// [`strict_ancestors`] is it with nothing to refuse.
-pub(crate) fn walk_strict_ancestors<P: crate::ProfilePayload, E>(
-    doc: &Doc<P>,
-    from: RecipeNodeId,
-    seen: &mut std::collections::BTreeSet<RecipeNodeId>,
-    mut visit: impl FnMut(RecipeNodeId) -> Result<(), E>,
-) -> Result<(), E> {
-    let mut stack: Vec<RecipeNodeId> = doc.upstream(from);
-    while let Some(id) = stack.pop() {
-        if !seen.insert(id) {
-            continue;
-        }
-        visit(id)?;
-        stack.extend(doc.upstream(id));
-    }
-    Ok(())
-}
-
-/// Every node `from` depends on through its reads in `doc`, itself
-/// excluded — [`walk_strict_ancestors`] collected.
-pub(crate) fn strict_ancestors<P: crate::ProfilePayload>(
-    doc: &Doc<P>,
-    from: RecipeNodeId,
-) -> std::collections::BTreeSet<RecipeNodeId> {
-    let mut seen = std::collections::BTreeSet::new();
-    let walked: Result<(), core::convert::Infallible> =
-        walk_strict_ancestors(doc, from, &mut seen, |_| Ok(()));
-    match walked {
-        Ok(()) => seen,
     }
 }
