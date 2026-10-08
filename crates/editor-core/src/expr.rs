@@ -1635,7 +1635,8 @@ impl<T> ParamValue<T> {
 pub struct VarEnv<T> {
     /// The bindings, by variable.
     pub bindings: std::collections::BTreeMap<VarId, ParamValue<T>>,
-    /// The defined variables whose definition refused, by variable: a
+    /// The defined variables whose definition refused, and the outputs,
+    /// by variable: a
     /// reader of one refuses [`EvalError::DefinitionRefused`] with
     /// this refusal as its source — or, for one in [`Self::written`],
     /// with the refusal itself.
@@ -1643,7 +1644,8 @@ pub struct VarEnv<T> {
     /// The defined variables a document holds with no name: each is a
     /// formula as it was written at the slot that reads it, so a
     /// refusal of its definition is the slot's own refusal, not a
-    /// variable's the person never named.
+    /// variable's the person never named. An operation's output is here
+    /// too: its refusal ([`EvalError::OutputRead`]) is its reader's.
     pub written: std::collections::BTreeSet<VarId>,
 }
 
@@ -1687,6 +1689,14 @@ pub enum EvalError {
     /// or one a hand-built environment left out.
     UnresolvedVar {
         /// The variable read.
+        var: VarId,
+    },
+    /// A reader of an operation's output (D10): a value the built
+    /// geometry gives, where a construction reads only what was
+    /// written. The edit door does not refuse it yet, so evaluation
+    /// does.
+    OutputRead {
+        /// The output read.
         var: VarId,
     },
     /// A reader of a defined variable whose definition refused: the
@@ -1764,6 +1774,11 @@ impl core::fmt::Display for EvalError {
                 f,
                 "variable {var} has no binding in the evaluation environment — it was \
                  deleted, or never declared here; point the reader at a live variable"
+            ),
+            Self::OutputRead { var } => write!(
+                f,
+                "variable {var} is an operation's output, a value the built geometry gives, and \
+                 a construction reads only what was written; read a written variable here"
             ),
             Self::DefinitionRefused { var, source } => {
                 write!(f, "the definition of variable {var} refused: {source}")

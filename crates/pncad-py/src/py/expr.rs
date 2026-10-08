@@ -771,7 +771,7 @@ pub(crate) fn eval_err(
         E::Unlowered(fault) => return lower_fault_err(py, fault),
         // The defined variable read; its definition's own refusal is
         // the sentence's.
-        E::UnresolvedVar { var } | E::DefinitionRefused { var, .. } => {
+        E::UnresolvedVar { var } | E::OutputRead { var } | E::DefinitionRefused { var, .. } => {
             (text(&var_text(var)), none(), none(), none())
         }
         E::VarKindMismatch { var, bound, read } => {

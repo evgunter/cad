@@ -2375,6 +2375,7 @@ pub fn lower_fault_tag(fault: &pncad::document::LowerFault) -> &'static str {
 pub fn eval_error_tag(err: &EvalError) -> &'static str {
     match err {
         EvalError::UnresolvedVar { .. } => "unresolved_var",
+        EvalError::OutputRead { .. } => "output_read",
         EvalError::VarKindMismatch { .. } => "var_kind_mismatch",
         EvalError::DefinitionRefused { .. } => "definition_refused",
         EvalError::CountExprInContinuousEval => "count_expr_in_continuous_eval",

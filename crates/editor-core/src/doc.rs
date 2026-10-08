@@ -1950,6 +1950,16 @@ impl<P> Doc<P> {
     /// refuses binds nothing and records its refusal, which each
     /// reader then refuses with ([`crate::EvalError::DefinitionRefused`]).
     pub fn bind_definitions<T: Decide>(&self, env: &mut VarEnv<T>) {
+        // An output has no value outside its operation's evaluation: its
+        // reader refuses saying so, in its own words.
+        for (&id, var) in &self.vars {
+            if var.def().output().is_some() {
+                env.bindings.remove(&id);
+                env.refused
+                    .insert(id, crate::EvalError::OutputRead { var: id });
+                env.written.insert(id);
+            }
+        }
         for id in self.definition_order() {
             let Some(expr) = self.vars.get(&id).and_then(|v| v.def().defined()) else {
                 continue;
