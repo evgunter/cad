@@ -804,3 +804,23 @@ slate `ball-lever-reads-the-3d-distance-not-the-axial-travel`,
 `plane-cylinder-gap-reads-the-3d-distance-not-the-in-section-stand-off`;
 the sweep's siblings went to OFFSET, CLEAVE, CHART, CONTACT, FLUX and
 GERM.
+
+## 2026-10-08 — a conic arc's reach over the span it holds (TANG implementer)
+
+A plane or cylinder face's reach reads each conic edge over its span
+(`Reach::span_reach_from`): a circle arc exactly (its ends, and the
+crest opposite the pivot where it lies in the span), an ellipse arc by
+the parallelograms its quarters lie in, both capped at the whole turn.
+So a rim patch is levered at its own size, not its rim's. Sphere, torus,
+cone and spline faces keep the whole-turn edge lever. The plane×cylinder
+section on the declared-tangency path (the germ frame, and chord_join's
+cylinder lane for every caller, the Boolean's germ join among them)
+serves only where the whole-turn and the span-bounded reach agree; the
+split's rows take the span alone. `Reach::turn_lever` reads `at`'s
+distance across the wall from the normal's own off-axis part, so a
+normal on the axis to rounding no longer reads zero. Closes
+`whole-turn-conic-reach-over-states-a-rim-faces-lever`. Filed on this
+slate `pc-face-lever-sums-two-maxima-not-the-support-from-the-hinge`
+and `germ-takes-the-span-bounded-face-reach-alone` (parked on D10's
+declared path); the sweep's siblings went to SHELF, CLEAVE (two) and
+REACH.

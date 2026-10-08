@@ -1563,8 +1563,13 @@ pub(super) enum FrameExtent<T> {
         below: T,
         /// How far the face reaches from `at` along the axis.
         above: T,
-        /// The face's farthest distance from `at`.
+        /// The face's farthest distance from `at`, each edge read over
+        /// the span it holds.
         across: T,
+        /// The same with each edge levered round its whole carrier, which
+        /// the germ also reads
+        /// ([`agreed_section`](crate::chord_join::agreed_section)).
+        round: T,
     },
 }
 
@@ -1572,10 +1577,15 @@ pub(super) enum FrameExtent<T> {
 /// taken from the reading point `at`. A plane×cylinder pair's section
 /// lies on the wall face, which hands the table its axial range from
 /// `at` ([`face_axial_range`](crate::splitting::rules::face_axial_range),
-/// its curved edges included) and its farthest distance from `at`
-/// ([`face_reach_from`](crate::splitting::rules::face_reach_from)), read
-/// from the rulings' hinge ([`geom_brep::Reach::Face`]). Every other
-/// pair takes the walls' `span`.
+/// its curved edges included) and its farthest distance from `at`, read
+/// from the rulings' hinge ([`geom_brep::Reach::Face`]): each edge over
+/// the span it holds
+/// ([`face_reach_from`](crate::splitting::rules::face_reach_from)) and
+/// round its whole carrier
+/// ([`face_reach_round_from`](crate::splitting::rules::face_reach_round_from)),
+/// which [`agreed_section`](crate::chord_join::agreed_section) reads
+/// together. Every other pair takes the
+/// walls' `span`.
 ///
 /// # Errors
 ///
@@ -1599,10 +1609,12 @@ fn frame_extent<T: Decide>(
     let (below, above) =
         crate::splitting::rules::face_axial_range(body, face, at, axis).map_err(lone)?;
     let across = crate::splitting::rules::face_reach_from(body, face, at).map_err(lone)?;
+    let round = crate::splitting::rules::face_reach_round_from(body, face, at).map_err(lone)?;
     Ok(FrameExtent::Wall {
         below,
         above,
         across,
+        round,
     })
 }
 
@@ -1999,22 +2011,32 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         }
         _ => return Err(FrameError::NoArm),
     };
-    let reach = match extent {
+    let section = match extent {
         FrameExtent::Wall {
             below,
             above,
             across,
-        } => geom_brep::Reach::Face {
-            at,
-            below,
-            above,
-            across,
-        },
-        FrameExtent::Radii | FrameExtent::Span(_) => {
-            geom_brep::Reach::Measured { at, lever: radius }
+            round,
+        } => {
+            let read = |across| {
+                let reach = geom_brep::Reach::Face {
+                    at,
+                    below,
+                    above,
+                    across,
+                };
+                geom_brep::plane_cylinder_section(plane_s, cyl_s, &reach, band)
+            };
+            crate::chord_join::agreed_section(read(across), read(round), band)
         }
+        FrameExtent::Radii | FrameExtent::Span(_) => geom_brep::plane_cylinder_section(
+            plane_s,
+            cyl_s,
+            &geom_brep::Reach::Measured { at, lever: radius },
+            band,
+        ),
     };
-    match geom_brep::plane_cylinder_section(plane_s, cyl_s, &reach, band) {
+    match section {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
         | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(geom::Curve3::Ellipse {
             center,
@@ -3606,6 +3628,176 @@ mod frame_dispatch_tests {
                         "φ = {phi}, k = {k} ({label}): levered at the arc's reach {d}"
                     );
                 }
+            }
+        }
+    }
+
+    /// **The agreement gate never serves on the span alone.** On the
+    /// declared-tangency path a plane×cylinder section serves only what
+    /// the face's whole-turn reach serves too
+    /// ([`crate::chord_join::agreed_section`]). Rim patches of walls of
+    /// radius 1e-3, 1 and 1e3 (axes at random, 1e3 off the origin, both
+    /// capped at `1e12·ε`; arcs of 1e-6 to 3 rad, heights to ten radii) are
+    /// cut by a plane through a corner, tilted off a radial (or off its
+    /// normal, through the axis) by a tilt near the band. What chord_join's
+    /// [`crate::chord_join::wall_section`] serves at the corner, and the
+    /// germ frame at the corners' centre, is what the whole-turn reading
+    /// (`face_reach_round_from`, main's measure) serves at the same point,
+    /// of the same class. Either lane reading the span alone serves rulings
+    /// that reading escalates.
+    #[test]
+    fn the_agreement_gate_never_serves_on_the_span_alone() {
+        use crate::chord_join::{SectionCase, WallSection, wall_section};
+        use geom_brep::PlaneCylinderSection as S;
+        use test_utils::fuzz;
+        let eps = Tol::witness().eps();
+        let b = band();
+        let mut g = fuzz::start("rim_patch_served_subset");
+        let unit = |g: &mut fuzz::Rng| loop {
+            let v = Vec3::new(g.range(-1., 1.), g.range(-1., 1.), g.range(-1., 1.));
+            if (0.2..1.0).contains(&v.norm()) {
+                return v.normalize();
+            }
+        };
+        let log = |g: &mut fuzz::Rng, lo: f64, hi: f64| (lo.ln() + (hi / lo).ln() * g.unit()).exp();
+        let class = |got: &Result<S<f64>, geom_brep::SectionError>| match got {
+            Ok(S::TiltedEllipse(_) | S::Rim(_)) => "conic",
+            Ok(S::ParallelLines { .. }) => "lines",
+            Ok(S::TangentLine(_)) => "tangent",
+            Ok(S::Empty) => "empty",
+            Err(_) => "refused",
+        };
+        for _ in 0..fuzz::scaled(2000) {
+            // Radii and offsets of up to 1e3, short of where ε leaves no room
+            // for the fixture to certify a rim on a random axis.
+            let room = (1e12 * eps).min(1e3);
+            let r = [1e-3_f64, 1.0, 1e3][g.below(3)].min(room);
+            let axis = unit(&mut g);
+            let seam = {
+                let v = unit(&mut g);
+                (v - axis * v.dot(axis)).normalize()
+            };
+            let frame = crate::test_support_fixtures::CylFrame {
+                origin: Point3::origin() + unit(&mut g) * room,
+                axis,
+                radius: r,
+                u_ref: seam,
+            };
+            // Arcs and heights at least `1e4·ε` long, where the band allows.
+            let floor = |hi: f64| (1e4 * eps / r).max(1e-6).min(0.1 * hi);
+            let du = log(&mut g, floor(3.0), 3.0);
+            let h = log(&mut g, floor(10.0), 10.0) * r;
+            let mut body = crate::Body::<f64>::new();
+            let (face, _) = crate::test_support_fixtures::cyl_wall_sheet_keyed(
+                &mut body,
+                frame,
+                crate::test_support_fixtures::CylKey::OnSeed,
+                None,
+                (0.0, du),
+                (0.0, h),
+                Tol::witness(),
+            );
+            let corners: Vec<_> = body.vertex_points().collect();
+            let (corner, through) = corners[g.below(corners.len())];
+            let radial = {
+                let w = through - frame.origin;
+                (w - axis * w.dot(axis)).normalize()
+            };
+            let w = if g.unit() < 0.3 {
+                axis.cross(radial)
+            } else {
+                let v = unit(&mut g);
+                (v - axis * v.dot(axis)).normalize()
+            };
+            let sin_beta = (log(&mut g, 0.05, 3.0 * Tol::witness().k()) * b.zero() / h).min(1.0);
+            let normal = w * (1.0 - sin_beta * sin_beta).sqrt() + axis * sin_beta;
+            let plane = geom::Surface::Plane {
+                origin: through,
+                normal,
+                u_ref: Vec3::new(0.0, 1.0, 0.0).cross(normal).normalize(),
+            };
+            let wall = frame.surface::<f64>();
+            let main_at = |at: Point3<f64>| {
+                let rules = crate::splitting::rules::face_axial_range(&body, face, at, axis);
+                let (below, above) = rules.expect("a bounded patch");
+                let across = crate::splitting::rules::face_reach_round_from(&body, face, at)
+                    .expect("a bounded patch");
+                let reach = geom_brep::Reach::Face {
+                    at,
+                    below,
+                    above,
+                    across,
+                };
+                class(&geom_brep::plane_cylinder_section(&plane, &wall, &reach, b))
+            };
+            // chord_join, read at the corner.
+            let unit_normal = geom_core::UnitVec3::new(normal, "rim patch", b).unwrap();
+            let head = match wall_section(&body, b, through, unit_normal, face, corner) {
+                Ok(Some(WallSection { case, .. })) => match case {
+                    SectionCase::Conic(_) => "conic",
+                    SectionCase::Straight(_) => "lines",
+                    SectionCase::Tangent(_) => "tangent",
+                },
+                _ => "refused",
+            };
+            let main = main_at(through);
+            assert!(
+                head == "refused" || head == main,
+                "chord_join: head serves {head} where main reads {main} ({du} rad × {h} on r = {r}, \
+                 sin β = {sin_beta}); {}",
+                fuzz::replay()
+            );
+            // The germ frame, read at the corners' centre.
+            for (label, got) in plane_frames(&body, face, through, normal) {
+                let on = super::super::rest::face_witnesses(&body, face).unwrap();
+                let (at, _) = super::frame_reading(&plane, &wall, Vec::new(), on).unwrap();
+                let main = main_at(at);
+                let served = match got {
+                    Ok(Some(_)) => Some(main == "conic"),
+                    Ok(None) => Some(main == "lines" || main == "tangent"),
+                    Err(_) => None,
+                };
+                assert!(
+                    served != Some(false),
+                    "germ ({label}): head serves a frame main reads as {main} ({du} rad × {h} \
+                     on r = {r}, sin β = {sin_beta}); {}",
+                    fuzz::replay()
+                );
+            }
+        }
+    }
+
+    /// **The germ escalates where the wall's two measures of its reach
+    /// across disagree, and never names the whole turn's conic.** The
+    /// `1e5·ε × 1e3·ε` patch of a 1 km wall (`chord_join`'s rim-patch row),
+    /// cut by the plane through a corner and the axis tilted by
+    /// `sin β = k·ε/e`: the patch stands within `k·ε` of the corner's
+    /// ruling. Read over its arcs' spans the turn is Zero (the rulings);
+    /// round the arcs' whole turn it reads definite (a conic). The germ is
+    /// a declared-tangency path, which serves only what both measures
+    /// serve, so it escalates on the split.
+    #[test]
+    fn a_rim_patchs_turn_is_levered_at_its_arcs_in_the_germ_frame() {
+        let eps = Tol::witness().eps();
+        let (r, e, w) = (1000.0, 1e3 * eps, 1e5 * eps);
+        let mut body = crate::Body::<f64>::new();
+        let face = crate::test_support_fixtures::cyl_wall_sheet(
+            &mut body,
+            crate::test_support_fixtures::CylFrame::canonical(r),
+            None,
+            (0.0, w / r),
+            (0.0, e),
+            Tol::witness(),
+        );
+        for k in [0.5, 0.8, 0.95] {
+            let c = k * Tol::witness().eps() / e;
+            let normal = Vec3::new(0.0, (1.0 - c * c).sqrt(), c);
+            for (label, got) in plane_frames(&body, face, Point3::new(r, 0.0, 0.0), normal) {
+                assert_eq!(
+                    verdict(&got),
+                    "pc_axis_plane_parallel_disagreement",
+                    "k = {k} ({label}): the span's rulings against the whole turn's conic"
+                );
             }
         }
     }
