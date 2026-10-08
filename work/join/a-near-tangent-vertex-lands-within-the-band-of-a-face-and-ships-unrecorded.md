@@ -7,6 +7,7 @@ opened: 2026-10-08
 priority: P0
 cost: M
 refs: [near-tangent-boolean-results-ship-with-an-escalated-tier-3-census]
+branch: join/near-tangent-vertex-in-band
 ---
 
 ## What
