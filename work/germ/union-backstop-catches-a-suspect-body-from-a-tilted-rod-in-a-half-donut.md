@@ -2,10 +2,13 @@
 id: union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut
 kind: issue
 title: A tilted rod entering a half donut's cap and poking an oval out of the inner equator reaches the volume backstop on a tier-valid planar body: the pipeline's upstream result is suspect
-status: open
+status: closed
+branch: germ/tilted-rod-remeasure
+pr: 3428
 opened: 2026-09-28
 priority: P1
 cost: M
+closed: 2026-10-08
 ---
 
 
@@ -51,3 +54,42 @@ So the "suspect body" premise is unmeasured again. Once the
 quadrature fix lands, the subtract either builds, refuses
 `ResultVolumeImplausible` (the suspicion confirmed), or refuses
 elsewhere.
+
+## Closed (re-measured on the merge of `d00100e824`, 2026-10-08)
+
+**No op returns a body. The section certificate is the only line.**
+The backstop now measures through the certified quadrature, and with
+the certificate bypassed it passes the wrong body.
+
+The fixture: the `r = 0.15` rod, its axis from `(1.8, 0, 0)` along
+`(−sin β, 0, −cos β)` over `t ∈ [−0.3, 1.4]`, spun about its own axis,
+against the half donut. ∪, both ∩ and both ∖ stop at one site per pose:
+
+| β | spin | stop, every op |
+|---|---|---|
+| 0.3, 0.4 | 0, 0.5, 1.0, π/2, 2.5 | certificate, `Err(Reach)` on every torus × rod-wall pair |
+| 0.5 | π/2 | the same |
+| 0.5 | 0, 0.5, 1.0, 2.5 | the join, `GermFrameUnsupported` (torus × rod wall) |
+| 0.6, 0.7 | every spin | the join, `GermFrameUnsupported` (torus × end cap; × wall at 0.6, π/2) |
+
+**With `Section::Intractable` certified `Ok` (a mutant)**, every op at
+the reaching poses answers a `Seamed` body, valid at tier 3, that the
+backstop passes. At β 0.5, spin π/2 they are wrong:
+
+- ∪ measures `4.956008`, which is H plus the stub above the cap, the
+  lens dropped. Monte Carlo against the operands' `point_in_solid`
+  mismatches on `≈ 0.0078 m³`.
+- `c ∖ h` measures `0.021206`, the stub alone.
+- `h ∖ c` and both ∩ mismatch too.
+
+At β 0.3 and 0.4 the bodies agree with the operands everywhere sampled:
+the rod comes no closer to the axis than the inner equator, so there is
+no lens.
+
+The certificate's verdict is raised after `gate` and before the volume
+backstop, wherever the backstop runs: `ops.rs` `boolean_op_recut` and
+the rest door's `rest.rs` `try_rest_union`. On this fixture the backstop
+passes, so the order is not observable here.
+
+Pinned by `crates/sweep/tests/germ_tilted_rod.rs`. Red against the
+reach refusal waved through, which answers the wrong body above.

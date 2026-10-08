@@ -117,6 +117,8 @@ mod offc_r1_probes;
 mod offd2_r1_probes;
 #[path = "offd_r1_probes.rs"]
 mod offd_r1_probes;
+#[path = "offset_axial_door_reads_charts_not_material.rs"]
+mod offset_axial_door_reads_charts_not_material;
 #[path = "offset_doors_end_with_the_join.rs"]
 mod offset_doors_end_with_the_join;
 #[path = "offset_restates_a_neighbour_chart_rim.rs"]
@@ -698,6 +700,8 @@ mod germ_interior_oval;
 mod germ_interior_saddle;
 #[path = "germ_sphere_no_crossings.rs"]
 mod germ_sphere_no_crossings;
+#[path = "germ_tilted_rod.rs"]
+mod germ_tilted_rod;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
 #[path = "germ_torus_rods.rs"]

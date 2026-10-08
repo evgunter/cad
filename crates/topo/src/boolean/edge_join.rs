@@ -12,9 +12,10 @@
 //! and a reading or kill that refuses later refuses on the clone), and
 //! a body that carried pcurve rows has them re-derived, so no row is
 //! left keyed by a dead cell. A door that is not the boolean carries
-//! its refusal typed ([`JoinRefusal`]). The offset doors join over
-//! their own scope alone, on their own staging
-//! (`Body::join_edges_within`).
+//! its refusal typed ([`JoinRefusal`]). The offset doors, the split,
+//! the shell and the blend join on their own staging
+//! (`Body::join_edges_within`), the offset doors and the blend over
+//! their own scope alone.
 //!
 //! The boolean's output stages run it after the merge ([`join_stage`])
 //! and write, per join, the substitution rows that carry every contact
@@ -81,6 +82,36 @@ struct Join {
     far: VertexKey,
     closed: bool,
     planar: bool,
+}
+
+/// **What each edge a run of joins made covers**, read off the joins'
+/// records alone, in the order made: each live `kept` edge → every
+/// edge it holds, itself first, then each `gone` in the order the joins
+/// took them, a later join's `gone` that was an earlier one's `kept`
+/// bringing its own cover with it. The one chase every door that
+/// carries records or names over a join reads (the boolean's
+/// [`crate::BooleanNaming::joined_edge`], and the split's, the shell's
+/// and the blend's emitters); an edge no join touched has no row.
+#[must_use]
+pub fn join_covers(joins: &[EdgeJoin]) -> BTreeMap<EdgeKey, Vec<EdgeKey>> {
+    let mut covers: BTreeMap<EdgeKey, Vec<EdgeKey>> = BTreeMap::new();
+    for j in joins {
+        let gone = covers.remove(&j.gone).unwrap_or_else(|| vec![j.gone]);
+        covers
+            .entry(j.kept)
+            .or_insert_with(|| vec![j.kept])
+            .extend(gone);
+    }
+    covers
+}
+
+/// The live edge `edge` is part of after `joins`: itself, or the edge a
+/// join killed it into, followed through every later join.
+#[must_use]
+pub fn joined_edge(joins: &[EdgeJoin], edge: EdgeKey) -> EdgeKey {
+    joins
+        .iter()
+        .fold(edge, |at, j| if j.gone == at { j.kept } else { at })
 }
 
 /// One join an output stage made ([`join_stage`]): `vertex` and `gone`
@@ -606,8 +637,10 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     }
 
     /// [`Body::join_edges`] over the vertices `within` holds, on a body
-    /// the caller has staged: the offset doors' join, which owes no
-    /// write outside the entities its call writes. Not staged itself —
+    /// the caller has staged: the join of a door that owes no write
+    /// outside the entities its call writes (the offset doors, and the
+    /// blend over the shells it carved), or of one that joins its own
+    /// fresh output in place (the split's halves, the shell). Not staged itself —
     /// a refusal past the first kill leaves `self` part-joined, for the
     /// caller to discard with its staging — and no reading outside
     /// `within` is taken, so a vertex the call does not hold can neither
@@ -619,7 +652,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
     /// # Errors
     ///
     /// As [`Body::join_edges`], for the vertices `within` holds.
-    pub(crate) fn join_edges_within(
+    pub fn join_edges_within(
         &mut self,
         band: Band,
         tol: Tol,
