@@ -63,10 +63,11 @@
 //! lone component is cleared by W4 or decided by its point, and every
 //! other multi-component section is essential or unbounded on a
 //! carrier, which W1 and W2 clear. The exception is cone × sphere, where
-//! a ball beside the apex can meet one nappe in a null loop and the
-//! other in essential curves: its null loop is cleared by its witness
-//! or, with an event on the pair, refuses R-undec, since the event may
-//! lie on another component.
+//! a ball beside the apex can meet each nappe in one null loop (with
+//! the apex outside the ball no nappe can carry essential curves while
+//! the other carries a loop): each loop is cleared by its witness or,
+//! with an event on the pair, refuses R-undec, since the event may lie
+//! on the other loop.
 //!
 //! # The refusals
 //!
@@ -1200,7 +1201,10 @@ fn cone_plane<T: Decide>(
             // the meridian plane of `n` that leans toward it, which the
             // frame facing `a` names. Any generator meets the plane on the
             // ellipse's own nappe or its line's other half; this one does
-            // at `g·n = cos(α − β)`, never small.
+            // at `g·n = cos(α − β)`, the largest over the meridian, which
+            // on the ellipse's range `0 ≤ β < π/2 − α` is at least
+            // `min(cos α, sin 2α)`. Only the witness's position divides
+            // by it; no margin does.
             let facing = match sign(
                 "section_cone_plane_facing",
                 Margin::levered(na, lever),

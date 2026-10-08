@@ -465,8 +465,11 @@ axis.
 `n̂` to face `â` (a decided sign, definite wherever `μ > 0`), and take
 `m̂ = unit(n̂ − (n̂·â)â)`, or the cone's `u_ref` when that is Zero. The
 generator LINE `g = c·â + s·m̂` meets the plane at `A + λg`, with
-`λ = ((p₀ − A)·n̂)/(g·n̂)` and `g·n̂ = cos(α − β)`, `cos β = |n̂·â|`, never
-small. That point lies on the ellipse, on whichever nappe it is.
+`λ = ((p₀ − A)·n̂)/(g·n̂)` and `g·n̂ = cos(α − β)`, `cos β = |n̂·â|`. On
+the ellipse's range `0 ≤ β < π/2 − α` that is at least
+`min(cos α, sin 2α)`: `sin 2α` at the parabola, approaching `cos α` as
+`α → π/2`. Only the witness's position divides by it; no margin does.
+That point lies on the ellipse, on whichever nappe it is.
 
 **The item's claim, "the ellipse is always essential on a face with a
 seam": confirmed, with one qualification.** It is essential on every

@@ -23,10 +23,10 @@
 use crate::revolve_common;
 
 use core::f64::consts::PI;
-use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use profile::{ProfileLoop, RawLoop};
+use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::*;
-use sweep::{Revolution, revolve};
+use sweep::{Revolution, RevolveAxis, revolve};
 use topo::test_support::{brick, no_crossings_certificates, no_crossings_section_report};
 use topo::{Body, BooleanError, FaceKey};
 
@@ -336,4 +336,70 @@ fn the_preview_pairs_clear_with_the_sweeps_events() {
             );
         }
     }
+}
+
+/// A ball of radius `r` centred at `c`, poled along `y`: its seam
+/// meridians lie in the plane `z = c.z`.
+fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -r), 1.0),
+        (Point2::new(0.0, r), 0.0),
+    ]);
+    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
+    let axis = RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: Vec2::new(0.0, 1.0),
+    };
+    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body;
+    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
+}
+
+/// **W4 through the door: a ball on the quarter cone's generator
+/// edge.** The ball meets the lateral face in one null loop, which the
+/// edge `φ = 0` crosses: the sweep records the edge's pierces of the
+/// ball, the reduction's own reading pairs them with the cone face, and
+/// the certified single loop clears by W4 against each of the ball's
+/// faces — with the cone as `A` and as `B`. With no events read, the same loop's witness lies inside both
+/// faces and the pair refuses R-loop: the mutant that drops the door's
+/// events reds the row.
+#[test]
+fn a_ball_across_a_generator_edge_clears_by_w4_through_the_door() {
+    let quarter = revolved(&[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)], Some(PI / 2.0));
+    let h = 0.5_f64.sqrt();
+    let ball = ball_at(
+        0.05,
+        Vec3::new(0.45, 0.55, -0.01) + Vec3::new(h, h, 0.0) * 0.045,
+    );
+    for (a, b, cone_is_a) in [(&quarter, &ball, true), (&ball, &quarter, false)] {
+        let v: Vec<String> = topo::section_report_admitting_cones(a, b, Tol::witness())
+            .unwrap()
+            .into_iter()
+            .filter(|(fa, fb, _)| {
+                if cone_is_a {
+                    is_cone(&quarter, *fa)
+                } else {
+                    is_cone(&quarter, *fb)
+                }
+            })
+            .map(|(_, _, v)| v)
+            .collect();
+        assert!(
+            !v.is_empty() && v.iter().all(|x| x == "Ok([LoneEvented])"),
+            "cone as A {cone_is_a}: {v:?}"
+        );
+    }
+    let quiet: Vec<String> = no_crossings_section_report(&quarter, &ball, Tol::witness())
+        .unwrap()
+        .into_iter()
+        .filter(|(fa, _, _)| is_cone(&quarter, *fa))
+        .map(|(_, _, v)| v)
+        .collect();
+    assert!(
+        quiet.iter().any(|x| x == "Err(Loop)"),
+        "with no event the loop is interior: {quiet:?}"
+    );
 }

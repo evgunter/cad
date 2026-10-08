@@ -300,6 +300,23 @@ fn a_ball_against_a_cone_face_is_the_section_passs() {
             "the ball inside is apart"
         );
     }
+    let cone_face = |f: topo::FaceKey| {
+        matches!(
+            cone.get_surface(cone.get_face(f).unwrap().surface),
+            Some(geom::Surface::Cone { .. })
+        )
+    };
+    let pairs: Vec<String> =
+        topo::test_support::no_crossings_section_report(&cone, &inside, Tol::witness())
+            .unwrap()
+            .into_iter()
+            .filter(|(fa, _, _)| cone_face(*fa))
+            .map(|(_, _, v)| v)
+            .collect();
+    assert!(
+        !pairs.is_empty() && pairs.iter().all(|v| v == "Ok([])"),
+        "the ball inside meets the double cone nowhere (W0): {pairs:?}"
+    );
     // The foot `(0.45 cos φ, 0.55, 0.45 sin φ)` at `φ = −π/4`, and the
     // centre `0.045` out along the outward normal `(r̂ + ŷ)/√2`: the ball
     // meets the face in a cap of half-angle `acos 0.9 ≈ 26°`, clear of
