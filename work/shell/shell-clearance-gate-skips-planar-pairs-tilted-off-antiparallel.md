@@ -2,10 +2,12 @@
 id: shell-clearance-gate-skips-planar-pairs-tilted-off-antiparallel
 kind: issue
 title: wall_clearance reads only antiparallel planar pairs, so two planar walls meeting at an angle across less than 2t shell silently
-status: open
+status: review
 opened: 2026-10-06
 priority: P1
 cost: M
+pr: 4311
+branch: shell/tilted-walls
 ---
 
 
