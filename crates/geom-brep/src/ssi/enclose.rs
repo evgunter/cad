@@ -648,7 +648,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// [`NurbsBoxes::deriv_box`] read off every touched cell's whole net,
     /// without the cut: the exhaustiveness sweep's derivative box, whose
     /// slack the sweep's seeding is pinned against
-    /// (`work/ssi/the-chart-sweeps-first-order-box-reads-its-derivative-off-the-whole-span-cell.md`).
+    /// (`work/ssiedge/the-chart-sweeps-first-order-box-reads-its-derivative-off-the-whole-span-cell.md`).
     fn cell_deriv_box(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool) -> Box3 {
         self.deriv_hull(u0, u1, v0, v1, along_u, false)
     }

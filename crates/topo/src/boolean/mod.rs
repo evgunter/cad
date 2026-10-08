@@ -87,7 +87,7 @@ mod contain;
 mod discard;
 #[cfg(feature = "door-tier3-meter")]
 mod door_meter;
-mod edge_join;
+pub(crate) mod edge_join;
 mod ellipse_torus;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
@@ -154,7 +154,8 @@ pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment
 pub(crate) use contain::{driver_face_stale, loop_circle};
 pub use discard::{DiscardRow, HeldEdge, lineage_root};
 pub use edge_join::{
-    EdgeJoin, JoinReading, JoinUndecided, is_conventional_vertex, joinable_vertices,
+    EdgeJoin, JoinReading, JoinRefusal, JoinUndecided, is_conventional_vertex, join_covers,
+    joinable_vertices, joined_edge,
 };
 pub use join::CompletedPolygonPair;
 pub use ops::{
@@ -1972,7 +1973,7 @@ pub enum BooleanError {
     /// gate refuses every such edge first, as
     /// [`Self::CurvedEdgeUnsupported`]. It is the sweep's own refusal,
     /// pinned by `reduce::planar_lane_carrier_rows`, and the one a
-    /// narrowed gate exposes (`work/reach/delete-the-boolean-operand-edge-gate.md`).
+    /// narrowed gate exposes (`work/orbit/delete-the-boolean-operand-edge-gate.md`).
     CrossingCarrierUnsupported {
         /// The operand whose edge it is.
         operand: Operand,
@@ -2349,23 +2350,6 @@ pub enum BooleanError {
         operand: Operand,
         /// That vertex: a key of the operand's working copy.
         vertex: VertexKey,
-    },
-    /// A vertex of `operand` pierces a face of the other solid with
-    /// `runs` Out runs (three or more) whose order round the vertex, read
-    /// from their start germs, is not their order along its link
-    /// (`vtxfac::classify_vertex_on_face`). The ring struts hang in link
-    /// order and face each run from the next one's start germ, which
-    /// holds only while the runs' Out wedges lie disjoint about the
-    /// face's normal, one after another. Nested runs are not ordered
-    /// (`work/tang/nested-pierce-runs-have-no-ring-order.md`).
-    PierceRunsNested {
-        /// The piercing operand.
-        operand: Operand,
-        /// Its piercing vertex: a key of the operand's working copy,
-        /// which the sweep may have minted on one of its edges.
-        vertex: VertexKey,
-        /// How many Out runs it has against the face.
-        runs: usize,
     },
     /// A vertex of `operand` is read by two sector passes where the
     /// first read cannot be taken with the second: it pierces two faces
@@ -2988,8 +2972,6 @@ pub enum BooleanErrorKind {
     SharedVertexCrossings,
     /// [`BooleanError::PinchConesOnSeparateKeys`].
     PinchConesOnSeparateKeys,
-    /// [`BooleanError::PierceRunsNested`].
-    PierceRunsNested,
     /// [`BooleanError::VertexReadTwice`].
     VertexReadTwice,
     /// [`BooleanError::NonManifoldResult`].
@@ -3203,7 +3185,6 @@ impl BooleanError {
             Self::PairingMismatch { .. } => BooleanErrorKind::PairingMismatch,
             Self::SharedVertexCrossings { .. } => BooleanErrorKind::SharedVertexCrossings,
             Self::PinchConesOnSeparateKeys { .. } => BooleanErrorKind::PinchConesOnSeparateKeys,
-            Self::PierceRunsNested { .. } => BooleanErrorKind::PierceRunsNested,
             Self::VertexReadTwice { .. } => BooleanErrorKind::VertexReadTwice,
             Self::NonManifoldResult { .. } => BooleanErrorKind::NonManifoldResult,
             Self::ClassificationInvariant { .. } => BooleanErrorKind::ClassificationInvariant,
@@ -3695,14 +3676,6 @@ impl core::fmt::Display for BooleanError {
                  several corners that only touch each other, and the result would keep \
                  them apart in a way its checks cannot read. There is no way through this \
                  in the kernel yet",
-                operand_word(*operand)
-            ),
-            Self::PierceRunsNested { operand, runs, .. } => write!(
-                f,
-                "a corner of the {} solid sits on a face of the other with {runs} separate \
-                 wedges of the corner outside that face, and some of those wedges wrap \
-                 around others as seen along the face, which the Boolean does not yet \
-                 order. There is no way through this in the kernel yet",
                 operand_word(*operand)
             ),
             Self::VertexReadTwice { operand, reads, .. } => write!(
@@ -6509,11 +6482,6 @@ mod tests {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
             },
-            BooleanError::PierceRunsNested {
-                operand: Operand::A,
-                vertex: VertexKey::default(),
-                runs: 3,
-            },
             BooleanError::VertexReadTwice {
                 operand: Operand::A,
                 vertex: VertexKey::default(),
@@ -6691,7 +6659,6 @@ mod tests {
                 BooleanErrorKind::PairingMismatch => "PairingMismatch",
                 BooleanErrorKind::SharedVertexCrossings => "SharedVertexCrossings",
                 BooleanErrorKind::PinchConesOnSeparateKeys => "PinchConesOnSeparateKeys",
-                BooleanErrorKind::PierceRunsNested => "PierceRunsNested",
                 BooleanErrorKind::VertexReadTwice => "VertexReadTwice",
                 BooleanErrorKind::NonManifoldResult => "NonManifoldResult",
                 BooleanErrorKind::ClassificationInvariant => "ClassificationInvariant",

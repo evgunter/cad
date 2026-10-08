@@ -4,7 +4,7 @@ kind: issue
 title: topo: the plane orientation rung offers no tolerance at a declared Rest door, where a smaller one would pass, because the decision carries no read
 status: parked
 opened: 2026-09-30
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -38,3 +38,7 @@ as `Coincidence` does, from the `PlaneDoor` `plane_identity` already
 receives), end the declared-`Rest` read sized from `CORNER_SENSE`, and
 add a case to `offer_rows` that raises it through
 `verify_declared_contacts` and executes the offer.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the repair carries DeclarationRead/PlaneDoor::OnPair(Spent(Rest)) on the decision; that declared-Rest door retires at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

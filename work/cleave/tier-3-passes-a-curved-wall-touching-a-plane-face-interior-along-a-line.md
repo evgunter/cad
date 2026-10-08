@@ -169,7 +169,7 @@ Two scope choices, both measured:
   material on at most one side of the ruling.
 - **The plane face decides.** A ruling inside the cylinder face but on
   the plane face's boundary edge (the box-corner pose,
-  `work/reach/a-box-corner-on-a-declared-tangent-ruling-refuses-curved-boolean-unsupported.md`)
+  `work/reachhold/a-box-corner-on-a-declared-tangent-ruling-refuses-curved-boolean-unsupported.md`)
   is an edge resting on a face, not the doubled slit. It is untouched,
   and it refuses `CurvedBooleanUnsupported` already. Declared
   parallel-cylinder kisses refuse `CurvedPierceUnsupported` downstream

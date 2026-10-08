@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-01
 priority: P3
 cost: E
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage3-is-built]
 ---
 
 
@@ -45,3 +45,7 @@ Decide the rider on the roll reduced to `(-π, π]` (the angle the pose
 actually differs by), at the one site that forms `Lever::Roll`, so the
 quoted deviation is the deviation of the pose; and a row that pins a
 whole-turn rider as redundant.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage3-is-built`, not on the whole program: the fix site (Lever::Roll, the coincidence rider) is deleted by #3681's MSOLVE-15, which is re-cut against D10's frame and mate ground at stage 3. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

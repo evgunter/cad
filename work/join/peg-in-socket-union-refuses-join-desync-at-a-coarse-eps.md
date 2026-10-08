@@ -4,7 +4,7 @@ kind: issue
 title: The torus peg-in-socket union's chord join cannot read its section loops' roles above eps 2e-7
 status: parked
 opened: 2026-10-02
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -30,3 +30,7 @@ On main 1ff6064e1, before the merge, the pose refused `Join(UnpairedLooseEnds { 
 ## What is not known
 
 I have not measured which witness reads in band above 2e-7, or whether a witness off the curved faces' boundaries would decide it.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: it builds only because the declared-REST zip takes over SectionLoopUndecided at ε≥3e-7; stage 4 retires that zip. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

@@ -189,8 +189,6 @@ pub(crate) fn fold_shell_error<T: Real>(
         },
         E::NoSolid => E::NoSolid,
         E::Roles { error } => E::Roles { error },
-        E::Pieces { error } => E::Pieces { error },
-        E::OperandOuterShells { solid } => E::OperandOuterShells { solid },
         E::Partition { shell, error } => E::Partition { shell, error },
         // The pessimistic pair, which is the reading under which the two
         // offsets cross: the material as thin as the bracket admits,
@@ -227,6 +225,7 @@ pub(crate) fn fold_shell_error<T: Real>(
         E::Rim { face, error } => E::Rim { face, error },
         E::Escalated { source } => E::Escalated { source },
         E::Pcurve { source } => E::Pcurve { source },
+        E::Join { refusal } => E::Join { refusal },
         E::NotValid { errors } => E::NotValid { errors },
     }
 }
@@ -365,6 +364,7 @@ fn fold_replace_face_error<T: Real>(
         R::Escalated { source } => R::Escalated { source },
         R::Op { edge, error } => R::Op { edge, error },
         R::Pcurve { source } => R::Pcurve { source },
+        R::Join { refusal } => R::Join { refusal },
         R::ResultNotClosed { errors } => R::ResultNotClosed { errors },
     }
 }

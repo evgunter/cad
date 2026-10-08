@@ -1221,3 +1221,39 @@ Signed (JOIN orchestrator).
 - **Readout 3's ruling** waits on Ev's sign-off of the rule-9 wording in PR 4298.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-08: two H units dispatched
+
+- **Ev (chat):** start the H units. There is usage headroom for a good handful.
+- **In flight:**
+  - `a-plane-across-a-one-face-wall-meets-its-wrap-edge-once` (P1 H), branch `join/wrap-edge-section-loop`. A one-site section loop on a wrap edge joins as one chord around the whole conic. Not coincidence, so not held by D10. It unblocks PATHS unit 4 (`circle-lowers-to-one-segment`).
+  - `a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet` (P1 H), branch `join/sphere-pair-whole-circle`. A transverse sphere-pair circle that no edge reaches lands as a ring on both faces. The FLUX ringed-sphere gate may still stop some operations.
+- **Review tier:** both are H, so each gets a concurrent dual (rule 1).
+- **Designer pair** (Ev, chat: use the whole remaining usage): the join for a section that lies in no plane. That covers `cylinder-sphere-germ-pair-has-no-join-lane`, and through it the skew-cylinder and torus rows. The blinding record is on `analysis/design-fork/nonplanar-section-lane`.
+- **Three more lanes:**
+  - `near-tangent-boolean-results-ship-with-an-escalated-tier-3-census` (P0 H), measurement first, on `join/near-tangent-census-measure`. It reads, per census predicate, whether the undecided pair is a real sliver or a margin too coarse. A design pass follows.
+  - `a-run-holding-another-whole-is-spelled-three-ways-in-insert` and `a-vertex-orbits-position-has-one-comparator-but-no-fixed-origin` (P3 M), as one unit on `join/insert-one-walk-order`: one fixed-origin order on an orbit. Rule-1 arm: byte 19, mod 3 = 1, SEQUENTIAL.
+  - `join1-delta-probes-keep-their-own-outcome` and `vertices-at-misses-an-edge-split-ulps-off-the-pierce-point` (E), as one unit on `join/battery-hygiene`, read by the orchestrator.
+- **Held:**
+  - the `join.rs` E rows (steep-ellipse margin, completed null faces, forced-order lanes, in-band axis offset), until the wrap-edge unit lands, to avoid conflicts;
+  - `a-curved-face-at-a-shared-pinch-vertex-...`, which is a curved-census and containment question;
+  - `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone`, on D10.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-08: the near-tangent measurement landed; two forks with Ev; the w345 reading dispatched
+
+- **PR 4328 merged** (the measurement unit; orchestrator read; probe, classifier and filed rows only, no kernel code).
+  - Every escalated body measured is right.
+  - The escalations are the census's: f64 formulas that lose the margin (b-arith), or a line or plane read in place of a segment or face (b-proxy). At ε = 1e-12 the same arithmetic gives 845 definite false `EdgeEdgeCross` findings.
+  - The real in-band residue: thin corners, a vertex 9.55e-9 off a face, and sliver lumps.
+  - Ten rows filed, across CONTACT, JOIN, ENCL and CLEAVE.
+- **`[ev]` PR 4313: the join on one certified section per face pair** (fork row 90, recommendation half). The non-planar section designers agreed on their first reports.
+- **`[ev]` PR 4335: near-tangent census** (fork row 91, recommendation half). It converged after two reconciliation rounds, the first a crossover. The outcome: no door ships an uncertified body; CONTACT re-poses the census on cell gaps; the split refuses in band; the door's gate types in-band findings `Escalated` and definite ones `ResultInvalid`. It proposes three DESIGN.md additions.
+- **Dispatched:** `a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded` (P0 M), branch `join/near-tangent-vertex-in-band`. Both designers call it a split reading defect under the already-ratified Q1, so it does not wait on 4335. If the vertex turns out to be a composed quantity rather than a missed reading, the lane stops with a draft PR. Rule-1 arm: byte 71, mod 3 = 2, SEQUENTIAL.
+- **In flight:**
+  - wrap-edge (H) and sphere pair (H);
+  - battery hygiene (E, PR 4334);
+  - walk order (M, PR 4317), under its sequential review.
+
+Signed (JOIN orchestrator).

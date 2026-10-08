@@ -2,11 +2,10 @@
 id: a-torus-meridian-lying-on-a-torus-is-unsettled
 kind: issue
 title: A torus meridian lying on a torus is the F≡0 case the circle×torus root door answers Unsettled
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: H
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -43,3 +42,7 @@ the `F ≡ 0` branch those roots never reach.
 
 The lily's stem: `torus-declared-rest-lane-banked` item 3. The sibling
 piece is `a-torus-seam-graze-needs-the-rim-root-deflated`.
+
+## Released from the D10 hold (2026-10-08)
+
+Nothing D10 changes gates this row, so it is open: pure geometry: an F≡0 meridian LiesOn rung in circle_torus_roots (reduce.rs); the (Zero,Zero) lying_on arm survives as a Zero-decided ON event. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

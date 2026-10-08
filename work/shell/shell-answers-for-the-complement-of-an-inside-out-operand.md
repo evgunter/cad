@@ -39,7 +39,7 @@ Refuse an inside-out operand at `shell`'s door, typed
 (`AtRestBody::gate_unverdicted`, through `validate::wound_negative`,
 reads tier 3's check 7 per solid and check 10 per shell at the scalar's
 lane), before any offset reads it. The finished-body adoption
-(`work/reach/boolean-door-adopts-the-finished-body-type.md`) subsumes it
+(`boolean-door-adopts-the-finished-body-type` (REACH, closed by PR 3987)) subsumes it
 once `shell` takes `AtRestBody`. The blend and offset doors' posture is
 unmeasured: the clockwise wedge's fillet requests refused alike in both
 orientations, so no measurement reached them.

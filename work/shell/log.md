@@ -1292,3 +1292,22 @@ All seven units of the cut are merged:
 - 4191, curved designated face.
 
 `plan.md` now carries the next cut as units 8–12. Two items are P1: the tilted planar walls (a silent wrong body) and the lofted oblique corner.
+
+## 2026-10-08 — next cut dispatched (units 8–10)
+
+Ev said go.
+
+- **Unit 8, tilted planar walls** (P1, M): implementer dispatched on `shell/tilted-walls`, session `session_01WTRinsGsb2d1yVCkEEazRW`.
+  - Direction decided here: the gate stays a measured clearance. A facing pair outside the existing windows has the least distance between its offset footprints decided against the band. This is not a dihedral-threshold refusal, which would refuse sound wedges.
+  - Review tier: single full review.
+- **Unit 9, the lofted oblique corner** (P1, H): a design fork, weighed by a designer pair (one Opus, one Fable) on where a moved chart meets an unmoved non-plane neighbour.
+  - Blinding byte 172, Opus=A (`analysis/design-fork/shell-lofted-oblique-corner`).
+- **Unit 10, the face door at rest** (P2, M, with its P3 rider): a design fork, weighed by a designer pair on the public posture of the three offset doors toward an operand that is not at rest.
+  - Blinding byte 188, Opus=A (`analysis/design-fork/shell-face-door-at-rest`).
+- **Unit 10, face door at rest** (P2, M + rider P3, E): designer pair agreed (premise correction; doors stay construction steps; no ratified text moves, no `[ev]` PR); `## Decided` written; implementer dispatched on `shell/face-door-at-rest`, session `session_01BRLJT85zsBBDGVYTJgw2qV`.
+- **Unit 9, lofted oblique corner** (P1, H): designer pair converged over two rounds (derive, do not transport; the one-door merge's timing was sequencing, taken as a follow-up); no ratified text moves; `## Decided` written; filed `offset-doors-are-one-door-with-a-held-distance` and `a-fitted-wall-has-no-section-with-a-moved-cap`; implementer dispatched on `shell/oblique-corner-derives` carrying ISO's interior-row item (ISO has nothing dispatched), session `session_01Qu1nNjtcPLYhgkdaLBQBic`. Dual review.
+- **Unit 9 measurement** (2026-10-08): the derivation holds on the twisted loft (plane × NURBS section certifies, corners root on every seam); the vase's rational walls fail `plane_nurbs_limbs`' limb 2 by ~3e-3 m even on the exact row, and the skinned wall's weights drift one ulp. Orchestrator took option 1: build as decided for polynomial walls, the loft keeps its chart-on-cap rim on a rational wall, the vase's cap move refuses typed (Decided item 3); the limb-2 bound and the weight drift filed in the unit's PR.
+- **Unit 10 review** (PR 4315): single review, no MAJOR; fix pass sent (`unreachable!` comment names check 7, not `ShellWinding`; stale `classify_shells_through` doc; reverted-wedge pin rows; the topo README row re-worded descriptively, since a general door rule on a ratified page would bind future work and wait for Ev).
+- **Designer pair dispatched** for `a-fitted-wall-has-no-section-with-a-moved-cap` (byte 133 on `analysis/design-fork/shell-fitted-wall-section`).
+- **Unit 10 merged** (PR 4315): fixes verified (check-7 comment, descriptive README row, sense-flipped pin rows — `revert` on a plane flips the normal, not the sense, so the lane built the sense-flip rows directly). Closed both SHELL items and FUSE's duplicate; filed `shell-refuses-a-finished-body-wearing-one-chart-both-ways` (P3).
+- **Fitted-wall fork decided** (2026-10-08): designer pair agreed (a fitted face's section is its fit's; nothing composed). Not put to Ev: the C5 refusal is agent text and the change restores OFFSET-DESIGN's ratified "most delegate to the fitted NURBS". Re-priced P2: lofts still stop at the wall–wall seams; filed `a-wall-seam-between-two-fits-has-no-section` (P2) and `two-fits-sharing-a-smooth-seam-disagree-by-their-certificates` (P3). Lands after unit 9.

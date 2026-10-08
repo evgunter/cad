@@ -107,6 +107,8 @@ mod cylinder_sphere_frame;
 mod four_crossings_on_one_section_circle;
 #[path = "general_circle_octant_dual.rs"]
 mod general_circle_octant_dual;
+#[path = "join_door_is_whole.rs"]
+mod join_door_is_whole;
 #[path = "lane1_r2_probes.rs"]
 mod lane1_r2_probes;
 #[path = "offb_r1_loft_probes.rs"]
@@ -117,6 +119,10 @@ mod offc_r1_probes;
 mod offd2_r1_probes;
 #[path = "offd_r1_probes.rs"]
 mod offd_r1_probes;
+#[path = "offset_axial_door_reads_charts_not_material.rs"]
+mod offset_axial_door_reads_charts_not_material;
+#[path = "offset_doors_end_with_the_join.rs"]
+mod offset_doors_end_with_the_join;
 #[path = "offset_restates_a_neighbour_chart_rim.rs"]
 mod offset_restates_a_neighbour_chart_rim;
 #[path = "one_door_for_coincident_sections.rs"]

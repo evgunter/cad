@@ -6,7 +6,7 @@ status: parked
 opened: 2026-09-29
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 ## Finding
@@ -37,3 +37,7 @@ Filed from PR 3467's fix pass (TOPO).
 ## Parked on the D10 hold (2026-10-06)
 
 This row is on declared-contact ground, so it waits on `d10-one-way-to-say-intent-is-unbuilt` (`work/join/log.md`, the 2026-10-03 hold). D10 stage 4 retires the declared-REST zip: `work/intent/the-declared-rest-zip-retires-at-stage-4-and-the-join-needs-three-arms.md`. When the hold lifts, close this row if its code is gone, or move it to the join if its scene still refuses there.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the band-closure arm of slit_zip in rest.rs is deleted at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
