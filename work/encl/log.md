@@ -1318,3 +1318,14 @@ coincidence is now a margined verdict (no declarations), checked by the
     - P3: the rest.
   - Next: bring PR 3431 up to main and give it a full review; dispatch the import follow-through.
 - 2026-10-08 — PR 4331 (the import follow-through) is open; a full review is running. Dispatched the P1 `the-offset-certificate-reads-vector-norms-off-per-coordinate-cell-hulls` on `encl/offset-cert-coefficient-norms`. The PROPS f64-refinement blocker moved to FLUX on PROPS' close and is still open, so the four rows parked on it stay parked. The `loop-boundary-discards.sh --selftest` clean fixture fails on main (reported by the 4331 lane); to be passed to the gate's owner.
+- 2026-10-08 — The full review of PR 4331 came back APPROVE-WITH-FIXES. Adjudication:
+  - F1 (a one-arc arm bypasses `recourse_in_file`): fix.
+  - F2: withholding moves to the near rule, per D4 and the fork log's "a size at or below ε_in".
+  - F3: the re-export advice takes three arms (valued, re-export **and** tighten, and Zero quoting no value). The base-wide sub-resolution tighten values go to a new ENCL class row.
+  - F4: carry the margin on `ResidualExceeded` if contained, else file a row.
+  - F5: add to the EXCH row.
+  - F6: stale prose.
+  - All the style items are accepted.
+  - A fix pass is dispatched.
+- 2026-10-08 — The `loop-boundary-discards --selftest` failure is already filed on GUARD (`loop-boundary-selftest-cannot-plant-an-arm-fragment`, opened 2026-10-06). It needs no handoff.
+- 2026-10-08 — PR 3431 is up to main at `0819ff7d6f`; a full review is dispatched.
