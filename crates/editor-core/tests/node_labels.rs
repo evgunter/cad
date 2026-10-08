@@ -11,11 +11,12 @@ use editor_core::ExtrudeSide;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use crate::fixture::split_world as split;
 use editor_core::{
     CancelToken, DocEdit, DocumentId, EditError, EvalOptions, InlineError, Label, Maintenance,
-    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, SplitError,
-    content_pin, evaluate, inline, load, save, };
-use crate::fixture::split_world as split;
+    Node, PersistError, ProfileDoc, RecipeNodeId, SnapshotError, SplitError, content_pin, evaluate,
+    inline, load, save,
+};
 use fixture::resolver::PartStore;
 use fixture::{die, insert, len, on_frame, square, step};
 use geom_core::Tol;
@@ -998,7 +999,9 @@ fn a_checks_report_and_its_refusal_speak_the_labelled_roots() {
         "the refusal speaks its placement from the document: {spoken}"
     );
     assert!(
-        refusal.to_string().contains(&format!("placement {b} output 0")),
+        refusal
+            .to_string()
+            .contains(&format!("placement {b} output 0")),
         "and its own Display says the tag: {refusal}"
     );
 }
@@ -1142,7 +1145,9 @@ fn a_selection_refusal_is_spoken_by_the_frame_from_its_document() {
     );
     assert_eq!(
         ChecksError::Root(failed).spoken(&doc),
-        format!("checks: placement {plate} failed, so it has no value — fix the node's own failure")
+        format!(
+            "checks: placement {plate} failed, so it has no value — fix the node's own failure"
+        )
     );
     let changed = Diagnosis::StructuralParam {
         node: extrude,

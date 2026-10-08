@@ -659,9 +659,9 @@ fn removing_any_pip_leaves_both_die_fillets_resolving() {
     // box-edge blend.
     let rim_blend = match doc.placements().as_slice() {
         [placement] => match doc.node(*placement) {
-            Some(Node::PlaceInWorld { body, .. }) => {
-                doc.operation_of(*body).expect("the placement reads the die")
-            }
+            Some(Node::PlaceInWorld { body, .. }) => doc
+                .operation_of(*body)
+                .expect("the placement reads the die"),
             other => panic!("a placement, got {other:?}"),
         },
         other => panic!("the tour places the die alone, got {other:?}"),
@@ -1258,4 +1258,3 @@ fn list_input_and_set_list_input_agree_on_every_node_kind() {
         seen.len()
     );
 }
-

@@ -13,8 +13,7 @@ use crate::fixture;
 use editor_core::ExtrudeSide;
 
 use editor_core::{
-    BooleanOp, Entry, EvalOptions, Evaluation, Formula,
-    Node, PatternKind, ProfileDoc, RecipeNodeId,
+    BooleanOp, Entry, EvalOptions, Evaluation, Formula, Node, PatternKind, ProfileDoc, RecipeNodeId,
 };
 use fixture::{insert, len, on_frame, scl, table};
 use geom_core::Tol;
@@ -134,4 +133,3 @@ fn a_placed_union_carries_each_instances_tie_with_both_candidates() {
         "one two-candidate tie per prototype tie per instance"
     );
 }
-

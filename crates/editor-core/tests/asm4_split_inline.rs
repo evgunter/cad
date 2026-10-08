@@ -124,9 +124,7 @@ fn placement_reading(doc: &ProfileDoc, body: RecipeNodeId) -> RecipeNodeId {
         .placements()
         .into_iter()
         .filter(|&p| match doc.node(p) {
-            Some(Node::PlaceInWorld { body: read, .. }) => {
-                doc.operation_of(*read) == Some(body)
-            }
+            Some(Node::PlaceInWorld { body: read, .. }) => doc.operation_of(*read) == Some(body),
             _ => false,
         })
         .collect();
@@ -268,15 +266,15 @@ fn row1_split_one_group_preserves_structure_and_names() {
     let sample = names1
         .iter()
         .find(|(n, _)| {
-            n.copy_of().is_some_and(|(_, inner)| inner.node == cut_instance)
+            n.copy_of()
+                .is_some_and(|(_, inner)| inner.node == cut_instance)
                 && n.kind == editor_core::EntityKind::Vertex
         })
         .map(|(n, _)| n.clone())
         .expect("a cut vertex name");
     let before = editor_core::vertex_position(&ev1, sample.node, &sample).expect("resolves");
     let after_name = across(&sample);
-    let after =
-        editor_core::vertex_position(&ev2, placed_at, &after_name).expect("resolves after");
+    let after = editor_core::vertex_position(&ev2, placed_at, &after_name).expect("resolves after");
     assert_eq!(before.x.to_bits(), after.x.to_bits());
     assert_eq!(before.y.to_bits(), after.y.to_bits());
     assert_eq!(before.z.to_bits(), after.z.to_bits());
@@ -736,7 +734,10 @@ fn row3_further_typed_refusals() {
         panic!("the reader stays")
     };
     assert!(
-        inlined.doc.operation_of(*input).is_some_and(|at| at != inst),
+        inlined
+            .doc
+            .operation_of(*input)
+            .is_some_and(|at| at != inst),
         "the reader reads the inlined body"
     );
 

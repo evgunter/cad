@@ -996,8 +996,7 @@ pub(crate) fn product_in<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     if !any_placed {
         let groups = evaluation.unplaced_groups();
         return Err(
-            if space == crate::mate::Space::World && !placements.is_empty() && !groups.is_empty()
-            {
+            if space == crate::mate::Space::World && !placements.is_empty() && !groups.is_empty() {
                 ProductError::Unplaced { groups }
             } else {
                 ProductError::EmptyProduct {
@@ -1504,11 +1503,9 @@ mod tests {
             findings: vec![source(3), source(5)],
         };
         assert!(
-            two.sentence()
-                .to_string()
-                .starts_with(
-                    "placement 000000000003, placement 000000000005 are not valid at rest:\n  "
-                ),
+            two.sentence().to_string().starts_with(
+                "placement 000000000003, placement 000000000005 are not valid at rest:\n  "
+            ),
             "{}",
             two.sentence()
         );

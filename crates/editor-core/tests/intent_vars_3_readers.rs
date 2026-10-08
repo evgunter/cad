@@ -805,10 +805,7 @@ fn split_and_inline_carry_readers_by_id() {
     .expect("an anonymous variable crosses a split");
     let carried = out
         .part
-        .slot(
-            carried_extrude(&out.part),
-            SlotId::Distance,
-        )
+        .slot(carried_extrude(&out.part), SlotId::Distance)
         .expect("the carried extrude's depth");
     assert!(out.part.var_name(carried).is_none(), "it stays anonymous");
     assert!(

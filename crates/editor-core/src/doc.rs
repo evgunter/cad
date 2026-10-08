@@ -2326,7 +2326,6 @@ pub(crate) fn strict_ancestors<P: crate::ProfilePayload>(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     #![allow(clippy::panic, clippy::expect_used)]

@@ -1425,10 +1425,9 @@ impl core::fmt::Display for InlineError {
                         "the referenced document places {count} bodies, so no one body of it \
                          stands where the instance's did"
                     )?,
-                    Uncarried::HeirNamed { held } => write!(
-                        f,
-                        "the body standing where it did is named {held} already"
-                    )?,
+                    Uncarried::HeirNamed { held } => {
+                        write!(f, "the body standing where it did is named {held} already")?
+                    }
                 }
                 write!(
                     f,
@@ -3847,9 +3846,7 @@ pub fn inline(
     // the part's one placement places, or that placement's copy where
     // it holds a pose of its own.
     let part_placements = part.placements();
-    let identity = |p: RecipeNodeId| {
-        matches!(part.node(p), Some(Node::PlaceInWorld { pose, .. }) if pose.steps.is_empty())
-    };
+    let identity = |p: RecipeNodeId| matches!(part.node(p), Some(Node::PlaceInWorld { pose, .. }) if pose.steps.is_empty());
     let mut host_placements: Vec<RecipeNodeId> = Vec::new();
     let mut posed: Vec<RecipeNodeId> = Vec::new();
     let mut readers: Vec<(RecipeNodeId, crate::OperandSlot)> = Vec::new();
@@ -3877,7 +3874,8 @@ pub fn inline(
         _ => None,
     };
     if let Some(&placement) = posed.first() {
-        let dropped = one.filter(|&p| identity(p) && posed.len() == 1 && host_placements.is_empty());
+        let dropped =
+            one.filter(|&p| identity(p) && posed.len() == 1 && host_placements.is_empty());
         if dropped.is_none() {
             return Err(InlineError::PlacementPoseCrosses {
                 placement: doc.spoken(placement),
@@ -3937,7 +3935,8 @@ pub fn inline(
             if here.name.node != instance {
                 continue;
             }
-            let inner = of.copy_of()
+            let inner = of
+                .copy_of()
                 .and_then(|(_, of)| FaceName::new(of.clone()).ok())
                 .and_then(|face| {
                     crate::mate::member_of(&part, &crate::node::SitedFace::at_mint(face))

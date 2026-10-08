@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use crate::corpus::{body_of, failures};
 use crate::fixture::resolver::PartStore;
+use crate::fixture::split_world as split;
 use crate::fixture::{Recorder, insert, len, on_frame, prism_edges, square};
 use editor_core::analysis::{AnalysisPolicy, analyzed_box, seed_env};
 use editor_core::persist::SnapshotError;
@@ -27,7 +28,6 @@ use editor_core::{
     ProfileDoc, ProfileProgram, RecipeNodeId, SeedError, UnitSym, VarDecl, VarId, VarName, apply,
     evaluate, inline, load, save, var_env_over,
 };
-use crate::fixture::split_world as split;
 use geom_core::predicate::{Band, Margin, Sign};
 use geom_core::{Bounds, Interval, Real, Sym, SymBudget, SymRules, Tol};
 use topo::{Body, FaceKey, SurfaceField};
