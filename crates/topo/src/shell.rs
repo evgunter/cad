@@ -2986,12 +2986,15 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::TogetherNotAxial { face, .. }
         | ReplaceFaceError::NappeStraddles { face, .. } => Some(*face),
         ReplaceFaceError::TogetherCorner { vertex, .. }
-        | ReplaceFaceError::TogetherAxialCorner { vertex, .. } => {
+        | ReplaceFaceError::TogetherAxialCorner { vertex, .. }
+        | ReplaceFaceError::CornerSection { vertex, .. }
+        | ReplaceFaceError::VertexDisagreement { vertex, .. } => {
             face_of_he(proven(&body.vertices, *vertex, EntityId::Vertex).emanating?)
         }
         ReplaceFaceError::TogetherEdgeDisagreement { edge, .. }
         | ReplaceFaceError::TogetherAxialEdge { edge, .. }
-        | ReplaceFaceError::ReanchorOffCarrier { edge, .. }
+        | ReplaceFaceError::EdgeSection { edge, .. }
+        | ReplaceFaceError::DeclaredEdgeTilted { edge }
         | ReplaceFaceError::ReanchorPastCarrierEnd { edge, .. }
         | ReplaceFaceError::ReanchorCollapse { edge, .. }
         | ReplaceFaceError::ReanchorInconclusive { edge, .. }

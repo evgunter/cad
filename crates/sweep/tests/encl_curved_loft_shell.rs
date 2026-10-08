@@ -71,24 +71,92 @@ fn assert_wall_seam(body: &Body<f64>, edge: EdgeKey, context: &str) {
     );
 }
 
-/// The chord of `edge`'s carrier between its two ends.
-fn seam_chord(body: &Body<f64>, edge: EdgeKey) -> Vec3<f64> {
-    let data = body.get_edge(edge).expect("the seam resolves");
-    let curve = body
-        .get_curve_geom(data.curve)
-        .and_then(topo::CurveGeom::certified)
-        .expect("the seam carries a certified curve");
-    let (t0, t1) = curve.params();
-    curve.carrier().eval(t1) - curve.carrier().eval(t0)
+/// The cap rims of the curved loft are the cap and wall's
+/// `Intersection`, and an INWARD cap offset derives them: each rim is
+/// the moved plane's section of its wall — an interior row, minted
+/// exactly — and each corner is the moved plane's root along its
+/// slanted seam, so it slides along the seam rather than along the cap
+/// normal.
+#[test]
+fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
+    let body = twisted_loft(0.3);
+    let walls = nurbs_walls(&body);
+    let cap = top_cap(&body);
+    let rims = |b: &Body<f64>| {
+        b.edges()
+            .filter_map(|(_, e)| {
+                b.get_curve_geom(e.curve)
+                    .and_then(topo::CurveGeom::certified)
+            })
+            .filter(|c| {
+                matches!(
+                    c.description(),
+                    geom_brep::EdgeDescription::Intersection { .. }
+                )
+            })
+            .count()
+    };
+    assert_eq!(
+        rims(&body),
+        8,
+        "every cap rim of the loft is an Intersection at rest"
+    );
+    let mut moved = body.clone();
+    topo::replace_face_offset(&mut moved, cap, -THICKNESS, Tol::witness())
+        .expect("the curved loft's cap moves inward");
+    assert_eq!(
+        rims(&moved),
+        8,
+        "the moved rims are still the cap's sections"
+    );
+    let z = 1.0 - THICKNESS;
+    // Each seam ends at a moved corner on the moved plane, and on the
+    // seam's own (untouched) carrier.
+    let mut corners = 0;
+    for (edge, data) in moved.edges() {
+        let Some(curve) = moved
+            .get_curve_geom(data.curve)
+            .and_then(topo::CurveGeom::certified)
+        else {
+            continue;
+        };
+        let (t0, t1) = curve.params();
+        let (a, b) = (curve.carrier().eval(t0), curve.carrier().eval(t1));
+        if (a.z - b.z).abs() < 0.5 {
+            continue;
+        }
+        assert_wall_seam(&moved, edge, "a re-anchored seam");
+        let top = if a.z > b.z { a } else { b };
+        assert!(
+            (top.z - z).abs() < 1e-9,
+            "the seam ends on the moved plane, at z = {}",
+            top.z
+        );
+        corners += 1;
+    }
+    assert_eq!(corners, 4, "four seams meet the moved cap");
+    let rows = moved
+        .pcurves()
+        .filter(|(he, _)| {
+            moved
+                .face_of_half_edge(*he)
+                .is_some_and(|f| is_spline_wall(&walls, f))
+        })
+        .filter(|(_, c)| {
+            matches!(*c.pcurve(), geom_brep::Pcurve::IsoLine { p0, pl }
+                if pl.y == 0.0 && (p0.y - z).abs() < 1e-9)
+        })
+        .count();
+    assert_eq!(
+        rows, 4,
+        "each wall carries the moved rim on its interior row v = {z}"
+    );
 }
 
-/// The shell of the curved loft refuses at a CAP, re-anchoring a
-/// wall-to-wall seam, before the fit of any wall runs: the seam is
-/// re-anchored on its spline carrier, and the cap's corner, moved
-/// along the cap normal, is off the slanted seam by exactly the
-/// thickness times the sine of the seam's slant.
+/// With its caps derived, the curved loft's shell moves on to the walls
+/// and refuses at the first one's offset fit, at the run's ε.
 #[test]
-fn shelling_the_curved_loft_refuses_at_the_oblique_cap_corner_before_any_fit() {
+fn shelling_the_curved_loft_refuses_at_a_walls_fit() {
     let body = twisted_loft(0.3);
     let e = topo::shell(
         &finished("the operand", body.clone(), Tol::witness()),
@@ -99,23 +167,13 @@ fn shelling_the_curved_loft_refuses_at_the_oblique_cap_corner_before_any_fit() {
     let ShellError::Face { face, error } = &e else {
         panic!("expected a per-face offset refusal, got {e}");
     };
-    assert!(is_cap(&body, *face), "the refusing face is not a cap: {e}");
-    let ReplaceFaceError::ReanchorOffCarrier { edge, gap } = error.as_ref() else {
-        panic!("expected the oblique corner's re-anchor refusal, got {e}");
-    };
-    assert_wall_seam(&body, *edge, "the oblique corner");
-    // The bilinear walls' seams are straight, so the moved corner's
-    // distance from the seam is the cap's displacement across it.
-    let chord = seam_chord(&body, *edge);
-    let sine = chord.cross(Vec3::unit_z()).norm() / chord.norm();
     assert!(
-        sine > 0.3,
-        "the twist slants the seam (sine {sine}); a straight seam would re-anchor"
+        is_spline_wall(&nurbs_walls(&body), *face),
+        "the refusing face is not a wall: {e}"
     );
     assert!(
-        (gap - THICKNESS * sine).abs() < 1e-12,
-        "the gap {gap} is the cap's displacement across the seam, {}",
-        THICKNESS * sine
+        matches!(error.as_ref(), ReplaceFaceError::Fit { .. }),
+        "expected the wall's offset fit to refuse, got {e}"
     );
 }
 
@@ -173,7 +231,10 @@ fn the_prisms_inward_cap_offset_mints_its_rim_on_the_walls_interior_row() {
             rims += 1;
         }
     }
-    assert_eq!(rims, 4, "each of the four walls carries the moved rim on an interior row");
+    assert_eq!(
+        rims, 4,
+        "each of the four walls carries the moved rim on an interior row"
+    );
 }
 
 /// A scalar that holds no NURBS lane cannot read a spline seam's foot,
@@ -233,11 +294,13 @@ fn vase() -> Body<f64> {
     .body
 }
 
-/// The vase's seams are curved, so its corner's gap is the twisted
-/// loft's to first order: the thickness times the sine of the seam's
-/// slant where it leaves the refusing cap.
+/// The vase's walls are rational, so its cap rims keep their declared
+/// image in the cap's chart, and moving the cap tilts that declared
+/// edge against a wall the move does not carry onto itself: the door
+/// refuses it by name rather than re-stating the sketch's record on a
+/// section it does not describe.
 #[test]
-fn shelling_the_vase_refuses_at_its_oblique_cap_corner() {
+fn shelling_the_vase_refuses_its_declared_cap_rim() {
     let body = vase();
     let e = topo::shell(
         &finished("the vase", body.clone(), Tol::witness()),
@@ -249,33 +312,24 @@ fn shelling_the_vase_refuses_at_its_oblique_cap_corner() {
         panic!("expected a per-face offset refusal, got {e}");
     };
     assert!(is_cap(&body, *face), "the refusing face is not a cap: {e}");
-    let ReplaceFaceError::ReanchorOffCarrier { edge, gap } = error.as_ref() else {
-        panic!("expected the oblique corner's re-anchor refusal, got {e}");
+    let ReplaceFaceError::DeclaredEdgeTilted { edge } = error.as_ref() else {
+        panic!("expected the declared rim's refusal, got {e}");
     };
-    assert_wall_seam(&body, *edge, "the vase's corner");
-    let data = body.get_edge(*edge).expect("the seam resolves");
+    let data = body.get_edge(*edge).expect("the rim resolves");
     let curve = body
         .get_curve_geom(data.curve)
         .and_then(topo::CurveGeom::certified)
-        .expect("the seam carries a certified curve");
-    let (t0, t1) = curve.params();
-    let cap_z = match body
-        .get_face(*face)
-        .and_then(|f| body.get_surface(f.surface))
-    {
-        Some(geom::Surface::Plane { origin, .. }) => origin.z,
-        _ => unreachable!("the refusing face is a cap"),
-    };
-    let at_cap = if (curve.carrier().eval(t0).z - cap_z).abs() < 1e-9 {
-        t0
-    } else {
-        t1
-    };
-    let tangent = curve.carrier().deriv(at_cap);
-    let sine = tangent.cross(Vec3::unit_z()).norm() / tangent.norm();
-    let first_order = THICKNESS * sine;
+        .expect("the rim carries a certified curve");
     assert!(
-        (gap - first_order).abs() < 0.05 * first_order,
-        "the gap {gap} is the cap's displacement across the seam to first order, {first_order}"
+        curve.authority().is_declared(),
+        "the refused rim is the sketch's declared one"
+    );
+    let walls = nurbs_walls(&body);
+    assert!(
+        [data.he_plus, data.he_minus]
+            .into_iter()
+            .filter_map(|he| body.face_of_half_edge(he))
+            .any(|f| is_spline_wall(&walls, f)),
+        "the refused rim bounds a spline wall"
     );
 }

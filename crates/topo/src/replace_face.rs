@@ -371,38 +371,43 @@ pub enum ReplaceFaceError<T: Real> {
         /// meters.
         gap: T,
     },
-    /// **The PER-FACE door's finding**: an edge ending at a moved
-    /// vertex, but not on the replaced face's boundary, could not be
-    /// re-anchored — the moved vertex is definitely `gap` from the
-    /// point the carrier's parameter read from the endpoint's OLD
-    /// parameter names. The carrier did not move, because the surfaces
-    /// holding it did not.
-    ///
-    /// What that point is depends on the carrier. On a line or a circle
-    /// it is the carrier's nearest point, so the vertex is off the
-    /// carrier. On an ellipse it is the point at the vertex's scaled
-    /// polar angle, and on a spline the stationary point of the
-    /// distance Newton reaches from the old parameter: there the vertex
-    /// is off the carrier, or on a stretch of it the old parameter does
-    /// not lead to (`work/shell/reanchor-reads-a-closed-spline-carrier-from-the-seed-side-only.md`).
-    ///
-    /// This is the gate that stands between the per-face door and an
-    /// OBLIQUE junction's wrong body: composing that door over a whole
-    /// boundary transports each corner once per chart, which is not the
-    /// point an offset body needs, and the `gap` is the difference.
-    /// `offset_planes_together` solves such corners simultaneously and
-    /// does not reach here; everything outside that door's scope —
-    /// every curved corner — still does.
-    ///
-    /// The simultaneous door has its OWN disagreement finding,
-    /// [`ReplaceFaceError::TogetherEdgeDisagreement`]; this variant is
-    /// not reused for it.
-    ReanchorOffCarrier {
-        /// The edge whose carrier the moved vertex left.
+    /// **An edge between the moved surface and a held one has no
+    /// section this door can state**: the C5 arm or the spline-wall
+    /// march refused, the section has no branch near the edge, or it
+    /// is a tangency there. The edge is that section wherever the held
+    /// surface is not carried onto itself by the move, so nothing else
+    /// stands in for it.
+    EdgeSection {
+        /// The edge whose section was refused.
         edge: EdgeKey,
-        /// The measured distance from the moved point to the carrier,
-        /// in meters.
-        gap: T,
+        /// The replaced face's new surface kind.
+        kind: SurfaceKind,
+        /// The held neighbour's kind.
+        other_kind: SurfaceKind,
+        /// The section's own verdict.
+        verdict: crate::offset_derive::SectionVerdict,
+    },
+    /// **A moved corner is not a root of the moved surface along an
+    /// edge meeting it** (or of a held surface along a moved edge): the
+    /// surface grazes the edge's carrier, does not meet it near the
+    /// corner, or meets it where this door solves no root.
+    CornerSection {
+        /// The corner.
+        vertex: VertexKey,
+        /// The edge the root was sought along.
+        edge: EdgeKey,
+        /// The root's own verdict.
+        verdict: crate::offset_derive::CornerVerdict<T>,
+    },
+    /// **A declared conventional edge between two distinct surfaces
+    /// that the move tilts.** The edge is a curve a sketch declared on
+    /// one chart, and the held neighbour is not carried onto itself by
+    /// the move, so the moved edge is a section the declaration does
+    /// not describe; re-stating the record on it would claim a
+    /// provenance it does not have.
+    DeclaredEdgeTilted {
+        /// The declared edge.
+        edge: EdgeKey,
     },
     /// **A moved vertex ran past the end of an untouched edge's spline
     /// carrier.** Newton's foot from the endpoint's old parameter is
@@ -728,10 +733,28 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 "two edges move one corner of the face to points {gap:?} m apart, so the \
                  corner has no one place to go. {NOT_YET_ENDING}"
             ),
-            Self::ReanchorOffCarrier { gap, .. } => write!(
+            Self::EdgeSection {
+                kind,
+                other_kind,
+                verdict,
+                ..
+            } => write!(
                 f,
-                "a corner of the face moves {gap:?} m off the curve of an edge beside it, \
-                 which does not move, so that edge cannot follow. {NOT_YET_ENDING}"
+                "the offset {} face meets a {} neighbour along a curve the kernel cannot \
+                 state: {verdict}. {NOT_YET_ENDING}",
+                kind.adjective(),
+                other_kind.adjective()
+            ),
+            Self::CornerSection { verdict, .. } => write!(
+                f,
+                "a corner of the face has no place on an edge beside it: {verdict}. \
+                 {NOT_YET_ENDING}"
+            ),
+            Self::DeclaredEdgeTilted { .. } => write!(
+                f,
+                "an edge drawn from a sketch lies between the face and a neighbour the offset \
+                 tilts it against, so the moved edge is no longer the curve the sketch drew. \
+                 {NOT_YET_ENDING}"
             ),
             Self::ReanchorPastCarrierEnd { gap, .. } => write!(
                 f,
@@ -1165,8 +1188,17 @@ struct EdgePlan<T: Real> {
     spec: EdgeCurveSpec<T>,
     start: VertexKey,
     end: VertexKey,
-    p_start: Point3<T>,
-    p_end: Point3<T>,
+    /// Where a transport put the edge's two ends; `None` for a derived
+    /// section, whose ends are its corners' and whose parameters are
+    /// read there.
+    ends: Option<(Point3<T>, Point3<T>)>,
+    /// The surface keys on the edge's two sides, the moved chart's
+    /// standing for the surface it moves to.
+    sides: [SurfaceKey; 2],
+    /// A section refused: raised once the corners are solved, which name
+    /// a move that runs past an edge's end more precisely than the
+    /// section that then has no branch.
+    refused: Option<ReplaceFaceError<T>>,
 }
 
 /// Replaces `face`'s surface with its certified offset at signed
@@ -1393,63 +1425,47 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
             d,
             shift,
             band,
+            T::section_lane(),
         )?);
     }
 
-    // ---- Decide: where each moved vertex lands, and the agreement. ----
-    // Every boundary edge transports its own endpoints, so a vertex on
-    // k edges gets k candidate points. They are checked PAIRWISE, not
-    // each against the first: a star comparison passes a spread of up
-    // to 2ε (two points each within ε of the centre but 2ε from each
-    // other), and the claim being made is that the re-derivation is
-    // coherent, which is a statement about the whole set.
-    let mut candidates: Vec<(VertexKey, Vec<Point3<T>>)> = Vec::new();
-    for plan in &plans {
-        for (vertex, point) in [(plan.start, plan.p_start), (plan.end, plan.p_end)] {
-            match candidates.iter_mut().find(|(v, _)| *v == vertex) {
-                Some((_, points)) => points.push(point),
-                None => candidates.push((vertex, vec![point])),
-            }
+    // ---- Decide: where each moved corner lands, and the agreement. ----
+    let corners = solve_corners(
+        body,
+        &plans,
+        &boundary,
+        (old_key, &old_surface, &new_surface),
+        d,
+        band,
+        tol,
+        T::section_lane(),
+    )?;
+    let moved: Vec<(VertexKey, Point3<T>)> = corners
+        .groups
+        .iter()
+        .flat_map(|(group, point)| group.iter().map(|&v| (v, *point)))
+        .collect();
+    let groups = corners.groups;
+    for plan in &mut plans {
+        if let Some(refused) = plan.refused.take() {
+            return Err(refused);
         }
-    }
-    // Copies of one vertex on one point move together: their candidates
-    // are pooled and checked as one set, and the group lands on one
-    // point.
-    let mut groups: Vec<(Vec<VertexKey>, Point3<T>)> = Vec::new();
-    let mut moved: Vec<(VertexKey, Point3<T>)> = Vec::new();
-    for group in group_by_point(body, candidates.iter().map(|(v, _)| *v)) {
-        let vertex = group[0];
-        let points: Vec<Point3<T>> = candidates
-            .iter()
-            .filter(|(v, _)| group.contains(v))
-            .flat_map(|(_, points)| points.iter().copied())
-            .collect();
-        for (i, a) in points.iter().enumerate() {
-            for b in &points[i + 1..] {
-                let gap = a.distance(*b);
-                match decide(
-                    "offset_vertex_agreement",
-                    Margin::of(T::from_f64(tol.eps()) - gap),
-                    band,
-                )
-                .map_err(|source| ReplaceFaceError::Escalated { source })?
-                {
-                    Sign::Positive | Sign::Zero => {}
-                    Sign::Negative => {
-                        return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
-                    }
-                }
-            }
+        if plan.ends.is_none() {
+            read_derived_ends(plan, &moved, band, tol, T::nurbs_lane())?;
         }
-        let Some(point) = points.first().copied() else {
-            unreachable!("{vertex:?} is a plan's endpoint, so it has that plan's candidate")
-        };
-        moved.extend(group.iter().map(|&v| (v, point)));
-        groups.push((group, point));
     }
 
     // ---- Decide: the incident edges that only need re-anchoring. ----
-    let anchored = plan_reanchors(body, &boundary, &moved, d, band, tol, T::nurbs_lane())?;
+    let anchored = plan_reanchors(
+        body,
+        &boundary,
+        &moved,
+        &corners.solved,
+        d,
+        band,
+        tol,
+        T::nurbs_lane(),
+    )?;
 
     // ---- Mutation, on a clone (infallible decisions are done). ----
     //
@@ -1726,8 +1742,10 @@ fn plan_edge<T: Decide>(
     d: T,
     shift: T,
     band: Band,
+    section_lane: Option<crate::offset_derive::SectionLane<T>>,
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
     let edge_data = proven(&body.edges, edge, EntityId::Edge);
+    let sides = edge_side_keys(body, edge, edge_data);
     let he_plus = edge_data.he_plus;
     let start = linked(
         &body.half_edges,
@@ -1813,8 +1831,7 @@ fn plan_edge<T: Decide>(
         let (row, u_domain) = geom_brep::iso_boundary_row(approx.fit(), u, band)
             .map_err(|error| ReplaceFaceError::IsoRow { edge, error })?;
         let carrier = Curve3::Nurbs(Arc::new(row));
-        let p_start = carrier.eval(v0);
-        let p_end = carrier.eval(v1);
+        let ends = Some((carrier.eval(v0), carrier.eval(v1)));
         return Ok(EdgePlan {
             edge,
             spec: EdgeCurveSpec {
@@ -1825,8 +1842,9 @@ fn plan_edge<T: Decide>(
             },
             start,
             end,
-            p_start,
-            p_end,
+            ends,
+            sides,
+            refused: None,
         });
     }
 
@@ -1854,6 +1872,37 @@ fn plan_edge<T: Decide>(
                 EdgeDescription::Scaffold(_) => "a curve still under construction",
             },
         });
+    }
+
+    // **Between the moved surface and a distinct held one, the edge is
+    // their section** — transported only where the held surface is
+    // carried onto itself by the move (`offset_derive`'s shortcut).
+    let other_key = if sides[0] == old_key {
+        sides[1]
+    } else {
+        sides[0]
+    };
+    if other_key != old_key {
+        let held = body.get_surface(other_key).unwrap_or_else(|| {
+            dangling_link(EntityId::Edge(edge), "face", GeomRef::Surface(other_key))
+        });
+        let extent = geom_brep::edge_extent(
+            &old_carrier,
+            t0,
+            t1,
+            old_carrier.eval(t0).distance(old_carrier.eval(t1)),
+        );
+        let esc = |source| ReplaceFaceError::Escalated { source };
+        if !crate::offset_derive::holds_the_move(old_surface, held, extent, band).map_err(esc)? {
+            return derive_edge(
+                (edge, start, end, sides),
+                (curve, &description, (t0, t1)),
+                (old_key, other_key, new_surface, held),
+                extent,
+                band,
+                section_lane,
+            );
+        }
     }
 
     let (carrier, delta) = transport_curve(old_surface, nappe, d, &old_carrier, mid, band)
@@ -2106,8 +2155,94 @@ fn plan_edge<T: Decide>(
         },
         start,
         end,
-        p_start: carrier.eval(t0),
-        p_end: carrier.eval(t1),
+        ends: Some((carrier.eval(t0), carrier.eval(t1))),
+        sides,
+        refused: None,
+    })
+}
+
+/// The surface keys on `edge`'s two sides.
+fn edge_side_keys<T: Real>(
+    body: &Body<T>,
+    edge: EdgeKey,
+    data: &crate::entity::Edge,
+) -> [SurfaceKey; 2] {
+    let (a, b) = crate::readback::edge_sides_of(body, edge, data).faces();
+    [a, b].map(|f| proven(&body.faces, f, EntityId::Face).surface)
+}
+
+/// **An edge between the moved surface and a held one the move does not
+/// carry onto itself**: their section, nearest the old carrier and
+/// running with it, stated as their `Intersection` with its declaration
+/// dropped — the moved edge is not the curve a sketch drew. Its ends
+/// are its corners', read once those are solved.
+#[allow(clippy::type_complexity)]
+fn derive_edge<T: Decide>(
+    (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
+    (curve, description, (t0, t1)): (&geom_brep::EdgeCurve<T>, &EdgeDescription<T>, (T, T)),
+    (old_key, other_key, new_surface, held): (SurfaceKey, SurfaceKey, &Surface<T>, &Surface<T>),
+    extent: T,
+    band: Band,
+    section_lane: Option<crate::offset_derive::SectionLane<T>>,
+) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
+    use crate::offset_derive::SectionVerdict;
+    if curve.authority().is_declared() || matches!(description, EdgeDescription::Scaffold(_)) {
+        return Err(ReplaceFaceError::DeclaredEdgeTilted { edge });
+    }
+    let (kind, other_kind) = (new_surface.kind(), held.kind());
+    if !geom_brep::intersect::route(kind, other_kind).implemented {
+        return Err(ReplaceFaceError::NeighborPairUnroutable {
+            edge,
+            kind,
+            other_kind,
+        });
+    }
+    let refused = |verdict| ReplaceFaceError::EdgeSection {
+        edge,
+        kind,
+        other_kind,
+        verdict,
+    };
+    if matches!(description, EdgeDescription::TangentIntersection { .. }) {
+        return Err(refused(SectionVerdict::Tangent));
+    }
+    let old = curve.carrier();
+    let esc = |source| ReplaceFaceError::Escalated { source };
+    let section = match (new_surface, held) {
+        (Surface::Plane { .. }, Surface::Nurbs(wall)) => {
+            let lane = section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
+                edge,
+                scalar: T::NAME,
+            })?;
+            lane.section(new_surface, wall, old, (t0, t1), extent, band)
+                .map_err(esc)?
+                .map(|c| Curve3::Nurbs(Arc::new(c)))
+        }
+        _ => crate::offset_derive::section_closed(new_surface, held, old, (t0, t1), extent, band)
+            .map_err(esc)?,
+    };
+    let (carrier, refused) = match section {
+        Ok(carrier) => (carrier, None),
+        Err(verdict) => (old.clone(), Some(refused(verdict))),
+    };
+    let (s1, s2) = match *description {
+        EdgeDescription::Intersection { s2, .. } if s2 == old_key => (other_key, old_key),
+        _ => (old_key, other_key),
+    };
+    let witness = carrier.mid_point(t0, t1);
+    Ok(EdgePlan {
+        edge,
+        spec: EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
+            carrier,
+            param_start: t0,
+            param_end: t1,
+        },
+        start,
+        end,
+        ends: None,
+        sides,
+        refused,
     })
 }
 
@@ -2347,6 +2482,7 @@ fn plan_reanchors<T: Decide>(
     body: &Body<T>,
     boundary: &[EdgeKey],
     moved: &[(VertexKey, Point3<T>)],
+    solved: &[(EdgeKey, bool, T)],
     d: T,
     band: Band,
     tol: Tol,
@@ -2387,6 +2523,11 @@ fn plan_reanchors<T: Decide>(
         for (point, is_start) in [(new_start, true), (new_end, false)] {
             let Some(point) = point else { continue };
             let (t_old, t_other) = if is_start { span } else { (span.1, span.0) };
+            let vertex = if is_start { start } else { end };
+            let root = solved
+                .iter()
+                .find(|(e, s, _)| *e == edge && *s == is_start)
+                .map(|(_, _, t)| *t);
             // Anchored at the parameter THIS ENDPOINT had, not at the
             // span's midpoint: the stored range is the traversed arc,
             // not a canonical one, so the turn it sits on is the datum
@@ -2445,61 +2586,75 @@ fn plan_reanchors<T: Decide>(
             // clamp stopped at an end is the carrier's end, which an
             // outward move runs past — the gate below then refuses that
             // by name rather than as a point off the carrier.
-            let (t_new, clamped_at) = match &carrier {
-                Curve3::Nurbs(spline) => {
-                    let lane = nurbs_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
-                        edge,
-                        scalar: T::NAME,
-                    })?;
-                    let foot = lane
-                        .carrier_foot(spline, point, t_old)
-                        .map_err(|error| ReplaceFaceError::ReanchorInconclusive { edge, error })?;
-                    let (lo, hi) = spline.domain();
-                    let clamped = foot.t == lo || foot.t == hi;
-                    (T::from_f64(foot.t), clamped.then_some(foot.t))
+            // A corner the solve placed by a root along this edge is that
+            // root; any other is read off the carrier from the endpoint's
+            // old parameter and must be the corner.
+            let t_new = match root {
+                Some(t) => t,
+                None => {
+                    let (t_new, clamped_at) = match &carrier {
+                        Curve3::Nurbs(spline) => {
+                            let lane =
+                                nurbs_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
+                                    edge,
+                                    scalar: T::NAME,
+                                })?;
+                            let foot =
+                                lane.carrier_foot(spline, point, t_old).map_err(|error| {
+                                    ReplaceFaceError::ReanchorInconclusive { edge, error }
+                                })?;
+                            let (lo, hi) = spline.domain();
+                            let clamped = foot.t == lo || foot.t == hi;
+                            (T::from_f64(foot.t), clamped.then_some(foot.t))
+                        }
+                        Curve3::Line { .. }
+                        | Curve3::Circle { .. }
+                        | Curve3::Ellipse { .. }
+                        | Curve3::Spiric { .. } => (
+                            carrier.param_near(point, t_old).unwrap_or_else(|| {
+                                unreachable!("`param_near` inverts every analytic kind")
+                            }),
+                            None,
+                        ),
+                    };
+                    let gap = carrier.eval(t_new).distance(point);
+                    match decide(
+                        "offset_vertex_agreement",
+                        Margin::of(T::from_f64(tol.eps()) - gap),
+                        band,
+                    )
+                    .map_err(|source| ReplaceFaceError::Escalated { source })?
+                    {
+                        Sign::Positive | Sign::Zero => {}
+                        Sign::Negative => {
+                            let Some(end) = clamped_at else {
+                                return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
+                            };
+                            // The end the clamp stopped at is the edge's FAR end
+                            // when the move ran through the whole edge, read off
+                            // the feet of the edge's own two ends.
+                            let (Curve3::Nurbs(spline), Some(lane)) = (&carrier, nurbs_lane) else {
+                                unreachable!("only the spline lane clamps")
+                            };
+                            let foot_of = |t: T| {
+                                lane.carrier_foot(spline, carrier.eval(t), t)
+                                    .map(|p| p.t)
+                                    .map_err(|error| ReplaceFaceError::ReanchorInconclusive {
+                                        edge,
+                                        error,
+                                    })
+                            };
+                            let (own, far) = (foot_of(t_old)?, foot_of(t_other)?);
+                            return Err(if (end - far).abs() < (end - own).abs() {
+                                ReplaceFaceError::ReanchorCollapse { edge, offset: d }
+                            } else {
+                                ReplaceFaceError::ReanchorPastCarrierEnd { edge, gap }
+                            });
+                        }
+                    }
+                    t_new
                 }
-                Curve3::Line { .. }
-                | Curve3::Circle { .. }
-                | Curve3::Ellipse { .. }
-                | Curve3::Spiric { .. } => (
-                    carrier.param_near(point, t_old).unwrap_or_else(|| {
-                        unreachable!("`param_near` inverts every analytic kind")
-                    }),
-                    None,
-                ),
             };
-            let gap = carrier.eval(t_new).distance(point);
-            match decide(
-                "offset_reanchor_on_carrier",
-                Margin::of(T::from_f64(tol.eps()) - gap),
-                band,
-            )
-            .map_err(|source| ReplaceFaceError::Escalated { source })?
-            {
-                Sign::Positive | Sign::Zero => {}
-                Sign::Negative => {
-                    let Some(end) = clamped_at else {
-                        return Err(ReplaceFaceError::ReanchorOffCarrier { edge, gap });
-                    };
-                    // The end the clamp stopped at is the edge's FAR end
-                    // when the move ran through the whole edge, read off
-                    // the feet of the edge's own two ends.
-                    let (Curve3::Nurbs(spline), Some(lane)) = (&carrier, nurbs_lane) else {
-                        unreachable!("only the spline lane clamps")
-                    };
-                    let foot_of = |t: T| {
-                        lane.carrier_foot(spline, carrier.eval(t), t)
-                            .map(|p| p.t)
-                            .map_err(|error| ReplaceFaceError::ReanchorInconclusive { edge, error })
-                    };
-                    let (own, far) = (foot_of(t_old)?, foot_of(t_other)?);
-                    return Err(if (end - far).abs() < (end - own).abs() {
-                        ReplaceFaceError::ReanchorCollapse { edge, offset: d }
-                    } else {
-                        ReplaceFaceError::ReanchorPastCarrierEnd { edge, gap }
-                    });
-                }
-            }
             // **The door RE-STATES the sketch datum; it does not
             // patch the carrier around it.** The datum is the placed
             // segment whose pushforward determined this locus, and it
@@ -2593,6 +2748,380 @@ fn plan_reanchors<T: Decide>(
         ));
     }
     Ok(out)
+}
+
+/// The moved corners: each group of vertex copies on one point, and
+/// where it lands; and the parameters the roots that placed them read
+/// on the untouched edges they were sought along.
+struct Corners<T: Real> {
+    groups: Vec<(Vec<VertexKey>, Point3<T>)>,
+    /// `(edge, is_start, t)`: the corner at that end of an untouched
+    /// edge is its carrier at `t`.
+    solved: Vec<(EdgeKey, bool, T)>,
+}
+
+/// One edge meeting a moved corner, as the corner solve reads it.
+struct Incident<T: Real> {
+    edge: EdgeKey,
+    /// Its carrier after the move: the plan's on the boundary, its own
+    /// elsewhere.
+    carrier: Curve3<T>,
+    sides: [SurfaceKey; 2],
+    /// Each end at the corner, with the parameter to seek it from:
+    /// `None` on a derived spline section, which seeks nothing.
+    ends: Vec<(bool, Option<T>)>,
+    boundary: bool,
+    extent: T,
+}
+
+/// **Where each moved corner lands** (module docs).
+///
+/// A corner every held surface around which holds the move
+/// (`offset_derive::holds_the_move`) is where the transports put it.
+/// Any other corner is solved: along each edge meeting it, the root of
+/// each surface there the edge does not lie on — the moved surface
+/// along an untouched edge, a held one along a moved edge — never a
+/// transported point tested afterwards. Every candidate is checked
+/// against every other, PAIRWISE: a star comparison passes a spread of
+/// up to 2ε, and the claim is that the re-derivation is coherent.
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn solve_corners<T: Decide>(
+    body: &Body<T>,
+    plans: &[EdgePlan<T>],
+    boundary: &[EdgeKey],
+    (old_key, old_surface, new_surface): (SurfaceKey, &Surface<T>, &Surface<T>),
+    d: T,
+    band: Band,
+    tol: Tol,
+    section_lane: Option<crate::offset_derive::SectionLane<T>>,
+) -> Result<Corners<T>, ReplaceFaceError<T>> {
+    use crate::offset_derive::{CornerVerdict, SplineRoot};
+    let esc = |source| ReplaceFaceError::Escalated { source };
+    let surface_of = |key: SurfaceKey| -> &Surface<T> {
+        if key == old_key {
+            new_surface
+        } else {
+            body.get_surface(key).unwrap_or_else(|| {
+                unreachable!("{key:?} is a face's surface, read off a live face")
+            })
+        }
+    };
+    let extent_of = |c: &Curve3<T>, t0: T, t1: T| {
+        geom_brep::edge_extent(c, t0, t1, c.eval(t0).distance(c.eval(t1)))
+    };
+    let lever = plans
+        .iter()
+        .map(|p| {
+            let old = body
+                .edge_curve_linked(p.edge, proven(&body.edges, p.edge, EntityId::Edge))
+                .certified()
+                .map(|c| {
+                    let (t0, t1) = c.params();
+                    extent_of(c.carrier(), t0, t1)
+                });
+            old.unwrap_or_else(T::zero)
+        })
+        .fold(T::zero(), |a, b| a.max(b));
+    let mut holds: Vec<(SurfaceKey, bool)> = Vec::new();
+    let mut corners = Corners {
+        groups: Vec::new(),
+        solved: Vec::new(),
+    };
+    let mut keys: Vec<VertexKey> = Vec::new();
+    for plan in plans {
+        for v in [plan.start, plan.end] {
+            if !keys.contains(&v) {
+                keys.push(v);
+            }
+        }
+    }
+    for group in group_by_point(body, keys) {
+        let vertex = group[0];
+        let old_point = *body
+            .get_point(proven(&body.vertices, vertex, EntityId::Vertex).point)
+            .unwrap_or_else(|| unreachable!("{vertex:?}'s point is a link of a live vertex"));
+        let incident = incident_edges(body, plans, boundary, &group, old_point, &extent_of)?;
+        let mut around: Vec<SurfaceKey> = vec![old_key];
+        for k in incident.iter().flat_map(|i| i.sides) {
+            if !around.contains(&k) {
+                around.push(k);
+            }
+        }
+        let mut all_hold = true;
+        for &k in around.iter().filter(|k| **k != old_key) {
+            let held = match holds.iter().find(|(h, _)| *h == k) {
+                Some((_, held)) => *held,
+                None => {
+                    let held = crate::offset_derive::holds_the_move(
+                        old_surface,
+                        surface_of(k),
+                        lever,
+                        band,
+                    )
+                    .map_err(esc)?;
+                    holds.push((k, held));
+                    held
+                }
+            };
+            all_hold &= held;
+        }
+        let transported: Vec<Point3<T>> = plans
+            .iter()
+            .filter_map(|p| p.ends.map(|e| (p, e)))
+            .flat_map(|(p, (a, b))| [(p.start, a), (p.end, b)])
+            .filter(|(v, _)| group.contains(v))
+            .map(|(_, point)| point)
+            .collect();
+        let points = if all_hold && !transported.is_empty() {
+            transported
+        } else {
+            let mut points = Vec::new();
+            for inc in &incident {
+                let on_moved = inc.sides.contains(&old_key);
+                for &k in around
+                    .iter()
+                    .filter(|k| !inc.sides.contains(k) && (on_moved || **k == old_key))
+                {
+                    let surface = surface_of(k);
+                    if matches!(surface, Surface::Nurbs(_) | Surface::Approx(_)) {
+                        continue;
+                    }
+                    for &(is_start, seed) in &inc.ends {
+                        let Some(seed) = seed else { continue };
+                        let edge = inc.edge;
+                        let corner = |verdict| ReplaceFaceError::CornerSection {
+                            vertex,
+                            edge,
+                            verdict,
+                        };
+                        let t = match &inc.carrier {
+                            Curve3::Nurbs(spline) => {
+                                let lane =
+                                    section_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
+                                        edge,
+                                        scalar: T::NAME,
+                                    })?;
+                                match lane.root(surface, spline, seed, inc.extent, band) {
+                                    Ok(SplineRoot::At(t)) => T::from_f64(t),
+                                    Ok(SplineRoot::Short { near_gap, near }) => {
+                                        return Err(if near {
+                                            ReplaceFaceError::ReanchorPastCarrierEnd {
+                                                edge,
+                                                gap: T::from_f64(near_gap),
+                                            }
+                                        } else {
+                                            ReplaceFaceError::ReanchorCollapse { edge, offset: d }
+                                        });
+                                    }
+                                    Err(verdict) => return Err(corner(verdict)),
+                                }
+                            }
+                            carrier => crate::offset_derive::analytic_root(
+                                surface, carrier, seed, inc.extent, band,
+                            )
+                            .map_err(esc)?
+                            .map_err(corner)?,
+                        };
+                        points.push(inc.carrier.eval(t));
+                        if !inc.boundary {
+                            corners.solved.push((edge, is_start, t));
+                        }
+                    }
+                }
+            }
+            if points.is_empty() {
+                // A corner with no root to stand on, beside a section that
+                // refused, is that refusal's.
+                if let Some(refused) = plans
+                    .iter()
+                    .filter(|p| group.contains(&p.start) || group.contains(&p.end))
+                    .find_map(|p| p.refused.clone())
+                {
+                    return Err(refused);
+                }
+                return Err(ReplaceFaceError::CornerSection {
+                    vertex,
+                    edge: incident.first().map_or(plans[0].edge, |i| i.edge),
+                    verdict: CornerVerdict::Unsupported {
+                        what: "no edge meeting this corner crosses a surface the corner can be \
+                               solved on",
+                    },
+                });
+            }
+            points
+        };
+        for (i, a) in points.iter().enumerate() {
+            for b in &points[i + 1..] {
+                let gap = a.distance(*b);
+                match decide(
+                    "offset_vertex_agreement",
+                    Margin::of(T::from_f64(tol.eps()) - gap),
+                    band,
+                )
+                .map_err(esc)?
+                {
+                    Sign::Positive | Sign::Zero => {}
+                    Sign::Negative => {
+                        return Err(ReplaceFaceError::VertexDisagreement { vertex, gap });
+                    }
+                }
+            }
+        }
+        corners.groups.push((group, points[0]));
+    }
+    Ok(corners)
+}
+
+/// The edges meeting the vertex copies `group`, as [`solve_corners`]
+/// reads them.
+fn incident_edges<T: Decide>(
+    body: &Body<T>,
+    plans: &[EdgePlan<T>],
+    boundary: &[EdgeKey],
+    group: &[VertexKey],
+    old_point: Point3<T>,
+    extent_of: &impl Fn(&Curve3<T>, T, T) -> T,
+) -> Result<Vec<Incident<T>>, ReplaceFaceError<T>> {
+    let mut out = Vec::new();
+    for (edge, edge_data) in body.edges() {
+        let he_plus = edge_data.he_plus;
+        let start = linked(
+            &body.half_edges,
+            he_plus,
+            EntityId::HalfEdge,
+            EntityId::Edge(edge),
+            "he_plus",
+        )
+        .start;
+        let end = body.proven_half_edge_end(he_plus);
+        let (at_start, at_end) = (group.contains(&start), group.contains(&end));
+        if !at_start && !at_end {
+            continue;
+        }
+        let ends_at = |seeds: (Option<T>, Option<T>)| {
+            let mut ends = Vec::new();
+            if at_start {
+                ends.push((true, seeds.0));
+            }
+            if at_end {
+                ends.push((false, seeds.1));
+            }
+            ends
+        };
+        if boundary.contains(&edge) {
+            let Some(plan) = plans.iter().find(|p| p.edge == edge) else {
+                unreachable!("{edge:?} is on the boundary, and every boundary edge has a plan")
+            };
+            if plan.refused.is_some() {
+                continue;
+            }
+            let carrier = plan.spec.carrier.clone();
+            let (t0, t1) = (plan.spec.param_start, plan.spec.param_end);
+            let ends = match (&plan.ends, &carrier) {
+                (Some(_), _) => ends_at((Some(t0), Some(t1))),
+                // A derived spline section seeks no corner; an analytic
+                // one from the old corner's parameter on it.
+                (None, Curve3::Nurbs(_)) => ends_at((None, None)),
+                (None, c) => {
+                    let seed = c.param_near(old_point, T::zero());
+                    ends_at((seed, seed))
+                }
+            };
+            out.push(Incident {
+                edge,
+                extent: extent_of(&carrier, t0, t1),
+                carrier,
+                sides: plan.sides,
+                ends,
+                boundary: true,
+            });
+        } else {
+            let Some(curve) = body.edge_curve_linked(edge, edge_data).certified() else {
+                return Err(ReplaceFaceError::CarrierLaneUnsupported {
+                    edge,
+                    what: "it has no curve to re-attach",
+                });
+            };
+            let (t0, t1) = curve.params();
+            out.push(Incident {
+                edge,
+                carrier: curve.carrier().clone(),
+                sides: edge_side_keys(body, edge, edge_data),
+                ends: ends_at((Some(t0), Some(t1))),
+                boundary: false,
+                extent: extent_of(curve.carrier(), t0, t1),
+            });
+        }
+    }
+    Ok(out)
+}
+
+/// A derived section's parameters, read where its two corners landed:
+/// a closed form's own inverse — the end from the start across the old
+/// span, so a closed edge keeps its turn — and a spline's foot from its
+/// domain's ends. Each must name its corner within ε, or the corner and
+/// the edge disagree.
+fn read_derived_ends<T: Decide>(
+    plan: &mut EdgePlan<T>,
+    moved: &[(VertexKey, Point3<T>)],
+    band: Band,
+    tol: Tol,
+    nurbs_lane: Option<geom_brep::NurbsLane<T>>,
+) -> Result<(), ReplaceFaceError<T>> {
+    let edge = plan.edge;
+    let at = |v: VertexKey| {
+        moved
+            .iter()
+            .find(|(k, _)| *k == v)
+            .map(|(_, p)| *p)
+            .unwrap_or_else(|| unreachable!("{v:?} ends a boundary edge, so it moved"))
+    };
+    let (p_start, p_end) = (at(plan.start), at(plan.end));
+    let carrier = &plan.spec.carrier;
+    let span = plan.spec.param_end - plan.spec.param_start;
+    let (t0, t1) = match carrier {
+        Curve3::Nurbs(spline) => {
+            let lane = nurbs_lane.ok_or(ReplaceFaceError::NurbsLaneUnsupported {
+                edge,
+                scalar: T::NAME,
+            })?;
+            let (lo, hi) = spline.domain();
+            let foot = |p, seed| {
+                lane.carrier_foot(spline, p, T::from_f64(seed))
+                    .map(|f| T::from_f64(f.t))
+                    .map_err(|error| ReplaceFaceError::ReanchorInconclusive { edge, error })
+            };
+            (foot(p_start, lo)?, foot(p_end, hi)?)
+        }
+        c => {
+            let inverse = |p, near| {
+                c.param_near(p, near)
+                    .unwrap_or_else(|| unreachable!("`param_near` inverts every analytic kind"))
+            };
+            let t0 = inverse(p_start, T::zero());
+            (t0, inverse(p_end, t0 + span))
+        }
+    };
+    for (vertex, point, t) in [(plan.start, p_start, t0), (plan.end, p_end, t1)] {
+        let gap = carrier.eval(t).distance(point);
+        match decide(
+            "offset_vertex_agreement",
+            Margin::of(T::from_f64(tol.eps()) - gap),
+            band,
+        )
+        .map_err(|source| ReplaceFaceError::Escalated { source })?
+        {
+            Sign::Positive | Sign::Zero => {}
+            Sign::Negative => return Err(ReplaceFaceError::VertexDisagreement { vertex, gap }),
+        }
+    }
+    plan.spec.param_start = t0;
+    plan.spec.param_end = t1;
+    if let EdgeDescriptionSpec::Intersection { witness, .. } = &mut plan.spec.description {
+        *witness = carrier.mid_point(t0, t1);
+    }
+    plan.ends = Some((p_start, p_end));
+    Ok(())
 }
 
 /// `mapped` with the sketch endpoint that images `is_start` moved to

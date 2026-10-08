@@ -826,6 +826,12 @@ fn assemble<T: Decide + topo::AtRestPolicy>(
         }
     }
 
+    // ---- Phase 6b: each cap rim on a polynomial wall re-describes as
+    // the cap and wall's `Intersection`, its carrier the wall's own
+    // boundary row (module docs). ----
+    describe_rims_intrinsically(&mut body, bottom_face, false, band, tol)?;
+    describe_rims_intrinsically(&mut body, top_face, true, band, tol)?;
+
     // ---- Phase 7: whole-body pcurve mint (spec §1's final pass) —
     // every wall boundary stores its exact line-in-UV image. ----
     topo::mint_pcurves(&mut body, tol).map_err(LoftError::Pcurve)?;
@@ -938,4 +944,83 @@ pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
     let places = sweep_places(place, path, stations).map_err(LoftError::Skin)?;
     let sections: Vec<Section<_>> = core::iter::repeat_n(profile.to_vec(), places.len()).collect();
     build(&sections, &places, v_degree, tol)
+}
+
+/// **The cap rims stated intrinsically**: every rim of `cap` whose wall
+/// is a polynomial spline re-describes as `Intersection { cap, wall }`
+/// through the certified setter, its carrier the wall's `v = 0`
+/// (`top = false`) or `v = 1` boundary row — the segment the rim was
+/// minted as, in the wall's own spline space. The plane × NURBS
+/// certificate is the transversality verdict.
+///
+/// A rim keeps its image in the cap's chart where the wall is rational
+/// (that certificate's hull refuses such a row,
+/// `work/ssi/plane-nurbs-limb-two-refuses-every-rational-wall.md`) and at
+/// a scalar holding no NURBS lane, which may not certify the pair.
+fn describe_rims_intrinsically<T: Decide + topo::AtRestPolicy>(
+    body: &mut Body<T>,
+    cap: FaceKey,
+    top: bool,
+    band: Band,
+    tol: Tol,
+) -> Result<(), LoftError> {
+    if T::nurbs_lane().is_none() {
+        return Ok(());
+    }
+    let cap_key = face_surface_key(body, cap);
+    for edge in crate::swept::face_edges(body, cap) {
+        let data = body
+            .get_edge(edge)
+            .unwrap_or_else(|| unreachable!("edge {edge:?} was read off cap {cap:?}'s loops"))
+            .clone();
+        let Some(wall_face) = [data.he_plus, data.he_minus]
+            .into_iter()
+            .filter_map(|he| body.face_of_half_edge(he))
+            .find(|f| *f != cap)
+        else {
+            continue;
+        };
+        let wall_key = face_surface_key(body, wall_face);
+        let Some(Surface::Nurbs(wall)) = body.get_surface(wall_key).cloned() else {
+            continue;
+        };
+        if wall.weights().iter().any(|w| *w != 1.0) {
+            continue;
+        }
+        let curve = body
+            .get_curve_geom(data.curve)
+            .and_then(topo::CurveGeom::certified)
+            .ok_or(EulerOpError::NullScaffoldCurve { curve: data.curve })?;
+        let (t0, _) = curve.params();
+        let start = curve.carrier().eval(t0);
+        let row = geom_brep::boundary_iso_v(&wall, top)
+            .map_err(|source| LoftError::SeamStructure { source })?;
+        let (lo, _) = row.domain();
+        // The row runs with the rim where it starts at the rim's start;
+        // a wrong reading is a carrier the setter refuses at the vertex.
+        let row = match geom_core::k_stats::decide(
+            "loft_rim_row_sense",
+            Margin::of(row.eval(T::from_f64(lo)).distance(start)),
+            band,
+        ) {
+            Ok(Sign::Zero) => row,
+            _ => geom_brep::reversed_column(&row)
+                .map_err(|source| LoftError::SeamStructure { source })?,
+        };
+        let (lo, hi) = row.domain();
+        let (lo, hi) = (T::from_f64(lo), T::from_f64(hi));
+        let carrier = Curve3::Nurbs(Arc::new(row));
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: cap_key,
+                s2: wall_key,
+                witness: carrier.mid_point(lo, hi),
+            },
+            carrier,
+            param_start: lo,
+            param_end: hi,
+        };
+        body.set_edge_curve(edge, spec, tol)?;
+    }
+    Ok(())
 }
