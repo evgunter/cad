@@ -1,0 +1,2 @@
+Fork: near-tangent booleans whose result the tier-3 census cannot certify. Row near-tangent-boolean-results-ship-with-an-escalated-tier-3-census (P0).
+Byte 136 (even) -> A = Opus, B = Fable. Protocol 26db1af89e. Dispatched 2026-10-08 concurrently, same problem statement.
