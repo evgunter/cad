@@ -79,7 +79,7 @@ fn a_between_samples_net_corruption_is_refused_at_the_envelope() {
     };
     let (d0, d1) = built.carrier.domain();
     let err = PcurveCache::certify_projected(
-        image,
+        *image,
         Interval::from_bounds(d0, d0),
         Interval::from_bounds(d1, d1),
         &Curve3::Nurbs(Arc::clone(&built.carrier)),
@@ -115,7 +115,7 @@ fn a_sub_interval_row_is_caught_by_its_interval() {
         panic!("the minted row is projected")
     };
     let cache = PcurveCache::certify_projected(
-        image,
+        *image,
         t0,
         tm,
         &Curve3::Nurbs(Arc::clone(&built.carrier)),

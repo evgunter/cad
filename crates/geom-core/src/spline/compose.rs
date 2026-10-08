@@ -1236,7 +1236,8 @@ mod tests {
             .collect();
         let data = CurveCertData::new(&kv, &w, &coords).unwrap();
         let (big, small, ang) = (1.1_f64, 0.35_f64, 0.6_f64);
-        let forms: [(CanonicalSurface, Box<dyn Fn(f64, f64, f64) -> f64>); 5] = [
+        type Form = Box<dyn Fn(f64, f64, f64) -> f64>;
+        let forms: [(CanonicalSurface, Form); 5] = [
             (CanonicalSurface::Plane, Box::new(|_, _, z| z)),
             (
                 CanonicalSurface::Cylinder {

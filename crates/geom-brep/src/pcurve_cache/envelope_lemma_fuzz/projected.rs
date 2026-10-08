@@ -170,7 +170,9 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
                     span,
                 )
             } else {
-                let g = |w: f64| apex + (axis * half_angle.cos() + rad(axis, u_ref, a) * half_angle.sin()) * w;
+                let g = |w: f64| {
+                    apex + (axis * half_angle.cos() + rad(axis, u_ref, a) * half_angle.sin()) * w
+                };
                 segment(g(v), g(v + sign * span))
             }
         }
@@ -178,7 +180,14 @@ fn on_chart(surf: &Surface<f64>, s: &mut fuzz::Rng) -> Curve3<f64> {
             let n = unit(s);
             let d = radius * s.range(-0.8, 0.8);
             let e1 = n.cross(unit(s)).normalize();
-            arc(center + n * d, e1, n.cross(e1), (radius * radius - d * d).sqrt(), a, span)
+            arc(
+                center + n * d,
+                e1,
+                n.cross(e1),
+                (radius * radius - d * d).sqrt(),
+                a,
+                span,
+            )
         }
         Surface::Torus {
             center,
@@ -320,13 +329,16 @@ fn a_carrier_on_its_chart_images_exactly_at_f64_and_interval() {
                     let Pcurve::Projected(p) = image.clone() else {
                         unreachable!()
                     };
-                    PcurveCache::certify_projected(p, t0, t1, &carrier, &surf, b, Some(lane64))
+                    PcurveCache::certify_projected(*p, t0, t1, &carrier, &surf, b, Some(lane64))
                 })
                 .unwrap_or_else(|e| panic!("{what}: f64 certification refused: {e:?}"));
             let env = cache.certificate().envelope;
             assert!(env < 1e-10, "{what}: f64 envelope {env:e}");
             // The f64 lane rounds both, so the comparison has rounding room.
-            assert!(env >= worst - 1e-13, "{what}: envelope {env:e} under sampled {worst:e}");
+            assert!(
+                env >= worst - 1e-13,
+                "{what}: envelope {env:e} under sampled {worst:e}"
+            );
             // The interval scalar: the same pair, lifted.
             let (ci, si) = (lift(&carrier), surf.map_scalar(Interval::from_f64));
             let (i0, i1) = (Interval::from_f64(t0), Interval::from_f64(t1));
@@ -335,7 +347,7 @@ fn a_carrier_on_its_chart_images_exactly_at_f64_and_interval() {
             let Pcurve::Projected(p) = image else {
                 panic!("{what}: interval image {image:?}")
             };
-            let cache = PcurveCache::certify_projected(p, i0, i1, &ci, &si, b, Some(lane_iv))
+            let cache = PcurveCache::certify_projected(*p, i0, i1, &ci, &si, b, Some(lane_iv))
                 .unwrap_or_else(|e| panic!("{what}: interval certification refused: {e:?}"));
             let env = cache.certificate().envelope;
             assert!(env.hi() < 1e-9, "{what}: interval envelope {:e}", env.hi());
@@ -373,7 +385,7 @@ fn the_projection_is_the_nearest_point_on_every_chart() {
             let Ok(image) = project(&point, None, &surf, b) else {
                 continue;
             };
-            let q = Pcurve::Projected(image).eval(0.0);
+            let q = Pcurve::Projected(Box::new(image)).eval(0.0);
             let foot = surf.eval(q.x, q.y);
             let h = 1e-6;
             let du = surf.eval(q.x + h, q.y) - surf.eval(q.x - h, q.y);
@@ -426,11 +438,7 @@ impl Moved {
 /// One dominance row on a curved chart: `(sampled sup, envelope, the
 /// moved term's value)`, or `None` where the moved pair refuses before
 /// any term (a sector the move broke).
-fn dominance_row(
-    chart: Chart,
-    moved: Moved,
-    s: &mut fuzz::Rng,
-) -> Option<(f64, f64, f64)> {
+fn dominance_row(chart: Chart, moved: Moved, s: &mut fuzz::Rng) -> Option<(f64, f64, f64)> {
     let b = band();
     let mut surf = surface(chart, s);
     let carrier = on_chart(&surf, s);
@@ -438,7 +446,9 @@ fn dominance_row(
     let size = 10f64.powf(s.range(-7.0, -4.0));
     let carrier = match moved {
         Moved::Carrier => {
-            let Curve3::Nurbs(n) = &carrier else { unreachable!() };
+            let Curve3::Nurbs(n) = &carrier else {
+                unreachable!()
+            };
             let push = unit(s) * size;
             Curve3::Nurbs(Arc::new(n.map_points(|p| p + push)))
         }
@@ -506,7 +516,9 @@ fn dominance_row(
     let mut image = project(&carrier, None, &derive_on, b).ok()?;
     match moved {
         Moved::Net => {
-            let FramedCarrier::Net(net) = &image.carrier else { unreachable!() };
+            let FramedCarrier::Net(net) = &image.carrier else {
+                unreachable!()
+            };
             let control = net.control().iter().map(|&p| p + unit(s) * size).collect();
             image.carrier = FramedCarrier::Net(Arc::new(
                 NurbsCurve3::new(net.knots().clone(), control, net.weights().to_vec()).unwrap(),
@@ -515,7 +527,7 @@ fn dominance_row(
         Moved::Deck => image.u_off += size,
         Moved::Carrier | Moved::Frame => {}
     }
-    let pcurve = Pcurve::Projected(image.clone());
+    let pcurve = Pcurve::Projected(Box::new(image.clone()));
     let boxed = pcurve.chart_box(t0, t1);
     let lane = crate::FittedLane::<f64>::certified();
     let terms = projected_envelope(&image, t0, t1, &boxed, &carrier, &surf, b, Some(lane)).ok()?;
@@ -562,7 +574,11 @@ fn every_projected_term_is_load_bearing_in_a_pinned_sweep() {
                 dominance_row(chart, moved, &mut s)
                     .is_some_and(|(sup, env, term)| term > 0.0 && env - term < sup)
             });
-            assert!(bearing, "{chart:?}: the {:?} term is never load-bearing", moved.term());
+            assert!(
+                bearing,
+                "{chart:?}: the {:?} term is never load-bearing",
+                moved.term()
+            );
         }
     }
 }
@@ -589,8 +605,15 @@ fn a_broken_sector_and_an_arc_through_the_pole_refuse() {
     let image = project(&circle, Some((0.2, 1.4)), &sphere, b).expect("clear of the poles");
     let mut turned = image.clone();
     turned.azimuth[0] += 2;
-    let err = PcurveCache::certify(Pcurve::Projected(turned), 0.2, 1.4, &circle, &sphere, b)
-        .expect_err("a turned branch centre");
+    let err = PcurveCache::certify(
+        Pcurve::Projected(Box::new(turned)),
+        0.2,
+        1.4,
+        &circle,
+        &sphere,
+        b,
+    )
+    .expect_err("a turned branch centre");
     assert!(
         matches!(
             err,
@@ -684,4 +707,3 @@ fn an_off_chart_spline_refuses_by_incidence() {
     );
     let _ = Tol::witness();
 }
-

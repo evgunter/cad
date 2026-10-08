@@ -102,13 +102,13 @@ use std::sync::Arc;
 use geom::{Curve3, NurbsCurve3, Surface};
 use geom_core::predicate::Band;
 use geom_core::spline::{KnotVector, SpanLocate};
-use geom_core::{Bounds, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
+use geom_core::{Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3};
 
 use crate::offset::Nappe;
 
 use super::{
-    ChartWindow, EnvelopeTerm, EnvelopeTerms, PcurveCertifyError, PcurveCheck, PcurveKind,
-    decide, harmonic_span_box,
+    ChartWindow, EnvelopeTerm, EnvelopeTerms, PcurveCertifyError, PcurveCheck, PcurveKind, decide,
+    harmonic_span_box,
 };
 
 /// `σ = ±1` of a cone's nappe (module docs).
@@ -195,9 +195,7 @@ impl<T: SpanLocate> FramedCarrier<T> {
     pub fn eval(&self, t: T) -> Vec3<T> {
         match self {
             Self::Net(net) => net.eval(t) - Point3::origin(),
-            Self::Circle {
-                centre, a, b, ..
-            } => {
+            Self::Circle { centre, a, b, .. } => {
                 let (s, c) = t.sin_cos();
                 *centre + *a * c + *b * s
             }
@@ -285,7 +283,7 @@ impl<T: Real> ProjectedImage<T> {
         (self.u_off, self.v_off, self.v_sign)
     }
 
-    fn pieces(&self) -> usize {
+    pub(crate) fn pieces(&self) -> usize {
         self.breaks.control_count().saturating_sub(1)
     }
 
@@ -316,7 +314,7 @@ impl<T: Real> ProjectedImage<T> {
         let sigma = self.chart.sigma();
         let theta = self.azimuth.get(k).copied().unwrap_or(0);
         let u = branch_azimuth(theta, p.x * sigma, p.y * sigma);
-        let rho = (p.x * p.x + p.y * p.y).sqrt();
+        let rho = (p.x.powi(2) + p.y.powi(2)).sqrt();
         let v = match self.chart {
             ProjectedChart::Plane => unreachable!("answered above"),
             ProjectedChart::Cylinder => p.z,
@@ -422,11 +420,7 @@ fn rotate_box<T: Real>(m: i32, x: (T, T), y: (T, T)) -> ((T, T), (T, T)) {
 /// `B(a^{p−m}, b^m)`, `m = 0…p`, in homogeneous coordinates
 /// (de Boor's recursion with the arguments taken in turn). Each control
 /// is a convex combination of the span's, so the weights stay positive.
-pub(crate) fn piece_controls<T: Real>(
-    net: &NurbsCurve3<T>,
-    a: f64,
-    b: f64,
-) -> Vec<(Vec3<T>, T)> {
+pub(crate) fn piece_controls<T: Real>(net: &NurbsCurve3<T>, a: f64, b: f64) -> Vec<(Vec3<T>, T)> {
     let kv = net.knots();
     let p = kv.degree();
     let span = kv.span_at(0.5 * (a + b));
@@ -449,7 +443,10 @@ pub(crate) fn piece_controls<T: Real>(
                     let hi = knots[j + 1 + i - r];
                     let alpha = T::from_f64((u - lo) / (hi - lo));
                     let beta = T::one() - alpha;
-                    d[i] = (d[i - 1].0 * beta + d[i].0 * alpha, d[i - 1].1 * beta + d[i].1 * alpha);
+                    d[i] = (
+                        d[i - 1].0 * beta + d[i].0 * alpha,
+                        d[i - 1].1 * beta + d[i].1 * alpha,
+                    );
                 }
             }
             let (hp, w) = d[p];
@@ -558,14 +555,14 @@ impl<T: SpanLocate> ProjectedImage<T> {
     /// `ρ`'s range over a box: its nearest point's distance from the
     /// axis below, its farthest corner's above.
     pub(crate) fn rho_range(b: &FrameBox<T>) -> (T, T) {
-        let sq = |(lo, hi): (T, T)| (lo * lo).max(hi * hi);
+        let sq = |(lo, hi): (T, T)| lo.powi(2).max(hi.powi(2));
         let gap = |(lo, hi): (T, T)| lo.max(T::zero() - hi).max(T::zero());
         let (gx, gy) = (gap(b.x), gap(b.y));
-        ((gx * gx + gy * gy).sqrt(), (sq(b.x) + sq(b.y)).sqrt())
+        ((gx.powi(2) + gy.powi(2)).sqrt(), (sq(b.x) + sq(b.y)).sqrt())
     }
 
     /// The tube channel's rotated box `(ρ − R, z)` by `−φ_k`.
-    fn tube_box(&self, k: usize, b: &FrameBox<T>, major: T) -> ((T, T), (T, T)) {
+    pub(crate) fn tube_box(&self, k: usize, b: &FrameBox<T>, major: T) -> ((T, T), (T, T)) {
         let phi = self.tube.get(k).copied().unwrap_or(0);
         let rho = Self::rho_range(b);
         rotate_box(phi, (rho.0 - major, rho.1 - major), b.z)
@@ -605,8 +602,7 @@ impl<T: SpanLocate> ProjectedImage<T> {
                             )
                         }
                         ProjectedChart::Torus { major } => {
-                            let phi =
-                                quarter_angle::<T>(self.tube.get(k).copied().unwrap_or(0));
+                            let phi = quarter_angle::<T>(self.tube.get(k).copied().unwrap_or(0));
                             let (tx, ty) = self.tube_box(k, &b, major);
                             let r = atan2_range(tx, ty);
                             (phi + r.0, phi + r.1)
@@ -873,17 +869,16 @@ pub(crate) fn project<T: Decide>(
                     let (d0, d1) = net.domain();
                     net.eval(T::from_f64(0.5 * (d0 + d1))).z
                 }
-                FramedCarrier::Circle {
-                    origin, span, ..
-                } => framed.eval(*origin + *span * T::from_f64(0.5)).z,
+                FramedCarrier::Circle { origin, span, .. } => {
+                    framed.eval(*origin + *span * T::from_f64(0.5)).z
+                }
             };
-            let nappe = match decide("pcurve_projected_nappe", Margin::of(mid), band)
-                .map_err(escalated)?
-            {
-                Sign::Positive => Nappe::Opening,
-                Sign::Negative => Nappe::Mirror,
-                Sign::Zero => return Err(sector_refused(0, SectorChannel::Lever)),
-            };
+            let nappe =
+                match decide("pcurve_projected_nappe", Margin::of(mid), band).map_err(escalated)? {
+                    Sign::Positive => Nappe::Opening,
+                    Sign::Negative => Nappe::Mirror,
+                    Sign::Zero => return Err(sector_refused(0, SectorChannel::Lever)),
+                };
             ProjectedChart::Cone { sin, cos, nappe }
         }
         Surface::Nurbs(_) | Surface::Approx(_) => unreachable!("chart_frame answered None"),
@@ -912,12 +907,20 @@ pub(crate) fn project<T: Decide>(
     let mut azimuth = Vec::new();
     let mut tube = Vec::new();
     for w in tops.windows(2) {
-        refine(&mut image, w[0], w[1], 0, band, &mut breaks, &mut azimuth, &mut tube).map_err(
-            |e| match e {
-                Refine::Refused(channel) => sector_refused(azimuth.len(), channel),
-                Refine::Escalated(cause) => escalated(cause),
-            },
-        )?;
+        refine(
+            &mut image,
+            w[0],
+            w[1],
+            0,
+            band,
+            &mut breaks,
+            &mut azimuth,
+            &mut tube,
+        )
+        .map_err(|e| match e {
+            Refine::Refused(channel) => sector_refused(azimuth.len(), channel),
+            Refine::Escalated(cause) => escalated(cause),
+        })?;
     }
     unwrap_quarters(&mut azimuth);
     unwrap_quarters(&mut tube);
@@ -988,7 +991,6 @@ impl<T: Real> Pcurve<T> {
     }
 }
 
-
 // ---------------------------------------------------------------------
 // The certificate
 // ---------------------------------------------------------------------
@@ -1022,129 +1024,6 @@ pub(crate) struct PieceHull {
 pub(crate) struct SpanHull {
     pub(crate) range: (f64, f64),
     pub(crate) f_sup: f64,
-}
-
-/// The fitted door's body for a net's projected row
-/// ([`crate::FittedLane`]): the stored image's piece hulls (its sector
-/// and lever data), and the chart's canonical implicit form composed
-/// along `twin_net`, the carrier written in the frame of `twin`, the
-/// chart's orthonormal twin. Every value crosses into certification
-/// arithmetic through [`geom_core::Interval::from_certified`].
-///
-/// # Errors
-///
-/// [`PcurveCertifyError::ImageMismatch`] for a circle's image (it takes
-/// no door) or a net the composite refuses.
-pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
-    image: &ProjectedImage<T>,
-    twin_net: &NurbsCurve3<T>,
-    twin: &Surface<T>,
-) -> Result<ProjectedHull, PcurveCertifyError> {
-    use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
-    let cross = geom_core::Interval::from_certified;
-    let refuse = |why| PcurveCertifyError::ImageMismatch {
-        image: PcurveKind::Projected,
-        why,
-    };
-    let FramedCarrier::Net(net) = &image.carrier else {
-        return Err(refuse("a circle's projected row takes no door"));
-    };
-    let lift = |n: &NurbsCurve3<T>| {
-        NurbsCurve3::new(
-            n.knots().clone(),
-            n.control()
-                .iter()
-                .map(|p| Point3::new(cross(p.x), cross(p.y), cross(p.z)))
-                .collect(),
-            n.weights().to_vec(),
-        )
-        .map_err(|_| refuse("the stored net would not lift to certification arithmetic"))
-    };
-    let chart = match image.chart {
-        ProjectedChart::Plane => ProjectedChart::Plane,
-        ProjectedChart::Cylinder => ProjectedChart::Cylinder,
-        ProjectedChart::Sphere => ProjectedChart::Sphere,
-        ProjectedChart::Cone { sin, cos, nappe } => ProjectedChart::Cone {
-            sin: cross(sin),
-            cos: cross(cos),
-            nappe,
-        },
-        ProjectedChart::Torus { major } => ProjectedChart::Torus {
-            major: cross(major),
-        },
-    };
-    let lifted = ProjectedImage {
-        chart,
-        carrier: FramedCarrier::Net(Arc::new(lift(net)?)),
-        breaks: image.breaks.clone(),
-        azimuth: image.azimuth.clone(),
-        tube: image.tube.clone(),
-        u_off: cross(image.u_off),
-        v_off: cross(image.v_off),
-        v_sign: cross(image.v_sign),
-    };
-    let knots = image.breaks.knots();
-    let pieces = (0..image.pieces())
-        .map(|k| {
-            let (a, b) = (knots[k + 1], knots[k + 2]);
-            let fb = lifted.frame_box(k, geom_core::Interval::from_bounds(a, a), geom_core::Interval::from_bounds(b, b));
-            let tube_lo = match lifted.chart {
-                ProjectedChart::Torus { major } => lifted.tube_box(k, &fb, major).0.0.lo(),
-                _ => f64::INFINITY,
-            };
-            PieceHull {
-                range: (a, b),
-                x_lo: fb.x.0.lo(),
-                rho_lo: ProjectedImage::rho_range(&fb).0.lo(),
-                tube_lo,
-                z: (fb.z.0.lo(), fb.z.1.hi()),
-            }
-        })
-        .collect();
-    let form = match *twin {
-        Surface::Plane { .. } => CanonicalSurface::Plane,
-        Surface::Cylinder { radius, .. } => CanonicalSurface::Cylinder {
-            radius: cross(radius),
-        },
-        Surface::Sphere { radius, .. } => CanonicalSurface::Sphere {
-            radius: cross(radius),
-        },
-        Surface::Cone { half_angle, .. } => {
-            let (s, c) = half_angle.sin_cos();
-            let (s, c) = (cross(s), cross(c));
-            CanonicalSurface::Cone {
-                cos2: c * c,
-                sin2: s * s,
-            }
-        }
-        Surface::Torus {
-            major_radius,
-            minor_radius,
-            ..
-        } => CanonicalSurface::Torus {
-            major: cross(major_radius),
-            minor: cross(minor_radius),
-        },
-        Surface::Nurbs(_) | Surface::Approx(_) => {
-            return Err(PcurveCertifyError::UnsupportedChart { chart: twin.kind() });
-        }
-    };
-    let coords = twin_net.certified_coords();
-    let data = CurveCertData::new(twin_net.knots(), twin_net.weights(), &coords)
-        .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
-    let composite = canonical_composite(&data, &form)
-        .map_err(|_| refuse("the canonical composite refused the re-derived net"))?;
-    let breaks = composite.num.breaks().to_vec();
-    let spans = composite
-        .span_bounds()
-        .into_iter()
-        .enumerate()
-        .map(|(j, b)| SpanHull {
-            range: (breaks[j], breaks[j + 1]),
-            f_sup: if b.is_certified() { b.lo().abs().max(b.hi().abs()) } else { f64::NAN },
-        })
-        .collect();
-    Ok(ProjectedHull { pieces, spans })
 }
 
 /// A sector decision: `Positive` holds, anything else refuses `channel`
@@ -1198,7 +1077,9 @@ pub(super) fn projected_envelope<T: Decide>(
     } = *surface
     {
         let (FramedCarrier::Net(net), Curve3::Nurbs(c)) = (&image.carrier, carrier) else {
-            return Err(refuse("a plane's projected image is a spline carrier's net"));
+            return Err(refuse(
+                "a plane's projected image is a spline carrier's net",
+            ));
         };
         // `S(P(t)) − C(t)` is affine in the image's net and linear in
         // the carrier's, over one knot vector and one weight vector, so
@@ -1221,7 +1102,10 @@ pub(super) fn projected_envelope<T: Decide>(
     let Some((o, e)) = chart_frame(&twin) else {
         unreachable!("an analytic chart has a frame")
     };
-    terms.add(EnvelopeTerm::Frame, super::frame_defect(surface, boxed.v_reach()));
+    terms.add(
+        EnvelopeTerm::Frame,
+        super::frame_defect(surface, boxed.v_reach()),
+    );
     let positive = |name, x: T, term| match decide(name, Margin::of(x), band) {
         Ok(Sign::Positive) => Ok(x),
         Ok(_) => Err(PcurveCertifyError::ResidualExceeded {
@@ -1306,7 +1190,7 @@ pub(super) fn projected_envelope<T: Decide>(
                         ..
                     } => {
                         let reach = rho + major_radius;
-                        f / (minor_radius * (reach * reach - minor_radius * minor_radius))
+                        f / (minor_radius * (reach.powi(2) - minor_radius.powi(2)))
                     }
                     Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
                         unreachable!("answered above")
@@ -1316,19 +1200,11 @@ pub(super) fn projected_envelope<T: Decide>(
             }
             (incidence, d, rho_floor.unwrap_or_else(T::zero))
         }
-        (
-            FramedCarrier::Circle {
-                centre, a, b, ..
-            },
-            Curve3::Circle { .. },
-        ) => {
+        (FramedCarrier::Circle { centre, a, b, .. }, Curve3::Circle { .. }) => {
             let Some(form) = super::carrier_harmonic(carrier) else {
                 unreachable!("a circle has a harmonic form")
             };
-            let Surface::Sphere {
-                center, radius, ..
-            } = *surface
-            else {
+            let Surface::Sphere { center, radius, .. } = *surface else {
                 return Err(refuse("a circle's projected image is written for a sphere"));
             };
             let d = (*centre - to_frame(form.c - o, &e)).norm()
@@ -1348,7 +1224,12 @@ pub(super) fn projected_envelope<T: Decide>(
                 }
             }
             let incidence = crate::sphere_circle::off_sphere_sup(
-                crate::sphere_circle::off_sphere_coefficients(form.c - center, form.a, form.b, radius),
+                crate::sphere_circle::off_sphere_coefficients(
+                    form.c - center,
+                    form.a,
+                    form.b,
+                    radius,
+                ),
                 radius,
             );
             (incidence, d, T::zero())
@@ -1390,11 +1271,20 @@ pub(super) fn projected_envelope<T: Decide>(
     // ---- Fidelity: the stored carrier through N's Lipschitz bound. ----
     let lipschitz = match *surface {
         Surface::Cylinder { radius, .. } => {
-            let floor = positive("pcurve_projected_reach", radius - incidence - d, EnvelopeTerm::Fidelity)?;
+            let floor = positive(
+                "pcurve_projected_reach",
+                radius - incidence - d,
+                EnvelopeTerm::Fidelity,
+            )?;
             (radius / floor).max(T::one())
         }
         Surface::Sphere { radius, .. } => {
-            radius / positive("pcurve_projected_reach", radius - incidence - d, EnvelopeTerm::Fidelity)?
+            radius
+                / positive(
+                    "pcurve_projected_reach",
+                    radius - incidence - d,
+                    EnvelopeTerm::Fidelity,
+                )?
         }
         Surface::Cone { half_angle, .. } => {
             let floor = positive("pcurve_projected_reach", rho_floor, EnvelopeTerm::Fidelity)?;
@@ -1410,7 +1300,11 @@ pub(super) fn projected_envelope<T: Decide>(
                 major_radius - minor_radius - incidence - d,
                 EnvelopeTerm::Fidelity,
             )?;
-            let core = positive("pcurve_projected_reach", minor_radius - incidence - d, EnvelopeTerm::Fidelity)?;
+            let core = positive(
+                "pcurve_projected_reach",
+                minor_radius - incidence - d,
+                EnvelopeTerm::Fidelity,
+            )?;
             (major_radius + minor_radius) / rho + minor_radius / core
         }
         Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
@@ -1440,7 +1334,10 @@ pub(super) fn projected_envelope<T: Decide>(
     } else {
         (T::zero(), T::one())
     };
-    terms.add(EnvelopeTerm::FidelityU, off_period(image.u_off, shift) * u_arm);
+    terms.add(
+        EnvelopeTerm::FidelityU,
+        off_period(image.u_off, shift) * u_arm,
+    );
     let v_reach = boxed.v_reach();
     let v_off = match *surface {
         Surface::Sphere { .. } | Surface::Torus { .. } => off_period(image.v_off, shift),
@@ -1514,7 +1411,9 @@ pub(super) fn run_projected_checks<T: Decide>(
         });
     }
     if image.chart.kind() != surface.kind() {
-        return Err(refuse("the image's inverse is written for another chart kind"));
+        return Err(refuse(
+            "the image's inverse is written for another chart kind",
+        ));
     }
     let pieces = image.pieces();
     let curved = !matches!(image.chart, ProjectedChart::Plane);
@@ -1535,12 +1434,16 @@ pub(super) fn run_projected_checks<T: Decide>(
             // vector and one weight vector, so the stored net and the
             // carrier's differ control point for control point.
             if net.knots() != c.knots() || net.weights() != c.weights() {
-                return Err(refuse("the stored net's knots or weights are not the carrier's"));
+                return Err(refuse(
+                    "the stored net's knots or weights are not the carrier's",
+                ));
             }
             let (d0, d1) = net.domain();
             let b = image.breaks.knots();
             if b[0] > d0 || b[b.len() - 1] < d1 {
-                return Err(refuse("the image's pieces do not cover the carrier's domain"));
+                return Err(refuse(
+                    "the image's pieces do not cover the carrier's domain",
+                ));
             }
             if curved {
                 let kv = net.knots();
@@ -1570,8 +1473,12 @@ pub(super) fn run_projected_checks<T: Decide>(
         cause,
     };
     let rate = super::param_rate_gate(carrier, band).map_err(span_escalated)?;
-    match decide("pcurve_interval_forward", Margin::metered(t1 - t0, rate), band)
-        .map_err(span_escalated)?
+    match decide(
+        "pcurve_interval_forward",
+        Margin::metered(t1 - t0, rate),
+        band,
+    )
+    .map_err(span_escalated)?
     {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(PcurveCertifyError::IntervalNotForward),

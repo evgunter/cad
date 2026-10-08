@@ -590,7 +590,7 @@ and (b) the SSI generic-`T` lift are discharged and keep no entry):
   its class's route lands, covers the mirror-torus spiric and
   no-fitted classes, on their PCERT row.
 - **(d) cyl×sphere germ chords** — a fitted carrier's chart image
-  exists as `Pcurve::Fitted` and certifies at rest, and a chord takes
+  exists as `Pcurve::Projected` and certifies at rest, and a chord takes
   its arc from the germs it joins, reading no window; what is missing
   is the C5 table's cyl×sphere arm for the chord's carrier
   (`chord_join::section_case` has no curved×curved arm) and a frame for

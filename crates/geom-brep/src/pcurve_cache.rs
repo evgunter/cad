@@ -454,8 +454,9 @@ pub enum Pcurve<T: Real> {
     /// the chart plus the stored data's fidelity to the carrier
     /// ([`EnvelopeStatement::MapResidualProjected`];
     /// `pcurve_cache::projected`'s docs carry the channels and the
-    /// lemma).
-    Projected(ProjectedImage<T>),
+    /// lemma). Boxed: it is the largest image by far, and every
+    /// stored row would otherwise pay for it.
+    Projected(Box<ProjectedImage<T>>),
 }
 
 /// The azimuth channel of a [`Pcurve::FocalSection`] image (variant
@@ -854,7 +855,9 @@ impl<T: Real> Pcurve<T> {
             }
             // Every map a chart row takes has linear part `diag(1, ±1)`,
             // and the image's deck map absorbs it exactly.
-            Pcurve::Projected(image) => Pcurve::Projected(image.map_affine(point, vector)),
+            Pcurve::Projected(image) => {
+                Pcurve::Projected(Box::new(image.map_affine(point, vector)))
+            }
         }
     }
 
@@ -2407,6 +2410,139 @@ pub(crate) struct FittedEnvelope<T: Real> {
     pub(crate) ssi: SsiCertificate<T>,
 }
 
+/// The fitted door's body for a net's projected row
+/// ([`crate::FittedLane`]): the stored image's piece hulls (its sector
+/// and lever data), and the chart's canonical implicit form composed
+/// along `twin_net`, the carrier written in the frame of `twin`, the
+/// chart's orthonormal twin. Every value crosses into certification
+/// arithmetic through [`geom_core::Interval::from_certified`].
+///
+/// # Errors
+///
+/// [`PcurveCertifyError::ImageMismatch`] for a circle's image (it takes
+/// no door) or a net the composite refuses.
+pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
+    image: &ProjectedImage<T>,
+    twin_net: &NurbsCurve3<T>,
+    twin: &Surface<T>,
+) -> Result<projected::ProjectedHull, PcurveCertifyError> {
+    use geom_core::spline::compose::{CanonicalSurface, CurveCertData, canonical_composite};
+    use geom_core::{Bounds, Point3};
+    use projected::{PieceHull, ProjectedHull, SpanHull};
+    let cross = geom_core::Interval::from_certified;
+    let refuse = |why| PcurveCertifyError::ImageMismatch {
+        image: PcurveKind::Projected,
+        why,
+    };
+    let FramedCarrier::Net(net) = &image.carrier else {
+        return Err(refuse("a circle's projected row takes no door"));
+    };
+    let lift = |n: &NurbsCurve3<T>| {
+        NurbsCurve3::new(
+            n.knots().clone(),
+            n.control()
+                .iter()
+                .map(|p| Point3::new(cross(p.x), cross(p.y), cross(p.z)))
+                .collect(),
+            n.weights().to_vec(),
+        )
+        .map_err(|_| refuse("the stored net would not lift to certification arithmetic"))
+    };
+    let chart = match image.chart {
+        ProjectedChart::Plane => ProjectedChart::Plane,
+        ProjectedChart::Cylinder => ProjectedChart::Cylinder,
+        ProjectedChart::Sphere => ProjectedChart::Sphere,
+        ProjectedChart::Cone { sin, cos, nappe } => ProjectedChart::Cone {
+            sin: cross(sin),
+            cos: cross(cos),
+            nappe,
+        },
+        ProjectedChart::Torus { major } => ProjectedChart::Torus {
+            major: cross(major),
+        },
+    };
+    let lifted = ProjectedImage {
+        chart,
+        carrier: FramedCarrier::Net(Arc::new(lift(net)?)),
+        breaks: image.breaks.clone(),
+        azimuth: image.azimuth.clone(),
+        tube: image.tube.clone(),
+        u_off: cross(image.u_off),
+        v_off: cross(image.v_off),
+        v_sign: cross(image.v_sign),
+    };
+    let knots = image.breaks.knots();
+    let pieces = (0..image.pieces())
+        .map(|k| {
+            let (a, b) = (knots[k + 1], knots[k + 2]);
+            let fb = lifted.frame_box(
+                k,
+                geom_core::Interval::from_bounds(a, a),
+                geom_core::Interval::from_bounds(b, b),
+            );
+            let tube_lo = match lifted.chart {
+                ProjectedChart::Torus { major } => lifted.tube_box(k, &fb, major).0.0.lo(),
+                _ => f64::INFINITY,
+            };
+            PieceHull {
+                range: (a, b),
+                x_lo: fb.x.0.lo(),
+                rho_lo: ProjectedImage::rho_range(&fb).0.lo(),
+                tube_lo,
+                z: (fb.z.0.lo(), fb.z.1.hi()),
+            }
+        })
+        .collect();
+    let form = match *twin {
+        Surface::Plane { .. } => CanonicalSurface::Plane,
+        Surface::Cylinder { radius, .. } => CanonicalSurface::Cylinder {
+            radius: cross(radius),
+        },
+        Surface::Sphere { radius, .. } => CanonicalSurface::Sphere {
+            radius: cross(radius),
+        },
+        Surface::Cone { half_angle, .. } => {
+            let (s, c) = half_angle.sin_cos();
+            let (s, c) = (cross(s), cross(c));
+            CanonicalSurface::Cone {
+                cos2: c.powi(2),
+                sin2: s.powi(2),
+            }
+        }
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => CanonicalSurface::Torus {
+            major: cross(major_radius),
+            minor: cross(minor_radius),
+        },
+        Surface::Nurbs(_) | Surface::Approx(_) => {
+            return Err(PcurveCertifyError::UnsupportedChart { chart: twin.kind() });
+        }
+    };
+    let coords = twin_net.certified_coords();
+    let data = CurveCertData::new(twin_net.knots(), twin_net.weights(), &coords)
+        .map_err(|_| refuse("the re-derived net's certification data is malformed"))?;
+    let composite = canonical_composite(&data, &form)
+        .map_err(|_| refuse("the canonical composite refused the re-derived net"))?;
+    let breaks = composite.num.breaks().to_vec();
+    let spans = composite
+        .span_bounds()
+        .into_iter()
+        .enumerate()
+        .map(|(j, b)| SpanHull {
+            range: (breaks[j], breaks[j + 1]),
+            f_sup: if b.is_certified() {
+                b.lo().abs().max(b.hi().abs())
+            } else {
+                f64::NAN
+            },
+        })
+        .collect();
+    Ok(ProjectedHull { pieces, spans })
+}
+
 /// The certified lane's body, shared by every bracket-carrying scalar.
 ///
 /// **A rung-3 (`Curve3::Nurbs`) carrier on a SPLINE chart** certifies
@@ -2806,9 +2942,9 @@ impl<T: Decide> PcurveCache<T> {
             // A circle's projected row certifies here at every scalar; a
             // net's needs the fitted door, which this door does not
             // hold ([`PcurveCache::certify_projected`]).
-            projected @ Pcurve::Projected(_) => projected::run_projected_checks(
-                projected, t0, t1, carrier, surface, band, None,
-            )?,
+            projected @ Pcurve::Projected(_) => {
+                projected::run_projected_checks(projected, t0, t1, carrier, surface, band, None)?
+            }
         };
         Ok(Self {
             pcurve,
@@ -2956,7 +3092,7 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
         lane: Option<crate::FittedLane<T>>,
     ) -> Result<Self, PcurveCertifyError> {
-        let pcurve = Pcurve::Projected(image);
+        let pcurve = Pcurve::Projected(Box::new(image));
         let certificate =
             projected::run_projected_checks(&pcurve, t0, t1, carrier, surface, band, lane)?;
         Ok(Self {
@@ -5884,7 +6020,11 @@ fn run_fitted_checks<T: Decide>(
         &mut envelope_margin,
     )?;
 
-    Ok(PcurveCertificate::composite(CERT_SAMPLES, max_residual, ssi))
+    Ok(PcurveCertificate::composite(
+        CERT_SAMPLES,
+        max_residual,
+        ssi,
+    ))
 }
 
 /// **The ARC-RIM iso class** (M8-3) — certification of a
@@ -6873,17 +7013,19 @@ fn chart_image<T: Decide>(
             });
         }
         if let Incidence::Off = net_incidence(net, surface, band)? {
-            return Err(NoImage::OffChart("the spline carrier does not lie on the chart")
-                .refusal(surface, carrier));
+            return Err(
+                NoImage::OffChart("the spline carrier does not lie on the chart")
+                    .refusal(surface, carrier),
+            );
         }
-        return projected::project(carrier, span, surface, band).map(Pcurve::Projected);
+        return projected::project(carrier, span, surface, band)
+            .map(|image| Pcurve::Projected(Box::new(image)));
     }
     match derive_class(carrier, surface, band) {
         Ok((image, _)) => Ok(image),
         Err(Underived::Refused(e)) => Err(e),
-        Err(Underived::SphereGeneral) => {
-            projected::project(carrier, span, surface, band).map(Pcurve::Projected)
-        }
+        Err(Underived::SphereGeneral) => projected::project(carrier, span, surface, band)
+            .map(|image| Pcurve::Projected(Box::new(image))),
     }
 }
 
@@ -7232,7 +7374,9 @@ fn derive_class<T: Decide>(
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
                             return Err(match cone_conic_incidence(carrier, surface, band)? {
-                                Ok(()) => Underived::Refused(grazes(surface, carrier, Grazer::ConeCircle)),
+                                Ok(()) => {
+                                    Underived::Refused(grazes(surface, carrier, Grazer::ConeCircle))
+                                }
                                 Err(why) => off_chart(why),
                             });
                         }
@@ -7603,7 +7747,8 @@ fn derive_class<T: Decide>(
                     {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
-                            return torus_oblique_circle(carrier, surface, band).map_err(Underived::Refused);
+                            return torus_oblique_circle(carrier, surface, band)
+                                .map_err(Underived::Refused);
                         }
                     }
                     let alpha = stable_azimuth(a_r.dot(cv), a_r.dot(u_ref), band);
@@ -7645,7 +7790,8 @@ fn derive_class<T: Decide>(
                         // Villarceau class), and the incidence test
                         // separates them from circles off it.
                         Sign::Positive | Sign::Negative => {
-                            return torus_oblique_circle(carrier, surface, band).map_err(Underived::Refused);
+                            return torus_oblique_circle(carrier, surface, band)
+                                .map_err(Underived::Refused);
                         }
                     }
                     let alpha = stable_azimuth(w_r.dot(cv), w_r.dot(u_ref), band);

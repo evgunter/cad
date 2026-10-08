@@ -152,12 +152,7 @@ fn kinds() -> Vec<(&'static str, Pcurve<f64>, f64, f64)> {
             -0.4,
             0.9,
         ),
-        (
-            "Projected",
-            projected_on_plane(),
-            0.0,
-            1.0,
-        ),
+        ("Projected", projected_on_plane(), 0.0, 1.0),
     ]
 }
 

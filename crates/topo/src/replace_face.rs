@@ -2184,10 +2184,9 @@ fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geo
         // shifted out of this one.
         // A projected image is the chart's inverse of its carrier, so the
         // offset chart's image of the offset carrier is another one.
-        Pcurve::FocalSection(_)
-        | Pcurve::Fitted(_)
-        | Pcurve::General(_)
-        | Pcurve::Projected(_) => return None,
+        Pcurve::FocalSection(_) | Pcurve::Fitted(_) | Pcurve::General(_) | Pcurve::Projected(_) => {
+            return None;
+        }
     })
 }
 

@@ -2,10 +2,11 @@
 id: chart-boundary-reads-an-on-locus-envelope-as-an-image-bound
 kind: issue
 title: chart_edge and the props quadrature lane read a fitted row's envelope as an image bound without reading its statement
-status: open
+status: closed
 opened: 2026-10-01
 priority: P3
 cost: E
+closed: 2026-10-08
 ---
 
 
@@ -47,3 +48,15 @@ Wanted: `chart_edge` and the quad lane read `statement` before
 `envelope`, and refuse typed for `OnLocusHull` until a bound on that
 image exists. CHART decides whether this row closes on that change or
 waits for the germ-chord lane's first `OnLocusHull` producer.
+
+## Closed (branch `pcert/projected-image`, 2026-10-08)
+
+`EnvelopeStatement::OnLocusHull` is deleted (PR 4261's route). A
+rung-3 carrier on an analytic chart stores its projected image, whose
+statement `MapResidualProjected` bounds `sup |S(P(t)) − C(t)|` over
+the whole span, incidence included. `run_fitted_checks` refuses a
+fitted image on an analytic chart, so `topo::Body::attach_pcurve`
+cannot store an on-locus row either. Every remaining statement bounds
+the image's displacement, which is the quantity both readers take it
+for. `chart_edge` reads a projected row through its exact `chart_box`
+with no slack.

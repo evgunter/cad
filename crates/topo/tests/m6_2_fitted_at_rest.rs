@@ -55,7 +55,10 @@ fn a_rung3_edge_at_rest_carries_its_projected_rows_and_its_edge_the_tube() {
             cert.ssi().is_none(),
             "ROW: the row carries no pair certificate; the tube is the edge's"
         );
-        assert!(cert.envelope <= band.zero(), "ROW: certified sup bound within ε");
+        assert!(
+            cert.envelope <= band.zero(),
+            "ROW: certified sup bound within ε"
+        );
     }
     // The tube is the edge's: it certifies on the operand pair, and the
     // same carrier against a degenerate pair (its own surface twice,
@@ -131,6 +134,49 @@ fn a_producers_closing_mint_re_derives_the_projected_row() {
     assert!(findings.is_empty(), "{findings:?}");
 }
 
+/// **A split restricts the projected row.** Each child keeps the
+/// parent's image (the same net, pieces and branch centres) over its
+/// own sub-interval, re-certified through the door that minted it, and
+/// tier 3 reads the split body clean.
+#[test]
+fn a_split_restricts_the_projected_row_to_each_child() {
+    let built = fixture::build::<f64>();
+    let band = Band::linear(Tol::witness()).unwrap();
+    let parent = |he| {
+        let c = built.body.pcurve(he).expect("the parent carries its row");
+        (c.params(), format!("{:?}", c.pcurve()))
+    };
+    let (plus, minus) = (parent(built.he_plus), parent(built.he_minus));
+    let (t0, t1) = plus.0;
+    let t = 0.5 * (t0 + t1);
+    let mut body = built.body.clone();
+    let ek = body.get_half_edge(built.he_plus).unwrap().edge;
+    let split = body
+        .split_edge(ek, t, Tol::witness())
+        .expect("the split carries the rows");
+    for (he, image, span) in [
+        (built.he_plus, &plus.1, (t0, t)),
+        (split.he_plus, &plus.1, (t, t1)),
+        (split.he_minus, &minus.1, (t, t1)),
+        (built.he_minus, &minus.1, (t0, t)),
+    ] {
+        let cache = body.pcurve(he).expect("every child half carries a row");
+        assert!(
+            matches!(cache.pcurve(), Pcurve::Projected(_)),
+            "{he:?}: {cache:?}"
+        );
+        assert_eq!(
+            &format!("{:?}", cache.pcurve()),
+            image,
+            "{he:?}: the parent's image, restricted"
+        );
+        assert_eq!(cache.params(), span, "{he:?}: the child's own interval");
+        assert!(cache.certificate().envelope <= band.zero(), "{he:?}");
+    }
+    let findings = topo::pcurves::validate_pcurves(&body, band);
+    assert!(findings.is_empty(), "AT-REST after the split: {findings:?}");
+}
+
 /// **The `Dual` lane leaves the face rowless, and the refusal says
 /// why.** A net's projected row reads its hull terms through the fitted
 /// door, which a dual does not hold (D1, 2026-08-19: certification
@@ -153,7 +199,10 @@ fn the_dual_leaves_the_face_rowless_and_says_why() {
         );
     }
     let findings = topo::pcurves::validate_pcurves(&dual.body, band);
-    assert!(findings.is_empty(), "DUAL: the face is not owed rows: {findings:?}");
+    assert!(
+        findings.is_empty(),
+        "DUAL: the face is not owed rows: {findings:?}"
+    );
 
     let built = fixture::build::<f64>();
     let carrier = geom::Curve3::Nurbs(std::sync::Arc::clone(&built.carrier));
@@ -162,7 +211,7 @@ fn the_dual_leaves_the_face_rowless_and_says_why() {
         panic!("the minted row is projected")
     };
     let (t0, t1) = built.carrier.domain();
-    let err = PcurveCache::certify_projected(image, t0, t1, &carrier, &built.cylinder, band, None)
+    let err = PcurveCache::certify_projected(*image, t0, t1, &carrier, &built.cylinder, band, None)
         .expect_err("WITHHELD: a net's projected row with no door refuses");
     assert!(
         matches!(

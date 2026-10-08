@@ -2618,7 +2618,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
     let tube;
     let e = match e {
         CertifyError::Rung3Tube(refusal) => {
-            tube = CertifyError::PlaneNurbs(refusal.clone());
+            tube = CertifyError::PlaneNurbs(*refusal);
             &tube
         }
         other => other,

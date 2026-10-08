@@ -136,9 +136,15 @@ fn the_closed_form_door_answers_the_projected_image() {
         geom_brep::chart_pcurve_over(&general_circle::<f64>(), t0, t1, &sphere::<f64>(), band)
             .expect("the general circle has a routed image");
     assert!(matches!(image, Pcurve::Projected(_)), "{image:?}");
-    let cache =
-        PcurveCache::certify(image, t0, t1, &general_circle::<f64>(), &sphere::<f64>(), band)
-            .expect("a circle's projected row certifies at the closed-form door");
+    let cache = PcurveCache::certify(
+        image,
+        t0,
+        t1,
+        &general_circle::<f64>(),
+        &sphere::<f64>(),
+        band,
+    )
+    .expect("a circle's projected row certifies at the closed-form door");
     assert_eq!(
         cache.certificate().statement,
         EnvelopeStatement::MapResidualProjected
@@ -262,8 +268,8 @@ fn a_projected_row_off_its_deck_refuses() {
     let (t0, t1) = (Interval::from_f64(f0), Interval::from_f64(f1));
     let band = Band::linear(Tol::witness()).unwrap();
     let carrier = general_circle::<Interval>();
-    let image = geom_brep::chart_pcurve_over(&carrier, t0, t1, &sphere::<Interval>(), band)
-        .unwrap();
+    let image =
+        geom_brep::chart_pcurve_over(&carrier, t0, t1, &sphere::<Interval>(), band).unwrap();
     let moved = image.map_affine(
         |p| geom_core::Point2::new(p.x + Interval::from_f64(1e-3), p.y),
         |v| v,

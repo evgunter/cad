@@ -144,7 +144,7 @@ impl<T: Decide + geom_core::CertifiedBounds> FittedLane<T> {
             fitted_lane: crate::pcurve_cache::fitted_lane::<T>,
             general_image_lane: crate::pcurve_cache::general_image_lane::<T>,
             chart_foot_lane: crate::pcurve_cache::chart_foot_lane::<T>,
-            projected_lane: crate::pcurve_cache::projected::projected_hull_lane::<T>,
+            projected_lane: crate::pcurve_cache::projected_hull_lane::<T>,
         }
     }
 }
@@ -259,7 +259,7 @@ impl<T: Real> FittedLane<T> {
 #[cfg(test)]
 mod wiring_rows {
     use super::FittedLane;
-    use crate::pcurve_cache::projected::projected_hull_lane;
+    use crate::pcurve_cache::projected_hull_lane;
     use crate::pcurve_cache::{chart_foot_lane, fitted_lane, general_image_lane};
 
     /// `Ok(())` when every field holds its shared body; otherwise the
@@ -267,10 +267,7 @@ mod wiring_rows {
     fn holds_the_certified_fitted_lane<T: geom_core::Decide + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         let lane = FittedLane::<T>::certified();
-        if !std::ptr::fn_addr_eq(
-            lane.fitted_lane,
-            fitted_lane::<T> as fn(_, _, _, _, _) -> _,
-        ) {
+        if !std::ptr::fn_addr_eq(lane.fitted_lane, fitted_lane::<T> as fn(_, _, _, _, _) -> _) {
             return Err("fitted_lane is not `pcurve_cache::fitted_lane`");
         }
         if !std::ptr::fn_addr_eq(
@@ -286,7 +283,7 @@ mod wiring_rows {
             lane.projected_lane,
             projected_hull_lane::<T> as fn(_, _, _) -> _,
         ) {
-            return Err("projected_lane is not `pcurve_cache::projected::projected_hull_lane`");
+            return Err("projected_lane is not `pcurve_cache::projected_hull_lane`");
         }
         Ok(())
     }

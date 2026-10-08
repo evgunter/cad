@@ -2,11 +2,13 @@
 id: tilted-section-near-a-chart-pole-refuses-arc-near-pole
 kind: issue
 title: A tilted sphere section passing near a chart pole refuses Pcurves{Certify{ArcNearPole}}: the general-circle fitted image hits its refinement caps
-status: open
+status: closed
 opened: 2026-10-02
 priority: P2
 cost: M
 refs: [fitted-general-circle-rows-escalate-loop-continuity-at-the-interval-scalar, tilted-section-through-a-chart-pole-is-not-split-at-the-pole]
+closed: 2026-10-08
+branch: pcert/projected-image
 ---
 
 
@@ -40,3 +42,24 @@ spans graded toward the pole without a fixed depth cap, or a pole-aware
 chart image — so the δ = 1e-5..1e-4 rows build at every ε. The δ = 0
 row is not this item's: an arc THROUGH a pole is the join's to split
 (`reach/tilted-section-through-a-chart-pole-is-not-split-at-the-pole`).
+
+## Closed (branch `pcert/projected-image`, 2026-10-08)
+
+`ArcNearPole` is retired with the Hermite image. A general circle's
+projected image refines its pieces adaptively toward the pole (to depth
+20) until every piece's azimuth sector holds. The row's own
+parametrisation was re-measured on union:
+
+| δ | ε 1e-6 | ε 1e-9 | ε 1e-12 |
+|---|---|---|---|
+| 0 (through the pole) | `SectorRefused { Azimuth }` | same | same |
+| 1e-6 | `bool_vertex_face_side` escalates (δ ≈ ε) | builds | builds |
+| ≥ 1e-5 | builds | builds | builds |
+
+The δ = 1e-6, ε 1e-6 cell is the boolean's vertex-on-face coincidence
+at a separation of the band's own size, not the pcurve's. The δ = 0 row
+stays the join's (`tilted-section-through-a-chart-pole-is-not-split-at-the-pole`).
+`crates/sweep/tests/tilted_sphere_pair.rs`,
+`a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed`,
+pins δ ∈ {1e-5, 1e-4, 3e-4} (all three tiers plus volume) and the δ = 0
+refusal.

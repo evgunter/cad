@@ -1,11 +1,13 @@
 ---
 id: fitted-general-circle-envelope-sits-a-quarter-band-under-coincidence
 kind: issue
-title: "pcert: the fitted general-circle image is refined to a quarter of the band, so its certified envelope (pcurve_envelope_hermite) keeps only 4x of headroom against the band at every eps; confirm the target or widen it"
-status: open
+title: pcert: the fitted general-circle image is refined to a quarter of the band, so its certified envelope (pcurve_envelope_hermite) keeps only 4x of headroom against the band at every eps; confirm the target or widen it
+status: closed
 opened: 2026-10-02
 priority: P3
 cost: M
+closed: 2026-10-08
+branch: pcert/projected-image
 ---
 
 
@@ -55,3 +57,13 @@ PCERT should confirm that a quarter band is the lane's intent, or choose
 a target with more headroom. Quintic Hermite error falls as `h⁶`, so a
 target of `ε/10²` costs about 1.7× the spans. If the target moves,
 `CONSTRUCTION_COUPLED`'s entry and its pin move with it.
+
+## Closed (branch `pcert/projected-image`, 2026-10-08)
+
+The construction is retired. A sphere's general circle stores its
+projected image (`Pcurve::Projected` over the exact circle), whose
+envelope is rounding-sized and ε-independent: no refinement target, no
+quarter band. The rows record under `pcurve_envelope` with the other
+lanes. `pcurve_envelope_hermite` has no minting site, so k-lint's rule
+(5), `CONSTRUCTION_COUPLED`, whose only name it was, is removed with
+its pin (`tools/k-lint/tests/construction_coupled.rs`).

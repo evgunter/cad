@@ -143,7 +143,10 @@ fn restrict(branch: &ssi::SsiBranch, frac: (f64, f64)) -> NurbsCurve3<f64> {
         "a fitted carrier's domain is [0, 1]: [{d0}, {d1}]"
     );
     let tail = if frac.0 > 0.0 {
-        loop_carrier.split_at(frac.0).expect("the carrier's sub-arc").1
+        loop_carrier
+            .split_at(frac.0)
+            .expect("the carrier's sub-arc")
+            .1
     } else {
         (**loop_carrier).clone()
     };

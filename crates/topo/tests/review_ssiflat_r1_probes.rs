@@ -241,6 +241,9 @@ mod interval_lane {
             2,
             "both enclosure endpoints must be visible: {text}"
         );
-        assert!(!text.contains("NaN"), "the manufactured NaN must stay retired: {text}");
+        assert!(
+            !text.contains("NaN"),
+            "the manufactured NaN must stay retired: {text}"
+        );
     }
 }

@@ -2,8 +2,10 @@
 id: site-rows-derive-through-chart-pcurve-bypassing-the-routed-arm
 kind: issue
 title: topo::pcurves::site_rows derives through chart_pcurve directly, so a site mint on a routed (fitted) face clears its row instead of taking the route
-status: open
+status: closed
 opened: 2026-10-07
+closed: 2026-10-08
+branch: pcert/projected-image
 ---
 
 
@@ -14,3 +16,11 @@ Found by a spline-carrier designer (PR 4261, fork-log row 85).
 That is consistent with "doors may drop rows" as long as every public Euler door that reaches a routed face has a closing mint. Check that it does. If one has no closing mint, `site_rows` should go through the routed arm.
 
 Under PR 4261's projected-image route, every such class has one derivation, which removes the asymmetry.
+
+## Closed (branch `pcert/projected-image`, 2026-10-08)
+
+The asymmetry is gone. `site_rows` derives through
+`geom_brep::chart_pcurve_over`, and `analytic_derive` is that same
+door. Every carrier class has one derivation (`chart_image`), so a
+site mint on a projected face derives the row the mint would. The
+closing-mint audit the row asked for is no longer load-bearing.

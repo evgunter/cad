@@ -205,14 +205,14 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
 ///
 /// **And the pin on the octant's pcurve rows.** The oblique corners'
 /// contact circles are GENERAL circles of their sphere's chart — neither
-/// polar nor meridian — so the closed-form door has no image for them;
-/// the mint routes them through the fitted lane. Every half-edge of
-/// every corner face carries a certified row, some of them `Fitted`,
-/// each one's dense map residual — measured between its certification
-/// samples — under its stored envelope and that under the band, and
-/// tier 3's pcurve pass re-certifies them clean. Take the route
-/// away and those faces are rowless or refused, and this half goes red.
-/// The chart boundary of every corner face that stores a fitted row
+/// polar nor meridian — so they have no closed-form image, and store
+/// their projected image. Every half-edge of every corner face carries
+/// a certified row, some of them `Projected`, each one's dense map
+/// residual — measured between its certification samples — under its
+/// stored envelope and that under the band, and tier 3's pcurve pass
+/// re-certifies them clean. Take the route away and those faces are
+/// rowless or refused, and this half goes red.
+/// The chart boundary of every corner face that stores a projected row
 /// gets past the derivation (a pole joint or a wrap may still refuse
 /// it, each for its own reason).
 #[test]
@@ -324,23 +324,26 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
             "corner face {corner:?}: area {area} against Girard's {want}"
         );
     }
-    let mut fitted = 0;
+    let mut projected = 0;
     for &corner in &f.corner_faces {
         let face = f.body.get_face(corner).expect("the corner face resolves");
         let topo::LoopBoundary::Cycle { first } = f.body.get_loop(face.outer).unwrap().boundary
         else {
             panic!("a corner face's outer loop is a cycle");
         };
-        let mut face_fitted = false;
+        let mut face_projected = false;
         for he in f.body.loop_cycle(first).unwrap() {
             let row = f.body.pcurve(he).unwrap_or_else(|| {
                 panic!("corner face {corner:?} half-edge {he:?} carries no pcurve row")
             });
-            if matches!(row.pcurve(), geom_brep::Pcurve::Fitted(_)) {
-                fitted += 1;
-                face_fitted = true;
+            if matches!(row.pcurve(), geom_brep::Pcurve::Projected(_)) {
+                projected += 1;
+                face_projected = true;
                 // Between the samples: the dense map residual is under
-                // the stored envelope, which is under the band.
+                // the stored envelope, which is under the band. A
+                // projected image is exact, so both are rounding-sized
+                // at f64, and the dense side's own f64 evaluation rounds
+                // too: the comparison allows the metre scale's rounding.
                 let edge = f.body.get_half_edge(he).unwrap().edge;
                 let curve = f.body.get_edge(edge).unwrap().curve;
                 let Some(topo::CurveGeom::Certified(curve)) = f.body.get_curve_geom(curve) else {
@@ -349,6 +352,12 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
                 let ((t0, t1), carrier) = (curve.params(), curve.carrier());
                 let surface = f.body.get_surface(face.surface).unwrap();
                 let envelope = row.certificate().envelope;
+                let radius_scale = match *surface {
+                    geom::Surface::Sphere { center, radius, .. } => {
+                        radius + (center - geom_core::Point3::new(0.0, 0.0, 0.0)).norm()
+                    }
+                    _ => 1.0,
+                };
                 let dense = (0..=4000)
                     .map(|k| {
                         let t = t0 + (t1 - t0) * f64::from(k) / 4000.0;
@@ -356,15 +365,16 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
                         (surface.eval(p.x, p.y) - carrier.eval(t)).norm()
                     })
                     .fold(0.0, f64::max);
+                let rounding = 64.0 * f64::EPSILON * radius_scale;
                 assert!(
-                    dense <= envelope && envelope <= band.zero(),
+                    dense <= envelope + rounding && envelope <= band.zero(),
                     "half-edge {he:?}: dense map residual {dense:e} m, envelope {envelope:e} \
                      m, band {:e} m",
                     band.zero()
                 );
             }
         }
-        if face_fitted {
+        if face_projected {
             let chart = f.body.get_surface(face.surface).unwrap().clone();
             if let Err(e) = topo::pcurves::chart_boundary(&f.body, corner, &chart, band) {
                 assert!(
@@ -375,8 +385,8 @@ fn f4_an_oblique_trihedron_builds_and_passes_tier_3() {
         }
     }
     assert!(
-        fitted > 0,
-        "the oblique corners' general circles take the fitted lane"
+        projected > 0,
+        "the oblique corners' general circles store their projected images"
     );
     let findings = topo::pcurves::validate_pcurves(&f.body, band);
     assert!(
