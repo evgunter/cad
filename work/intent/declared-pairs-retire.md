@@ -19,13 +19,17 @@ FORK-S4-4 was weighed as FORK-S4U (fork log row 94) and went to Ev in an
 `[ev]` PR; this unit builds on the answer provisionally. The pairwise
 pass stays: each pair whose closed boxes meet is judged as `m ∪ n`
 (declared pairs gone), its refusals are the union's in every order, and
-its rows, in member space, are the union's coincidence rows. The members
-are a set folded in mint order (`SetMembers` and the wire keep the list;
-the fold and the content key read it sorted). The fold glues on its own
-Zero with no routing and no backing assertion (`fold_step_refusal` goes);
-a fold row a judged row states (the same member cells after mapping
-pieces to their member parents, the same relation) is not published
-again, and any other is the union's. N2's links stay the judgements'
+its rows, in member space, are the union's coincidence rows. After Ev's comment on #4323 the members stay a
+list, folded in the author's stated order (no sort). The fold reads the
+pass's verdict for each carrier pair through each face's member parents
+(`emit_union::Parents`, lineage, not names) and decides no pair again,
+so a piece is never re-judged at its own extent; there is no backing
+assertion (`fold_step_refusal` goes). A three-member coincidence is the
+union's row, spelled by its member cells. A refusal raised at a fold
+step names the member whose step refused; a glue keeps the earlier
+member's description, as a pair boolean keeps operand A's. The fan-out
+experiment in `union-refuses-in-some-member-orders-and-publishes-in-others`
+is the measurement for the verdict reuse. N2's links stay the judgements'
 `merge_groups` and `covered`; measure once on the union corpus whether
 links-from-rows would differ (a corner touch). When this unit lands,
 DM4's bullets lose the declared, contradicted and certified sentences,
