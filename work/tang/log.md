@@ -856,3 +856,4 @@ line builds, in topo and through editor-core. Filed here
 `an-edge-crossing-two-wedges-about-a-contact-line-refuses`; the naming
 siblings went to WIRE and EMIT.
 
+- 2026-10-08: closed `a-turned-hemisphere-keeps-the-crossing-layers-door`. It already built on main, by PR 4123's sphere azimuth reach (bisected). Rows pin six turns and two spun poses, and the near-aligned window. Filed `a-covered-line-ending-just-off-the-face-keeps-the-door` (P3, parked on D10): the covered line rung's door within about `2e-4` of aligned.
