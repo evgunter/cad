@@ -282,11 +282,6 @@ pub(super) fn chord_faces<T: geom_core::Real>(
     Ok(chord_faces)
 }
 
-/// Split edges + vertices: pass-through, `SectionEdge` (chords),
-/// `SplitFragment` (crossing-cut operand edges), `CrossingVertex`,
-/// `OnToolVertex`. The edges are grouped by their parent first, the
-/// vertices named from those parents, and then several pieces of one
-/// parent qualified by their ends ([`name_edge_pieces`]).
 /// How a split names an edge its closing join made, read off the join
 /// records (`SplitNaming::edge_joins`) by the input cells the edge's
 /// cover lies along (`topo::join_covers`, each covered edge chased to
@@ -381,20 +376,13 @@ fn split_joined_readings<T: Decide>(
             }
             [_] => {} // a piece: the fragment pass names it
             several if several.iter().all(|&r| whole(r)) => {
-                let mut tied = false;
                 let mut names = Vec::with_capacity(several.len());
                 for &r in several {
                     let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(r)))?;
-                    tied |= up.tied;
-                    names.push((*up.name).clone());
+                    names.push(((*up.name).clone(), up.tied));
                 }
-                out.insert(
-                    kept,
-                    Joined::Set {
-                        name: merged::edge_set(node, names),
-                        tied,
-                    },
-                );
+                let (name, tied) = super::join_names::joined_name(node, names);
+                out.insert(kept, Joined::Set { name, tied });
             }
             _ => {
                 return Err(bug(
@@ -407,6 +395,11 @@ fn split_joined_readings<T: Decide>(
     Ok(out)
 }
 
+/// Split edges + vertices: pass-through, `SectionEdge` (chords),
+/// `SplitFragment` (crossing-cut operand edges), `CrossingVertex`,
+/// `OnToolVertex`. The edges are grouped by their parent first, the
+/// vertices named from those parents, and then several pieces of one
+/// parent qualified by their ends ([`name_edge_pieces`]).
 #[allow(clippy::too_many_arguments)]
 fn name_split_edges_vertices<T: Decide>(
     node: RecipeNodeId,

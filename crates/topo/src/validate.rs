@@ -15466,6 +15466,7 @@ mod certify_escalation_rows {
                 says(CertifyError::ResidualExceeded {
                     check: CertCheck::Surface2Residual,
                     sample: 0,
+                    margin: geom_core::MarginDiag::value(3e-8),
                 }),
                 "its stored description does not match its geometry. There is no way through: \
                  this is a kernel defect or a damaged file; report it",
