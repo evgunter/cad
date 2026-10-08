@@ -2,11 +2,10 @@
 id: the-mate-solve-reads-the-platform-atan2
 kind: issue
 title: The mate solve's two angle reads take the platform's atan2, not the kernel's libm door (D9)
-status: parked
+status: open
 opened: 2026-10-03
 priority: P3
 cost: E
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 Found by the MSOLVE-14 lane while making the solve generic.
@@ -42,3 +41,6 @@ mate corpus fence
 (`msolve14_run_scalar::a3_the_f64_solve_is_mains_bit_for_bit_on_the_mate_corpus`)
 and any pose that moved, and say what moved.
 
+## Released from the D10 hold (2026-10-08)
+
+Nothing D10 changes gates this row, so it is open: SolveScalar::solve_atan2 for f64 is f64::atan2 in the coset construction; angle solving survives stage 3, so switching to Real::atan2 and re-baselining is kept work. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

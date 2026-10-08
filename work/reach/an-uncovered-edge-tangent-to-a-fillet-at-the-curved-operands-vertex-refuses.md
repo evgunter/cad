@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 Found while building `a-stack-across-a-mid-edge-tangency-builds-in-one-operand-order-only`,
@@ -42,3 +42,7 @@ A fix needs the touch read from structure rather than the band: the
 touch point is a vertex of the curved operand, already carried as a
 v-v record. Whether a vertex-coincident tangency may stand as its own
 cover is a design question for the cover clause.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: asks which declarations can cover a touch; stage 4 retires declared Tangent and the undeclared-tangency refusals. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

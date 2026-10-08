@@ -2,11 +2,10 @@
 id: a-turned-hemisphere-keeps-the-crossing-layers-door
 kind: issue
 title: The sphere-capped tube with its hemisphere turned about the axis (seam rulings misaligned) refuses at the crossing layer
-status: parked
+status: open
 opened: 2026-10-02
 priority: P1
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -29,3 +28,7 @@ arc crossing the partner face's seam ruling mid-arc, a crossing neither
 `reduce::lying_on` certificate places), and likely of
 `a-turned-lens-keeps-the-door`. Check whether it is the same cell before
 building it separately.
+
+## Released from the D10 hold (2026-10-08)
+
+Nothing D10 changes gates this row, so it is open: the cell is reduce::lying_on's certificates against a partner seam ruling, crossing-layer geometry the Zero path keeps (check first whether it already builds; its sibling closed by PR 4148). (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
