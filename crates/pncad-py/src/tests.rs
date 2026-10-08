@@ -5963,10 +5963,10 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "band",
             "chart_sense_mixed",
+            "edge_join",
             "escalated",
             "face",
             "insert",
-            "join",
             "lift",
             "no_solid",
             "not_valid",
