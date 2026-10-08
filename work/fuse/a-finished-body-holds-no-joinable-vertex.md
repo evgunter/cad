@@ -75,3 +75,17 @@ the join. A vertex whose reading lands in band is exempt at rest.
 - **Settle `composed_die`.** Either the blend surgery leaves split
   rims, or the predicate reads a slit-seam end as joinable. Which one
   must be known before the arm lands.
+
+## The build, in four PRs (orchestrator, 2026-10-08)
+
+- **A** (PR 4302): the public join door; one boolean finishing function;
+  the merge and offset doors end with the join. The band-taking dual
+  `structural_gate` moves to D, since nothing reads a band before the
+  arm.
+- **B:** split and shell join and name the edges they rejoin.
+- **C:** blend surgery joins.
+- **D:** import joins, plus the tier-3 `JoinableVertexAtRest` arm, the
+  sliver refusal and the dual gate's band. It lands last.
+  `split_rim_blends_as_one_band` feeds `fillet_edges` a body with
+  joinable vertices, so its fixture must become construction state, or
+  join first, before D's arm lands.
