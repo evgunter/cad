@@ -1229,6 +1229,14 @@ Signed (JOIN orchestrator).
   - `a-plane-across-a-one-face-wall-meets-its-wrap-edge-once` (P1 H), branch `join/wrap-edge-section-loop`. A one-site section loop on a wrap edge joins as one chord around the whole conic. Not coincidence, so not held by D10. It unblocks PATHS unit 4 (`circle-lowers-to-one-segment`).
   - `a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet` (P1 H), branch `join/sphere-pair-whole-circle`. A transverse sphere-pair circle that no edge reaches lands as a ring on both faces. The FLUX ringed-sphere gate may still stop some operations.
 - **Review tier:** both are H, so each gets a concurrent dual (rule 1).
-- **Not yet:** `cylinder-sphere-germ-pair-has-no-join-lane` and `torus-germ-pairs-have-no-section-frame` are `design: true`, so a designer pair weighs them before any implementer. The near-tangent census (P0) still needs its design pass. `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone` stays on D10.
+- **Designer pair** (Ev, chat: use the whole remaining usage): the join for a section that lies in no plane. That covers `cylinder-sphere-germ-pair-has-no-join-lane`, and through it the skew-cylinder and torus rows. The blinding record is on `analysis/design-fork/nonplanar-section-lane`.
+- **Three more lanes:**
+  - `near-tangent-boolean-results-ship-with-an-escalated-tier-3-census` (P0 H), measurement first, on `join/near-tangent-census-measure`. It reads, per census predicate, whether the undecided pair is a real sliver or a margin too coarse. A design pass follows.
+  - `a-run-holding-another-whole-is-spelled-three-ways-in-insert` and `a-vertex-orbits-position-has-one-comparator-but-no-fixed-origin` (P3 M), as one unit on `join/insert-one-walk-order`: one fixed-origin order on an orbit. Rule-1 arm: byte 19, mod 3 = 1, SEQUENTIAL.
+  - `join1-delta-probes-keep-their-own-outcome` and `vertices-at-misses-an-edge-split-ulps-off-the-pierce-point` (E), as one unit on `join/battery-hygiene`, read by the orchestrator.
+- **Held:**
+  - the `join.rs` E rows (steep-ellipse margin, completed null faces, forced-order lanes, in-band axis offset), until the wrap-edge unit lands, to avoid conflicts;
+  - `a-curved-face-at-a-shared-pinch-vertex-...`, which is a curved-census and containment question;
+  - `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone`, on D10.
 
 Signed (JOIN orchestrator).
