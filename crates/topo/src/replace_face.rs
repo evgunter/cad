@@ -1545,16 +1545,7 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
     }
 
     // ---- Decide: the incident edges that only need re-anchoring. ----
-    let anchored = plan_reanchors(
-        body,
-        &boundary,
-        &moved,
-        &corners.solved,
-        d,
-        band,
-        tol,
-        T::nurbs_lane(),
-    )?;
+    let anchored = plan_reanchors(body, &boundary, &corners, d, band, tol, T::nurbs_lane())?;
 
     // ---- Mutation, on a clone (infallible decisions are done). ----
     //
@@ -2605,13 +2596,18 @@ type Reanchored<T> = (EdgeKey, EdgeCurveSpec<T>, bool);
 fn plan_reanchors<T: Decide>(
     body: &Body<T>,
     boundary: &[EdgeKey],
-    moved: &[(VertexKey, Point3<T>)],
-    solved: &[(EdgeKey, bool, T)],
+    corners: &Corners<T>,
     d: T,
     band: Band,
     tol: Tol,
     nurbs_lane: Option<geom_brep::NurbsLane<T>>,
 ) -> Result<Vec<Reanchored<T>>, ReplaceFaceError<T>> {
+    let moved: Vec<(VertexKey, Point3<T>)> = corners
+        .groups
+        .iter()
+        .flat_map(|(group, point)| group.iter().map(|&v| (v, *point)))
+        .collect();
+    let solved = &corners.solved;
     let mut out = Vec::new();
     let keys: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     for edge in keys {
@@ -3267,8 +3263,8 @@ fn read_ends<T: Decide>(
         }
         EdgeDescriptionSpec::Chart {
             declared: Some(mc), ..
-        } => *mc = restated(mc.clone())?,
-        EdgeDescriptionSpec::Scaffold(mc) => *mc = restated(mc.clone())?,
+        } => *mc = restated(*mc)?,
+        EdgeDescriptionSpec::Scaffold(mc) => *mc = restated(*mc)?,
         _ => {}
     }
     plan.ends = Some((p_start, p_end));
