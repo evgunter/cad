@@ -1273,18 +1273,23 @@ pub struct OffsetOutcome {
 }
 
 /// The join an offset door ends with where `join` is set, on its staged
-/// body before it is adopted.
+/// body before it is adopted, over the vertices `within` holds: the
+/// door's own scope, so a vertex of an entity the call does not write
+/// is neither joined nor read ([`Body::join_edges_within`]). The
+/// staging is the door's, so a refusal discards the half-joined clone
+/// with it.
 pub(crate) fn staged_join<T: Decide + crate::props::AtRestPolicy>(
     staged: &mut Body<T>,
     join: bool,
     tol: Tol,
+    within: &dyn Fn(crate::VertexKey) -> bool,
 ) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
     if !join {
         return Ok(Vec::new());
     }
     let band = Band::linear(tol).map_err(|error| ReplaceFaceError::Band { error })?;
     staged
-        .join_edges(band, tol)
+        .join_edges_within(band, tol, within)
         .map_err(|refusal| ReplaceFaceError::Join {
             refusal: crate::boolean::JoinRefusal::of(&refusal),
         })
@@ -1524,6 +1529,14 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
         .into_iter()
         .map(|plan| (plan.edge, plan.spec))
         .collect();
+    // The edges this call rewrites. A vertex neither of whose edges is
+    // one of them stands as the at-rest operand left it, so these
+    // edges' ends are every vertex the closing join could take.
+    let written: Vec<EdgeKey> = specs
+        .iter()
+        .map(|(e, _)| *e)
+        .chain(anchored.iter().map(|(e, _, _)| *e))
+        .collect();
     move_points_then_rechart(&mut work, &groups, vec![chart], &specs, tol)?;
     // A row is stated over its edge's interval, which ends at the
     // edge's vertices, so the move stales every row of an edge that
@@ -1565,7 +1578,13 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
     mint_pcurves(&mut work, tol).map_err(|source| ReplaceFaceError::Pcurve { source })?;
     work.sweep_and_close();
     validate_closed(&staged).map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
-    let joins = staged_join(&mut staged, join, tol)?;
+    let ends: std::collections::BTreeSet<crate::VertexKey> = written
+        .iter()
+        .filter_map(|&e| staged.get_edge(e))
+        .flat_map(|e| [e.he_plus, e.he_minus])
+        .filter_map(|h| staged.get_half_edge(h).map(|h| h.start))
+        .collect();
+    let joins = staged_join(&mut staged, join, tol, &|v| ends.contains(&v))?;
     body.adopt(staged);
     Ok(joins)
 }

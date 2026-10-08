@@ -7,10 +7,14 @@
 //! every door that finishes a body ends with it (`docs/DESIGN.md`, the
 //! merge stage), and it returns each join it made ([`EdgeJoin`]) for a
 //! door that carries records or names keyed by the body's cells. The
-//! door is whole: a reading in the band refuses before any kill, the
-//! kills run on a staged clone, and a body that carried pcurve rows has
-//! them re-derived, so no row is left keyed by a dead cell. A door that
-//! is not the boolean carries its refusal typed ([`JoinRefusal`]).
+//! door is whole: the kills run on a staged clone, so on any refusal
+//! the body is as found (a reading in the band refuses before any kill,
+//! and a reading or kill that refuses later refuses on the clone), and
+//! a body that carried pcurve rows has them re-derived, so no row is
+//! left keyed by a dead cell. A door that is not the boolean carries
+//! its refusal typed ([`JoinRefusal`]). The offset doors join over
+//! their own scope alone, on their own staging
+//! (`Body::join_edges_within`).
 //!
 //! The boolean's output stages run it after the merge ([`join_stage`])
 //! and write, per join, the substitution rows that carry every contact
@@ -512,7 +516,7 @@ impl core::fmt::Display for JoinRefusal {
                 "whether two edges meeting at a vertex on one curve are one edge is undecided \
                  ({}). {}",
                 diag.payload(),
-                diag.ending("move the geometry")
+                diag.ending("move the vertex clear of the pole, apex or tangency it sits near")
             )
         };
         match self {
@@ -589,7 +593,7 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         }
         // Staged: a refusal past the first kill leaves `self` as found.
         let mut work = self.clone();
-        let joined = join_all(&mut work, band, tol)?;
+        let (joined, _) = join_all(&mut work, band, tol, &|_| true)?;
         // A kill leaves the rows keyed by its half-edges; a body that
         // carried rows has them re-derived whole (`pcurves::mint_pcurves`
         // clears the map first), so none is left keyed by a dead cell.
@@ -600,6 +604,44 @@ impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
         self.adopt(work);
         Ok(joined)
     }
+
+    /// [`Body::join_edges`] over the vertices `within` holds, on a body
+    /// the caller has staged: the offset doors' join, which owes no
+    /// write outside the entities its call writes. Not staged itself —
+    /// a refusal past the first kill leaves `self` part-joined, for the
+    /// caller to discard with its staging — and no reading outside
+    /// `within` is taken, so a vertex the call does not hold can neither
+    /// be joined nor refuse it. The rows the kills moved are re-derived
+    /// over the joined edges' faces alone: the killed edges' rows are
+    /// dropped and [`crate::pcurves::mint_pcurves_of`] runs on the faces
+    /// each kept edge bounds, where the body carries rows at all.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::join_edges`], for the vertices `within` holds.
+    pub(crate) fn join_edges_within(
+        &mut self,
+        band: Band,
+        tol: Tol,
+        within: &dyn Fn(VertexKey) -> bool,
+    ) -> Result<Vec<EdgeJoin>, BooleanError> {
+        let (joined, dead) = join_all(self, band, tol, within)?;
+        if joined.is_empty() || (self.pcurves.is_empty() && self.joints.is_empty()) {
+            return Ok(joined);
+        }
+        self.drop_rows(dead);
+        let mut faces = BTreeSet::new();
+        for j in &joined {
+            if let Some(e) = self.get_edge(j.kept) {
+                faces.extend(self.face_of_half_edge(e.he_plus));
+                faces.extend(self.face_of_half_edge(e.he_minus));
+            }
+        }
+        let faces: Vec<_> = faces.into_iter().collect();
+        crate::pcurves::mint_pcurves_of(self, &faces, tol)
+            .map_err(|source| BooleanError::Pcurves { source })?;
+        Ok(joined)
+    }
 }
 
 /// [`Body::join_edges`]' loop, on the staged body.
@@ -607,20 +649,25 @@ fn join_all<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     band: Band,
     tol: Tol,
-) -> Result<Vec<EdgeJoin>, BooleanError> {
+    within: &dyn Fn(VertexKey) -> bool,
+) -> Result<(Vec<EdgeJoin>, Vec<HalfEdgeKey>), BooleanError> {
     let mut joined = Vec::new();
+    let mut dead = Vec::new();
     loop {
         let pass = Pass::of(body);
         let mut next = None;
-        for (w, _) in body.vertices() {
+        for (w, _) in body.vertices().filter(|&(w, _)| within(w)) {
             if let Some(j) = joinable(body, w, &pass, band).map_err(BooleanError::JoinUndecided)? {
                 next = Some((w, j));
                 break;
             }
         }
         let Some((w, join)) = next else {
-            return Ok(joined);
+            return Ok((joined, dead));
         };
+        if let Some(gone) = body.get_edge(join.gone) {
+            dead.extend([gone.he_plus, gone.he_minus]);
+        }
         join_one(body, w, &join, band, tol)?;
         // A closed join's survivor is conventional unless another edge
         // still ends there (a seam strut on the rim it closed).

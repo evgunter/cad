@@ -98,3 +98,50 @@ fn offset_charts_together_ends_with_the_join() {
     assert_eq!(out.joins[0].vertex, v);
     assert!(topo::joinable_vertices(&body, band).unwrap().is_empty());
 }
+
+/// **The join is the call's scope's, and no wider.** Two bricks side by
+/// side, an edge of the SECOND split at its middle: a joinable vertex
+/// in a solid the call does not move. Offsetting the first solid alone
+/// writes nothing of the second (`offset_together::Scope`), and the
+/// join it ends with is the scope's too: it reports no join, and the
+/// second solid, its split vertex included, is bitwise as found.
+#[test]
+fn an_offset_joins_nothing_outside_its_scope() {
+    use crate::shell8_common::{beside, deep_dump, faces_of, solid_of};
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let brick = topo::test_support::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let mut body = beside(&brick, &brick, 2.0);
+    let first = body.solids().next().unwrap().0;
+    let second = body.solids().nth(1).unwrap().0;
+    let e = body
+        .edges()
+        .find(|(_, d)| solid_of(&body, body.face_of_half_edge(d.he_plus).unwrap()) == second)
+        .unwrap()
+        .0;
+    let v = split_middle(&mut body, e, tol);
+    assert_eq!(topo::joinable_vertices(&body, band).unwrap(), vec![v]);
+    let before = deep_dump(&body, second);
+    let moves: Vec<ChartMove<f64>> = faces_of(&body, first)
+        .into_iter()
+        .map(|f| ChartMove {
+            faces: vec![f],
+            distance: -0.1,
+        })
+        .collect();
+    let out = topo::offset_planes_together(&mut body, &moves, band, tol).unwrap();
+    assert!(
+        out.joins.is_empty(),
+        "no join outside the scope: {:?}",
+        out.joins
+    );
+    assert!(
+        body.get_vertex(v).is_some(),
+        "the other solid's vertex stands"
+    );
+    assert_eq!(
+        deep_dump(&body, second),
+        before,
+        "the other solid is untouched"
+    );
+}
