@@ -244,7 +244,10 @@ fn row3_doubly_wrapped_names_are_distinct_and_resolve_to_their_own_copy() {
         .filter(|inner| part_local(inner) == core)
         .collect();
     assert_eq!(
-        inners.iter().map(|inner| inner.node).collect::<std::collections::BTreeSet<_>>(),
+        inners
+            .iter()
+            .map(|inner| inner.node)
+            .collect::<std::collections::BTreeSet<_>>(),
         inner_nodes,
         "one copy of the vertex under each of the sub-assembly's placements"
     );

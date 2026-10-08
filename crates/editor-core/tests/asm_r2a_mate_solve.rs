@@ -1152,11 +1152,7 @@ fn row6b_a_mate_insert_and_delete_place_nothing() {
             fresh: Vec::new(),
         },
     );
-    assert_eq!(
-        doc.placements(),
-        placed,
-        "a mate places nothing (A10)"
-    );
+    assert_eq!(doc.placements(), placed, "a mate places nothing (A10)");
     // A lone coaxial mate leaves the pair UNDER-determined; deleting
     // it is the recourse that refusal names, and no edit records a
     // frame, so the door takes it and reports nothing.

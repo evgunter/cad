@@ -1416,7 +1416,9 @@ fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
         "an empty world reads as an absence"
     );
     assert!(
-        empty_fault.to_string().contains("nothing is placed in the world"),
+        empty_fault
+            .to_string()
+            .contains("nothing is placed in the world"),
         "and the sentence says so: {empty_fault}"
     );
 

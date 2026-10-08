@@ -825,7 +825,7 @@ fn row5_b_a_pin_move_that_breaks_a_crossing_refuses_at_evaluation() {
     let (doc_ref, body) = store.insert_part((part, body), Tol::witness());
     // The part-local name of the cube's end cap.
     let inner = FaceName::new(fixture::resolver::in_world(body, CapEnd::End))
-    .expect("a crossing's references are face names");
+        .expect("a crossing's references are face names");
     let (doc, outer) = remainder_with_a_neighbour("asm-r2b-row5b", doc_ref, body);
     let outer_probe = (*outer).clone();
     let record = editor_core::InterfaceRecord {
@@ -925,7 +925,7 @@ fn row5_c_inline_dissolves_the_crossing_record() {
     );
     let (doc_ref, body) = store.insert_part((part, body), Tol::witness());
     let inner = FaceName::new(fixture::resolver::in_world(body, CapEnd::End))
-    .expect("a crossing's references are face names");
+        .expect("a crossing's references are face names");
     let (doc, outer) = remainder_with_a_neighbour("asm-r2b-row5c", doc_ref, body);
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {
@@ -1168,7 +1168,7 @@ fn row6_a_crossing_record_edit_moves_the_content_key() {
     );
     let (doc_ref, body) = store.insert_part((part, body), Tol::witness());
     let inner = FaceName::new(fixture::resolver::in_world(body, CapEnd::End))
-    .expect("a crossing's references are face names");
+        .expect("a crossing's references are face names");
     let (host, outer) = remainder_with_a_neighbour("asm-r2b-row6", doc_ref, body);
     let record = editor_core::InterfaceRecord {
         crossings: vec![InterfaceCrossing::Mate {

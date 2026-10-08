@@ -523,6 +523,8 @@ fn every_node_shape_states_its_signature() {
         "Transform -> [body:placed]",
         "Transform -> [body:placed]",
         "Transform -> [body:placed]",
+        "PlaceInWorld -> [copy:Body]",
+        "PlaceInWorld -> [copy:Body]",
         "Pattern -> [bodies:Bodies]",
         "PlacedUnion -> [body:Body]",
         "PlacedUnion -> [body:Body]",

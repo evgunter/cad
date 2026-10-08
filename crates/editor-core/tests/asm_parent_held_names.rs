@@ -362,7 +362,11 @@ fn sibling_versions_mint_different_step_ids_and_a_held_name_vanishes_across_them
         table(&after_ev, instance).lookup(&name).is_none(),
         "at B the held spelling denotes nothing"
     );
-    let b_leg = corners(&after_ev, instance, &held(instance, placement, &wall(b_new)));
+    let b_leg = corners(
+        &after_ev,
+        instance,
+        &held(instance, placement, &wall(b_new)),
+    );
     assert!(
         b_leg.contains(&(2.0, 2.0, 0.0)) && b_leg.contains(&(1.0, 3.0, 0.0)),
         "B's leg (2,2)→(1,3) is drawn, under B's own id: {b_leg:?}"

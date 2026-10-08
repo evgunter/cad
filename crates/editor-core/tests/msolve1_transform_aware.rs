@@ -164,11 +164,7 @@ struct Scene {
 /// **The world the product is** (A10): each of `bodies` placed, then
 /// each `(pattern, count)`'s copies placed through a `Part` per copy —
 /// what the old product roots were, the sinks of each row's chains.
-fn world(
-    doc: ProfileDoc,
-    bodies: &[RecipeNodeId],
-    patterns: &[(RecipeNodeId, i64)],
-) -> ProfileDoc {
+fn world(doc: ProfileDoc, bodies: &[RecipeNodeId], patterns: &[(RecipeNodeId, i64)]) -> ProfileDoc {
     let doc = fixture::place_all(doc, bodies);
     patterns.iter().fold(doc, |doc, &(pattern, count)| {
         (0..count).fold(doc, |doc, i| {
@@ -188,11 +184,7 @@ fn world(
 /// table that is a copy of `name` ([`StableName::copy_of`]) — what the
 /// product names a member's face by, under the placement that put it
 /// in the world.
-fn copy_name(
-    doc: &ProfileDoc,
-    ev: &editor_core::Evaluation<f64>,
-    name: &StableName,
-) -> StableName {
+fn copy_name(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>, name: &StableName) -> StableName {
     let (_, names) =
         editor_core::product_named(doc, ev, Tol::witness()).expect("the product gathers");
     let copies: Vec<StableName> = names

@@ -135,11 +135,7 @@ fn slotted_part(label: &str) -> (ProfileDoc, RecipeNodeId) {
 /// **The world the product is** (A10): each of `bodies` placed, then
 /// each `(pattern, count)`'s copies placed through a `Part` per copy —
 /// what the old product roots were, the sinks of each row's chains.
-fn world(
-    doc: ProfileDoc,
-    bodies: &[RecipeNodeId],
-    patterns: &[(RecipeNodeId, i64)],
-) -> ProfileDoc {
+fn world(doc: ProfileDoc, bodies: &[RecipeNodeId], patterns: &[(RecipeNodeId, i64)]) -> ProfileDoc {
     let doc = fixture::place_all(doc, bodies);
     patterns.iter().fold(doc, |doc, &(pattern, count)| {
         (0..count).fold(doc, |doc, i| {
@@ -154,7 +150,6 @@ fn world(
         })
     })
 }
-
 
 struct Scene {
     doc: ProfileDoc,

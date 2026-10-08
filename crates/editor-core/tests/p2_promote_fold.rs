@@ -27,6 +27,14 @@ use fixture::round_trip::{identity, same_up_to_ids};
 use fixture::{head, insert, offset_of, solve, step};
 use geom_core::Tol;
 
+/// **An instance of `part`, placed in `doc`'s world at the identity**
+/// (A10): each instance here is in the product, as the product roots
+/// were.
+fn instance(doc: ProfileDoc, part: editor_core::DocRef) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, id) = insert(doc, Node::instantiate_part(part));
+    (fixture::place(doc, id).0, id)
+}
+
 fn promote(doc: ProfileDoc, instance: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
     let (doc, gauge) = step(doc, DocEdit::Promote { instance });
     (doc, gauge.expect("a promote mints its gauge"))
@@ -132,7 +140,7 @@ fn fold_joins_the_gauges_steps_in_front_and_promote_after_it_is_the_identity() {
     let doc = ProfileDoc::empty(DocumentId::derive("pf-fold"), Tol::witness());
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
     let (doc, k) = insert(doc, Node::gauge(Some(g), literal([2.0, 0.0, 0.5])));
-    let (doc, lone) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, lone) = instance(doc, p.base);
     let doc = set_gauge(doc, lone, Some(k));
 
     let folded = fold(doc.clone(), k);
@@ -164,7 +172,7 @@ fn fold_joins_the_gauges_steps_in_front_and_promote_after_it_is_the_identity() {
 
     // A gauge on K, and an instance on K with no offset.
     let (doc, k2) = insert(doc, Node::gauge(Some(k), literal([0.0, 0.0, 1.0])));
-    let (doc, bare) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, bare) = instance(doc, p.top);
     let doc = set_gauge(doc, bare, Some(k));
     let doc = set_offset(doc, bare, None);
     let folded = fold(doc, k);
@@ -213,7 +221,7 @@ fn a_part_at_this_frame_is_a_promote_and_a_cut_leaving_the_gauge() {
     round_trip(&promoted, &[base, top, mate], &p, "pf-frame-r1");
 
     let (doc, own) = insert(doc, Node::gauge(None, literal([0.0, 0.0, 9.0])));
-    let (doc, kept) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, kept) = instance(doc, p.top);
     let doc = set_gauge(doc, kept, Some(own));
     let (doc, crossing) = insert(doc, seat(head(p.top_cap(kept)), head(p.base_cap(base))));
     let err = split(&doc, &[base, top, mate], "pf-frame-crossing", &o)
@@ -250,17 +258,17 @@ fn a_cut_of_a_gauges_content_then_a_fold_gives_the_instance_the_gauges_placement
     let doc = ProfileDoc::empty(DocumentId::derive("pf-content"), Tol::witness());
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
     let (doc, k) = insert(doc, Node::gauge(Some(g), literal([2.0, 0.0, 0.5])));
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, base) = instance(doc, p.base);
     let doc = set_gauge(doc, base, Some(k));
     let doc = set_offset(doc, base, Some(literal([0.0, 2.0, 0.0])));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, top) = instance(doc, p.top);
     let doc = set_gauge(doc, top, Some(k));
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-    let (doc, lone) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, lone) = instance(doc, p.base);
     let doc = set_gauge(doc, lone, Some(k));
     let doc = set_offset(doc, lone, Some(literal([16.0, 0.0, 0.0])));
     let (doc, k2) = insert(doc, Node::gauge(Some(k), literal([4.0, 0.0, 0.0])));
-    let (doc, deep) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, deep) = instance(doc, p.top);
     let doc = set_gauge(doc, deep, Some(k2));
 
     let out = split(&doc, &[base, top, mate, lone, k2, deep], "pf-content", &o).expect("cuts");
@@ -393,9 +401,9 @@ fn promote_and_fold_refuse_typed_with_a_recourse_that_clears_them() {
     let doc = ProfileDoc::empty(DocumentId::derive("pf-start"), Tol::witness());
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
     let (doc, k) = insert(doc, Node::gauge(Some(g), literal([0.0, 0.0, 4.0])));
-    let (doc, on_g) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, on_g) = instance(doc, p.base);
     let doc = set_gauge(doc, on_g, Some(g));
-    let (doc, on_k) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, on_k) = instance(doc, p.top);
     let doc = set_gauge(doc, on_k, Some(k));
     let (doc, declaring) = insert(doc, seat(head(p.top_cap(on_k)), head(p.base_cap(on_g))));
     assert!(matches!(
@@ -482,10 +490,10 @@ fn p2_fold_and_promote_move_no_pose_bit_under_rotations() {
         doc,
         Node::gauge(Some(g), two_turns(0.7, 0.2, [2.0, 0.0, 0.5])),
     );
-    let (doc, lone) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, lone) = instance(doc, p.base);
     let doc = set_gauge(doc, lone, Some(k));
     let (doc, k2) = insert(doc, Node::gauge(Some(k), turn(1.1, true, [0.0, 0.0, 1.0])));
-    let (doc, deep) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, deep) = instance(doc, p.top);
     let doc = set_gauge(doc, deep, Some(k2));
     let doc = set_offset(doc, deep, Some(turn(0.4, false, [1.0, 2.0, 0.0])));
     let folded = fold(doc.clone(), k);
@@ -508,13 +516,13 @@ fn p4_a_cut_then_a_fold_moves_no_pose_bit_under_rotations() {
         doc,
         Node::gauge(Some(g), two_turns(0.7, 0.2, [2.0, 0.0, 0.5])),
     );
-    let (doc, base) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, base) = instance(doc, p.base);
     let doc = set_gauge(doc, base, Some(k));
     let doc = set_offset(doc, base, Some(literal([0.0, 2.0, 0.0])));
-    let (doc, top) = insert(doc, Node::instantiate_part(p.top));
+    let (doc, top) = instance(doc, p.top);
     let doc = set_gauge(doc, top, Some(k));
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
-    let (doc, stay) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, stay) = instance(doc, p.base);
     let doc = set_gauge(doc, stay, Some(k));
     let doc = set_offset(doc, stay, Some(turn(0.9, true, [16.0, 0.0, 0.0])));
 
@@ -550,7 +558,7 @@ fn a_gauge_is_read_by_no_operand_and_folds_cleanly() {
     let p = parts("pf-dangle");
     let doc = ProfileDoc::empty(DocumentId::derive("pf-dangle"), Tol::witness());
     let (doc, g) = insert(doc, Node::gauge(None, literal([0.0, 8.0, 0.0])));
-    let (doc, on_g) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, on_g) = instance(doc, p.base);
     let doc = set_gauge(doc, on_g, Some(g));
     let err = refused(
         &doc,
@@ -581,7 +589,7 @@ fn a_label_a_fold_cannot_hand_on_is_reported() {
     let p = parts("pf-label");
     let doc = ProfileDoc::empty(DocumentId::derive("pf-label"), Tol::witness());
     let (doc, k) = insert(doc, Node::gauge(None, literal([2.0, 0.0, 0.0])));
-    let (doc, one) = insert(doc, Node::instantiate_part(p.base));
+    let (doc, one) = instance(doc, p.base);
     let doc = set_gauge(doc, one, Some(k));
     let doc = labelled(doc, k, "bench");
     let maintenance = |d: &ProfileDoc| {
@@ -593,7 +601,7 @@ fn a_label_a_fold_cannot_hand_on_is_reported() {
         maintenance(&doc).is_empty(),
         "a lone unlabelled dependent takes it"
     );
-    let (two, other) = insert(doc.clone(), Node::instantiate_part(p.top));
+    let (two, other) = instance(doc.clone(), p.top);
     let two = set_gauge(two, other, Some(k));
     let named = labelled(doc, one, "post");
     for (what, d) in [("two dependents", two), ("a labelled dependent", named)] {

@@ -1098,10 +1098,9 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
                         a: cap(ids[x]),
                         b: cap(ids[y]),
                         class: ContactClass::Rest,
-                        alignment: 
                         // A literal step: no band forms to author
                         // vectors through.
-                        al(
+                        alignment: al(
                             MatePrimitive::FrameCoincidence,
                             AxisSense::Aligned,
                             MateFrame::on_part(editor_core::Placement::IDENTITY),

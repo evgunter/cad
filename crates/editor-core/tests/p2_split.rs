@@ -580,11 +580,7 @@ fn i1_inline_at_an_offset_over_any_other_part_mints_a_gauge() {
             }
         }
         // The world: the part's placements, carried in its own order.
-        let spliced: Vec<RecipeNodeId> = sub
-            .placements()
-            .iter()
-            .map(|r| out.node_map[r])
-            .collect();
+        let spliced: Vec<RecipeNodeId> = sub.placements().iter().map(|r| out.node_map[r]).collect();
         assert!(
             out.doc.placements().ends_with(&spliced),
             "{what}: the part's placements are the host's"

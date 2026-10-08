@@ -118,11 +118,7 @@ impl Parts {
 /// table that is a copy of `name` ([`StableName::copy_of`]) — what the
 /// product names a member's face by, under the placement that put it
 /// in the world.
-fn copy_name(
-    doc: &ProfileDoc,
-    ev: &editor_core::Evaluation<f64>,
-    name: &StableName,
-) -> StableName {
+fn copy_name(doc: &ProfileDoc, ev: &editor_core::Evaluation<f64>, name: &StableName) -> StableName {
     let (_, names) =
         editor_core::product_named(doc, ev, Tol::witness()).expect("the product gathers");
     let copies: Vec<StableName> = names
@@ -928,11 +924,36 @@ pub(crate) fn placed_pair(label: &str) -> (Parts, ProfileDoc, [RecipeNodeId; 3])
     (p, doc, [base, top, mate])
 }
 
-/// **A cut of `ids` in `doc`, with the world placements of what it
-/// moves** ([`fixture::with_placements`]): a part delivers only its
-/// world, so a split moves a body with its placements.
+/// **A cut of `ids` in `doc`, with the world copies of what it
+/// moves**: each `Part` selecting a copy of a cut pattern, then every
+/// world placement of a cut body ([`fixture::with_placements`]) — a
+/// part delivers only its world, so a split moves a body with its
+/// placements.
 pub(crate) fn cut(doc: &ProfileDoc, ids: &[RecipeNodeId]) -> BTreeSet<RecipeNodeId> {
-    fixture::with_placements(doc, &ids.iter().copied().collect())
+    let mut out: BTreeSet<RecipeNodeId> = ids.iter().copied().collect();
+    for id in doc.ids() {
+        if let Some(Node::Part { of, .. }) = doc.node(id)
+            && doc.operation_of(*of).is_some_and(|at| out.contains(&at))
+        {
+            out.insert(id);
+        }
+    }
+    fixture::with_placements(doc, &out)
+}
+
+/// **Each of `pattern`'s `count` copies placed in the world**, in
+/// instance order: a `Part` per copy, each placed at the identity (A10).
+pub(crate) fn place_copies(doc: ProfileDoc, pattern: RecipeNodeId, count: i64) -> ProfileDoc {
+    (0..count).fold(doc, |doc, i| {
+        let (doc, copy) = insert(
+            doc,
+            Node::Part {
+                of: pattern.into(),
+                select: editor_core::PartSelect::Instance(Formula::count(i)),
+            },
+        );
+        fixture::place(doc, copy).0
+    })
 }
 
 /// **Gauge references leaving a cut must land on one anchor** (A4). A

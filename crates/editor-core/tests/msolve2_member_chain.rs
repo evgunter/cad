@@ -181,8 +181,10 @@ fn scene(label: &str) -> Scene {
         part_doc(&format!("{label}-base"), BASE_WIDTH, BASE_HEIGHT),
         Tol::witness(),
     );
-    let (top_ref, top_body) =
-        store.insert_part(part_doc(&format!("{label}-top"), 1.0, TOP_HEIGHT), Tol::witness());
+    let (top_ref, top_body) = store.insert_part(
+        part_doc(&format!("{label}-top"), 1.0, TOP_HEIGHT),
+        Tol::witness(),
+    );
     let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
