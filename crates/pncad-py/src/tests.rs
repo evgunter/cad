@@ -10,7 +10,7 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use crate::errors::{
-    ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag, reads_as_prose,
+    ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag, reads_as_prose, var_kind_tag,
 };
 use crate::tags::{
     expr_dimension_error_tag, normalization_kind_tag, path_error_tag, persist_error_tag,
@@ -128,6 +128,44 @@ fn dimension_tags_are_stable() {
     assert_eq!(dimension_tag(Dimension::Angle), "angle");
     assert_eq!(dimension_tag(Dimension::Count), "count");
     assert_eq!(dimension_tag(Dimension::Scalar), "scalar");
+}
+
+/// A scalar kind's tag is its dimension's, and a pose's or a shape's
+/// is its own word.
+#[test]
+fn var_kind_tags_are_stable() {
+    use pncad::document::VarKind;
+    for (kind, dim) in [
+        (VarKind::Length, Dimension::Length),
+        (VarKind::Angle, Dimension::Angle),
+        (VarKind::Scalar, Dimension::Scalar),
+        (VarKind::Count, Dimension::Count),
+    ] {
+        assert_eq!(var_kind_tag(kind), dimension_tag(dim), "{kind:?}");
+    }
+    assert_eq!(
+        [
+            VarKind::Point,
+            VarKind::Direction,
+            VarKind::Axis,
+            VarKind::Plane,
+            VarKind::Frame,
+            VarKind::Body,
+            VarKind::Bodies,
+            VarKind::Profile,
+        ]
+        .map(var_kind_tag),
+        [
+            "point",
+            "direction",
+            "axis",
+            "plane",
+            "frame",
+            "body",
+            "bodies",
+            "profile"
+        ]
+    );
 }
 
 /// The FFI tag and the kernel's prose word are two spellings of one
@@ -2971,7 +3009,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::PayloadVarKind {
             var: spv(),
             node: sp(1),
-            declared: Dimension::Length,
+            declared: pncad::document::VarKind::Length,
             referenced: Dimension::Angle,
         },
         &["node", "param", "expected", "found"],
@@ -3007,7 +3045,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             var: Box::new(spv()),
             node: sp(1),
             slot: SlotId::Count,
-            declared: Dimension::Count,
+            declared: pncad::document::VarKind::Count,
             referenced: Dimension::Length,
         },
         &["node", "slot", "param", "expected", "found"],
@@ -4592,14 +4630,14 @@ fn the_edit_and_snapshot_maps_agree_on_the_var_read_words() {
                 var: Box::new(var()),
                 node: spoken.clone(),
                 slot: SlotId::Radius,
-                declared: Dimension::Length,
+                declared: pncad::document::VarKind::Length,
                 referenced: Dimension::Angle,
             },
             SnapshotError::SlotVarKind {
                 node: spoken.clone(),
                 slot: SlotId::Radius,
                 var: var(),
-                declared: Dimension::Length,
+                declared: pncad::document::VarKind::Length,
                 referenced: Dimension::Angle,
             },
         ),
@@ -4609,13 +4647,13 @@ fn the_edit_and_snapshot_maps_agree_on_the_var_read_words() {
             EditError::PayloadVarKind {
                 var: var(),
                 node: spoken.clone(),
-                declared: Dimension::Length,
+                declared: pncad::document::VarKind::Length,
                 referenced: Dimension::Angle,
             },
             SnapshotError::PayloadVarKind {
                 node: spoken.clone(),
                 var: var(),
-                declared: Dimension::Length,
+                declared: pncad::document::VarKind::Length,
                 referenced: Dimension::Angle,
             },
         ),
@@ -5083,6 +5121,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "update_on_non_instance",
             "var_count_has_no_distribution",
             "var_count_has_no_unit",
+            "var_is_an_output",
             "var_kind_fixed",
             "var_name_taken",
             "var_name_unchanged",
@@ -5138,6 +5177,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "count_to_scalar_out_of_range",
             "definition_refused",
             "non_finite_result",
+            "output_read",
             "unresolved_var",
             "var_kind_mismatch",
         ],
@@ -5264,6 +5304,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "inline_edit",
             "instance_body_name_referenced",
             "instance_consumed",
+            "instance_output_uncarried",
             "mate_frame_crosses",
             "mate_pair_splits",
             "mate_placed",
@@ -5929,7 +5970,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "seed_error_tag",
         values: &[
             "count_param",
-            "seed_on_defined_var",
+            "seed_on_non_free_var",
             "tangent_unrepresentable",
             "unknown_param",
         ],
@@ -6077,6 +6118,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "name_step_not_minted",
             "node_not_minted",
             "not_a_gauge",
+            "output_signature",
             "payload_var_kind",
             "placement_improper",
             "placement_non_finite",
@@ -8245,6 +8287,14 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
         held_by: &[Holder::Test {
             name: "the_prose_rule_separates_a_display_from_a_debug_dump",
             holds: "the predicate over both fingerprints",
+        }],
+    },
+    MintingItem {
+        owner: "var_kind_tag",
+        literals: 8,
+        held_by: &[Holder::Test {
+            name: "var_kind_tags_are_stable",
+            holds: "the eight words, and the scalar kinds against `dimension_tag`",
         }],
     },
 ];

@@ -165,7 +165,8 @@ pub enum Minted {
     Node(RecipeNodeId),
     /// A profile step's id, minted by `InsertNode` or `SetProgram`.
     Step(StepId),
-    /// A variable's id, minted by `DeclareVar`.
+    /// A variable's id, minted by `DeclareVar`, by an edit's lowering
+    /// for an anonymous one, or by `InsertNode` for its node's outputs.
     Var(VarId),
 }
 
@@ -263,13 +264,14 @@ pub(crate) enum Held {
 
 impl Held {
     /// What `def` holds.
-    pub(crate) fn of(def: &crate::var::VarDef) -> Self {
+    pub(crate) fn of(def: &crate::var::WrittenDef) -> Self {
+        use crate::var::WrittenDef;
         match def {
-            crate::var::VarDef::Free(crate::doc::FreeVar::Continuous { value, .. }) => {
+            WrittenDef::Free(crate::doc::FreeVar::Continuous { value, .. }) => {
                 Self::Value(value.to_bits())
             }
-            crate::var::VarDef::Free(crate::doc::FreeVar::Count { value }) => Self::Count(*value),
-            crate::var::VarDef::Defined(expr) => Self::Defined(expr.clone()),
+            WrittenDef::Free(crate::doc::FreeVar::Count { value }) => Self::Count(*value),
+            WrittenDef::Defined(expr) => Self::Defined(expr.clone()),
         }
     }
 }
@@ -320,6 +322,7 @@ const EDIT_TAG: &[u8] = b"mint/edit\0";
 const NODE_TAG: &[u8] = b"mint/node\0";
 const STEP_TAG: &[u8] = b"mint/step\0";
 const VAR_TAG: &[u8] = b"mint/var\0";
+const OUTPUT_TAG: &[u8] = b"mint/output\0";
 
 impl Mint {
     /// A document's mint before anything is inserted: the zero chain
@@ -415,7 +418,7 @@ impl Mint {
     /// **The id an anonymous variable holding `def` draws here**: the
     /// chain extended by its kind and what it holds
     /// ([`MintingEdit::DeclareAnonymous`]), then once for the variable.
-    fn draw_anonymous(&self, def: &crate::var::VarDef) -> ([u8; 32], VarId) {
+    fn draw_anonymous(&self, def: &crate::var::WrittenDef) -> ([u8; 32], VarId) {
         self.draw_var_of(&MintingEdit::DeclareAnonymous {
             kind: def.kind(),
             held: Held::of(def),
@@ -425,13 +428,13 @@ impl Mint {
     /// The id an anonymous variable holding `def` would mint here —
     /// what a refusal of it speaks. Reads; mints nothing.
     #[must_use]
-    pub(crate) fn would_declare_anonymous(&self, def: &crate::var::VarDef) -> VarId {
+    pub(crate) fn would_declare_anonymous(&self, def: &crate::var::WrittenDef) -> VarId {
         self.draw_anonymous(def).1
     }
 
     /// **Mint the id of an anonymous variable holding `def`**
     /// ([`Self::draw_anonymous`]).
-    pub(crate) fn declare_anonymous(&mut self, def: &crate::var::VarDef) -> VarId {
+    pub(crate) fn declare_anonymous(&mut self, def: &crate::var::WrittenDef) -> VarId {
         let (chain, id) = self.draw_anonymous(def);
         self.chain = chain;
         self.log.push(Minted::Var(id));
@@ -540,6 +543,28 @@ impl Mint {
     /// loop then step order, each extending the chain once.
     pub(crate) fn steps_of_insert(&mut self, shape: &[Vec<Option<StepId>>]) -> Vec<Vec<StepId>> {
         self.fill(self.chain, shape)
+    }
+
+    /// **The ids of the outputs of the node [`Self::insert`] just
+    /// minted** (its steps', if any, minted before them): one per port
+    /// of its signature, `ports` in all, in port order, each extending
+    /// the chain once under the output tag and its port.
+    pub(crate) fn outputs_of_insert(&mut self, ports: u8) -> Vec<VarId> {
+        (0..ports)
+            .map(|port| {
+                let indexed: [u8; 32] = Sha256::new()
+                    .chain_update(OUTPUT_TAG)
+                    .chain_update([port])
+                    .chain_update(self.chain)
+                    .finalize()
+                    .into();
+                let (chain, id) = Self::draw(OUTPUT_TAG, indexed, &self.log);
+                let var = VarId(id);
+                self.chain = chain;
+                self.log.push(Minted::Var(var));
+                var
+            })
+            .collect()
     }
 
     /// **The ids for a `SetProgram`'s steps**: `shape` is one list per

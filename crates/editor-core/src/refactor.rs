@@ -380,6 +380,18 @@ fn carry<E>(
                 })
                 .map_err(&edit)?;
         }
+        // A named output crosses with its node: the insert minted the
+        // new one at the same port, and the name moves onto it.
+        for (output, &minted) in source.outputs(old).into_iter().zip(&record.outputs) {
+            if let Some(name) = source.var_name(output) {
+                target
+                    .apply(DocEdit::RenameVar {
+                        var: minted.into(),
+                        name: Some(name.clone()),
+                    })
+                    .map_err(&edit)?;
+            }
+        }
         if let (Node::Profile(from), Some(Node::Profile(to))) = (node, target.doc().node(new)) {
             let shape = |ids: &[Vec<StepId>]| ids.iter().map(Vec::len).collect::<Vec<_>>();
             if shape(&from.ids) != shape(&to.ids) {
@@ -1104,6 +1116,22 @@ fn cut_and_kept(first_is_cut: bool) -> (&'static str, &'static str) {
     }
 }
 
+/// **Why the referenced document has no one output to carry the
+/// instance's named body onto** ([`InlineError::InstanceOutputUncarried`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Uncarried {
+    /// It has this many body roots, not one.
+    Bodies {
+        /// How many.
+        count: usize,
+    },
+    /// Its one body root's output is named already.
+    HeirNamed {
+        /// That name.
+        held: crate::doc::VarName,
+    },
+}
+
 /// Why [`inline`] refused (spec D-3). Typed and specific.
 ///
 /// **Which document a node is spoken from** ([`SpokenNode`]): the
@@ -1173,6 +1201,15 @@ pub enum InlineError {
     VarNameConflict {
         /// The name.
         name: crate::doc::VarName,
+    },
+    /// The instance's output carries a name (VR2) and the referenced
+    /// document has no one output to carry it onto: inline neither drops
+    /// a name nor gives a variable two.
+    InstanceOutputUncarried {
+        /// The name.
+        name: crate::doc::VarName,
+        /// Why no output takes it.
+        why: Uncarried,
     },
     /// The referenced document's spliced recipe reads a variable that
     /// document no longer holds (a deleted one, legal there by VR7):
@@ -1356,6 +1393,26 @@ impl core::fmt::Display for InlineError {
                      that version (UpdateReference), then inline"
                 ))
             ),
+            Self::InstanceOutputUncarried { name, why } => {
+                write!(f, "inline: the instance's body is named {name}, and ")?;
+                match why {
+                    Uncarried::Bodies { count } => write!(
+                        f,
+                        "the referenced document has {count} body roots, so no one body of it \
+                         stands where the instance's did"
+                    )?,
+                    Uncarried::HeirNamed { held } => write!(
+                        f,
+                        "the body standing where it did is already named {held}, and a \
+                         variable holds one name"
+                    )?,
+                }
+                write!(
+                    f,
+                    ". {}",
+                    Recourse(&format!("clear the name {name} (RenameVar), then inline"))
+                )
+            }
             Self::VarNameConflict { name } => write!(
                 f,
                 "inline: both documents hold a variable named {name}, and the referenced \
@@ -1661,6 +1718,7 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::FreshUnread { .. }
             | EditError::VarKindFixed { .. }
             | EditError::NotAFreeVar { .. }
+            | EditError::VarIsAnOutput { .. }
             | EditError::DefinitionCycle { .. }
             | EditError::DefinitionTooLarge { .. }
             | EditError::DefinitionUnknownVarName { .. }
@@ -2403,6 +2461,9 @@ impl<'s> VarCarry<'s> {
                     });
                 VarDecl::Defined(formula)
             }
+            VarDef::Output { .. } => {
+                unreachable!("an output crosses with its node, minted by the target's insert")
+            }
         }
     }
 
@@ -2452,7 +2513,7 @@ impl<'s> VarCarry<'s> {
         let minted = if carried.anonymous.is_empty() {
             target.declare(name, decl)?
         } else {
-            let minted = target.declare(name, VarDecl::Free(placeholder(decl.kind())))?;
+            let minted = target.declare(name, VarDecl::Free(placeholder(decl.dim())))?;
             let record = target.apply_recorded(DocEdit::DefineVar {
                 var: minted.into(),
                 def: decl,
@@ -2469,13 +2530,13 @@ impl<'s> VarCarry<'s> {
 /// The dimension the source variable `var` is read at, where the
 /// source holds it.
 fn kind_of(source: &ProfileDoc, var: VarId) -> Option<Dimension> {
-    Some(source.var(var)?.kind().dimension())
+    source.var(var)?.kind().dimension()
 }
 
 /// A free value of `kind`, held only until the definition that
 /// replaces it, in the same action.
-fn placeholder(kind: crate::var::VarKind) -> FreeVar {
-    match kind.dimension() {
+fn placeholder(dim: Dimension) -> FreeVar {
+    match dim {
         Dimension::Count => FreeVar::Count { value: 0 },
         dim => FreeVar::continuous(dim, 0.0),
     }
@@ -3770,9 +3831,42 @@ pub fn inline(
         if doc.var_named(name.as_str()).is_some() {
             return Err(InlineError::VarNameConflict { name: name.clone() });
         }
+        // An output crosses with its node (`carry`).
+        if part.var(id).is_some_and(|var| var.def().output().is_some()) {
+            continue;
+        }
         vars.declare(&mut current, id, name.clone())
             .map_err(refused)?;
     }
+    // A name on the instance's own body moves onto the one body of the
+    // part that stands where it did, once the instance is gone: asked
+    // after the carried names, so one the host holds refuses as theirs do.
+    let instance_name = match doc.output(instance, 0).and_then(|body| doc.var_name(body)) {
+        None => None,
+        Some(name) => {
+            let bodies: Vec<RecipeNodeId> = part
+                .roots()
+                .iter()
+                .copied()
+                .filter(|&root| part.node(root).is_some_and(denotes_a_body))
+                .collect();
+            let [root] = bodies[..] else {
+                return Err(InlineError::InstanceOutputUncarried {
+                    name: name.clone(),
+                    why: Uncarried::Bodies {
+                        count: bodies.len(),
+                    },
+                });
+            };
+            if let Some(held) = part.output(root, 0).and_then(|body| part.var_name(body)) {
+                return Err(InlineError::InstanceOutputUncarried {
+                    name: name.clone(),
+                    why: Uncarried::HeirNamed { held: held.clone() },
+                });
+            }
+            Some((name.clone(), root))
+        }
+    };
     // The promoted gauge, under the instance's gauge holding its
     // offset, takes the instance's label: it stands in for the instance,
     // which the inline deletes.
@@ -3899,6 +3993,21 @@ pub fn inline(
             .map_err(|missing| InlineError::stranded(&part, inner, missing))?;
     }
     step(&mut current, DocEdit::DeleteNode { id: instance })?;
+    if let Some((name, root)) = instance_name {
+        let Some(body) = node_map
+            .get(&root)
+            .and_then(|&heir| current.doc().output(heir, 0))
+        else {
+            unreachable!("the part's body root is carried, and defines its body")
+        };
+        step(
+            &mut current,
+            DocEdit::RenameVar {
+                var: body.into(),
+                name: Some(name),
+            },
+        )?;
+    }
     // A10: the spliced roots take the instance's list position, in the
     // part's own root order, after the minted gauge, which no node
     // consumes and so is a root of its own.

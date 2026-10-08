@@ -1181,8 +1181,11 @@ fn a_parametric_root_offset_moves_with_the_cut_and_promote_keeps_it_in_the_host(
         Some(Placement::IDENTITY)
     );
     assert!(
-        out.part.vars().is_empty(),
-        "the part copies no variable: {:?}",
+        out.part
+            .vars()
+            .values()
+            .all(|var| var.def().output().is_some()),
+        "the part copies no variable, holding only its nodes' outputs: {:?}",
         out.part.var_names().values().collect::<Vec<_>>()
     );
 }

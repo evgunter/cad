@@ -463,8 +463,8 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// an id became its mint ordinal and digest, with the counts PR 4228
 /// left (six: `Ends` on every piece) held.
 const KNOWN_ABSENT: &[(&str, &str, usize, u64)] = &[
-    ("r5poke", "U", 6, 2467663368560056480),
-    ("r5pokehi", "U", 6, 16300433809704317214),
+    ("r5poke", "U", 6, 8191872528203124214),
+    ("r5pokehi", "U", 6, 3193306843474379164),
 ];
 
 /// One fused order and every entity it publishes, as sorted geometry.

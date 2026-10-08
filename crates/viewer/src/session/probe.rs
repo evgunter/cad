@@ -251,7 +251,7 @@ fn probe_edit(
             // edit itself carries a value and nothing else, so a
             // probe cannot disturb the variable's declaration
             // (`props::variable_edit`'s door).
-            let dimension = doc.var(*var)?.kind().dimension();
+            let dimension = doc.var(*var)?.kind().dimension()?;
             Some(props::variable_edit(
                 *var,
                 SlotValue::of(dimension, value).ok()?,

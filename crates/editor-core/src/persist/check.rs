@@ -179,6 +179,11 @@ pub(crate) enum Walk {
     /// every id is logged in the mint as a variable's, every name sits
     /// on a live variable, and no name is held twice. Snapshot only.
     Vars,
+    /// [`first_output_fault`] over the variable table and the node map
+    /// (D10): every output row names a live node, a port of its
+    /// signature and that port's kind, no port has two rows, and every
+    /// live node has a row for each of its ports. Snapshot only.
+    OutputSignature,
     /// [`first_definition_read_fault`] over every defined variable's
     /// definition: it holds no name leaf, and every variable it reads
     /// is one the mint log holds, read at its kind when live — the
@@ -240,11 +245,12 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 11] = [
+    pub(crate) const ORDER: [Walk; 12] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
         Walk::Vars,
+        Walk::OutputSignature,
         Walk::DefinitionRead,
         Walk::DefinitionCycle,
         Walk::SlotRead,
@@ -283,6 +289,9 @@ impl Walk {
                 }
             }),
             Walk::Vars => first_var_fault(snapshot).map(super::PersistError::Snapshot),
+            Walk::OutputSignature => {
+                first_output_fault(snapshot).map(super::PersistError::Snapshot)
+            }
             Walk::DefinitionRead => {
                 first_definition_read_fault(snapshot).map(super::PersistError::Snapshot)
             }
@@ -486,6 +495,74 @@ fn free_vars(snapshot: &ProfileDoc) -> impl Iterator<Item = (VarId, &FreeVar)> {
         .filter_map(|(&id, var)| Some((id, var.free()?)))
 }
 
+/// **The first output row that disagrees with its operation's
+/// signature**, or the first port of a live node with no row (D10):
+/// the rows in id order, then the live nodes in id order, each by port.
+/// A placer whose operand chain is not live has no kind to check its
+/// port against, and the structural walk, which runs after, refuses
+/// the chain: [`SnapshotError::DanglingInput`] for a deleted node,
+/// [`SnapshotError::NodeNotMinted`] for one never minted.
+fn first_output_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    let mut rows: std::collections::BTreeMap<(RecipeNodeId, u8), VarId> =
+        std::collections::BTreeMap::new();
+    for (&id, var) in &snapshot.vars {
+        let Some((node, port)) = var.def().output() else {
+            continue;
+        };
+        let fault = |fault| SnapshotError::OutputSignature {
+            node: snapshot.spoken(node),
+            fault: Box::new(fault),
+        };
+        let Some(live) = snapshot.nodes.get(&node) else {
+            return Some(SnapshotError::OutputSignature {
+                node: crate::spoken::SpokenNode::absent(node),
+                fault: Box::new(OutputFault::NodeAbsent {
+                    var: snapshot.spoken_var(id),
+                }),
+            });
+        };
+        let ports = live.outputs();
+        let Some(signed) = ports.get(usize::from(port)) else {
+            return Some(fault(OutputFault::PortOutside {
+                var: snapshot.spoken_var(id),
+                port,
+                ports: ports.len(),
+            }));
+        };
+        if let Some(kind) = snapshot
+            .signature(node)
+            .and_then(|sig| sig.get(usize::from(port)).map(|&(_, kind)| kind))
+            && kind != var.kind()
+        {
+            return Some(fault(OutputFault::Kind {
+                var: snapshot.spoken_var(id),
+                port: signed.name,
+                stored: var.kind(),
+                signature: kind,
+            }));
+        }
+        if let Some(&first) = rows.get(&(node, port)) {
+            return Some(fault(OutputFault::Twice {
+                port: signed.name,
+                first: snapshot.spoken_var(first),
+                second: snapshot.spoken_var(id),
+            }));
+        }
+        rows.insert((node, port), id);
+    }
+    for (&node, live) in &snapshot.nodes {
+        for (port, signed) in (0u8..).zip(live.outputs()) {
+            if !rows.contains_key(&(node, port)) {
+                return Some(SnapshotError::OutputSignature {
+                    node: snapshot.spoken(node),
+                    fault: Box::new(OutputFault::Missing { port: signed.name }),
+                });
+            }
+        }
+    }
+    None
+}
+
 /// The first fault of the variable table itself, in the order the
 /// variable is built: its kind against its definition, its id against
 /// the mint log, then the names — each on a live variable, none held
@@ -499,11 +576,11 @@ fn first_var_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
         return Some(SnapshotError::MintLogOrder { entry });
     }
     for (&id, var) in &snapshot.vars {
-        if !var.kind_holds() {
+        if let Some(def) = var.def().kind().filter(|_| !var.kind_holds()) {
             return Some(SnapshotError::VarKind {
                 var: snapshot.spoken_var(id),
                 kind: var.kind(),
-                def: var.def().kind(),
+                def,
             });
         }
         if !snapshot.mint.has_var(id) {
@@ -849,6 +926,51 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
     }
 }
 
+/// **How a file's variable table disagrees with an operation's output
+/// signature** ([`SnapshotError::OutputSignature`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OutputFault {
+    /// An output row names a node that is not live.
+    NodeAbsent {
+        /// The row.
+        var: SpokenVar,
+    },
+    /// An output row names a port past the end of the signature.
+    PortOutside {
+        /// The row.
+        var: SpokenVar,
+        /// The port it names.
+        port: u8,
+        /// How many ports the signature has.
+        ports: usize,
+    },
+    /// An output row's kind is not its port's.
+    Kind {
+        /// The row.
+        var: SpokenVar,
+        /// The port's name.
+        port: &'static str,
+        /// The kind stored.
+        stored: VarKind,
+        /// The kind the signature gives the port.
+        signature: VarKind,
+    },
+    /// Two rows name one port.
+    Twice {
+        /// The port's name.
+        port: &'static str,
+        /// The lower id.
+        first: SpokenVar,
+        /// The higher id.
+        second: SpokenVar,
+    },
+    /// A live node's port has no row.
+    Missing {
+        /// The port's name.
+        port: &'static str,
+    },
+}
+
 /// A structural invariant violation in a parsed snapshot (load door).
 ///
 /// Every node and name it holds is spoken from the document being
@@ -969,6 +1091,16 @@ pub enum SnapshotError {
         kind: VarKind,
         /// The kind the definition holds.
         def: VarKind,
+    },
+    /// The variable table disagrees with an operation's output
+    /// signature (D10, [`crate::Node::outputs`]): what the insert door
+    /// mints and the delete door removes, so only a file can be wrong
+    /// about it.
+    OutputSignature {
+        /// The operation, absent where the row names no live node.
+        node: SpokenNode,
+        /// How the table disagrees.
+        fault: Box<OutputFault>,
     },
     /// A variable id the mint log does not hold as a variable's — one
     /// the document never minted (VR1).
@@ -1091,7 +1223,7 @@ pub enum SnapshotError {
         /// The variable it reads.
         var: SpokenVar,
         /// The dimension the variable's kind reads at.
-        declared: crate::expr::Dimension,
+        declared: VarKind,
         /// The dimension the expression reads it at.
         referenced: crate::expr::Dimension,
     },
@@ -1106,7 +1238,7 @@ pub enum SnapshotError {
         /// The variable its payload reads.
         var: SpokenVar,
         /// The dimension the variable's kind reads at.
-        declared: crate::expr::Dimension,
+        declared: VarKind,
         /// The dimension the expression reads it at.
         referenced: crate::expr::Dimension,
     },
@@ -1133,7 +1265,7 @@ pub enum SnapshotError {
         /// The variable it reads.
         read: SpokenVar,
         /// The dimension the read variable's kind reads at.
-        declared: crate::expr::Dimension,
+        declared: VarKind,
         /// The dimension the definition reads it at.
         referenced: crate::expr::Dimension,
     },
@@ -1341,6 +1473,46 @@ impl core::fmt::Display for SnapshotError {
                 "{var} is not in the document's mint log — the document never \
                  minted it"
             ),
+            Self::OutputSignature { node, fault } => match &**fault {
+                OutputFault::NodeAbsent { var } => {
+                    write!(
+                        f,
+                        "{var} is stored as an output of {node}, which is not live"
+                    )
+                }
+                OutputFault::PortOutside { var, port, ports } => write!(
+                    f,
+                    "{var} is stored as port {port} of {node}, whose signature has {ports} \
+                     port(s)"
+                ),
+                OutputFault::Kind {
+                    var,
+                    port,
+                    stored,
+                    signature,
+                } => write!(
+                    f,
+                    "{var} is stored as {} {stored}, and the {port} port of {node} defines \
+                     {} {signature}",
+                    crate::sentence::article(&stored.to_string()),
+                    crate::sentence::article(&signature.to_string())
+                ),
+                OutputFault::Twice {
+                    port,
+                    first,
+                    second,
+                } => write!(
+                    f,
+                    "{first} and {second} are both stored as the {port} port of {node}"
+                ),
+                // A file written before operations defined variables lacks
+                // every output, and only a current build can mint them.
+                OutputFault::Missing { port } => write!(
+                    f,
+                    "{node} defines a {port} port and no variable is stored for it. {}",
+                    crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+                ),
+            },
             Self::AnonymousVarUnread { var } => write!(
                 f,
                 "{var} has no name and nothing reads it, and a variable with no name is one \
@@ -1908,6 +2080,7 @@ mod tests {
             Distribution,
             DisplayUnit,
             Vars,
+            OutputSignature,
             DefinitionRead,
             DefinitionCycle,
             SlotRead,
@@ -1928,6 +2101,7 @@ mod tests {
         match walk {
             Walk::NonFinite | Walk::Distribution | Walk::DisplayUnit | Walk::Program => false,
             Walk::Vars
+            | Walk::OutputSignature
             | Walk::DefinitionRead
             | Walk::DefinitionCycle
             | Walk::SlotRead
@@ -1955,6 +2129,7 @@ mod tests {
             WitnessOnMissingNode,
             LabelOnMissingNode,
             VarKind,
+            OutputSignature,
             VarNotMinted,
             NameOnMissingVar,
             VarNameTwice,
@@ -1998,6 +2173,7 @@ mod tests {
             | SnapshotError::VarNotMinted { .. }
             | SnapshotError::NameOnMissingVar { .. }
             | SnapshotError::VarNameTwice { .. } => Walk::Vars,
+            SnapshotError::OutputSignature { .. } => Walk::OutputSignature,
             // Both read walks raise it; the slot walk runs first.
             SnapshotError::ReaderOfUnmintedVar { .. } | SnapshotError::SlotVarKind { .. } => {
                 Walk::SlotRead
@@ -2108,6 +2284,10 @@ mod tests {
                 kind: crate::VarKind::Length,
                 def: crate::VarKind::Angle,
             },
+            SnapshotError::OutputSignature {
+                node: node(),
+                fault: Box::new(super::OutputFault::Missing { port: "body" }),
+            },
             SnapshotError::VarNotMinted {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
             },
@@ -2131,7 +2311,7 @@ mod tests {
                     crate::VarId::new(0, 7),
                     Some(VarName::from_static("depth")),
                 ),
-                declared: Dimension::Angle,
+                declared: crate::VarKind::Angle,
                 referenced: Dimension::Length,
             },
             SnapshotError::PayloadVarKind {
@@ -2140,7 +2320,7 @@ mod tests {
                     crate::VarId::new(0, 7),
                     Some(VarName::from_static("depth")),
                 ),
-                declared: Dimension::Angle,
+                declared: crate::VarKind::Angle,
                 referenced: Dimension::Length,
             },
             SnapshotError::AnonymousVarUnread {
@@ -2153,7 +2333,7 @@ mod tests {
             SnapshotError::DefinitionVarKind {
                 var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
                 read: crate::SpokenVar::new(crate::VarId::new(0, 8), None),
-                declared: Dimension::Angle,
+                declared: crate::VarKind::Angle,
                 referenced: Dimension::Length,
             },
             SnapshotError::DefinitionCycle {

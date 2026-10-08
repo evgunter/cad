@@ -666,7 +666,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::VarNameConflict { name: p } => (
+        E::VarNameConflict { name: p } | E::InstanceOutputUncarried { name: p, why: _ } => (
             none(),
             none(),
             none(),

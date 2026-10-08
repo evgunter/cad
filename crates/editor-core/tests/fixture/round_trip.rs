@@ -236,6 +236,10 @@ fn same_payload(
 /// `steps`** (module docs); the error lists every disagreement, one
 /// line each, opening with the check that found it.
 ///
+/// The map is the one the refactorings carried nodes with, and the
+/// documents are live. Two SAVED bodies with no map between them are
+/// `tests/wire/up_to_ids.rs`'s, which builds its map from the walk.
+///
 /// # Errors
 ///
 /// The disagreements.
