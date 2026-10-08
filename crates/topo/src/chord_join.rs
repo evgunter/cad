@@ -33,7 +33,12 @@
 //!   [`chart_ring_side`] on a cylinder wall's chart,
 //!   [`path_ring_side`] on a sphere or a cone) +
 //!   [`Body::ring_move`] — the `laringmv` step (lkemr/ring-placement
-//!   mirror site).
+//!   mirror site);
+//! - two halves of one null edge making up a ring alone (a one-site
+//!   section loop's pierce of a planar face) ⇒ the ring is promoted to
+//!   a face and joined there, and the conic that winds against the old
+//!   face's outer loop goes back to it as a ring
+//!   ([`ChordJoiner::join_lone_ring`]).
 //!
 //! `cut(edge)` retires a fully-joined null edge: halves in different
 //! loops ⇒ `kef` (merge the two sliver faces — the killed side must be
@@ -228,14 +233,11 @@ pub enum SplitJoinError {
         /// How many halves remained.
         count: usize,
     },
-    /// A closed section loop has ONE site that is not a transverse
-    /// crossing of a one-face wall's wrap edge: the one vertex on the
-    /// loop holds both its ends, and the join closes a loop on itself
-    /// only where the loop is a wall's whole section conic through that
-    /// edge (`boolean::join::wrap_site_segments`). Any other — a closed
-    /// curve of one solid lying in a face of the other, which is a
-    /// coincidence — is refused typed, before the loose ends are
-    /// counted.
+    /// A closed section loop has ONE site that is not a wrap edge
+    /// crossing a planar face: the one vertex on the loop holds both its
+    /// ends, and the join closes a loop on itself only there
+    /// (`boolean::join::wrap_site_segments`). Any other is refused
+    /// typed, before the loose ends are counted.
     SingleSiteSectionLoop {
         /// How many such loops.
         count: usize,
@@ -461,8 +463,8 @@ impl SplitJoinError {
             Self::SingleSiteSectionLoop { count } => write!(
                 f,
                 "{count} section loop(s) close through a single vertex that is not a \
-                 one-face wall's seam crossed by a plane, and such a loop joined at one site \
-                 is not built. {}",
+                 wrap edge crossing a planar face, and such a loop joined at one site is not \
+                 built. {}",
                 geom_core::NOT_YET_ENDING
             ),
             Self::SectionLoopUndecided { .. } => write!(
@@ -670,8 +672,9 @@ pub(crate) struct ChordJoiner {
     /// Faces minted by `join`'s mefs — the sliver (section-polygon-in-
     /// progress) faces `cut` may kill.
     slivers: SecondaryMap<FaceKey, ()>,
-    /// Naming emission (M4 PR 3): every face the chord mefs minted,
-    /// paired with the face it was divided from, in mint order —
+    /// Naming emission (M4 PR 3): every face the chord mefs minted, and
+    /// the face [`Self::join_lone_ring`] promotes a ring to, paired with
+    /// the face it was divided from, in mint order —
     /// `(new face, divided-from face)` at CALL-TIME keys. Rows are
     /// historical (a recorded face may later die — slivers killed by
     /// `cut`, discarded material at finish); consumers filter to the
@@ -1076,9 +1079,11 @@ fn section_conic<T: Real>(carrier: geom::Curve3<T>) -> Option<SectionConic<T>> {
 /// Whether an edge from `start` to `end` on `curve` is a lone site's
 /// placeholder: a self-loop on a scaffold carrier, which `mef` certifies
 /// at a lone site as `EdgeCurveSpec::self_loop_circle_at` and
-/// [`chord_spec`] leaves on every self-loop chord it mints but a curved
-/// split face's whole conic (module docs, "The section-chord
-/// geometry"). Its circle is arbitrary, so it bounds nothing.
+/// [`chord_spec`] leaves on a self-loop chord in the plane × plane and
+/// along-edge lanes, where no conic is sectioned (module docs, "The
+/// section-chord geometry"; a curved face's self-loop and the boolean's
+/// planar pierce are the whole conic). Its circle is arbitrary, so it
+/// bounds nothing.
 ///
 /// Nothing in the edge marks a placeholder apart from an honest
 /// whole-turn scaffold, so this reading holds only in a body whose
@@ -3389,15 +3394,22 @@ impl ChordJoiner {
         let old = body.get_face(oldf).ok_or_else(|| corrupt_face(oldf))?;
         let (outer, sense) = (old.outer, old.sense);
         // The promoted face lies in the old face's region, its material
-        // on the same side, where `mfkrh` turns a promoted ring to face
-        // the other way. Its loop is the null edge alone, which winds no
-        // area to disagree with the bit.
+        // on the same side, where `mfkrh` derives a promoted ring's face
+        // as facing the other way. No door states the bit: `mfkrh`
+        // refuses a stated sense on the old face's chart that disagrees
+        // with the one it derives (`SenseContradictsChart`), so the bit
+        // is set after. The loop is the null edge alone, which winds no
+        // area to disagree with it, and the seam zip reads each wall-off
+        // face's conic against its partner's
+        // (`boolean::zip::one_vertex_sense`).
         let promoted = body.mfkrh(ring, FaceSurface::Inherit)?.face;
         body.set_face_sense(promoted, sense)?;
         self.slivers.insert(promoted, ());
         self.fragments.push((promoted, oldf));
         let replan = JoinPlan::of(body, plan.halves, SegmentEdge::Locus(plan.locus), self.band)?;
         let walled_from = self.fragments.len();
+        // The halves' loop is now the promoted face's outer, which
+        // `lone_ring` never takes, so this `join` mints its two chords.
         let minted = self.join(body, &replan, curve, tol)?;
         let walled: Vec<FaceKey> = self.fragments[walled_from..]
             .iter()

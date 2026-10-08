@@ -4267,9 +4267,9 @@ pub(crate) fn join_refusal(
     Ok(connected.err())
 }
 
-/// The join's section segments of `op` ([`join::section_segments`]):
+/// Every segment the join of `op` builds ([`join::join_segments`]):
 /// how many pair records the reduction registered, and each segment's
-/// two germ sites, read on the A clone. `None` where the reduction
+/// two germ sites, read on the A clone (a one-site loop's twice). `None` where the reduction
 /// registers no pair.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn section_segment_sites(

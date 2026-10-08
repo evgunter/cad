@@ -127,8 +127,10 @@
 //! reads only record data — loci, senses, site points, section
 //! frames — none of which the surgery changes, so the segments are
 //! decided before any chord is minted, and the declared-REST zip
-//! ([`super::rest`]) reads the same list. The sweep then joins them in
-//! that order. Joins, retirements, and completions must occur in
+//! ([`super::rest`]) reads the same list. A record left whole whose two
+//! germs are one closed conic through a wrap edge is one more segment
+//! ([`wrap_site_segments`]), which only the join reads
+//! ([`join_segments`]). The sweep then joins them in that order. Joins, retirements, and completions must occur in
 //! BOTH solids together; any divergence is the typed
 //! [`BooleanError::JoinDesync`] refusal, never a silent mis-join.
 //! There is no geometric sort and no section-area certification here:
@@ -497,10 +499,11 @@ impl<T: geom_core::Real> OpenRecord<T> {
     }
 }
 
-/// One section segment as the join's matching decides it: the one
-/// enumeration of "which segments exist and what each one is", read by
-/// the join's surgery ([`bool_connect`]) and the declared-REST zip
-/// ([`super::rest`]) alike.
+/// One section segment as the join's matching decides it: "which
+/// segments exist and what each one is". The matched segments
+/// ([`section_segments`]) are read by the join's surgery and the
+/// declared-REST zip ([`super::rest`]) alike; the join's surgery also
+/// reads the one-site segments ([`join_segments`]).
 #[derive(Clone, Copy, Debug)]
 pub(super) struct SectionSegment<T: geom_core::Real> {
     /// The two ends, `(pair record, germ slot)`, entry end first. The
@@ -573,6 +576,27 @@ pub(super) fn section_segments<T: Decide>(
     red: &BooleanReduction<T>,
     band: Band,
 ) -> Result<Vec<SectionSegment<T>>, BooleanError> {
+    Ok(matched_records(red, band)?.0)
+}
+
+/// **Every segment the join builds**: the matched ones
+/// ([`section_segments`]), then each one-site loop on a wrap edge
+/// ([`wrap_site_segments`]).
+pub(super) fn join_segments<T: Decide>(
+    red: &BooleanReduction<T>,
+    band: Band,
+) -> Result<Vec<SectionSegment<T>>, BooleanError> {
+    let (mut segments, open) = matched_records(red, band)?;
+    segments.extend(wrap_site_segments(red, &open, band)?);
+    Ok(segments)
+}
+
+/// [`section_segments`] with the records as the matching left them.
+#[allow(clippy::type_complexity)] // (segments, records)
+fn matched_records<T: Decide>(
+    red: &BooleanReduction<T>,
+    band: Band,
+) -> Result<(Vec<SectionSegment<T>>, Vec<OpenRecord<T>>), BooleanError> {
     let (sa, sb) = (Sides::new(red, Operand::A), Sides::new(red, Operand::B));
     let mut open = open_records(red)?;
     let mut segments = Vec::new();
@@ -592,7 +616,24 @@ pub(super) fn section_segments<T: Decide>(
             lane,
         });
     }
-    Ok(segments)
+    Ok((segments, open))
+}
+
+/// **Whether `rec` is a one-site record**: neither of its germs is
+/// used, both name one locus on both operands, and that locus pair's
+/// section is a conic, so the record's germs can only match each other.
+/// Its A germ and the conic's frame.
+#[allow(clippy::type_complexity)] // (germ, (conic center, conic axis))
+fn one_site<T: Decide>(
+    red: &BooleanReduction<T>,
+    rec: &OpenRecord<T>,
+    band: Band,
+) -> Result<Option<(HalfGerm<T>, (Point3<T>, Vec3<T>))>, BooleanError> {
+    let [(g0, used0), (g1, used1)] = rec.a;
+    if used0 || used1 || g0.a_locus != g1.a_locus || g0.b_locus != g1.b_locus {
+        return Ok(None);
+    }
+    Ok(germ_section_frame(red, &g0, band)?.map(|frame| (g0, frame)))
 }
 
 /// **The section loops with one site on a wrap edge**: a transverse
@@ -603,45 +644,54 @@ pub(super) fn section_segments<T: Decide>(
 /// conic back to it ([`crate::chord_join`]'s self-loop chord): its two
 /// ends are the record's two slots.
 ///
-/// Read after [`section_segments`]' quiescence, from the records it left
-/// whole. A record is taken only when nothing else could be on its
-/// loop: both its germs are inside a face on both operands, with one
-/// locus pair and a conic section frame; no germ of another record
-/// names that locus pair; every real edge at the site, on each operand,
-/// has both halves in the germ's face there — the wall's wrap edge on
-/// one, and on the other either a wrap edge too or none, a pierce of a
-/// planar face ([`crate::chord_join::ChordJoiner::join_lone_ring`]);
-/// and the two germs turn round the conic in opposite senses. Any other
-/// one-site record is left for the
-/// [`SplitJoinError::SingleSiteSectionLoop`] refusal — among them a
-/// conic lying along an operand edge, which is a coincidence, and a
-/// pierce of a curved face.
+/// Read from the records [`section_segments`]' quiescence left. A
+/// [`one_site`] record whose germs lie inside a face on both operands is
+/// taken where its site is a wrap edge of one operand's face and a
+/// pierce of the other's planar face
+/// ([`crate::chord_join::ChordJoiner::join_lone_ring`]), as
+/// [`site_cell`] reads them. Every other one-site record is left for
+/// the [`SplitJoinError::SingleSiteSectionLoop`] refusal: a conic lying
+/// along an operand edge (a coincidence), a pierce of a curved face, and
+/// a site on both operands' wrap edges.
+///
+/// Where a record is taken, three things are kernel bugs, refused as
+/// [`BooleanError::JoinDesync`]: another record naming its locus pair
+/// (a conic of one face pair is one closed curve, which the record's
+/// two germs then cover alone); B germs whose loci are not the A
+/// germs'; and two germs that agree in sense or turn one way round the
+/// conic (insertion mints a null edge's two germs facing apart).
 fn wrap_site_segments<T: Decide>(
     red: &BooleanReduction<T>,
-    matched: &[SectionSegment<T>],
+    open: &[OpenRecord<T>],
     band: Band,
 ) -> Result<Vec<SectionSegment<T>>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let (sa, sb) = (Sides::new(red, Operand::A), Sides::new(red, Operand::B));
-    let mut open = open_records(red)?;
-    for seg in matched {
-        for (r, slot) in seg.ends {
-            open[r].a[slot].1 = true;
-            open[r].b[slot].1 = true;
-        }
-    }
+    let planar = |body: &Body<T>, f: FaceKey| {
+        matches!(
+            body.get_face(f).and_then(|d| body.get_surface(d.surface)),
+            Some(geom::Surface::Plane { .. })
+        )
+    };
     let mut out = Vec::new();
     for (r, rec) in open.iter().enumerate() {
-        let [(g0, used0), (g1, used1)] = rec.a;
-        if used0 || used1 || g0.a_locus != g1.a_locus || g0.b_locus != g1.b_locus {
+        let Some((g0, frame)) = one_site(red, rec, band)? else {
             continue;
-        }
+        };
         let (super::Locus::InFace(fa), super::Locus::InFace(fb)) = (g0.a_locus, g0.b_locus) else {
             continue;
         };
-        let Some(frame) = germ_section_frame(red, &g0, band)? else {
-            continue;
+        let crossed = match (
+            site_cell(&red.a, fa, g0.he)?,
+            site_cell(&red.b, fb, rec.b[0].0.he)?,
+        ) {
+            (SiteCell::Wrap, SiteCell::Pierce) => planar(&red.b, fb),
+            (SiteCell::Pierce, SiteCell::Wrap) => planar(&red.a, fa),
+            _ => false,
         };
+        if !crossed {
+            continue;
+        }
         let shared = open.iter().enumerate().any(|(o, other)| {
             o != r
                 && other
@@ -649,23 +699,18 @@ fn wrap_site_segments<T: Decide>(
                     .iter()
                     .any(|(g, _)| g.a_locus == g0.a_locus && g.b_locus == g0.b_locus)
         });
-        let planar = |body: &Body<T>, f: FaceKey| {
-            matches!(
-                body.get_face(f).and_then(|d| body.get_surface(d.surface)),
-                Some(geom::Surface::Plane { .. })
-            )
-        };
-        let crossed = match (
-            wrap_site(&red.a, fa, g0.he)?,
-            wrap_site(&red.b, fb, rec.b[0].0.he)?,
-        ) {
-            (Some(na), Some(nb)) => {
-                na + nb > 0 && (na > 0 || planar(&red.a, fa)) && (nb > 0 || planar(&red.b, fb))
-            }
-            _ => false,
-        };
-        if shared || !crossed {
-            continue;
+        if shared {
+            return Err(desync(
+                "a one-site record on a wrap edge shares its locus pair with another record",
+            ));
+        }
+        let g1 = rec.a[1].0;
+        if rec
+            .b
+            .iter()
+            .any(|(g, _)| g.a_locus != g0.a_locus || g.b_locus != g0.b_locus)
+        {
+            return Err(desync("B germ loci differ at a one-site record"));
         }
         if sa.is_up(&red.a, g0.he)? == sa.is_up(&red.a, g1.he)?
             || sb.is_up(&red.b, rec.b[0].0.he)? == sb.is_up(&red.b, rec.b[1].0.he)?
@@ -698,14 +743,23 @@ fn wrap_site_segments<T: Decide>(
     Ok(out)
 }
 
-/// How many real edges reach the site of null half `he`, where every
-/// one has both its halves in `face` (`None` otherwise): on a wall, the
-/// pieces of the face's wrap edge; inside a face, none.
-fn wrap_site<T: Decide>(
+/// What a null half's site is in its germ's face ([`site_cell`]).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SiteCell {
+    /// Every real edge there is a piece of the face's wrap edge.
+    Wrap,
+    /// No real edge reaches it: a pierce of the face's interior.
+    Pierce,
+    /// A real edge there bounds another face.
+    Other,
+}
+
+/// [`SiteCell`] of the site of null half `he` in `face`.
+fn site_cell<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     he: HalfEdgeKey,
-) -> Result<Option<usize>, BooleanError> {
+) -> Result<SiteCell, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let start = body
         .get_half_edge(he)
@@ -716,7 +770,7 @@ fn wrap_site<T: Decide>(
         .ok_or(desync("germ half no longer resolves"))?;
     let site =
         crate::chord_join::null_site(body, &[start, end]).map_err(super::sectors::stale_site)?;
-    let mut real = 0;
+    let mut cell = SiteCell::Pierce;
     for v in site {
         for k in body.edges_of_vertex_linked(v) {
             let e = body
@@ -727,17 +781,18 @@ fn wrap_site<T: Decide>(
             }
             for h in [e.he_plus, e.he_minus] {
                 if body.face_of_half_edge(h) != Some(face) {
-                    return Ok(None);
+                    return Ok(SiteCell::Other);
                 }
             }
-            real += 1;
+            cell = SiteCell::Wrap;
         }
     }
-    Ok(Some(real))
+    Ok(cell)
 }
 
-/// [`section_segments`] read as sites: the pair-record count and each
-/// segment's two germ sites on the A clone.
+/// [`join_segments`] read as sites: the pair-record count and each
+/// segment's two germ sites on the A clone (one point twice for a
+/// one-site loop).
 #[cfg(any(test, feature = "test-support"))]
 pub(super) fn segment_sites(
     red: &BooleanReduction<f64>,
@@ -751,7 +806,7 @@ pub(super) fn segment_sites(
                 what: "germ site has no point",
             })
     };
-    let segments = section_segments(red, band)?
+    let segments = join_segments(red, band)?
         .iter()
         .map(|s| Ok([site(s.ends[0])?, site(s.ends[1])?]))
         .collect::<Result<_, BooleanError>>()?;
@@ -785,9 +840,7 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
     tol: Tol,
 ) -> Result<Connected, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
-    let mut segments = section_segments(red, band)?;
-    let wrapped = wrap_site_segments(red, &segments, band)?;
-    segments.extend(wrapped);
+    let segments = join_segments(red, band)?;
     let mut sa = SolidJoin::new(red, Operand::A, band);
     let mut sb = SolidJoin::new(red, Operand::B, band);
     let mut completed: Vec<UnresolvedPair> = Vec::new();
@@ -1116,18 +1169,12 @@ pub(super) fn bool_connect<T: Decide + crate::props::AtRestPolicy>(
         }
     }
 
-    // ---- A closed section loop with one site that is no wrap edge's
-    // transverse crossing ([`wrap_site_segments`] joined the rest): a
-    // record whose two germs name one locus on both operands along a
-    // conic can only match itself. Refused typed before the loose ends
-    // are counted. ----
+    // ---- A one-site record [`wrap_site_segments`] did not take is a
+    // closed section loop the join does not build: refused typed before
+    // the loose ends are counted. ----
     let mut single_site = 0;
     for r in &open {
-        let [(g0, used0), (g1, used1)] = r.a;
-        if used0 || used1 || g0.a_locus != g1.a_locus || g0.b_locus != g1.b_locus {
-            continue;
-        }
-        if germ_section_frame(red, &g0, band)?.is_some() {
+        if one_site(red, r, band)?.is_some() {
             single_site += 1;
         }
     }
