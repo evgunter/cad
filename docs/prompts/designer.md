@@ -55,7 +55,7 @@ it accordingly.
 
 **When two instructions conflict in spirit** (Ev, PRs 4220 and 4265). If
 two ratified instructions appear to contradict each other in spirit,
-especially when the later one is explicitly a redesign (today D10), do not
+especially when the later one is explicitly a redesign, do not
 look for something that technically satisfies both. Your options should be
 coherent final states, each of which changes one instruction or both, and
 should say which. A redesign is the more important of the two: lean towards
