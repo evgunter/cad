@@ -1310,3 +1310,10 @@ nothing fires at this merge. Park any further held row with
 started may still finish. Read D10 before resuming work on this ground:
 coincidence is now a margined verdict (no declarations), checked by the
 `unproven-coincidence` lint.
+- 2026-10-08 — Resumed after the pause.
+  - Read: the D10 hold (it applies to new units on D10's ground; ENCL's live units are off it), D4 ¶1 ("make the two one construction", replacing "declare"), PROPS' recourse-grammar move, and the prompt and memory changes.
+  - Triaged the seven rows filed while paused:
+    - P1: `the-offset-certificate-reads-vector-norms-off-per-coordinate-cell-hulls` (D4 ¶2 now ratifies norm-of-coefficient bounds);
+    - P2: `offset-fit-on-locus-fold-drops-a-nan-sample` (fail-loud);
+    - P3: the rest.
+  - Next: bring PR 3431 up to main and give it a full review; dispatch the import follow-through.
