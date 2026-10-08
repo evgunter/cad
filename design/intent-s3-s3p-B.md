@@ -340,3 +340,15 @@ The refusal names the two roots, and its recourse is "define one from the other,
   that reads nothing. A **space** is what one root reaches through reads and placements, and
   anything reading two spaces refuses. The **world** is one undeletable root that only placements
   and export read."
+
+**Round 5 addendum.** Round 5 already takes the literal reading as the principle, and nothing in
+it changes. It fits FORK-S3M as agreed:
+- **A pip** is `Place { ball, [Frame: BodyFrame(ball) ≅ Offset { BodyFrame(die), chain }] }`.
+  The `FaceFrame(box face k)` form in my round 5 is an equivalent spelling that reads a face
+  instead of the root.
+- **`Pattern`** is one placement of several copies by a rule, so its bundle reads one space like
+  any `Place`.
+- **A displaced shape** is a copy, never a moved body.
+
+`BodyFrame` is well-defined only because the one-space refusal guarantees that every body
+reaches exactly one root. That is one more reason the refusal sits at every door.
