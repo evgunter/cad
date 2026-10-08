@@ -59,7 +59,7 @@ fn deep_count(start: i64, levels: usize) -> Formula {
 /// A measurement `levels` deep: `measure_levels` nested sums over value
 /// leaves, the first holding `metres` as an expression nested the rest
 /// of the way, so it evaluates to `metres + 0.25 · (measure_levels - 1)`.
-fn deep_measure(metres: f64, levels: usize, measure_levels: usize) -> MeasureExpr<Formula> {
+fn deep_measure(metres: f64, levels: usize, measure_levels: usize) -> MeasureExpr {
     let first = MeasureExpr::value(deep_length(metres, levels - measure_levels + 1));
     (1..measure_levels).fold(first, |m, _| {
         MeasureExpr::add(m, MeasureExpr::value(len(0.25))).unwrap()
@@ -99,9 +99,10 @@ fn deep_document(levels: usize) -> (Recorder, RecipeNodeId, RecipeNodeId) {
         distance: deep_length(0.5, levels),
         side: ExtrudeSide::Along,
     });
-    let measure = r.insert(Node::Measure {
-        expr: deep_measure(0.5, levels, levels.div_ceil(2)),
-        refs: vec![],
+    let measure = r.insert(Node::Assertion {
+        value: deep_measure(0.5, levels, levels.div_ceil(2)).formula(&[]),
+        bound: len(0.0),
+        dir: editor_core::AssertionDir::AtLeast,
     });
     (r, extrude, measure)
 }
@@ -497,9 +498,10 @@ fn a_measurement_shares_the_bound_at_every_split() {
         for measure_levels in [1, 2, 3, BOUND / 2, BOUND - 1, BOUND] {
             let at = deep_measure(0.5, BOUND, measure_levels);
             let (mut r, _) = extrude_document(len(0.5));
-            r.insert(Node::Measure {
-                expr: at.clone(),
-                refs: vec![],
+            r.insert(Node::Assertion {
+                value: at.formula(&[]),
+                bound: len(0.0),
+                dir: editor_core::AssertionDir::AtLeast,
             });
             let pin = content_pin(&r.doc, Tol::witness()).expect("the document pins");
             for (label, text) in both_saves(&r) {

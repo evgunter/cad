@@ -831,11 +831,13 @@ pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
             },
         },
         Node::Measure {
-            expr: MeasureExpr::value(len(1.0)),
-            refs: Vec::new(),
+            primitive: editor_core::MeasurePrimitive::Distance {
+                a: fixture::cap_ref(nid(1), editor_core::CapEnd::Start),
+                b: fixture::cap_ref(nid(1), editor_core::CapEnd::End),
+            },
         },
         Node::Assertion {
-            measure: nid(1).into(),
+            value: len(1.0),
             bound: len(1.0),
             dir: AssertionDir::AtLeast,
         },

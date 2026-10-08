@@ -258,9 +258,10 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
         vec![wall(disc), wall(bore)]
     };
     let web = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
+    let measured = r.measure(&web, &refs);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(2.0e-3),
         dir: editor_core::AssertionDir::AtLeast,
     });
@@ -306,7 +307,7 @@ fn r1_split_bore_disc_end_to_end() {
                         println!("      render| {line}");
                     }
                     let stack = editor_core::stackup::stackup(
-                        &doc, measure, &analyzed, &v, None, false, None, tol,
+                        &doc, crate::fixture::output(&doc, measure), &analyzed, &v, None, false, None, tol,
                     );
                     println!("      stackup {stack:?}");
                     let a =

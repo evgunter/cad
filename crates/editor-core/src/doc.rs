@@ -1797,6 +1797,30 @@ impl<P> Doc<P> {
         crate::spoken::SpokenVar::new(id, self.var_names.get(&id).cloned())
     }
 
+    /// **A value as a report speaks it**: a named variable by its name,
+    /// an operation's output as the value of its operation, and an
+    /// unnamed definition as the value its one reader reads (VR7: it is
+    /// spoken by its reader).
+    pub fn spoken_value(&self, id: VarId) -> String
+    where
+        P: crate::ProfilePayload,
+    {
+        if let Some(name) = self.var_names.get(&id) {
+            return name.to_string();
+        }
+        if let Some(node) = self.operation_of(id) {
+            return format!("the value of {}", self.spoken(node));
+        }
+        match self
+            .nodes
+            .iter()
+            .find(|(_, node)| node.exprs().contains(&&id))
+        {
+            Some((&reader, _)) => format!("the value {} reads", self.spoken(reader)),
+            None => self.spoken_var(id).to_string(),
+        }
+    }
+
     /// **How a declare of `def` under `name` speaks its variable**:
     /// under the id that declare would mint here, which is what a
     /// refused declare's refusal carries. Read without declaring.

@@ -150,12 +150,9 @@ pub struct Evaluation<T: Decide> {
     /// an appearance-only edit re-resolves this field and recomputes
     /// zero nodes.
     pub appearance: AppearanceResolution,
-    /// **Every observed variable's reading** (D10;
-    /// [`crate::Doc::observed`]): what each measure's output and each
-    /// definition over them is worth in this evaluation, at its scalar
-    /// — the values its assertions compared. Empty for a document with
-    /// no measure.
-    pub observed: BTreeMap<crate::VarId, Result<measure::Observed<T>, measure::ObservedRefusal>>,
+    /// The lane environment this run read its slots from: what
+    /// [`Self::reading`] reads a variable's free inputs from.
+    pub env: crate::expr::VarEnv<T>,
 }
 
 impl<T: Decide> Evaluation<T> {
@@ -258,49 +255,57 @@ impl<T: Decide> Evaluation<T> {
         self.nodes.get(&id)
     }
 
-    /// **An observed variable's reading in this run** ([`Self::observed`]),
-    /// or why there is none, rendered with the node it came from: a
-    /// failed measure's own error spoken from `doc`, a poisoned one's
-    /// failed ancestor's, and otherwise the standing; a definition's
-    /// refusal is the first measure's under `var`. The one ladder every
-    /// reader of a measured value outside an assertion takes, each of
-    /// which has asked that `var` is observed ([`Doc::observed`]).
-    pub(crate) fn reading<P: crate::ProfilePayload>(
+    /// **A scalar variable's value in this run** (D10): at this run's
+    /// scalar, each measured value under it the one its measure computed
+    /// here, every other input the lane environment's
+    /// ([`measure::Observed`]). A variable no measure is under is that
+    /// environment's reading of it.
+    ///
+    /// # Errors
+    ///
+    /// [`measure::ObservedRefusal`]: a measure under it with no value in
+    /// this run, or an evaluation that refuses — a variable of no scalar
+    /// kind, or one `doc` does not hold, among them.
+    pub fn reading<P: crate::ProfilePayload>(
         &self,
         doc: &Doc<P>,
         var: crate::VarId,
-    ) -> Result<measure::Observed<T>, (RecipeNodeId, String)>
+    ) -> Result<measure::Observed<T>, measure::ObservedRefusal> {
+        let dim = doc
+            .var(var)
+            .and_then(|v| v.kind().dimension())
+            .ok_or(measure::ObservedRefusal::Expr(EvalError::UnresolvedVar { var }))?;
+        measure::observe(doc, &self.env, &self.nodes, var, dim)
+    }
+
+    /// [`Self::reading`], its refusal rendered with the node it came
+    /// from: a failed measure's own error spoken from `doc`, a poisoned
+    /// one's failed ancestor's, and otherwise the standing; an
+    /// evaluation's refusal is said at the first measure under `var`,
+    /// or none when no measure is. The one ladder every reader of a
+    /// value outside an assertion takes.
+    pub(crate) fn reading_spoken<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        var: crate::VarId,
+    ) -> Result<measure::Observed<T>, (Option<RecipeNodeId>, String)>
     where
         T: Copy,
     {
-        let first_measure = || {
-            let Some(node) = doc
-                .observed_outputs(var)
-                .first()
-                .and_then(|out| doc.operation_of(*out))
-            else {
-                unreachable!(
-                    "{var:?} is read as a measured value, and every reader asks that it is one"
+        self.reading(doc, var).map_err(|refusal| match refusal {
+            measure::ObservedRefusal::Measure(standing) => {
+                self.node_error(standing.node()).map_or_else(
+                    || (Some(standing.node()), standing.to_string()),
+                    |e| (Some(e.node), e.kind_spoken(doc)),
                 )
-            };
-            node
-        };
-        match self.observed.get(&var) {
-            Some(Ok(reading)) => Ok(*reading),
-            Some(Err(measure::ObservedRefusal::Measure(standing))) => {
-                Err(self.node_error(standing.node()).map_or_else(
-                    || (standing.node(), standing.to_string()),
-                    |e| (e.node, e.kind_spoken(doc)),
-                ))
             }
-            Some(Err(measure::ObservedRefusal::Expr(source))) => {
-                Err((first_measure(), source.to_string()))
-            }
-            None => Err((
-                first_measure(),
-                "the run holds no reading of it".to_owned(),
-            )),
-        }
+            measure::ObservedRefusal::Expr(source) => (
+                doc.observed_outputs(var)
+                    .first()
+                    .and_then(|out| doc.operation_of(*out)),
+                source.to_string(),
+            ),
+        })
     }
 
     /// The typed root cause behind a node that produced no value:
@@ -3321,7 +3326,8 @@ pub(crate) mod leaf {
     /// A named type because the nesting is three deep and each layer means
     /// something different — a consumer reading it should meet the three
     /// states by name rather than by unwrapping.
-    pub(crate) type MeasureRead = Result<Option<(f64, f64)>, (crate::node::RecipeNodeId, String)>;
+    pub(crate) type MeasureRead =
+        Result<Option<(f64, f64)>, (Option<crate::node::RecipeNodeId>, String)>;
 
     /// What came back.
     #[derive(Debug, Clone, Default)]
@@ -3398,14 +3404,15 @@ pub(crate) mod leaf {
                 .collect();
         }
         if let Some(var) = want.measure {
-            out.measure = Some(match ev.reading(doc, var) {
+            out.measure = Some(match ev.reading_spoken(doc, var) {
                 Ok(super::measure::Observed::Value(value)) => {
                     out.measure_bracket = Some((value.lo(), value.hi()));
                     Ok(geom_core::CertifiedEnclosure::certified_bracket(value))
                 }
-                Ok(super::measure::Observed::Unavailable(reason)) => {
-                    Err((super::measure::unavailable_at(doc, var), format!("{reason}")))
-                }
+                Ok(super::measure::Observed::Unavailable(reason)) => Err((
+                    Some(super::measure::unavailable_at(doc, var)),
+                    format!("{reason}"),
+                )),
                 Err(refusal) => Err(refusal),
             });
         }
@@ -4100,7 +4107,6 @@ where
     let resolved_appearance = resolve_appearance(doc, &order, &nodes);
     let unplaced_below = unplaced_below(doc, &order, &nodes);
 
-    let observed = observed_readings(doc, &env, &nodes);
     Evaluation {
         epoch: opts.epoch,
         document: doc.id(),
@@ -4114,24 +4120,8 @@ where
         unplaced_below,
         part_evaluations: parts.evaluations(),
         appearance: resolved_appearance,
-        observed,
+        env,
     }
-}
-
-/// [`Evaluation::observed`]: every observed variable read over this
-/// run's results, at its kind's dimension.
-fn observed_readings<P, T: Decide>(
-    doc: &Doc<P>,
-    env: &crate::expr::VarEnv<T>,
-    nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
-) -> BTreeMap<crate::VarId, Result<measure::Observed<T>, measure::ObservedRefusal>> {
-    doc.observed()
-        .into_iter()
-        .filter_map(|var| {
-            let dim = doc.var(var)?.kind().dimension()?;
-            Some((var, measure::observe(doc, env, nodes, var, dim)))
-        })
-        .collect()
 }
 
 /// [`Evaluation::unplaced_below`]: each instance's carried groups, and
@@ -4281,7 +4271,6 @@ where
         })
         .collect();
     let resolved_appearance = resolve_appearance(doc, &order, &nodes);
-    let observed = observed_readings(doc, &doc.var_env::<T>(), &nodes);
     Evaluation {
         epoch: opts.epoch,
         document: doc.id(),
@@ -4295,7 +4284,7 @@ where
         unplaced_below: BTreeMap::new(),
         part_evaluations: 0,
         appearance: resolved_appearance,
-        observed,
+        env: doc.var_env::<T>(),
     }
 }
 

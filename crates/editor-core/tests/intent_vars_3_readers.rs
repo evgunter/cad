@@ -1617,9 +1617,10 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
         match try_step(
             &gone,
             DocEdit::InsertNode {
-                node: Box::new(Node::Measure {
-                    expr: editor_core::MeasureExpr::value(Formula::var(var, Dimension::Length)),
-                    refs: Vec::new(),
+                node: Box::new(Node::Assertion {
+                    value: Formula::var(var, Dimension::Length),
+                    bound: len(0.0),
+                    dir: editor_core::AssertionDir::AtLeast,
                 }),
                 fresh: Vec::new(),
             },
@@ -1630,31 +1631,48 @@ fn the_door_refuses_a_reader_of_a_dead_or_unminted_variable() {
     }
 }
 
-/// A measure's content key reads which variable a value leaf reads, not
-/// only what it evaluates to: two measures over two variables of one
-/// value are two keys, so a seed or a box on one serves no memo of the
-/// other.
+/// An assertion's content key reads its value as a slot's does, by its
+/// bits at the run's scalar: two assertions over two variables of one
+/// value share a key at `f64`, and a seed on one moves that one's key
+/// alone, so a seeded pass serves no memo of the other.
 #[test]
-fn the_measure_key_reads_the_variable_not_its_value() {
+fn the_assertion_key_reads_the_value_at_the_runs_scalar() {
     let doc = ProfileDoc::empty(
         DocumentId::derive("intent-vars-3-measure-key"),
         Tol::witness(),
     );
     let doc = declare(&declare(&doc, "a", 0.25), "b", 0.25);
-    let measure = |name| Node::Measure {
-        expr: editor_core::MeasureExpr::value(named(name)),
-        refs: Vec::new(),
+    let assertion = |name| Node::Assertion {
+        value: named(name),
+        bound: len(0.0),
+        dir: editor_core::AssertionDir::AtLeast,
     };
-    let (doc, on_a) = insert(doc, measure("a"));
-    let (doc, on_b) = insert(doc, measure("b"));
+    let (doc, on_a) = insert(doc, assertion("a"));
+    let (doc, on_b) = insert(doc, assertion("b"));
     let evaluation = eval_after(&doc, None);
     let key = |node| {
         evaluation
             .value(node)
-            .unwrap_or_else(|| panic!("the measure evaluates: {:?}", evaluation.result(node)))
+            .unwrap_or_else(|| panic!("the assertion evaluates: {:?}", evaluation.result(node)))
             .content_key
     };
-    assert_ne!(key(on_a), key(on_b));
+    assert_eq!(key(on_a), key(on_b), "equal values, equal content");
+    let seeded = editor_core::evaluate::<geom_core::Dual64>(
+        &doc,
+        None,
+        &editor_core::CancelToken::new(),
+        &editor_core::EvalOptions {
+            seed: doc.var_named("a"),
+            ..editor_core::EvalOptions::default()
+        },
+        Tol::witness(),
+    );
+    let seeded_key = |node| seeded.value(node).expect("evaluates").content_key;
+    assert_ne!(
+        seeded_key(on_a),
+        seeded_key(on_b),
+        "a seed on `a` moves its reader's key alone"
+    );
 }
 
 /// A refusal naming a variable, spoken again from a later version of

@@ -5011,6 +5011,7 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         Ok(Measured {
             measures,
             value: expr.formula(&outputs),
+            outputs,
         })
     }
 
@@ -5724,6 +5725,8 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
 pub struct Measured {
     /// The measures, one per primitive, in the expression's pre-order.
     pub measures: Vec<RecipeNodeId>,
+    /// Their outputs, in the same order: each measure's observed value.
+    pub outputs: Vec<VarId>,
     /// The measurement over their outputs: a lone output's reader for
     /// a lone primitive. An [`Node::Assertion`]'s `value` takes it, and
     /// lowering it there defines the arithmetic as that assertion's

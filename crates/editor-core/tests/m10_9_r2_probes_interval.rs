@@ -189,9 +189,10 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         vec![wall(body, 0), wall(bore, 0)]
     };
     let wall = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measure = r.insert(Node::measure(wall, refs).expect("both indices in range"));
+    let measured = r.measure(&wall, &refs);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(0.5e-3),
         dir: editor_core::AssertionDir::AtLeast,
     });

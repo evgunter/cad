@@ -617,14 +617,7 @@ fn an_unplaced_group_is_gathered_minted_and_measured_against_nothing_outside_it(
     let doc = set_gauge(doc, top, Some(g));
     let (doc, mate) = insert(doc, seat(head(p.top_cap(top)), head(p.base_cap(base))));
     let measure = || {
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
-                SitedRef::at_mint(p.base_cap(base)),
-                SitedRef::at_mint(p.top_cap(top)),
-            ],
-        )
-        .expect("both indices address a reference")
+        Node::Measure { primitive: MeasurePrimitive::Distance { a: SitedRef::at_mint(p.base_cap(base)), b: SitedRef::at_mint(p.top_cap(top)) } }
     };
     let o = p.opts();
     // Placed, across gauges: the measure answers, the mate declares.

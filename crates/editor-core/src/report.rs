@@ -324,7 +324,7 @@ impl LeafHistogram {
     /// # Panics
     ///
     /// When `doc` is not the document the histogram was taken of.
-    pub fn render<P>(&self, doc: &crate::doc::Doc<P>) -> String {
+    pub fn render<P: crate::ProfilePayload>(&self, doc: &crate::doc::Doc<P>) -> String {
         use core::fmt::Write as _;
         crate::spoken::assert_taken_of("this leaf histogram", self.document, doc);
         let mut s = String::new();
@@ -333,7 +333,7 @@ impl LeafHistogram {
             "ADVISORY leaf-mass histogram of {} — leaf mass against the measure's \
              certified enclosure over that leaf. Not a density: a true output density is v2 \
              (E11.6), and nothing here claims one.",
-            doc.spoken_var(self.measurement)
+            doc.spoken_value(self.measurement)
         );
         let _ = writeln!(s, "{}", self.basis.sentence(|id| doc.spoken_var(id)));
         for row in &self.rows {

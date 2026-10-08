@@ -154,7 +154,7 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
         cap(&ev, plates[1], CapEnd::Start),
     ];
     let expr = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let (doc, measure) = mint(&doc, Node::measure(expr, refs).expect("indices in range"));
+    let (doc, measure) = crate::fixture::measure_node(&doc, expr, refs);
 
     let ev: Evaluation<f64> = evaluate(
         &doc,

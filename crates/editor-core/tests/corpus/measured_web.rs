@@ -10,21 +10,16 @@
 //! incremental probe now run over a measured document.
 //!
 //! **The shape**: a plate with two cylindrical hole tools beside it —
-//! the worked example's geometry — plus a `Measure` of the web between
-//! the two hole walls (`distance(wall, wall) − 2·hole_r`) and an
-//! `Assertion` that the web clears a minimum. The tools are separate
-//! extrudes on purpose: it makes the measure CROSS-NODE, so the
-//! digest sees a measure whose two references are two different DAG
-//! edges rather than a degenerate one.
+//! the worked example's geometry — plus a `Measure` of the distance
+//! between the two hole walls, and an `Assertion` that the web
+//! (`distance − 2·hole_r`, its anonymous definition) clears a minimum.
+//! The tools are separate extrudes on purpose: it makes the measure
+//! CROSS-NODE, so the digest sees a measure whose two references are
+//! read at two different nodes rather than a degenerate one.
 //!
-//! No mass pin: the head is a measurement sink, not a body, so
-//! `result` is `None` for the reason `cut_cylinder`'s is — the
-//! document's point is not a single solid.
-//!
-//! The bump edits `hole_r`, which moves the measured value through a
-//! parameter rather than through geometry: the measure's own key must
-//! move with it (the payload-expression channel), which is exactly the
-//! property the incremental probe is there to exercise.
+//! No mass pin: the head is an assertion, not a body, so `result` is
+//! `None` for the reason `cut_cylinder`'s is — the document's point is
+//! not a single solid.
 
 use editor_core::ExtrudeSide;
 use editor_core::UnitSym;
@@ -145,11 +140,9 @@ pub fn document() -> CorpusDoc {
         MeasureExpr::add(radius(), radius()).expect("Length + Length"),
     )
     .expect("Length - Length");
-    let measure = r.insert(
-        Node::measure(web, vec![wall(hole_a), wall(hole_b)]).expect("both indices in range"),
-    );
+    let measured = r.measure(&web, &[wall(hole_a), wall(hole_b)]);
     let _assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: measured.value,
         bound: len(MIN_WEB),
         dir: AssertionDir::AtLeast,
     });
@@ -159,7 +152,7 @@ pub fn document() -> CorpusDoc {
         about: "M10-2: a measured web with an assertion over it (E3/E10)",
         edits: r.edits,
         doc: r.doc,
-        // The head is a measurement sink, not a body.
+        // The head is an assertion, not a body.
         result: None,
         pin: None,
         // The plate's own thickness: a cone of exactly one node, so

@@ -227,9 +227,10 @@ pub enum SensitivityOutcome {
     /// error itself (`NodeErrorKind` is neither `Clone` nor
     /// `PartialEq`, so this entry carries its node and its rendering).
     MeasureRefused {
-        /// The refusing node — the measure, or the failed ancestor it
-        /// was poisoned through.
-        node: RecipeNodeId,
+        /// The refusing node — a measure under the value, or the
+        /// failed ancestor it was poisoned through; `None` for a value
+        /// no measure is under, whose own definition refused.
+        node: Option<RecipeNodeId>,
         /// The node error, rendered.
         cause: String,
     },
@@ -346,9 +347,8 @@ impl core::error::Error for PairingViolation {}
 /// entries, not this.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SensitivityRefusal {
-    /// The variable asked about is not a measured value
-    /// ([`crate::Doc::observed`]).
-    NotObserved {
+    /// The variable asked about is not a live scalar variable.
+    NotAScalar {
         /// The variable, spoken from the document asked about.
         var: crate::SpokenVar,
     },
@@ -412,10 +412,10 @@ impl core::fmt::Display for DivergedAt {
 impl core::fmt::Display for SensitivityRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NotObserved { var } => write!(
+            Self::NotAScalar { var } => write!(
                 f,
-                "{var} is not a measured value: a stackup is over a measure's output, or a \
-                 definition over measures' outputs"
+                "{var} is not a scalar variable of this document: a stackup is over a value, \
+                 typically a measure's output or a definition over measures' outputs"
             ),
             Self::ForeignVerdict => f.write_str(
                 "the chamber verdict's root box does not span this document's continuous \
@@ -498,8 +498,8 @@ fn driver(
     resolver: Option<&Arc<dyn crate::part::PartResolver>>,
     tol: Tol,
 ) -> Result<Driven, SensitivityRefusal> {
-    if !doc.observed().contains(&value) {
-        return Err(SensitivityRefusal::NotObserved {
+    if doc.var(value).and_then(|v| v.kind().dimension()).is_none() {
+        return Err(SensitivityRefusal::NotAScalar {
             var: doc.spoken_var(value),
         });
     }
@@ -624,8 +624,8 @@ fn nominal_of(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<f64>,
     value: VarId,
-) -> Result<Result<f64, crate::measure::MeasureUnavailableAt>, (RecipeNodeId, String)> {
-    match ev.reading(doc, value)? {
+) -> Result<Result<f64, crate::measure::MeasureUnavailableAt>, (Option<RecipeNodeId>, String)> {
+    match ev.reading_spoken(doc, value)? {
         Observed::Value(v) => Ok(Ok(v)),
         Observed::Unavailable(reason) => Ok(Err(reason)),
     }
@@ -647,11 +647,11 @@ fn measure_of<T: geom_core::Decide + Copy>(
     doc: &Doc<ProfileProgram>,
     ev: &Evaluation<T>,
     value: VarId,
-) -> Result<T, (RecipeNodeId, String)> {
-    match ev.reading(doc, value)? {
+) -> Result<T, (Option<RecipeNodeId>, String)> {
+    match ev.reading_spoken(doc, value)? {
         Observed::Value(v) => Ok(v),
         Observed::Unavailable(reason) => Err((
-            crate::eval::measure::unavailable_at(doc, value),
+            Some(crate::eval::measure::unavailable_at(doc, value)),
             format!("{reason}"),
         )),
     }
@@ -1468,11 +1468,11 @@ impl Stackup {
     /// # Panics
     ///
     /// When `doc` is not the document the stackup was taken of.
-    pub fn render<P>(&self, doc: &Doc<P>, analyzed: &crate::analysis::AnalyzedBox) -> String {
+    pub fn render<P: crate::ProfilePayload>(&self, doc: &Doc<P>, analyzed: &crate::analysis::AnalyzedBox) -> String {
         use core::fmt::Write as _;
         crate::spoken::assert_taken_of("this stackup", self.document, doc);
         let mut s = String::new();
-        let _ = writeln!(s, "stackup of {}", doc.spoken_var(self.measurement));
+        let _ = writeln!(s, "stackup of {}", doc.spoken_value(self.measurement));
         let _ = writeln!(
             s,
             "  CERTIFIED WORST CASE (the only gating number): [{}, {}] over {} certified \
@@ -1621,9 +1621,10 @@ fn sensitivity_text(
         SensitivityOutcome::TangentDegraded { tangent } => {
             format!("degraded tangent ({tangent})")
         }
-        SensitivityOutcome::MeasureRefused { node: id, cause } => {
+        SensitivityOutcome::MeasureRefused { node: Some(id), cause } => {
             format!("refused at {}: {cause}", node(*id))
         }
+        SensitivityOutcome::MeasureRefused { node: None, cause } => format!("refused: {cause}"),
         // Spelled out rather than `Debug`-printed: this string is read
         // by a person in `render` and compared by a golden in
         // `serialize`, and `Debug` is a form neither of those wants.
@@ -1689,9 +1690,10 @@ pub enum StackupRefusal {
     /// and nothing to report. The cause is the measure door's own,
     /// rendered.
     MeasureRefusedAtNominal {
-        /// The refusing node (the measure, or the ancestor it was
-        /// poisoned through), spoken from the document asked about.
-        node: SpokenNode,
+        /// The refusing node (a measure under the value, or the
+        /// ancestor it was poisoned through), spoken from the document
+        /// asked about; `None` for a value no measure is under.
+        node: Option<SpokenNode>,
         /// The node error, rendered.
         cause: String,
     },
@@ -1723,8 +1725,9 @@ pub enum StackupRefusal {
     LeafDiverged {
         /// The leaf's box, boxed so the refusal stays a small `Err`.
         leaf: Box<ParamBox>,
-        /// The refusing node, spoken from the document asked about.
-        node: SpokenNode,
+        /// The refusing node, spoken from the document asked about;
+        /// `None` for a value no measure is under.
+        node: Option<SpokenNode>,
         /// The node error, rendered.
         cause: String,
     },
@@ -1749,8 +1752,9 @@ impl core::fmt::Display for StackupRefusal {
             ),
             Self::MeasureRefusedAtNominal { node, cause } => write!(
                 f,
-                "{node} refuses at the nominal build, so there is no nominal to \
-                 report: {cause}"
+                "{} refuses at the nominal build, so there is no nominal to report: {cause}",
+                node.as_ref()
+                    .map_or_else(|| "the value".to_owned(), ToString::to_string)
             ),
             Self::NothingCertified { receipt, .. } => write!(
                 f,
@@ -1761,9 +1765,11 @@ impl core::fmt::Display for StackupRefusal {
             ),
             Self::LeafDiverged { node, cause, .. } => write!(
                 f,
-                "a certified leaf tied to this build by its content keys refused at {node} \
-                 on replay — same inputs, a different result (a D9 replay-identity \
-                 break): {cause}"
+                "a certified leaf tied to this build by its content keys refused at {} on \
+                 replay — same inputs, a different result (a D9 replay-identity break): \
+                 {cause}",
+                node.as_ref()
+                    .map_or_else(|| "the value".to_owned(), ToString::to_string)
             ),
             Self::WorstCaseUncertified { .. } => f.write_str(
                 "a certified leaf's measure enclosure carries a domain violation — a \
@@ -1841,7 +1847,7 @@ pub fn stackup(
         Ok(n) => n,
         Err((node, cause)) => {
             return Err(StackupRefusal::MeasureRefusedAtNominal {
-                node: doc.spoken(node),
+                node: node.map(|node| doc.spoken(node)),
                 cause,
             });
         }
@@ -2007,7 +2013,7 @@ fn worst_case(
             .unwrap_or(Ok(None))
             .map_err(|(node, cause)| StackupRefusal::LeafDiverged {
                 leaf: Box::new(leaf.box_.clone()),
-                node: doc.spoken(node),
+                node: node.map(|node| doc.spoken(node)),
                 cause,
             })?
             .ok_or_else(|| StackupRefusal::WorstCaseUncertified {

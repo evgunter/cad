@@ -377,9 +377,10 @@ pub(crate) fn d_tab_at(
         vec![wall(hole), wall(tab)]
     };
     let gap = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measure = r.insert(Node::measure(gap, refs).expect("both indices in range"));
+    let measured = r.measure(&gap, &refs);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: crate::fixture::read_var(&r.doc, measure_value),
         bound: len(1.78e-3),
         dir: editor_core::AssertionDir::AtLeast,
     });
@@ -443,7 +444,7 @@ fn r2_evidence_the_d_tab_end_to_end() {
             if let Some(l) = verdict.certified().first() {
                 println!("      first certified leaf's receipt: {:?}", l.decisions);
             }
-            match stackup(&doc, measure, &analyzed, &verdict, None, false, None, tol) {
+            match stackup(&doc, crate::fixture::output(&doc, measure), &analyzed, &verdict, None, false, None, tol) {
                 Ok(r) => println!(
                     "      stackup: worst case [{:.6e}, {:.6e}] over {} leaves; nominal {:?}",
                     r.worst_case.lo, r.worst_case.hi, r.worst_case.leaves, r.nominal

@@ -277,18 +277,6 @@ fn wired() -> (
     doc = add(
         doc,
         &mut rows,
-        "wire_assertion's measure operand — behind the edit door",
-        Owes::EditDoor(VarKind::Plane, OperandKind::Measured),
-        Node::Assertion {
-            measure: plane.into(),
-            bound: len(1.0),
-            dir: AssertionDir::AtMost,
-        },
-        plane,
-    );
-    doc = add(
-        doc,
-        &mut rows,
         "wire_split's tool (a Split tooled by a profile)",
         Owes::EditDoor(VarKind::Profile, OperandKind::Is(VarKind::Plane)),
         Node::Split {

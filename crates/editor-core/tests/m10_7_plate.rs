@@ -47,7 +47,7 @@ pub(crate) fn plate(
     spacing_half_width: f64,
     radius_sigma: f64,
     tol: Tol,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::DeclareVar {
@@ -159,11 +159,12 @@ pub(crate) fn plate(
     )
     .expect("Length - Length");
 
-    let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
+    let measured = r.measure(&web, &refs);
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: measured.value,
         bound: len(WEB - 1.0e-4),
         dir: editor_core::AssertionDir::AtLeast,
     });
+    let measure = fixture::assertion_value(&r.doc, assertion);
     (r.doc, measure, assertion)
 }

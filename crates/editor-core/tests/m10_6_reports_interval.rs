@@ -108,10 +108,7 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     // distance(wall 0, wall 2) — two parallel walls of the prism, 2 m
     // apart, measured at the PLACED node.
     let web = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measure = r.insert(
-        Node::measure(
-            web,
-            vec![
+    let measured = r.measure(&web, &[
                 SitedRef::new(
                     placed,
                     fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
@@ -120,12 +117,10 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                     placed,
                     fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
                 ),
-            ],
-        )
-        .expect("both indices in range"),
-    );
+            ]);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: fixture::read_var(&r.doc, measure_value),
         bound: len(1.0),
         dir: AssertionDir::AtLeast,
     });
@@ -168,7 +163,7 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
 
     let one = stackup(
         &doc,
-        measure,
+        crate::fixture::output(&doc, measure),
         &analyzed,
         &parallel,
         None,
@@ -179,7 +174,7 @@ fn the_goldening_forms_are_schedule_free_and_the_human_form_is_not_one() {
     .expect("a stackup");
     let two = stackup(
         &doc,
-        measure,
+        crate::fixture::output(&doc, measure),
         &analyzed,
         &parallel,
         None,
@@ -233,7 +228,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         .expect("the nominal builds");
     let report = stackup(
         &doc,
-        measure,
+        crate::fixture::output(&doc, measure),
         &analyzed,
         &verdict,
         None,
@@ -246,7 +241,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
     // The same report twice: equal bits, equal key.
     let again = stackup(
         &doc,
-        measure,
+        crate::fixture::output(&doc, measure),
         &analyzed,
         &verdict,
         None,
@@ -270,7 +265,7 @@ fn a_content_key_moves_exactly_when_the_report_does() {
         .expect("the nominal builds");
     let other = stackup(
         &wider_doc,
-        wider_measure,
+        crate::fixture::output(&wider_doc, wider_measure),
         &wider,
         &wider_verdict,
         None,
@@ -344,7 +339,7 @@ fn the_cache_serves_equal_keys_and_only_those() {
         .expect("the nominal builds");
     let report = stackup(
         &doc,
-        measure,
+        crate::fixture::output(&doc, measure),
         &analyzed,
         &verdict,
         None,
@@ -425,7 +420,7 @@ fn the_histogram_joins_leaf_mass_to_the_measures_enclosure() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness())
         .expect("the nominal builds");
-    let histogram = leaf_histogram(&doc, &analyzed, &verdict, measure, Tol::witness());
+    let histogram = leaf_histogram(&doc, &analyzed, &verdict, crate::fixture::output(&doc, measure), Tol::witness());
     assert_eq!(
         histogram.rows.len(),
         verdict.certified().len(),

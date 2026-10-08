@@ -775,20 +775,13 @@ fn the_gate_checks_own_spaces_whatever_the_world_holds() {
     let (doc, top) = insert(doc, Node::instantiate_part(p.top));
     let doc = set_gauge(doc, top, Some(g));
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: g });
-    let (doc_m, meas) = insert(
-        doc.clone(),
-        Node::measure(
-            editor_core::MeasureExpr::primitive(editor_core::MeasurePrimitive::Distance {
+    let (doc_m, meas) = crate::fixture::measure_node(&doc, editor_core::MeasureExpr::primitive(editor_core::MeasurePrimitive::Distance {
                 a: 0,
                 b: 1,
-            }),
-            vec![
+            }), vec![
                 editor_core::SitedRef::at_mint(p.top_cap(top)),
                 editor_core::SitedRef::at_mint(p.top_upper_cap(top)),
-            ],
-        )
-        .unwrap(),
-    );
+            ]);
     let ev = run(&doc_m, &o);
     assert!(ev.value(meas).is_some(), "{:?}", ev.node_error(meas));
     editor_core::assemble(&doc_m, &ev, Tol::witness())

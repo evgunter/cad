@@ -866,11 +866,14 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
         "{unknown_slot}"
     );
 
-    let not_a_measure = sensitivities(&doc, extrude, None, None, false, None, Tol::witness())
-        .expect_err("an extrude is not a measure");
-    assert_eq!(
-        not_a_measure.to_string(),
-        format!("{plate} is not a Measure node")
+    let body = doc.output(extrude, 0).expect("the extrude's body");
+    let not_a_measure = sensitivities(&doc, body, None, None, false, None, Tol::witness())
+        .expect_err("a body is not a value");
+    assert!(
+        not_a_measure
+            .to_string()
+            .starts_with(&format!("{} is not a scalar variable", doc.spoken_var(body))),
+        "{not_a_measure}"
     );
 
     let pinned = Sensitivity {
@@ -908,7 +911,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     );
     assert_eq!(
         StackupRefusal::MeasureRefusedAtNominal {
-            node: doc.spoken(extrude),
+            node: Some(doc.spoken(extrude)),
             cause: "a cause".to_owned(),
         }
         .to_string(),
@@ -917,7 +920,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     assert!(
         StackupRefusal::LeafDiverged {
             leaf: Box::new(ParamBox::from_axes(Default::default())),
-            node: doc.spoken(extrude),
+            node: Some(doc.spoken(extrude)),
             cause: "a cause".to_owned(),
         }
         .to_string()
@@ -945,7 +948,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     };
     let histogram = LeafHistogram {
         document: doc.id(),
-        measurement: extrude,
+        measurement: body,
         rows: Vec::new(),
         uncovered: Ok(0.0),
         basis: MassBasis::Priced,
@@ -958,7 +961,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     assert!(
         histogram
             .render(&doc)
-            .starts_with(&format!("ADVISORY leaf-mass histogram of {plate} — ")),
+            .starts_with(&format!("ADVISORY leaf-mass histogram of the value of {plate} — ")),
         "{}",
         histogram.render(&doc)
     );
@@ -966,8 +969,10 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
     let lid = format!("Extrude \"lid\" ({e})");
     assert!(mc.render(&renamed).contains(&format!("  {lid}: mean")));
     assert!(histogram.render(&renamed).contains(&lid));
-    let full = extrude.full().to_string();
-    for golden in [mc.serialize(), histogram.serialize()] {
+    for (golden, full) in [
+        (mc.serialize(), extrude.full().to_string()),
+        (histogram.serialize(), body.full().to_string()),
+    ] {
         assert!(
             golden.contains(&full) && !golden.contains("base plate"),
             "the goldening form keeps the full id and no label: {golden}"

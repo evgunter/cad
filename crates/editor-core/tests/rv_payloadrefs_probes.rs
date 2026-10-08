@@ -161,7 +161,7 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
 
     // The param TABLE, which construction never asks: reading a
     // declared LENGTH parameter as an ANGLE builds fine.
-    let leaf = MeasureExpr::value(Formula::named(name.clone(), Dimension::Angle));
+    let leaf = MeasureExpr::value(Formula::named(name.clone(), Dimension::Angle)).formula(&[]);
     let (doc, profile) = on_frame(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("rv-payloadrefs-f1"),
@@ -195,9 +195,10 @@ fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading(
     match apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::Measure {
-                expr: leaf,
-                refs: Vec::new(),
+            node: Box::new(Node::Assertion {
+                value: leaf,
+                bound: ang(0.0),
+                dir: editor_core::AssertionDir::AtLeast,
             }),
             fresh: Vec::new(),
         },

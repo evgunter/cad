@@ -286,17 +286,10 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
             spin: ang(0.0),
         }),
     );
-    let (doc, measure) = insert(
-        doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
+    let (doc, measure) = crate::fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), vec![
                 SitedRef::new(body, f4.clone()),
                 SitedRef::new(fillet, f0.clone()),
-            ],
-        )
-        .expect("both indices address a reference"),
-    );
+            ]);
     let (doc, boolean) = insert(
         doc,
         Node::Boolean {

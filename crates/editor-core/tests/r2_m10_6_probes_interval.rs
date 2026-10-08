@@ -182,10 +182,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         },
     ));
     // The two facing walls of the unit square: their distance is 1.0.
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
+    let measured = r.measure(&MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), &[
                 SitedRef::new(
                     placed,
                     fixture::fname(solid, fixture::wall(&r.doc, solid, 1)),
@@ -194,12 +191,10 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
                     placed,
                     fixture::fname(solid, fixture::wall(&r.doc, solid, 3)),
                 ),
-            ],
-        )
-        .expect("both indices in range"),
-    );
+            ]);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: fixture::read_var(&r.doc, measure_value),
         // The bound IS the measured value, so no enclosure separates
         // them: E10's third state at every leaf.
         bound: len(1.0),
@@ -427,18 +422,13 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         distance: len(2.0),
         side: ExtrudeSide::Along,
     });
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![
+    let measured = r.measure(&MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }), &[
                 SitedRef::new(c, bname(c)),
                 SitedRef::new(block, bname(block)),
-            ],
-        )
-        .expect("both indices in range"),
-    );
+            ]);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: fixture::read_var(&r.doc, measure_value),
         bound: len(bound),
         dir: AssertionDir::AtLeast,
     });

@@ -179,14 +179,7 @@ fn r1_plane_plane_distance_is_the_extrude_depth() {
     let (doc, slab) = slab();
     let ev = eval(&doc);
     let [bottom, top] = caps(&ev, slab);
-    let (doc, m) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            at_mint([bottom, top]),
-        )
-        .expect("indices in range"),
-    );
+    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([bottom, top]));
     let (d, dim) = measured(&eval(&doc), m);
     assert_eq!(dim, Dimension::Length);
     assert!(
@@ -221,14 +214,7 @@ fn r1_vertex_plane_distance_is_the_depth() {
         })
         .expect("the slab has bottom vertices")
         .clone();
-    let (doc, m) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            at_mint([bottom_vert, top]),
-        )
-        .expect("indices in range"),
-    );
+    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([bottom_vert, top]));
     let (d, _) = measured(&eval(&doc), m);
     assert!(
         (d - DEPTH).abs() < 1e-12,
@@ -271,14 +257,7 @@ fn r1_vertex_vertex_distance_matches_the_authored_corners() {
         );
     }
     let expect = ((pb.x - pa.x).powi(2) + (pb.y - pa.y).powi(2) + (pb.z - pa.z).powi(2)).sqrt();
-    let (doc, m) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            at_mint([a, b]),
-        )
-        .expect("indices in range"),
-    );
+    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([a, b]));
     let (d, _) = measured(&eval(&doc), m);
     assert!(
         (d - expect).abs() < 1e-12,
@@ -315,22 +294,8 @@ fn r1_plane_angles_have_the_authored_values() {
         .expect("a y-normal wall")
         .clone();
 
-    let (doc, opposed) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
-            at_mint([bottom, top]),
-        )
-        .expect("indices in range"),
-    );
-    let (doc, square) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
-            at_mint([x_wall, y_wall]),
-        )
-        .expect("indices in range"),
-    );
+    let (doc, opposed) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }), at_mint([bottom, top]));
+    let (doc, square) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }), at_mint([x_wall, y_wall]));
     let ev = eval(&doc);
     let (a_pi, dim) = measured(&ev, opposed);
     assert_eq!(dim, Dimension::Angle);
@@ -371,22 +336,8 @@ fn r1_plane_gap_matches_its_formula_and_rides_the_outer_chart_normal() {
     let expect_bt = dot(o_t, o_b, n_b); // gap(bottom, top)
     let expect_tb = dot(o_b, o_t, n_t); // gap(top, bottom)
 
-    let (doc, g_bt) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-            at_mint([bottom.clone(), top.clone()]),
-        )
-        .expect("indices in range"),
-    );
-    let (doc, g_tb) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-            at_mint([top, bottom]),
-        )
-        .expect("indices in range"),
-    );
+    let (doc, g_bt) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([bottom.clone(), top.clone()]));
+    let (doc, g_tb) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([top, bottom]));
     let ev = eval(&doc);
     let (bt, dim) = measured(&ev, g_bt);
     assert_eq!(dim, Dimension::Length);
@@ -470,14 +421,7 @@ fn r1_sphere_gap_three_regimes_on_revolved_balls() {
             .first()
             .expect("the ball revolve mints a sphere face")
             .clone();
-        let (doc, m) = insert(
-            &doc,
-            Node::measure(
-                MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-                at_mint([socket_face, ball_face]),
-            )
-            .expect("indices in range"),
-        );
+        let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([socket_face, ball_face]));
         let (g, dim) = measured(&eval(&doc), m);
         assert_eq!(dim, Dimension::Length);
         assert!(
@@ -555,14 +499,7 @@ fn r1_cylinder_gap_three_regimes_on_real_geometry() {
     ] {
         let (doc, bore, pin) = cylinders(bore_r, pin_r, off);
         let ev = eval(&doc);
-        let (doc, m) = insert(
-            &doc,
-            Node::measure(
-                MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-                at_mint([wall(&ev, bore), wall(&ev, pin)]),
-            )
-            .expect("indices in range"),
-        );
+        let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([wall(&ev, bore), wall(&ev, pin)]));
         let (g, _) = measured(&eval(&doc), m);
         assert!(
             (g - expect).abs() < 1e-12,
@@ -583,22 +520,8 @@ fn r1_cylinder_gap_role_swap_negates() {
     let (doc, bore, pin) = cylinders(0.3, 0.2, 0.0);
     let ev = eval(&doc);
     let (b_wall, p_wall) = (wall(&ev, bore), wall(&ev, pin));
-    let (doc, fwd) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-            at_mint([b_wall.clone(), p_wall.clone()]),
-        )
-        .expect("indices in range"),
-    );
-    let (doc, rev) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-            at_mint([p_wall, b_wall]),
-        )
-        .expect("indices in range"),
-    );
+    let (doc, fwd) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([b_wall.clone(), p_wall.clone()]));
+    let (doc, rev) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([p_wall, b_wall]));
     let ev = eval(&doc);
     let (f, _) = measured(&ev, fwd);
     let (r, _) = measured(&ev, rev);
@@ -663,22 +586,8 @@ fn r1_skew_cylinder_axes_refuse_typed() {
     );
     let ev = eval(&doc);
     let (b_wall, p_wall) = (wall(&ev, bore), wall(&ev, pin));
-    let (doc, g) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-            at_mint([b_wall.clone(), p_wall.clone()]),
-        )
-        .expect("indices in range"),
-    );
-    let (doc, d) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            at_mint([b_wall, p_wall]),
-        )
-        .expect("indices in range"),
-    );
+    let (doc, g) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([b_wall.clone(), p_wall.clone()]));
+    let (doc, d) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([b_wall, p_wall]));
     let ev = eval(&doc);
     for id in [g, d] {
         let err = failed_kind(&ev, id);
@@ -716,18 +625,11 @@ fn r1_measure_at_dual64_value_channel_is_bit_identical_tangent_zero() {
     let (doc, slab) = slab();
     let ev = eval(&doc);
     let [bottom, top] = caps(&ev, slab);
-    let (doc, m) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            at_mint([bottom, top]),
-        )
-        .expect("indices in range"),
-    );
+    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([bottom, top]));
     let (doc, a) = insert(
         &doc,
         Node::Assertion {
-            measure: m.into(),
+            value: fixture::value_of(&doc, m),
             bound: len(0.1),
             dir: AssertionDir::AtLeast,
         },
@@ -774,14 +676,7 @@ fn r1_gap_and_angle_at_interval_contain_the_f64_values() {
     use geom_core::{Bounds, Interval};
     let (doc, bore, pin) = cylinders(0.3, 0.2, 0.04);
     let ev = eval(&doc);
-    let (doc, m) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-            at_mint([wall(&ev, bore), wall(&ev, pin)]),
-        )
-        .expect("indices in range"),
-    );
+    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }), at_mint([wall(&ev, bore), wall(&ev, pin)]));
     let at_f64 = measured(&eval(&doc), m).0;
     let ev_i = evaluate::<Interval>(
         &doc,
@@ -816,19 +711,12 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
     let (doc, slab) = slab();
     let ev = eval(&doc);
     let [bottom, top] = caps(&ev, slab);
-    let (doc, m) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            at_mint([bottom, top]),
-        )
-        .expect("indices in range"),
-    );
+    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([bottom, top]));
     // Exactly at the bound: comparand 0, non-strict holds.
     let (doc_eq, a_eq) = insert(
         &doc,
         Node::Assertion {
-            measure: m.into(),
+            value: fixture::value_of(&doc, m),
             bound: len(DEPTH),
             dir: AssertionDir::AtLeast,
         },
@@ -845,7 +733,7 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
     let (doc_band, a_band) = insert(
         &doc,
         Node::Assertion {
-            measure: m.into(),
+            value: fixture::value_of(&doc, m),
             bound: len(DEPTH - 5.0 * eps),
             dir: AssertionDir::AtLeast,
         },
@@ -865,18 +753,11 @@ fn r1_ops_refuse_measurement_operands_typed() {
     let (doc, slab) = slab();
     let ev = eval(&doc);
     let [bottom, top] = caps(&ev, slab);
-    let (doc, m) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            at_mint([bottom, top]),
-        )
-        .expect("indices in range"),
-    );
+    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([bottom, top]));
     let (doc, a) = insert(
         &doc,
         Node::Assertion {
-            measure: m.into(),
+            value: fixture::value_of(&doc, m),
             bound: len(0.1),
             dir: AssertionDir::AtLeast,
         },
@@ -969,14 +850,7 @@ fn r1_a_wall_selected_from_a_transform_measures_the_unmoved_carrier() {
         );
     }
     let moved_wall = transform_walls[0].clone();
-    let (doc, m) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            at_mint([bore_wall, moved_wall]),
-        )
-        .expect("indices in range"),
-    );
+    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([bore_wall, moved_wall]));
     let (d, _) = measured(&eval(&doc), m);
     assert!(
         (d - 0.5).abs() < 1e-12,
@@ -993,18 +867,11 @@ fn corruptible() -> ProfileDoc {
     let (doc, slab) = slab();
     let ev = eval(&doc);
     let [bottom, top] = caps(&ev, slab);
-    let (doc, m) = insert(
-        &doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            at_mint([bottom, top]),
-        )
-        .expect("indices in range"),
-    );
+    let (doc, m) = fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), at_mint([bottom, top]));
     let (doc, _) = insert(
         &doc,
         Node::Assertion {
-            measure: m.into(),
+            value: fixture::value_of(&doc, m),
             bound: len(0.777),
             dir: AssertionDir::AtLeast,
         },
@@ -1058,26 +925,23 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
         other => panic!("a mismatched bound dim must refuse AssertionBound, got {other:?}"),
     }
 
-    // (b) The assertion's target: point it at the sketch FRAME (the
-    // first node), which is not a measure. The slab is frame, profile
+    // (b) The assertion's value: point it at the sketch FRAME (the
+    // first node), which defines no scalar. The slab is frame, profile
     // and extrude, so the measure is the fourth node.
     let [frame, _, extrude, measure] = doc.ids()[..4] else {
         panic!("a slab and its measure");
     };
     let read = |node| doc.output(node, 0).expect("the node defines a value");
-    let target = format!("\"measure\": \"{}\"", read(measure).0);
+    let target = format!("\"value\": \"{}\"", read(measure).0);
     assert_eq!(
         text.matches(&target).count(),
         1,
         "{target:?} must be unique"
     );
-    let corrupt = text.replace(&target, &format!("\"measure\": \"{}\"", read(frame).0));
+    let corrupt = text.replace(&target, &format!("\"value\": \"{}\"", read(frame).0));
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::OperandVarKind {
-            expected: editor_core::OperandKind::Measured,
-            ..
-        })) => {}
-        other => panic!("a non-measure target must refuse by kind, got {other:?}"),
+        Err(PersistError::Snapshot(SnapshotError::PayloadVarKind { .. })) => {}
+        other => panic!("a value of no scalar kind must refuse by kind, got {other:?}"),
     }
 
     // (c) A reference whose minting node does not exist. The refs are
@@ -1096,8 +960,8 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
 
 // ---- the edit door checks payload params (claim 3 rounding-out) ----
 
-/// A measured expression referencing an UNDECLARED parameter refuses
-/// at the edit door with the payload-specific vocabulary.
+/// A measured value referencing an UNDECLARED parameter refuses at the
+/// assertion's edit door with the payload-specific vocabulary.
 #[test]
 fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     let (doc, slab) = slab();
@@ -1111,10 +975,15 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
         )),
     )
     .expect("Length - Length");
+    let (doc, measured) = fixture::measure(doc, &expr, &at_mint([bottom, top]));
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Box::new(Node::measure(expr, at_mint([bottom, top])).expect("indices in range")),
+            node: Box::new(Node::Assertion {
+                value: measured.value,
+                bound: len(0.0),
+                dir: AssertionDir::AtLeast,
+            }),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -1184,21 +1053,21 @@ fn r1_own_document_web_and_flip() {
         MeasureExpr::add(r(), r()).expect("Length + Length"),
     )
     .expect("Length - Length");
-    let (d6, m) = insert(
-        &d5,
-        Node::measure(web, at_mint([wall(&ev, e1), wall(&ev, e2)])).expect("indices in range"),
-    );
+    let (d6, web) = fixture::measure(d5, &web, &at_mint([wall(&ev, e1), wall(&ev, e2)]));
     let (d7, a) = insert(
         &d6,
         Node::Assertion {
-            measure: m.into(),
+            value: web.value,
             bound: len(0.05),
             dir: AssertionDir::AtLeast,
         },
     );
     // Web = 0.5 − 0.2 = 0.3 ≥ 0.05: Holds.
     let ev = eval(&d7);
-    let (w, _) = measured(&ev, m);
+    let w = match ev.reading(&d7, fixture::assertion_value(&d7, a)) {
+        Ok(editor_core::Observed::Value(w)) => w,
+        other => panic!("the web reads: {other:?}"),
+    };
     assert!((w - 0.3).abs() < 1e-12, "web = 0.5 − 0.2 = 0.3, got {w}");
     assert_eq!(verdict(&ev, a).holds(), Some(true));
     // r → 0.24: web = 0.5 − 0.48 = 0.02 < 0.05: Violated, both numbers.

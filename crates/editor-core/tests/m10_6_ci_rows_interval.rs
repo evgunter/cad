@@ -322,13 +322,13 @@ fn distributed_plate() -> ProfileDoc {
         MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),
     )
     .expect("L - L");
-    let measure = r.insert(Node::measure(web, refs).expect("indices in range"));
+    let measured = r.measure(&web, &refs);
     // A bound the run can DECIDE: a decade past the escalation
     // threshold below the nominal web, so the verdict is a plain
     // `Holds` rather than a band-coincident one. Row 1 is about the
     // verdict being taken and holding, not about the band.
     r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: measured.value,
         bound: len(SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps()),
         dir: AssertionDir::AtLeast,
     });
@@ -435,10 +435,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
             angle: ang(0.0),
         },
     ));
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![
+    let measured = r.measure(&MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }), &[
                 SitedRef::new(
                     placed,
                     fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
@@ -447,12 +444,10 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
                     placed,
                     fixture::fname(solid, fixture::wall(&r.doc, solid, 9)),
                 ),
-            ],
-        )
-        .expect("both indices in range"),
-    );
+            ]);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: fixture::read_var(&r.doc, measure_value),
         bound: len(0.3),
         dir: AssertionDir::AtLeast,
     });
@@ -884,18 +879,13 @@ fn plain_distance_doc() -> ProfileDoc {
         distance: len(1.0),
         side: ExtrudeSide::Along,
     });
-    let measure = r.insert(
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
+    let measured = r.measure(&MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), &[
                 SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 0))),
                 SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
-            ],
-        )
-        .expect("indices in range"),
-    );
+            ]);
+    let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: fixture::read_var(&r.doc, measure_value),
         bound: len(0.5),
         dir: AssertionDir::AtLeast,
     });

@@ -1026,23 +1026,22 @@ fn stackup_and_monte_carlo_list_only_toleranced_variables() {
         Formula::length_in(5.0, quantity::MM).unwrap(),
     )
     .unwrap();
-    let applied = step(
+    let doc = step(
         &doc,
-        DocEdit::InsertNode {
-            node: Box::new(
-                Node::measure(editor_core::MeasureExpr::value(sum), Vec::new()).unwrap(),
-            ),
-            fresh: Vec::new(),
+        DocEdit::DeclareVar {
+            name: editor_core::VarName::from_static("m"),
+            def: editor_core::VarDecl::Defined(sum),
         },
-    );
-    let (doc, measure) = (applied.doc, applied.record.minted.expect("an insert mints"));
+    )
+    .doc;
+    let measure = doc.var_named("m").expect("declared");
     // Typed lengths at slot roots: anonymous free variables, untoleranced.
     let doc = step(&doc, point([len(0.25), len(0.5), len(0.75)], Vec::new())).doc;
     let w = doc.var_named("w").unwrap();
     assert_eq!(
         crate::fixture::continuous_vars(&doc),
         6,
-        "the premise: w, v, the measure's typed 5 mm and the point's three typed lengths"
+        "the premise: w, v, m's typed 5 mm and the point's three typed lengths"
     );
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     assert_eq!(

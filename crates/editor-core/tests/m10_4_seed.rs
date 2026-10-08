@@ -94,23 +94,22 @@ fn run<T: editor_core::EvalScalar>(
 
 /// The measure node of a document, by kind — the one sink these rows
 /// read.
-fn measure_node(doc: &ProfileDoc) -> RecipeNodeId {
-    doc.ids()
+fn measure_node(doc: &ProfileDoc) -> editor_core::VarId {
+    if let Some(m) = doc.var_named("m") {
+        return m;
+    }
+    let node = doc
+        .ids()
         .iter()
         .copied()
         .find(|&id| matches!(doc.node(id), Some(Node::Measure { .. })))
-        .expect("the document carries a measure")
+        .expect("the document carries a measure");
+    doc.output(node, 0).expect("a measure defines its value")
 }
 
-/// The measure payload of an evaluation at `Dual64`, both channels.
-fn measured(ev: &Evaluation<Dual64>, id: RecipeNodeId) -> Dual64 {
-    match ev.result(id) {
-        Some(NodeResult::Ok(v)) => match &v.payload {
-            ValuePayload::Measure { value, .. } => *value,
-            other => panic!("node {id:?} is a {}", other.kind_name()),
-        },
-        other => panic!("node {id:?} did not evaluate: {other:?}"),
-    }
+/// The measured value of an evaluation at `Dual64`, both channels.
+fn measured(doc: &ProfileDoc, ev: &Evaluation<Dual64>, var: editor_core::VarId) -> Dual64 {
+    crate::fixture::reading(doc, ev, var).unwrap_or_else(|| panic!("{var:?} did not read"))
 }
 
 /// **The two-parameter measured plate**: the corpus's measured web
@@ -153,30 +152,29 @@ fn two_param_web() -> ProfileDoc {
             fresh: Vec::new(),
         },
     );
-    let old = measure_node(&doc);
-    let Some(Node::Measure { expr, refs }) = doc.node(old).cloned() else {
-        panic!("the corpus web is a measure")
-    };
-    let with_depth =
-        MeasureExpr::add(expr.authored(), MeasureExpr::value(param("depth"))).expect("Length");
-    // Replace the measure: the assertion depends on the old node, so
-    // it goes first (cascade), then the new measure is inserted.
-    let assertion = doc
-        .ids()
-        .iter()
-        .copied()
-        .find(|&id| matches!(doc.node(id), Some(Node::Assertion { .. })))
-        .expect("the corpus web carries an assertion");
-    doc = push(&doc, DocEdit::DeleteNode { id: assertion });
-    doc = push(&doc, DocEdit::DeleteNode { id: old });
-    doc = push(
+    // The measured value: the corpus web's distance, less both radii,
+    // plus the depth, named `m`.
+    let distance = measure_node(&doc);
+    let m = Formula::add(
+        Formula::sub(
+            Formula::sub(
+                Formula::var(distance, Dimension::Length),
+                param("hole_r"),
+            )
+            .expect("Length"),
+            param("hole_r"),
+        )
+        .expect("Length"),
+        param("depth"),
+    )
+    .expect("Length");
+    push(
         &doc,
-        DocEdit::InsertNode {
-            node: Box::new(Node::measure(with_depth, refs).expect("indices in range")),
-            fresh: Vec::new(),
+        DocEdit::DeclareVar {
+            name: name("m"),
+            def: editor_core::VarDecl::Defined(m),
         },
-    );
-    doc
+    )
 }
 
 /// **The width slab — M10-P's shape for the REQUIRED profile pin.** A
@@ -185,7 +183,7 @@ fn two_param_web() -> ProfileDoc {
 /// extruded by a literal; the measure is the distance between its two
 /// `x`-walls, which is `w` exactly. Returns the document and the
 /// measure node.
-fn width_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
+fn width_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("w"),
@@ -216,8 +214,9 @@ fn width_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
         SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 1))),
     ];
     let width = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let m = r.insert(Node::measure(width, refs).expect("both indices address a reference"));
-    (r.doc, m)
+    let m_measured = r.measure(&width, &refs);
+    let (m, m_value) = (m_measured.measures[0], m_measured.outputs[0]);
+    (r.doc, m_value)
 }
 
 /// A document with a `Count` parameter beside a continuous one.
@@ -363,26 +362,21 @@ fn the_web_tangent_is_the_plates_own_formula_through_the_public_door() {
     let doc = two_param_web();
     let m = measure_node(&doc);
     let f = run::<f64>(&doc, None, &EvalOptions::default());
-    let Some(NodeResult::Ok(v)) = f.result(m) else {
-        panic!("the web measures at f64")
-    };
-    let ValuePayload::Measure { value: web, .. } = v.payload else {
-        panic!("a measure")
-    };
+    let web = crate::fixture::reading(&doc, &f, m).expect("the measured value reads");
     for lift in [ProfileLift::Pinned, ProfileLift::Guided] {
-        let on_r = measured(
+        let on_r = measured(&doc, 
             &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"), lift)),
             m,
         );
         assert_eq!(on_r.deriv.to_bits(), (-2.0f64).to_bits(), "{lift:?}");
         assert_eq!(on_r.value.to_bits(), web.to_bits(), "{lift:?}");
-        let on_d = measured(
+        let on_d = measured(&doc, 
             &run::<Dual64>(&doc, None, &opts(&doc, Some("depth"), lift)),
             m,
         );
         assert_eq!(on_d.deriv.to_bits(), 1.0f64.to_bits(), "{lift:?}");
         assert_eq!(on_d.value.to_bits(), web.to_bits(), "{lift:?}");
-        let unseeded = measured(&run::<Dual64>(&doc, None, &opts(&doc, None, lift)), m);
+        let unseeded = measured(&doc, &run::<Dual64>(&doc, None, &opts(&doc, None, lift)), m);
         assert_eq!(unseeded.deriv.to_bits(), 0.0f64.to_bits(), "{lift:?}");
     }
 }
@@ -393,11 +387,11 @@ fn the_web_tangent_is_the_plates_own_formula_through_the_public_door() {
 fn a_seeded_pass_is_schedule_independent() {
     let doc = two_param_web();
     let m = measure_node(&doc);
-    let seq = measured(
+    let seq = measured(&doc, 
         &run::<Dual64>(&doc, None, &opts(&doc, Some("hole_r"), ProfileLift::Guided)),
         m,
     );
-    let par = measured(
+    let par = measured(&doc, 
         &run::<Dual64>(
             &doc,
             None,
@@ -431,7 +425,7 @@ fn the_memo_never_serves_one_parameters_pass_to_another() {
         Some(&on_r),
         &opts(&doc, Some("depth"), ProfileLift::Guided),
     );
-    let (fresh, threaded) = (measured(&on_d_fresh, m), measured(&on_d_threaded, m));
+    let (fresh, threaded) = (measured(&doc, &on_d_fresh, m), measured(&doc, &on_d_threaded, m));
     assert_eq!(threaded.deriv.to_bits(), fresh.deriv.to_bits());
     assert_eq!(threaded.deriv.to_bits(), 1.0f64.to_bits());
     assert_eq!(threaded.value.to_bits(), fresh.value.to_bits());
@@ -474,7 +468,7 @@ fn the_memo_never_serves_one_parameters_pass_to_another() {
 #[test]
 fn a_profile_dimension_seed_propagates_through_the_guided_lift() {
     let (doc, m) = width_slab(2.0);
-    let guided = measured(
+    let guided = measured(&doc, 
         &run::<Dual64>(&doc, None, &opts(&doc, Some("w"), ProfileLift::Guided)),
         m,
     );
@@ -485,7 +479,7 @@ fn a_profile_dimension_seed_propagates_through_the_guided_lift() {
         "∂width/∂w through the guided lift is 1, got {}",
         guided.deriv
     );
-    let pinned = measured(
+    let pinned = measured(&doc, 
         &run::<Dual64>(&doc, None, &opts(&doc, Some("w"), ProfileLift::Pinned)),
         m,
     );
@@ -595,15 +589,7 @@ fn seed_and_box_compose_exactly_at_dual_interval() {
         ..opts(&doc, Some("depth"), ProfileLift::Guided)
     };
     let ev = run::<DualInterval>(&doc, None, &both);
-    let Some(NodeResult::Ok(v)) = ev.result(m) else {
-        panic!(
-            "the web measures at Dual<Interval>: {:?}",
-            ev.node_error(m).map(|e| e.kind.to_string())
-        )
-    };
-    let ValuePayload::Measure { value, .. } = &v.payload else {
-        panic!("a measure")
-    };
+    let value = crate::fixture::reading(&doc, &ev, m).expect("the measured value reads");
     // The value channel encloses the web over the box (0.2 + depth
     // over depth ∈ 0.1 ± 0.01); the tangent channel is the seed.
     assert!(value.value.lo() <= 0.29 && 0.31 <= value.value.hi());

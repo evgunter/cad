@@ -57,7 +57,7 @@ const BORE_B_X: f64 = 2.2e-3;
 ///
 /// `scale` multiplies every tolerance together, so `1.0` is the study a
 /// user would actually ask for and a smaller number is a narrower one.
-pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, RecipeNodeId) {
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::DeclareVar {
@@ -190,13 +190,14 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         .expect("Length + Length"),
     )
     .expect("Length - Length");
-    let measure = r.insert(Node::measure(web, refs).expect("both indices in range"));
+    let measured = r.measure(&web, &refs);
     let nominal_web = BORE_B_X - BORE_A_X - 2.0 * BORE;
     let assertion = r.insert(Node::Assertion {
-        measure: measure.into(),
+        value: measured.value,
         bound: len(nominal_web - 5.0e-5),
         dir: editor_core::AssertionDir::AtLeast,
     });
+    let measure = crate::fixture::assertion_value(&r.doc, assertion);
     (r.doc, measure, assertion)
 }
 

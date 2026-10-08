@@ -2099,17 +2099,10 @@ fn a5_sensitivities_cross_a_face_framed_mate() {
     let ev = run_at::<f64>(&b.doc, &b.opts, None);
     let foot = all_vertices(&ev, b.bolt)[0].clone();
     let corner = all_vertices(&ev, b.slab)[0].clone();
-    let (doc, m) = insert(
-        b.doc.clone(),
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![
+    let (doc, m) = crate::fixture::measure_node(&b.doc, MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }), vec![
                 SitedRef::new(b.bolt, foot.clone()),
                 SitedRef::new(b.slab, corner.clone()),
-            ],
-        )
-        .expect("both indices address a reference"),
-    );
+            ]);
     // The closed form: the bolt moves by `−2` per unit of spacing along
     // `x` and the slab holds still, so `∂|d|/∂s = d · (−2, 0, 0) / |d|`
     // over the vertices' own `f64` positions.
@@ -2129,7 +2122,7 @@ fn a5_sensitivities_cross_a_face_framed_mate() {
             distribution: Some(editor_core::Distribution::Normal { sigma: 1e-4 }),
         },
     );
-    let entries = sensitivities(&doc, m, None, None, false, Some(&resolver), Tol::witness())
+    let entries = sensitivities(&doc, crate::fixture::output(&doc, m), None, None, false, Some(&resolver), Tol::witness())
         .expect("the driver runs");
     assert_eq!(entries.len(), 1, "one entry, the toleranced spacing's");
     let entry = entries
@@ -2150,7 +2143,7 @@ fn a5_sensitivities_cross_a_face_framed_mate() {
         matches!(
             sensitivities(
                 &doc,
-                m,
+                crate::fixture::output(&doc, m),
                 Some(&unresolved),
                 None,
                 false,

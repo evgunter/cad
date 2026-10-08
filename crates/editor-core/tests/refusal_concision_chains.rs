@@ -229,7 +229,6 @@ pub(crate) const FILED_NO_RECOURSE: &[&str] = &[
     "FrameDirection/Degenerate",
     "InstanceOutOfRange",
     "MeasureClearanceRefused",
-    "MeasureMalformed",
     "MeasureNonFinite",
     "MeasureNotParallel",
     "MeasureRefResolve/Ambiguous",
@@ -3439,14 +3438,6 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
             }),
         ),
         row(
-            "MeasureMalformed",
-            NodeErrorKind::MeasureMalformed(MeasureNodeFault::RefIndexOutOfRange {
-                verb: "min_clearance",
-                index: 2,
-                refs: 2,
-            }),
-        ),
-        row(
             "MeasureClearanceRefused",
             NodeErrorKind::MeasureClearanceRefused(ClearanceRefusal::Unsupported {
                 carrier: "a free-form face",
@@ -4483,14 +4474,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
             spin: ang(0.0),
         }),
     );
-    let (doc, measure) = insert(
-        doc,
-        Node::measure(
-            MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-            vec![SitedRef::at_mint(vertex), SitedRef::at_mint(face)],
-        )
-        .expect("both indices in range"),
-    );
+    let (doc, measure) = crate::fixture::measure_node(&doc, MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }), vec![SitedRef::at_mint(vertex), SitedRef::at_mint(face)]);
     let mut ev = evaluate::<f64>(
         &doc,
         None,

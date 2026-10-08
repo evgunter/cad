@@ -710,6 +710,7 @@ fn hand_eval(
         reused: 0,
         part_evaluations: 0,
         appearance: editor_core::AppearanceResolution::default(),
+        env: Default::default(),
     }
 }
 

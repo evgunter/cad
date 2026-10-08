@@ -112,19 +112,11 @@ fn edges_of_kind(
 /// unchanged.
 fn with_measure(
     doc: &ProfileDoc,
-    expr: MeasureExpr<Formula>,
+    expr: MeasureExpr,
     refs: Vec<StableName>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let refs: Vec<SitedRef> = refs.into_iter().map(SitedRef::at_mint).collect();
-    let doc = push(
-        doc,
-        &DocEdit::InsertNode {
-            node: Box::new(Node::measure(expr, refs).expect("indices in range")),
-            fresh: Vec::new(),
-        },
-    );
-    let id = crate::fixture::newest(&doc);
-    (doc, id)
+    crate::fixture::measure_node(doc, expr, refs)
 }
 
 fn measured(ev: &Evaluation<f64>, id: RecipeNodeId) -> f64 {
@@ -816,7 +808,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: measure.into(),
+                value: crate::fixture::value_of(&d2, measure),
                 // A bound the measure VIOLATES: the box diagonal is at
                 // most sqrt(3) < 100.
                 bound: len(100.0),
@@ -925,7 +917,7 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
         &with_measure_doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: measure.into(),
+                value: crate::fixture::value_of(&with_measure_doc, measure),
                 bound: len(100.0),
                 dir: AssertionDir::AtLeast,
             }),
@@ -1166,7 +1158,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: measure.into(),
+                value: crate::fixture::value_of(&d2, measure),
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             }),
@@ -1211,7 +1203,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: measure.into(),
+                value: crate::fixture::value_of(&d2, measure),
                 bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
             }),
@@ -1226,7 +1218,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: b.into(),
+                value: crate::fixture::value_of(&d2, b),
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             }),
@@ -1283,7 +1275,7 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
             &d3,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Assertion {
-                    measure: measure.into(),
+                    value: crate::fixture::value_of(&d3, measure),
                     bound: len(0.02),
                     dir: AssertionDir::AtLeast,
                 }),
@@ -1362,7 +1354,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: measure.into(),
+                value: crate::fixture::value_of(&d2, measure),
                 bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             }),
@@ -1396,10 +1388,10 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
         other => panic!("a dimension-mismatched assertion bound must refuse typed, got {other:?}"),
     }
 
-    // (b) the assertion's target repointed at a non-measure node.
+    // (b) the assertion's value repointed at a body, which is no value.
     let tgt_corrupt = doctored(&text, |wire| {
         let target =
-            &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["measure"];
+            &mut wire["snapshot"]["nodes"][assertion.0.to_string()]["Assertion"]["value"];
         assert_eq!(
             *target,
             serde_json::json!(
@@ -1407,17 +1399,16 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
                     .expect("a measure defines its value")
                     .0
             ),
-            "the surgery is aimed at the assertion's target"
+            "the surgery is aimed at the assertion's value"
         );
         *target = serde_json::json!(doc.output(b, 0).expect("a body").0);
     });
     match editor_core::load(&tgt_corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::OperandVarKind {
-            found: editor_core::VarKind::Body,
-            expected: editor_core::OperandKind::Measured,
+        Err(PersistError::Snapshot(SnapshotError::PayloadVarKind {
+            declared: editor_core::VarKind::Body,
             ..
         })) => {}
-        other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
+        other => panic!("an assertion over a body must refuse typed, got {other:?}"),
     }
 }
 
@@ -1536,7 +1527,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                measure: measure.into(),
+                value: crate::fixture::value_of(&d2, measure),
                 bound: len(1.0),
                 dir: AssertionDir::AtLeast,
             }),
