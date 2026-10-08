@@ -80,8 +80,8 @@
 
 use std::path::{Path, PathBuf};
 
-use Disposition::{EpsSensitive, Escalated, Pass, Refused, RefusedEnding, Wireframe};
-use geom_core::Tol;
+use Disposition::{EpsSensitive, Escalated, Pass, Refused, Wireframe};
+use geom_core::{Band, Tol};
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 /// What a corpus file does at import, at every tolerance in the sweep.
@@ -102,10 +102,6 @@ enum Disposition {
     /// Refuses typed; the string is a distinctive fragment of the
     /// refusal's own message, so the ROW says why, not just that.
     Refused(&'static str),
-    /// Refuses typed, and the message ENDS in the string: the whole
-    /// ending, for a cell whose fragment alone cannot tell two endings
-    /// apart (a fragment matches a lever that a note then follows).
-    RefusedEnding(&'static str),
     /// Refuses typed on an escalation of the named predicate, with the
     /// message containing the fragment (empty: any message). The name
     /// is routing, which the message a person reads leaves out, so it
@@ -226,7 +222,10 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 ///   arm. This is the floor `wild.rs` already measures and documents:
 ///   the NIST inch translator prints ~12 significant digits, so the
 ///   file does not state itself to 1e-12 m, and the adoption ladder
-///   says so by name instead of certifying a carrier it cannot.
+///   says so by name instead of certifying a carrier it cannot. The
+///   file declares ε_in ≈ 3.4e-5 m, past the run's band, so the miss
+///   may lie within it, and the refusal names setting ε to ε_in as a
+///   stopgap beside re-exporting more precisely (D4 ¶1).
 const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     // -- tests/fixtures/cert1-r1/nearpolar_*.step ---------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
@@ -286,7 +285,7 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     // interpretation budget in this sweep touches. See [`EPS_IN_SWEPT`].
     (NIST09, 1e-9, "file", Pass(1, 1, 158, 454, 300)),
     (NIST09, 1e-6, "file", Pass(1, 1, 158, 454, 300)),
-    (NIST09, 1e-12, "file", Refused(ENDPOINT_START_MAPPED_CURVE)),
+    (NIST09, 1e-12, "file", Refused(NIST09_STOPGAP)),
     // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
     // The AMBIENT sweep only, at this file's own ε_in: three cells,
     // all at the pcurve MINT on the l-bracket wall's ARC rim.
@@ -331,13 +330,23 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
         "file",
         Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
     ),
-    (POLEBAND, 1e-6, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
+    (POLEBAND, 1e-6, "file", Refused(INTERVAL_ZERO_SPAN_STATED)),
     (POLEBAND, 1e-12, "file", Refused(TANGENT_SECOND_ORDER_ZERO)),
     // The ε-relative sibling's cells mirror the twins' one band down:
     // its 5.65e-12 m span escalates exactly where the band is 1e-12
     // and certifies ZERO at both coarser bands.
-    (POLEBAND12, 1e-9, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
-    (POLEBAND12, 1e-6, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
+    (
+        POLEBAND12,
+        1e-9,
+        "file",
+        Refused(INTERVAL_ZERO_SPAN_UNSTATED),
+    ),
+    (
+        POLEBAND12,
+        1e-6,
+        "file",
+        Refused(INTERVAL_ZERO_SPAN_UNSTATED),
+    ),
     (
         POLEBAND12,
         1e-12,
@@ -350,7 +359,12 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
         "file",
         Escalated(PARAM_SPAN_ESCALATED.0, PARAM_SPAN_ESCALATED.1),
     ),
-    (POLEFRUSTUM, 1e-6, "file", RefusedEnding(INTERVAL_ZERO_SPAN)),
+    (
+        POLEFRUSTUM,
+        1e-6,
+        "file",
+        Refused(INTERVAL_ZERO_SPAN_STATED),
+    ),
     (
         POLEFRUSTUM,
         1e-12,
@@ -377,21 +391,32 @@ const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
 /// certifies zero, and the attachment gate refuses the degenerate
 /// interval by name — the span's Zero verdict, not a reversed one. The
 /// span is a real edge shorter than the tolerance, a band-decided arm
-/// like every sized decision's, so at adoption it ends in the lever
-/// alone: no ending there names a tolerance. Pinned as the message's
-/// whole ending, because a span of no length ends in the same lever
-/// followed by a note, which a fragment would also match.
-const INTERVAL_ZERO_SPAN: &str = "the stored parameter interval spans no length at this tolerance \
-     — a degenerate zero-span interval, which the forward gate refuses. Recourse: move the \
-     geometry so this edge is not vanishingly short";
+/// like every sized decision's, and certification at adoption reads as
+/// at rest (D4 ¶1): the twins' span margins (5.65e-9 m and 1.8e-9 m)
+/// lie past their files' ε_in (1e-10 m), so the offer to tighten stands. A span
+/// of no length ends in the lever and a note instead, which the offer's
+/// words cannot match.
+const INTERVAL_ZERO_SPAN_STATED: &str = "the stored parameter interval spans no length at this \
+     tolerance — a degenerate zero-span interval, which the forward gate refuses. Recourse: move \
+     the geometry so this edge is not vanishingly short, or, if this length is intended, tighten \
+     the tolerance below";
+/// The ε-relative sibling's coarse-band cells: its 5.65e-12 m span lies
+/// within the file's ε_in (1e-10 m), so the file does not state it, and
+/// the import door withholds the offer to keep it (D4 ¶1).
+const INTERVAL_ZERO_SPAN_UNSTATED: &str = "a degenerate zero-span interval, which the forward gate \
+     refuses. This length is below the file's declared coincidence distance ε_in = 1e-10 m, so the \
+     file does not state it. Recourse: move the geometry so this edge is not vanishingly short, or \
+     re-export the file with its uncertainty declared below";
 /// Their fine-band sub-reason: with the spans certified, adoption
 /// refuses the rim/sphere near-tangency — the second-order arm's own
 /// verdict, so a regression that moves the refusal to another door
-/// fails these cells. Band-decided, like the tangent-plane zero: the
-/// lever alone at adoption.
+/// fails these cells. Band-decided, like the tangent-plane zero, and
+/// its ~1.6e-16 m margin lies within the files' ε_in: no offer keeps it.
 const TANGENT_SECOND_ORDER_ZERO: &str = "the faces agree to second order at sample 1, so they do \
-     not fix where the edge runs, which its description says they do. Recourse: move the \
-     geometry so the faces curve apart more clearly where they touch";
+     not fix where the edge runs, which its description says they do. This curvature difference \
+     is below the file's declared coincidence distance ε_in = 1e-10 m, so the file does not state \
+     it. Recourse: move the geometry so the faces curve apart more clearly where they touch, or \
+     re-export the file with its uncertainty declared below";
 /// dm1's former coarse-band sub-reason: the convergence predicate
 /// declines to decide, by name. **No cell reaches it any more** — the
 /// gate stops on a definite SIGN before the round whose width lands in
@@ -421,21 +446,28 @@ const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 /// Coarse enough for the two walls to read as one: the Intersection
 /// transversality precondition fails, and the ladder says which. A zero
 /// verdict is band-decided — at a finer ambient band the coincidence
-/// predicates no longer fire here, and the file imports — so at adoption it names
-/// its decision's lever alone, and the attempt ends there (the `;`
-/// before the next rung).
+/// predicates no longer fire here, and the file imports — but its
+/// ~2.7e-27 m margin lies within both ε_in overrides, so the import
+/// door offers no tolerance to keep it (D4 ¶1).
 const TANGENT_PLANES_COINCIDE: &str = "the faces meet tangentially at sample 1, where the edge's \
-     description says they cross. Recourse: move the geometry so the surfaces cross at a clearer angle;";
+     description says they cross. This angle is below the file's declared coincidence distance";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
 const PARAM_SPAN_ESCALATED: (&str, &str) = (
     "the stored interval's span (not a sampled check) escalated",
     "interval_span_forward",
 );
-/// Naming the MAPPED-CURVE arm pins that BOTH candidates were tried and
-/// both refused definite — the seam arm alone would match a prefix.
-const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: the start-endpoint residual at \
-     sample 0 definitely exceeds";
+/// The MAPPED-CURVE arm's definite miss, read at the import door: the
+/// file's ε_in (its inch uncertainty, 1.331353158630e-3 in) reaches
+/// past the run's band, so the miss may lie within it, and the ending
+/// names setting ε to ε_in as a stopgap (D4 ¶1) rather than a kernel
+/// defect or a damaged file.
+const NIST09_STOPGAP: &str = "mapped curve: geometry attachment gate: the start-endpoint residual \
+     at sample 0 definitely exceeds the tolerance band (the cache does not represent the \
+     description, D4 ¶2). This miss lies beyond the tolerance and may lie within the file's \
+     declared coincidence distance ε_in = 3.3816370229201994e-5 m, to which alone the file's data \
+     claims to agree. Recourse: re-export the file more precisely, or, as a stopgap, set the \
+     tolerance to ε_in = 3.3816370229201994e-5 m;";
 
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
@@ -1014,18 +1046,9 @@ fn every_corpus_import_passes_the_shared_gate() {
                     );
                 }
                 (Ok(StepImport::Wireframe { .. }), Wireframe) => {}
-                (Err(e), RefusedEnding(ending)) => {
-                    let msg = e.to_string();
-                    assert_adoption_reading(&who, &msg);
-                    assert!(
-                        msg.ends_with(ending),
-                        "{who}: refused with a DIFFERENT ending than the table records \
-                         (want a message ending in {ending:?}): {msg}"
-                    );
-                }
                 (Err(e), Refused(fragment)) => {
                     let msg = e.to_string();
-                    assert_adoption_reading(&who, &msg);
+                    assert_adoption_reading(&who, &e);
                     assert!(
                         msg.contains(fragment),
                         "{who}: refused for a DIFFERENT reason than the table records \
@@ -1034,7 +1057,7 @@ fn every_corpus_import_passes_the_shared_gate() {
                 }
                 (Err(e), Escalated(fragment, predicate)) => {
                     let msg = e.to_string();
-                    assert_adoption_reading(&who, &msg);
+                    assert_adoption_reading(&who, &e);
                     assert!(
                         msg.contains(fragment),
                         "{who}: refused for a DIFFERENT reason than the table records \
@@ -1053,25 +1076,34 @@ fn every_corpus_import_passes_the_shared_gate() {
     }
 }
 
-/// A certification refusal at adoption is read at the adoption door
-/// (D4 ¶1, D7): the geometry is the file's and the tolerance the
-/// kernel's, so no ending there names the tolerance in either
-/// direction, and none blames the kernel alone. The message's own
-/// payload may still say "the tolerance band"; the endings may not.
-fn assert_adoption_reading(who: &str, msg: &str) {
-    let adoption = msg.contains("no intensional description certifies")
-        || msg.contains("step import: assembling entity");
-    if !adoption {
+/// A certification refusal at adoption reads as at rest (D4 ¶1): no
+/// ending blames the kernel alone, and no offer to tighten keeps a size
+/// within the file's declared coincidence distance ε_in — each offer's
+/// value is `|m|/K`, so the size it keeps, that value times K, lies
+/// past ε_in.
+fn assert_adoption_reading(who: &str, e: &StepImportError) {
+    let (StepImportError::Adoption { file, .. } | StepImportError::Assembly { file, .. }) = e
+    else {
         return;
-    }
-    for forbidden in [
-        "tighten the tolerance",
-        "loosen the tolerance",
-        geom_core::KERNEL_DEFECT_ENDING,
-    ] {
+    };
+    let msg = e.to_string();
+    assert!(
+        !msg.contains(geom_core::KERNEL_DEFECT_ENDING),
+        "{who}: an adoption refusal ends as if read at a build: {msg}"
+    );
+    let band = Band::linear(Tol::witness()).expect("the run's band");
+    let k = band.escalate() / band.zero();
+    for offer in msg.split("tighten the tolerance below ").skip(1) {
+        let below: f64 = offer
+            .split_once(" m")
+            .and_then(|(v, _)| v.parse().ok())
+            .unwrap_or_else(|| panic!("{who}: an offer to tighten names no value: {msg}"));
         assert!(
-            !msg.contains(forbidden),
-            "{who}: an adoption refusal ends as if read at a build ({forbidden:?}): {msg}"
+            below * k > file.eps_in(),
+            "{who}: an adoption refusal offers to keep a size of {:e} m, within the file's \
+             ε_in = {:e} m: {msg}",
+            below * k,
+            file.eps_in()
         );
     }
 }

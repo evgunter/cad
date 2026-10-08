@@ -79,9 +79,13 @@ use geom::{NurbsSurface, Surface};
 use geom_core::predicate::KERNEL_OR_FILE_DEFECT_ENDING;
 use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::spline::{KnotVector, KnotVectorIssue, SplineError};
-use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Readable, Real, Vec3};
+use geom_core::{
+    Band, Bounds, Decide, FileCoincidence, Indeterminate, Point2, Point3, Readable, Real, Vec3,
+};
 
-use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
+use crate::certify::{
+    CERT_SAMPLES, CertCheck, recourse, recourse_in_file, schedule_fraction, schedule_param,
+};
 use crate::recourse::{Reading, Refused, RefusedArm};
 use crate::ssi::{
     ChartSpeedRefusal, OneArcRefusal, PointLever, SsiError, SsiLimb, SsiOperand, SsiTube,
@@ -336,6 +340,18 @@ impl PlaneNurbsRefusal {
         }
         self.decision()
             .map(|(check, arm)| recourse(check, arm, reading))
+    }
+
+    /// The ending this refusal gives at the STEP import door
+    /// ([`recourse_in_file`]), as [`PlaneNurbsRefusal::ending`] gives it
+    /// at rest.
+    #[must_use]
+    pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
+        if let Self::TubeNotOneArc { cause, .. } = *self {
+            return Some(cause.ending(crate::ssi::OneArcDoor::AtRest, Reading::AtRest));
+        }
+        self.decision()
+            .map(|(check, arm)| recourse_in_file(check, arm, file))
     }
 
     /// The decision this refusal is a refused arm of, and which arm
@@ -922,7 +938,7 @@ mod tests {
             OneArcRefusal::Undecided(undecided),
         ] {
             let refusal = PlaneNurbsRefusal::TubeNotOneArc { rungs: 20, cause };
-            for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+            for reading in [Reading::Build, Reading::AtRest] {
                 let ending = refusal.ending(reading).unwrap();
                 let rendered = format!("{refusal} {ending}");
                 let words = rendered.split_whitespace().count();

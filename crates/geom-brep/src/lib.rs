@@ -84,7 +84,7 @@ pub mod torus_convention;
 
 pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec,
-    IntersectionDraft, NurbsLane, edge_extent, sample_param, schedule_param,
+    IntersectionDraft, NurbsLane, edge_extent, recourse_in_file, sample_param, schedule_param,
 };
 pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,

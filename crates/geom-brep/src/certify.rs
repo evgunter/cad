@@ -55,7 +55,9 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign};
+use geom_core::{
+    Band, BandError, Decide, FileCoincidence, Indeterminate, InfSpeed, Margin, Point3, Real, Sign,
+};
 
 use crate::description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
@@ -661,11 +663,34 @@ impl CertifyError {
             .map(|(check, arm)| recourse(check, arm, reading))
     }
 
+    /// The ending this refusal's decision gives it at the import door
+    /// ([`recourse_in_file`] over [`CertifyError::decision`]): at rest,
+    /// with the file's ε_in words. `None` as [`CertifyError::ending`].
+    #[must_use]
+    pub fn ending_in_file(&self, file: FileCoincidence) -> Option<String> {
+        if let Self::PlaneNurbs(refusal) = self {
+            return refusal.ending_in_file(file);
+        }
+        self.decision()
+            .map(|(check, arm)| recourse_in_file(check, arm, file))
+    }
+
     /// The payload and, where its decision gives one, the ending read at
     /// `reading` ([`CertifyError::ending`]).
     #[must_use]
     pub fn render(&self, reading: Reading) -> String {
-        match self.ending(reading) {
+        self.with_ending(self.ending(reading))
+    }
+
+    /// The payload and the ending read at the import door
+    /// ([`CertifyError::ending_in_file`]).
+    #[must_use]
+    pub fn render_in_file(&self, file: FileCoincidence) -> String {
+        self.with_ending(self.ending_in_file(file))
+    }
+
+    fn with_ending(&self, ending: Option<String>) -> String {
+        match ending {
             Some(ending) => format!("{self}. {ending}"),
             None => self.to_string(),
         }
@@ -693,6 +718,9 @@ enum Ending {
     Sized(SizedDecision),
     /// A decision with no size ([`Unsized`]).
     Unsized(Unsized),
+    /// A residual: a decision with no size that passes only at zero, so
+    /// its refused margin is a miss ([`Unsized::residual_in_file`]).
+    Residual(Unsized),
     /// A quantity undefined over the enclosure it was read on: the
     /// recourse says what is undefined and why, whatever the margin's
     /// numbers, which are not a reading of it.
@@ -764,7 +792,7 @@ impl CertCheck {
             | Self::WitnessMidpoint
             | Self::TangentParallel
             | Self::MappedSource
-            | Self::ChartResidual => Ending::Unsized(Unsized::Defect),
+            | Self::ChartResidual => Ending::Residual(Unsized::Defect),
             Self::ChartImage => Ending::Unsized(Unsized::Defect),
             // A fold over samples that each decided transverse: a poison
             // that survives it is the kernel's.
@@ -801,7 +829,7 @@ impl CertCheck {
             | Self::Surface2Residual
             | Self::TangentHull
             | Self::PlaneNurbsOnLocus
-            | Self::PlaneNurbsHull => Ending::Unsized(Unsized::LastResort),
+            | Self::PlaneNurbsHull => Ending::Residual(Unsized::LastResort),
         }
     }
 }
@@ -820,15 +848,31 @@ impl CertCheck {
 ///   kernel-defect ending where the kernel built the geometry exactly
 ///   (the file's too, at rest and at adoption). Where the kernel
 ///   approximated, an arm read at a build, and an undecided arm read at
-///   rest, end in the last resort; a definite arm at rest, and every arm
-///   at adoption, end in the file's defect ending, since no loosening
-///   repairs a stored contradiction.
+///   rest, end in the last resort; a definite arm at rest ends in the
+///   file's defect ending, since no loosening repairs a stored
+///   contradiction.
 #[must_use]
 pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> String {
     match check.ending() {
         Ending::Sized(sized) => sized.recourse(arm, reading),
-        Ending::Unsized(no_size) => no_size.recourse(arm, reading),
+        Ending::Unsized(no_size) | Ending::Residual(no_size) => no_size.recourse(arm, reading),
         Ending::Undefined(recourse) => format!("Recourse: {recourse}"),
+    }
+}
+
+/// The one ending a refusal of `check` carries on `arm` at the STEP
+/// import door (D4 ¶1): certification at adoption reads as at rest, and
+/// the file's declared coincidence distance picks two sentences. A
+/// band-decided arm of a sized decision whose size lies within ε_in
+/// offers no tolerance to keep it ([`SizedDecision::recourse_in_file`]);
+/// a residual's miss within ε_in but beyond ε names setting ε to ε_in as
+/// a stopgap ([`Unsized::residual_in_file`]). [`recourse`] takes no ε_in.
+#[must_use]
+pub fn recourse_in_file(check: CertCheck, arm: RefusedArm<'_>, file: FileCoincidence) -> String {
+    match check.ending() {
+        Ending::Sized(sized) => sized.recourse_in_file(arm, file),
+        Ending::Residual(residual) => residual.residual_in_file(arm, file),
+        Ending::Unsized(_) | Ending::Undefined(_) => recourse(check, arm, Reading::AtRest),
     }
 }
 
@@ -3283,7 +3327,7 @@ mod tests {
                 terminal_sliver: false,
             },
         };
-        for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+        for reading in [Reading::Build, Reading::AtRest] {
             assert_eq!(
                 refusal.render(reading),
                 "the surfaces' tangent planes at sample 4 are undefined: a surface's gradient \
@@ -4459,7 +4503,7 @@ mod tests {
             sample: 1,
             cause,
         };
-        for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+        for reading in [Reading::Build, Reading::AtRest] {
             let end = |e: CertifyError| e.ending(reading).unwrap();
             let lane = |p: P| p.ending(reading).unwrap();
             let pairs = [
@@ -4504,12 +4548,11 @@ mod tests {
                 ),
             ];
             for (check, at_zero, in_band, lever, size) in pairs {
-                let offer = |below: &str| match reading {
-                    Reading::Build | Reading::AtRest => format!(
+                let offer = |below: &str| {
+                    format!(
                         "{lever}, or, if this {size} is intended, tighten the tolerance below \
                          {below} m"
-                    ),
-                    Reading::Adopt => lever.to_owned(),
+                    )
                 };
                 assert_eq!(at_zero, offer("5e-11"), "{reading:?}");
                 assert_eq!(in_band, offer("5e-10"), "{reading:?}");
@@ -4521,7 +4564,7 @@ mod tests {
                     (Reading::Build, _) | (_, CertCheck::TangentTube) => {
                         assert_eq!(definite, lever, "{reading:?} {check:?}");
                     }
-                    (Reading::AtRest | Reading::Adopt, _) => {
+                    (Reading::AtRest, _) => {
                         assert_eq!(definite, KERNEL_OR_FILE_DEFECT_ENDING, "{reading:?}");
                     }
                 }
@@ -4628,20 +4671,19 @@ mod tests {
         let negative = |m| Refused::Negative {
             margin: MarginDiag::value(m),
         };
-        for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
-            let tightened = |lever: &str, size: &str, below: &str| match reading {
-                Reading::Build | Reading::AtRest => format!(
+        for reading in [Reading::Build, Reading::AtRest] {
+            let tightened = |lever: &str, size: &str, below: &str| {
+                format!(
                     "{lever}, or, if this {size} is intended, tighten the tolerance below {below} m"
-                ),
-                Reading::Adopt => lever.to_owned(),
+                )
             };
             let definite = |lever: &str| match reading {
                 Reading::Build => lever.to_owned(),
-                Reading::AtRest | Reading::Adopt => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
+                Reading::AtRest => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
             };
             let defect = match reading {
                 Reading::Build => "a kernel defect",
-                Reading::AtRest | Reading::Adopt => "a kernel defect or a damaged file,",
+                Reading::AtRest => "a kernel defect or a damaged file,",
             };
             let no_span = format!(
                 "{span}; an edge of no length, or a reversed one, is one no kernel construction \
@@ -4726,12 +4768,6 @@ mod tests {
                 Reading::AtRest,
                 KERNEL_OR_FILE_DEFECT_ENDING,
                 KERNEL_LIMIT_RECOURSE,
-                KERNEL_OR_FILE_DEFECT_ENDING,
-            ),
-            (
-                Reading::Adopt,
-                KERNEL_OR_FILE_DEFECT_ENDING,
-                KERNEL_OR_FILE_DEFECT_ENDING,
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
         ];
@@ -5000,82 +5036,80 @@ mod tests {
         );
     }
 
-    /// At adoption the geometry is the file's and the ladder certifies
-    /// at the kernel's tolerance, which no ε_in lever reaches yet
-    /// ([`Reading::Adopt`]): no ending there names the tolerance, in either direction, or
-    /// blames the kernel alone. A sign-certain refusal ends in the
-    /// ending that names the file too (the tube's, a lower bound, and a
-    /// spline face's chart speed, a fact of the face, in their levers),
-    /// and a band-decided arm of a sized decision in its lever alone.
+    /// **The import door reads certification as at rest, with its ε_in
+    /// words** (D4 ¶1), over every check and every arm: the door's ending
+    /// is the at-rest one, except that a band-decided arm of a sized
+    /// decision whose size lies within ε_in offers no tolerance and says
+    /// the file does not state that size, and a residual's miss within
+    /// ε_in but beyond ε names setting ε to ε_in as a stopgap. An ε_in
+    /// below every margin leaves every ending at rest. No ending at the
+    /// door blames the kernel alone, or carries a second recourse.
     #[test]
-    fn an_adoption_reading_names_no_tolerance_and_no_kernel_alone() {
+    fn the_import_door_reads_at_rest_with_its_eps_in_words() {
         let band = Band::new(1e-9, 1e-8).unwrap();
-        let margins = [
-            MarginDiag::value(5e-9),
-            MarginDiag::value(-5e-9),
-            MarginDiag::enclosure(2.0e-9, 4.0e-9),
-            MarginDiag::enclosure(-2.0e-9, 4.0e-9),
-            MarginDiag::INVALID,
-        ];
-        for check in ALL_CHECKS {
-            let causes = margins.map(|margin| Indeterminate {
+        let tol = geom_core::Tol::witness();
+        let run = Band::linear(tol).unwrap();
+        let wide = FileCoincidence::new(run.escalate().max(1e-6), tol);
+        let narrow = FileCoincidence::new((run.escalate() * 0.5).min(1e-10), tol);
+        // Each undecided margin, and whether it is a miss within the wide
+        // ε_in and beyond the band's zero threshold.
+        let causes = [
+            (MarginDiag::value(5e-9), true),
+            (MarginDiag::value(-5e-9), true),
+            (MarginDiag::enclosure(2.0e-9, 4.0e-9), true),
+            (MarginDiag::enclosure(-2.0e-9, 4.0e-9), false),
+            (MarginDiag::INVALID, false),
+        ]
+        .map(|(margin, miss)| {
+            let cause = Indeterminate {
                 margin,
                 band,
                 predicate: Some("a_probe"),
                 terminal_sliver: false,
-            });
-            let mut endings: Vec<String> = causes
+            };
+            (cause, miss)
+        });
+        for check in ALL_CHECKS {
+            let mut arms: Vec<(RefusedArm<'_>, bool)> = causes
                 .iter()
-                .map(|cause| recourse(check, RefusedArm::Undecided(cause), Reading::Adopt))
+                .map(|(cause, miss)| (RefusedArm::Undecided(cause), *miss))
                 .collect();
-            let definite = recourse(check, RefusedArm::SignCertain, Reading::Adopt);
-            // The tube's definite refusal is the certificate's limit, not
-            // a stored contradiction, and a spline face's missing chart
-            // speed is a fact of the face, which the lever edits: they
-            // keep their levers. An undefined tangent plane says what is
-            // undefined, whatever the arm.
-            if matches!(
-                check,
-                CertCheck::TangentTube
-                    | CertCheck::PlaneNurbsChartSpeed
-                    | CertCheck::PlaneNurbsChartSpeedBound
-            ) {
-                assert!(definite.starts_with("Recourse: move"), "{definite}");
-            } else if check == CertCheck::TangentPlanes {
-                assert!(
-                    definite.starts_with("Recourse: keep the edge clear"),
-                    "{definite}"
-                );
-            } else {
-                assert_eq!(definite, KERNEL_OR_FILE_DEFECT_ENDING, "{check:?}");
-            }
-            endings.push(definite);
+            arms.push((RefusedArm::SignCertain, true));
             for m in [5e-10, 0.0, -5e-10] {
                 let zero = Classified {
                     margin: MarginDiag::value(m),
                     band,
                 };
-                endings.push(recourse(check, RefusedArm::Zero(zero), Reading::Adopt));
+                arms.push((RefusedArm::Zero(zero), false));
             }
-            for ending in endings {
-                assert!(!ending.contains("tolerance"), "{check:?}: {ending}");
-                assert_ne!(ending, KERNEL_DEFECT_ENDING, "{check:?}");
+            for (arm, miss) in arms {
+                let at_rest = recourse(check, arm, Reading::AtRest);
+                assert_eq!(
+                    recourse_in_file(check, arm, narrow),
+                    at_rest,
+                    "{check:?} {arm:?}: an ε_in below every margin picks no other words"
+                );
+                let door = recourse_in_file(check, arm, wide);
+                assert!(!door.contains("tighten"), "{check:?} {arm:?}: {door}");
+                assert_ne!(door, KERNEL_DEFECT_ENDING, "{check:?} {arm:?}");
+                assert_eq!(
+                    door.matches("Recourse:").count() + door.matches("There is no way").count(),
+                    1,
+                    "{check:?} {arm:?}: {door}"
+                );
+                match check.ending() {
+                    Ending::Sized(_) if at_rest.contains("tighten") => assert!(
+                        door.contains("so the file does not state it. Recourse: move"),
+                        "{check:?} {arm:?}: {door}"
+                    ),
+                    Ending::Residual(_) if miss => assert!(
+                        door.contains("or, as a stopgap, set the tolerance to ε_in"),
+                        "{check:?} {arm:?}: {door}"
+                    ),
+                    _ => assert_eq!(door, at_rest, "{check:?} {arm:?}"),
+                }
             }
         }
-        let cause = Indeterminate {
-            margin: MarginDiag::value(5e-9),
-            band,
-            predicate: Some("a_probe"),
-            terminal_sliver: false,
-        };
-        assert_eq!(
-            recourse(
-                CertCheck::ParamSpan,
-                RefusedArm::Undecided(&cause),
-                Reading::Adopt
-            ),
-            "Recourse: move the geometry so this edge is not vanishingly short"
-        );
     }
 
     /// **An intersection edge through a cone's apex escalates the
@@ -5176,7 +5210,8 @@ mod tests {
     /// Every decision's class, pinned against a table written out by
     /// hand (D4 ¶1 (i)): a decision that passes on a nonzero sign is
     /// sized, with its pass set; an exact construction ends as a defect;
-    /// an approximation ends in the last resort. The table is the
+    /// an approximation ends in the last resort; a residual, whose
+    /// refused margin is a miss, is marked so as either. The table is the
     /// independent side, so a decision `ending()` misfiles fails here.
     #[test]
     fn each_decision_is_classified_as_the_table_says() {
@@ -5185,32 +5220,33 @@ mod tests {
             Sized(SizedPass),
             Defect,
             LastResort,
+            Miss(Unsized),
             Undefined,
         }
-        use Class::{Defect, LastResort, Sized, Undefined};
+        use Class::{Defect, LastResort, Miss, Sized, Undefined};
         use SizedPass::{NonNegative, Positive};
         let table = [
-            (CertCheck::EndpointStart, Defect),
-            (CertCheck::EndpointEnd, Defect),
+            (CertCheck::EndpointStart, Miss(Unsized::Defect)),
+            (CertCheck::EndpointEnd, Miss(Unsized::Defect)),
             (CertCheck::ParamSpan, Sized(Positive)),
             (CertCheck::ParamWinding, Sized(NonNegative)),
-            (CertCheck::Surface1Residual, LastResort),
-            (CertCheck::Surface2Residual, LastResort),
-            (CertCheck::WitnessSurface1, Defect),
-            (CertCheck::WitnessSurface2, Defect),
-            (CertCheck::WitnessMidpoint, Defect),
+            (CertCheck::Surface1Residual, Miss(Unsized::LastResort)),
+            (CertCheck::Surface2Residual, Miss(Unsized::LastResort)),
+            (CertCheck::WitnessSurface1, Miss(Unsized::Defect)),
+            (CertCheck::WitnessSurface2, Miss(Unsized::Defect)),
+            (CertCheck::WitnessMidpoint, Miss(Unsized::Defect)),
             (CertCheck::Transversality, Sized(Positive)),
             (CertCheck::TransversalityArm, Sized(Positive)),
             (CertCheck::TangentPlanes, Undefined),
             (CertCheck::TangentSecondOrder, Sized(Positive)),
-            (CertCheck::TangentParallel, Defect),
-            (CertCheck::TangentHull, LastResort),
+            (CertCheck::TangentParallel, Miss(Unsized::Defect)),
+            (CertCheck::TangentHull, Miss(Unsized::LastResort)),
             (CertCheck::TangentTube, Sized(Positive)),
-            (CertCheck::MappedSource, Defect),
-            (CertCheck::ChartResidual, Defect),
+            (CertCheck::MappedSource, Miss(Unsized::Defect)),
+            (CertCheck::ChartResidual, Miss(Unsized::Defect)),
             (CertCheck::ChartImage, Defect),
-            (CertCheck::PlaneNurbsOnLocus, LastResort),
-            (CertCheck::PlaneNurbsHull, LastResort),
+            (CertCheck::PlaneNurbsOnLocus, Miss(Unsized::LastResort)),
+            (CertCheck::PlaneNurbsHull, Miss(Unsized::LastResort)),
             (CertCheck::PlaneNurbsReportedTransversality, Defect),
             (CertCheck::PlaneNurbsChartSpeed, Sized(Positive)),
             (CertCheck::PlaneNurbsChartSpeedBound, Sized(Positive)),
@@ -5225,6 +5261,7 @@ mod tests {
                 Ending::Sized(sized) => Sized(sized.passes),
                 Ending::Unsized(Unsized::Defect) => Defect,
                 Ending::Unsized(Unsized::LastResort) => LastResort,
+                Ending::Residual(residual) => Miss(residual),
                 Ending::Undefined(_) => Undefined,
             };
             assert_eq!(&got, want, "{check:?}");

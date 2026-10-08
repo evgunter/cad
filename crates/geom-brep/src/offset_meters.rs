@@ -1112,7 +1112,7 @@ mod tests {
             }
         }
         for (error, lever, tightens) in rows {
-            for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+            for reading in [Reading::Build, Reading::AtRest] {
                 let ending = error.ending(reading);
                 assert!(
                     ending.starts_with(&format!("Recourse: {lever}")),
@@ -1123,7 +1123,7 @@ mod tests {
                 }
                 assert_eq!(
                     ending.contains("tighten"),
-                    tightens && reading != Reading::Adopt,
+                    tightens,
                     "{error:?} at {reading:?}: {ending}"
                 );
             }

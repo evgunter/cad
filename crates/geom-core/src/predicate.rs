@@ -1197,11 +1197,67 @@ pub struct SizedWords<'a> {
     pub size: &'a str,
     /// What the decision passes on.
     pub passes: SizedPass,
-    /// Whether the door reading the refusal may name a tolerance at all.
-    pub may_tighten: bool,
     /// Appended to the lever as "; {note}" where no smaller tolerance
     /// decides the margin passing.
     pub otherwise: Option<&'a str>,
+}
+
+/// **The file's declared coincidence distance ε_in** (D4 ¶1, D7), with
+/// the run's tolerance, as the import door reads a certification refusal
+/// at them. The door holds ε_in, its own number; a comparison against a
+/// reporting margin is the margin's own
+/// ([`MarginDiag::sized_recourse_in_file`],
+/// [`MarginDiag::miss_recourse_in_file`]), and only a sentence leaves.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FileCoincidence {
+    eps_in: f64,
+    tol: Tol,
+}
+
+impl FileCoincidence {
+    /// ε_in as the import door resolved it, read against the run's `tol`.
+    #[must_use]
+    pub const fn new(eps_in: f64, tol: Tol) -> Self {
+        Self { eps_in, tol }
+    }
+
+    /// The file's declared coincidence distance, in metres.
+    #[must_use]
+    pub const fn eps_in(self) -> f64 {
+        self.eps_in
+    }
+
+    /// **A residual's definite miss read at the import door**, where the
+    /// refusal carries no miss value (D4 ¶1): a definite miss lies past the
+    /// run's band, and where ε_in reaches past it too the miss may lie
+    /// within the file's declared coincidence distance, so the sentence
+    /// names re-exporting the file more precisely, or, as a stopgap,
+    /// setting the tolerance to ε_in. Otherwise `otherwise`, the ending the
+    /// refusal carries at rest — as it is where the run's band cannot form.
+    #[must_use]
+    pub fn definite_miss_recourse(self, otherwise: &str) -> String {
+        match Band::linear(self.tol) {
+            Ok(band) if self.eps_in >= band.escalate => format!(
+                "This miss lies beyond the tolerance and may lie within the file's declared \
+                 coincidence distance ε_in = {:e} m, to which alone the file's data claims to \
+                 agree. {}; a miss that persists there is a kernel defect or a damaged file, \
+                 worth reporting",
+                self.eps_in,
+                self.stopgap()
+            ),
+            _ => otherwise.to_owned(),
+        }
+    }
+
+    /// The stopgap recourse: re-export, or set ε to ε_in until adoption
+    /// rebuilds its caches from the file's descriptions (D7).
+    fn stopgap(self) -> String {
+        format!(
+            "Recourse: re-export the file more precisely, or, as a stopgap, set the tolerance to \
+             ε_in = {:e} m",
+            self.eps_in
+        )
+    }
 }
 
 impl MarginDiag {
@@ -1331,20 +1387,96 @@ impl MarginDiag {
             lever,
             size,
             passes,
-            may_tighten,
             otherwise,
         } = words;
         if self.is_invalid() {
             return format!("Recourse: {lever}; {UNREADABLE_MARGIN_NOTE}");
         }
-        let below = self.tightens_below(band, passes);
-        match (below, otherwise) {
-            (Some(v), _) if may_tighten => format!(
+        match (self.tightens_below(band, passes), otherwise) {
+            (Some(v), _) => format!(
                 "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance below \
                  {v:e} m"
             ),
-            (Some(_), _) | (None, None) => format!("Recourse: {lever}"),
+            (None, None) => format!("Recourse: {lever}"),
             (None, Some(note)) => format!("Recourse: {lever}; {note}"),
+        }
+    }
+
+    /// **The sized recourse read at the import door** (D4 ¶1, D7):
+    /// [`MarginDiag::sized_recourse`]'s sentence, except where it would
+    /// offer to tighten and the margin lies wholly within the file's
+    /// declared coincidence distance ε_in. A size below ε_in is not one
+    /// the file states, so no offer keeps it: the sentence says so, and
+    /// names the re-export that would state it — an uncertainty declared
+    /// below the margin's nearer end.
+    ///
+    /// The comparison picks the words and nothing else; only a sentence
+    /// leaves, and its production callers are counted with
+    /// `sized_recourse`'s by `scripts/gates/reporting-margin-door.sh`.
+    #[must_use]
+    pub fn sized_recourse_in_file(
+        self,
+        band: Band,
+        words: SizedWords<'_>,
+        file: FileCoincidence,
+    ) -> String {
+        match (self.tightens_below(band, words.passes), self.magnitudes()) {
+            (Some(_), Some((near, far))) if far <= file.eps_in => format!(
+                "This {size} is below the file's declared coincidence distance ε_in = {eps_in:e} \
+                 m, so the file does not state it. Recourse: {lever}, or re-export the file with \
+                 its uncertainty declared below {near:e} m",
+                size = words.size,
+                eps_in = file.eps_in,
+                lever = words.lever,
+            ),
+            _ => self.sized_recourse(band, words),
+        }
+    }
+
+    /// **A residual's miss read at the import door** (D4 ¶1, D7): where
+    /// the miss lies beyond the band's zero threshold ε and wholly within
+    /// the file's declared coincidence distance ε_in, the file's data
+    /// agrees to its own coincidence distance and not to this run's, and
+    /// the sentence names re-exporting the file more precisely, or, as a
+    /// stopgap, setting the tolerance to ε_in. Otherwise `otherwise`, the
+    /// ending the refusal carries at rest.
+    ///
+    /// The comparison picks the words and nothing else; only a sentence
+    /// leaves, and its production callers are counted with
+    /// `sized_recourse`'s by `scripts/gates/reporting-margin-door.sh`.
+    #[must_use]
+    pub fn miss_recourse_in_file(
+        self,
+        band: Band,
+        file: FileCoincidence,
+        otherwise: &str,
+    ) -> String {
+        match self.magnitudes() {
+            Some((near, far)) if near > band.zero && far <= file.eps_in => format!(
+                "This miss lies beyond the tolerance but within the file's declared coincidence \
+                 distance ε_in = {:e} m: the file's data agrees to its own coincidence distance, \
+                 not to this run's tolerance. {}",
+                file.eps_in,
+                file.stopgap()
+            ),
+            _ => otherwise.to_owned(),
+        }
+    }
+
+    /// The reading's nearer and farther distance from zero, or `None` for
+    /// a poisoned one: a straddling enclosure is nearest at zero.
+    fn magnitudes(self) -> Option<(f64, f64)> {
+        match self.0 {
+            Reading::Value(m, _) => Some((m.abs(), m.abs())),
+            Reading::Enclosure { lo, hi, .. } => {
+                let far = lo.abs().max(hi.abs());
+                Some(if lo <= 0.0 && hi >= 0.0 {
+                    (0.0, far)
+                } else {
+                    (lo.abs().min(hi.abs()), far)
+                })
+            }
+            Reading::Invalid => None,
         }
     }
 
@@ -1757,7 +1889,6 @@ impl Indeterminate {
                 lever: levers,
                 size: "size",
                 passes: self.passes(),
-                may_tighten: true,
                 otherwise: None,
             },
         )
@@ -2176,65 +2307,146 @@ mod tests {
     #[test]
     fn a_sized_recourse_quotes_the_value_or_names_the_lever() {
         let band = band_1e9();
-        let words = |may_tighten, otherwise| SizedWords {
+        let words = |otherwise| SizedWords {
             lever: "L",
             size: "length",
             passes: SizedPass::Positive,
-            may_tighten,
             otherwise,
         };
         let offer = "Recourse: L, or, if this length is intended, tighten the tolerance below \
                      5e-11 m";
         let rows = [
-            (
-                MarginDiag::value(5e-10),
-                words(true, None),
-                offer.to_owned(),
-            ),
+            (MarginDiag::value(5e-10), words(None), offer.to_owned()),
             (
                 MarginDiag::enclosure(5e-10, 8e-10),
-                words(true, None),
+                words(None),
                 offer.to_owned(),
-            ),
-            (
-                MarginDiag::value(5e-10),
-                words(false, Some("n")),
-                "Recourse: L".to_owned(),
             ),
             (
                 MarginDiag::value(0.0),
-                words(true, Some("n")),
+                words(Some("n")),
                 "Recourse: L; n".to_owned(),
             ),
             (
                 MarginDiag::value(-5e-10),
-                words(true, None),
+                words(None),
                 "Recourse: L".to_owned(),
             ),
             (
                 MarginDiag::value(5e-8),
-                words(true, None),
+                words(None),
                 "Recourse: L".to_owned(),
             ),
             (
                 MarginDiag::enclosure(2e-8, 5e-8),
-                words(true, None),
+                words(None),
                 "Recourse: L".to_owned(),
             ),
             (
                 MarginDiag::enclosure(-2e-10, 3e-10),
-                words(true, Some("n")),
+                words(Some("n")),
                 "Recourse: L; n".to_owned(),
             ),
             (
                 MarginDiag::INVALID,
-                words(true, Some("n")),
+                words(Some("n")),
                 format!("Recourse: L; {UNREADABLE_MARGIN_NOTE}"),
             ),
         ];
         for (margin, words, want) in rows {
             assert_eq!(margin.sized_recourse(band, words), want, "{margin}");
         }
+    }
+
+    /// **No offer at the import door keeps a size the file does not
+    /// state** (D4 ¶1): where the margin lies wholly within ε_in the
+    /// tighten offer is withheld and the sentence says why, quoting the
+    /// nearer end as the uncertainty to declare below; a margin reaching
+    /// past ε_in, and every arm that offers nothing, read as at rest.
+    #[test]
+    fn the_import_door_withholds_the_offer_for_a_size_within_eps_in() {
+        let band = band_1e9();
+        let words = SizedWords {
+            lever: "L",
+            size: "length",
+            passes: SizedPass::Positive,
+            otherwise: Some("n"),
+        };
+        let within = FileCoincidence::new(1e-9, Tol::witness());
+        let unstated = "This length is below the file's declared coincidence distance ε_in = 1e-9 \
+                        m, so the file does not state it. Recourse: L, or re-export the file with \
+                        its uncertainty declared below";
+        for (margin, file, unstated_below) in [
+            (MarginDiag::value(5e-10), within, Some("5e-10 m")),
+            (MarginDiag::value(1e-9), within, Some("1e-9 m")),
+            (MarginDiag::enclosure(4e-10, 8e-10), within, Some("4e-10 m")),
+            // Reaching past ε_in: the size may be stated, so the offer stands.
+            (MarginDiag::enclosure(4e-10, 2e-9), within, None),
+            (
+                MarginDiag::value(5e-10),
+                FileCoincidence::new(4e-10, Tol::witness()),
+                None,
+            ),
+            // No offer to withhold: the at-rest sentence.
+            (MarginDiag::value(-5e-10), within, None),
+            (MarginDiag::value(0.0), within, None),
+            (MarginDiag::INVALID, within, None),
+        ] {
+            let got = margin.sized_recourse_in_file(band, words, file);
+            match unstated_below {
+                Some(near) => {
+                    assert_eq!(got, format!("{unstated} {near}"), "{margin}");
+                    assert!(!got.contains("tighten"), "{margin}: {got}");
+                }
+                None => assert_eq!(got, margin.sized_recourse(band, words), "{margin}"),
+            }
+        }
+    }
+
+    /// **A miss within ε_in but beyond ε names the stopgap** (D4 ¶1):
+    /// valued, where the whole reading lies past the zero threshold and
+    /// within ε_in; definite, where ε_in reaches past the run's band.
+    /// Anything else keeps its at-rest ending.
+    #[test]
+    fn a_miss_within_eps_in_names_setting_eps_to_eps_in() {
+        let band = band_1e9();
+        let stopgap = "Recourse: re-export the file more precisely, or, as a stopgap, set the \
+                       tolerance to ε_in = 1e-6 m";
+        let file = FileCoincidence::new(1e-6, Tol::witness());
+        for (margin, named) in [
+            (MarginDiag::value(5e-9), true),
+            (MarginDiag::value(-5e-9), true),
+            (MarginDiag::enclosure(2e-9, 5e-9), true),
+            (MarginDiag::value(1e-6), true),
+            // Within ε: no miss at this run's tolerance.
+            (MarginDiag::value(5e-10), false),
+            (MarginDiag::enclosure(-2e-9, 5e-9), false),
+            // Past ε_in: the file's data misses its own distance too.
+            (MarginDiag::value(2e-6), false),
+            (MarginDiag::enclosure(5e-9, 2e-6), false),
+            (MarginDiag::INVALID, false),
+        ] {
+            let got = margin.miss_recourse_in_file(band, file, "AT REST");
+            if named {
+                assert!(got.ends_with(stopgap), "{margin}: {got}");
+                assert!(got.starts_with("This miss lies beyond"), "{margin}: {got}");
+            } else {
+                assert_eq!(got, "AT REST", "{margin}");
+            }
+        }
+        let tol = Tol::witness();
+        let escalate = Band::linear(tol).unwrap().escalate();
+        let definite = |eps_in| FileCoincidence::new(eps_in, tol).definite_miss_recourse("AT REST");
+        let reaches = definite(escalate);
+        assert!(
+            reaches.contains(&format!("set the tolerance to ε_in = {escalate:e} m;")),
+            "an ε_in at the band's edge may hold a definite miss: {reaches}"
+        );
+        assert_eq!(
+            definite(escalate * 0.5),
+            "AT REST",
+            "an ε_in inside the band cannot hold a definite miss"
+        );
     }
 
     /// The reading renders in the formatter's own number format, and the

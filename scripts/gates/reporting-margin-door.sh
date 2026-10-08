@@ -32,7 +32,13 @@
 # THE SENTENCE IS A THIRD ROUTE, and it is counted too.
 # `MarginDiag::sized_recourse` chooses its words from the number, so a
 # caller that asked it and searched the sentence for "tighten" would
-# read the margin's side through it. Its production call sites are a
+# read the margin's side through it. So do the import door's two
+# (D4 ¶1, as Ev ruled on `[ev]` PR 3380): `sized_recourse_in_file`
+# withholds the offer for a size within the file's ε_in, and
+# `miss_recourse_in_file` names the set-ε-to-ε_in stopgap for a miss
+# within it — a comparison against the margin that picks the words and
+# nothing else, so a caller searching either sentence would read
+# whether the margin lies within ε_in. Their production call sites are a
 # third list here: the sized-decision table that owns the endings.
 #
 # WHAT A LISTED SITE OWES, and the gate checks none of it — it checks
@@ -95,11 +101,12 @@ MINT_ALLOWLIST=(
 MINT_RE='MarginDiag>?::(value|enclosure)([^A-Za-z0-9_]|$)'
 
 # `path count why` — one entry per production file outside the
-# definition home that asks the margin for a sized recourse sentence.
+# definition home that asks the margin for a sized recourse sentence, or
+# for either of the import door's.
 SIZED_ALLOWLIST=(
-  'crates/geom-brep/src/recourse.rs 2 the sized-decision table: the Zero and the Undecided arm end in the sentence, returned whole'
+  'crates/geom-brep/src/recourse.rs 6 the sized-decision table: a sized decision ends its Zero and Undecided arms in the sentence at a build or at rest and in the import door one, and a residual ends the same two arms in the door miss sentence, each returned whole'
 )
-SIZED_RE='sized_recourse([^A-Za-z0-9_]|$)'
+SIZED_RE='(sized_recourse|sized_recourse_in_file|miss_recourse_in_file)([^A-Za-z0-9_]|$)'
 
 # `path count why` — production files that may write the classifier's
 # verdict `terminal_sliver: true` on an escalation of their own. None:
@@ -327,6 +334,13 @@ plant_mint_in_a_plain_mount() {
   printf 'fn m() -> MarginDiag { MarginDiag::value(5e-9) }\n' > "$1/crates/topo/src/extra.rs"
 }
 
+# The import door's sentence used as an ε_in oracle, from the door.
+plant_in_file_oracle_outside() {
+  mkdir -p "$1/crates/step-import/src"
+  printf 'fn f(d: MarginDiag, b: Band, e: FileCoincidence) -> bool { d.miss_recourse_in_file(b, e, "").contains("stopgap") }\n' \
+    > "$1/crates/step-import/src/error.rs"
+}
+
 # The sentence used as a sign oracle.
 plant_sentence_oracle_outside() {
   mkdir -p "$1/crates/topo/src"
@@ -355,10 +369,11 @@ gate_selftest() {
   gate_selftest_case "$minted" plant_qualified_mint_outside
   gate_selftest_case "$minted" plant_mint_in_a_plain_mount
   gate_selftest_case "MarginDiag::sized_recourse asked outside the allowlisted sites" plant_sentence_oracle_outside
+  gate_selftest_case "MarginDiag::sized_recourse asked outside the allowlisted sites" plant_in_file_oracle_outside
   gate_selftest_case "terminal_sliver: true written outside the classifier" plant_forged_sliver
   gate_selftest_passes "the definition, the allowlisted calls and mints, a test module's, the poison constant and prose" gate_plant_clean
   gate_selftest_homes --narrowed --subject "$DEFINITION_SUBJECT" "${DEFINITION_HOMES[@]}"
-  printf '%s selftest OK: passes a clean fixture carrying the definition, every allowlisted call and mint, a test module that reads and mints, the poison constant and prose naming both; fires on a method call and a path call from another crate, on a moved count, on an equality against a minted reading, a path mint, a qualified-path mint and a mint in a plain mount, on the sized sentence asked outside its table, and on a forged terminal-sliver verdict; skips a test-support mount; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture carrying the definition, every allowlisted call and mint, a test module that reads and mints, the poison constant and prose naming both; fires on a method call and a path call from another crate, on a moved count, on an equality against a minted reading, a path mint, a qualified-path mint and a mint in a plain mount, on the sized sentence or an import-door sentence asked outside its table, and on a forged terminal-sliver verdict; skips a test-support mount; and stays RED, with a diagnosis, when grep itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
