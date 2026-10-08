@@ -1,0 +1,10 @@
+--- a/crates/topo/src/boolean/insert.rs	2026-10-08 16:30:01.755499446 +0000
++++ b/crates/topo/src/boolean/insert.rs	2026-10-08 16:43:42.460162809 +0000
+@@ -1420,6 +1420,7 @@
+     [lo, hi]: [P; 2],
+     x: P,
+ ) -> Result<[Option<bool>; 2], E> {
++    let [lo, hi] = [hi, lo];
+     let past_lo = before(lo, x)?;
+     if before(hi, lo)? != Some(true) {
+         return Ok([past_lo, before(x, hi)?]);

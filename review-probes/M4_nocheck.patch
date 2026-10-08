@@ -1,0 +1,11 @@
+--- a/crates/topo/src/boolean/insert.rs	2026-10-08 16:30:01.755499446 +0000
++++ b/crates/topo/src/boolean/insert.rs	2026-10-08 16:43:42.460686388 +0000
+@@ -1396,7 +1396,7 @@
+     q: Cut<T>,
+     band: Band,
+ ) -> Result<Option<bool>, BooleanError> {
+-    if !sectors.first().is_some_and(BoolSector::end_edge) {
++    if false && !sectors.first().is_some_and(BoolSector::end_edge) {
+         return Err(BooleanError::ClassificationInvariant {
+             what: "a vertex orbit whose first entry opens no physical sector",
+         });

@@ -1,0 +1,11 @@
+--- a/crates/topo/src/boolean/insert.rs	2026-10-08 16:30:01.755499446 +0000
++++ b/crates/topo/src/boolean/insert.rs	2026-10-08 16:43:42.459019221 +0000
+@@ -1442,7 +1442,7 @@
+     outer: [P; 2],
+     inner: [P; 2],
+ ) -> Result<[bool; 2], E> {
+-    let inside = |x| Ok(!on_arc(&before, outer, x)?.contains(&Some(false)));
++    let inside = |x| Ok(on_arc(&before, outer, x)? == [Some(true), Some(true)]);
+     Ok([inside(inner[0])?, inside(inner[1])?])
+ }
+ 

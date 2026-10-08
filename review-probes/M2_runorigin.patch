@@ -1,0 +1,18 @@
+--- a/crates/topo/src/boolean/insert.rs	2026-10-08 16:30:01.755499446 +0000
++++ b/crates/topo/src/boolean/insert.rs	2026-10-08 16:43:42.459686892 +0000
+@@ -1311,7 +1311,14 @@
+     let own = segment(secs, run, band)?;
+     let (lo, hi, _) = own;
+     let strut = is_strut(secs, lo.0, hi.0)?;
+-    let before = |p: Cut<T>, q: Cut<T>| walks_before(secs, p, q, band);
++    let n = secs.len();
++    let before = |p: Cut<T>, q: Cut<T>| -> Result<Option<bool>, BooleanError> {
++        if p.0 == q.0 {
++            return walks_after(&secs[p.0], p.1, q.1, band);
++        }
++        let rel = |e: usize| (e + n - lo.0) % n;
++        Ok(Some(rel(p.0) < rel(q.0)))
++    };
+     for &cut in cuts {
+         let at = cut.at;
+         let held = if strut && (secs[at.0].he != secs[lo.0].he || nested(secs, own, cut, band)?) {
