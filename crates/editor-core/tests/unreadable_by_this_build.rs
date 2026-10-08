@@ -164,65 +164,68 @@ fn a_missing_required_field_refuses_naming_it() {
 /// row above. The ADDITIVE half cannot be measured with bytes older
 /// than a break, so this exemplar is written by today's writer and kept
 /// minimal: nothing newer than {Datum, Profile, Extrude} appears in it.
-/// It is re-frozen, by today's writer, at each such break.
+/// It is re-frozen, by today's writer, at each such break: last when an
+/// operation began defining variables, so its table holds the three
+/// nodes' outputs.
 const OLDER_SHAPED: &str = concat!(
-    "id: 8ad37e1a750ae77132c0bf059acb322f\n",
-    "{\"snapshot\":{\"id\":\"8ad37e1a750ae77132c0bf059acb322f\",\"mint\":{\"chain\":\"b4df12e4a4",
-    "1c240fd51afc2c5f7c8122801137c78e464bee6240fe63ab5afab4\",\"log\":[{\"var\":\"1:b639d84",
-    "4bab8e826\"},{\"var\":\"2:74af9d633a64b77a\"},{\"var\":\"3:fb5fef638c30912c\"},{\"var\":\"4:",
-    "ee1d73a8dc8f8ad6\"},{\"var\":\"5:f9047724cc168290\"},{\"var\":\"6:2fdd1f61b8b90439\"},{\"v",
-    "ar\":\"7:5cdde09d996c5c61\"},{\"var\":\"8:af949e9d2cd2d001\"},{\"var\":\"9:135249424cb8e0e",
-    "7\"},{\"node\":\"10:54a0180a83275575\"},{\"var\":\"11:d05826096083a72f\"},{\"var\":\"12:3312",
-    "b2f8504eeee2\"},{\"var\":\"13:67cd6e8f80d24d4e\"},{\"var\":\"14:fd8954268d1e7222\"},{\"var",
-    "\":\"15:4e4dce13c4a56d92\"},{\"var\":\"16:e8e5f1ea6e7306c2\"},{\"var\":\"17:0ad5807e1b5f70",
-    "0c\"},{\"var\":\"18:6d679bcadae726fe\"},{\"node\":\"19:f5ee2ea3890bdbd0\"},{\"step\":\"20:05",
-    "3eb2ee5f95c60a\"},{\"step\":\"21:dd0913f0e561776c\"},{\"step\":\"22:5ca04880b5f26723\"},{",
-    "\"step\":\"23:1c5d6d0a2e5f2352\"},{\"step\":\"24:e1a86d05a90489eb\"},{\"var\":\"25:bdc04106",
-    "e3ffa2bc\"},{\"node\":\"26:b4df12e4a41c240f\"}]},\"nodes\":{\"10:54a0180a83275575\":{\"Dat",
-    "um\":{\"Frame\":{\"origin\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\",\"3:fb5fef638c3",
-    "0912c\"],\"u\":[\"4:ee1d73a8dc8f8ad6\",\"5:f9047724cc168290\",\"6:2fdd1f61b8b90439\"],\"v\"",
-    ":[\"7:5cdde09d996c5c61\",\"8:af949e9d2cd2d001\",\"9:135249424cb8e0e7\"]}}},\"19:f5ee2ea",
-    "3890bdbd0\":{\"Profile\":{\"plane\":\"10:54a0180a83275575\",\"loops\":[{\"Chain\":[{\"At\":[\"",
-    "11:d05826096083a72f\",\"12:3312b2f8504eeee2\"]},{\"LineTo\":{\"Point\":[\"13:67cd6e8f80d",
-    "24d4e\",\"14:fd8954268d1e7222\"]}},{\"LineTo\":{\"Point\":[\"15:4e4dce13c4a56d92\",\"16:e8",
-    "e5f1ea6e7306c2\"]}},{\"LineTo\":{\"Point\":[\"17:0ad5807e1b5f700c\",\"18:6d679bcadae726f",
-    "e\"]}},{\"LineTo\":\"Start\"}]}],\"ids\":[[\"20:053eb2ee5f95c60a\",\"21:dd0913f0e561776c\",",
-    "\"22:5ca04880b5f26723\",\"23:1c5d6d0a2e5f2352\",\"24:e1a86d05a90489eb\"]]}},\"26:b4df12",
-    "e4a41c240f\":{\"Extrude\":{\"profile\":\"19:f5ee2ea3890bdbd0\",\"distance\":\"25:bdc04106e",
-    "3ffa2bc\",\"side\":\"along\"}}},\"roots\":[\"26:b4df12e4a41c240f\"],\"vars\":{\"1:b639d844ba",
-    "b8e826\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0",
-    ",\"display_unit\":\"m\"}}}},\"2:74af9d633a64b77a\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Co",
-    "ntinuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"3:fb5fef638c30912c",
-    "\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"disp",
-    "lay_unit\":\"m\"}}}},\"4:ee1d73a8dc8f8ad6\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuo",
-    "us\":{\"dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"5:f9047724cc168290\":{\"kin",
-    "d\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_uni",
-    "t\":\"\"}}}},\"6:2fdd1f61b8b90439\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"di",
-    "m\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"7:5cdde09d996c5c61\":{\"kind\":\"Scal",
-    "ar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}",
-    "},\"8:af949e9d2cd2d001\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scal",
-    "ar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"9:135249424cb8e0e7\":{\"kind\":\"Scalar\",\"def",
-    "\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"11:d0",
-    "5826096083a72f\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"va",
-    "lue\":0.0,\"display_unit\":\"m\"}}}},\"12:3312b2f8504eeee2\":{\"kind\":\"Length\",\"def\":{\"F",
-    "ree\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"13:67cd6e",
-    "8f80d24d4e\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
-    ":1.0,\"display_unit\":\"m\"}}}},\"14:fd8954268d1e7222\":{\"kind\":\"Length\",\"def\":{\"Free\"",
-    ":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"15:4e4dce13c4",
-    "a56d92\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0",
-    ",\"display_unit\":\"m\"}}}},\"16:e8e5f1ea6e7306c2\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"C",
-    "ontinuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"17:0ad5807e1b5f70",
-    "0c\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"di",
-    "splay_unit\":\"m\"}}}},\"18:6d679bcadae726fe\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Conti",
-    "nuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"25:bdc04106e3ffa2bc\":",
-    "{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"displa",
-    "y_unit\":\"m\"}}}}},\"epsilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"",
-    "edits\":[]}",
+    "id: 12c74470374c7c76269f22a931efab85\n",
+    "{\"snapshot\":{\"id\":\"12c74470374c7c76269f22a931efab85\",\"mint\":{\"chain\":\"8bde3a68947a82a5",
+    "e7ecd2ecb1681779cc9c25f3f1f03f564d300ff364441baf\",\"log\":[{\"var\":\"1:b639d844bab8e826\"},",
+    "{\"var\":\"2:74af9d633a64b77a\"},{\"var\":\"3:fb5fef638c30912c\"},{\"var\":\"4:ee1d73a8dc8f8ad6\"}",
+    ",{\"var\":\"5:f9047724cc168290\"},{\"var\":\"6:2fdd1f61b8b90439\"},{\"var\":\"7:5cdde09d996c5c61\"",
+    "},{\"var\":\"8:af949e9d2cd2d001\"},{\"var\":\"9:135249424cb8e0e7\"},{\"node\":\"10:54a0180a832755",
+    "75\"},{\"var\":\"11:7b9b7a031545bc84\"},{\"var\":\"12:aa1a1f25549ff844\"},{\"var\":\"13:ce0b2c4bfc",
+    "e400e2\"},{\"var\":\"14:826a2b7c495117a7\"},{\"var\":\"15:74ce4ff170398ca6\"},{\"var\":\"16:4b36da",
+    "afb7685c2b\"},{\"var\":\"17:c9a0e5f82154ce3e\"},{\"var\":\"18:73bc05541afded5a\"},{\"var\":\"19:e5",
+    "1d8c264d945b32\"},{\"node\":\"20:d8a099f3b9fb93e6\"},{\"step\":\"21:958ec0488201536d\"},{\"step\"",
+    ":\"22:bf987ae2315fc4e3\"},{\"step\":\"23:772d052fb02f7b5e\"},{\"step\":\"24:a99eac6cfba4aecc\"},",
+    "{\"step\":\"25:9e75a6604942385f\"},{\"var\":\"26:5cf1574284334ae9\"},{\"var\":\"27:bcd2567cb989e9",
+    "fc\"},{\"node\":\"28:2c488f530357dede\"},{\"var\":\"29:8bde3a68947a82a5\"}]},\"nodes\":{\"10:54a01",
+    "80a83275575\":{\"Datum\":{\"Frame\":{\"origin\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\",\"3",
+    ":fb5fef638c30912c\"],\"u\":[\"4:ee1d73a8dc8f8ad6\",\"5:f9047724cc168290\",\"6:2fdd1f61b8b90439",
+    "\"],\"v\":[\"7:5cdde09d996c5c61\",\"8:af949e9d2cd2d001\",\"9:135249424cb8e0e7\"]}}},\"20:d8a099f",
+    "3b9fb93e6\":{\"Profile\":{\"plane\":\"10:54a0180a83275575\",\"loops\":[{\"Chain\":[{\"At\":[\"12:aa1",
+    "a1f25549ff844\",\"13:ce0b2c4bfce400e2\"]},{\"LineTo\":{\"Point\":[\"14:826a2b7c495117a7\",\"15:7",
+    "4ce4ff170398ca6\"]}},{\"LineTo\":{\"Point\":[\"16:4b36daafb7685c2b\",\"17:c9a0e5f82154ce3e\"]}}",
+    ",{\"LineTo\":{\"Point\":[\"18:73bc05541afded5a\",\"19:e51d8c264d945b32\"]}},{\"LineTo\":\"Start\"}",
+    "]}],\"ids\":[[\"21:958ec0488201536d\",\"22:bf987ae2315fc4e3\",\"23:772d052fb02f7b5e\",\"24:a99e",
+    "ac6cfba4aecc\",\"25:9e75a6604942385f\"]]}},\"28:2c488f530357dede\":{\"Extrude\":{\"profile\":\"2",
+    "0:d8a099f3b9fb93e6\",\"distance\":\"27:bcd2567cb989e9fc\",\"side\":\"along\"}}},\"roots\":[\"28:2c",
+    "488f530357dede\"],\"vars\":{\"1:b639d844bab8e826\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continu",
+    "ous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"2:74af9d633a64b77a\":{\"kind\":\"",
+    "Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}}",
+    ",\"3:fb5fef638c30912c\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"va",
+    "lue\":0.0,\"display_unit\":\"m\"}}}},\"4:ee1d73a8dc8f8ad6\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"",
+    "Continuous\":{\"dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"5:f9047724cc168290\":{\"k",
+    "ind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"",
+    "\"}}}},\"6:2fdd1f61b8b90439\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar",
+    "\",\"value\":0.0,\"display_unit\":\"\"}}}},\"7:5cdde09d996c5c61\":{\"kind\":\"Scalar\",\"def\":{\"Free",
+    "\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"8:af949e9d2cd2d001\"",
+    ":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":1.0,\"display_uni",
+    "t\":\"\"}}}},\"9:135249424cb8e0e7\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Sc",
+    "alar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"11:7b9b7a031545bc84\":{\"kind\":\"Frame\",\"def\":{\"",
+    "Output\":{\"node\":\"10:54a0180a83275575\",\"port\":0}}},\"12:aa1a1f25549ff844\":{\"kind\":\"Lengt",
+    "h\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"13:",
+    "ce0b2c4bfce400e2\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
+    ":0.0,\"display_unit\":\"m\"}}}},\"14:826a2b7c495117a7\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Con",
+    "tinuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"15:74ce4ff170398ca6\":{\"ki",
+    "nd\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m",
+    "\"}}}},\"16:4b36daafb7685c2b\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Lengt",
+    "h\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"17:c9a0e5f82154ce3e\":{\"kind\":\"Length\",\"def\":{\"F",
+    "ree\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"18:73bc05541afd",
+    "ed5a\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"displa",
+    "y_unit\":\"m\"}}}},\"19:e51d8c264d945b32\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"d",
+    "im\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"26:5cf1574284334ae9\":{\"kind\":\"Profile",
+    "\",\"def\":{\"Output\":{\"node\":\"20:d8a099f3b9fb93e6\",\"port\":0}}},\"27:bcd2567cb989e9fc\":{\"ki",
+    "nd\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m",
+    "\"}}}},\"29:8bde3a68947a82a5\":{\"kind\":\"Body\",\"def\":{\"Output\":{\"node\":\"28:2c488f530357ded",
+    "e\",\"port\":0}}}},\"epsilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":",
+    "[]}",
     "\n"
 );
 
 #[test]
-fn an_older_shaped_document_lacking_its_outputs_refuses_with_the_regenerate_recourse() {
+fn an_older_shaped_document_lacking_newer_vocabulary_loads() {
     for newer in [
         "Mate",
         "Measure",
@@ -243,22 +246,13 @@ fn an_older_shaped_document_lacking_its_outputs_refuses_with_the_regenerate_reco
     let eps = Tol::witness().eps();
     let text = OLDER_SHAPED.replacen("\"epsilon\":1e-09", &format!("\"epsilon\":{eps:?}"), 1);
     assert_ne!(text, OLDER_SHAPED, "the ε rewrite must land");
-    // Every vocabulary it lacks is additive, but it also predates the
-    // outputs its three nodes define, which only a current build mints:
-    // it refuses typed, with the regenerate recourse.
-    let err = load(&text, Tol::witness()).unwrap_err();
-    assert!(
-        matches!(
-            &err,
-            PersistError::Snapshot(editor_core::SnapshotError::OutputSignature { fault, .. })
-                if matches!(**fault, editor_core::OutputFault::Missing { .. })
-        ),
-        "{err:?}"
+    let loaded = load(&text, Tol::witness()).expect("an older-shaped document loads");
+    assert_eq!(
+        loaded.doc.ids().len(),
+        3,
+        "frame, profile and extrude, as written"
     );
-    assert!(
-        err.to_string().contains(editor_core::REGENERATE_RECOURSE),
-        "{err}"
-    );
+    assert_eq!(loaded.doc.epsilon().to_bits(), eps.to_bits());
 }
 
 /// The seam's other side, so the split is pinned from both directions:

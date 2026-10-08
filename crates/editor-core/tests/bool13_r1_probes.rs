@@ -391,8 +391,100 @@ fn the_unknown_variant_detail_lists_the_vocabulary_in_full() {
 /// today's writer and kept minimal: its node vocabulary is
 /// {Datum, Profile, Extrude} and nothing newer, so the row still says
 /// that a document lacking every later arm loads. It is re-frozen, by
-/// today's writer, at each such break.
+/// today's writer, at each such break: last when an operation began
+/// defining variables, so its table holds the three nodes' outputs.
 const OLDER_SHAPED: &str = concat!(
+    "id: 12c74470374c7c76269f22a931efab85\n",
+    "{\"snapshot\":{\"id\":\"12c74470374c7c76269f22a931efab85\",\"mint\":{\"chain\":\"8bde3a68947a82a5",
+    "e7ecd2ecb1681779cc9c25f3f1f03f564d300ff364441baf\",\"log\":[{\"var\":\"1:b639d844bab8e826\"},",
+    "{\"var\":\"2:74af9d633a64b77a\"},{\"var\":\"3:fb5fef638c30912c\"},{\"var\":\"4:ee1d73a8dc8f8ad6\"}",
+    ",{\"var\":\"5:f9047724cc168290\"},{\"var\":\"6:2fdd1f61b8b90439\"},{\"var\":\"7:5cdde09d996c5c61\"",
+    "},{\"var\":\"8:af949e9d2cd2d001\"},{\"var\":\"9:135249424cb8e0e7\"},{\"node\":\"10:54a0180a832755",
+    "75\"},{\"var\":\"11:7b9b7a031545bc84\"},{\"var\":\"12:aa1a1f25549ff844\"},{\"var\":\"13:ce0b2c4bfc",
+    "e400e2\"},{\"var\":\"14:826a2b7c495117a7\"},{\"var\":\"15:74ce4ff170398ca6\"},{\"var\":\"16:4b36da",
+    "afb7685c2b\"},{\"var\":\"17:c9a0e5f82154ce3e\"},{\"var\":\"18:73bc05541afded5a\"},{\"var\":\"19:e5",
+    "1d8c264d945b32\"},{\"node\":\"20:d8a099f3b9fb93e6\"},{\"step\":\"21:958ec0488201536d\"},{\"step\"",
+    ":\"22:bf987ae2315fc4e3\"},{\"step\":\"23:772d052fb02f7b5e\"},{\"step\":\"24:a99eac6cfba4aecc\"},",
+    "{\"step\":\"25:9e75a6604942385f\"},{\"var\":\"26:5cf1574284334ae9\"},{\"var\":\"27:bcd2567cb989e9",
+    "fc\"},{\"node\":\"28:2c488f530357dede\"},{\"var\":\"29:8bde3a68947a82a5\"}]},\"nodes\":{\"10:54a01",
+    "80a83275575\":{\"Datum\":{\"Frame\":{\"origin\":[\"1:b639d844bab8e826\",\"2:74af9d633a64b77a\",\"3",
+    ":fb5fef638c30912c\"],\"u\":[\"4:ee1d73a8dc8f8ad6\",\"5:f9047724cc168290\",\"6:2fdd1f61b8b90439",
+    "\"],\"v\":[\"7:5cdde09d996c5c61\",\"8:af949e9d2cd2d001\",\"9:135249424cb8e0e7\"]}}},\"20:d8a099f",
+    "3b9fb93e6\":{\"Profile\":{\"plane\":\"10:54a0180a83275575\",\"loops\":[{\"Chain\":[{\"At\":[\"12:aa1",
+    "a1f25549ff844\",\"13:ce0b2c4bfce400e2\"]},{\"LineTo\":{\"Point\":[\"14:826a2b7c495117a7\",\"15:7",
+    "4ce4ff170398ca6\"]}},{\"LineTo\":{\"Point\":[\"16:4b36daafb7685c2b\",\"17:c9a0e5f82154ce3e\"]}}",
+    ",{\"LineTo\":{\"Point\":[\"18:73bc05541afded5a\",\"19:e51d8c264d945b32\"]}},{\"LineTo\":\"Start\"}",
+    "]}],\"ids\":[[\"21:958ec0488201536d\",\"22:bf987ae2315fc4e3\",\"23:772d052fb02f7b5e\",\"24:a99e",
+    "ac6cfba4aecc\",\"25:9e75a6604942385f\"]]}},\"28:2c488f530357dede\":{\"Extrude\":{\"profile\":\"2",
+    "0:d8a099f3b9fb93e6\",\"distance\":\"27:bcd2567cb989e9fc\",\"side\":\"along\"}}},\"roots\":[\"28:2c",
+    "488f530357dede\"],\"vars\":{\"1:b639d844bab8e826\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continu",
+    "ous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"2:74af9d633a64b77a\":{\"kind\":\"",
+    "Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}}",
+    ",\"3:fb5fef638c30912c\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"va",
+    "lue\":0.0,\"display_unit\":\"m\"}}}},\"4:ee1d73a8dc8f8ad6\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"",
+    "Continuous\":{\"dim\":\"Scalar\",\"value\":1.0,\"display_unit\":\"\"}}}},\"5:f9047724cc168290\":{\"k",
+    "ind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"",
+    "\"}}}},\"6:2fdd1f61b8b90439\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar",
+    "\",\"value\":0.0,\"display_unit\":\"\"}}}},\"7:5cdde09d996c5c61\":{\"kind\":\"Scalar\",\"def\":{\"Free",
+    "\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"8:af949e9d2cd2d001\"",
+    ":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Scalar\",\"value\":1.0,\"display_uni",
+    "t\":\"\"}}}},\"9:135249424cb8e0e7\":{\"kind\":\"Scalar\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Sc",
+    "alar\",\"value\":0.0,\"display_unit\":\"\"}}}},\"11:7b9b7a031545bc84\":{\"kind\":\"Frame\",\"def\":{\"",
+    "Output\":{\"node\":\"10:54a0180a83275575\",\"port\":0}}},\"12:aa1a1f25549ff844\":{\"kind\":\"Lengt",
+    "h\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m\"}}}},\"13:",
+    "ce0b2c4bfce400e2\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\"",
+    ":0.0,\"display_unit\":\"m\"}}}},\"14:826a2b7c495117a7\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Con",
+    "tinuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"15:74ce4ff170398ca6\":{\"ki",
+    "nd\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"display_unit\":\"m",
+    "\"}}}},\"16:4b36daafb7685c2b\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Lengt",
+    "h\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"17:c9a0e5f82154ce3e\":{\"kind\":\"Length\",\"def\":{\"F",
+    "ree\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"18:73bc05541afd",
+    "ed5a\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":0.0,\"displa",
+    "y_unit\":\"m\"}}}},\"19:e51d8c264d945b32\":{\"kind\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"d",
+    "im\":\"Length\",\"value\":1.0,\"display_unit\":\"m\"}}}},\"26:5cf1574284334ae9\":{\"kind\":\"Profile",
+    "\",\"def\":{\"Output\":{\"node\":\"20:d8a099f3b9fb93e6\",\"port\":0}}},\"27:bcd2567cb989e9fc\":{\"ki",
+    "nd\":\"Length\",\"def\":{\"Free\":{\"Continuous\":{\"dim\":\"Length\",\"value\":1.0,\"display_unit\":\"m",
+    "\"}}}},\"29:8bde3a68947a82a5\":{\"kind\":\"Body\",\"def\":{\"Output\":{\"node\":\"28:2c488f530357ded",
+    "e\",\"port\":0}}}},\"epsilon\":1e-09,\"witnesses\":{},\"metadata\":{},\"appearance\":[]},\"edits\":",
+    "[]}",
+    "\n"
+);
+
+/// The unit's row accepts `ToleranceConflict` under a non-default ε so
+/// it can run on every CI row; that makes the LOAD half vacuous there.
+/// This row re-records the document's ε as the process's, so the load
+/// itself is asserted on every row. Also pins that the bytes' node
+/// vocabulary is exactly {Profile, Extrude}, rather than only that six
+/// named newer arms are absent.
+#[test]
+fn the_older_shaped_document_loads_at_the_ambient_eps() {
+    let eps = Tol::witness().eps();
+    let text = OLDER_SHAPED.replacen("\"epsilon\":1e-09", &format!("\"epsilon\":{eps:?}"), 1);
+    assert_ne!(text, OLDER_SHAPED);
+    let v: serde_json::Value = serde_json::from_str(text.split_once('\n').unwrap().1).unwrap();
+    // In document order: the node map is keyed by minted id, which
+    // orders as the nodes were inserted.
+    let nodes = v["snapshot"]["nodes"].as_object().unwrap();
+    let mut keyed: Vec<(editor_core::MintId, &serde_json::Value)> = nodes
+        .iter()
+        .map(|(id, node)| (editor_core::MintId::parse(id).unwrap(), node))
+        .collect();
+    keyed.sort_by_key(|&(id, _)| id);
+    let tags: Vec<&String> = keyed
+        .iter()
+        .map(|(_, node)| node.as_object().unwrap().keys().next().unwrap())
+        .collect();
+    assert_eq!(tags, ["Datum", "Profile", "Extrude"]);
+    let loaded = load(&text, Tol::witness()).expect("a minimal-vocabulary document loads");
+    assert_eq!(loaded.doc.ids().len(), 3);
+    assert_eq!(loaded.doc.epsilon().to_bits(), eps.to_bits());
+}
+
+/// The minimal-vocabulary bytes as today's writer wrote them before
+/// an operation defined variables (INTENT stage 2): the same three
+/// nodes, and no output in the table. A break, so they refuse typed
+/// with the regenerate recourse rather than load.
+const PRE_OUTPUTS: &str = concat!(
     "id: 8ad37e1a750ae77132c0bf059acb322f\n",
     "{\"snapshot\":{\"id\":\"8ad37e1a750ae77132c0bf059acb322f\",\"mint\":{\"chain\":\"b4df12e4a4",
     "1c240fd51afc2c5f7c8122801137c78e464bee6240fe63ab5afab4\",\"log\":[{\"var\":\"1:b639d84",
@@ -448,17 +540,11 @@ const OLDER_SHAPED: &str = concat!(
     "\n"
 );
 
-/// The unit's row accepts `ToleranceConflict` under a non-default ε so
-/// it can run on every CI row; that makes the LOAD half vacuous there.
-/// This row re-records the document's ε as the process's, so the load
-/// itself is asserted on every row. Also pins that the bytes' node
-/// vocabulary is exactly {Profile, Extrude}, rather than only that six
-/// named newer arms are absent.
 #[test]
-fn the_older_shaped_document_refuses_at_the_ambient_eps_for_want_of_its_outputs() {
+fn a_document_from_before_outputs_refuses_at_the_ambient_eps() {
     let eps = Tol::witness().eps();
-    let text = OLDER_SHAPED.replacen("\"epsilon\":1e-09", &format!("\"epsilon\":{eps:?}"), 1);
-    assert_ne!(text, OLDER_SHAPED);
+    let text = PRE_OUTPUTS.replacen("\"epsilon\":1e-09", &format!("\"epsilon\":{eps:?}"), 1);
+    assert_ne!(text, PRE_OUTPUTS);
     let v: serde_json::Value = serde_json::from_str(text.split_once('\n').unwrap().1).unwrap();
     // In document order: the node map is keyed by minted id, which
     // orders as the nodes were inserted.
