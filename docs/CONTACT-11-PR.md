@@ -263,14 +263,14 @@ so its result (killed, above) stands at `59eeeebb2` only.
 
 ## Verification (local; hosted CI is the verification of record)
 
-Every check ran on `50b91138a`. The commit after it changes only this
+Every check ran on `657db7950`. The commit after it changes only this
 file.
 
 | check | result |
 |---|---|
-| `topo`, default ε / 1e-6 / 1e-12 | 2618 passed at each |
+| `topo`, default ε / 1e-6 / 1e-12 | 2619 passed at each |
 | `sweep`, default ε / 1e-6 | 2469 passed at each |
-| `sweep`, 1e-12 | 2468 passed, 1 failed: `parallel_cylinder_join::a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings`, red on `origin/main` `d00100e82` with the identical margin and already filed as `work/tint/tipped-rod-join-escalates-at-1e-12` |
+| `sweep`, 1e-12 | 2468 passed, 1 failed: `parallel_cylinder_join::a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings`, red on `origin/main` `d00100e82` with the identical margin, filed as `work/tint/tipped-rod-join-escalates-at-1e-12` |
 | `editor-core`, all (slow set included) | 2910 passed |
 | `test-utils` | 89 passed |
 | Python suite (maturin wheel, unittest) | 950 OK |
