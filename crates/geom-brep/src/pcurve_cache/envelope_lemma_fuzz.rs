@@ -27,6 +27,7 @@ test_utils::gated_to![
 use std::collections::BTreeSet;
 
 mod projected;
+mod review_probe;
 
 use super::{
     ChartWindings, Derivation, EnvelopeTerm, EnvelopeTerms, FocalImage, Pcurve, PcurveCache,

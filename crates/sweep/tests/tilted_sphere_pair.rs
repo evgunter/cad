@@ -422,3 +422,33 @@ fn a_section_passing_near_a_pole_builds_and_one_through_it_refuses_typed() {
         "δ 0: the arc through the pole refuses on its azimuth sector, got {out:?}"
     );
 }
+
+/// Review probe (PR 4304): a radical circle that ENCIRCLES the first
+/// ball's pole axis (lean `tilt` off `y`, rotated `phi` about `y`).
+#[test]
+fn review_4304_an_encircling_section() {
+    let mut lines = Vec::new();
+    for tilt in [0.15_f64, 0.3, 0.5] {
+        for phi in [0.0_f64, 1.0, 2.5] {
+            let lean = Vec3::new(1.4 * tilt.sin() * phi.cos(), 1.4 * tilt.cos(), 1.4 * tilt.sin() * phi.sin());
+            let (a, b) = (ball(1.0, BASE), ball(1.0, BASE + lean));
+            for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
+                let out = run(op, &a, &b);
+                let what = match &out {
+                    Ok(r) => match r.body() {
+                        Some(body) => {
+                            let v = topo::validate_geometric(&body.body, Tol::witness());
+                            format!("Ok, validate_geometric {:?}", v.map_err(|e| format!("{e:?}").chars().take(160).collect::<String>()))
+                        }
+                        None => "empty".into(),
+                    },
+                    Err(e) => format!("Err {}", format!("{e:?}").chars().take(220).collect::<String>()),
+                };
+                lines.push(format!("[review encircling] tilt {tilt} phi {phi} {op:?}: {what}"));
+            }
+        }
+    }
+    for l in &lines {
+        eprintln!("{l}");
+    }
+}

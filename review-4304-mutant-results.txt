@@ -1,0 +1,22 @@
+M01_incidence_zero |      Summary [ 137.759s] 384 tests run: 382 passed (2 slow), 2 failed, 704 skipped |  pcurve_cache::envelope_lemma_fuzz::projected::every_projected_term_is_load_bearing_in_a_pinned_sweep; pcurve_cache::envelope_lemma_fuzz::projected::the_projected_envelope_dominates_the_sampled_displacement;
+M02_cyl_conv_x3 |      Summary [ 146.189s] 384 tests run: 383 passed (2 slow), 1 failed, 704 skipped |  pcurve_cache::envelope_lemma_fuzz::projected::the_projected_envelope_dominates_the_sampled_displacement;
+M03_sph_conv_x3 |      Summary [ 152.945s] 384 tests run: 383 passed (2 slow), 1 failed, 704 skipped |  pcurve_cache::envelope_lemma_fuzz::projected::the_projected_envelope_dominates_the_sampled_displacement;
+M04_cone_lever_x3 |      Summary [ 153.092s] 384 tests run: 383 passed (2 slow), 1 failed, 704 skipped |  pcurve_cache::envelope_lemma_fuzz::projected::the_projected_envelope_dominates_the_sampled_displacement;
+M05_torus_lever_x3 |      Summary [ 146.889s] 384 tests run: 383 passed (2 slow), 1 failed, 704 skipped |  pcurve_cache::envelope_lemma_fuzz::projected::the_projected_envelope_dominates_the_sampled_displacement;
+M06_sqrt_to_sum |      Summary [ 179.852s] 384 tests run: 384 passed (2 slow), 704 skipped | 
+M07_fidelity_x0.3 |      Summary [ 186.809s] 384 tests run: 383 passed (3 slow), 1 failed, 704 skipped |  pcurve_cache::envelope_lemma_fuzz::projected::the_projected_envelope_dominates_the_sampled_displacement;
+M08_frame_zero |      Summary [ 148.451s] 384 tests run: 382 passed (2 slow), 2 failed, 704 skipped |  pcurve_cache::envelope_lemma_fuzz::projected::every_projected_term_is_load_bearing_in_a_pinned_sweep; pcurve_cache::envelope_lemma_fuzz::projected::the_projected_envelope_dominates_the_sampled_displacement;
+M09_net_sector_skip |      Summary [ 134.680s] 384 tests run: 384 passed (1 slow), 704 skipped | 
+M10_period_gate_off |      Summary [ 137.538s] 384 tests run: 384 passed (2 slow), 704 skipped | 
+M11_branch_check_off |      Summary [ 137.812s] 384 tests run: 384 passed (2 slow), 704 skipped | 
+M12_lever_sign_off |      Summary [ 136.290s] 384 tests run: 384 passed (1 slow), 704 skipped | 
+M13_deck_u_zero |      Summary [ 135.680s] 384 tests run: 382 passed (1 slow), 2 failed, 704 skipped |  pcurve_cache::envelope_lemma_fuzz::projected::every_projected_term_is_load_bearing_in_a_pinned_sweep; pcurve_cache::envelope_lemma_fuzz::projected::the_projected_envelope_dominates_the_sampled_displacement;
+M14_rho_minus_d_off |      Summary [ 136.553s] 384 tests run: 384 passed (1 slow), 704 skipped | 
+M15_plane_x0.3 |      Summary [ 135.505s] 384 tests run: 384 passed (1 slow), 704 skipped | 
+M16_cone_drift_zero |      Summary [ 136.802s] 384 tests run: 384 passed (2 slow), 704 skipped | 
+M17_torus_major_zero |      Summary [ 136.080s] 384 tests run: 384 passed (1 slow), 704 skipped | 
+M18_circle_sector_skip |      Summary [ 134.991s] 384 tests run: 383 passed (2 slow), 1 failed, 704 skipped |  pcurve_cache::envelope_lemma_fuzz::projected::a_broken_sector_and_an_arc_through_the_pole_refuse;
+M19_circle_d_zero |      Summary [ 135.735s] 384 tests run: 384 passed (1 slow), 704 skipped | 
+M20_tube_sector_skip |      Summary [ 135.611s] 384 tests run: 384 passed (2 slow), 704 skipped | 
+M21_v_off_zero |      Summary [ 134.869s] 384 tests run: 384 passed (1 slow), 704 skipped | 
+DONE

@@ -1,0 +1,21 @@
+M01_incidence_zero	terms.add(EnvelopeTerm::Incidence, incidence);	terms.add(EnvelopeTerm::Incidence, incidence * T::zero());
+M02_cyl_conv_x3	Surface::Cylinder { radius, .. } => f / radius,	Surface::Cylinder { radius, .. } => f / (radius * T::from_f64(3.0)),
+M03_sph_conv_x3	Surface::Sphere { radius, .. } => f / radius,	Surface::Sphere { radius, .. } => f / (radius * T::from_f64(3.0)),
+M04_cone_lever_x3	                        f / lever	                        f / (lever * T::from_f64(3.0))
+M05_torus_lever_x3	f / (minor_radius * (reach.powi(2) - minor_radius.powi(2)))	f / (T::from_f64(3.0) * minor_radius * (reach.powi(2) - minor_radius.powi(2)))
+M06_sqrt_to_sum	((gx.powi(2) + gy.powi(2)).sqrt(), (sq(b.x) + sq(b.y)).sqrt())	(gx + gy, (sq(b.x) + sq(b.y)).sqrt())
+M07_fidelity_x0.3	terms.add(EnvelopeTerm::Fidelity, lipschitz * d);	terms.add(EnvelopeTerm::Fidelity, lipschitz * d * T::from_f64(0.3));
+M08_frame_zero	        super::frame_defect(surface, boxed.v_reach()),	        super::frame_defect(surface, boxed.v_reach()) * T::zero(),
+M09_net_sector_skip	                holds(T::from_f64(piece.x_lo), band, k, SectorChannel::Azimuth)?;	                let _ = holds(T::from_f64(piece.x_lo), band, k, SectorChannel::Azimuth);
+M10_period_gate_off	                Sign::Negative => return Err(exceeded),	                Sign::Negative => {}
+M11_branch_check_off	                && (y - x).abs() > 1	                && (y - x).abs() > 100
+M12_lever_sign_off	                            Ok(_) => return Err(sector_refused(j, SectorChannel::Lever)),	                            Ok(_) => {}
+M13_deck_u_zero	        off_period(image.u_off, shift) * u_arm,	        off_period(image.u_off, shift) * u_arm * T::zero(),
+M14_rho_minus_d_off	                    .map(|x| (x - d).max(T::zero()));	                    .map(|x| x);
+M15_plane_x0.3	        terms.add(EnvelopeTerm::Incidence, sup);	        terms.add(EnvelopeTerm::Incidence, sup * T::from_f64(0.3));
+M16_cone_drift_zero	            terms.add(EnvelopeTerm::FidelityV, drift * (v_reach + incidence + d));	            terms.add(EnvelopeTerm::FidelityV, drift * T::zero());
+M17_torus_major_zero	                *minor_radius * (major - *major_radius).abs() / core,	                *minor_radius * (major - *major_radius).abs() / core * T::zero(),
+M18_circle_sector_skip	                    Ok(Some(channel)) => return Err(sector_refused(k, channel)),	                    Ok(Some(_channel)) => {}
+M19_circle_d_zero	            let d = (*centre - to_frame(form.c - o, &e)).norm()	            let d = T::zero() * (*centre - to_frame(form.c - o, &e)).norm()
+M20_tube_sector_skip	                    holds(T::from_f64(piece.tube_lo), band, k, SectorChannel::Tube)?;	                    let _ = holds(T::from_f64(piece.tube_lo), band, k, SectorChannel::Tube);
+M21_v_off_zero	        (v_off + (image.v_sign - sign).abs() * v_reach) * v_arm,	        ((image.v_sign - sign).abs() * v_reach) * v_arm,
