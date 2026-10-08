@@ -3667,7 +3667,14 @@ impl<P> Node<P> {
     ///   and there is nothing to generalize. What is general is that
     ///   each is asked HERE, so the form a construction door
     ///   establishes is the form every door admits.
-    pub fn input_fault(&self) -> Option<InputFault>
+    ///
+    /// Distinctness is over the operations the reads name
+    /// (`operation_of`; a read it cannot place is its own key): two
+    /// outputs of one operation are one node reached twice.
+    pub fn input_fault(
+        &self,
+        operation_of: impl Fn(VarId) -> Option<RecipeNodeId>,
+    ) -> Option<InputFault>
     where
         P: crate::ProfilePayload,
     {
@@ -3676,11 +3683,11 @@ impl<P> Node<P> {
         {
             return Some(InputFault::TooFew { found: list.len() });
         }
-        let mut seen: std::collections::BTreeSet<VarId> = std::collections::BTreeSet::new();
+        let mut seen = std::collections::BTreeSet::new();
         if let Some((_, input)) = self
             .operand_rows()
             .into_iter()
-            .find(|(_, input)| !seen.insert(*input))
+            .find(|(_, input)| !seen.insert(operation_of(*input).ok_or(*input)))
         {
             return Some(InputFault::Duplicate { input });
         }

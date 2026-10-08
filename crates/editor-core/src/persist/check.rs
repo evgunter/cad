@@ -1855,7 +1855,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         // blend's `selection`. A payload has ONE canonical form, held by
         // every door that admits a node, so the question is asked in one
         // place and this door only names the answer.
-        if let Some(fault) = node.input_fault() {
+        if let Some(fault) = node.input_fault(|var| doc.operation_of(var)) {
             return Err(match fault.list_fault() {
                 Err(input) => SnapshotError::DuplicateInput {
                     node: doc.spoken(id),

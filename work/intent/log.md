@@ -470,12 +470,17 @@ The unit A lane found that spec §2's two asks could not both hold: an output lo
 
 ## 2026-10-08 — unit B: operands are reads (branch `intent/s2-b-reads`)
 
-Every operand field holds a `VarId` read of an output, typed by its slot's `OperandKind`; `Node::inputs` is gone and `Doc::upstream` is the one dependency relation the schedule, the content key, acyclicity, roots, split closure, the cascade and the viewer tree read. The tube reads one `frame` (`tube-spine-reads-an-axis-origin` closed). Calls the lane made, put to the orchestrator and built while it answers:
+Every operand field holds a `VarId` read of an output, typed by the kind its slot admits; `Node::inputs` is gone and `Doc::upstream` is the one dependency relation the schedule, the content key, acyclicity, roots, split closure, the cascade and the viewer tree read. The tube reads one `frame` (`tube-spine-reads-an-axis-origin` closed). The orchestrator's rulings on the lane's questions:
 
-- **The slot door's edit arm** is `DocEdit::SetOperand { node, slot, read }`, a sibling of `SetParam` (whose slot is a `SlotId`); `SetMembers` is the same door on a list slot.
-- **Refusals.** A read of another kind is `EditError::OperandVarKind` (and `SnapshotError::OperandVarKind` at load): `SlotVarKind`'s fields are a `SlotId` and a dimension, which an operand has neither of. A node named alone that defines two outputs of one kind is `AmbiguousOutput`, one that defines nothing `DefinesNothing`. `DeleteWouldDangle`, `FoldWouldDangle`, `DanglingInput`, `ForwardInput` and the load door's `DeclaredSiteNotAnOperand` retire.
-- **A stranded read** is `Maintenance::StrandedRead { node, slot, var }`, beside `Strand`, which names a name; evaluation refuses `UnresolvedRead { slot, var }`. A re-point that takes a declared name out of its carrier's reach reports `Strand { took: Took::Reach }`.
-- **A part over a split** reads the half its selector names (`Part { of: split, SplitHalf(h) }` lowers to that half's port); any other reader names a split's port explicitly. What a non-`Part` reader of a split's port evaluates to is open (asked as Q2; the branch keeps today's `WrongOperand { found: "split" }`).
-- **A pre-B file** spells its operands as node ids, which parse as variable ids and refuse `SnapshotError::OperandUnminted` with the regenerate recourse, rather than `Unreadable`: the bytes are well-formed, so only the read walk can tell.
+- **Q1, the slot door: one door, the slot typed by kind.** DM6 says an operand slot is written by the one slot door every slot has, so no `SetOperand` beside `SetParam`. `SlotId` gets a total `kind()`, `dimension()` becomes partial (scalar slots only), and `SetParam`'s payload widens to a scalar formula or a read (the `Operand` shape), with `From<Formula>`. `SetMembers` is the list spelling of the same door through the same write path. `SetStructuralParam` stays.
+- **C1, a part over a split: accepted.** `Part { of: split, SplitHalf(h) }` reads the half its selector names.
+- **C2, one wrong-kind refusal.** No `OperandVarKind`: `SlotVarKind` (and its `SnapshotError` twin) widens to carry kinds, its scalar wording kept.
+- **C3: accepted.** `Maintenance::StrandedRead { node, slot, var }`; a re-point that takes a declared name out of its carrier's reach reports `Strand { took: Took::Reach }`. Each has a row (`intent_s2_b_reads`, `dm7_delete_strands`).
+- **Q2, a read of a split's port is that half.** The port is typed `Body` (FORK-1), so evaluation projects it as `Part { SplitHalf }` does, bit-equal bodies and names; `Part { SplitHalf }` stays in B, its retirement filed (`part-split-half-retires`), because retiring it moves roots.
+
+Lane calls the rulings left standing:
+
+- **A pre-B file** spells operands as node ids, which parse as variable ids and refuse `SnapshotError::OperandUnminted` with the regenerate recourse rather than `Unreadable`: the bytes are well-formed, so only the read walk can tell.
+- **DM5 is over the operations read**: two outputs of one operation are that node reached twice (a boolean over both halves of one split refuses `DuplicateInput`, as `Boolean { a: X, b: X }` did).
 - **`DeclaredNameNotUpstream`** asks the read relation: a name is out of a carrier's reach when the carrier or a node downstream of it minted it, or a node inserted after it that it does not read.
 - The viewer's body and instances seats read the kind of the variable a node named alone defines (`Doc::read_of_node`), closing `body-seat-reads-through-the-placer-chain`.

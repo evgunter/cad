@@ -14,6 +14,26 @@ use editor_core::{
 };
 use geom_core::Tol;
 
+/// A block, its frame at height `z`: a unit square raised 1.
+fn block_at(doc: ProfileDoc, z: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, _, profile) = on_frame_keeping(
+        doc,
+        [0.0, 0.0, z],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![fixture::square(0.25, 0.25, 0.5)],
+    );
+    let (doc, extrude) = insert(
+        doc,
+        Node::Extrude {
+            profile: profile.into(),
+            distance: len(1.0),
+            side: editor_core::ExtrudeSide::Along,
+        },
+    );
+    (doc, profile, extrude)
+}
+
 /// A frame, a square on it and an extrude of the square, `dx` along x.
 fn block(doc: ProfileDoc, dx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, _, profile) = on_frame_keeping(
@@ -323,6 +343,66 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
         "a body's placement does not become a list's"
     );
     applied(&doc, set(moved, OperandSlot::Input, b.into()));
+}
+
+/// **A read of a split's port is that half** (FORK-1, Q2 ruled): a
+/// boolean over the split's first port builds, and is the same boolean
+/// over `Part { SplitHalf::Above }` of that split, bit for bit and name
+/// for name, up to the boolean's own id.
+#[test]
+fn a_split_port_read_is_its_half() {
+    let (doc, _, block) = block(ProfileDoc::empty_derived("s2b-split-port", Tol::witness()), 0.0);
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(editor_core::Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.5)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+    );
+    let (doc, split) = insert(doc, Node::Split { target: block.into(), tool: plane.into() });
+    let (doc, _, other) = block_at(doc, 0.3);
+    let (doc, part) = insert(
+        doc,
+        Node::Part {
+            of: split.into(),
+            select: editor_core::PartSelect::SplitHalf(editor_core::SplitHalf::Above),
+        },
+    );
+    let boolean = |a: Operand| Node::Boolean {
+        op: editor_core::BooleanOp::Union,
+        a,
+        b: other.into(),
+        declare: Vec::new(),
+    };
+    let (doc, by_port) = insert(doc, boolean(Operand::Output { node: split, port: 0 }));
+    let (doc, by_part) = insert(doc, boolean(part.into()));
+    let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
+    let (port, part) = (
+        ev.value(by_port).unwrap_or_else(|| panic!("{:?}", ev.node_error(by_port))),
+        ev.value(by_part).expect("the part spelling builds"),
+    );
+    // Each boolean stamps its own id on what it mints; read the port
+    // spelling's as the part spelling's, and the two are one.
+    let as_part = |text: String| {
+        text.replace(
+            &format!("{:?}", by_port.0),
+            &format!("{:?}", by_part.0),
+        )
+        .replace(
+            &by_port.0.digest().to_string(),
+            &by_part.0.digest().to_string(),
+        )
+    };
+    assert_eq!(
+        as_part(format!("{:?}", port.payload)),
+        format!("{:?}", part.payload),
+        "one body, bit for bit"
+    );
+    assert_eq!(
+        as_part(format!("{:?}", port.name_table)),
+        format!("{:?}", part.name_table),
+        "and one name table"
+    );
 }
 
 /// **The comparator reads a read as the input it names**, so a document
