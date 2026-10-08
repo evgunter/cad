@@ -17,13 +17,12 @@
 //! leaves a slanted seam by the thickness times the slant's sine: the
 //! oblique-junction refusal, met here on a spline wall. The straight
 //! prism's seams are parallel to the cap normal, so its re-anchor
-//! holds and the cap reaches the pcurve mint, whose spline-wall arm
-//! places a rim only on a boundary row of the wall's chart.
+//! holds and the moved rim lands on an interior row of each wall.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Dual64, Tol, Vec3};
-use topo::{Body, EdgeKey, FaceKey, PcurveMintError, ReplaceFaceError, ShellError};
+use topo::{Body, EdgeKey, FaceKey, ReplaceFaceError, ShellError};
 
 use crate::common::approx::{nurbs_walls, prism, twisted_loft};
 use sweep::test_support::finished;
@@ -142,38 +141,39 @@ fn an_outward_cap_offset_runs_past_the_seam_patchs_end() {
 }
 
 /// The straight prism's seams are parallel to the cap normal, so an
-/// INWARD cap offset re-anchors every one of them, and the door goes
-/// on to the pcurve mint. There the moved cap's rim runs along an
-/// interior row of each wall's chart, which the spline-wall arm does
-/// not place.
+/// INWARD cap offset re-anchors every one of them, and the moved cap's
+/// rim runs along an interior row of each wall's chart, where the
+/// pcurve mint places it exactly: an iso line at the moved height.
 #[test]
-fn the_prisms_inward_cap_offset_re_anchors_its_seams_and_meets_the_interior_row() {
+fn the_prisms_inward_cap_offset_mints_its_rim_on_the_walls_interior_row() {
     let body = prism();
     let walls = nurbs_walls(&body);
     let mut moved = body.clone();
-    let e = topo::replace_face_offset(&mut moved, top_cap(&body), -THICKNESS, Tol::witness())
-        .expect_err("the wall's interior row has no image lane yet");
-    let ReplaceFaceError::Pcurve {
-        source:
-            PcurveMintError::Certify {
-                half_edge,
-                error: geom_brep::PcurveCertifyError::IsoUnsupported { what },
-            },
-    } = &e
-    else {
-        panic!("expected the spline-wall arm's refusal, got {e}");
-    };
-    assert!(
-        what.starts_with("the carrier's start point lies on neither chart boundary"),
-        "the refusal came from another arm: {e}"
-    );
-    let wall = body
-        .face_of_half_edge(*half_edge)
-        .expect("the refused half-edge has a face");
-    assert!(
-        is_spline_wall(&walls, wall),
-        "the refused half-edge is not on a spline wall: {e}"
-    );
+    let cap = top_cap(&body);
+    topo::replace_face_offset(&mut moved, cap, -THICKNESS, Tol::witness())
+        .expect("the prism's cap moves inward");
+    let mut rims = 0;
+    for (he, cache) in moved.pcurves() {
+        let Some(face) = moved.face_of_half_edge(he) else {
+            continue;
+        };
+        if !is_spline_wall(&walls, face) {
+            continue;
+        }
+        let geom_brep::Pcurve::IsoLine { p0, pl } = *cache.pcurve() else {
+            continue;
+        };
+        // A row: `u` moves and `v` is fixed, strictly inside the chart.
+        if pl.y == 0.0 && p0.y > 0.0 && p0.y < 1.0 {
+            assert!(
+                (p0.y - (1.0 - THICKNESS)).abs() < 1e-12,
+                "the rim's row is the moved cap's height, got v = {}",
+                p0.y
+            );
+            rims += 1;
+        }
+    }
+    assert_eq!(rims, 4, "each of the four walls carries the moved rim on an interior row");
 }
 
 /// A scalar that holds no NURBS lane cannot read a spline seam's foot,
