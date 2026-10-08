@@ -844,3 +844,15 @@ and `germ-takes-the-span-bounded-face-reach-alone` (parked on D10's
 declared path); the sweep's siblings went to SHELF, CLEAVE (two) and
 REACH.
 - 2026-10-08: filed `split-cyl-ellipse-quarter-bound-overshoots-the-tilt-at-the-band-edge` (P3), the two ellipse-bounded split_cyl servings against the truth that PR 4292's fix pass 2 measured (shared with main).
+
+## 2026-10-08 — a line three solids touch along (TANG implementer)
+
+`three-solids-touching-along-one-line-refuse-their-union` closes on PR
+PRNUM. An operand holding a contact line (coincident edges on one ray)
+meets another solid's edge along it pair by pair under the edge-edge
+rule, and a pierce face welded once already joins the next pierce at
+the corner that holds it. Every order of three and four prisms on one
+line builds, in topo and through editor-core. Filed here
+`an-edge-crossing-two-wedges-about-a-contact-line-refuses`; the naming
+siblings went to WIRE and EMIT.
+

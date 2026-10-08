@@ -2,10 +2,11 @@
 id: three-solids-touching-along-one-line-refuse-their-union
 kind: issue
 title: Three solids touching along one line refuse their union: the third solid's edge meets a doubled contact edge
-status: open
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: H
+closed: 2026-10-08
 ---
 
 ## What
@@ -64,3 +65,30 @@ on one ray at the vertex-vertex lane rather than refusing it as a
 degenerate operand. It must not lean on a declaration, and it should
 be checked against D10's `unproven-coincidence` door when that is
 built.
+
+## Closed (2026-10-08, TANG, PR PRNUM)
+
+Remeasured on 8fd03fce (after PR 4300): the 18 and 6 topo refusals
+stood as above; the prisms alone through editor-core already built,
+so `one_partner` was not reached and is not changed.
+
+- `recl_edges`: a ray event with several coincident edges of one solid
+  (grouped by the margined `bool_ee_collinear`, as every ray event is)
+  is a contact line that solid holds; each of its edges meets each of
+  the other solid's by the edge-edge rule (`resolve_edge_edge`), pair
+  by pair. Two crossings on one ray, and a contact line met off an
+  edge of the other solid, refuse typed (unbuilt). No declaration is
+  read beyond what the edge-edge rule already reads.
+- `finish::pinch_site`: a vertex a pinch face's boundary runs through
+  more than once (a pierce an earlier weld joined) is joined at the
+  corner that holds the other pierce (`corner_nests`, the existing
+  `pinch_corner_holds` decide).
+
+Rows: `crates/topo/tests/three_solids_on_one_line.rs` (three and four
+prisms, with and without the plate; one prism crossing one wedge; one
+bridging both; a prism's corner moved within, inside and past the
+band; the 60° fixture's `UndeclaredCoincidence`), and editor-core's
+`union_pinch_member_order` (three and four, with and without the
+plate). Filed: `an-edge-crossing-two-wedges-about-a-contact-line-refuses`
+(this slate), `work/wire/a-prism-crossing-a-wedge-about-a-contact-line-names-a-crossed-edge-both-ways`,
+`work/emit/a-prism-bridging-two-wedges-about-a-contact-line-refuses-shared-rim`.

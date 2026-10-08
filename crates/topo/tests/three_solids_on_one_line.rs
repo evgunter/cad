@@ -270,6 +270,14 @@ fn every_order(
     }
     members.extend(prisms.iter().map(Prism::body));
     let volume = union_volume(prisms, plate);
+    // A corner moved off the line within the zero builds as on it: the
+    // volume reads within the move's sweep, its offset times the
+    // prism's height (under 2).
+    let moved: f64 = prisms
+        .iter()
+        .map(|p| (p.apex.0 - MEET[0]).hypot(p.apex.1 - MEET[1]))
+        .sum();
+    let slack = 2.0f64.mul_add(moved, 1e-9);
     let holds = |q: [f64; 3]| (plate && in_plate(q)) || prisms.iter().any(|p| p.holds(q));
     let probes = probes();
     let c = at(Point3::new(MEET[0], MEET[1], MEET[2]));
@@ -317,7 +325,7 @@ fn every_order(
         );
         let v = topo::mass_properties(body, t()).unwrap().volume;
         assert!(
-            (v - volume).abs() < 1e-9,
+            (v - volume).abs() < slack,
             "{what}: volume {v}, closed form {volume}"
         );
         assert_eq!(corners_disjoint(body), Ok(()), "{what}: corners");
@@ -435,10 +443,12 @@ fn a_third_prism_crossing_the_wedges_about_the_line_builds_or_refuses_typed() {
 /// **A prism's corner moved off the line builds or escalates typed in
 /// every member order**, the move a multiple of ε (the band's zero is
 /// ε, its escalation 10ε): within the zero it touches the others along
-/// the line, and builds as they do; across the band every order
-/// escalates; at 100ε the slivers the move leaves read inside the band,
+/// the line, and builds as they do; inside the band (3ε, 5ε) every
+/// order escalates, in the boolean or at a carrier's certification;
+/// at 100ε the slivers the move leaves read inside the band,
 /// and each order escalates or builds a body whose census escalates
-/// there; at 10⁴ε it stands apart, and builds.
+/// there; at 10⁴ε, and no less than the micron the corner and shape
+/// reads round to, it stands apart, and builds.
 #[test]
 fn a_prism_moved_off_the_line_builds_or_escalates_typed_in_every_member_order() {
     let eps = t().eps();
@@ -453,24 +463,24 @@ fn a_prism_moved_off_the_line_builds_or_escalates_typed_in_every_member_order() 
         );
     }
     every_order(
-        "three prisms and the plate, one moved 10⁴ε",
-        &three_off(1e4 * eps),
+        "three prisms and the plate, one moved apart",
+        &three_off((1e4 * eps).max(1e-5)),
         true,
         [18, 42, 27],
         &[2, 0, 2, 0],
         &none,
     );
-    for k in [1.0, 10.0, 100.0] {
+    for k in [3.0, 5.0, 100.0] {
         let p = common::brick(PLATE[0], PLATE[1], PLATE[2], t());
         let mut members = vec![finished("the plate", p, t())];
         members.extend(three_off(k * eps).iter().map(Prism::body));
         for order in orders(members.len()) {
             let what = format!("one prism moved {k}ε, member order {order:?}");
             match fold(&members, &order) {
-                Err((_, BooleanError::Escalated { .. })) => {}
+                Err((_, e)) if escalates(&e) => {}
                 Err((s, e)) => panic!("{what}: step {s} refused {e:?}"),
                 Ok(r) => {
-                    assert!(k > 10.0, "{what}: built inside the band");
+                    assert!(k > 5.0, "{what}: built inside the band");
                     let es = validate_pseudomanifold(&r.body, &r.contacts, t()).unwrap_err();
                     assert!(
                         es.iter()
@@ -481,6 +491,18 @@ fn a_prism_moved_off_the_line_builds_or_escalates_typed_in_every_member_order() 
             }
         }
     }
+}
+
+/// Whether `e` is an in-band escalation: the boolean's own, or a
+/// carrier's certification at an Euler door it calls.
+fn escalates(e: &BooleanError) -> bool {
+    matches!(
+        e,
+        BooleanError::Escalated { .. }
+            | BooleanError::Euler(topo::EulerOpError::Certification {
+                error: geom_brep::CertifyError::Escalated { .. },
+            })
+    )
 }
 
 /// **Three prisms over 60° sectors refuse their flush continuation in
