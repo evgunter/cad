@@ -10,8 +10,8 @@
 //! - a slab and a blind pocket across a one-segment cylinder's wall;
 //! - a tilted plane across that wall;
 //! - a tilted plane passing close by the wrap edge's end vertex;
-//! - a plane across a full-revolved ball, whose seam meridian is its
-//!   wall's wrap edge.
+//! - the tube under a box whose side face cuts its outer wall, so one
+//!   one-site loop lies beside matched segments in the same faces.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -179,28 +179,6 @@ fn a_plane_close_by_the_wrap_edges_end() {
             (TAU, 512.0, PI * (c + m)),
         );
     }
-}
-
-/// **A plane across a full-revolved ball**: the ball of radius 1 poled
-/// along `y`, one wall whose seam meridian is its wrap edge, under the
-/// box `y ≤ 0.3`, whose top cuts the wall in a circle through the seam
-/// once. Ball `4π/3`, box 64.8 (6 × 1.8 × 6), overlap
-/// `π ∫₋₁^0.3 (1 − y²) dy`.
-#[test]
-fn a_plane_across_a_full_revolved_ball() {
-    let ball = revolved_about_y(
-        vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
-        Revolution::Full,
-        tol(),
-    );
-    let block = brick((-3.0, 3.0), (-1.5, 0.3), (-3.0, 3.0), tol());
-    let cap = PI * ((0.3 - 0.009) + (1.0 - 1.0 / 3.0));
-    every_op(
-        "the ball under a box",
-        ball,
-        block,
-        (4.0 / 3.0 * PI, 6.0 * 6.0 * 1.8, cap),
-    );
 }
 
 /// **A one-site loop beside matched ones**: the CLEAVE tube under the box

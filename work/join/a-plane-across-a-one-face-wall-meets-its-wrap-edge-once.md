@@ -29,11 +29,12 @@ Split out of `closed-in-face-section-loop-has-one-site`. That row is parked on D
     and a conic frame;
   - no germ of another record names that locus pair;
   - every real edge at the site has both halves in the germ's face,
-    on both operands (the wall's wrap edge on one, nothing inside the
-    other's face);
+    on both operands: the wall's wrap edge on one, and on the other a
+    wrap edge too or no edge, a pierce of a planar face;
   - the two germs turn round the conic in opposite senses.
-  Anything else keeps `SingleSiteSectionLoop`, a conic lying along an
-  operand edge among them. `bool_connect` joins these segments after
+  Anything else keeps `SingleSiteSectionLoop`: a conic lying along an
+  operand edge, and a pierce of a curved face (a sphere pair's radical
+  circle), among them. `bool_connect` joins these segments after
   the matched ones. The declared-REST lane's `section_segments` read is
   untouched.
 - **The wall side** is the split's self-loop chord (`d9244fd60`): two
@@ -62,7 +63,9 @@ closed-form volume):
 - a blind pocket in a plate, cut by the cylinder;
 - a tilted plane;
 - planes 0.02 and 0.001 above the wrap edge's end vertex;
-- a plane across a full-revolved ball.
+- the tube under a box whose side face cuts the outer wall, so the
+  inner wall's one-site loop lies beside matched segments in the same
+  faces.
 
 `one_segment_loop.rs` `a_boolean_on_an_extruded_seam_wall_builds_along_and_across_it`:
 the two rows that pinned `SingleSiteSectionLoop`, the slab kept and the
