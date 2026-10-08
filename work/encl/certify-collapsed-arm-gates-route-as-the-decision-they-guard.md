@@ -2,7 +2,8 @@
 id: certify-collapsed-arm-gates-route-as-the-decision-they-guard
 kind: issue
 title: geom-brep: dihedral_arm and nurbs_span_meter refuse under the decision they guard, with the poisoned-margin note, because the funnel folds the gate's verdict into MarginDiag::Invalid
-status: dispatched
+status: closed
+closed: 2026-10-08
 branch: encl/collapsed-arm-gates
 pr: 3431
 opened: 2026-09-28
@@ -105,3 +106,7 @@ validator report it as `CertifyError::ArmCollapsed` and
 `ValidationError::NoDihedralArm`; and the spline meter's own decision,
 `CertCheck::ParamSpanMeter` / `CertifyError::SpanMeterCollapsed`.
 
+
+## Closed
+
+2026-10-08. PR 3431 merged at `cd9214980a`, after a full review, a fix pass and an approving delta re-review. The SSI march's half went to `work/ssimarch/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`; the seam and split readers went to `work/cleave/split-dihedral-readers-drop-the-arm-rung.md`. Follow-ups from the re-review are in `work/encl/lever-escalation-rung-is-public-and-its-arm-is-told-three-ways.md`.
