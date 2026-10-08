@@ -434,9 +434,11 @@ naming it. Split and inline move placements with their bodies (A4).
 
 **(1) Primitives fold by coset intersection.** Each primitive pins the
 pair's relative pose to a coset of an SE(3) subgroup; the closure is
-the symmetry groups of the pose kinds a primitive equates (D10),
+the symmetry groups of the pose kinds a primitive equates (D10), and
+one `Subgroup` type is both a pose's symmetry and what a mate folds:
 `Subgroup::{Se3, Planar, Cylindrical, Prismatic, Revolute, Trivial,
-Empty}`, and several mates on one pair fold by exact coset intersection
+Empty}`, which grows a `Point`'s and a `Direction`'s when a reader needs
+them, and several mates on one pair fold by exact coset intersection
 (`mate/coset.rs`) to DETERMINED, UNDER or CONTRADICTORY, the last
 refusing with the added mate's measured clash. The edit door asks the
 same per-mate admission of a mate being inserted (the walk, the class,

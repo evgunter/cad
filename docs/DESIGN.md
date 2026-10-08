@@ -1227,8 +1227,8 @@ offers an existing variable of equal value; declining the offer is what
 makes the two distinct.
 
 A pose is a frame known up to its kind's symmetry, a subgroup of the
-rigid motions (a plane forgets in-plane motion, an axis slide and spin
-along itself), and the kinds are ordered by which determines which. A
+rigid motions and the same `Subgroup` the mates fold (A11 (1)): a plane
+forgets in-plane motion, an axis slide and spin along itself; and the kinds are ordered by which determines which. A
 slot holds its own kind; a finer value is read through its projection,
 and an incidence between poses (an axis in a plane, a point on an axis)
 is a construction over one variable, never a check between two. A 2-D

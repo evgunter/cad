@@ -2,11 +2,11 @@
 id: the-pose-kinds-are-one-order
 kind: issue
 title: "Stage 2 FORK-1b: the pose kinds are one order (Ev's lattice); the revolve holds its axis line"
-status: open
+status: closed
 opened: 2026-10-08
 priority: P0
 cost: E
-needs_ev: true
+closed: 2026-10-08
 refs: [d10-one-way-to-say-intent-is-unbuilt, operations-state-their-outputs, tube-spine-reads-an-axis-origin]
 ---
 
@@ -21,3 +21,5 @@ A designer pair converged over three rounds (`docs/DESIGN-FORK-LOG.md` row 86; r
 - unit A: no `AxisInPlane` kind, both axis datums define `Axis`, `Revolve` has two ports; unit B: the tube reads a `Frame` (`tube-spine-reads-an-axis-origin`).
 
 The text is in PR 4222's diff (D10 Variables, Operations and Coincidence; ASSEMBLY A11 (1)). Ev's answer closes this row.
+
+**Ruled (Ev, 2026-10-08, PR 4222):** approved, adding "ideally the mates' `Subgroup` stuff can literally be shared, at least in part": one `Subgroup` type is a pose's symmetry and what a mate folds, growing a `Point`'s and a `Direction`'s when a reader needs them. Unit A carries no `AxisInPlane` kind, both axis datums define `Axis`, and `Revolve` defines `body` and `axis`; unit B gives the tube a `Frame`.
