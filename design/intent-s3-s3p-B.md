@@ -192,3 +192,41 @@ value" becomes "Every free scalar's value".
   space's free frame if its reads reach it, else in the frame of the earliest-minted copy they
   reach, and never in the world's, so a bit moves only under an edit on the path the operation
   reads; D9 makes that result the same on every build."
+
+## Round 3
+
+**1. Ev's principle bears on the frame rule: the claim "the frame moves only rounding" is false.**
+Several carriers take their reference from `orthonormal_basis` in the computing axes, which is a
+convention and not rounding: sweep cap planes (`sweep/src/swept.rs`), Newell planes
+(`geom-brep/src/newell.rs`), and a split's one-corner section (`section_loops.rs`, the fallback
+in `chord_u_ref`). If the frame changes, the reference changes branch, so a zero-spin sketch on
+that face (DM1) turns by a finite angle. Verdicts can also flip at the edges of the sliver band.
+Both are rare but visible, so the frame choice is arbitrariness that reaches the person, and
+Ev's rule applies: don't hide it. (Correction to round 1: the `join.rs` site I cited is test
+code.)
+
+**2. The three candidates.**
+- **Mint order hides an order.** It is invisible and not editable, and a delete-and-recreate
+  silently changes which member decides. It is the case Ev rejected for the union.
+- **The operands' common frame is order-free, but it exists only when every read reaches one
+  member.** That covers a construction on one free frame, or a split of one copy, but not a
+  boolean of two copies. Its fallback is an order again.
+- **The first member reached in the operation's stated order is the author's visible
+  statement.** Stated order means signature order, or a list's listed order. It coincides with
+  the common frame wherever one exists, so it is order-free exactly where an order-free answer
+  exists and says its order where none does. It is also the order that D10 Booleans already
+  makes visible ("keeping one fixed operand's description"), and the union's list (#4323).
+
+**3. I move from mint order to stated order.** Locality holds, because the deciding member is a
+read. The D10 sentence I would now propose:
+
+> Nothing computes in the frame of a space. An operation computes in the frame of the member
+> its first read reaches, in the order it states (its signature, a list's listed order): a free
+> frame other than the world, or a copy. Where every read reaches one member, no order enters.
+> A bit moves only under an edit on what the operation reads or how it is ordered; D9 makes
+> the result the same on every build.
+
+**For the orchestrator.** The deeper fix: carriers that mint a reference by `orthonormal_basis`
+derive it from their inputs instead (a cap from the path frame, a section from the cutting
+plane's reference). The frame then moves only rounding. File it as a topo issue whichever rule
+Ev picks.
