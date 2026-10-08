@@ -2,12 +2,14 @@
 id: shell-of-a-lofted-body-meets-the-oblique-corner-on-a-slanted-spline-seam
 kind: issue
 title: the per-chart offset door moves a cap rigidly, so on a loft whose seams slant the moved corner leaves the seam and shell refuses ReanchorOffCarrier before any wall fit
-status: dispatched
+status: closed
 opened: 2026-10-06
 priority: P1
 cost: H
 refs: [shell-refuses-every-lofted-body-at-a-wall-seam-carrier]
 branch: shell/oblique-corner-derives
+pr: 4351
+closed: 2026-10-08
 ---
 
 
@@ -145,3 +147,18 @@ Ev). Re-baseline both `ReanchorOffCarrier` rows in
 `encl_curved_loft_shell.rs`; `an_outward_cap_offset_runs_past_the_seam_patchs_end`
 holds. Not measured by the pair: whether `plane_nurbs_ssi` certifies at
 the default ε on the bilinear saddle and the vase wall — measure first.
+
+## Closed
+
+PR #4351. The per-chart door derives an edge between the moved surface
+and a held one as their section, and a moved corner as a root along an
+edge meeting it; transport survives on one chart and under the decided
+`holds_the_move` shortcut. `ReanchorOffCarrier` is retired. Step 4 (the
+loft's at-rest `Intersection` rims) was dropped on measurement — 44
+building rows refused by the plane × NURBS certificate,
+`work/ssiedge/plane-nurbs-certificate-refuses-at-rest-rows-of-lofts-and-sweeps.md`
+— so item 3 applies to declared chart edges: derived, record dropped.
+The twisted loft's cap now moves and its shell refuses at the first
+wall's fit (`BudgetExhausted` 4.14e-9 vs 1e-9); the vase's at its rim's
+limb 2 (4.787e-4 m,
+`work/ssiedge/plane-nurbs-limb-two-refuses-every-rational-wall.md`).
