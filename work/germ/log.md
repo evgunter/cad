@@ -719,3 +719,12 @@ coincidence is now a margined verdict (no declarations), checked by the
 - a measurement of circle × torus on main for wrong answers OUTSIDE the band, the open question the stopped lane left (`germ/circle-torus-outside-band`);
 - U4 resumed: merge main, use REACH's `sweep_split_admitting_cones` door, open its PR;
 - PR 3428 (the P1) resumed: merge main, where `ops.rs` and `rest.rs` conflict with main's new output stage, and re-measure.
+
+## 2026-10-08 — P0: circle × torus places shallow roots past the band at ε 1e-12
+
+- **Measured** (`germ/circle-torus-outside-band`, mpmath at 70 digits): over 54,000 runs, no wrong count, miss or phantom at any ε. But at ε 1e-12 the f64 lane places shallow-crossing roots up to 1.85e-9 m off (185·Kε), with 382 wrong outside the band. Interval was never wrong. 1e-9 and 1e-6 are clean.
+- **Cause:** `circle_torus.rs` passes `slack: None` to `half_angle_roots` since REACH's `0f74dfdb7e` (PR 3805, DR-54) removed the ladder's `root_slack`. The ellipse × torus and cone doors pass the `RootSlack` meter.
+- **Filed P0:** `circle-torus-certifies-shallow-roots-off-by-more-than-the-band`.
+- **Fix dispatched** on the same branch: pass `RootSlack`, measure the `conic_quadric` sibling (also `None`), rows red first, and a later-escape line under DR-54.
+- **Tier:** single review. The fix follows an existing door's reviewed pattern.
+- **Not a later escape of DR-16 (PR 3375):** that unit carried a root slack, and the regression came after it.
