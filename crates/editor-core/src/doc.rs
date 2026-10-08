@@ -1321,16 +1321,16 @@ impl<P> Doc<P> {
         self.ordered().0
     }
 
-    /// **The observed variables** (D10): every scalar output — a
-    /// measure's, a function of the built geometry — and every
-    /// definition reading one, directly or through another definition.
-    /// Only an assertion reads one ([`crate::EditError::ConstructionReadsObserved`]).
+    /// **The observed variables** (D10): every [`Node::Measure`]'s
+    /// output — a function of the built geometry — and every definition
+    /// reading one, directly or through another definition. Only an
+    /// assertion reads one ([`crate::EditError::ConstructionReadsObserved`]).
     pub fn observed(&self) -> std::collections::BTreeSet<VarId> {
         let mut observed: std::collections::BTreeSet<VarId> = self
             .vars
-            .iter()
-            .filter(|(_, v)| v.def().output().is_some() && v.kind().dimension().is_some())
-            .map(|(&id, _)| id)
+            .keys()
+            .copied()
+            .filter(|&id| self.measured_output(id))
             .collect();
         if observed.is_empty() {
             return observed;
@@ -1387,7 +1387,7 @@ impl<P> Doc<P> {
         })
     }
 
-    /// **The scalar outputs `var` reads**, through definitions: `var`
+    /// **The measures' outputs `var` reads**, through definitions: `var`
     /// itself when it is one, else every one its definition's closure
     /// reads, each once, in first-read order. Empty for a variable that
     /// is not observed ([`Self::observed`]).
@@ -1403,7 +1403,7 @@ impl<P> Doc<P> {
                 continue;
             };
             if held.def().output().is_some() {
-                if held.kind().dimension().is_some() {
+                if self.measured_output(at) {
                     out.push(at);
                 }
                 continue;
@@ -1415,6 +1415,13 @@ impl<P> Doc<P> {
             }
         }
         out
+    }
+
+    /// Whether `var` is a [`Node::Measure`]'s output: the one kind of
+    /// output that is observed.
+    fn measured_output(&self, var: VarId) -> bool {
+        self.operation_of(var)
+            .is_some_and(|node| matches!(self.nodes.get(&node), Some(Node::Measure { .. })))
     }
 
     /// [`Self::definition_order`], and how many of its variables
@@ -1647,8 +1654,6 @@ impl<P> Doc<P> {
             .into_iter()
             .filter_map(|(_, var)| self.operation_of(var))
             .chain(observed)
-            .collect::<Vec<_>>()
-            .into_iter()
             .chain(node.measure_sites());
         for id in at {
             if !out.contains(&id) {
@@ -2166,31 +2171,39 @@ impl<P> Doc<P> {
             }
         }
         for id in self.definition_order() {
-            let Some(expr) = self.vars.get(&id).and_then(|v| v.def().defined()) else {
-                continue;
-            };
-            env.bindings.remove(&id);
-            env.refused.remove(&id);
-            if self.var_names.contains_key(&id) {
-                env.written.remove(&id);
-            } else {
-                env.written.insert(id);
+            self.bind_definition(id, env);
+        }
+    }
+
+    /// **Bind the one defined variable `id`** in `env` from its
+    /// definition, evaluated over `env` at `env`'s scalar, or record its
+    /// refusal ([`Self::bind_definitions`]' step). Nothing for a
+    /// variable that is not defined.
+    pub(crate) fn bind_definition<T: Decide>(&self, id: VarId, env: &mut VarEnv<T>) {
+        let Some(expr) = self.vars.get(&id).and_then(|v| v.def().defined()) else {
+            return;
+        };
+        env.bindings.remove(&id);
+        env.refused.remove(&id);
+        if self.var_names.contains_key(&id) {
+            env.written.remove(&id);
+        } else {
+            env.written.insert(id);
+        }
+        let bound = if expr.dim() == Dimension::Count {
+            crate::expr::eval_count(expr, env).map(ParamValue::Count)
+        } else {
+            crate::expr::eval(expr, env).map(|value| ParamValue::Continuous {
+                dim: expr.dim(),
+                value,
+            })
+        };
+        match bound {
+            Ok(bound) => {
+                env.bindings.insert(id, bound);
             }
-            let bound = if expr.dim() == Dimension::Count {
-                crate::expr::eval_count(expr, env).map(ParamValue::Count)
-            } else {
-                crate::expr::eval(expr, env).map(|value| ParamValue::Continuous {
-                    dim: expr.dim(),
-                    value,
-                })
-            };
-            match bound {
-                Ok(bound) => {
-                    env.bindings.insert(id, bound);
-                }
-                Err(refusal) => {
-                    env.refused.insert(id, refusal);
-                }
+            Err(refusal) => {
+                env.refused.insert(id, refusal);
             }
         }
     }

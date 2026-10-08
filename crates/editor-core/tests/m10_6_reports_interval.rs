@@ -28,7 +28,7 @@ use editor_core::mc::{McConfig, McRefusal, monte_carlo};
 use editor_core::report::{Dials, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key};
 use editor_core::stackup::stackup;
 use editor_core::{
-    AssertionDir, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram, MeasureExpr,
+    AssertionDir, Dimension, Distribution, DocEdit, Formula, FreeVar, LoopProgram,
     MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, VarName,
     save,
 };
@@ -107,9 +107,9 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     ));
     // distance(wall 0, wall 2) — two parallel walls of the prism, 2 m
     // apart, measured at the PLACED node.
-    let web = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
+    let web = MeasurePrimitive::Distance { a: 0, b: 1 };
     let measured = r.measure(
-        &web,
+        &[web],
         &[
             SitedRef::new(
                 placed,

@@ -945,6 +945,7 @@ fn the_analysis_doors_and_reports_speak_the_labelled_node() {
             measured: 4,
             unmeasured: 0,
         }],
+        values: Vec::new(),
         assertions: Vec::new(),
         outside_box: 0.0,
     };

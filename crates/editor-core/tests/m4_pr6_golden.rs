@@ -302,24 +302,22 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     let cap = |end| editor_core::SitedRef::new(bulged, fixture::fname(bulged, RoleSeg::Cap(end)));
     let (measured_doc, measured) = fixture::measure(
         doc,
-        &editor_core::MeasureExpr::sub(
-            editor_core::MeasureExpr::primitive(editor_core::MeasurePrimitive::Distance {
-                a: 0,
-                b: 1,
-            }),
-            editor_core::MeasureExpr::value(len(0.25)),
-        )
-        .expect("same-dimension subtraction"),
+        &[editor_core::MeasurePrimitive::Distance { a: 0, b: 1 }],
         &[
             cap(editor_core::CapEnd::Start),
             cap(editor_core::CapEnd::End),
         ],
     );
+    let value = Formula::sub(
+        fixture::read_var(&measured_doc, measured.outputs[0]),
+        len(0.25),
+    )
+    .expect("same-dimension subtraction");
     doc = push(
         &measured_doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                value: measured.value,
+                value,
                 bound: len(0.1),
                 dir: editor_core::AssertionDir::AtLeast,
             }),

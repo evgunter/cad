@@ -67,8 +67,8 @@
 //! not [`PersistError::Unreadable`]: nothing about it is vocabulary
 //! this build lacks, so [`REGENERATE_RECOURSE`] would be advice that
 //! reproduces the refusal. Every route to it is a rebuild through the
-//! same smart constructors an author calls — [`crate::expr::Expr`]'s,
-//! `MeasureExpr`'s and [`crate::expr::UnitSym`]'s closed-table
+//! same smart constructors an author calls — [`crate::expr::Expr`]'s
+//! and [`crate::expr::UnitSym`]'s closed-table
 //! lookup — so the refusal
 //! a file earns is the one its authoring would have earned.
 //!

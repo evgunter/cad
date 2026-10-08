@@ -16,7 +16,7 @@ use editor_core::report::MassBudget;
 use editor_core::stackup::stackup;
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, EvalOptions, Formula, FreeVar, GeomPred,
-    LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileLift,
+    LoopProgram, MeasurePrimitive, NamePat, Node, NodeResult, ProfileDoc, ProfileLift,
     ProfileProgram, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, evaluate,
     select_where,
 };
@@ -448,14 +448,11 @@ fn bracket_with(
         vec![wall(hole_a), wall(hole_b)]
     };
     // web = distance(axes) − 2·(w/16) = w/2 − w/8 = 3w/8 = 7.5 mm nominal.
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(div(w(), 8.0)),
-    )
-    .unwrap();
-    let measured = r.measure(&web, &refs);
+    let measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
+    let web = Formula::sub(r.len_of(measured.outputs[0]), div(w(), 8.0)).unwrap();
+
     let assertion = r.insert(Node::Assertion {
-        value: measured.value,
+        value: web,
         bound: len(7.0e-3),
         dir: editor_core::AssertionDir::AtLeast,
     });

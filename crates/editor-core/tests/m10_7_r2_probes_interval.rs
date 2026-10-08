@@ -29,9 +29,8 @@ use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramStep,
-    ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
-    select_where,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget,
+    RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, select_where,
 };
 use geom_core::Tol;
 
@@ -181,19 +180,16 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, 
         vec![wall(bore_a), wall(bore_b)]
     };
 
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(
-            MeasureExpr::value(plen("bore_a")),
-            MeasureExpr::value(plen("bore_b")),
-        )
-        .expect("Length + Length"),
+    let measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
+    let web = Formula::sub(
+        r.len_of(measured.outputs[0]),
+        Formula::add(plen("bore_a"), plen("bore_b")).expect("Length + Length"),
     )
     .expect("Length - Length");
-    let measured = r.measure(&web, &refs);
+
     let nominal_web = BORE_B_X - BORE_A_X - 2.0 * BORE;
     let assertion = r.insert(Node::Assertion {
-        value: measured.value,
+        value: web,
         bound: len(nominal_web - 5.0e-5),
         dir: editor_core::AssertionDir::AtLeast,
     });

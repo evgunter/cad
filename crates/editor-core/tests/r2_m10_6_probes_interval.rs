@@ -60,9 +60,9 @@ use editor_core::mc::{McConfig, monte_carlo};
 use editor_core::report::{Dials, report_key};
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EntityKind,
-    EvalOptions, Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload,
-    VarName, evaluate,
+    EvalOptions, Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, StableName, UnitSym, ValuePayload, VarName,
+    evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -183,7 +183,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
     ));
     // The two facing walls of the unit square: their distance is 1.0.
     let measured = r.measure(
-        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
         &[
             SitedRef::new(
                 placed,
@@ -426,7 +426,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         side: ExtrudeSide::Along,
     });
     let measured = r.measure(
-        &MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
         &[
             SitedRef::new(c, bname(c)),
             SitedRef::new(block, bname(block)),

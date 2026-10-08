@@ -21,9 +21,9 @@ use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, AssertionVerdict, Axis3, BooleanOp, CancelToken, Dimension, DocEdit, DocumentId,
     EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError,
-    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
-    SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
+    MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef,
+    SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
     select_where,
 };
 use fixture::{ang, len, scl};
@@ -112,7 +112,7 @@ fn edges_of_kind(
 /// unchanged.
 fn with_measure(
     doc: &ProfileDoc,
-    expr: MeasureExpr,
+    expr: MeasurePrimitive<u32>,
     refs: Vec<StableName>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let refs: Vec<SitedRef> = refs.into_iter().map(SitedRef::at_mint).collect();
@@ -359,7 +359,7 @@ fn r2_distance_vertex_vertex_is_the_exact_norm() {
         for j in (i + 1)..8 {
             let (nd, id) = with_measure(
                 &d,
-                MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+                MeasurePrimitive::Distance { a: 0, b: 1 },
                 vec![vs[i].clone(), vs[j].clone()],
             );
             d = nd;
@@ -410,7 +410,7 @@ fn r2_distance_vertex_plane_is_the_normal_projection() {
         for v in &vs {
             let (nd, id) = with_measure(
                 &d,
-                MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+                MeasurePrimitive::Distance { a: 0, b: 1 },
                 vec![v.clone(), f.clone()],
             );
             d = nd;
@@ -468,7 +468,7 @@ fn r2_distance_plane_plane_is_the_authored_offset() {
         for y in &pb {
             let (nd, id) = with_measure(
                 &d,
-                MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+                MeasurePrimitive::Distance { a: 0, b: 1 },
                 vec![x.clone(), y.clone()],
             );
             d = nd;
@@ -521,7 +521,7 @@ fn r2_angle_line_line_is_the_box_direction_set() {
         for j in (i + 1)..es.len() {
             let (nd, id) = with_measure(
                 &d,
-                MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
+                MeasurePrimitive::Angle { a: 0, b: 1 },
                 vec![es[i].clone(), es[j].clone()],
             );
             d = nd;
@@ -566,7 +566,7 @@ fn r2_gap_sphere_sphere_walks_all_three_regimes() {
         );
         let (d3, id) = with_measure(
             &d2,
-            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+            MeasurePrimitive::Gap { outer: 0, inner: 1 },
             vec![fo[0].clone(), fi[0].clone()],
         );
         let g = measured(&eval(&d3), id);
@@ -619,12 +619,12 @@ fn r2_gap_plane_plane_role_swap_behaviour() {
         for (j, y) in pb.iter().enumerate() {
             let (dx, ix) = with_measure(
                 &d2,
-                MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+                MeasurePrimitive::Gap { outer: 0, inner: 1 },
                 vec![x.clone(), y.clone()],
             );
             let (dy, iy) = with_measure(
                 &d2,
-                MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+                MeasurePrimitive::Gap { outer: 0, inner: 1 },
                 vec![y.clone(), x.clone()],
             );
             let fwd = outcome(&eval(&dx), ix);
@@ -694,7 +694,7 @@ fn r2_the_parallelism_arm_is_clamped_below_one_metre() {
         assert!(!f1.is_empty() && !f2.is_empty());
         let (d3, id) = with_measure(
             &d2,
-            MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+            MeasurePrimitive::Distance { a: 0, b: 1 },
             vec![f1[0].clone(), f2[0].clone()],
         );
         let v = measured(&eval(&d3), id);
@@ -774,7 +774,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
     }
     let (d4, id) = with_measure(
         &d3,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![f1[0].clone(), f2[0].clone()],
     );
     match outcome(&eval(&d4), id) {
@@ -801,7 +801,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
     let vs = vertices(&ev, b);
     let (d2, measure) = with_measure(
         &d1,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![vs[0].clone(), vs[1].clone()],
     );
     let d3 = push(
@@ -910,7 +910,7 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
     let vs = vertices(&ev, b);
     let (with_measure_doc, measure) = with_measure(
         &d1,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![vs[0].clone(), vs[1].clone()],
     );
     let with_assertion = push(
@@ -975,7 +975,7 @@ fn r2_a_measure_at_dual64_is_bit_identical_and_untangented() {
     let vs = vertices(&ev, b);
     let (doc, id) = with_measure(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![vs[0].clone(), vs[7].clone()],
     );
     let at_f64 = measured(&eval(&doc), id);
@@ -1015,7 +1015,7 @@ fn r2_a_signed_gap_at_interval_contains_the_f64_value() {
     let fi = faces(&ev, inner, geom::SurfaceKind::Sphere);
     let (d3, id) = with_measure(
         &d2,
-        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        MeasurePrimitive::Gap { outer: 0, inner: 1 },
         vec![fo[0].clone(), fi[0].clone()],
     );
     let at_f64 = measured(&eval(&d3), id);
@@ -1110,7 +1110,7 @@ fn r2_a_transform_has_no_emission_to_measure() {
     // (3) The measure reports the MASTER's number, with no diagnostic.
     let (d4, id) = with_measure(
         &d3,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![vs_moved[0].clone(), vs_fixed[0].clone()],
     );
     let ev2 = eval(&d4);
@@ -1151,7 +1151,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
     let vs = vertices(&ev, b);
     let (d2, measure) = with_measure(
         &d1,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![vs[0].clone(), vs[1].clone()],
     );
     let good = push(
@@ -1251,7 +1251,7 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
         let fi = faces(&ev, ball, geom::SurfaceKind::Sphere);
         let (d3, measure) = with_measure(
             &d2,
-            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+            MeasurePrimitive::Gap { outer: 0, inner: 1 },
             vec![fo[0].clone(), fi[0].clone()],
         );
         let d4 = push(
@@ -1330,7 +1330,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
     let vs = vertices(&ev, b);
     let (d2, measure) = with_measure(
         &d1,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![vs[0].clone(), vs[1].clone()],
     );
     let doc = push(
@@ -1423,24 +1423,24 @@ fn r2_a_measured_quotient_that_is_not_finite_refuses() {
     let (d1, b) = boxed(&d0, (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
     let ev = eval(&d1);
     let vs = vertices(&ev, b);
-    let expr = MeasureExpr::div(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Formula::named(VarName::from_static("s"), Dimension::Scalar)),
-    )
-    .expect("Length / Scalar is a Length");
     let (d2, measured) = crate::fixture::measure(
         d1.clone(),
-        &expr,
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
         &[
             SitedRef::at_mint(vs[0].clone()),
             SitedRef::at_mint(vs[7].clone()),
         ],
     );
+    let value = Formula::div(
+        crate::fixture::read_var(&d2, measured.outputs[0]),
+        Formula::named(VarName::from_static("s"), Dimension::Scalar),
+    )
+    .expect("Length / Scalar is a Length");
     let d3 = push(
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                value: measured.value,
+                value: value.clone(),
                 bound: len(1.0),
                 dir: AssertionDir::AtLeast,
             }),
@@ -1491,24 +1491,24 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let (d1, b) = boxed(&d0, (0.0, 3.0), (0.0, 4.0), 0.0, 12.0);
     let ev = eval(&d1);
     let vs = vertices(&ev, b);
-    let expr = MeasureExpr::div(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Formula::named(VarName::from_static("s"), Dimension::Scalar)),
-    )
-    .expect("Length / Scalar");
     let (d2, measured) = crate::fixture::measure(
         d1.clone(),
-        &expr,
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
         &[
             SitedRef::at_mint(vs[0].clone()),
             SitedRef::at_mint(vs[7].clone()),
         ],
     );
+    let value = Formula::div(
+        crate::fixture::read_var(&d2, measured.outputs[0]),
+        Formula::named(VarName::from_static("s"), Dimension::Scalar),
+    )
+    .expect("Length / Scalar");
     let Ok(d3) = try_push(
         &d2,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                value: measured.value,
+                value: value.clone(),
                 bound: len(1.0),
                 dir: AssertionDir::AtLeast,
             }),

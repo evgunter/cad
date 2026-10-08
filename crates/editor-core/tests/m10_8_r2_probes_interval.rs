@@ -25,9 +25,8 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramStep,
-    ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
-    select_where,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget,
+    RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, select_where,
 };
 use geom_core::{SymRules, Tol};
 
@@ -169,18 +168,15 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, editor_core::VarId, Reci
     };
 
     // web = distance(corner wall, bore wall) − corner_r − bore_r.
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(
-            MeasureExpr::value(plen("corner_r")),
-            MeasureExpr::value(plen("bore_r")),
-        )
-        .expect("Length + Length"),
+    let measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
+    let web = Formula::sub(
+        r.len_of(measured.outputs[0]),
+        Formula::add(plen("corner_r"), plen("bore_r")).expect("Length + Length"),
     )
     .expect("Length - Length");
-    let measured = r.measure(&web, &refs);
+
     let assertion = r.insert(Node::Assertion {
-        value: measured.value,
+        value: web,
         bound: len(0.0),
         dir: editor_core::AssertionDir::AtLeast,
     });

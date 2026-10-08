@@ -47,9 +47,9 @@ use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EvalOptions,
-    Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, MeasureUnavailableAt, Node,
-    NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
-    UnevaluatedReason, UnitSym, ValuePayload, VarName, evaluate,
+    Formula, FreeVar, LoopProgram, MeasurePrimitive, MeasureUnavailableAt, Node, NodeErrorKind,
+    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnevaluatedReason, UnitSym,
+    ValuePayload, VarName, evaluate,
 };
 use geom_core::{Bounds, Tol};
 
@@ -152,7 +152,7 @@ fn dumbbell() -> Dumbbell {
         },
     ));
     let measured = r.measure(
-        &MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
         &[
             SitedRef::new(
                 placed,
@@ -517,7 +517,7 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
         side: ExtrudeSide::Along,
     });
     let measured = r.measure(
-        &MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
         &[
             // A real EDGE name — the extrude's own lateral edge at
             // profile vertex 0 — so the reference resolves and the

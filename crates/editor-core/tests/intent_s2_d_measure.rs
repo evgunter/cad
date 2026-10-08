@@ -9,7 +9,7 @@
 use crate::fixture::{self, cap_ref, insert, len, xform};
 use crate::wire::doctored;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CapEnd, Dimension, DocEdit, EditError, Formula, MeasureExpr,
+    AssertionDir, AssertionVerdict, CapEnd, Dimension, DocEdit, EditError, Formula,
     MeasurePrimitive, Node, NodeResult, PersistError, ProfileDoc, RecipeNodeId, SlotId,
     SnapshotError, ValuePayload, VarName, apply, load, save,
 };
@@ -67,7 +67,7 @@ fn verdict(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> AssertionVerd
 }
 
 /// **(D, test 13) Measure arithmetic is a definition.** `distance(a, b)
-/// − distance(c, d)` builds two measures, in the expression's pre-order,
+/// − distance(c, d)` is two measures and a formula over their outputs,
 /// and the assertion over it holds one anonymous defined `Length`. The
 /// verdict compares exactly the difference of the two measured values,
 /// in that order, and a seeded run's tangent is the difference of theirs.
@@ -76,21 +76,28 @@ fn measure_arithmetic_is_a_definition_the_assertion_reads() {
     let (doc, a, b) = slabs("s2d-arith", 2.5);
     let [a0, a1] = caps(a);
     let [b0, b1] = caps(b);
-    let expr = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 2, b: 3 }),
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-    )
-    .expect("Length - Length");
-    let (doc, measured) = fixture::measure(doc, &expr, &[a0, a1, b0, b1]);
+    let (doc, measured) = fixture::measure(
+        doc,
+        &[
+            MeasurePrimitive::Distance { a: 2, b: 3 },
+            MeasurePrimitive::Distance { a: 0, b: 1 },
+        ],
+        &[a0, a1, b0, b1],
+    );
     assert_eq!(measured.measures.len(), 2, "one measure per primitive");
     for (&node, out) in measured.measures.iter().zip(&measured.outputs) {
         assert!(matches!(doc.node(node), Some(Node::Measure { .. })));
         assert_eq!(doc.output(node, 0), Some(*out));
     }
+    let margin = Formula::sub(
+        fixture::read_var(&doc, measured.outputs[0]),
+        fixture::read_var(&doc, measured.outputs[1]),
+    )
+    .expect("Length - Length");
     let (doc, assertion) = insert(
         doc,
         Node::Assertion {
-            value: measured.value,
+            value: margin,
             bound: len(1.0),
             dir: AssertionDir::AtLeast,
         },
@@ -183,7 +190,7 @@ fn an_observed_variable_is_read_only_by_an_assertion() {
     let (doc, a, b) = slabs("s2d-observed", 2.5);
     let (doc, measure) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         caps(a).to_vec(),
     );
     let out = fixture::output(&doc, measure);
@@ -355,4 +362,180 @@ fn a_measure_key_reads_its_sites_by_content_not_by_id() {
         value(on_second).naming_key,
         "and by its id in the naming key"
     );
+}
+
+/// **(D, test 13) The definition is bound after its measures run, in
+/// any document order.** An assertion reads a free `w`; a measure is
+/// inserted after it; then `w` is redefined as `m + 0.25 mm`. The edit
+/// is legal — an assertion may read an observed value — and the verdict
+/// compares the measured depth plus the pad: the assertion runs after
+/// the measure its value now reads, though it was inserted before it.
+#[test]
+#[ignore = "green once C deletes the roots backstop: today `DefineVar` meets it (MINOR-2)"]
+fn a_redefinition_over_a_measure_binds_after_the_measure_runs() {
+    let (doc, a, _) = slabs("s2d-order", 2.5);
+    let w = VarName::new("w").unwrap();
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::DeclareVar {
+            name: w.clone(),
+            def: editor_core::VarDecl::Free(editor_core::FreeVar::continuous(
+                Dimension::Length,
+                0.5,
+            )),
+        },
+    );
+    let (doc, assertion) = insert(
+        doc,
+        Node::Assertion {
+            value: Formula::named(w.clone(), Dimension::Length),
+            bound: len(0.0),
+            dir: AssertionDir::AtLeast,
+        },
+    );
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        caps(a).to_vec(),
+    );
+    let out = fixture::output(&doc, measure);
+    let doc = apply(
+        &doc,
+        &DocEdit::DefineVar {
+            var: w.into(),
+            def: editor_core::VarDecl::Defined(
+                Formula::add(Formula::var(out, Dimension::Length), len(0.25e-3)).unwrap(),
+            ),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    )
+    .expect("an assertion may read a value redefined over a measure")
+    .doc;
+    let ev = crate::corpus::eval::<f64>(&doc);
+    match verdict(&ev, assertion) {
+        AssertionVerdict::Holds { measured, .. } => {
+            assert_eq!(measured.to_bits(), (1.0f64 + 0.25e-3).to_bits());
+        }
+        other => panic!("the measured depth plus the pad holds, got {other:?}"),
+    }
+}
+
+/// **(D, test 13) A measure under a definition is upstream of the
+/// assertion reading it.** The measure fails (its first reference is
+/// read at a node that never minted it), and the assertion over a
+/// definition over its output is poisoned THROUGH that measure — the
+/// edge a definition carries — rather than reading an unbound value.
+#[test]
+fn an_assertion_over_a_definition_is_poisoned_by_the_measure_under_it() {
+    let (doc, a, b) = slabs("s2d-poison", 2.5);
+    let [a0, a1] = caps(a);
+    let stray = editor_core::SitedRef::new(b, a0.name);
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        vec![stray, a1],
+    );
+    let out = fixture::output(&doc, measure);
+    let (doc, assertion) = insert(
+        doc,
+        Node::Assertion {
+            value: Formula::add(Formula::var(out, Dimension::Length), len(1.0)).unwrap(),
+            bound: len(0.0),
+            dir: AssertionDir::AtLeast,
+        },
+    );
+    let ev = crate::corpus::eval::<f64>(&doc);
+    assert!(
+        matches!(ev.result(measure), Some(NodeResult::Failed(_))),
+        "the premise: the measure fails, got {:?}",
+        ev.result(measure)
+    );
+    match ev.result(assertion) {
+        Some(NodeResult::Poisoned { through }) => assert_eq!(*through, measure),
+        other => panic!("poisoned through the measure under its value, got {other:?}"),
+    }
+}
+
+/// **A split refuses to carry an assertion reading a stranded measured
+/// value**, typed: the measure under it was deleted, so its output is
+/// defined by nothing live. The cut's own check names it before any node
+/// is carried; the carry's remap refuses it too
+/// (`RemapMiss::PayloadRead`), so a value is never kept silently.
+#[test]
+fn a_split_refuses_an_assertion_over_a_stranded_measure() {
+    let (doc, a, _) = slabs("s2d-split", 2.5);
+    let (doc, measure) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::Distance { a: 0, b: 1 },
+        caps(a).to_vec(),
+    );
+    let out = fixture::output(&doc, measure);
+    let (doc, assertion) = insert(
+        doc,
+        Node::Assertion {
+            value: Formula::var(out, Dimension::Length),
+            bound: len(0.0),
+            dir: AssertionDir::AtLeast,
+        },
+    );
+    let (doc, _) = fixture::step(doc, DocEdit::DeleteNode { id: measure });
+    let mut cut = std::collections::BTreeSet::from([assertion]);
+    let mut stack = vec![a];
+    while let Some(id) = stack.pop() {
+        if cut.insert(id) {
+            stack.extend(doc.upstream(id));
+        }
+    }
+    match editor_core::split(
+        &doc,
+        &cut,
+        editor_core::DocumentId::derive("s2d-split-part"),
+        Tol::witness(),
+        None,
+    ) {
+        Err(editor_core::SplitError::UnresolvedVarCrossesCut { var, node }) => {
+            assert_eq!((var.id(), node.id()), (out, assertion));
+        }
+        other => panic!("the carry refuses the stranded value, got {other:?}"),
+    }
+}
+
+/// **Which side of an assertion has no value is a word of its key.** A
+/// value with no value at `f64` (a `min_clearance`) bounded by a length,
+/// and that length bounded by the same clearance, leave one evaluated
+/// number each and the same upstream: their keys differ by where the
+/// missing one stood.
+#[test]
+fn an_unavailable_side_keys_by_its_position() {
+    let (doc, a, b) = slabs("s2d-unavailable", 2.5);
+    let (doc, clearance) = fixture::measure_node(
+        &doc,
+        MeasurePrimitive::MinClearance { a: 0, b: 1 },
+        vec![cap_ref(a, CapEnd::End), cap_ref(b, CapEnd::End)],
+    );
+    let gap = Formula::var(fixture::output(&doc, clearance), Dimension::Length);
+    let (doc, low) = insert(
+        doc,
+        Node::Assertion {
+            value: gap.clone(),
+            bound: len(0.5),
+            dir: AssertionDir::AtLeast,
+        },
+    );
+    let (doc, high) = insert(
+        doc,
+        Node::Assertion {
+            value: len(0.5),
+            bound: gap,
+            dir: AssertionDir::AtLeast,
+        },
+    );
+    let ev = crate::corpus::eval::<f64>(&doc);
+    let value = |node| {
+        ev.value(node)
+            .expect("an assertion with no value is Unevaluated")
+    };
+    assert_ne!(value(low).content_key, value(high).content_key);
 }

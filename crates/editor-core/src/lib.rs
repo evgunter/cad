@@ -167,11 +167,11 @@ pub use mate::{
     reading_edges, relative_freedom_components, root_of, solve_document, table_gap,
 };
 pub use mc::{
-    DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
+    DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport, McValue,
     monte_carlo, sample_offsets,
 };
 pub use measure::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, Certified, MeasureExpr, MeasurePrimitive,
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, Certified, MeasurePrimitive,
     MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, UnevaluatedReason,
     WINDOW_TIGHTENING,
 };
@@ -193,9 +193,9 @@ pub use names::{
 };
 pub use node::{
     AuthoredNode, Axis3, BooleanOp, CountMismatch, Datum, DeclaredPair, ExtrudeSide, InputFault,
-    InterfaceCrossing, InterfaceRecord, ListFault, MeasureNodeFault, Node, OutputPort, PartSelect,
-    PatternKind, PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId,
-    StepArg, StepId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
+    InterfaceCrossing, InterfaceRecord, ListFault, Node, OutputPort, PartSelect, PatternKind,
+    PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId, StepArg,
+    StepId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
 pub use operand::{Operand, OperandSlot, SlotKind};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};

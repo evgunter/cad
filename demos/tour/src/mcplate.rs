@@ -52,14 +52,10 @@
 //! `work/props`'s
 //! `mc-lanes-draws-are-not-reproducible-from-outside-the-crate` asked
 //! for, and the cell then holds itself to it: it summarizes its own
-//! replay's readings of the measure under the web — the bores' axis
-//! separation, which is the row `monte_carlo` keeps per measure — and
-//! requires the mean, the spread and both extremes to equal the lane's
-//! BIT FOR BIT. If they ever differ the tour fails here rather than
-//! shipping a picture of a different population. The web itself is the
-//! assertion's value, a definition over that measure and the two radii,
-//! and each sample reads it in the same evaluation
-//! (`Evaluation::reading`).
+//! replay's web readings and requires the mean, the spread and both
+//! extremes to equal `monte_carlo`'s BIT FOR BIT. If they ever differ
+//! the tour fails here rather than shipping a picture of a different
+//! population.
 //!
 //! # What was awkward to write, stated rather than smoothed over
 //!
@@ -141,9 +137,6 @@ struct Sample {
     /// The web at this sample: the assertion's value, read with the
     /// measure under it bound.
     web: f64,
-    /// The `Measure` under the web at this sample: the bores' axis
-    /// separation, which is what the lane's per-measure row summarizes.
-    separation: f64,
 }
 
 /// The body a node evaluated to.
@@ -215,23 +208,11 @@ fn replay(base: &Plate, samples: usize, config: &McConfig, tol: Tol) -> Vec<Samp
                 hole_circle(&body_at(&ev, base.holes[0])),
                 hole_circle(&body_at(&ev, base.holes[1])),
             ];
-            let separation = match &ev
-                .value(base.measure)
-                .expect("the measure evaluated")
-                .payload
-            {
-                ValuePayload::Measure { value, .. } => *value,
-                other => panic!("the separation node is a measure, got {other:?}"),
-            };
             let web = match ev.reading(&doc, base.web) {
                 Ok(Observed::Value(web)) => web,
                 other => panic!("the web reads at f64, got {other:?}"),
             };
-            Sample {
-                holes,
-                web,
-                separation,
-            }
+            Sample { holes, web }
         })
         .collect()
 }
@@ -251,27 +232,24 @@ pub fn narration(tol: Tol) -> String {
 
     let report = monte_carlo(&base.doc, &analyzed, &config, tol).expect("the nominal builds");
     let row = report
-        .measures
+        .values
         .iter()
-        .find(|m| m.node == base.measure)
-        .expect("the measure under the web has a row");
+        .find(|v| v.var == base.web)
+        .expect("the web an assertion reads has a row");
 
     let samples = replay(&base, config.samples, &config, tol);
-    let separations: Vec<f64> = samples.iter().map(|s| s.separation).collect();
     let webs: Vec<f64> = samples.iter().map(|s| s.web).collect();
     let (mean, sigma, min, max) = summarize(&webs);
 
     // **The picture is this run's population, checked rather than
     // claimed.** Four bitwise equalities: the replay drew what the
     // lane drew, evaluated where the lane evaluated, and read what the
-    // lane read — the lane's row is the measure's, so the check is
-    // over the separation the web is defined over.
-    let (s_mean, s_sigma, s_min, s_max) = summarize(&separations);
+    // lane read.
     for (ours, theirs, what) in [
-        (s_mean, row.mean, "mean"),
-        (s_sigma, row.sigma, "sigma"),
-        (s_min, row.min, "min"),
-        (s_max, row.max, "max"),
+        (mean, row.mean, "mean"),
+        (sigma, row.sigma, "sigma"),
+        (min, row.min, "min"),
+        (max, row.max, "max"),
     ] {
         assert_eq!(
             ours.to_bits(),
@@ -284,7 +262,7 @@ pub fn narration(tol: Tol) -> String {
 
     println!(
         "   {} samples replayed from the MC lane's own draws (seed {:#x}); the drawn \
-         population's separation mean, sigma, min and max equal `monte_carlo`'s BIT FOR BIT, \
+         population's web mean, sigma, min and max equal `monte_carlo`'s BIT FOR BIT, \
          so the cloud on the sheet is this run's population and not a second one from \
          the same laws",
         config.samples, config.seed

@@ -1942,13 +1942,6 @@ pub enum EditError {
         /// The reading node.
         node: SpokenNode,
     },
-    /// An authored measurement's primitive reads a reference its
-    /// builder was not handed ([`crate::MeasureNodeFault`],
-    /// [`fn@crate::measure`]). Nothing is applied.
-    MeasureMalformed {
-        /// What is wrong with it.
-        fault: crate::node::MeasureNodeFault,
-    },
     /// A [`Node::Assertion`]'s bound is dimensioned differently from
     /// the value it bounds — refused at the edit door, so a document
     /// never carries a comparison of metres with radians.
@@ -3119,8 +3112,7 @@ impl EditError {
                 found: _,
             }
             | Self::InvalidTolerance { value: _ }
-            | Self::PlacementAxis { error: _ }
-            | Self::MeasureMalformed { fault: _ } => {}
+            | Self::PlacementAxis { error: _ } => {}
         }
         again
     }
@@ -3382,16 +3374,6 @@ impl EditError {
                     node
                 )?;
                 tail.recourse(f, format_args!("{READ_A_HELD_VAR}"))
-            }
-            Self::MeasureMalformed { fault } => {
-                write!(f, "{fault}")?;
-                tail.recourse(
-                    f,
-                    format_args!(
-                        "read only a reference the measurement is handed, or add the one it reads \
-                         to its reference list"
-                    ),
-                )
             }
             Self::AssertionDimension {
                 node,
@@ -4949,54 +4931,32 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         Ok(id)
     }
 
-    /// **An authored measurement, inserted** ([`fn@measure`]): one
-    /// [`Node::Measure`] per primitive of `expr`, in its pre-order,
-    /// each over the two of `refs` it indexes; returns the measures and
-    /// `expr`'s arithmetic as a formula over their outputs. Nothing is
-    /// inserted when a primitive indexes past `refs`
-    /// ([`EditError::MeasureMalformed`]).
+    /// **Measures, inserted** ([`fn@measure`]): one [`Node::Measure`]
+    /// per primitive, in order; returns the measures and their outputs.
+    /// Arithmetic over the outputs is an ordinary formula over them.
     ///
     /// # Errors
     ///
-    /// [`EditError::MeasureMalformed`], and the insert door's refusals.
+    /// The insert door's refusals.
     pub fn measure(
         &mut self,
-        expr: &crate::measure::MeasureExpr,
-        refs: &[crate::node::SitedRef],
+        primitives: &[crate::measure::MeasurePrimitive],
     ) -> Result<Measured, EditError> {
-        let primitives = expr.primitives();
-        let mut sited = Vec::with_capacity(primitives.len());
-        for p in &primitives {
-            let resolved = p.try_map(|&index| {
-                usize::try_from(index)
-                    .ok()
-                    .and_then(|i| refs.get(i))
-                    .cloned()
-                    .ok_or(EditError::MeasureMalformed {
-                        fault: crate::node::MeasureNodeFault::RefIndexOutOfRange {
-                            verb: p.verb(),
-                            index,
-                            refs: refs.len(),
-                        },
-                    })
+        let mut measured = Measured {
+            measures: Vec::with_capacity(primitives.len()),
+            outputs: Vec::with_capacity(primitives.len()),
+        };
+        for primitive in primitives {
+            let id = self.insert(Node::Measure {
+                primitive: primitive.clone(),
             })?;
-            sited.push(resolved);
-        }
-        let mut measures = Vec::with_capacity(sited.len());
-        let mut outputs = Vec::with_capacity(sited.len());
-        for primitive in sited {
-            let id = self.insert(Node::Measure { primitive })?;
             let Some(output) = self.doc().output(id, 0) else {
                 unreachable!("an inserted measure defines its value")
             };
-            measures.push(id);
-            outputs.push(output);
+            measured.measures.push(id);
+            measured.outputs.push(output);
         }
-        Ok(Measured {
-            measures,
-            value: expr.formula(&outputs),
-            outputs,
-        })
+        Ok(measured)
     }
 
     /// Declare a variable and record the declare — [`Self::apply`] of
@@ -5381,15 +5341,6 @@ fn check_node_slots<P: crate::ProfilePayload>(
             bound,
         });
     }
-    // A construction reads what was written (D10): no slot of it reads
-    // an observed variable, directly or through a definition.
-    if let Some((slot, var)) = doc.observed_read(&doc.observed(), node) {
-        return Err(EditError::ConstructionReadsObserved {
-            node: written(before, id, node),
-            slot,
-            var: Box::new(doc.spoken_var(var)),
-        });
-    }
     Ok(())
 }
 
@@ -5749,18 +5700,14 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
     })
 }
 
-/// **What an authored measurement inserted** ([`Recording::measure`]).
-#[derive(Debug, Clone, PartialEq)]
+/// **What [`Recording::measure`] inserted**: the measures, one per
+/// primitive in order, and each one's output in the same order.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Measured {
-    /// The measures, one per primitive, in the expression's pre-order.
+    /// The `Measure` nodes, one per primitive.
     pub measures: Vec<RecipeNodeId>,
-    /// Their outputs, in the same order: each measure's observed value.
+    /// Each measure's output, the observed scalar it defines.
     pub outputs: Vec<VarId>,
-    /// The measurement over their outputs: a lone output's reader for
-    /// a lone primitive. An [`Node::Assertion`]'s `value` takes it, and
-    /// lowering it there defines the arithmetic as that assertion's
-    /// anonymous variable; [`DocEdit::DeclareVar`] names it instead.
-    pub value: Formula,
 }
 
 /// [`fn@measure`]'s outcome: the action applied, and what it inserted.
@@ -5773,30 +5720,26 @@ pub struct MeasureOutcome<P: crate::ProfilePayload> {
     pub edits: Vec<DocEdit<P>>,
     /// The maintenance they reported.
     pub maintenance: Vec<Maintenance>,
-    /// The measures and the measurement over them.
+    /// The measures and their outputs.
     pub measured: Measured,
 }
 
-/// **An authored measurement, as one action** (E3, D10): a
-/// [`crate::MeasureExpr`]'s arithmetic over primitives indexing `refs`
-/// becomes one [`Node::Measure`] per primitive, each defining one
-/// observed scalar, and a [`Formula`] over their outputs
-/// ([`Recording::measure`]). The edit list is the split's shape: the
-/// edits, and the document they produce.
+/// **Measures, as one action** (E3, D10): one [`Node::Measure`] per
+/// primitive, each defining one observed scalar ([`Recording::measure`]).
+/// The edit list is the split's shape: the edits, and the document they
+/// produce.
 ///
 /// # Errors
 ///
-/// [`EditError::MeasureMalformed`] when a primitive indexes past
-/// `refs`, and the insert door's refusals; the document is untouched.
+/// The insert door's refusals; the document is untouched.
 pub fn measure<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
-    expr: &crate::measure::MeasureExpr,
-    refs: &[crate::node::SitedRef],
+    primitives: &[crate::measure::MeasurePrimitive],
     tol: Tol,
     reach: &dyn MateReach,
 ) -> Result<MeasureOutcome<P>, EditError> {
     let mut action = Recording::start(doc, tol, reach);
-    let measured = action.measure(expr, refs)?;
+    let measured = action.measure(primitives)?;
     let Recorded {
         doc,
         edits,

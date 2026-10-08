@@ -551,21 +551,6 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
-    MeasureNodeFault,
-    PncadError,
-    "`Node.measure` was handed an expression that reads a reference \
-     the node does not carry. Carries `variant` (the stable tag), \
-     `verb` (which primitive reads it), `index` (the out-of-range \
-     one) and `refs` (how many the node carries).\n\n\
-     The kernel's own `Node::measure` decides this — the one \
-     construction door, running the check the edit door and the load \
-     door's re-check both run — so a measure Python accepts is one a \
-     document accepts. Raised EARLY, at the node rather than at the \
-     edit: the same fault reaches `EditError` as `measure_malformed` \
-     when a document is loaded or edited another way."
-);
-pyo3::create_exception!(
-    pncad,
     MeasureUnavailableAt,
     PncadError,
     "A measure whose answer is an ENCLOSURE, read at a build whose \
@@ -767,7 +752,6 @@ fn raise_typed(
         ErrorClass::Enforce => CheckRefusal::new_err(message),
         ErrorClass::Distribution => DistributionFault::new_err(message),
         ErrorClass::Measure => MeasureUnavailable::new_err(message),
-        ErrorClass::MeasureNode => MeasureNodeFault::new_err(message),
         ErrorClass::MeasureUnavailableAt => MeasureUnavailableAt::new_err(message),
         ErrorClass::AnalysisPolicy => AnalysisPolicyError::new_err(message),
         ErrorClass::Mc => McRefusal::new_err(message),
@@ -875,7 +859,6 @@ fn class_discriminant(class: ErrorClass) -> Option<ClassDiscriminant> {
         | ErrorClass::Enforce
         | ErrorClass::Distribution
         | ErrorClass::Measure
-        | ErrorClass::MeasureNode
         | ErrorClass::MeasureUnavailableAt
         | ErrorClass::AnalysisPolicy
         | ErrorClass::Mc
@@ -942,7 +925,6 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("CheckRefusal", py.get_type::<CheckRefusal>())?;
     m.add("DistributionFault", py.get_type::<DistributionFault>())?;
     m.add("MeasureUnavailable", py.get_type::<MeasureUnavailable>())?;
-    m.add("MeasureNodeFault", py.get_type::<MeasureNodeFault>())?;
     m.add(
         "MeasureUnavailableAt",
         py.get_type::<MeasureUnavailableAt>(),

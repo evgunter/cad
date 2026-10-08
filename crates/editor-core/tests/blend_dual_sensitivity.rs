@@ -21,8 +21,8 @@ use editor_core::ExtrudeSide;
 use editor_core::stackup::{Chamber, SensitivityOutcome, sensitivities};
 use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram,
-    MeasureExpr, MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef,
-    UnitSym, ValuePayload, VarName, evaluate,
+    MeasurePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, UnitSym,
+    ValuePayload, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -126,10 +126,7 @@ fn filleted_cube() -> (ProfileDoc, RecipeNodeId) {
         vertex_at(&ev, blank, [R0, R0, D0]),
         vertex_at(&ev, blank, [1.0 - R0, 1.0 - R0, 0.0]),
     ];
-    let m_measured = r.measure(
-        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        &refs,
-    );
+    let m_measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
     let (m, _m_value) = (m_measured.measures[0], m_measured.outputs[0]);
     (r.doc, m)
 }

@@ -486,35 +486,43 @@ pub fn insert(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId)
     (doc, minted.unwrap())
 }
 
-/// **An authored measurement, inserted** ([`editor_core::measure`]): the
-/// document after it, and the measures with the formula over their
-/// outputs. A refusal is a loud test failure.
-pub fn measure(
-    doc: ProfileDoc,
-    expr: &editor_core::MeasureExpr,
-    refs: &[editor_core::SitedRef],
-) -> (ProfileDoc, editor_core::Measured) {
-    let out = editor_core::measure(&doc, expr, refs, Tol::witness(), &RefusingReach)
-        .expect("the measurement inserts");
-    (out.doc, out.measured)
-}
-
-/// **One measure inserted** ([`editor_core::measure`] of a lone
-/// primitive): the document after it, and the measure node.
+/// **A primitive over indices into `refs`, sited**: the rows' spelling
+/// of a measure over references they list once.
 ///
 /// # Panics
 ///
-/// When `expr` is not one primitive, or the insert refuses.
+/// When an index is past the end of `refs`.
+pub fn sited(
+    p: editor_core::MeasurePrimitive<u32>,
+    refs: &[editor_core::SitedRef],
+) -> editor_core::MeasurePrimitive {
+    p.try_map(|&i| refs.get(i as usize).cloned().ok_or(i))
+        .unwrap_or_else(|i| panic!("reference {i} of {}", refs.len()))
+}
+
+/// **Measures, inserted** ([`editor_core::measure`]): one per primitive,
+/// each [`sited`] over `refs`; the document after them, and the
+/// measures with their outputs. A refusal is a loud test failure.
+pub fn measure(
+    doc: ProfileDoc,
+    primitives: &[editor_core::MeasurePrimitive<u32>],
+    refs: &[editor_core::SitedRef],
+) -> (ProfileDoc, editor_core::Measured) {
+    let sited: Vec<_> = primitives.iter().map(|&p| sited(p, refs)).collect();
+    let out = editor_core::measure(&doc, &sited, Tol::witness(), &RefusingReach)
+        .expect("the measures insert");
+    (out.doc, out.measured)
+}
+
+/// **One measure inserted**: the document after it, and the measure
+/// node.
 pub fn measure_node(
     doc: &ProfileDoc,
-    expr: editor_core::MeasureExpr,
+    primitive: editor_core::MeasurePrimitive<u32>,
     refs: Vec<editor_core::SitedRef>,
 ) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, measured) = measure(doc.clone(), &expr, &refs);
-    let [node] = measured.measures.as_slice() else {
-        panic!("one primitive measures one node: {measured:?}")
-    };
-    (doc, *node)
+    let (doc, measured) = measure(doc.clone(), &[primitive], &refs);
+    (doc, measured.measures[0])
 }
 
 /// **A reader of `measure`'s value**, authored: the formula an
@@ -1023,42 +1031,36 @@ impl Recorder {
         applied.record.minted
     }
 
-    /// Inserts an authored measurement ([`editor_core::measure`]),
-    /// recording its edits; returns the measures and the formula over
-    /// their outputs.
+    /// Inserts measures ([`editor_core::measure`]), one per primitive
+    /// [`sited`] over `refs`, recording their edits; returns the measures
+    /// and their outputs.
     pub fn measure(
         &mut self,
-        expr: &editor_core::MeasureExpr,
+        primitives: &[editor_core::MeasurePrimitive<u32>],
         refs: &[editor_core::SitedRef],
     ) -> editor_core::Measured {
-        let out = editor_core::measure(&self.doc, expr, refs, Tol::witness(), &RefusingReach)
-            .expect("the measurement inserts");
+        let sited: Vec<_> = primitives.iter().map(|&p| sited(p, refs)).collect();
+        let out = editor_core::measure(&self.doc, &sited, Tol::witness(), &RefusingReach)
+            .expect("the measures insert");
         self.edits.extend(out.edits);
         self.doc = out.doc;
         out.measured
     }
 
-    /// **An authored measurement as a variable** — the subject of a
-    /// stackup or a reading: a lone primitive's measure output, or else
-    /// a definition over the measures' outputs declared as `name`.
-    pub fn value(
-        &mut self,
-        name: &str,
-        expr: &editor_core::MeasureExpr,
-        refs: &[editor_core::SitedRef],
-    ) -> editor_core::VarId {
-        let measured = self.measure(expr, refs);
-        if let [output] = measured.outputs.as_slice()
-            && measured.value == Formula::var(*output, expr.dim())
-        {
-            return *output;
-        }
+    /// **`formula` declared as the defined variable `name`**, returning
+    /// its id: a measurement's arithmetic over measure outputs, named.
+    pub fn define(&mut self, name: &str, formula: Formula) -> editor_core::VarId {
         let name = editor_core::VarName::new(name).expect("a valid name");
         self.push(DocEdit::DeclareVar {
             name: name.clone(),
-            def: editor_core::VarDecl::Defined(measured.value),
+            def: editor_core::VarDecl::Defined(formula),
         });
         self.doc.resolve_var(&name.into()).expect("declared")
+    }
+
+    /// The length an output of this recorder's document reads.
+    pub fn len_of(&self, var: editor_core::VarId) -> Formula {
+        read_var(&self.doc, var)
     }
 
     /// **A measure whose value is the length variable `param`**: a unit

@@ -290,7 +290,6 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Enforce => "CheckRefusal",
             ErrorClass::Distribution => "DistributionFault",
             ErrorClass::Measure => "MeasureUnavailable",
-            ErrorClass::MeasureNode => "MeasureNodeFault",
             ErrorClass::MeasureUnavailableAt => "MeasureUnavailableAt",
             ErrorClass::AnalysisPolicy => "AnalysisPolicyError",
             ErrorClass::Mc => "McRefusal",
@@ -332,7 +331,6 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Enforce,
         ErrorClass::Distribution,
         ErrorClass::Measure,
-        ErrorClass::MeasureNode,
         ErrorClass::MeasureUnavailableAt,
         ErrorClass::AnalysisPolicy,
         ErrorClass::Mc,
@@ -480,47 +478,6 @@ fn the_measure_verb_vocabulary_is_stable() {
     // are asymmetric in the roles, so the order is authored data.
     assert_eq!(gap.refs(), [&6, &7]);
     assert_eq!(distance.refs(), [&0, &1]);
-}
-
-/// LIB-B-MEASURES: the construction door's refusal, from the door.
-///
-/// The measure builder is called with an index past the end of the
-/// reference list, so the fault is the kernel's answer rather than a
-/// named variant — the shape `analysis_refusal_tags_are_stable` uses
-/// one family over.
-#[test]
-fn the_measure_node_fault_tag_is_stable() {
-    use crate::tags::measure_node_fault_tag;
-    use pncad::document::{
-        EditError, MeasureExpr, MeasureNodeFault, MeasurePrimitive, ProfileDoc, RecipeNodeId,
-        SitedRef,
-    };
-    use pncad::prelude::StableName;
-    use pncad::select::{EntityKind, RoleSeg};
-
-    let one_reference = vec![SitedRef::at_mint(StableName {
-        kind: EntityKind::Face,
-        node: RecipeNodeId::new(0, 0),
-        path: vec![RoleSeg::OutputBody],
-    })];
-    let tol = pncad::tolerance::Tol::witness();
-    let refused = pncad::document::measure(
-        &ProfileDoc::empty_derived("measure-fault", tol),
-        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        &one_reference,
-        tol,
-        &pncad::document::RefusingReach,
-    );
-    let Err(EditError::MeasureMalformed { fault }) = refused else {
-        panic!("reference 1 of a one-reference measure names nothing")
-    };
-    assert_eq!(measure_node_fault_tag(&fault), "ref_index_out_of_range");
-    let MeasureNodeFault::RefIndexOutOfRange { verb, index, refs } = fault;
-    assert_eq!((verb, index, refs), ("distance", 1, 1));
-    // The message is prose, which is what `typed_err` asserts on every
-    // raise — pinned here so the Python class's human half is checked
-    // on the build path that has no interpreter.
-    assert!(crate::errors::reads_as_prose(&fault.to_string()));
 }
 
 /// LIB-B-MEASURES: the two refusals the FOURTH verb adds, and the
@@ -2787,8 +2744,8 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use crate::edit_payload::edit_payload;
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocumentId,
-        EditError as E, Frame, FreeValue, MeasureNodeFault, MetaVersionError, RecipeNodeId,
-        RootFault, SlotId, StepId, StepIdFault, VarName,
+        EditError as E, Frame, FreeValue, MetaVersionError, RecipeNodeId, RootFault, SlotId,
+        StepId, StepIdFault, VarName,
     };
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
@@ -3331,16 +3288,6 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             )),
         },
         &["node"],
-    );
-    carries(
-        &E::MeasureMalformed {
-            fault: MeasureNodeFault::RefIndexOutOfRange {
-                verb: "distance",
-                index: 5,
-                refs: 0,
-            },
-        },
-        &[],
     );
     carries(
         &E::Dimension(DimensionError::Mismatch {

@@ -36,9 +36,8 @@ use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramStep,
-    ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
-    select_where,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget,
+    RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName, select_where,
 };
 use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
@@ -188,8 +187,8 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         };
         vec![wall(body, 0), wall(bore, 0)]
     };
-    let wall = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measured = r.measure(&wall, &refs);
+    let wall = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let measured = r.measure(&[wall], &refs);
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
         value: crate::fixture::read_var(&r.doc, measure_value),

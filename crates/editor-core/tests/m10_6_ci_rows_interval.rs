@@ -58,8 +58,8 @@ use editor_core::drive::{DriveConfig, SymbolicDials, VerdictVector, certifying_v
 use editor_core::report::{MassBasis, MassBudget};
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, Distribution, DocEdit, EvalOptions,
-    Formula, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, ProfileDoc,
-    ProfileLift, ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
+    Formula, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, ProfileDoc, ProfileLift,
+    ProfileProgram, RecipeNodeId, SitedRef, UnitSym, ValuePayload, VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -315,20 +315,20 @@ fn distributed_plate() -> ProfileDoc {
         SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
-    let radius_of =
-        |n: &'static str| MeasureExpr::value(Formula::named(name(n), Dimension::Length));
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),
+    let measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
+    let radius_of = |n: &'static str| Formula::named(name(n), Dimension::Length);
+    let web = Formula::sub(
+        r.len_of(measured.outputs[0]),
+        Formula::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),
     )
     .expect("L - L");
-    let measured = r.measure(&web, &refs);
+
     // A bound the run can DECIDE: a decade past the escalation
     // threshold below the nominal web, so the verdict is a plain
     // `Holds` rather than a band-coincident one. Row 1 is about the
     // verdict being taken and holding, not about the band.
     r.insert(Node::Assertion {
-        value: measured.value,
+        value: web,
         bound: len(SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps()),
         dir: AssertionDir::AtLeast,
     });
@@ -436,7 +436,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         },
     ));
     let measured = r.measure(
-        &MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+        &[MeasurePrimitive::MinClearance { a: 0, b: 1 }],
         &[
             SitedRef::new(
                 placed,
@@ -883,7 +883,7 @@ fn plain_distance_doc() -> ProfileDoc {
         side: ExtrudeSide::Along,
     });
     let measured = r.measure(
-        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
         &[
             SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 0))),
             SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),

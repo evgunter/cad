@@ -33,9 +33,8 @@ use editor_core::ExtrudeSide;
 use editor_core::UnitSym;
 use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Evaluation, Formula, FreeVar, LoopProgram,
-    MeasureExpr, MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc,
-    ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, SeedError, SitedRef, VarName,
-    evaluate, seed_env,
+    MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamValue, ProfileDoc, ProfileLift,
+    ProfileProgram, ProgramStep, ProgramTarget, SeedError, SitedRef, VarName, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
@@ -210,8 +209,8 @@ fn width_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
         SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 3))),
         SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 1))),
     ];
-    let width = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let m_measured = r.measure(&width, &refs);
+    let width = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let m_measured = r.measure(&[width], &refs);
     let (_m, m_value) = (m_measured.measures[0], m_measured.outputs[0]);
     (r.doc, m_value)
 }

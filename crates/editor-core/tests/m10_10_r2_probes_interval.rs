@@ -24,8 +24,8 @@ use editor_core::drive::{DriveConfig, RefusalReason, drive};
 use editor_core::stackup::stackup;
 use editor_core::{
     Dimension, Distribution, DocEdit, EntityKind, Formula, FreeVar, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
+    MeasurePrimitive, NamePat, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, VarName,
     select_where,
 };
 use geom_core::{SymRules, Tol};
@@ -376,8 +376,8 @@ pub(crate) fn d_tab_at(
         };
         vec![wall(hole), wall(tab)]
     };
-    let gap = MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 });
-    let measured = r.measure(&gap, &refs);
+    let gap = MeasurePrimitive::Distance { a: 0, b: 1 };
+    let measured = r.measure(&[gap], &refs);
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let assertion = r.insert(Node::Assertion {
         value: crate::fixture::read_var(&r.doc, measure_value),

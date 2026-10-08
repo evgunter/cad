@@ -22,8 +22,8 @@ use editor_core::program::ProgramRefusal;
 use editor_core::{
     AttrKind, ContentPin, CountMismatch, Dimension, DimensionError, DistributionFault,
     DistributionField, DocumentId, EditError, EntityKind, EvalError, FrameSite, Label, MateFault,
-    MeasureNodeFault, MetaVersionError, NodeErrorKind, RecipeNodeId, RootFault, SlotId, SpokenName,
-    SpokenNode, StableName, StepIdFault, VarName,
+    MetaVersionError, NodeErrorKind, RecipeNodeId, RootFault, SlotId, SpokenName, SpokenNode,
+    StableName, StepIdFault, VarName,
 };
 use test_utils::refusal::Admission;
 use test_utils::refusal::tagged;
@@ -315,16 +315,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                     None,
                 ),
                 node: s(5, "Measure"),
-            },
-        ),
-        (
-            "MeasureMalformed",
-            EditError::MeasureMalformed {
-                fault: MeasureNodeFault::RefIndexOutOfRange {
-                    verb: "min_clearance",
-                    index: 2,
-                    refs: 2,
-                },
             },
         ),
         (

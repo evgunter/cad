@@ -4469,7 +4469,7 @@ const REPLACE_FACE_ARMS: [&str; 39] = [
 /// where another kind is wanted.
 fn found_arms() -> Vec<(String, NodeErrorKind)> {
     use crate::fixture::{self, ang, fname, insert, len, on_frame, square, wall};
-    use editor_core::measure::{MeasureExpr, MeasurePrimitive};
+    use editor_core::measure::MeasurePrimitive;
     use editor_core::{
         CancelToken, CapEnd, Datum, EvalOptions, Node, NodeResult, ProfileDoc, SitedRef, evaluate,
     };
@@ -4505,7 +4505,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
     );
     let (doc, measure) = crate::fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
+        MeasurePrimitive::MinClearance { a: 0, b: 1 },
         vec![SitedRef::at_mint(vertex), SitedRef::at_mint(face)],
     );
     let mut ev = evaluate::<f64>(

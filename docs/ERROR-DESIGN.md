@@ -176,10 +176,9 @@ content-key cached like everything.
   expression language is total and finite by charter, so any
   arithmetic over measured values is a definition and
   dual/interval-evaluable by construction.
-- Counterargument: DAG growth — dozens of measures. Accepted; a
-  measure is evaluated where a reader needs it, the GUI presents
-  measures as a panel, and the document is the right home for design
-  intent (E10's assertions).
+- Counterargument: DAG growth — dozens of measures. Accepted; the GUI
+  presents measures as a panel, and the document is the right home
+  for design intent (E10's assertions).
 
 **E3 amendments (revision E12, 2026-09-03).**
 

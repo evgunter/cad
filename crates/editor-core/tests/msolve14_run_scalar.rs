@@ -2094,14 +2094,14 @@ fn c5_one_documents_structure_is_the_same_in_every_lane_and_the_dual_value_is_f6
 #[test]
 fn a5_sensitivities_cross_a_face_framed_mate() {
     use editor_core::stackup::{SensitivityOutcome, SensitivityRefusal, sensitivities};
-    use editor_core::{MeasureExpr, MeasurePrimitive, SitedRef};
+    use editor_core::{MeasurePrimitive, SitedRef};
     let b = bolted("msolve14-a5-stackup", MateFrame::from_face());
     let ev = run_at::<f64>(&b.doc, &b.opts, None);
     let foot = all_vertices(&ev, b.bolt)[0].clone();
     let corner = all_vertices(&ev, b.slab)[0].clone();
     let (doc, m) = crate::fixture::measure_node(
         &b.doc,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         vec![
             SitedRef::new(b.bolt, foot.clone()),
             SitedRef::new(b.slab, corner.clone()),

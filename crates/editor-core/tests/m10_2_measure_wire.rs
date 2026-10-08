@@ -20,8 +20,8 @@ use editor_core::UnitSym;
 use editor_core::expr::DimensionError;
 use editor_core::{
     AssertionDir, Datum, Dimension, DocEdit, DocumentId, EditError, EntityKind, Formula, FreeVar,
-    MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId,
-    RoleSeg, SitedRef, StableName, VarName, apply, load, save,
+    MeasurePrimitive, Node, PersistError, ProfileDoc, RecipeNodeId, RoleSeg, SitedRef, StableName,
+    VarName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -83,55 +83,58 @@ fn every_form() -> ProfileDoc {
             }),
         },
     );
-    let prim = |p: MeasurePrimitive<u32>| MeasureExpr::primitive(p);
-    let scalar = |v: f64| MeasureExpr::value(scl(v));
     // distance - gap + min_clearance, halved, floored by a parameter and
     // ceilinged by a literal: every arithmetic arm and every Length
     // primitive at once. `min_clearance` (M10-6) is here for the same
     // reason the other three are — this fixture IS the populated wire
     // golden for the primitive table, so a primitive absent from it
     // round-trips under no test at all.
-    let expr = MeasureExpr::max(
-        MeasureExpr::min(
-            MeasureExpr::div(
-                MeasureExpr::mul(
-                    MeasureExpr::add(
-                        MeasureExpr::sub(
-                            MeasureExpr::add(
-                                prim(MeasurePrimitive::Distance { a: 0, b: 1 }),
-                                prim(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
-                            )
-                            .expect("Length + Length"),
-                            prim(MeasurePrimitive::Gap { outer: 1, inner: 0 }),
+    doc = two_named_nodes(&doc);
+    let refs = [name(doc.ids()[0]), name(doc.ids()[1])];
+    let (mut doc, measured) = crate::fixture::measure(
+        doc,
+        &[
+            MeasurePrimitive::Distance { a: 0, b: 1 },
+            MeasurePrimitive::MinClearance { a: 0, b: 1 },
+            MeasurePrimitive::Gap { outer: 1, inner: 0 },
+        ],
+        &refs,
+    );
+    let out = |i: usize| crate::fixture::read_var(&doc, measured.outputs[i]);
+    let value = Formula::max(
+        Formula::min(
+            Formula::div(
+                Formula::mul(
+                    Formula::add(
+                        Formula::sub(
+                            Formula::add(out(0), out(1)).expect("Length + Length"),
+                            out(2),
                         )
                         .expect("Length - Length"),
-                        MeasureExpr::neg(MeasureExpr::value(Formula::named(
+                        Formula::neg(Formula::named(
                             VarName::from_static("pad"),
                             Dimension::Length,
-                        )))
+                        ))
                         .expect("a shallow negation"),
                     )
                     .expect("Length + Length"),
-                    scalar(2.0),
+                    scl(2.0),
                 )
                 .expect("Length * Scalar"),
-                scalar(4.0),
+                scl(4.0),
             )
             .expect("Length / Scalar"),
-            MeasureExpr::value(len(1.0)),
+            len(1.0),
         )
         .expect("Length min Length"),
-        MeasureExpr::value(len(-0.0)),
+        len(-0.0),
     )
     .expect("Length max Length");
-    doc = two_named_nodes(&doc);
-    let refs = [name(doc.ids()[0]), name(doc.ids()[1])];
-    let (mut doc, measured) = crate::fixture::measure(doc, &expr, &refs);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                value: measured.value,
+                value,
                 bound: len(0.0005),
                 dir: AssertionDir::AtMost,
             }),
@@ -164,16 +167,13 @@ fn angular() -> ProfileDoc {
     };
     doc = two_named_nodes(&doc);
     let refs = [name(doc.ids()[0]), name(doc.ids()[1])];
-    let (mut doc, measured) = crate::fixture::measure(
-        doc,
-        &MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
-        &refs,
-    );
+    let (mut doc, measured) =
+        crate::fixture::measure(doc, &[MeasurePrimitive::Angle { a: 0, b: 1 }], &refs);
     doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                value: measured.value,
+                value: crate::fixture::read_var(&doc, measured.outputs[0]),
                 bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
             }),
@@ -267,34 +267,6 @@ fn a_dimension_refusal_in_a_measured_definition_crosses_the_load_door_whole() {
         ),
         other => panic!("an ill-dimensioned definition must refuse typed, got {other:?}"),
     }
-}
-
-/// An authored measurement indexing past the references it is handed
-/// refuses at its builder, before anything is applied.
-#[test]
-fn a_measure_indexing_past_its_refs_refuses_at_the_builder() {
-    let doc = two_named_nodes(&ProfileDoc::empty(
-        DocumentId::derive("m10-2-index"),
-        Tol::witness(),
-    ));
-    let err = editor_core::measure(
-        &doc,
-        &MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 3 }),
-        &[name(doc.ids()[0])],
-        Tol::witness(),
-        &editor_core::RefusingReach,
-    )
-    .expect_err("index 3 addresses nothing");
-    assert!(matches!(
-        err,
-        EditError::MeasureMalformed {
-            fault: MeasureNodeFault::RefIndexOutOfRange {
-                index: 3,
-                refs: 1,
-                ..
-            }
-        }
-    ));
 }
 
 /// An assertion's bound must be dimensioned like its measure — refused

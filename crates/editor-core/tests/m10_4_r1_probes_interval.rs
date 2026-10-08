@@ -24,9 +24,8 @@ use editor_core::stackup::{
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula, FreeVar,
-    LoopProgram, MeasureExpr, MeasurePrimitive, Node, ParamValue, ProfileDoc, ProfileLift,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, SitedRef, UnitSym, VarName,
-    evaluate, seed_env,
+    LoopProgram, MeasurePrimitive, Node, ParamValue, ProfileDoc, ProfileLift, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, SitedRef, UnitSym, VarName, evaluate, seed_env,
 };
 use geom_core::{Dual64, Tol};
 
@@ -167,11 +166,9 @@ fn stepped_shaft_sized(
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),
         SitedRef::new(boss, fname(boss_raw, RoleSeg::Cap(CapEnd::End))),
     ];
-    let m = r.value(
-        "m",
-        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        &refs,
-    );
+    let m = r
+        .measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs)
+        .outputs[0];
     (r.doc, m)
 }
 
@@ -181,15 +178,15 @@ fn stepped_shaft_sized(
 fn scalar_measure(
     nominal: f64,
     dist: Distribution,
-    build: impl Fn(&dyn Fn() -> MeasureExpr) -> MeasureExpr,
+    build: impl Fn(&dyn Fn() -> Formula) -> Formula,
 ) -> (ProfileDoc, editor_core::VarId) {
     let mut r = Recorder::new();
     r.push(DocEdit::DeclareVar {
         name: name("a"),
         def: editor_core::VarDecl::Free(continuous(Dimension::Scalar, nominal, Some(dist))),
     });
-    let a = || MeasureExpr::value(param("a", Dimension::Scalar));
-    let m = r.value("m", &build(&a), &[]);
+    let a = || param("a", Dimension::Scalar);
+    let m = r.define("m", build(&a));
     (r.doc, m)
 }
 
@@ -245,11 +242,9 @@ fn arc_slab(w: f64) -> (ProfileDoc, editor_core::VarId) {
         SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 3))),
         SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 1))),
     ];
-    let m = r.value(
-        "m",
-        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        &refs,
-    );
+    let m = r
+        .measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs)
+        .outputs[0];
     (r.doc, m)
 }
 
@@ -609,8 +604,8 @@ fn r1_another_documents_verdict_certifies_this_one() {
 /// clause is about.
 #[test]
 fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
-    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> MeasureExpr| {
-        MeasureExpr::max(a(), MeasureExpr::neg(a()).expect("a shallow negation"))
+    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> Formula| {
+        Formula::max(a(), Formula::neg(a()).expect("a shallow negation"))
             .expect("Scalar lattice max")
     });
     let entries =
@@ -636,8 +631,8 @@ fn r1_the_abs_kink_reports_a_confident_one_sided_derivative() {
 #[test]
 fn r1_tangent_degraded_does_not_check_that_the_value_is_finite() {
     // m = a / a at a = 0 → 0/0 in the VALUE channel as well.
-    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> MeasureExpr| {
-        MeasureExpr::div(a(), a()).expect("Scalar / Scalar")
+    let (doc, m) = scalar_measure(0.0, uniform(eps() / 16.0), |a: &dyn Fn() -> Formula| {
+        Formula::div(a(), a()).expect("Scalar / Scalar")
     });
     let entries =
         sensitivities(&doc, m, None, None, false, None, Tol::witness()).expect("no refusal");
@@ -665,8 +660,8 @@ fn r1_tangent_degraded_does_not_check_that_the_value_is_finite() {
 /// enclosure, its top must exceed the linearized top.
 #[test]
 fn r1_worst_case_is_the_range_not_the_linearization_on_a_cubic() {
-    let (doc, m) = scalar_measure(2.0, uniform(1.0), |a: &dyn Fn() -> MeasureExpr| {
-        MeasureExpr::mul(MeasureExpr::mul(a(), a()).expect("scalar"), a()).expect("scalar")
+    let (doc, m) = scalar_measure(2.0, uniform(1.0), |a: &dyn Fn() -> Formula| {
+        Formula::mul(Formula::mul(a(), a()).expect("scalar"), a()).expect("scalar")
     });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(16), Tol::witness()).expect("builds");

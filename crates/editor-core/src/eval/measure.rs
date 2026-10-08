@@ -808,8 +808,8 @@ pub(crate) fn observe<T: Decide, P>(
     var: crate::VarId,
     dim: crate::Dimension,
 ) -> Result<Observed<T>, ObservedRefusal> {
-    use crate::expr::{ParamValue, VarEnv};
-    use std::collections::BTreeMap;
+    use crate::expr::ParamValue;
+    use std::collections::BTreeSet;
     let outputs = doc.observed_outputs(var);
     if outputs.is_empty() {
         return crate::expr::eval_var(var, dim, env)
@@ -821,93 +821,39 @@ pub(crate) fn observe<T: Decide, P>(
     if outputs == [var] {
         return measured(doc, results, var);
     }
-    let mut local: VarEnv<T> = VarEnv::default();
-    let copy = |local: &mut VarEnv<T>, at: crate::VarId| {
-        if let Some(bound) = env.bindings.get(&at) {
-            local.bindings.insert(at, *bound);
-        }
-        if let Some(refused) = env.refused.get(&at) {
-            local.refused.insert(at, refused.clone());
-        }
-        if env.written.contains(&at) {
-            local.written.insert(at);
-        }
-    };
-    // Post-order over the definitions under `var`, each read bound
-    // before its reader; `observed` says which carry a measured value.
-    let mut observed: BTreeMap<crate::VarId, bool> = BTreeMap::new();
-    let mut stack = vec![(var, false)];
-    while let Some((at, expanded)) = stack.pop() {
-        if observed.contains_key(&at) {
-            continue;
-        }
-        let Some(held) = doc.var(at) else {
-            copy(&mut local, at);
-            observed.insert(at, false);
+    // The measured values bound over `env`, then every definition under
+    // `var` that reads one re-bound in definition order: the same step
+    // that binds every definition of a construction's environment.
+    let mut local = env.clone();
+    let mut touched: BTreeSet<crate::VarId> = BTreeSet::new();
+    for &output in &outputs {
+        let Some(at_dim) = doc.var(output).and_then(|held| held.kind().dimension()) else {
             continue;
         };
-        if held.def().output().is_some() {
-            let Some(at_dim) = held.kind().dimension() else {
-                copy(&mut local, at);
-                observed.insert(at, false);
-                continue;
-            };
-            match measured(doc, results, at)? {
-                Observed::Value(value) => {
-                    local
-                        .bindings
-                        .insert(at, ParamValue::Continuous { dim: at_dim, value });
-                }
-                unavailable @ Observed::Unavailable(_) => return Ok(unavailable),
+        match measured(doc, results, output)? {
+            Observed::Value(value) => {
+                local.refused.remove(&output);
+                local
+                    .bindings
+                    .insert(output, ParamValue::Continuous { dim: at_dim, value });
             }
-            observed.insert(at, true);
+            unavailable @ Observed::Unavailable(_) => return Ok(unavailable),
+        }
+        touched.insert(output);
+    }
+    let under = definitions_under(doc, var);
+    for id in doc.definition_order() {
+        if !under.contains(&id) {
             continue;
         }
-        let Some(expr) = held.def().defined() else {
-            copy(&mut local, at);
-            observed.insert(at, false);
-            continue;
-        };
         let mut reads = Vec::new();
-        expr.var_reads(&mut reads);
-        if !expanded {
-            stack.push((at, true));
-            stack.extend(
-                reads
-                    .iter()
-                    .rev()
-                    .filter(|(read, _)| !observed.contains_key(read))
-                    .map(|&(read, _)| (read, false)),
-            );
-            continue;
+        if let Some(expr) = doc.var(id).and_then(|held| held.def().defined()) {
+            expr.var_reads(&mut reads);
         }
-        let reads_observed = reads
-            .iter()
-            .any(|(read, _)| observed.get(read) == Some(&true));
-        if reads_observed {
-            if doc.var_name(at).is_none() {
-                local.written.insert(at);
-            }
-            let bound = if expr.dim() == crate::Dimension::Count {
-                crate::expr::eval_count(expr, &local).map(ParamValue::Count)
-            } else {
-                crate::expr::eval(expr, &local).map(|value| ParamValue::Continuous {
-                    dim: expr.dim(),
-                    value,
-                })
-            };
-            match bound {
-                Ok(bound) => {
-                    local.bindings.insert(at, bound);
-                }
-                Err(refusal) => {
-                    local.refused.insert(at, refusal);
-                }
-            }
-        } else {
-            copy(&mut local, at);
+        if reads.iter().any(|(read, _)| touched.contains(read)) {
+            doc.bind_definition(id, &mut local);
+            touched.insert(id);
         }
-        observed.insert(at, reads_observed);
     }
     crate::expr::eval_var(var, dim, &local)
         .map(Observed::Value)
@@ -948,6 +894,29 @@ pub(crate) fn observe_formula<T: Decide, P>(
     crate::expr::eval(formula, &local)
         .map(Observed::Value)
         .map_err(ObservedRefusal::Expr)
+}
+
+/// **The defined variables `var`'s value is computed through**: `var`
+/// itself when it is defined, and every definition its definitions
+/// read, transitively.
+fn definitions_under<P>(
+    doc: &crate::Doc<P>,
+    var: crate::VarId,
+) -> std::collections::BTreeSet<crate::VarId> {
+    let mut under = std::collections::BTreeSet::new();
+    let mut stack = vec![var];
+    while let Some(at) = stack.pop() {
+        let Some(expr) = doc.var(at).and_then(|held| held.def().defined()) else {
+            continue;
+        };
+        if !under.insert(at) {
+            continue;
+        }
+        let mut reads = Vec::new();
+        expr.var_reads(&mut reads);
+        stack.extend(reads.into_iter().map(|(read, _)| read));
+    }
+    under
 }
 
 /// **The measure an observed variable's absence is said at**: the first

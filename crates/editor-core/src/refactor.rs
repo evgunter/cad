@@ -361,6 +361,9 @@ fn carry<E>(
                         .find_map(|(slot, read)| (read == var).then_some(slot))
                         .unwrap_or(crate::OperandSlot::Input),
                     var,
+                    output: source
+                        .var(var)
+                        .is_some_and(|held| held.def().output().is_some()),
                 }),
             },
         };
@@ -1728,7 +1731,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::VarNameUnchanged { .. }
             | EditError::AnonymousVarUnread { .. }
             | EditError::DeleteAnonymousVar { .. }
-            | EditError::MeasureMalformed { .. }
             | EditError::AssertionDimension { .. }
             | EditError::ConstructionReadsObserved { .. }
             | EditError::ContinuousVarCannotBeCount { .. }
@@ -2028,6 +2030,16 @@ enum RemapMiss {
     Read {
         /// The reader's operand.
         slot: crate::OperandSlot,
+        /// The read.
+        var: VarId,
+        /// Whether the read is an operation's output (a stranded one),
+        /// rather than a variable the carry moves on its own.
+        output: bool,
+    },
+    /// An assertion's value reading an output no live operation
+    /// defines: a stranded measured value, which the carry cannot
+    /// re-point and must not keep.
+    PayloadRead {
         /// The read.
         var: VarId,
     },
@@ -2367,11 +2379,12 @@ fn remap_node(
             })?,
         },
         // A value reading a measure's output directly re-points as an
-        // operand does; any other value is a slot variable, carried as
-        // the bound is.
+        // operand does, and one reading a stranded output refuses; any
+        // other value is a slot variable, carried as the bound is.
         Node::Assertion { value, bound, dir } => Node::Assertion {
             value: match rd(*value) {
-                Err(RemapMiss::Read { .. }) => *value,
+                Err(RemapMiss::Read { output: false, .. }) => *value,
+                Err(RemapMiss::Read { var, .. }) => return Err(RemapMiss::PayloadRead { var }),
                 read => read?,
             },
             bound: *bound,
@@ -3225,11 +3238,17 @@ pub fn split(
                     input: doc.spoken(input),
                 }),
             },
-            RemapMiss::Read { slot, var } => SplitError::PartEdit {
+            RemapMiss::Read { slot, var, .. } => SplitError::PartEdit {
                 error: Box::new(EditError::OperandUnresolved {
                     node: doc.spoken(old),
                     slot: crate::SlotId::Operand(slot),
                     read: crate::Operand::Var(var),
+                }),
+            },
+            RemapMiss::PayloadRead { var } => SplitError::PartEdit {
+                error: Box::new(EditError::PayloadUnresolvedVar {
+                    var: doc.spoken_var(var),
+                    node: doc.spoken(old),
                 }),
             },
             RemapMiss::Name { name, missing } => SplitError::reaches(doc, old, &name, missing),
@@ -3949,11 +3968,17 @@ pub fn inline(
                     input: part.spoken(input),
                 }),
             },
-            RemapMiss::Read { slot, var } => InlineError::Edit {
+            RemapMiss::Read { slot, var, .. } => InlineError::Edit {
                 error: Box::new(EditError::OperandUnresolved {
                     node: part.spoken(old),
                     slot: crate::SlotId::Operand(slot),
                     read: crate::Operand::Var(var),
+                }),
+            },
+            RemapMiss::PayloadRead { var } => InlineError::Edit {
+                error: Box::new(EditError::PayloadUnresolvedVar {
+                    var: part.spoken_var(var),
+                    node: part.spoken(old),
                 }),
             },
             RemapMiss::Name { name, missing } => InlineError::stranded(&part, &name, missing),
@@ -4275,7 +4300,7 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
                 );
             }
             Err(RemapMiss::Input(id)) => panic!("a name miss is not an input miss, got {id:?}"),
-            Err(RemapMiss::Read { var, .. }) => {
+            Err(RemapMiss::Read { var, .. } | RemapMiss::PayloadRead { var }) => {
                 panic!("a name miss is not a read miss, got {var:?}")
             }
             Ok(out) => panic!("INNER is unmapped, got {out:?}"),

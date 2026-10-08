@@ -1798,39 +1798,6 @@ impl core::fmt::Display for ListFault {
     }
 }
 
-/// What makes an authored measurement unusable at its builder
-/// ([`crate::measure`]): a primitive of the [`crate::MeasureExpr`]
-/// indexes the reference list the builder is handed, and an index past
-/// its end names nothing at all.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MeasureNodeFault {
-    /// A primitive addresses a reference the builder was not handed.
-    RefIndexOutOfRange {
-        /// The primitive that reads it.
-        verb: &'static str,
-        /// The out-of-range index.
-        index: u32,
-        /// How many references the builder was handed.
-        refs: usize,
-    },
-}
-
-// The ONE prose vocabulary for this fault, forwarded by every door
-// that renders it rather than restated.
-impl core::fmt::Display for MeasureNodeFault {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::RefIndexOutOfRange { verb, index, refs } => write!(
-                f,
-                "`{verb}` reads reference {index}, and the measurement is handed {refs} — the \
-                 expression indexes that reference list, so this names nothing"
-            ),
-        }
-    }
-}
-
-impl core::error::Error for MeasureNodeFault {}
-
 /// **What makes a formula unusable at a slot**
 /// ([`Node::formula_dimension_fault`]; spec D6) — the rule "a slot's
 /// formula carries the dimension the slot address fixes", asked by the

@@ -49,9 +49,9 @@ use editor_core::stackup::{
 };
 use editor_core::{
     CancelToken, CapEnd, Dimension, Distribution, DocEdit, EvalOptions, Evaluation, Formula,
-    FreeValue, FreeVar, LoopProgram, MeasureExpr, MeasurePrimitive, Node, NodeResult, Observed,
-    ParamValue, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, SitedRef, VarId, VarName, evaluate, seed_env,
+    FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node, NodeResult, Observed, ParamValue,
+    ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
+    SitedRef, VarId, VarName, evaluate, seed_env,
 };
 use geom_core::interval::Interval;
 use geom_core::{CertifiedEnclosure, Dual64, Tol};
@@ -286,15 +286,18 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
         SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Start))),
         SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::End))),
     ];
-    let expr = MeasureExpr::add(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 2, b: 3 }),
-    )
-    .expect("Length + Length");
-    let measured = r.measure(&expr, &refs);
+    let measured = r.measure(
+        &[
+            MeasurePrimitive::Distance { a: 0, b: 1 },
+            MeasurePrimitive::Distance { a: 2, b: 3 },
+        ],
+        &refs,
+    );
+    let sum = Formula::add(r.len_of(measured.outputs[0]), r.len_of(measured.outputs[1]))
+        .expect("Length + Length");
     r.push(DocEdit::DeclareVar {
         name: name("m"),
-        def: editor_core::VarDecl::Defined(measured.value),
+        def: editor_core::VarDecl::Defined(sum),
     });
     let measure = var(&r.doc, "m");
     Slab {
@@ -351,11 +354,9 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, VarId) {
     });
     let ev = eval(&r.doc);
     let refs = vec![cyl_wall(&ev, &r.doc, bore), cyl_wall(&ev, &r.doc, pin)];
-    let m = r.value(
-        "m",
-        &MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-        &refs,
-    );
+    let m = r
+        .measure(&[MeasurePrimitive::Gap { outer: 0, inner: 1 }], &refs)
+        .outputs[0];
     (r.doc, m)
 }
 
@@ -410,19 +411,17 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, VarId, VarId) {
         SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
         SitedRef::new(b, fname(b, RoleSeg::Cap(CapEnd::End))),
     ];
-    let angle = r.value(
-        "angle",
-        &MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
-        &refs,
-    );
-    let h = || MeasureExpr::value(param("h", Dimension::Length));
-    let one = || MeasureExpr::value(len(1.0));
-    let kink = MeasureExpr::max(
-        MeasureExpr::sub(h(), one()).expect("Length"),
-        MeasureExpr::sub(one(), h()).expect("Length"),
+    let angle = r
+        .measure(&[MeasurePrimitive::Angle { a: 0, b: 1 }], &refs)
+        .outputs[0];
+    let h = || param("h", Dimension::Length);
+    let one = || len(1.0);
+    let kink = Formula::max(
+        Formula::sub(h(), one()).expect("Length"),
+        Formula::sub(one(), h()).expect("Length"),
     )
     .expect("Length");
-    let abs = r.value("abs", &kink, &[]);
+    let abs = r.define("abs", kink);
     (r.doc, angle, abs)
 }
 
@@ -486,11 +485,9 @@ fn loft() -> (ProfileDoc, VarId) {
         vertex_at(&ev, loft, [0.0, 0.0, 0.0]),
         vertex_at(&ev, loft, [2.0, 0.0, 0.0]),
     ];
-    let m = r.value(
-        "m",
-        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        &refs,
-    );
+    let m = r
+        .measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs)
+        .outputs[0];
     (r.doc, m)
 }
 
@@ -510,13 +507,13 @@ fn sum(u: Distribution, n: Distribution, tn: Distribution) -> (ProfileDoc, VarId
             def: editor_core::VarDecl::Free(continuous(Dimension::Length, 1.0, dist)),
         });
     }
-    let v = |p: &'static str| MeasureExpr::value(param(p, Dimension::Length));
-    let expr = MeasureExpr::add(
-        MeasureExpr::add(v("u"), v("n")).expect("Length"),
-        MeasureExpr::add(v("tn"), v("f")).expect("Length"),
+    let v = |p: &'static str| param(p, Dimension::Length);
+    let expr = Formula::add(
+        Formula::add(v("u"), v("n")).expect("Length"),
+        Formula::add(v("tn"), v("f")).expect("Length"),
     )
     .expect("Length");
-    let m = r.value("m", &expr, &[]);
+    let m = r.define("m", expr);
     (r.doc, m)
 }
 
@@ -995,13 +992,13 @@ fn where_the_linearization_says_zero_the_hull_still_encloses_the_range() {
             Some(uniform(-0.5, 0.5)),
         )),
     });
-    let a = || MeasureExpr::value(param("a", Dimension::Scalar));
-    let expr = MeasureExpr::sub(
-        MeasureExpr::mul(a(), a()).expect("Scalar"),
-        MeasureExpr::add(a(), a()).expect("Scalar"),
+    let a = || param("a", Dimension::Scalar);
+    let expr = Formula::sub(
+        Formula::mul(a(), a()).expect("Scalar"),
+        Formula::add(a(), a()).expect("Scalar"),
     )
     .expect("Scalar");
-    let m = r.value("m", &expr, &[]);
+    let m = r.define("m", expr);
     let doc = r.doc;
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let verdict = drive(&doc, &analyzed, &config(64), Tol::witness()).expect("builds");

@@ -479,23 +479,6 @@ pub enum ErrorClass {
     /// it to uniform, so the door that would have to guess raises
     /// instead, naming the parameter.
     Measure,
-    /// A [`Node::Measure`](pncad::document::Node)'s expression reads a
-    /// reference the node does not carry, refused at the Python
-    /// construction door. The Python class keeps the Rust type's own
-    /// name,
-    /// [`MeasureNodeFault`](pncad::document::MeasureNodeFault).
-    ///
-    /// The second class in this taxonomy raised by a VALUE
-    /// constructor rather than by a door that touches a document, and
-    /// for [`Self::Distribution`]'s reason: `Node::measure` is the
-    /// kernel's ONE construction door and it runs the same check the
-    /// edit door and the load door's re-check run, so the binding
-    /// calls it rather than restating it. What the timing buys is
-    /// that an index past the end of the reference list refuses where
-    /// it is written, not at the `Doc.apply` after it — where the
-    /// same fault arrives as `EditError` with `variant ==
-    /// "measure_malformed"`.
-    MeasureNode,
     /// A measure whose value is an ENCLOSURE, read at a build whose
     /// scalar is a point (E3/E7, M10-6). The Python class keeps the
     /// Rust type's own name,
@@ -613,7 +596,6 @@ impl ErrorClass {
             Self::Enforce => "CheckRefusal",
             Self::Distribution => "DistributionFault",
             Self::Measure => "MeasureUnavailable",
-            Self::MeasureNode => "MeasureNodeFault",
             Self::MeasureUnavailableAt => "MeasureUnavailableAt",
             Self::AnalysisPolicy => "AnalysisPolicyError",
             Self::Mc => "McRefusal",

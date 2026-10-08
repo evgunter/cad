@@ -133,12 +133,12 @@ use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     CountMismatch, DimensionError, Distribution, DistributionFault, DistributionField, EditError,
     EvalError, FacePoseRefusal, FaceRefusal, InlineError, InterfaceCrossing, LeverRefusal,
-    Maintenance, MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt,
-    MetaVersionError, MintRefusal, NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck,
-    ParseError, PersistError, PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal,
-    ReachRefusal, RecordedProgramError, RefusedRef, Relation, ResolveFault, RootFault,
-    ShellClassifyError, SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault,
-    Subgroup, Unplaced, UpdateError,
+    Maintenance, MateFault, MatePrimitive, MeasureUnavailableAt, MetaVersionError, MintRefusal,
+    NodeErrorClass, NodeErrorKind, NodeStanding, OffsetCheck, ParseError, PersistError,
+    PiecesFault, PlacementRuleFault, ProgramFault, ProgramRefusal, ReachRefusal,
+    RecordedProgramError, RefusedRef, Relation, ResolveFault, RootFault, ShellClassifyError,
+    SlotId, SnapshotError, SplitError, StepHandleRefusal, StepIdFault, Subgroup, Unplaced,
+    UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -620,7 +620,6 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PayloadVarKind { .. } => "payload_var_kind",
         EditError::SlotUnresolvedVar { .. } => "slot_unresolved_var",
         EditError::PayloadUnresolvedVar { .. } => "payload_unresolved_var",
-        EditError::MeasureMalformed { .. } => "measure_malformed",
         EditError::ConstructionReadsObserved { .. } => "construction_reads_observed",
         EditError::AssertionDimension { .. } => "assertion_dimension",
         EditError::ContinuousVarCannotBeCount { .. } => "continuous_var_cannot_be_count",
@@ -784,25 +783,6 @@ pub fn mc_refusal_tag(refusal: &McRefusal) -> &'static str {
         McRefusal::BandHasNoMeasure(err) => measure_unavailable_tag(err),
         McRefusal::NoSamples => "no_samples",
         McRefusal::NominalDoesNotBuild { .. } => "nominal_does_not_build",
-    }
-}
-
-/// The stable tag for a measured expression the construction door
-/// refuses.
-///
-/// One arm today, and the tag exists anyway for the reason every tag
-/// here does: `ref_index_out_of_range` is what a caller branches on,
-/// and a second arm added kernel-side breaks this match rather than
-/// arriving in Python untagged.
-///
-/// The SAME fault reaches the edit door as
-/// `EditError::MeasureMalformed`, which carries its own tag
-/// (`measure_malformed`) because what refused there is the EDIT and
-/// the fault is its payload. Two tags for one fault, and they answer
-/// different questions: which door said no, and what was wrong.
-pub fn measure_node_fault_tag(fault: &MeasureNodeFault) -> &'static str {
-    match fault {
-        MeasureNodeFault::RefIndexOutOfRange { .. } => "ref_index_out_of_range",
     }
 }
 
@@ -1288,7 +1268,6 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
 pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
     match err {
         EditError::ProfileProgramRefused { refusal, .. } => Some(program_refusal_tag(refusal)),
-        EditError::MeasureMalformed { fault, .. } => Some(measure_node_fault_tag(fault)),
         EditError::Dimension(inner) => Some(expr_dimension_error_tag(inner)),
         EditError::InvalidDistribution { fault, .. } => Some(distribution_fault_tag(fault)),
         // The direction door's refusal is a whole `NodeErrorKind`, so

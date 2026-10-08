@@ -20,10 +20,10 @@ use editor_core::UnitSym;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocumentId, EditError,
     EntityKind, EvalOptions, Evaluation, Formula, FreeValue, FreeVar, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError,
-    ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector,
-    SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate,
-    face_frame, load, save, select_where, vertex_position,
+    MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, PersistError, ProfileDoc,
+    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef,
+    SnapshotError, StableName, SurfaceKindSet, ValuePayload, VarName, apply, evaluate, face_frame,
+    load, save, select_where, vertex_position,
 };
 use fixture::{ang, len, len2, scl};
 use geom_core::Tol;
@@ -181,7 +181,7 @@ fn r1_plane_plane_distance_is_the_extrude_depth() {
     let [bottom, top] = caps(&ev, slab);
     let (doc, m) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         at_mint([bottom, top]),
     );
     let (d, dim) = measured(&eval(&doc), m);
@@ -220,7 +220,7 @@ fn r1_vertex_plane_distance_is_the_depth() {
         .clone();
     let (doc, m) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         at_mint([bottom_vert, top]),
     );
     let (d, _) = measured(&eval(&doc), m);
@@ -267,7 +267,7 @@ fn r1_vertex_vertex_distance_matches_the_authored_corners() {
     let expect = ((pb.x - pa.x).powi(2) + (pb.y - pa.y).powi(2) + (pb.z - pa.z).powi(2)).sqrt();
     let (doc, m) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         at_mint([a, b]),
     );
     let (d, _) = measured(&eval(&doc), m);
@@ -308,12 +308,12 @@ fn r1_plane_angles_have_the_authored_values() {
 
     let (doc, opposed) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
+        MeasurePrimitive::Angle { a: 0, b: 1 },
         at_mint([bottom, top]),
     );
     let (doc, square) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
+        MeasurePrimitive::Angle { a: 0, b: 1 },
         at_mint([x_wall, y_wall]),
     );
     let ev = eval(&doc);
@@ -358,12 +358,12 @@ fn r1_plane_gap_matches_its_formula_and_rides_the_outer_chart_normal() {
 
     let (doc, g_bt) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        MeasurePrimitive::Gap { outer: 0, inner: 1 },
         at_mint([bottom.clone(), top.clone()]),
     );
     let (doc, g_tb) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        MeasurePrimitive::Gap { outer: 0, inner: 1 },
         at_mint([top, bottom]),
     );
     let ev = eval(&doc);
@@ -451,7 +451,7 @@ fn r1_sphere_gap_three_regimes_on_revolved_balls() {
             .clone();
         let (doc, m) = fixture::measure_node(
             &doc,
-            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+            MeasurePrimitive::Gap { outer: 0, inner: 1 },
             at_mint([socket_face, ball_face]),
         );
         let (g, dim) = measured(&eval(&doc), m);
@@ -533,7 +533,7 @@ fn r1_cylinder_gap_three_regimes_on_real_geometry() {
         let ev = eval(&doc);
         let (doc, m) = fixture::measure_node(
             &doc,
-            MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+            MeasurePrimitive::Gap { outer: 0, inner: 1 },
             at_mint([wall(&ev, bore), wall(&ev, pin)]),
         );
         let (g, _) = measured(&eval(&doc), m);
@@ -558,12 +558,12 @@ fn r1_cylinder_gap_role_swap_negates() {
     let (b_wall, p_wall) = (wall(&ev, bore), wall(&ev, pin));
     let (doc, fwd) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        MeasurePrimitive::Gap { outer: 0, inner: 1 },
         at_mint([b_wall.clone(), p_wall.clone()]),
     );
     let (doc, rev) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        MeasurePrimitive::Gap { outer: 0, inner: 1 },
         at_mint([p_wall, b_wall]),
     );
     let ev = eval(&doc);
@@ -632,12 +632,12 @@ fn r1_skew_cylinder_axes_refuse_typed() {
     let (b_wall, p_wall) = (wall(&ev, bore), wall(&ev, pin));
     let (doc, g) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        MeasurePrimitive::Gap { outer: 0, inner: 1 },
         at_mint([b_wall.clone(), p_wall.clone()]),
     );
     let (doc, d) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         at_mint([b_wall, p_wall]),
     );
     let ev = eval(&doc);
@@ -679,7 +679,7 @@ fn r1_measure_at_dual64_value_channel_is_bit_identical_tangent_zero() {
     let [bottom, top] = caps(&ev, slab);
     let (doc, m) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         at_mint([bottom, top]),
     );
     let (doc, a) = insert(
@@ -734,7 +734,7 @@ fn r1_gap_and_angle_at_interval_contain_the_f64_values() {
     let ev = eval(&doc);
     let (doc, m) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+        MeasurePrimitive::Gap { outer: 0, inner: 1 },
         at_mint([wall(&ev, bore), wall(&ev, pin)]),
     );
     let at_f64 = measured(&eval(&doc), m).0;
@@ -773,7 +773,7 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
     let [bottom, top] = caps(&ev, slab);
     let (doc, m) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         at_mint([bottom, top]),
     );
     // Exactly at the bound: comparand 0, non-strict holds.
@@ -819,7 +819,7 @@ fn r1_ops_refuse_measurement_operands_typed() {
     let [bottom, top] = caps(&ev, slab);
     let (doc, m) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         at_mint([bottom, top]),
     );
     let (doc, a) = insert(
@@ -920,7 +920,7 @@ fn r1_a_wall_selected_from_a_transform_measures_the_unmoved_carrier() {
     let moved_wall = transform_walls[0].clone();
     let (doc, m) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         at_mint([bore_wall, moved_wall]),
     );
     let (d, _) = measured(&eval(&doc), m);
@@ -941,7 +941,7 @@ fn corruptible() -> ProfileDoc {
     let [bottom, top] = caps(&ev, slab);
     let (doc, m) = fixture::measure_node(
         &doc,
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+        MeasurePrimitive::Distance { a: 0, b: 1 },
         at_mint([bottom, top]),
     );
     let (doc, _) = insert(
@@ -1043,20 +1043,21 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     let (doc, slab) = slab();
     let ev = eval(&doc);
     let [bottom, top] = caps(&ev, slab);
-    let expr = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Formula::named(
-            VarName::from_static("ghost"),
-            Dimension::Length,
-        )),
+    let (doc, measured) = fixture::measure(
+        doc,
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+        &at_mint([bottom, top]),
+    );
+    let value = Formula::sub(
+        fixture::read_var(&doc, measured.outputs[0]),
+        Formula::named(VarName::from_static("ghost"), Dimension::Length),
     )
     .expect("Length - Length");
-    let (doc, measured) = fixture::measure(doc, &expr, &at_mint([bottom, top]));
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Assertion {
-                value: measured.value,
+                value,
                 bound: len(0.0),
                 dir: AssertionDir::AtLeast,
             }),
@@ -1123,17 +1124,21 @@ fn r1_own_document_web_and_flip() {
     );
     let _ = p2;
     let ev = eval(&d5);
-    let r = || MeasureExpr::value(Formula::named(VarName::from_static("r"), Dimension::Length));
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(r(), r()).expect("Length + Length"),
+    let (d6, measured) = fixture::measure(
+        d5,
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+        &at_mint([wall(&ev, e1), wall(&ev, e2)]),
+    );
+    let r = || Formula::named(VarName::from_static("r"), Dimension::Length);
+    let web = Formula::sub(
+        fixture::read_var(&d6, measured.outputs[0]),
+        Formula::add(r(), r()).expect("Length + Length"),
     )
     .expect("Length - Length");
-    let (d6, web) = fixture::measure(d5, &web, &at_mint([wall(&ev, e1), wall(&ev, e2)]));
     let (d7, a) = insert(
         &d6,
         Node::Assertion {
-            value: web.value,
+            value: web,
             bound: len(0.05),
             dir: AssertionDir::AtLeast,
         },

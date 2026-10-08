@@ -347,9 +347,6 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             input: Some(other.id()),
             ..none
         },
-        // A measure refused at the builder is no node yet; the nested
-        // fault rides in `inner_variant`.
-        EditError::MeasureMalformed { fault: _ } => none,
         EditError::AssertionDimension {
             node,
             measured,

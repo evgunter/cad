@@ -47,9 +47,9 @@ use editor_core::stackup::{
 };
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, CapEnd, Dimension, Distribution, DocEdit,
-    EvalOptions, Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasureExpr,
-    MeasurePrimitive, Node, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg,
-    SitedRef, ValuePayload, VarId, VarName, evaluate,
+    EvalOptions, Evaluation, Formula, FreeValue, FreeVar, LoopProgram, MeasurePrimitive, Node,
+    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, SitedRef, ValuePayload, VarId,
+    VarName, evaluate,
 };
 use geom_core::Tol;
 
@@ -284,15 +284,19 @@ fn plate_spaced(
     // cylindrical faces, read at the extrude that owns them.
     let ev = eval(&r.doc);
     let wall_of = |node| cyl_wall(&ev, &r.doc, node);
-    let radius = || MeasureExpr::value(param("hole_r", Dimension::Length));
-    let web = MeasureExpr::sub(
-        MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::add(radius(), radius()).expect("Length + Length"),
+    let measured = r.measure(
+        &[MeasurePrimitive::Distance { a: 0, b: 1 }],
+        &[wall_of(holes[0]), wall_of(holes[1])],
+    );
+    let radius = || param("hole_r", Dimension::Length);
+    let web = Formula::sub(
+        r.len_of(measured.outputs[0]),
+        Formula::add(radius(), radius()).expect("Length + Length"),
     )
     .expect("Length - Length");
-    let measured = r.measure(&web, &[wall_of(holes[0]), wall_of(holes[1])]);
+
     let assertion = r.insert(Node::Assertion {
-        value: measured.value,
+        value: web,
         bound: len(MIN_WEB),
         dir: AssertionDir::AtLeast,
     });
@@ -369,10 +373,7 @@ fn kink(dist: Distribution) -> (ProfileDoc, VarId) {
         SitedRef::new(cube, at(cube, 1.0)),
         SitedRef::new(copy, at(copy, 1.0)),
     ];
-    let measured = r.measure(
-        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        &refs,
-    );
+    let measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
     (r.doc, measured.outputs[0])
 }
 
@@ -405,10 +406,7 @@ fn slab(half: f64) -> (ProfileDoc, VarId) {
         SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Start))),
         SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::End))),
     ];
-    let measured = r.measure(
-        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        &refs,
-    );
+    let measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
     (r.doc, measured.outputs[0])
 }
 
@@ -1171,11 +1169,8 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
         SitedRef::new(hole, walls.remove(0)),
         SitedRef::new(plate_node, fname(plate_node, wall(&doc, plate_node, 0))),
     ];
-    let (doc, measured) = fixture::measure(
-        doc,
-        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        &refs,
-    );
+    let (doc, measured) =
+        fixture::measure(doc, &[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
     let unsupported = measured.outputs[0];
     let entries = sensitivities(&doc, unsupported, None, None, false, None, Tol::witness())
         .expect("a refusing measure is not a driver failure");
@@ -1465,10 +1460,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
     });
     let ev = eval(&r.doc);
     let refs = vec![cyl_wall(&ev, &r.doc, bore), cyl_wall(&ev, &r.doc, pin)];
-    let measured = r.measure(
-        &MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-        &refs,
-    );
+    let measured = r.measure(&[MeasurePrimitive::Gap { outer: 0, inner: 1 }], &refs);
     let (measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let doc = r.doc;
 
@@ -1604,10 +1596,7 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
         vertex_at(&ev, loft, [0.0, 0.0, 0.0]),
         vertex_at(&ev, loft, [2.0, 0.0, 0.0]),
     ];
-    let measured = r.measure(
-        &MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        &refs,
-    );
+    let measured = r.measure(&[MeasurePrimitive::Distance { a: 0, b: 1 }], &refs);
     let (_measure, measure_value) = (measured.measures[0], measured.outputs[0]);
     let doc = r.doc;
 
