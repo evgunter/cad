@@ -1102,8 +1102,8 @@ impl LeverArm {
                 "whether a corner's edges are long enough to read which way a face curves there"
             }
             Self::Seam => {
-                "whether a seam edge is long enough, for how its faces curve, to measure the \
-                 angle between them"
+                "whether a seam edge is long enough, for how its faces curve, to measure their \
+                 angle"
             }
         }
     }
@@ -2243,11 +2243,11 @@ pub(in crate::boolean) mod tests {
                 Ending::Sized(LONGER, SizedPass::Positive),
             ),
             BooleanDecision::LeverArm(LeverArm::Seam) => (
-                "whether a seam edge is long enough, for how its faces curve, to measure the \
-                 angle between them",
+                "whether a seam edge is long enough, for how its faces curve, to measure their \
+                 angle",
                 Ending::Sized(
-                    "Recourse: move the geometry so that edge is clearly longer, and its faces \
-                     curve less tightly there",
+                    "Recourse: move the geometry so that edge is clearly longer and its faces \
+                     flatter there",
                     SizedPass::Positive,
                 ),
             ),

@@ -85,8 +85,7 @@ pub enum LeverRung {
 /// that raised it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LeverEscalation {
-    /// The rung that could not decide.
-    pub rung: LeverRung,
+    rung: LeverRung,
     /// Its diagnostics.
     pub diag: Indeterminate,
     /// The sign the arm gate decided and refused, where it decided one:
@@ -125,10 +124,10 @@ impl LeverEscalation {
         Self { diag, ..self }
     }
 
-    /// Whether the arm gate decided the arm not there.
+    /// The rung that could not decide.
     #[must_use]
-    pub fn is_collapsed(&self) -> bool {
-        self.collapsed_arm().is_some()
+    pub const fn rung(self) -> LeverRung {
+        self.rung
     }
 
     /// The arm's verdict where the gate decided it not there, quoting the

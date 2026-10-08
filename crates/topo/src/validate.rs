@@ -2340,7 +2340,7 @@ fn dihedral_finding(edge: EdgeKey, escalation: geom_brep::LeverEscalation) -> Va
         Some(verdict) => ValidationError::NoDihedralArm { edge, verdict },
         None => ValidationError::SliverDihedral {
             edge,
-            check: WedgeCheck::of_rung(escalation.rung),
+            check: WedgeCheck::of_rung(escalation.rung()),
             cause: escalation.diag,
         },
     }
@@ -2362,8 +2362,8 @@ impl WedgeCheck {
     fn lead(self) -> &'static str {
         match self {
             Self::Arm => {
-                "whether an edge is long enough, for how its faces curve, to measure the angle \
-                 between them is too close to call at this tolerance"
+                "whether an edge is long enough, for how its faces curve, to measure their \
+                 angle is too close to call at this tolerance"
             }
             Self::Dihedral => {
                 "the angle between two faces at an edge is too close to call at this \
@@ -2661,7 +2661,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "its faces are tangent where its description says they cross"
         }
         CertifyError::ArmCollapsed { .. } => {
-            "it is not long enough, for how its faces curve, to measure the angle between them"
+            "it is not long enough, for how its faces curve, to measure their angle"
         }
         CertifyError::SpanMeterCollapsed { .. } => {
             "its spline's certified speed floor gives it no measurable length"
@@ -2766,7 +2766,8 @@ fn certify_undecided(check: CertCheck) -> &'static str {
             "its faces meet too nearly tangentially to decide at this tolerance"
         }
         CertCheck::TransversalityArm => {
-            "whether it is long enough to measure the angle between its faces is too close to call"
+            "whether it is long enough, for how its faces curve, to measure their angle is too \
+             close to call"
         }
         CertCheck::TangentPlanes => {
             "a face's tangent plane is undefined at a point of it, so there is no angle between \
@@ -3500,8 +3501,7 @@ impl fmt::Display for ValidationError {
             ),
             Self::NoDihedralArm { verdict, .. } => write!(
                 f,
-                "an edge is not long enough, for how its faces curve, to measure the angle \
-                 between them at this tolerance. {}",
+                "an edge is not long enough, for how its faces curve, to measure their angle. {}",
                 geom_brep::DIHEDRAL_ARM.recourse(verdict.arm(), Reading::AtRest)
             ),
             Self::LaminaWedge { .. } => write!(
@@ -10899,18 +10899,17 @@ mod tests {
             (
                 "wedge arm, in band",
                 sliver(WedgeCheck::Arm, in_band),
-                "whether an edge is long enough, for how its faces curve, to measure the angle \
-                 between them is too close to call at this tolerance. Recourse: move the \
-                 geometry so that edge is clearly longer, and its faces curve less tightly \
-                 there, or, if this length or the gap its faces open is intended, tighten the \
-                 tolerance below 5e-10 m"
+                "whether an edge is long enough, for how its faces curve, to measure their \
+                 angle is too close to call at this tolerance. Recourse: move the geometry so \
+                 that edge is clearly longer and its faces flatter there, or, if this length \
+                 or the gap its faces open is intended, tighten the tolerance below 5e-10 m"
                     .to_owned(),
             ),
             (
                 "wedge arm, zero band",
                 sliver(WedgeCheck::Arm, diag(MarginDiag::value(5e-10))),
-                "Recourse: move the geometry so that edge is clearly longer, and its faces curve \
-                 less tightly there, or, if this length or the gap its faces open is intended, \
+                "Recourse: move the geometry so that edge is clearly longer and its faces \
+                 flatter there, or, if this length or the gap its faces open is intended, \
                  tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
@@ -10923,10 +10922,10 @@ mod tests {
                         band,
                     }),
                 },
-                "an edge is not long enough, for how its faces curve, to measure the angle \
-                 between them at this tolerance. Recourse: move the geometry so that edge is \
-                 clearly longer, and its faces curve less tightly there, or, if this length or \
-                 the gap its faces open is intended, tighten the tolerance below 5e-11 m"
+                "an edge is not long enough, for how its faces curve, to measure their angle. \
+                 Recourse: move the geometry so that edge is clearly longer and its faces \
+                 flatter there, or, if this length or the gap its faces open is intended, \
+                 tighten the tolerance below 5e-11 m"
                     .to_owned(),
             ),
             (
@@ -10938,9 +10937,9 @@ mod tests {
                         band,
                     }),
                 },
-                "Recourse: move the geometry so that edge is clearly longer, and its faces curve \
-                 less tightly there; a face curving to a point there, as a cone at its apex, \
-                 leaves no angle to measure"
+                "Recourse: move the geometry so that edge is clearly longer and its faces \
+                 flatter there; an edge of no length, or a face curving to a point as a cone \
+                 does, leaves no angle to measure"
                     .to_owned(),
             ),
             (
@@ -11194,10 +11193,62 @@ mod tests {
                 assert!(
                     text.starts_with("an edge is not long enough")
                         && !text.contains("too close")
-                        && text.ends_with("as a cone at its apex, leaves no angle to measure"),
+                        && text.ends_with("as a cone does, leaves no angle to measure"),
                     "{row}: {text}"
                 );
             }
+        }
+    }
+
+    /// **The dihedral's arm decision is told in one shape at every door**
+    /// (D4 ¶1 (iv)): certify's noun, its undecided and definite whys at
+    /// rest, check 4's undecided lead and definite finding, and the
+    /// boolean seam's subject all ask whether the edge is long enough,
+    /// for how its faces curve, to measure their angle. A definite arm
+    /// names no tolerance before its recourse: the exact zero no
+    /// tolerance decides reads it too.
+    #[test]
+    fn the_dihedral_arm_is_told_in_one_shape() {
+        use geom_brep::recourse::Classified;
+        use geom_core::MarginDiag;
+        const SHAPE: &str = "long enough, for how its faces curve, to measure their angle";
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let zero = Refused::Zero(Classified {
+            margin: MarginDiag::value(0.0),
+            band,
+        });
+        let collapsed = CertifyError::ArmCollapsed {
+            sample: 4,
+            verdict: zero,
+        };
+        let no_arm = ValidationError::NoDihedralArm {
+            edge: EdgeKey::default(),
+            verdict: zero,
+        };
+        let tellings = [
+            ("certify's noun", CertCheck::TransversalityArm.to_string()),
+            (
+                "certify, undecided at rest",
+                certify_undecided(CertCheck::TransversalityArm).to_owned(),
+            ),
+            (
+                "certify, definite at rest",
+                classify_certify(&collapsed).0.to_owned(),
+            ),
+            ("certify, definite", collapsed.to_string()),
+            ("check 4, undecided", WedgeCheck::Arm.lead().to_owned()),
+            ("check 4, definite", no_arm.to_string()),
+            (
+                "boolean seam",
+                crate::boolean::LeverArm::Seam.subject().to_owned(),
+            ),
+        ];
+        for (door, text) in &tellings {
+            assert!(text.contains(SHAPE), "{door}: {text}");
+        }
+        for (door, text) in [&tellings[2], &tellings[3], &tellings[5]] {
+            let lead = text.split("Recourse:").next().unwrap();
+            assert!(!lead.contains("tolerance"), "{door}: {text}");
         }
     }
 

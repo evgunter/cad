@@ -39,3 +39,20 @@ certification's `CertifyError::ArmCollapsed` does. A reader that
 re-quotes the arm's margin first must keep the gate's verdict instead,
 as `geom_brep::LeverEscalation::with_diag` does.
 
+
+## The question's shape (ENCL, `encl/lever-escalation-one-shape`)
+
+The arm decision's other doors now tell it in one shape (D4 ¶1 (iv)):
+`CertCheck::TransversalityArm`'s noun, `topo::validate`'s
+`certify_undecided`, `classify_certify` and `WedgeCheck::Arm`'s lead,
+`ValidationError::NoDihedralArm` and the boolean's `LeverArm::Seam`
+subject all ask "whether the edge is long enough, for how its faces
+curve, to measure their angle" (pinned by `topo::validate`'s
+`the_dihedral_arm_is_told_in_one_shape`). `TraceDecision::question`'s
+`TransversalityArm` arm still reads "the crossing angle's lever arm (the
+surfaces' curvature radius, or the feature extent) is a positive
+length", beside the shared `DIHEDRAL_ARM` ending. When the definite
+variant above lands, tell its question in the shared shape too (the
+march has a crossing curve rather than a stored edge, so the subject
+noun may differ; the clause after it should not), and keep the
+rendered refusal within the 75-word budget.

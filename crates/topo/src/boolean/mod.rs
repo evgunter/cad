@@ -3095,9 +3095,20 @@ impl BooleanError {
         read: DeclarationRead,
         escalation: geom_brep::LeverEscalation,
     ) -> Self {
+        Self::of_lever_rung(gate, read, escalation.rung(), escalation.diag)
+    }
+
+    /// [`BooleanError::of_lever`] from its parts, for a door that carries
+    /// the rung apart from the escalation.
+    pub(crate) const fn of_lever_rung(
+        gate: refusal_routes::LeverArm,
+        read: DeclarationRead,
+        rung: geom_brep::LeverRung,
+        diag: Indeterminate,
+    ) -> Self {
         Self::Escalated {
-            decision: BooleanDecision::of_lever(gate, read, escalation.rung),
-            diag: escalation.diag,
+            decision: BooleanDecision::of_lever(gate, read, rung),
+            diag,
         }
     }
 
