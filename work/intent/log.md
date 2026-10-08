@@ -467,3 +467,23 @@ Split and VR9 each gain a descriptive line, landing with the lane's PR.
 ## 2026-10-08 — unit A: outputs are logged, so ids move (orchestrator's ruling)
 
 The unit A lane found that spec §2's two asks could not both hold: an output logged `Minted::Var` and no node id moving. An id's ordinal is the mint log's length plus one, and an insert's preimage holds its slot variables' ids, so one logged output moves every later id, digests included. Ruled: log outputs as ordinary variables, ordered as minted, as VR1 and N1 already say, and let ids move in A. Q6 was a spec recommendation, not ratified text. The alternative, keeping outputs out of the ordinal count, would change N1's log invariant and VR1's order for a checkpoint B discards anyway. A's check is now equality up to an id bijection, with content keys and geometry digests bit-equal. Two smaller calls were also accepted. An instance defines one `body` in A, and its per-world-placement signature is C's. A transform's port is `Bodies` over a `Bodies` operand and `Body` otherwise.
+
+## 2026-10-08 — stage 5 sliced (`docs/INTENT-STAGE5-SPEC.md`)
+
+A spec lane sized stage 5 (assertions and the at-rest lints) at main `047d10d5d`, written against stage 2's final shapes. Stage 5 lands in three PRs, each green:
+
+- A `an-assertion-relates-by-equality` (M): `AssertionRelation` with `=`.
+- B `interference-at-rest-is-a-finding` (H): interference between copies leaves A5's refusal, with the quieting rule's interference half.
+- C `the-at-rest-census-is-a-check` (H): A5's gate becomes a check resident with the rule's contact half, and `Separation` retires into it.
+
+A and B wait only on stage 2 (A on D; B on C, D and E). They can be built in parallel, before stages 3 and 4. C waits on A, B and stages 3 and 4.
+
+Five FORKs are open for designer pairs:
+
+1. What "the same measure at the same site" is.
+2. The site of an interference finding.
+3. What "does not straddle zero" admits. This one re-words D10.
+4. The shape of the census as a check, and where it refuses. This one re-words DS6's waiver paragraph.
+5. Whether `Separation` retires. This one re-words DS6.
+
+The three rows are filed parked.
