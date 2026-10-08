@@ -2,11 +2,13 @@
 id: a-vertex-orbits-position-has-one-comparator-but-no-fixed-origin
 kind: issue
 title: insert.rs reads a vertex orbit's position through one comparator from three origins, and b_runs' nesting is a separate integer reading
-status: open
+status: closed
 opened: 2026-10-05
 priority: P3
 cost: M
 branch: join/insert-one-walk-order
+closed: 2026-10-08
+pr: 4317
 ---
 
 
