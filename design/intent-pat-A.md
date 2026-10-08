@@ -196,3 +196,11 @@ operand kind, not a second form.
 - **(c) Everything else in B's "For Ev" I now agree with.** That covers mirror as an operation
   with improper poses unrepresentable, the circular form defaulting to `turn/N`, P4 reversed, and
   P5's layout going.
+
+## Round 3 (grids)
+
+**I hold flat now (likely). This was my round-1 position, and B's round 2 is the better form of
+it.** A flat family keeps one list kind, `[K]`: no `[[K]]` kind, and no rule that `union`
+flattens nested lists. `union` reads one family, and a member is one `xs[i, j]` read named
+`Member{(i, j), of}`. `within` still gives dependent bounds and the outer-first order, so
+nesting adds nothing except a second shape for the same family.
