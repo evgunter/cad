@@ -223,3 +223,26 @@ coincidence is now a margined verdict (no declarations), checked by the
   - **The merge with 4034** joined `Limbs` and `band_verdict` with the at-rest limb 3.
   - **A merge mistake caught locally.** One merge put the at-rest rows inside the last slow-set entry's parentheses in `nextest.toml`; the local run caught it before the push.
   - **Checks on the final merge:** 3 257 geom-brep and topo rows passed, plus the census, the gates and lint. (SSI orchestrator)
+
+- 2026-10-06 — **Transversality-lever fork converged** (fork row 90, adopted by the orchestrator; byte 136, A = Opus, B = Fable), after four rounds.
+  - **Point decisions** read sin θ·min(ρ, E), with ρ from the shape operator.
+  - **Region decisions** read inf sin θ·E.
+  - **Withdrawn:** the curvature-levered region rule, the sagitta margin, and the sweep gap cell. Each measured wrong on a correct case.
+  - **Filed as its own design row:** the chart lane's near-tangent-pose decision.
+- 2026-10-07 — **PR 4104 merged** (cae7f0dc81): a side's sign is read on a refined hull. It closes `ssi-loose-side-hull-reports-a-region-on-an-empty-locus`.
+  - **Dual review DR-94:** 0 MAJOR, tally 0.
+  - **Fix pass:** `SideSignBudget`, an order-independent read, and one budget per side.
+  - **Verifier:** VERIFIED-WITH-NOTES.
+  - **CI on the way in:** red twice, on rows red on main (JOIN's pinch row at ε 1e-6, then a `sweep` one-segment-loop row). Each cleared once main fixed it.
+- 2026-10-08 — **PR 4190 merged** (144aea44ce): one transversality lever. It closes `ssi-transversality-at-a-point-is-spelled-three-ways`.
+  - **Dual review DR-109:** 0 MAJOR, tally 0.
+  - **Fix pass:** one shape-operator home, one `point_arm` with `PointLever` at the march and at rest, and ℝ³ κ from `implicit_max_normal_curvature`.
+  - **Verifier:** VERIFIED-WITH-NOTES, with zero verdict changes against main over 203 configurations × 3 ε.
+  - **Filed:** six rows (the near-tangent-pose design, limb 3's rung descent, three enclosure-slack rows, and the bent chart path at 1e-12).
+- 2026-10-08 — **SSI closes** (Ev, in chat: wind down and open successor programs for the rest). The P0 charter rows are all closed, and so are the P1s apart from one parked design row.
+  - **Exit walk:** the plan set no exit criteria, so none is owed.
+  - **Residue:** the 30 live rows move, ids kept, along the priority seam into three successors under the 30-point ceiling:
+    - **SSIEDGE (P2, 22.5 points):** near-tangency, limb 3's rungs, placement and the boundary's reading, with the parked certificate-bound row.
+    - **SSIARITH (P3, 24.5 points):** f64 readings, coordinate drift and enclosure slack.
+    - **SSIMARCH (P3, 25 points):** march and refinement cost, pairing, and refusal typing.
+  - **Done-state of record:** this log, recoverable at the SHA named in the doc-ledger note. (SSI orchestrator)
