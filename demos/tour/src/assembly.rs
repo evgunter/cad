@@ -105,10 +105,10 @@ use pncad::document::{
     Alignment, Assembly, AssemblyError, AxisSense, CONTRADICTORY_RECOURSE, CancelToken, Datum,
     Dimension, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Formula, Frame, FreeValue,
     FreeVar, InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, MateReach, MateRole,
-    MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, PartReach, PartResolver, PatternKind, Placement,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace, Step, UNDER_RECOURSE,
-    ValuePayload, VarName, apply, assemble, content_pin, evaluate, inline, load, mixed_pins,
-    parse_formula, product_named, regauge_then_mate, save, solve_document, split,
+    MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, Operand, PartReach, PartResolver, PartSelect,
+    PatternKind, Placement, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace,
+    Step, UNDER_RECOURSE, ValuePayload, VarName, apply, assemble, content_pin, evaluate, inline,
+    load, mixed_pins, parse_formula, product_named, regauge_then_mate, save, solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -277,6 +277,15 @@ fn insert_through(
     applied.record.minted.expect("an insert mints an id")
 }
 
+/// Places one copy of `body` in the world at the identity, and returns
+/// the placement's id.
+fn place(doc: &mut ProfileDoc, body: impl Into<Operand>, tol: Tol) -> RecipeNodeId {
+    let applied = apply(doc, &DocEdit::place(body, None), tol, &RefusingReach)
+        .unwrap_or_else(|err| panic!("the placement applies: {err:?}"));
+    *doc = applied.doc;
+    applied.record.minted.expect("a placement mints an id")
+}
+
 /// Applies an edit that mints nothing, through `reach` — the scene
 /// builders pass the refusing one for a placement (see [`insert`]);
 /// the update door passes the workspace's, because a pin move on a
@@ -418,7 +427,7 @@ fn prism_part(
         }),
         tol,
     );
-    insert(
+    let prism = insert(
         &mut doc,
         Node::Extrude {
             profile: profile.into(),
@@ -427,6 +436,7 @@ fn prism_part(
         },
         tol,
     );
+    place(&mut doc, prism, tol);
     doc
 }
 
@@ -473,7 +483,8 @@ fn crate_part(tol: Tol) -> ProfileDoc {
 
 /// A part's own cap-face name at `end`, as its PRODUCT answers to it —
 /// the name a mate on that face refers to, before the instance
-/// qualifier wraps it.
+/// qualifier wraps it: the cap selected on the placed body, wrapped
+/// in the part's one placement.
 ///
 /// Selected structurally (`Cap`, side `end`) rather than hand-built:
 /// the naming vocabulary is what a user reaches for, and a selector
@@ -481,16 +492,49 @@ fn crate_part(tol: Tol) -> ProfileDoc {
 /// moved.
 fn cap_of(doc: &ProfileDoc, end: CapEnd, tol: Tol) -> StableName {
     let ev = run(doc, &EvalOptions::default(), tol);
-    let tip = *doc.roots().first().expect("the part has a product root");
+    let (placement, body) = placed_body(doc);
     let sel =
         Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
-    let found = pncad::select::select(&ev, tip, &sel);
+    let found = pncad::select::select(&ev, body, &sel);
     assert_eq!(
         found.len(),
         1,
         "an extruded prism has exactly one {end:?} cap; got {found:?}"
     );
-    found.into_iter().next().expect("checked non-empty")
+    found
+        .into_iter()
+        .next()
+        .expect("checked non-empty")
+        .in_copy(placement)
+}
+
+/// The one world placement reading `body`'s output.
+fn placement_reading(doc: &ProfileDoc, body: RecipeNodeId) -> RecipeNodeId {
+    let reading: Vec<RecipeNodeId> = doc
+        .placements()
+        .into_iter()
+        .filter(|&p| {
+            matches!(doc.node(p), Some(Node::PlaceInWorld { body: read, .. })
+                if doc.operation_of(*read) == Some(body))
+        })
+        .collect();
+    let [one] = reading[..] else {
+        panic!("node {body} has one world placement, got {reading:?}")
+    };
+    one
+}
+
+/// A part document's one world placement, and the node whose body it
+/// places.
+fn placed_body(doc: &ProfileDoc) -> (RecipeNodeId, RecipeNodeId) {
+    let [placement] = doc.placements()[..] else {
+        panic!("a part places one body, got {:?}", doc.placements())
+    };
+    let Some(Node::PlaceInWorld { body, .. }) = doc.node(placement) else {
+        unreachable!("a placement is a world placement")
+    };
+    let node = doc.operation_of(*body).expect("the placed body is live");
+    (placement, node)
 }
 
 // ---- The assembly documents ----
@@ -561,6 +605,19 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
         tol,
         &RefusingReach,
     );
+    // The world: each patterned post, then the shelf.
+    for i in 0..2 {
+        let post = insert(
+            &mut doc,
+            Node::Part {
+                of: pattern.into(),
+                select: PartSelect::Instance(Formula::count(i)),
+            },
+            tol,
+        );
+        place(&mut doc, post, tol);
+    }
+    place(&mut doc, shelf_i, tol);
     (doc, pattern, shelf_i)
 }
 
@@ -724,6 +781,11 @@ fn stand_doc(
         tol,
         reach,
     );
+    // The world: the stand's three instances, in the order they were
+    // authored.
+    for instance in [post_a, shelf_i, post_b] {
+        place(&mut doc, instance, tol);
+    }
     Stand {
         doc,
         turntable,
@@ -784,6 +846,7 @@ fn bench(stand: &Stand, parts: &Parts, tol: Tol, reach: &dyn MateReach) -> Bench
         tol,
         reach,
     );
+    place(&mut doc, crate_i, tol);
     Bench {
         doc,
         crate_i,
@@ -890,18 +953,21 @@ fn layout_scene(ws: &Workspace, doc: &ProfileDoc, pattern: RecipeNodeId, tol: To
     // part's own cap name (N1 x the GQ4 wrapper).
     // The name NESTS rather than concatenating: `Instance(i)` carries
     // the instance's own name as its argument, which carries the
-    // part's name as ITS argument. So the pattern reads as three
-    // wrappers deep — pattern index, then instance, then the part's
-    // own cap.
-    let cap_of_part =
-        NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
+    // part's product name as ITS argument, and that is the part's cap
+    // in the copy its placement puts in the part's world. So the
+    // pattern reads as four wrappers deep — pattern index, then
+    // instance, then the part's placement, then the part's own cap.
+    let face = || NamePat::of_kind(EntityKind::Face);
+    let cap_of_part = face().seg(SegPat::tag(SegTag::Cap).side(CapEnd::End));
     let caps = pncad::select::select(
         &ev,
         pattern,
         &Selector::of(
-            NamePat::of_kind(EntityKind::Face).seg(
-                SegPat::tag(SegTag::Instance).of([NamePat::of_kind(EntityKind::Face)
-                    .seg(SegPat::tag(SegTag::InPart).of([cap_of_part]))]),
+            face().seg(
+                SegPat::tag(SegTag::Instance).of([face().seg(
+                    SegPat::tag(SegTag::InPart)
+                        .of([face().seg(SegPat::tag(SegTag::Placed).of([cap_of_part]))]),
+                )]),
             ),
         ),
     );
@@ -1056,8 +1122,8 @@ const BENCH_VOLUME: f64 = 2.0 * POST_VOLUME + SHELF_VOLUME + CRATE_VOLUME;
 /// **The three poses**: one `SetVarValue` on `swing` each, every
 /// evaluation fed the one before it as its memo.
 ///
-/// A swing re-runs the turntable and the four instances its chain
-/// places, and reuses the three mates. Each
+/// A swing re-runs the turntable, the four instances its chain places
+/// and their world placements, and reuses the three mates. Each
 /// pose is checked against the gauge chain composed here, its volume
 /// against the bench's material, and its at-rest gate is run again.
 fn poses(
@@ -1095,9 +1161,9 @@ fn poses(
         );
         println!("   [pose] {counters}");
         // WHICH nodes re-ran, not only how many: the ones whose content
-        // key the edit moved. The turntable reads `swing`, and an
-        // instance's key carries its whole gauge chain; a mate's reads
-        // no gauge.
+        // key the edit moved. The turntable reads `swing`, an
+        // instance's key carries its whole gauge chain, and a
+        // placement's carries its body's; a mate's reads no gauge.
         let moved: BTreeSet<RecipeNodeId> = doc
             .ids()
             .iter()
@@ -1114,8 +1180,13 @@ fn poses(
                 stand.shelf_i,
                 stand.post_b,
                 bench.crate_i,
+                placement_reading(&doc, stand.post_a),
+                placement_reading(&doc, stand.shelf_i),
+                placement_reading(&doc, stand.post_b),
+                placement_reading(&doc, bench.crate_i),
             ]),
-            "a swing re-keys the turntable and the four instances on its chain, and nothing else"
+            "a swing re-keys the turntable, the four instances on its chain and their four \
+             placements, and nothing else"
         );
         assert_eq!(
             (ev.recomputed, ev.reused),
@@ -1283,12 +1354,12 @@ fn shelf_stays_on_the_pivot(ev: &Evaluation<f64>, stand: &Stand, degrees: f64) {
     );
 }
 
-/// A part document's product body: its one root's value.
+/// A part document's product body: its one placement's value.
 fn part_product_body(ev: &Evaluation<f64>, part: &ProfileDoc) -> Arc<Body<f64>> {
-    let root = *part.roots().first().expect("the part has a product root");
-    match &ev.value(root).expect("the part evaluates").payload {
+    let (placement, _) = placed_body(part);
+    match &ev.value(placement).expect("the part evaluates").payload {
         ValuePayload::Body(body) => Arc::clone(body),
-        other => panic!("a part's root is a {}, not a body", other.kind_name()),
+        other => panic!("a part's placement is a {}, not a body", other.kind_name()),
     }
 }
 
@@ -1596,11 +1667,14 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     let before_ev = run(layout, &with_store(ws), tol);
     let (before, before_names) = product_of(layout, &before_ev, tol);
 
+    // The cut is the shelf's instance and the placement that puts it
+    // in the world: a part delivers only its world.
+    let shelf_placed = placement_reading(layout, shelf_i);
     let part_id = DocumentId::derive("pncad-demo-shelf-cell");
     let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
     let out = split(
         layout,
-        &BTreeSet::from([shelf_i]),
+        &BTreeSet::from([shelf_i, shelf_placed]),
         part_id,
         tol,
         Some(&store),
@@ -1620,24 +1694,26 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     );
 
     // Name-resolution identity, over the WHOLE table rather than a
-    // sample: kept names verbatim, cut names re-anchored under the
-    // remainder's new instance.
+    // sample: kept names verbatim, cut names re-anchored as the part's
+    // own copy of the shelf, under the remainder's new instance, in
+    // the copy the remainder places of it.
     let mapped = out.node_map[&shelf_i];
+    let placed_at = placement_reading(&out.remainder, out.instance);
     let mut crossed = 0usize;
     for (name, _) in before_names.iter() {
-        let expected = if name.node == shelf_i {
+        let (placement, inner) = name.copy_of().expect("a product name is a copy's");
+        let expected = if inner.node == shelf_i {
             crossed += 1;
-            let RoleSeg::InPart { of } = &name.path[0] else {
-                panic!("an instance-minted product name wraps a part-local one");
-            };
             in_part(
                 out.instance,
                 &StableName {
-                    kind: name.kind,
+                    kind: inner.kind,
                     node: mapped,
-                    path: vec![RoleSeg::InPart { of: of.clone() }],
-                },
+                    path: inner.path.clone(),
+                }
+                .in_copy(out.node_map[&placement]),
             )
+            .in_copy(placed_at)
         } else {
             name.clone()
         };
@@ -1703,13 +1779,15 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     let restored = back.node_map[&mapped];
     let mut returned = 0usize;
     for (name, _) in before_names.iter() {
-        let expected = if name.node == shelf_i {
+        let (placement, inner) = name.copy_of().expect("a product name is a copy's");
+        let expected = if inner.node == shelf_i {
             returned += 1;
             StableName {
-                kind: name.kind,
+                kind: inner.kind,
                 node: restored,
-                path: name.path.clone(),
+                path: inner.path.clone(),
             }
+            .in_copy(back.node_map[&out.node_map[&placement]])
         } else {
             name.clone()
         };
@@ -1752,12 +1830,15 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     // The invariant under test is that split and inline are INVERSES
     // for every legal cut, and the shape most likely to break it is
     // this one: `inline` refuses an instance off the world's origin
-    // whose part's roots are not themselves instances
-    // (`UnplaceableFrame`), which a Pattern root is not. The cut moves
-    // as selected and leaves the instance at the empty chain, so the
-    // pattern lands back verbatim; the arms below say which answer
+    // whose part's placements do not place instances
+    // (`UnplaceableFrame`), and these place a pattern's copies. The cut
+    // moves as selected and leaves the instance at the empty chain, so
+    // the pattern lands back verbatim; the arms below say which answer
     // this tree gave rather than asserting one, so a change in either
     // direction is reported at the scene instead of passing silently.
+    //
+    // The cell is the post instance, its pattern, and each copy's
+    // `Part` and the placement that puts it in the world.
     let posts_id = DocumentId::derive("pncad-demo-posts-cell");
     let post_i = layout
         .ids()
@@ -1769,14 +1850,18 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         .into_iter()
         .find(|&id| matches!(layout.node(id), Some(Node::Pattern { .. })))
         .expect("the layout has a pattern");
+    let copies: Vec<RecipeNodeId> = layout
+        .ids()
+        .into_iter()
+        .filter(|&id| matches!(layout.node(id), Some(Node::Part { .. })))
+        .collect();
+    let mut cell = BTreeSet::from([post_i, pattern]);
+    for &copy in &copies {
+        cell.insert(copy);
+        cell.insert(placement_reading(layout, copy));
+    }
     let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
-    match split(
-        layout,
-        &BTreeSet::from([post_i, pattern]),
-        posts_id,
-        tol,
-        Some(&store),
-    ) {
+    match split(layout, &cell, posts_id, tol, Some(&store)) {
         Ok(posts) => {
             ws.create(&posts.part, tol)
                 .expect("the posts cell is stored");
@@ -2263,7 +2348,7 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
                      InstantiatePart x3 (pinned) -> Mate x2 (Rest, frame-coincidence, placing) \
                      -> constructive solve; InstantiatePart (crate) -> Mate (Rest, crate's \
                      bottom on the shelf's top face + offset, placing on the turntable) -> \
-                     A10 product gather -> SetVarValue(swing)";
+                     PlaceInWorld x4 -> A10 product gather -> SetVarValue(swing)";
     let bench_story = "an ASSEMBLY document: two instances of a post document and one of a \
                        shelf document, the shelf SEATED on both by mates — only the root post \
                        carries an authored offset, the other two poses are solved — and the \
@@ -2314,9 +2399,10 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
                      InstantiatePart x3 (pinned) -> Mate x2 (Rest, frame-coincidence, placing) \
                      -> constructive solve; InstantiatePart (crate) -> Mate (Rest, crate's \
                      bottom on the shelf's top face + offset, placing on the turntable) -> \
-                     A10 product gather -> SetVarValue(swing); and InstantiatePart \
-                     (explicit rotated frame) -> LinearPattern(2) + InstantiatePart (explicit \
-                     frame) -> A10 product gather -> assemble",
+                     PlaceInWorld x4 -> A10 product gather -> SetVarValue(swing); and \
+                     InstantiatePart (explicit rotated frame) -> LinearPattern(2) -> Part x2 + \
+                     InstantiatePart (explicit frame) -> PlaceInWorld x3 -> A10 product \
+                     gather -> assemble",
                     format!(
                         "{}. FLAT-PACKED: 3 solids, V = {:.6} m^3; every product entity \
                          answers to an instance-qualified name (the pattern's Instance(i) over \
