@@ -12,7 +12,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 
 | Decisions | Module |
 |---|---|
-| N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`: the product's two-roots check and the mate member walk); how each consumer carries an entity of its input up to its own value (`lift`: the at-rest gate's lift from a mate's operand to the product) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
+| N1 `StableName`, `RolePath`, `RoleSeg`, `EntityKind`; N2 `Qualifier`; N1's pass-through set as the recipe walks read it (`verbatim_edge`); how each consumer carries an entity of its input up to its own value (`lift`: the at-rest gate's lift from a mate's operand to the product) | `role.rs`; `RecipeNodeId` in `crates/editor-core/src/node.rs` |
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs`, `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`) |
 | N1's node and profile step ids: the mint chain and mint log (`Mint`) | `crates/editor-core/src/mint.rs`; `RecipeNodeId` and `StepId` in `crates/editor-core/src/node.rs` |
@@ -389,13 +389,12 @@ discriminator among a tie's candidates like any other: the divided candidate's
 pieces are named by their `Borders`, the undivided candidates stay under the
 bare name, and an edit that moves the divider onto another candidate moves each
 name with its role. The pass-through ops of N1 carry the candidate with the name; an op that wraps the
-name numbers afresh, as it mints a fresh name. The product's gather therefore
-has one rule for strict and tied names alike: a (name, candidate) pair reaches
-the product at most once. A strict name is its own only candidate, so two roots
-carrying it refuse; two roots carrying different candidates of one tie merge
-back into the tie; two carrying the same candidate refuse
-(`ProductError::Naming`), the tied case of one entity placed twice. The
-candidate is not part of the name and reaches no name digest.
+name numbers afresh, as it mints a fresh name. A world placement is such an op:
+each copy is its own output, and its names are qualified by the copy
+(`RoleSeg::Placed` at the placement) as a pattern copy's are, so a name reaches
+the product once per copy by construction and the gather has no
+once-per-product rule to keep. The candidate is not part of the name and
+reaches no name digest.
 
 **The row is a shared handle.** A table keys on `NameRef` — one `Arc<StableName>`
 per row, held by both directions — and a role segment holds its argument name by
