@@ -12,7 +12,7 @@
 //! # Kind tagging (spec D1, reported choice)
 //!
 //! A RUNTIME kind tag ([`EntityKind`] field), not phantom typing:
-//! `Declare` pairs, table keys, and (PR 4) hit-test returns all need
+//! declared pairs, table keys, and (PR 4) hit-test returns all need
 //! kind-heterogeneous collections, and the F3 serialization story
 //! wants one concrete type. Kind agreement is enforced at emission
 //! (the table refuses a name whose kind disagrees with its entity).
@@ -41,6 +41,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use super::canonical;
+use super::nest::{Descent, Kept, Stopped, descend};
 use crate::node::{RecipeNodeId, StepId};
 
 /// **The handle a role segment holds its argument [`StableName`] by**:
@@ -123,6 +124,11 @@ impl NameRef {
     #[must_use]
     pub fn name(&self) -> &StableName {
         &self.0.name
+    }
+
+    /// The name, mutably, when this handle is its only holder.
+    pub(super) fn get_mut(&mut self) -> Option<&mut StableName> {
+        Arc::get_mut(&mut self.0).map(|held| &mut held.name)
     }
 
     /// Records this name's `position` in the `epoch` walk, unless it
@@ -268,7 +274,10 @@ impl core::hash::Hash for NameRef {
 
 impl Ord for NameRef {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        // An answer the handle settles itself is recorded for a name
+        // walk comparing the level that holds it (`nest::settled`).
         if Arc::ptr_eq(&self.0, &other.0) {
+            super::nest::settled(core::cmp::Ordering::Equal);
             return core::cmp::Ordering::Equal;
         }
         // Both fields are read here — the stamp as the O(1) cache of
@@ -286,7 +295,9 @@ impl Ord for NameRef {
         // structural order. A zero stamp has epoch 0, which no walk
         // ever uses, so this arm cannot fire on an unstamped pair.
         if a != 0 && (a >> 32) == (b >> 32) {
-            return (a as u32).cmp(&(b as u32));
+            let order = (a as u32).cmp(&(b as u32));
+            super::nest::settled(order);
+            return order;
         }
         name.cmp(other_name)
     }
@@ -435,6 +446,37 @@ impl FaceName {
         self.0
     }
 
+    /// **This face as the instance that places its part names it** —
+    /// the part's own name for the face, worn inside the one
+    /// [`RoleSeg::InPart`] qualifier an instantiate node puts round
+    /// every name it places, headed at that instance. What a mate head
+    /// on a placed part is; [`FaceName::part_local`] is its inverse.
+    pub fn in_part(&self, instance: RecipeNodeId) -> FaceName {
+        Self(StableName {
+            kind: self.0.kind,
+            node: instance,
+            path: vec![RoleSeg::InPart {
+                of: self.0.clone().into(),
+            }],
+        })
+    }
+
+    /// **The part-local face a placed name wraps** — the row of the
+    /// part's own table under the one `InPart` qualifier `instance`
+    /// put round it, read INSIDE the part where no instance exists:
+    /// the last step of [`crate::mate::head_face`]. `None` when `name` is not
+    /// of that shape (headed elsewhere, qualified otherwise, or not a
+    /// face); [`FaceName::in_part`] is its inverse.
+    pub fn part_local(name: &StableName, instance: RecipeNodeId) -> Option<FaceName> {
+        if name.node != instance {
+            return None;
+        }
+        let [RoleSeg::InPart { of }] = name.path.as_slice() else {
+            return None;
+        };
+        FaceName::new((**of).clone()).ok()
+    }
+
     /// **The one in-crate way a face name is re-made**: this face's
     /// DERIVATION rewritten, its kind untouched.
     ///
@@ -501,10 +543,13 @@ impl<'de> serde::Deserialize<'de> for FaceName {
 /// N1's stable name: a derivation path — the minting node plus an
 /// op-typed role path. Float-free and arena-key-free by construction;
 /// serialization is structural (F3, PR 6).
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
-#[serde(deny_unknown_fields)]
+///
+/// A name nests whole names inside its segments, as deep as its
+/// derivation runs, so its `Drop`, `Clone`, `Debug`, `PartialEq`,
+/// `Hash`, `Ord` and serde impls are written by hand, one level at a
+/// time (`names::nest`), and none recurses on the nesting. `Clone`,
+/// `PartialEq`, `Ord`, serde and `Debug` under `{:?}` and `{:#?}` give
+/// the derived impls' answers; `Hash` is consistent with `Eq`.
 pub struct StableName {
     /// The entity kind this name denotes (N1's `K`, runtime-tagged —
     /// module docs).
@@ -517,23 +562,120 @@ pub struct StableName {
     pub path: RolePath,
 }
 
-// The human-readable rendering: the kind (through [`EntityKind::noun`],
-// never `Debug`) plus the minting node — the half of a name a user can
-// act on. The role path is a derivation, not something a person reads
-// mid-sentence, so prose never renders it; the typed value remains the
-// machine channel for anything that needs the path. Article-free
-// ("face name minted by node 3") so a sentence supplies its own
-// article. Refusal prose that names a name forwards this rather than
-// re-spelling it.
+// The human-readable rendering: the path as a structure is the machine
+// channel; a person reads it in words ([`super::LeafRole`]), each node
+// and step by its tag, in full (`the end cap of node 000000000003`).
+// Article-led, so a sentence takes it as a noun phrase. This is
+// [`crate::Speaker::name`] said by tag, the one spelling every sentence
+// that names a name forwards.
 impl core::fmt::Display for StableName {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{} name minted by node {}",
-            self.kind.noun(),
-            self.node.0
-        )
+        crate::spoken::Speaker::TAG.name(self).fmt(f)
     }
+}
+
+/// Where the trailing run of `Fragment` segments of `path` starts: the
+/// length of what they qualify. The one reading of "a name with only
+/// fragments after it", for a group's parent, its cutters, a seam row
+/// and a name said in words alike.
+pub(crate) fn fragment_tail_start(path: &[RoleSeg]) -> usize {
+    path.iter()
+        .rposition(|s| !matches!(s, RoleSeg::Fragment(_)))
+        .map_or(0, |i| i + 1)
+}
+
+/// **The line edge `name` lies on** (N2): the name with every piece
+/// qualifier (`Fragment(Ends)`) removed, at every depth of wrapping —
+/// through each segment that carries one entity of an earlier node
+/// ([`wrapped_edge`]). A name that is not an edge's is its own line,
+/// and so is an edge's that holds no piece qualifier: the same handle
+/// comes back.
+///
+/// Iterative, like the rest of a name's structural walks: a name nests
+/// as deep as its derivation, with no bound.
+#[must_use]
+pub(crate) fn edge_line(name: &NameRef) -> NameRef {
+    // Down the wrapper chain: each level's path with its piece
+    // qualifiers popped, and whether popping changed it.
+    let mut levels: Vec<(&NameRef, RolePath, bool)> = Vec::new();
+    let mut cur = name;
+    while cur.kind == EntityKind::Edge {
+        let mut path = cur.path.clone();
+        while matches!(path.last(), Some(RoleSeg::Fragment(Qualifier::Ends(_)))) {
+            path.pop();
+        }
+        let popped = path.len() != cur.path.len();
+        let inner = match (path.len(), cur.path.first()) {
+            (1, Some(seg)) => wrapped_edge(seg),
+            _ => None,
+        };
+        levels.push((cur, path, popped));
+        match inner {
+            Some(n) => cur = n,
+            None => break,
+        }
+    }
+    // Back up: a level is rebuilt where it popped a qualifier or the
+    // edge it wraps lies on a line other than itself.
+    let mut line: Option<NameRef> = None;
+    while let Some((orig, mut path, popped)) = levels.pop() {
+        let inner_moved = match (&line, path.as_mut_slice()) {
+            (Some(l), [seg]) => match wrapped_edge_mut(seg) {
+                Some(slot) if !Arc::ptr_eq(&slot.0, &l.0) => {
+                    *slot = l.clone();
+                    true
+                }
+                _ => false,
+            },
+            _ => false,
+        };
+        line = Some(if popped || inner_moved {
+            NameRef::new(StableName {
+                kind: orig.kind,
+                node: orig.node,
+                path,
+            })
+        } else {
+            orig.clone()
+        });
+    }
+    line.unwrap_or_else(|| name.clone())
+}
+
+/// The segments [`edge_line`] reads through, as one match over `$seg`
+/// answering the earlier edge each carries: the one list behind
+/// [`wrapped_edge`] and its mutable twin, which match ergonomics give a
+/// shared or a mutable reference alike.
+///
+/// `InPart` is read through: its argument names another document's
+/// edge, and stripping a piece qualifier from it reads no id as local
+/// (the `resolve` walk does not descend into it because it reads ids),
+/// so a piece of a part's edge is a piece of that edge's line in the
+/// part as anywhere else.
+macro_rules! wrapped_edge_of {
+    ($seg:expr) => {
+        match $seg {
+            RoleSeg::FromA(n)
+            | RoleSeg::FromB(n)
+            | RoleSeg::FromMember { of: n, .. }
+            | RoleSeg::SplitFragment { parent: n, .. }
+            | RoleSeg::FromTarget(n)
+            | RoleSeg::InPart { of: n }
+            | RoleSeg::Instance { of: n, .. } => Some(n),
+            _ => None,
+        }
+    };
+}
+
+/// The one earlier edge an edge's single segment `seg` carries, where
+/// [`edge_line`] reads through it.
+pub(crate) fn wrapped_edge(seg: &RoleSeg) -> Option<&NameRef> {
+    wrapped_edge_of!(seg)
+}
+
+/// [`wrapped_edge`], mutably.
+fn wrapped_edge_mut(seg: &mut RoleSeg) -> Option<&mut NameRef> {
+    wrapped_edge_of!(seg)
 }
 
 /// A sequence of role segments (N1). Usually length 1; composition
@@ -541,7 +683,7 @@ impl core::fmt::Display for StableName {
 pub type RolePath = Vec<RoleSeg>;
 
 /// Which end of the sweep vector a cap face closes. The sweep vector
-/// is the signed extrusion (or the stacking from first section to
+/// is the extrusion vector (or the stacking from first section to
 /// last), so both variants hold whichever way it points; the derived
 /// `Ord` is the name table's key order and the declaration order is
 /// that key order alone.
@@ -624,6 +766,129 @@ pub enum ProfileEdgeRef {
         #[serde(with = "PieceRoleWire")]
         role: PieceRole,
     },
+}
+
+/// **The profile pieces one swept wall holds** (`names/README.md`, N1
+/// "Swept walls over a run"): the run of pieces an extrude or a revolve
+/// built one wall over, their locators in authored order, never empty.
+///
+/// A one-piece run is spelled as that one locator, on the wire and in
+/// words, so a name minted before runs existed reads back unchanged; a
+/// run of several is spelled as the list.
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PieceRun(Vec<ProfileEdgeRef>);
+
+impl core::fmt::Debug for PieceRun {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self.single() {
+            Some(one) => one.fmt(f),
+            None => f.debug_list().entries(&self.0).finish(),
+        }
+    }
+}
+
+impl PieceRun {
+    /// The run of `pieces`, or `None` when there are none.
+    #[must_use]
+    pub fn new(pieces: Vec<ProfileEdgeRef>) -> Option<Self> {
+        (!pieces.is_empty()).then_some(Self(pieces))
+    }
+
+    /// The run of one piece.
+    #[must_use]
+    pub fn one(piece: ProfileEdgeRef) -> Self {
+        Self(vec![piece])
+    }
+
+    /// The pieces, in authored order.
+    #[must_use]
+    pub fn pieces(&self) -> &[ProfileEdgeRef] {
+        &self.0
+    }
+
+    /// The piece of a one-piece run.
+    #[must_use]
+    pub fn single(&self) -> Option<ProfileEdgeRef> {
+        match self.0.as_slice() {
+            [one] => Some(*one),
+            _ => None,
+        }
+    }
+
+    /// Whether `piece` is one of the run's.
+    #[must_use]
+    pub fn holds(&self, piece: &ProfileEdgeRef) -> bool {
+        self.0.contains(piece)
+    }
+
+    /// The run with each piece passed through `f`.
+    ///
+    /// # Errors
+    ///
+    /// The first error `f` returns.
+    pub fn try_map<E>(
+        &self,
+        mut f: impl FnMut(ProfileEdgeRef) -> Result<ProfileEdgeRef, E>,
+    ) -> Result<Self, E> {
+        Ok(Self(
+            self.0.iter().map(|e| f(*e)).collect::<Result<_, _>>()?,
+        ))
+    }
+}
+
+impl From<ProfileEdgeRef> for PieceRun {
+    fn from(piece: ProfileEdgeRef) -> Self {
+        Self::one(piece)
+    }
+}
+
+/// [`PieceRun`]'s wire spelling: the bare locator for one piece (a JSON
+/// object, `ProfileEdgeRef`'s externally tagged form), the list for
+/// several (a JSON array). The reader dispatches ONCE on the token it
+/// meets — an object or an array — and never tries one arm and falls
+/// back to the other, so a refusal inside a locator is the refusal that
+/// decided the read (`persist::refusal`'s premise,
+/// `scripts/gates/persist-no-backtracking.sh`).
+impl serde::Serialize for PieceRun {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self.single() {
+            Some(one) => one.serialize(s),
+            None => self.0.serialize(s),
+        }
+    }
+}
+
+/// The one-dispatch reader behind [`PieceRun`]'s `Deserialize`.
+struct PieceRunVisitor;
+
+impl<'de> serde::de::Visitor<'de> for PieceRunVisitor {
+    type Value = PieceRun;
+
+    fn expecting(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str("a profile piece locator, or a non-empty list of them")
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, map: A) -> Result<PieceRun, A::Error> {
+        let one = <ProfileEdgeRef as serde::Deserialize>::deserialize(
+            serde::de::value::MapAccessDeserializer::new(map),
+        )?;
+        Ok(PieceRun::one(one))
+    }
+
+    fn visit_seq<A: serde::de::SeqAccess<'de>>(self, mut seq: A) -> Result<PieceRun, A::Error> {
+        let mut pieces = Vec::new();
+        while let Some(piece) = seq.next_element::<ProfileEdgeRef>()? {
+            pieces.push(piece);
+        }
+        PieceRun::new(pieces)
+            .ok_or_else(|| serde::de::Error::custom("a run of profile pieces holds at least one"))
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for PieceRun {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        d.deserialize_any(PieceRunVisitor)
+    }
 }
 
 /// **A profile vertex by what made it**: the vertex where the piece of
@@ -741,90 +1006,73 @@ impl SplitHalf {
     }
 }
 
-/// A recorded side-of verdict (N2: a margined predicate's SIGN, never
-/// a value). `Mixed` aggregates a fragment whose probe vertices sit
-/// definitely on both sides (wrap-around fragments) — still a
-/// verdict vector entry, still flip-localized (it changes only when
-/// a vertex's side verdict flips).
+/// **A crossing's sense** (N2): whether the crossed edge, as the body
+/// that holds it stores it, enters or leaves at the crossing the closed
+/// body the crossing face belongs to. A side of the crossing with no
+/// portion of the edge counts as outside that body.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-pub enum SideVerdict {
-    /// Every off-plane probe decided positive.
-    Positive,
-    /// Every off-plane probe decided negative.
-    Negative,
-    /// Definite probes on both sides.
-    Mixed,
-    /// Every probe coincident with the carrier (the fragment lies in
-    /// it).
-    On,
+pub enum Sense {
+    /// The edge runs from outside the body into it.
+    Enters,
+    /// The edge runs from inside the body out of it.
+    Leaves,
 }
 
-/// An N2 fragment discriminator: covariant margined predicate
-/// verdicts against recipe-covariant references. NO values, NO bare
-/// indices — `OrderAlong.rank` is an ordinal under the named
-/// order-along comparison (N2's sanctioned order-along(oriented
-/// parent carrier)), or for a union's member-edge piece the index of a
-/// cell of that edge, and changes only at a recorded flip.
+impl Sense {
+    /// The sense of the same crossing read along the edge the other way.
+    #[must_use]
+    pub fn flipped(self) -> Self {
+        match self {
+            Self::Enters => Self::Leaves,
+            Self::Leaves => Self::Enters,
+        }
+    }
+}
+
+/// An N2 fragment discriminator against recipe-covariant references.
+/// NO values, NO bare indices: `Borders`, `Keeps` and `Ends` cite
+/// names, and `OrderAlong.rank` is an ordinal under the named
+/// order-along comparison, which changes only at a recorded flip.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub enum Qualifier {
-    /// Sign vector of side-of(partner's oriented carrier plane), one
-    /// entry per partner, sorted by partner name (`name_frag_side_of`
-    /// through `k_stats`). Partners are the cutting entities' names —
-    /// recipe-covariant by construction.
-    ///
-    /// "Oriented" means **outward**-oriented: a partner face's
-    /// reference plane takes its normal from the face's material side
-    /// — the stored chart normal with `topo::Face::sense` folded in
-    /// (M5 S10). The verdicts are signs against that plane, so the
-    /// orientation sense is part of the geometry these names are
-    /// covariant with; see `emit_topo::face_plane`.
-    SideOf(Vec<(StableName, SideVerdict)>),
-    /// Ordinal position under order-along(oriented parent line)
-    /// (`name_frag_order_along` through `k_stats`): rank `rank` of
-    /// `of` fragments, ordered along the parent's oriented line.
-    ///
-    /// Which line, and which way:
-    /// - for pieces on a SEAM line whose pair's two sides carry
-    ///   distinguishable names — a seam chain, the pieces of a seam a
-    ///   later step cut, and a seam-vertex group ranked along a seam
-    ///   edge — the seam pair's `n_a × n_b`, with the pair's `a` face
-    ///   first (`names::seam_pair`), so one line is ranked one way
-    ///   whichever step cut it;
-    /// - for pieces of any other edge, including a seam between two
-    ///   same-named faces, that edge's own direction;
-    /// - for face fragments of a split, the section line oriented by
-    ///   `n_face × n_tool`.
+    /// The divider walls a boolean's or a union's face piece borders,
+    /// each cited by its parent's name, sorted and deduplicated (N2,
+    /// `names::borders`): the faces across its edges where it meets an
+    /// obstacle — a connected part of the parent face's region no piece
+    /// holds — that borders two or more pieces. A pure function of the
+    /// result's topology and the boolean's record of what it discarded;
+    /// the pieces the wall set does not tell apart are N2's tie.
+    Borders(Vec<StableName>),
+    /// The boundary edges of its parent face a Split's same-side face
+    /// piece holds a stretch of, each cited by its name without piece
+    /// qualifiers, sorted and deduplicated (N2). Pieces with equal sets
+    /// are N2's tie.
+    Keeps(Vec<StableName>),
+    /// The names of an edge piece's two end vertices as the node
+    /// publishes them, sorted, a repeat kept (N2): the qualifier of
+    /// every piece of a parent edge its parent's name does not settle.
+    /// Pieces with equal pairs are N2's tie.
+    Ends(Vec<StableName>),
+    /// Ordinal position of a crossing VERTEX along the edge it lies on
+    /// (`name_frag_order_along` through `k_stats`): rank `rank` of `of`
+    /// crossings of one edge by one face with one sense, ordered by the
+    /// crossed edge's carrier parameter, the edge oriented as its operand
+    /// body stores it, and a seam edge as the loop of its pair's first
+    /// side runs along it (N2).
     ///
     /// A union's seam pair is in name order (`names::canonical`), and
     /// wherever putting it there swaps the pair — at the union's
     /// collapse, or at a later rewrite of the name that reorders the
     /// two sides — the rank is read from the other end.
-    ///
-    /// **A union's piece of a member edge counts cells, not
-    /// fragments.** For `FromMember(m, e)` + `OrderAlong`, the finished
-    /// body's vertices on `e`'s segment cut it into cells numbered along
-    /// `e`'s oriented carrier in `m`'s body. `of` counts CELLS, not
-    /// pieces: a cell another member holds, or none does, counts too, so
-    /// some ranks below `of` index a cell no piece of `m` holds. `rank`
-    /// is the first cell the piece covers. The count is order-free as far
-    /// as the boolean's output is (`emit_union::rank_member_edges`).
-    ///
-    /// The carrier's orientation is load-bearing — reversing it
-    /// reverses every rank — so where it is built from face normals
-    /// those are **outward** normals (M5 S10, `emit_topo::face_plane`),
-    /// never raw chart normals.
     OrderAlong {
-        /// This fragment's rank (0-based) along the carrier — for a
-        /// union's member-edge piece, its first cell's index.
+        /// This crossing's rank (0-based) along the crossed edge.
         rank: u32,
-        /// How many sibling fragments the ordering ranked — for a
-        /// union's member-edge piece, how many CELLS the edge is cut
-        /// into, held or not.
+        /// How many crossings the ordering ranked.
         of: u32,
     },
 }
@@ -904,10 +1152,12 @@ pub enum RoleSeg {
     // ---- Extrude ----
     /// A cap face.
     Cap(CapEnd),
-    /// A side-wall face swept from a profile segment.
-    Lateral(ProfileEdgeRef),
-    /// A cap–wall rim edge (cap end × profile segment).
-    RimEdge(CapEnd, ProfileEdgeRef),
+    /// A side-wall face swept from a run of profile pieces on one
+    /// carrier (N1, "Swept walls over a run").
+    Lateral(PieceRun),
+    /// A cap–wall rim edge: the cap end, and the run of profile pieces
+    /// its wall sweeps (N1, "Swept walls over a run").
+    RimEdge(CapEnd, PieceRun),
     /// A strut (join) edge swept from a profile vertex.
     LateralEdge(ProfileVertexRef),
     /// A cap vertex over a profile vertex.
@@ -924,17 +1174,19 @@ pub enum RoleSeg {
     LoftSeam(Vec<ProfileVertexRef>),
 
     // ---- Revolve (M2 band/pole/seam taxonomy) ----
-    /// A wall (band) face swept from a profile segment.
-    Band(ProfileEdgeRef),
+    /// A wall (band) face swept from a run of profile pieces on one
+    /// carrier (N1, "Swept walls over a run").
+    Band(PieceRun),
     /// A latitude (rim) edge at a profile vertex (partial: wedge
     /// arcs; full: full-period rims).
     BandRim(ProfileVertexRef),
     /// Full, wire case: the π…2π band's latitude half-rim.
     BandRimPi(ProfileVertexRef),
-    /// Full, wire case: the π…2π band's wall face.
-    BandPi(ProfileEdgeRef),
-    /// A meridian edge (per profile segment, per meridian).
-    Meridian(MeridianEnd, ProfileEdgeRef),
+    /// Full, wire case: a CURVED wall's π…2π band face. A plane wall is
+    /// built whole and named by [`RoleSeg::Band`] alone.
+    BandPi(PieceRun),
+    /// A meridian edge (per meridian, per wall run).
+    Meridian(MeridianEnd, PieceRun),
     /// A meridian vertex: the copy of a profile vertex on a wedge
     /// cap plane (partial) or the surviving meridian vertex (full).
     MeridianVertex(MeridianEnd, ProfileVertexRef),
@@ -942,8 +1194,9 @@ pub enum RoleSeg {
     RevolveCap(MeridianEnd),
     /// An on-axis (pole) vertex at a profile vertex on the axis.
     Pole(ProfileVertexRef),
-    /// The shared axis edge of an on-axis profile segment (partial).
-    AxisEdge(ProfileEdgeRef),
+    /// The shared axis edge of a run of on-axis profile pieces
+    /// (partial).
+    AxisEdge(PieceRun),
 
     // ---- Booleans ----
     /// An entity surviving from operand A (argument: its name in the
@@ -981,7 +1234,7 @@ pub enum RoleSeg {
     /// answer at every step, and the pair verb is not symmetric in its
     /// two operands: a declared merge keeps operand A's carrier and
     /// splits operand A's rims, so reordering the member list moves
-    /// `Fragment(OrderAlong)` rows from one member to the other and
+    /// `Fragment` rows from one member to the other and
     /// changes the merged face's carrier origin. Measured on a bare
     /// [`crate::Node::Boolean`] with no union in the picture
     /// (`work/wire/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`),
@@ -1015,15 +1268,15 @@ pub enum RoleSeg {
     },
     /// A zip-minted seam entity: the crossing of an A-operand entity
     /// and a B-operand entity, by their operand names. An edge is
-    /// face × face. A vertex is edge × edge, edge × face or
-    /// face × edge, face × face (every incident seam line agreeing on
-    /// one face pair), or edge × vertex / vertex × edge (the partner
-    /// read from the reduction's contact records); a pair that
-    /// crosses more than once carries a `Fragment(OrderAlong)` after
-    /// it. A seam JUNCTION — the vertex where k ≥ 2 seam lines meet
-    /// and no operand edge does — is named by the sorted run of those
-    /// lines' face × face `Seam` segments, one segment per line and
-    /// nothing after them.
+    /// face × face. A vertex is face × face (every incident seam line
+    /// agreeing on one face pair), or edge × vertex / vertex × edge (the
+    /// partner read from the reduction's contact records); an edge
+    /// crossing a face is a [`RoleSeg::Crossing`], and two edges
+    /// crossing an [`RoleSeg::EdgeCrossing`]. Several pieces of one seam
+    /// edge carry a `Fragment(Ends)` after it. A seam JUNCTION — the
+    /// vertex where k ≥ 2 seam lines meet and no operand edge does — is
+    /// named by the sorted run of those lines' face × face `Seam`
+    /// segments, one segment per line and nothing after them.
     ///
     /// In a pair boolean's table `a` is the A side and `b` the B side.
     /// In a UNION's published table they are not: a union has no A
@@ -1038,11 +1291,43 @@ pub enum RoleSeg {
         /// union's table).
         b: NameRef,
     },
-    /// An F7 merged face: the sorted, FLAT set of constituent names
-    /// retires into this name (N3; canonical order = name order). A
-    /// constituent is never itself a BARE merged face, through any
-    /// `FromA`/`FromB` wrapping — a merge of a merged face lists the
-    /// faces, never the merge. The one carve-out, stated here and
+    /// A vertex where an edge of one side of a boolean or union meets a
+    /// face of the other, crossing it or ending in it, by the edge, the
+    /// face and the edge's [`Sense`] against the closed body the face
+    /// belongs to (N2). Crossings of one edge by one face with one sense
+    /// carry a `Fragment(OrderAlong)` after it when there are several.
+    Crossing {
+        /// The crossed edge.
+        edge: NameRef,
+        /// The crossing face.
+        face: NameRef,
+        /// The edge's sense at the vertex.
+        sense: Sense,
+    },
+    /// A vertex where an edge of each side of a boolean or union cross,
+    /// by the two edges, each with its [`Sense`] against the closed body
+    /// of the other side (N2). In a pair boolean's table `a` is the A
+    /// side; in a union's the two are in name order, each sense with its
+    /// edge. Several such crossings with the same senses carry a
+    /// `Fragment(OrderAlong)` along `a` in a pair boolean's table.
+    EdgeCrossing {
+        /// The A-side edge (the lesser name, in a union's table).
+        a: NameRef,
+        /// `a`'s sense against the other side's closed body.
+        a_sense: Sense,
+        /// The B-side edge (the greater name, in a union's table).
+        b: NameRef,
+        /// `b`'s sense against the other side's closed body.
+        b_sense: Sense,
+    },
+    /// An F7 merged face, or an edge a boolean's output stage joined
+    /// across several operand or member edges (`names/README.md`,
+    /// "Flush edges at a union"): the sorted, FLAT set of constituent
+    /// names retires into this name (N3; canonical order = name order). A
+    /// constituent is never itself a BARE merged name, through any
+    /// `FromA`/`FromB`/`FromMember` wrapping — a merge of a merged face lists the
+    /// faces, never the merge, and an edge set lists edges. The one
+    /// carve-out, stated here and
     /// pointed at from every other site: a FRAGMENT of a merged face
     /// (`[Merged(set), Fragment(q)]`) is a face in its own right, a
     /// legitimate constituent, and is not nesting.
@@ -1082,7 +1367,8 @@ pub enum RoleSeg {
     /// by the section, edges crossing the plane. The side IS the N2
     /// discriminator (the kernel's own decided classification against
     /// the tool plane — the split node's recipe-covariant reference);
-    /// same-side face multiplicity appends `Fragment(OrderAlong)`.
+    /// same-side face multiplicity appends `Fragment(Keeps)`, and
+    /// same-side edge multiplicity `Fragment(Ends)`.
     SplitFragment {
         /// Which output half holds this fragment.
         side: SplitHalf,
@@ -1091,12 +1377,15 @@ pub enum RoleSeg {
     },
     /// A crossing vertex minted where the tool plane crossed an
     /// operand edge (argument: the operand edge's name; each half
-    /// keeps its own coincident copy — `side` names which).
+    /// keeps its own coincident copy — `side` names which), with the
+    /// edge's [`Sense`] against that half (N2).
     CrossingVertex {
         /// Which output half holds this copy.
         side: SplitHalf,
         /// The operand edge the plane crossed.
         edge: NameRef,
+        /// The edge's sense against the `side` half.
+        sense: Sense,
     },
     /// A per-half copy of an operand vertex the tool plane passed
     /// THROUGH (review R2): both halves keep a coincident copy, so
@@ -1141,7 +1430,7 @@ pub enum RoleSeg {
     /// A blend foot: where a support's two trimlines meet, retracted
     /// from the source vertex where the band ends. One such vertex
     /// yields one foot per incident support, whether the band ends at
-    /// a corner or at a transverse cap.
+    /// a corner or at a cut-off.
     FootVertex {
         /// The source vertex the band ends at.
         vertex: NameRef,
@@ -1166,10 +1455,32 @@ pub enum RoleSeg {
         /// The source edge whose blend the arc bounds.
         edge: NameRef,
     },
-    /// The torus band face rounding a CLOSED chain (argument: the
-    /// chain's source edges as a sorted set — a rim is a cycle with no
-    /// distinguished first edge, so the SET is the covariant identity;
-    /// the N3 [`RoleSeg::Merged`] precedent, same canonical order).
+    /// **The mitre where two blend bands meet at a turn**: two of a
+    /// source vertex's three edges blended in one call, the bands meeting
+    /// along their intersection. Keyed by the vertex alone: a trivalent
+    /// vertex has at most one turn, and the request fixes its two edges.
+    Mitre {
+        /// The source vertex the two bands turn at.
+        vertex: NameRef,
+    },
+    /// **Where a turn's unrequested edge now ends**: the mitre's lower
+    /// end, on that edge. One name whether the trihedron is isosceles or
+    /// not; the trimlines' crossing on the shared face is the turn's
+    /// [`RoleSeg::FootVertex`] on that face.
+    TurnFoot {
+        /// The source vertex the two bands turn at.
+        vertex: NameRef,
+    },
+    /// The one blend face a chain of several source edges is carved
+    /// into — a CLOSED chain's torus band, or an open fillet's cylinder
+    /// or chamfer's flat strip carved across joints where consecutive
+    /// links lie on the same two faces
+    /// (argument: the chain's source edges as a sorted set — a rim is a
+    /// cycle with no distinguished first edge, and an open chain's walk
+    /// order depends on which link seeded it, so the SET is the
+    /// covariant identity; the N3 [`RoleSeg::Merged`] precedent, same
+    /// canonical order). A one-link open band is a
+    /// [`RoleSeg::BlendFace`].
     BandFace(Vec<StableName>),
     /// A band trimline on one support (a rim edge yields one per
     /// side).
@@ -1274,10 +1585,11 @@ pub enum RoleSeg {
     },
 }
 
-/// **The `[0, π)` band face swept from the profile piece `piece`** on
-/// the revolve at `node` — [`RoleSeg::Band`].
+/// **The band face swept from the profile piece `piece`** on the
+/// revolve at `node` (in a full revolve's wire case, a curved wall's
+/// `[0, π)` half) — [`RoleSeg::Band`] over the one-piece run.
 ///
-/// This and its three siblings are the MINTING direction of the
+/// This and its four siblings are the MINTING direction of the
 /// vocabulary [`SegPat::tag`](crate::SegPat::tag) matches in. A
 /// selection that is ANSWERED — [`select`](fn@crate::select),
 /// [`all_faces`](fn@super::all_faces) — needs an evaluation to answer
@@ -1291,20 +1603,20 @@ pub fn band(node: RecipeNodeId, piece: ProfileEdgeRef) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::Band(piece)],
+        path: vec![RoleSeg::Band(piece.into())],
     }
 }
 
 /// **The `[π, 2π)` band face swept from the profile piece `piece`** —
-/// [`band`]'s twin in the wire case, where a full revolve emits every
-/// profile segment as two faces ([`RoleSeg::BandPi`]).
+/// [`band`]'s twin in the wire case, where a full revolve emits a
+/// curved wall as two faces ([`RoleSeg::BandPi`]); a plane wall is one.
 /// [`EntityKind::Face`], as [`band`] is.
 #[must_use]
 pub fn band_pi(node: RecipeNodeId, piece: ProfileEdgeRef) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::BandPi(piece)],
+        path: vec![RoleSeg::BandPi(piece.into())],
     }
 }
 
@@ -1317,6 +1629,20 @@ pub fn band_rim(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
         kind: EntityKind::Edge,
         node,
         path: vec![RoleSeg::BandRim(vertex)],
+    }
+}
+
+/// **The `[π, 2π)` latitude rim at the profile vertex `vertex`** —
+/// [`band_rim`]'s twin on a full revolve whose profile touches the
+/// axis, where each rim is two half-arcs between the seam vertices
+/// ([`RoleSeg::BandRimPi`]); an annular profile's rim is one.
+/// An [`EntityKind::Edge`], as [`band_rim`] is.
+#[must_use]
+pub fn band_rim_pi(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
+    StableName {
+        kind: EntityKind::Edge,
+        node,
+        path: vec![RoleSeg::BandRimPi(vertex)],
     }
 }
 
@@ -1363,7 +1689,7 @@ pub fn carried(node: RecipeNodeId, inner: StableName) -> StableName {
 /// It matters because such an id is a LOCAL node reference like the
 /// minting one — it must be re-mapped when a subgraph is copied into
 /// another document, fed to the naming key, and held to the document's
-/// mint counter when a file is read — and a walk that only visits
+/// mint log when a file is read — and a walk that only visits
 /// embedded NAMES cannot see it.
 ///
 /// The match is EXHAUSTIVE on purpose (the `walk_names` rule): a
@@ -1377,6 +1703,8 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         RoleSeg::FromA(_)
         | RoleSeg::FromB(_)
         | RoleSeg::Seam { .. }
+        | RoleSeg::Crossing { .. }
+        | RoleSeg::EdgeCrossing { .. }
         | RoleSeg::Merged(_)
         | RoleSeg::Fragment(_)
         | RoleSeg::SectionEdge { .. }
@@ -1389,6 +1717,8 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
         | RoleSeg::EndArc { .. }
+        | RoleSeg::Mitre { .. }
+        | RoleSeg::TurnFoot { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
@@ -1473,11 +1803,249 @@ pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEd
         | Node::Union { .. }
         | Node::Pattern { .. }
         | Node::PlacedUnion { .. }
-        | Node::Declare { .. }
         | Node::InstantiatePart { .. }
+        | Node::Gauge { .. }
         | Node::Mate { .. }
         | Node::Measure { .. }
         | Node::Assertion { .. } => None,
+    }
+}
+
+/// **How a consumer carries an entity of one of its inputs** up to its
+/// own value — one step of the lift the at-rest gate composes from the
+/// node a mate reads its face at up to the product
+/// (`assembly::resolve_face`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Lift {
+    /// The consumer carries the entity under this name, if it carries
+    /// it at all: whether it came through whole is the consumer's
+    /// evaluated table's to say. A face the consumer merged or cut is
+    /// absent from that table under this name.
+    Spelled(StableName),
+    /// The consumer places the geometry again: what it holds under the
+    /// carried name is not where the input held it.
+    Moved,
+    /// The consumer reads the input in a seat whose value holds no
+    /// entity of it: a datum, a measure, an axis, a path, a split's
+    /// tool.
+    Dropped,
+}
+
+/// **How `node` (the consumer, minted as `consumer`) carries `name`, an
+/// entity of its input `input`**: one [`Lift`] per seat `input` fills,
+/// empty when `input` is not one of `node`'s inputs.
+///
+/// The match is exhaustive with no wildcard, and every arm names its
+/// variant's fields (as [`crate::node::Node::inputs`] does), so a new
+/// node kind or a new field does not compile until it is classified
+/// here — a seat or not. Every answer is read off the node's kind and
+/// seat alone; no slot is evaluated.
+///
+/// - **Spelled verbatim**: a `Part` (its table is the selected body's
+///   rows, verbatim) and a `Split`'s target (its intact entities keep
+///   their names; a face it cuts is a fragment, absent under the
+///   name).
+/// - **Spelled under the consumer**: a `Union` member's entity as
+///   [`super::member_name`]; a pair `Boolean`'s as `FromA` / `FromB`;
+///   a `Fillet`'s, `Chamfer`'s or `Shell`'s target's survivor as
+///   `FromTarget`.
+/// - **Moved**: a `Transform`, a `Pattern` and a `PlacedUnion` place
+///   their input again.
+/// - **Dropped**: every other seat — the datum, profile, path, axis
+///   and measure seats — holds nothing of a body's entity.
+pub(crate) fn lift<P>(
+    consumer: RecipeNodeId,
+    node: &crate::node::Node<P>,
+    input: RecipeNodeId,
+    name: &StableName,
+) -> Vec<Lift> {
+    use crate::node::{Datum, Node, PatternKind};
+    let under = |seg: fn(NameRef) -> RoleSeg| {
+        Lift::Spelled(StableName {
+            kind: name.kind,
+            node: consumer,
+            path: vec![seg(NameRef::new(name.clone()))],
+        })
+    };
+    let seat = |at: RecipeNodeId, how: Lift| (at == input).then_some(how);
+    let placer_axis = |kind: &PatternKind| match kind {
+        PatternKind::Circular { axis, step: _ } => seat(*axis, Lift::Dropped),
+        PatternKind::Linear {
+            direction: _,
+            spacing: _,
+        }
+        | PatternKind::Explicit(_) => None,
+    };
+    match node {
+        Node::Part { of, select: _ } => seat(*of, Lift::Spelled(name.clone()))
+            .into_iter()
+            .collect(),
+        Node::Split { target, tool } => [
+            seat(*target, Lift::Spelled(name.clone())),
+            seat(*tool, Lift::Dropped),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
+        Node::Union {
+            members,
+            declare: _,
+        } => members
+            .iter()
+            .filter(|&&m| m == input)
+            .map(|&m| Lift::Spelled(super::member_name(consumer, m, name)))
+            .collect(),
+        Node::Boolean {
+            op: _,
+            a,
+            b,
+            declare: _,
+        } => [
+            seat(*a, under(RoleSeg::FromA)),
+            seat(*b, under(RoleSeg::FromB)),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
+        Node::Fillet {
+            target,
+            radius: _,
+            selection: _,
+        }
+        | Node::Chamfer {
+            target,
+            distance: _,
+            selection: _,
+        }
+        | Node::Shell {
+            target,
+            thickness: _,
+            open: _,
+        } => seat(*target, under(RoleSeg::FromTarget))
+            .into_iter()
+            .collect(),
+        Node::Transform {
+            input: placed,
+            placement: _,
+        } => seat(*placed, Lift::Moved).into_iter().collect(),
+        Node::Pattern {
+            input: placed,
+            count: _,
+            kind,
+        }
+        | Node::PlacedUnion {
+            input: placed,
+            count: _,
+            kind,
+        } => [seat(*placed, Lift::Moved), placer_axis(kind)]
+            .into_iter()
+            .flatten()
+            .collect(),
+        Node::Datum(Datum::FaceFrame { at, face: _, spin: _ }) => {
+            seat(*at, Lift::Dropped).into_iter().collect()
+        }
+        Node::Datum(Datum::AxisInPlane {
+            plane,
+            origin: _,
+            direction: _,
+        }) => seat(*plane, Lift::Dropped).into_iter().collect(),
+        Node::Measure { expr: _, refs } => refs
+            .iter()
+            .any(|r| r.at == input)
+            .then_some(Lift::Dropped)
+            .into_iter()
+            .collect(),
+        Node::Assertion {
+            measure,
+            bound: _,
+            dir: _,
+        } => seat(*measure, Lift::Dropped).into_iter().collect(),
+        Node::Extrude {
+            profile,
+            distance: _,
+            side: _,
+        } => seat(*profile, Lift::Dropped).into_iter().collect(),
+        Node::Revolve {
+            profile,
+            axis,
+            angle: _,
+        } => {
+            [seat(*profile, Lift::Dropped), seat(*axis, Lift::Dropped)]
+                .into_iter()
+                .flatten()
+                .collect()
+        }
+        Node::Tube {
+            spine,
+            u_ref: _,
+            major_radius: _,
+            window: _,
+            minor_radius: _,
+        }
+        | Node::HollowTube {
+            spine,
+            u_ref: _,
+            major_radius: _,
+            window: _,
+            minor_radius: _,
+            wall: _,
+        } => seat(*spine, Lift::Dropped).into_iter().collect(),
+        Node::Loft {
+            profiles,
+            v_degree: _,
+        } => profiles
+            .contains(&input)
+            .then_some(Lift::Dropped)
+            .into_iter()
+            .collect(),
+        Node::Sweep {
+            profile,
+            path,
+            stations: _,
+            v_degree: _,
+        } => {
+            [seat(*profile, Lift::Dropped), seat(*path, Lift::Dropped)]
+                .into_iter()
+                .flatten()
+                .collect()
+        }
+        // The one input a profile reads is the frame it is drawn on,
+        // through its payload, and a frame holds no face.
+        Node::Profile(_)
+        // Leaves: their references are names or document seams, not
+        // inputs.
+        | Node::Datum(
+            Datum::Plane {
+                origin: _,
+                normal: _,
+            }
+            | Datum::Axis {
+                origin: _,
+                direction: _,
+            }
+            | Datum::Point { position: _ }
+            | Datum::Frame {
+                origin: _,
+                u: _,
+                v: _,
+            },
+        )
+        | Node::InstantiatePart {
+            doc_ref: _,
+            interface: _,
+            gauge: _,
+            offset: _,
+        }
+        | Node::Gauge {
+            parent: _,
+            placement: _,
+        }
+        | Node::Mate {
+            a: _,
+            b: _,
+            class: _,
+            alignment: _,
+        } => Vec::new(),
     }
 }
 
@@ -1578,11 +2146,14 @@ pub(crate) use name_free_seg;
 /// Every method defaults to the identity, because "not this rewrite's
 /// concern" IS the identity: the union's citing moves member edges and
 /// nothing else, the step collection reads locators and moves nothing.
-/// A rewrite that descends into a carried name does so from its own
-/// [`SegRewrite::name`], through [`StableName::rewrite_path`] — the
-/// walk itself never recurses, so a rewriter that must not (the
+/// A rewrite that descends into a carried name says so from its own
+/// [`SegRewrite::name`] ([`Carry::Descend`]); the walk then rewrites
+/// that name's path through the same rewriter and hands the result to
+/// [`SegRewrite::descended`]. A rewriter that must not descend (the
 /// union's: a member's own name is final in the member) simply does
-/// not.
+/// not say so. The walk keeps the names it is descending on its own
+/// stack ([`StableName::rewrite_path`]), since a name nests as deep as
+/// its derivation.
 pub(crate) trait SegRewrite {
     /// What stops the rewrite; [`core::convert::Infallible`] where
     /// nothing can.
@@ -1606,15 +2177,30 @@ pub(crate) trait SegRewrite {
         Ok(v)
     }
 
-    /// A name the segment carries: `None` leaves it as it is (and
-    /// costs no clone), `Some` replaces it.
+    /// What becomes of a name the segment carries ([`Carry`]).
     ///
     /// # Errors
     ///
     /// The rewriter's own.
-    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
+    fn name(&mut self, n: &StableName) -> Result<Carry, Self::Error> {
         let _ = n;
-        Ok(None)
+        Ok(Carry::Keep)
+    }
+
+    /// A carried name this rewriter descends into, once its path has
+    /// been rewritten through it (`walked`): `None` leaves `n` as it
+    /// is, `Some` replaces it.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own.
+    fn descended(
+        &mut self,
+        n: &StableName,
+        walked: StableName,
+    ) -> Result<Option<StableName>, Self::Error> {
+        let _ = n;
+        Ok(Some(walked))
     }
 
     /// The member edge of a [`RoleSeg::FromMember`] — a bare node id,
@@ -1629,21 +2215,129 @@ pub(crate) trait SegRewrite {
     }
 }
 
+/// What a rewrite does with a name a segment carries.
+pub(crate) enum Carry {
+    /// Leave it as it is (and cost no clone).
+    Keep,
+    /// Put this name in its place.
+    Replace(StableName),
+    /// Rewrite its path through the same rewriter, and put what
+    /// [`SegRewrite::descended`] answers in its place.
+    Descend,
+}
+
+/// A rewriter, with the answers for the carried names already
+/// descended.
+struct Deep<'d, 's, W: SegRewrite> {
+    w: &'d mut W,
+    kept: &'d Kept<Option<StableName>>,
+    /// While a level lists the names it descends into first
+    /// ([`Descent::first`]): a carried name not descended yet is listed
+    /// and left as it is, and the walk goes on.
+    listing: Option<&'d mut Vec<&'s StableName>>,
+}
+
+impl<'s, W: SegRewrite> Deep<'_, 's, W> {
+    /// `n` through the rewriter: `None` where it is kept.
+    fn carried(&mut self, n: &'s StableName) -> Result<Option<StableName>, Stopped<'s, W::Error>> {
+        match self.w.name(n).map_err(Stopped::Refused)? {
+            Carry::Keep => Ok(None),
+            Carry::Replace(next) => Ok(Some(next)),
+            Carry::Descend => match (self.kept.get(n), &mut self.listing) {
+                (Some(answer), _) => Ok(answer.clone()),
+                (None, Some(listed)) => {
+                    listed.push(n);
+                    Ok(None)
+                }
+                (None, None) => Err(Stopped::Needs(n)),
+            },
+        }
+    }
+
+    fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Stopped<'s, W::Error>> {
+        self.w.edge(e).map_err(Stopped::Refused)
+    }
+
+    fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Stopped<'s, W::Error>> {
+        self.w.vertex(v).map_err(Stopped::Refused)
+    }
+
+    fn member(&mut self, m: RecipeNodeId) -> Result<RecipeNodeId, Stopped<'s, W::Error>> {
+        self.w.member(m).map_err(Stopped::Refused)
+    }
+}
+
+/// [`StableName::rewrite_path`] as a [`Descent`]: a level is its path
+/// rebuilt through the rewriter, and a carried name it descends into is
+/// kept as [`SegRewrite::descended`] answers it.
+struct Rewriting<'w, W>(&'w mut W);
+
+impl<'s, W: SegRewrite> Descent<'s> for Rewriting<'_, W> {
+    type Level = StableName;
+    type Kept = Option<StableName>;
+    type Error = W::Error;
+
+    /// The level walked as far as the rewriter lets it, every carried
+    /// name it descends into listed in the order the walk meets it. A
+    /// refusal ends the list: the level's own run meets it again after
+    /// the names listed before it are descended, which is where a walk
+    /// that recursed would have met it.
+    fn first(
+        &mut self,
+        name: &'s StableName,
+        kept: &Kept<Option<StableName>>,
+        out: &mut Vec<&'s StableName>,
+    ) {
+        let listed = name.walk(&mut Deep {
+            w: self.0,
+            kept,
+            listing: Some(out),
+        });
+        drop(listed);
+    }
+
+    fn level(
+        &mut self,
+        name: &'s StableName,
+        kept: &Kept<Option<StableName>>,
+    ) -> Result<StableName, Stopped<'s, W::Error>> {
+        name.walk(&mut Deep {
+            w: self.0,
+            kept,
+            listing: None,
+        })
+    }
+
+    fn keep(
+        &mut self,
+        name: &'s StableName,
+        walked: StableName,
+    ) -> Result<Option<StableName>, W::Error> {
+        self.0.descended(name, walked)
+    }
+}
+
 /// One carried name through the rewriter, kept as it is where the
 /// rewriter leaves it.
-fn rewrite_ref<W: SegRewrite>(n: NameRef, w: &mut W) -> Result<NameRef, W::Error> {
-    Ok(match w.name(n.name())? {
+fn rewrite_ref<'s, W: SegRewrite>(
+    n: &'s NameRef,
+    w: &mut Deep<'_, 's, W>,
+) -> Result<NameRef, Stopped<'s, W::Error>> {
+    Ok(match w.carried(n.name())? {
         Some(next) => NameRef::new(next),
-        None => n,
+        None => n.clone(),
     })
 }
 
 /// A SET of names through the rewriter, each kept as it is where the
 /// rewriter leaves it. The set's order is the path's canonical form's
 /// to restore, not this walk's.
-fn rewrite_set<W: SegRewrite>(v: Vec<StableName>, w: &mut W) -> Result<Vec<StableName>, W::Error> {
-    v.into_iter()
-        .map(|n| Ok(w.name(&n)?.unwrap_or(n)))
+fn rewrite_set<'s, W: SegRewrite>(
+    v: &'s [StableName],
+    w: &mut Deep<'_, 's, W>,
+) -> Result<Vec<StableName>, Stopped<'s, W::Error>> {
+    v.iter()
+        .map(|n| Ok(w.carried(n)?.unwrap_or_else(|| n.clone())))
         .collect()
 }
 
@@ -1652,8 +2346,8 @@ impl RoleSeg {
     /// [`RoleSeg`]'s shape that every rewrite of a role path goes
     /// through ([`SegRewrite`] says which three).
     ///
-    /// A segment rebuilt alone is NOT canonical: its sets, its `SideOf`
-    /// partners and a union seam's sides are in whatever order the
+    /// A segment rebuilt alone is NOT canonical: its sets, its `Borders`
+    /// walls and a union seam's sides are in whatever order the
     /// rewrite left them, and a rank may lie along a line the rewrite
     /// reversed. So the walk is private to [`StableName::rewrite_path`],
     /// which rebuilds the whole path and puts it in canonical form.
@@ -1676,71 +2370,84 @@ impl RoleSeg {
     ///
     /// Whatever `w` refuses, at the first thing it refuses.
     #[allow(clippy::too_many_lines)] // one arm per RoleSeg variant, each short
-    fn rewrite<W: SegRewrite>(self, w: &mut W) -> Result<RoleSeg, W::Error> {
+    fn rewrite<'s, W: SegRewrite>(
+        &'s self,
+        w: &mut Deep<'_, 's, W>,
+    ) -> Result<RoleSeg, Stopped<'s, W::Error>> {
         use RoleSeg as R;
         Ok(match self {
             // Neither a locator nor a name: verbatim.
-            inert_seg!() => self,
+            inert_seg!() => self.clone(),
             // The locators.
-            R::Lateral(e) => R::Lateral(w.edge(e)?),
-            R::RimEdge(c, e) => R::RimEdge(c, w.edge(e)?),
-            R::LateralEdge(v) => R::LateralEdge(w.vertex(v)?),
-            R::CapVertex(c, v) => R::CapVertex(c, w.vertex(v)?),
-            R::LoftWall(es) => R::LoftWall(
-                es.into_iter()
-                    .map(|e| w.edge(e))
-                    .collect::<Result<_, _>>()?,
-            ),
-            R::LoftSeam(vs) => R::LoftSeam(
-                vs.into_iter()
-                    .map(|v| w.vertex(v))
-                    .collect::<Result<_, _>>()?,
-            ),
-            R::Band(e) => R::Band(w.edge(e)?),
-            R::BandRim(v) => R::BandRim(w.vertex(v)?),
-            R::BandRimPi(v) => R::BandRimPi(w.vertex(v)?),
-            R::BandPi(e) => R::BandPi(w.edge(e)?),
-            R::Meridian(m, e) => R::Meridian(m, w.edge(e)?),
-            R::MeridianVertex(m, v) => R::MeridianVertex(m, w.vertex(v)?),
-            R::Pole(v) => R::Pole(w.vertex(v)?),
-            R::AxisEdge(e) => R::AxisEdge(w.edge(e)?),
+            R::Lateral(run) => R::Lateral(run.try_map(|e| w.edge(e))?),
+            R::RimEdge(c, run) => R::RimEdge(*c, run.try_map(|e| w.edge(e))?),
+            R::LateralEdge(v) => R::LateralEdge(w.vertex(*v)?),
+            R::CapVertex(c, v) => R::CapVertex(*c, w.vertex(*v)?),
+            R::LoftWall(es) => {
+                R::LoftWall(es.iter().map(|e| w.edge(*e)).collect::<Result<_, _>>()?)
+            }
+            R::LoftSeam(vs) => {
+                R::LoftSeam(vs.iter().map(|v| w.vertex(*v)).collect::<Result<_, _>>()?)
+            }
+            R::Band(run) => R::Band(run.try_map(|e| w.edge(e))?),
+            R::BandRim(v) => R::BandRim(w.vertex(*v)?),
+            R::BandRimPi(v) => R::BandRimPi(w.vertex(*v)?),
+            R::BandPi(run) => R::BandPi(run.try_map(|e| w.edge(e))?),
+            R::Meridian(m, run) => R::Meridian(*m, run.try_map(|e| w.edge(e))?),
+            R::MeridianVertex(m, v) => R::MeridianVertex(*m, w.vertex(*v)?),
+            R::Pole(v) => R::Pole(w.vertex(*v)?),
+            R::AxisEdge(run) => R::AxisEdge(run.try_map(|e| w.edge(e))?),
             // The carried names.
             R::FromA(n) => R::FromA(rewrite_ref(n, w)?),
             R::FromB(n) => R::FromB(rewrite_ref(n, w)?),
             // BOTH halves: the member edge is a local node id like the
             // minting one, and a rewrite of the id space moves it too.
             R::FromMember { member, of } => R::FromMember {
-                member: w.member(member)?,
+                member: w.member(*member)?,
                 of: rewrite_ref(of, w)?,
             },
             R::Seam { a, b } => R::Seam {
                 a: rewrite_ref(a, w)?,
                 b: rewrite_ref(b, w)?,
             },
+            R::Crossing { edge, face, sense } => R::Crossing {
+                edge: rewrite_ref(edge, w)?,
+                face: rewrite_ref(face, w)?,
+                sense: *sense,
+            },
+            R::EdgeCrossing {
+                a,
+                a_sense,
+                b,
+                b_sense,
+            } => R::EdgeCrossing {
+                a: rewrite_ref(a, w)?,
+                a_sense: *a_sense,
+                b: rewrite_ref(b, w)?,
+                b_sense: *b_sense,
+            },
             R::Merged(v) => R::Merged(rewrite_set(v, w)?),
             R::Fragment(q) => R::Fragment(match q {
-                Qualifier::SideOf(entries) => Qualifier::SideOf(
-                    entries
-                        .into_iter()
-                        .map(|(n, s)| Ok((w.name(&n)?.unwrap_or(n), s)))
-                        .collect::<Result<_, _>>()?,
-                ),
-                Qualifier::OrderAlong { .. } => q,
+                Qualifier::Borders(walls) => Qualifier::Borders(rewrite_set(walls, w)?),
+                Qualifier::Keeps(edges) => Qualifier::Keeps(rewrite_set(edges, w)?),
+                Qualifier::Ends(ends) => Qualifier::Ends(rewrite_set(ends, w)?),
+                Qualifier::OrderAlong { .. } => q.clone(),
             }),
             R::SectionEdge { side, face } => R::SectionEdge {
-                side,
+                side: *side,
                 face: rewrite_ref(face, w)?,
             },
             R::SplitFragment { side, parent } => R::SplitFragment {
-                side,
+                side: *side,
                 parent: rewrite_ref(parent, w)?,
             },
-            R::CrossingVertex { side, edge } => R::CrossingVertex {
-                side,
+            R::CrossingVertex { side, edge, sense } => R::CrossingVertex {
+                side: *side,
                 edge: rewrite_ref(edge, w)?,
+                sense: *sense,
             },
             R::OnToolVertex { side, of } => R::OnToolVertex {
-                side,
+                side: *side,
                 of: rewrite_ref(of, w)?,
             },
             R::FromTarget(n) => R::FromTarget(rewrite_ref(n, w)?),
@@ -1758,10 +2465,16 @@ impl RoleSeg {
                 vertex: rewrite_ref(vertex, w)?,
                 edge: rewrite_ref(edge, w)?,
             },
+            R::Mitre { vertex } => R::Mitre {
+                vertex: rewrite_ref(vertex, w)?,
+            },
+            R::TurnFoot { vertex } => R::TurnFoot {
+                vertex: rewrite_ref(vertex, w)?,
+            },
             R::BandFace(v) => R::BandFace(rewrite_set(v, w)?),
             R::BandTrim { edge, support } => R::BandTrim {
                 edge: rewrite_ref(edge, w)?,
-                support,
+                support: *support,
             },
             R::BandFoot(n) => R::BandFoot(rewrite_ref(n, w)?),
             R::BandCross { edge, band } => R::BandCross {
@@ -1777,12 +2490,12 @@ impl RoleSeg {
             R::Rim(n) => R::Rim(rewrite_ref(n, w)?),
             R::HoleRim { of, hole } => R::HoleRim {
                 of: rewrite_ref(of, w)?,
-                hole,
+                hole: *hole,
             },
             // The document seam.
-            R::InPart { .. } => self,
+            R::InPart { .. } => self.clone(),
             R::Instance { i, of } => R::Instance {
-                i,
+                i: *i,
                 of: rewrite_ref(of, w)?,
             },
         })
@@ -1796,7 +2509,7 @@ impl StableName {
     ///
     /// The canonical form is `names::canonical`'s, the one the emitters
     /// mint: a rewrite that moves the names in a name-ordered position
-    /// (a set, a `SideOf` vector, a junction's run, a union seam's two
+    /// (a set, a `Borders` set, a junction's run, a union seam's two
     /// sides) can change their order, and a name the emitter would not
     /// mint for the same entity resolves to nothing. A seam whose sides
     /// come out swapped — in this name, or in a name it embeds — reverses
@@ -1804,23 +2517,47 @@ impl StableName {
     /// was and as it is, with the images `w` gives the seam's sides
     /// (`names::canonical::rewritten`).
     ///
+    /// A carried name `w` descends into ([`Carry::Descend`]) is
+    /// rewritten the same way, and a name nests as deep as its
+    /// derivation, so the walk keeps the names it is descending on its
+    /// own stack (`names::nest::descend`): a level first lists the
+    /// carried names it descends into, each is descended, and the level
+    /// is then walked once, every name already descended answered from
+    /// what was kept. A rewriter is asked the same questions twice on a
+    /// level, so what it answers must be a function of the question.
+    ///
     /// # Errors
     ///
-    /// Whatever `w` refuses.
+    /// Whatever `w` refuses, at the first thing it refuses.
     pub(crate) fn rewrite_path<W: SegRewrite>(self, w: &mut W) -> Result<StableName, W::Error> {
+        descend(&self, &mut Rewriting(w))
+    }
+
+    /// One level of [`StableName::rewrite_path`]: this name's path
+    /// rebuilt through `w`, in canonical form. While the level only
+    /// lists what it descends into, the canonical form is left out: it
+    /// asks after the path, and a name it asks for that the path did not
+    /// list stops the level's own run instead.
+    fn walk<'s, W: SegRewrite>(
+        &'s self,
+        w: &mut Deep<'_, 's, W>,
+    ) -> Result<StableName, Stopped<'s, W::Error>> {
         let path = self
             .path
             .iter()
-            .cloned()
             .map(|seg| seg.rewrite(w))
             .collect::<Result<_, _>>()?;
+        let StableName { kind, node, .. } = self;
         let now = StableName {
-            kind: self.kind,
-            node: self.node,
+            kind: *kind,
+            node: *node,
             path,
         };
-        canonical::rewritten(&self, now, &mut |n| {
-            Ok(w.name(n)?.unwrap_or_else(|| n.clone()))
+        if w.listing.is_some() {
+            return Ok(now);
+        }
+        canonical::rewritten(self, now, &mut |n| {
+            Ok(w.carried(n)?.unwrap_or_else(|| n.clone()))
         })
     }
 
@@ -1834,31 +2571,59 @@ impl StableName {
     /// so a name that spells it is a name on that step's pieces,
     /// whichever node minted the name.
     pub(crate) fn piece_steps(&self) -> std::collections::BTreeSet<StepId> {
-        let mut steps = PieceSteps(std::collections::BTreeSet::new());
-        let Ok(_) = self.clone().rewrite_path(&mut steps);
-        steps.0
+        self.step_pieces()
+            .iter()
+            .filter_map(ProfileEdgeRef::step)
+            .collect()
+    }
+
+    /// **Every authored step's piece this name spells**, over the same
+    /// walk as [`Self::piece_steps`]: an edge locator as itself, a
+    /// vertex locator as the piece that starts there (N1: a vertex is
+    /// named by the piece of the same spelling), a kernel-built
+    /// section's not at all.
+    ///
+    /// What a `SetProgram` that keeps a step asks of each name the
+    /// document holds (DM7): whether the new program still draws the
+    /// piece the name spells.
+    pub(crate) fn step_pieces(&self) -> std::collections::BTreeSet<ProfileEdgeRef> {
+        let mut pieces = StepPieces(std::collections::BTreeSet::new());
+        let Ok(_) = self.clone().rewrite_path(&mut pieces);
+        pieces.0
     }
 }
 
-/// [`StableName::piece_steps`]'s walk: every locator's step collected,
-/// every carried name descended, nothing rewritten.
-struct PieceSteps(std::collections::BTreeSet<StepId>);
+/// [`StableName::step_pieces`]'s walk: every step locator collected
+/// as the piece it names, every carried name descended, nothing
+/// rewritten.
+struct StepPieces(std::collections::BTreeSet<ProfileEdgeRef>);
 
-impl SegRewrite for PieceSteps {
+impl SegRewrite for StepPieces {
     type Error = core::convert::Infallible;
 
     fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Self::Error> {
-        self.0.extend(e.step());
+        if let ProfileEdgeRef::Piece { .. } = e {
+            self.0.insert(e);
+        }
         Ok(e)
     }
 
     fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Self::Error> {
-        self.0.extend(v.step());
+        if let ProfileVertexRef::Piece { step, role } = v {
+            self.0.insert(ProfileEdgeRef::Piece { step, role });
+        }
         Ok(v)
     }
 
-    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
-        let Ok(_) = n.clone().rewrite_path(self);
+    fn name(&mut self, _: &StableName) -> Result<Carry, Self::Error> {
+        Ok(Carry::Descend)
+    }
+
+    fn descended(
+        &mut self,
+        _: &StableName,
+        _: StableName,
+    ) -> Result<Option<StableName>, Self::Error> {
         Ok(None)
     }
 }
@@ -1917,6 +2682,8 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::TrimEdge { .. }
             | $crate::names::RoleSeg::FootVertex { .. }
             | $crate::names::RoleSeg::EndArc { .. }
+            | $crate::names::RoleSeg::Mitre { .. }
+            | $crate::names::RoleSeg::TurnFoot { .. }
             | $crate::names::RoleSeg::BandFace(_)
             | $crate::names::RoleSeg::BandTrim { .. }
             | $crate::names::RoleSeg::BandFoot(_)
@@ -1937,19 +2704,19 @@ pub(crate) use never_in_a_boolean_table;
 mod tests {
     use super::{
         EntityKind, MeridianEnd, NameRef, PieceRole, ProfileEdgeRef, RoleSeg, SectionCircle,
-        StableName, band, band_pi, band_rim, carried, meridian_vertex,
+        StableName, band, band_pi, band_rim, band_rim_pi, carried, meridian_vertex,
     };
     use crate::node::{RecipeNodeId, StepId};
 
     /// The node every pin below mints against.
-    const N: RecipeNodeId = RecipeNodeId(7);
+    const N: RecipeNodeId = RecipeNodeId::new(0, 7);
 
     /// The two locator forms every pin below is written at: an
     /// authored piece and a kernel-built section's piece.
     fn edges() -> [ProfileEdgeRef; 2] {
         [
             ProfileEdgeRef::Piece {
-                step: StepId(3),
+                step: StepId::new(0, 3),
                 role: PieceRole::RunOut,
             },
             ProfileEdgeRef::Section {
@@ -1960,7 +2727,7 @@ mod tests {
     }
 
     /// A builder mints EXACTLY the name a caller would spell by hand.
-    /// Four pins, one per builder, each written the long way — the
+    /// One pin per builder, each written the long way — the
     /// spelling they replace at their consumers — at both locator
     /// forms, so a builder cannot drift from the vocabulary without
     /// this file disagreeing with itself.
@@ -1972,7 +2739,7 @@ mod tests {
                 StableName {
                     kind: EntityKind::Face,
                     node: N,
-                    path: vec![RoleSeg::Band(e)],
+                    path: vec![RoleSeg::Band(e.into())],
                 }
             );
         }
@@ -1986,7 +2753,7 @@ mod tests {
                 StableName {
                     kind: EntityKind::Face,
                     node: N,
-                    path: vec![RoleSeg::BandPi(e)],
+                    path: vec![RoleSeg::BandPi(e.into())],
                 }
             );
         }
@@ -2001,6 +2768,20 @@ mod tests {
                     kind: EntityKind::Edge,
                     node: N,
                     path: vec![RoleSeg::BandRim(e.start())],
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn band_rim_pi_mints_the_hand_spelled_edge() {
+        for e in edges() {
+            assert_eq!(
+                band_rim_pi(N, e.start()),
+                StableName {
+                    kind: EntityKind::Edge,
+                    node: N,
+                    path: vec![RoleSeg::BandRimPi(e.start())],
                 }
             );
         }
@@ -2037,7 +2818,7 @@ mod tests {
         }
         assert_eq!(
             serde_json::to_string(&edges()[0]).expect("serializes"),
-            r#"{"Piece":{"step":3,"role":"RunOut"}}"#
+            r#"{"Piece":{"step":"0:0000000000000003","role":"RunOut"}}"#
         );
         assert_eq!(
             serde_json::to_string(&edges()[1]).expect("serializes"),
@@ -2052,20 +2833,23 @@ mod tests {
     fn piece_steps_read_the_names_own_document_only() {
         let wall = |node: u64, step: u64| StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(node),
-            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
-                step: StepId(step),
-                role: PieceRole::Leg,
-            })],
+            node: RecipeNodeId::new(0, node),
+            path: vec![RoleSeg::Lateral(
+                ProfileEdgeRef::Piece {
+                    step: StepId::new(0, step),
+                    role: PieceRole::Leg,
+                }
+                .into(),
+            )],
         };
-        let carried_wall = carried(RecipeNodeId(9), wall(1, 4));
+        let carried_wall = carried(RecipeNodeId::new(0, 9), wall(1, 4));
         assert_eq!(
             carried_wall.piece_steps().into_iter().collect::<Vec<_>>(),
-            vec![StepId(4)]
+            vec![StepId::new(0, 4)]
         );
         let foreign = StableName {
             kind: EntityKind::Face,
-            node: RecipeNodeId(9),
+            node: RecipeNodeId::new(0, 9),
             path: vec![RoleSeg::InPart {
                 of: NameRef::new(wall(1, 5)),
             }],
@@ -2081,7 +2865,7 @@ mod tests {
     #[test]
     fn carried_mints_the_hand_spelled_wrapper_and_keeps_the_kind() {
         let inner = band_rim(N, edges()[0].start());
-        let outer = RecipeNodeId(9);
+        let outer = RecipeNodeId::new(0, 9);
         assert_eq!(
             carried(outer, inner.clone()),
             StableName {

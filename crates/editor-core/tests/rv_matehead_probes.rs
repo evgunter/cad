@@ -41,7 +41,7 @@ fn face_name(node: RecipeNodeId, cap: CapEnd) -> StableName {
 fn probe_the_name_table_refuses_a_key_that_disagrees_with_its_name() {
     let mut table = NameTable::default();
     let refused = table.insert(
-        face_name(RecipeNodeId(0), CapEnd::End),
+        face_name(RecipeNodeId::new(0, 0), CapEnd::End),
         EntityRef {
             body: 0,
             key: EntityKey::Body,
@@ -54,7 +54,7 @@ fn probe_the_name_table_refuses_a_key_that_disagrees_with_its_name() {
     );
 
     let refused = table.insert_tied(
-        face_name(RecipeNodeId(1), CapEnd::End),
+        face_name(RecipeNodeId::new(0, 1), CapEnd::End),
         vec![
             EntityRef {
                 body: 0,
@@ -83,11 +83,9 @@ fn probe_the_name_table_refuses_a_key_that_disagrees_with_its_name() {
 fn probe_a_cross_kind_rebind_refuses_at_its_own_door() {
     use editor_core::EditError;
     let doc = ProfileDoc::empty(DocumentId::derive("rv-matehead-rebind"), Tol::witness());
-    let from = face_name(RecipeNodeId(0), CapEnd::End);
-    let to = StableName {
-        kind: EntityKind::Edge,
-        ..face_name(RecipeNodeId(0), CapEnd::Start)
-    };
+    let from = face_name(RecipeNodeId::new(0, 0), CapEnd::End);
+    let mut to = face_name(RecipeNodeId::new(0, 0), CapEnd::Start);
+    to.kind = EntityKind::Edge;
     match apply(
         &doc,
         &DocEdit::Rebind { from, to },

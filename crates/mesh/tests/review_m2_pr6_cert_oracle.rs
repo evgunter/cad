@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use sweep::ExtrudeSide;
 
 use common::{axis_y, ball, cone, donut, eps, validated, washer};
 use geom::Surface;
@@ -163,7 +164,10 @@ fn tall_thin_bar() -> Body<f64> {
     lp = lp.with_tangent_joints((0..n).collect());
     extrude(
         &validated(vec![lp]),
-        Extrusion::Distance(25.0),
+        Extrusion::Distance {
+            depth: 25.0,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .unwrap()

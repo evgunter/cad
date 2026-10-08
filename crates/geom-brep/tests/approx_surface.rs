@@ -474,14 +474,15 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
 // Dispositions that answer for the kind structurally
 // ---------------------------------------------------------------------
 
-/// `Approx` is its own [`geom_brep::SurfaceKind`] — not the kind its
+/// `Approx` is its own [`geom::SurfaceKind`] — not the kind its
 /// fit is — and every pair the routing table names for it is refused.
 #[test]
 fn approx_is_its_own_kind_and_every_pair_refuses() {
-    use geom_brep::intersect::{SurfaceKind, route};
+    use geom::SurfaceKind;
+    use geom_brep::intersect::route;
     let s = approx_offset_surface_at(Arc::new(bowed()), 0.05, 1e-6, band()).unwrap();
-    assert_eq!(SurfaceKind::of(&s), SurfaceKind::Approx);
-    assert_ne!(SurfaceKind::of(&s), SurfaceKind::Nurbs);
+    assert_eq!(s.kind(), SurfaceKind::Approx);
+    assert_ne!(s.kind(), SurfaceKind::Nurbs);
     for other in [
         SurfaceKind::Plane,
         SurfaceKind::Cylinder,
@@ -511,6 +512,13 @@ fn offsetting_an_approximating_surface_refuses_typed() {
         matches!(e, geom_brep::OffsetError::ApproxNesting),
         "got {e}"
     );
+    // Its inverse refuses the same way: no distance mints from it.
+    assert!(matches!(
+        geom_brep::offset_distance(&s, &s),
+        Err(geom_brep::OffsetDistanceError::Offset(
+            geom_brep::OffsetError::ApproxNesting
+        ))
+    ));
 }
 
 /// The implicit-form layer answers poison, as it does for a spline:

@@ -29,8 +29,9 @@ use pyo3::prelude::*;
 use pyo3::types::PyString;
 
 use crate::errors::{ErrorClass, dimension_tag};
-use crate::py::doc::{NodeId, name_from_text, name_text, piece_from_text};
-use crate::py::expr::Expr;
+use crate::py::doc::{NodeId, name_from_text, name_text};
+use crate::py::expr::{Formula, lower_fault_err};
+use crate::py::step::Piece;
 use crate::py::typed_err;
 use crate::tags::select_refusal_tag;
 use pncad::prelude::SurfaceKind as KSurfaceKind;
@@ -130,6 +131,8 @@ pub(crate) enum SegTag {
     FromB,
     FromMember,
     Seam,
+    Crossing,
+    EdgeCrossing,
     Merged,
     Fragment,
     // Split
@@ -146,6 +149,8 @@ pub(crate) enum SegTag {
     TrimEdge,
     FootVertex,
     EndArc,
+    Mitre,
+    TurnFoot,
     BandFace,
     BandTrim,
     BandFoot,
@@ -186,6 +191,8 @@ impl SegTag {
             Self::FromB => s::SegTag::FromB,
             Self::FromMember => s::SegTag::FromMember,
             Self::Seam => s::SegTag::Seam,
+            Self::Crossing => s::SegTag::Crossing,
+            Self::EdgeCrossing => s::SegTag::EdgeCrossing,
             Self::Merged => s::SegTag::Merged,
             Self::Fragment => s::SegTag::Fragment,
             Self::SplitBody => s::SegTag::SplitBody,
@@ -200,6 +207,8 @@ impl SegTag {
             Self::TrimEdge => s::SegTag::TrimEdge,
             Self::FootVertex => s::SegTag::FootVertex,
             Self::EndArc => s::SegTag::EndArc,
+            Self::Mitre => s::SegTag::Mitre,
+            Self::TurnFoot => s::SegTag::TurnFoot,
             Self::BandFace => s::SegTag::BandFace,
             Self::BandTrim => s::SegTag::BandTrim,
             Self::BandFoot => s::SegTag::BandFoot,
@@ -368,7 +377,7 @@ impl SideArg {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
-    reason = "each variant mirrors the documented `editor_core::CurveKind` variant of the same name"
+    reason = "each variant mirrors the documented `geom::CurveKind` variant of the same name"
 )]
 pub(crate) enum CurveKind {
     Line,
@@ -396,7 +405,7 @@ impl CurveKind {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
     missing_docs,
-    reason = "each variant mirrors the documented `geom_brep::SurfaceKind` variant of the same name"
+    reason = "each variant mirrors the documented `geom::SurfaceKind` variant of the same name"
 )]
 pub(crate) enum SurfaceKind {
     Plane,
@@ -687,7 +696,7 @@ impl GeomPred {
     }
 
     /// DECIDED: the entity's distance to a datum node, compared
-    /// against a stated length `Expr` — signed against a datum plane
+    /// against a stated length `Formula` — signed against a datum plane
     /// (along its normal), unsigned to an axis or point. The datum is
     /// a node reference like every other input, which is what keeps
     /// the rule equivariant: move the datum with the part and the
@@ -699,13 +708,20 @@ impl GeomPred {
     /// (`SelectRefusal::NotALength`, reaching Python as
     /// `SelectRefusal` with reason `not_a_length`), where the
     /// predicate is prepared.
+    ///
+    /// Nor is there a document to read a name against, so a formula
+    /// that writes a name refuses here, `EvalError` with variant
+    /// `unlowered_name`.
     #[staticmethod]
-    fn datum_distance(datum: &NodeId, cmp: Cmp, value: &Expr) -> Self {
-        Self(s::GeomPred::DatumDistance {
+    fn datum_distance(py: Python<'_>, datum: &NodeId, cmp: Cmp, value: &Formula) -> PyResult<Self> {
+        if let Some(fault) = value.0.unresolvable() {
+            return Err(lower_fault_err(py, &fault));
+        }
+        Ok(Self(s::GeomPred::DatumDistance {
             datum: datum.0,
             cmp: cmp.to_kernel(),
             value: value.0.clone(),
-        })
+        }))
     }
 
     fn __repr__(&self) -> String {
@@ -729,6 +745,9 @@ pub(crate) fn refusal_fields(py: Python<'_>, reason: &str) -> Vec<(&'static str,
     vec![
         ("reason", PyString::new(py, reason).unbind().into_any()),
         ("name", none()),
+        ("other", none()),
+        ("at", none()),
+        ("other_at", none()),
         ("predicate", none()),
         ("matched", none()),
         ("candidates", none()),
@@ -769,13 +788,18 @@ fn fill(fields: &mut [(&'static str, Py<PyAny>)], attribute: &str, payload: Py<P
 /// `None` where inapplicable — so stub-guided reads cannot
 /// `AttributeError` (the house rule from `ExportError`).
 ///
-/// The human message is written per arm here rather than taken from
-/// the kernel's `Display`, because a candidate is spelled through
-/// `name_text` — the `StableName` alphabet Python speaks — where the
-/// kernel spells it kind-plus-minting-node. The arms this binding does
-/// not mirror fall back to that kernel prose. The fields are the
-/// contract; the message is prose.
-pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
+/// The fields spell a candidate through `name_text` — the `StableName`
+/// alphabet Python speaks. The in-band arms' message is the kernel's
+/// sentence, spoken from the evaluated document and within its
+/// evaluation, which says each name in words and the band once; so are
+/// the arms this binding does not mirror. The other arms' messages are
+/// written here. The fields are the contract; the message is prose.
+pub(crate) fn select_refusal(
+    py: Python<'_>,
+    err: &s::SelectRefusal,
+    doc: &pncad::document::ProfileDoc,
+    evaluation: &dyn pncad::document::NameTables,
+) -> PyErr {
     use s::SelectRefusal as R;
     let text = |v: &str| PyString::new(py, v).unbind().into_any();
     // `name` renders through `name_text` — the same alphabet every
@@ -784,9 +808,7 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
     let mut fields = refusal_fields(py, select_refusal_tag(err));
     let message = match err {
         R::InBand {
-            name,
-            predicate,
-            source,
+            name, predicate, ..
         } => {
             let name = match crate::py::doc::name_text(py, name) {
                 Ok(t) => t,
@@ -794,12 +816,7 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
             };
             fill(&mut fields, "name", text(&name));
             fill(&mut fields, "predicate", text(predicate));
-            format!(
-                "a candidate's decided margin is inside the ambiguity band \
-                 for `{predicate}` — neither side of the comparison is \
-                 certified, so the query refuses rather than silently \
-                 including or dropping it: {source}"
-            )
+            err.spoken(doc, evaluation)
         }
         R::TiedDisagrees {
             name,
@@ -836,7 +853,8 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
             format!(
                 "a decided atom could not read a candidate's position \
                  (the read-back refusal, surfaced rather than swallowed): \
-                 {error}"
+                 {}",
+                error.spoken(doc)
             )
         }
         R::NotADatum { datum, found } => {
@@ -851,25 +869,53 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
                  datum (found: {found})"
             )
         }
+        // The standing's own words carry which state and where the
+        // repair is; `datum` is the node they are about.
+        R::DatumHasNoValue(standing) => {
+            let [datum, _] = super::standing_fields(py, *standing);
+            fill(&mut fields, "datum", datum);
+            format!(
+                "the node `datum_distance` references has no value: {}",
+                standing.spoken(doc)
+            )
+        }
+        R::NodeHasNoValue(standing) => {
+            format!(
+                "a node the flush query reads has no value: {}",
+                standing.spoken(doc)
+            )
+        }
         R::NotALength { dim } => {
             fill(&mut fields, "dim", text(dimension_tag(*dim)));
             "the comparand of a distance must be a length".to_string()
         }
         R::PairInBand {
             pair,
+            at,
             predicate,
-            source,
+            ..
         } => {
             let a = match crate::py::doc::name_text(py, &pair.0) {
                 Ok(t) => t,
                 Err(failed) => return failed,
             };
+            let b = match crate::py::doc::name_text(py, &pair.1) {
+                Ok(t) => t,
+                Err(failed) => return failed,
+            };
+            // Two copies of one body hold names alike: the node holding
+            // each face tells them apart.
+            for (attribute, node) in [("at", at.0), ("other_at", at.1)] {
+                let node = match NodeId(node).into_pyobject(py) {
+                    Ok(bound) => bound.unbind().into_any(),
+                    Err(failed) => return failed,
+                };
+                fill(&mut fields, attribute, node);
+            }
             fill(&mut fields, "name", text(&a));
+            fill(&mut fields, "other", text(&b));
             fill(&mut fields, "predicate", text(predicate));
-            format!(
-                "a candidate pair's verify-door margin is inside the \
-                 ambiguity band for `{predicate}`: {source}"
-            )
+            err.spoken(doc, evaluation)
         }
         R::BadValue(inner) => format!("the stated value did not evaluate: {inner}"),
         R::Band(error) => format!(
@@ -883,7 +929,7 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
         // possible here, and the tag pin in `src/tests.rs` enumerates
         // the arms this binding speaks without being able to fail on a
         // new one.
-        other => other.to_string(),
+        other => other.spoken(doc, evaluation),
     };
     typed_err(py, ErrorClass::Select, message, &fields)
 }
@@ -938,6 +984,8 @@ mod growth_tripwire {
             s::SegTag::FromB => SegTag::FromB,
             s::SegTag::FromMember => SegTag::FromMember,
             s::SegTag::Seam => SegTag::Seam,
+            s::SegTag::Crossing => SegTag::Crossing,
+            s::SegTag::EdgeCrossing => SegTag::EdgeCrossing,
             s::SegTag::Merged => SegTag::Merged,
             s::SegTag::Fragment => SegTag::Fragment,
             s::SegTag::SplitBody => SegTag::SplitBody,
@@ -952,6 +1000,8 @@ mod growth_tripwire {
             s::SegTag::TrimEdge => SegTag::TrimEdge,
             s::SegTag::FootVertex => SegTag::FootVertex,
             s::SegTag::EndArc => SegTag::EndArc,
+            s::SegTag::Mitre => SegTag::Mitre,
+            s::SegTag::TurnFoot => SegTag::TurnFoot,
             s::SegTag::BandFace => SegTag::BandFace,
             s::SegTag::BandTrim => SegTag::BandTrim,
             s::SegTag::BandFoot => SegTag::BandFoot,
@@ -1015,51 +1065,60 @@ mod growth_tripwire {
 }
 
 // ---------------------------------------------------------------
-// Minting a revolve's role name: the five doors that ANSWER a name
+// Minting a revolve's role name: the six doors that ANSWER a name
 // rather than selecting one.
 //
 // `Evaluation.select` and the whole-body materializers answer names
 // FROM an evaluation. A selection that is AUTHORED — `Node.fillet`'s
 // frozen selection, `Node.shell`'s open list — is written before any
 // evaluation of the minting node exists, so its names are spelled;
-// these five spell them. Each mints the kernel's own `StableName`
+// these six spell them. Each mints the kernel's own `StableName`
 // through `pncad::select`'s builder and hands back `name_text`'s
 // output, so the answer is BYTE-IDENTICAL to what a materializer
 // would answer for the same entity: one alphabet, minted on either
 // side of the boundary.
 //
 // The text stays opaque either way. A caller composes a name by
-// naming a ROLE — the op's own vocabulary — and the profile PIECE it
-// sweeps, a text `Doc.pieces` answers, never by assembling the
-// serialization, which is the representation-dependence `name_text`'s
-// contract refuses.
+// naming a ROLE — the op's own vocabulary — and the profile `Piece`
+// it sweeps, which `Doc.piece` spells from an authored step's handle,
+// never by assembling the serialization, which is the
+// representation-dependence `name_text`'s contract refuses.
 // ---------------------------------------------------------------
 
 /// **The `[0, pi)` band face swept from the profile piece `piece`** on
 /// the revolve at `node`, as the name TEXT the selections take.
 ///
-/// `piece` is a piece's text, from `Doc.pieces`. The kind is fixed at
+/// `piece` is a `Piece`, from `Doc.piece`. The kind is fixed at
 /// the role's own — a face — which is the field a hand-written name
 /// gets wrong silently until emission refuses it.
 #[pyfunction]
-pub(crate) fn band(py: Python<'_>, node: &NodeId, piece: &str) -> PyResult<String> {
-    name_text(py, &s::band(node.0, piece_from_text(piece)?))
+pub(crate) fn band(py: Python<'_>, node: &NodeId, piece: &Piece) -> PyResult<String> {
+    name_text(py, &s::band(node.0, piece.edge()))
 }
 
 /// **The `[pi, 2pi)` band face swept from the profile piece `piece`**
 /// — [`band`]'s twin, where a full revolve emits a segment as two
 /// faces. A face, as [`band`] is.
 #[pyfunction]
-pub(crate) fn band_pi(py: Python<'_>, node: &NodeId, piece: &str) -> PyResult<String> {
-    name_text(py, &s::band_pi(node.0, piece_from_text(piece)?))
+pub(crate) fn band_pi(py: Python<'_>, node: &NodeId, piece: &Piece) -> PyResult<String> {
+    name_text(py, &s::band_pi(node.0, piece.edge()))
 }
 
 /// **The latitude rim at the vertex the profile piece `piece` starts
 /// at** — the edge between the band of the piece ending there and the
 /// piece's own. An edge.
 #[pyfunction]
-pub(crate) fn band_rim(py: Python<'_>, node: &NodeId, piece: &str) -> PyResult<String> {
-    name_text(py, &s::band_rim(node.0, piece_from_text(piece)?.start()))
+pub(crate) fn band_rim(py: Python<'_>, node: &NodeId, piece: &Piece) -> PyResult<String> {
+    name_text(py, &s::band_rim(node.0, piece.edge().start()))
+}
+
+/// **The `[pi, 2pi)` latitude rim at the vertex the profile piece
+/// `piece` starts at** — [`band_rim`]'s twin, where a full revolve of
+/// a profile touching the axis emits each rim as two half-arcs between
+/// the seam vertices. An edge, as [`band_rim`] is.
+#[pyfunction]
+pub(crate) fn band_rim_pi(py: Python<'_>, node: &NodeId, piece: &Piece) -> PyResult<String> {
+    name_text(py, &s::band_rim_pi(node.0, piece.edge().start()))
 }
 
 /// **The meridian vertex at `end`**: the copy of the vertex the
@@ -1072,11 +1131,11 @@ pub(crate) fn meridian_vertex(
     py: Python<'_>,
     end: MeridianEnd,
     node: &NodeId,
-    piece: &str,
+    piece: &Piece,
 ) -> PyResult<String> {
     name_text(
         py,
-        &s::meridian_vertex(end.to_kernel(), node.0, piece_from_text(piece)?.start()),
+        &s::meridian_vertex(end.to_kernel(), node.0, piece.edge().start()),
     )
 }
 
@@ -1113,6 +1172,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(band, m)?)?;
     m.add_function(wrap_pyfunction!(band_pi, m)?)?;
     m.add_function(wrap_pyfunction!(band_rim, m)?)?;
+    m.add_function(wrap_pyfunction!(band_rim_pi, m)?)?;
     m.add_function(wrap_pyfunction!(meridian_vertex, m)?)?;
     m.add_function(wrap_pyfunction!(carried, m)?)?;
     Ok(())

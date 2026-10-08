@@ -380,10 +380,10 @@ fn wedge_caps(body: &Body<f64>) -> Vec<FaceKey> {
 /// **An offset wedge cap leaves the pose its arm serves, and the gate
 /// says so.** Each cap passes through the apex, which the plane×cone
 /// arm serves (the generator pair); moved by `±0.05` it stands off the
-/// apex and parallel to the axis, and cuts the cone in a hyperbola the
-/// arm routes to the general rung. The door refuses at the C5 gate by
-/// the arm's own grounds, before any corner is re-anchored, and the
-/// body is untouched.
+/// apex and parallel to the axis, and cuts the cone in a hyperbola,
+/// which is outside the conic inventory (R1). The door refuses at the
+/// C5 gate by the arm's own grounds, naming the conic, before any
+/// corner is re-anchored, and the body is untouched.
 ///
 /// Red before the gate asked about the pose: the kind pair passed and
 /// the refusal was `ReanchorOffCarrier` on the generator edge, `0.0354`
@@ -411,9 +411,9 @@ fn an_offset_wedge_cap_refuses_at_the_pose_gate() {
             };
             assert_eq!(
                 (kind, other_kind),
-                (geom_brep::SurfaceKind::Plane, geom_brep::SurfaceKind::Cone)
+                (geom::SurfaceKind::Plane, geom::SurfaceKind::Cone)
             );
-            assert!(why.contains("general rung"), "{why}");
+            assert!(why.contains("HYPERBOLA"), "{why}");
             assert_eq!(before, format!("{work:?}"), "body moved across an Err");
         }
     }

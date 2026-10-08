@@ -2,11 +2,14 @@
 id: corrupt-operand-means-two-things-and-one-site-fabricates-a-vertex
 kind: issue
 title: two call sites map ContainError::Corrupt to different BooleanError variants, and one of them mints a VertexKey::default() for a refusal that has no vertex
-status: open
+status: closed
 opened: 2026-09-12
 refs: [2420, contain-error-drops-the-loop-its-carrier-named]
 priority: P0
 cost: H
+closed: 2026-10-05
+branch: topo/torn-body-families-remaining
+pr: 4048
 ---
 
 
@@ -64,3 +67,28 @@ means, then make both sites say that. Check whether any pin asserts
 either message; PR 2420 found that for two of three carriers in the
 same family **nothing did**, and recorded the missing pin as part of
 the defect rather than as a baseline.
+
+## The sites agree now; the arm's meaning stands
+
+`BooleanError::CorruptOperand` is gone (a torn operand panics, D2 row
+4), and `reduce::esc` maps `ContainError::Corrupt` to
+`ClassificationInvariant` as `ops.rs` does, with no fabricated vertex.
+It could not panic: `ContainError::Corrupt` also carries the curved
+doors' folded refusals (`contain::solid_err` sends every
+`PointInSolidError` but `Escalated` there, `WallOutlineUnsupported` and
+`RayExhausted` among them), and `contfp`'s own `get_face(face)` miss is
+a caller's key at that public door. What the arm means is still this
+row's question.
+
+## Closed
+
+`ContainError::Corrupt` is deleted, so the arm has no meaning left to
+decide. Its contents each answer under their own name: the caller's
+stale face is `StaleFace`, a lone-vertex loop `EmptyLoop`,
+`PointInLoopError::CorruptLoop` `LoopUnreadable`, and every
+`PointInSolidError` arm but `Escalated` rides whole in `Curved`;
+`contain.rs`' own record reads panic (D2 row 4). The boolean's two
+consumers still answer `EmptyLoop`, `LoopUnreadable` and `Curved` as
+`ClassificationInvariant`, which claims a kernel bug for refusals a
+sound face reaches; that is filed as
+`work/topo/contain-refusals-on-a-sound-face-reach-the-boolean-as-a-classification-invariant.md`.

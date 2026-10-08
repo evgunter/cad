@@ -36,13 +36,15 @@
 #![allow(clippy::panic)]
 
 use crate::fixture;
+use editor_core::ExtrudeSide;
 
 use std::collections::BTreeSet;
 
 use editor_core::{
     CancelToken, CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Evaluation, HitTestError,
-    Node, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, apply_with_names, evaluate,
+    NameLookupError, Node, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, apply_with_names, evaluate,
 };
+use editor_core::{Mispaired, NodeStanding};
 use fixture::{ename, insert, len, on_frame};
 use geom_core::Tol;
 
@@ -56,8 +58,10 @@ fn ngon(n: u32) -> Vec<(f64, f64)> {
         .collect()
 }
 
-/// One recipe under one identity: an `n`-gon extruded to a prism.
-/// Returns the document and its extrude node.
+/// One recipe under one identity: a square extruded to a prism, its
+/// program then replaced by an `n`-gon's. Every document this builds
+/// inserts the same nodes, so they mint one set of node ids whatever
+/// `n` is. Returns the document and its extrude node.
 fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(id), Tol::witness());
     let (doc, profile) = on_frame(
@@ -65,15 +69,34 @@ fn prism(id: &str, n: u32) -> (ProfileDoc, RecipeNodeId) {
         [0.0, 0.0, 0.0],
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
-        vec![ngon(n)],
+        vec![ngon(4)],
     );
-    insert(
+    let (doc, extrude) = insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
-    )
+    );
+    if n == 4 {
+        return (doc, extrude);
+    }
+    let loops = fixture::desc(profile, vec![ngon(n)]).loops;
+    let ids = loops
+        .iter()
+        .map(|lp| vec![None; lp.authored_steps()])
+        .collect();
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::SetProgram {
+            node: profile,
+            loops,
+            ids,
+            fresh: Vec::new(),
+        },
+    );
+    (doc, extrude)
 }
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -125,10 +148,11 @@ impl Twins {
 
         let fourth = ename(
             sq,
-            RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
+            RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3).into()),
         );
         let edit = DocEdit::InsertNode {
-            node: Node::fillet(sq, len(0.1), vec![fourth.clone()]),
+            node: Box::new(Node::fillet(sq, len(0.1), vec![fourth.clone()])),
+            fresh: Vec::new(),
         };
         Self {
             square,
@@ -191,7 +215,9 @@ fn a_document_against_its_own_evaluation_answers_as_it_always_did() {
             &editor_core::RefusingReach
         )
         .expect_err("the triangle has no fourth outer segment"),
-        EditError::NameUnresolvedInEvaluation { name: t.fourth },
+        EditError::NameUnresolvedInEvaluation {
+            name: t.triangle.spoken_name(&t.fourth)
+        },
         "the triangle's own tables do not"
     );
 }
@@ -300,10 +326,11 @@ fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
 
     let fourth = ename(
         sq,
-        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3).into()),
     );
     let edit = DocEdit::InsertNode {
-        node: Node::fillet(sq, len(0.1), vec![fourth]),
+        node: Box::new(Node::fillet(sq, len(0.1), vec![fourth])),
+        fresh: Vec::new(),
     };
     assert!(
         apply_with_names(&moved, &edit, &ev_square, tol, &editor_core::RefusingReach).is_ok(),
@@ -388,13 +415,13 @@ fn the_name_doors_refuse_a_twins_evaluation() {
          refusal here buys something"
     );
 
-    let expected = HitTestError::EvaluationOfAnotherDocument {
+    let expected = NameLookupError::EvaluationOfAnotherDocument(Mispaired {
         expected: t.square.id(),
         found: t.triangle.id(),
-    };
+    });
     assert_eq!(
         pick.patch_names(&t.ev_triangle),
-        Err(expected.clone()),
+        Err(expected),
         "the finding: a foreign evaluation used to answer out of the \
          twin's tables, in patch order"
     );
@@ -469,10 +496,13 @@ fn pick_face_refuses_a_target_of_another_document() {
 /// thing the row left open: the later run answers the SAME names, slot
 /// for slot, and "admitted" is not covering a difference. The second
 /// half takes the same parameter to a degenerate value, so the node
-/// FAILS in the later run, and shows the split the signature exists
-/// for: the CALL is still admitted (identity is unchanged) and every
-/// SLOT refuses, so a stale index announces itself per patch rather
-/// than answering a plausible name.
+/// FAILS in the later run, and shows the two checks the door runs in
+/// order: the pairing admits the call (identity is unchanged) and the
+/// standing refuses it — once, for the call, because a node with no
+/// table is one fact about the arguments and not one fact per patch —
+/// so a stale index announces itself rather than answering a
+/// plausible name, and the per-slot lane is left to the one thing it
+/// holds, an unnamed entity.
 ///
 /// What may be reused across such a run is the content keys' business
 /// (`PickMemo`), not the pairing's — and
@@ -499,6 +529,7 @@ fn a_later_evaluation_of_the_same_document_is_admitted() {
                     node: ext,
                     slot: SlotId::Distance,
                     expr: len(distance),
+                    fresh: Vec::new(),
                 },
                 tol,
                 &editor_core::RefusingReach,
@@ -535,23 +566,25 @@ fn a_later_evaluation_of_the_same_document_is_admitted() {
     );
 
     // The loud end of the same admission: the node FAILS in the later
-    // run. Identity is unchanged, so the call is admitted; the stale
-    // index's patches have no table to invert, so every slot refuses.
+    // run. Identity is unchanged, so the pairing admits the call; the
+    // stale index's patches have no table to invert, so the standing
+    // refuses it — outside the vector, the way the pairing refusal
+    // sits, since both are one fact about the arguments.
     let broken = later(0.0);
-    let names_broken = pick
-        .patch_names(&broken)
-        .expect("identity is unchanged, so the CALL is still admitted");
     assert_eq!(
-        names_broken.len(),
-        names_before.len(),
-        "the index is still the one that was built"
-    );
-    assert!(
-        names_broken
-            .iter()
-            .all(|n| matches!(n, Err(HitTestError::NodeFailed { node }) if *node == ext)),
+        pick.patch_names(&broken),
+        Err(NameLookupError::Standing(NodeStanding::Failed {
+            node: ext
+        })),
         "a stale index over a node that has since failed announces \
-         itself in every slot rather than answering a plausible name"
+         itself once, for the call, rather than answering a plausible name"
+    );
+    assert_eq!(
+        pick.boundary_names(&broken),
+        Err(NameLookupError::Standing(NodeStanding::Failed {
+            node: ext
+        })),
+        "the edge door refuses the same way"
     );
 }
 
@@ -612,10 +645,10 @@ fn the_memo_refuses_a_prior_of_another_document() {
         second
             .patch_names(&ev_a)
             .expect_err("a is the other document"),
-        HitTestError::EvaluationOfAnotherDocument {
+        NameLookupError::EvaluationOfAnotherDocument(Mispaired {
             expected: b.id(),
             found: a.id(),
-        },
+        }),
         "and it is not a's"
     );
 }
@@ -764,6 +797,7 @@ fn what_the_admitted_later_evaluation_answers() {
                 node: ext,
                 slot: SlotId::Distance,
                 expr: len(2.0),
+                fresh: Vec::new(),
             },
             tol,
             &editor_core::RefusingReach,

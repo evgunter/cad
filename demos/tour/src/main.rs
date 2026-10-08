@@ -51,6 +51,7 @@ mod bodies;
 mod bool_bodies;
 mod booleans;
 mod bossplate;
+mod bracket;
 mod bud;
 mod chain;
 mod chaintol;
@@ -70,6 +71,7 @@ mod lily;
 mod mate7a_r2_probes;
 mod mcchain;
 mod mcplate;
+mod oracles;
 mod plate;
 #[cfg(feature = "probe")]
 mod probe;
@@ -78,6 +80,7 @@ mod ring;
 mod rocker;
 mod scalar;
 mod skinned;
+mod snowman;
 mod teapot;
 #[cfg(feature = "budget")]
 mod tessbudget;
@@ -93,7 +96,7 @@ use pncad::geom_core::Tol;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 use pncad::prelude::{Evaluation, RecipeNodeId};
 use pncad::topo::readback::euler_counts;
-use pncad::topo::{Body, ContactRecords, EulerCounts};
+use pncad::topo::{Body, ContactRecords, EulerCounts, VolumeReading};
 
 /// One body of a tour scene: its own STL/STEP exports, its own
 /// validation posture. `contacts` is `Some` exactly when the body is a
@@ -123,6 +126,41 @@ struct SceneBody {
     /// built it from an evaluated document and could hand one over.
     /// See [`SceneBody::named`].
     face_names: Option<tess_meter::FaceNames>,
+    /// `Some(δ)` when the scene asks this body for a finer chordal
+    /// deviation than its own [`Stop::delta`]. See [`SceneBody::finer`].
+    delta: Option<f64>,
+    /// `Some(wall)` when the scene pins this body's volume measurement
+    /// as a wall at the default ε. See [`SceneBody::volume_walled`].
+    volume_wall: Option<VolumeWall>,
+}
+
+/// The refusal a [`VolumeWall`] pins: a face's quadrature escalated on
+/// its in-band convergence test.
+pub(crate) fn in_band_convergence(e: &pncad::topo::MassPropsError) -> bool {
+    matches!(
+        e,
+        pncad::topo::MassPropsError::Face {
+            source: pncad::geom_brep::PropsError::Escalated {
+                check: pncad::geom_brep::props::PropsCheck::Converged,
+                ..
+            },
+            ..
+        }
+    )
+}
+
+/// A wall on one scene body's VOLUME at the default ε: tier 3 must
+/// certify the body, and its continuation to the number must refuse
+/// with the in-band convergence escalation (`PropsCheck::Converged`).
+/// At any other ε the body is measured as every body is. The wall
+/// goes red when the measurement succeeds or refuses differently
+/// ([`walls::wall`]).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct VolumeWall {
+    pub(crate) scene: &'static str,
+    pub(crate) n: u32,
+    pub(crate) what: &'static str,
+    pub(crate) retire: &'static str,
 }
 
 impl SceneBody {
@@ -139,7 +177,16 @@ impl SceneBody {
             transparency: 0,
             step_frontier: None,
             face_names: None,
+            delta: None,
+            volume_wall: None,
         }
+    }
+
+    /// The same body, its volume measurement pinned as `wall` at the
+    /// default ε.
+    pub(crate) fn volume_walled(mut self, wall: VolumeWall) -> Self {
+        self.volume_wall = Some(wall);
+        self
     }
 
     /// The same body, rendered see-through (`t` = 0–100). Only for
@@ -148,6 +195,39 @@ impl SceneBody {
     fn transparent(mut self, t: u8) -> Self {
         self.transparency = t;
         self
+    }
+
+    /// The same body, meshed at chordal deviation `delta` where the
+    /// rest of its scene takes [`Stop::delta`]: a small feature on one
+    /// body (a glyph's inner arc) is paid for on that body alone.
+    ///
+    /// Finer only — [`SceneBody::delta`] refuses a `delta` that is not
+    /// strictly under the scene's, so the scene's budget is the
+    /// coarsest any of its bodies is meshed at.
+    fn finer(mut self, delta: f64) -> Self {
+        self.delta = Some(delta);
+        self
+    }
+
+    /// The chordal deviation this body is meshed at, in a scene whose
+    /// own is `scene`.
+    ///
+    /// # Panics
+    ///
+    /// If the body's [`SceneBody::finer`] budget is not strictly finer
+    /// than `scene`.
+    fn delta(&self, scene: f64) -> f64 {
+        match self.delta {
+            None => scene,
+            Some(d) => {
+                assert!(
+                    d > 0.0 && d < scene,
+                    "{}: a per-body delta {d:e} must be finer than its scene's {scene:e}",
+                    self.name
+                );
+                d
+            }
+        }
     }
 
     /// **The scene DECLARES this body past the STEP writer's named
@@ -204,6 +284,8 @@ impl SceneBody {
             transparency: 0,
             step_frontier: None,
             face_names: None,
+            delta: None,
+            volume_wall: None,
         }
     }
 
@@ -241,6 +323,8 @@ impl SceneBody {
             transparency: 0,
             step_frontier: None,
             face_names: None,
+            delta: None,
+            volume_wall: None,
         }
     }
 
@@ -265,9 +349,9 @@ impl SceneBody {
 ///
 /// **The rendering is the ratified structural serialization (F3) with
 /// one substitution, and both halves of that matter.** A
-/// `StableName`'s `Display` is prose — *"face name minted by node 3"*
-/// — which drops the role path, so every face one node mints renders
-/// alike and the token would not be a key at all. Its serde form
+/// `StableName`'s `Display` is prose — *"the end cap of node 3"* —
+/// words for a person, which nothing parses back into a name, so the
+/// token would not be a key at all. Its serde form
 /// carries the whole derivation path. A `StableName` holds no strings
 /// anywhere (every payload is a closed enum or an integer), so the
 /// only `,` its JSON can contain is a structural separator and the
@@ -314,6 +398,8 @@ struct Stop {
     montage: bool,
     story: &'static str,
     ops: &'static str,
+    /// The chordal deviation every body is meshed at, unless it asks
+    /// for a finer one ([`SceneBody::finer`]).
     delta: f64,
     note: Option<String>,
     view: View,
@@ -355,6 +441,16 @@ struct StepFrontierPin {
     retire: &'static str,
 }
 
+/// Whether a boolean result declares no contacts, which is how its
+/// body is routed: a TRANSVERSE curved boolean declares none and takes
+/// plain tier 3, because the 3′ census is exact-on-planar by ruling
+/// (C12.4/OQ5: a TOUCHING curved result refuses there — pinned in
+/// `sweep/tests/m5_pr9_boss_union.rs`); a result that declares some
+/// takes 3′ with them.
+fn declares_no_contacts(contacts: &ContactRecords) -> bool {
+    contacts.cell_pairs().next().is_none()
+}
+
 /// The writer's named subset frontier, as one list. Refusals in this
 /// class say a tour SCENE grew past the writer; everything else says
 /// the writer broke. Only the UNDECLARED arm asks this question — a
@@ -366,31 +462,6 @@ fn named_subset_frontier(e: &pncad::step_export::StepExportError) -> bool {
             | pncad::step_export::StepExportError::UnsupportedCurve { .. }
             | pncad::step_export::StepExportError::CurvedShellClassification { .. }
     )
-}
-
-/// What a tier-3 or tier-3′ gate leaves the tour holding about a
-/// body's volume — the LEVEL its certified quadrature stopped at.
-///
-/// Both gates run a certified quadrature (tier 3's check 7 and 3′'s
-/// are the same check), so every body here is measured by the gate it
-/// was already going to pass through and by nothing else. The two
-/// gates stop at different levels and that is the whole of this type:
-/// 3′'s check runs to the reporting target and hands back a number,
-/// while tier 3's stops as soon as the volume's SIGN is decided and
-/// hands back a certificate its holder continues.
-///
-/// That continuation can refuse where the gate passed. The reporting
-/// target is a length that scales with ε while the schedule's floor is
-/// a property of the part, so a body whose sign is definite may have
-/// no number at this ε. Such a body is VALID, and what the tour
-/// reports for it is the narrowest bracket the certificate or its
-/// continuation held.
-enum Measured {
-    /// The reporting-level reading: volume, area, and their pads.
-    Number(pncad::topo::MassProperties<f64>),
-    /// The bracket `TargetUnreached` carries: two ends and the area
-    /// lever, with no volume number in it by construction.
-    Bracket(pncad::topo::VolumeEnclosure<f64>),
 }
 
 /// The mesh's own surface area: the sum over its triangles, written
@@ -414,8 +485,8 @@ fn mesh_area(mesh: &pncad::mesh::Mesh) -> f64 {
 }
 
 /// The reporting door, for the one arm that still has to ask it.
-fn reported(label: &str, body: &Body<f64>, tol: Tol) -> Measured {
-    Measured::Number(
+fn reported(label: &str, body: &Body<f64>, tol: Tol) -> VolumeReading<f64> {
+    VolumeReading::Number(
         pncad::topo::mass_properties(body, tol)
             .unwrap_or_else(|e| panic!("{label}: mass properties failed: {e:?}")),
     )
@@ -423,22 +494,59 @@ fn reported(label: &str, body: &Body<f64>, tol: Tol) -> Measured {
 
 /// A gate's certificate, continued to the number where the quadrature
 /// can reach it.
-fn continued(label: &str, certificate: pncad::topo::SignCertificate<'_, f64>) -> Measured {
-    match certificate.measure() {
-        Ok(props) => Measured::Number(props),
-        // A body the gate ADMITTED whose schedule cannot reach the
-        // reporting target: its sign is definite and its volume is not
-        // measurable at this ε. The bracket is the whole of what the
-        // quadrature is entitled to say, so the ribbon says it rather
-        // than the tour dying on a body the gate just certified. The
-        // kernel classifies the refusal (`TargetUnreached::bracket`);
-        // every OTHER refusal is a body with no volume at all, and
-        // stays fail-loud.
-        Err(pncad::topo::TargetUnreached {
-            bracket: Some(bracket),
-            ..
-        }) => Measured::Bracket(bracket),
-        Err(unreached) => panic!("{label}: mass properties failed: {unreached}"),
+///
+/// Both gates run a certified quadrature (tier 3's check 7 and 3′'s
+/// are the same check), so every body here is measured by the gate it
+/// was already going to pass through and by nothing else. The
+/// continuation can refuse where the gate passed: the reporting target
+/// is a length that scales with ε while the schedule's floor is a
+/// property of the part, so a body whose sign is definite may have no
+/// number at this ε. Such a body is VALID, and what the tour reports
+/// for it is the bracket ([`VolumeReading::Bracket`]); every other
+/// refusal is a body with no volume at all, and stays fail-loud.
+fn continued<T: Gated>(
+    label: &str,
+    certificate: pncad::topo::SignCertificate<'_, T>,
+) -> VolumeReading<T> {
+    VolumeReading::of(certificate.measure())
+        .unwrap_or_else(|refusal| panic!("{label}: mass properties failed: {refusal}"))
+}
+
+/// The scalars a body is gated and measured at: the tour's `f64`, and
+/// the K sweep's recording `Probe` (`probe.rs`).
+trait Gated:
+    pncad::geom_core::Decide + pncad::geom_core::CertifiedBounds + pncad::topo::AtRestPolicy
+{
+}
+
+impl<T> Gated for T where
+    T: pncad::geom_core::Decide + pncad::geom_core::CertifiedBounds + pncad::topo::AtRestPolicy
+{
+}
+
+/// The tier-3 or tier-3′ gate a body that is not at rest passes — 3′
+/// with the op's declared contacts for a boolean result, plain tier 3
+/// otherwise (on contact-free bodies the two agree) — continued to the
+/// number where the quadrature can reach it. One home for the tour and
+/// the K sweep, so both measure a body through the same door.
+fn gated<T: Gated>(
+    label: &str,
+    body: &Body<T>,
+    contacts: Option<&ContactRecords>,
+    tol: Tol,
+) -> VolumeReading<T> {
+    match contacts {
+        Some(contacts) => continued(
+            label,
+            pncad::topo::validate_pseudomanifold_certificate(body, contacts, tol).unwrap_or_else(
+                |e| panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}"),
+            ),
+        ),
+        None => continued(
+            label,
+            pncad::topo::validate_geometric_certificate(body, tol)
+                .unwrap_or_else(|e| panic!("{label}: tier-3 geometric validation failed: {e:?}")),
+        ),
     }
 }
 
@@ -472,7 +580,7 @@ fn run_body(
             match pncad::topo::validate_pseudomanifold_certificate(&sb.body, contacts, tol) {
                 Ok(certificate) => {
                     println!("   [{label}] tier-3' at rest: every declaration certified");
-                    continued(label, certificate)
+                    Some(continued(label, certificate))
                 }
                 // The at-rest arm TOLERATES its refusal — the scene
                 // asserts the verdict, so the tour narrates it and
@@ -485,22 +593,25 @@ fn run_body(
                          door (the scene asserts the verdict)",
                         e.len()
                     );
-                    reported(label, &sb.body, tol)
+                    Some(reported(label, &sb.body, tol))
                 }
             }
         }
-        Some(contacts) => continued(
-            label,
-            pncad::topo::validate_pseudomanifold_certificate(&sb.body, contacts, tol)
-                .unwrap_or_else(|e| {
-                    panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}")
-                }),
-        ),
-        None => continued(
-            label,
-            pncad::topo::validate_geometric_certificate(&sb.body, tol)
-                .unwrap_or_else(|e| panic!("{label}: tier-3 geometric validation failed: {e:?}")),
-        ),
+        None if sb.volume_wall.is_some() && tol.eps() == pncad::tolerance::DEFAULT_EPS => {
+            let wall = sb.volume_wall.expect("checked above");
+            let certificate = pncad::topo::validate_geometric_certificate(&sb.body, tol)
+                .unwrap_or_else(|e| panic!("{label}: tier-3 geometric validation failed: {e:?}"));
+            walls::wall(
+                wall.scene,
+                wall.n,
+                wall.what,
+                VolumeReading::of(certificate.measure()),
+                in_band_convergence,
+                wall.retire,
+            );
+            None
+        }
+        contacts => Some(gated(label, &sb.body, contacts.as_ref(), tol)),
     };
 
     let counts = euler_counts(&sb.body);
@@ -525,11 +636,16 @@ fn run_body(
     let v_mesh = signed_volume(&mesh);
     assert!(v_mesh > 0.0, "{label}: mesh signed volume must be positive");
     match &measured {
+        None => println!(
+            "   [{label}] volume: walled at this ε (the wall above); mesh (delta = {delta:.0e}): \
+             {} triangles, V_mesh = {v_mesh:.6}",
+            triangle_count(&mesh),
+        ),
         // The number: volume, area and their pads. Since M5 PR 11
         // curved-CUT faces contribute certified quadrature enclosures,
         // `volume` is a bracket midpoint with half-width `volume_pad`
         // (0.0 on closed-form bodies).
-        Measured::Number(props) => {
+        Some(VolumeReading::Number(props)) => {
             let rel = ((v_mesh - props.volume) / props.volume).abs();
             let certified = if props.volume_pad > 0.0 {
                 format!(" (certified enclosure ± {:.1e})", props.volume_pad)
@@ -571,7 +687,7 @@ fn run_body(
         // surface across a convex feature and stands outside it across
         // a concave one, so a mesh volume may land on either side of
         // the exact one.
-        Measured::Bracket(enclosure) => {
+        Some(VolumeReading::Bracket(enclosure)) => {
             let slack = delta * mesh_area(&mesh);
             assert!(
                 v_mesh > enclosure.volume_lo - slack && v_mesh < enclosure.volume_hi + slack,
@@ -736,7 +852,7 @@ fn run_stop(
     let bodies: Vec<ManifestBody> = stop
         .bodies
         .iter()
-        .map(|sb| run_body(sb, stop.delta, outdir, dumps, tol))
+        .map(|sb| run_body(sb, sb.delta(stop.delta), outdir, dumps, tol))
         .collect();
     manifest.push_str(&scene_json(stop, &bodies));
 }
@@ -817,7 +933,9 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         visit(&stop);
     }
 
-    println!("\n-- the rocker plate (M5 S2/S8: fillets on arc legs, the branch PICKED) --");
+    println!(
+        "\n-- the rocker plate (fillets in the profile, the branch PICKED, and on the solid) --"
+    );
     for stop in rocker::stops(tol) {
         visit(&stop);
     }
@@ -848,19 +966,27 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
         visit(&stop);
     }
 
-    println!("\n-- the Klein bottle: a non-orientable surface, three bodies deep --");
+    println!("\n-- the Klein bottle: a non-orientable surface, two bodies deep --");
     for stop in klein::stops(tol) {
         visit(&stop);
     }
     klein::wall_probes::<f64>(tol);
 
-    println!("\n-- the tilted cut (M5 PR 5's exact ellipse; RENDERING since PR 11) --");
+    println!("\n-- the tilted cut (an engraved cap, an exact ellipse section) --");
     for stop in curvedcut::stops(tol) {
         visit(&stop);
     }
 
     println!("\n-- boss ∪ plate (M5 PR 9's first transverse curved boolean, visible) --");
     for stop in bossplate::stops(tol) {
+        visit(&stop);
+    }
+
+    println!(
+        "\n-- the snowman (two coaxial balls under every boolean; the waist rolled into a \
+         torus band; a head moved off the axis in the seam plane builds too) --"
+    );
+    for stop in snowman::stops(tol) {
         visit(&stop);
     }
 
@@ -962,7 +1088,7 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
 
     println!(
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \
-         split/inline, the update door) --"
+         gauges, split/inline, the update door) --"
     );
     for stop in assembly::stops(work, tol) {
         visit(&stop);
@@ -1215,5 +1341,36 @@ fn main() {
     match pncad::tolerance::committed_report() {
         Some(report) => println!("{report}"),
         None => println!("tolerance: never committed (no predicate ran)"),
+    }
+}
+
+#[cfg(test)]
+mod scene_body_delta {
+    use super::SceneBody;
+
+    fn body() -> SceneBody {
+        SceneBody::plain("probe", [0.5, 0.5, 0.5], pncad::topo::Body::new())
+    }
+
+    #[test]
+    fn a_body_takes_its_scenes_delta_unless_it_asks_for_a_finer_one() {
+        assert_eq!(body().delta(1e-2), 1e-2, "no per-body delta: the scene's");
+        assert_eq!(
+            body().finer(2e-3).delta(1e-2),
+            2e-3,
+            "a finer per-body delta"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must be finer than its scene's")]
+    fn a_coarser_per_body_delta_is_refused() {
+        body().finer(2e-2).delta(1e-2);
+    }
+
+    #[test]
+    #[should_panic(expected = "must be finer than its scene's")]
+    fn an_equal_per_body_delta_is_refused() {
+        body().finer(1e-2).delta(1e-2);
     }
 }

@@ -1,0 +1,75 @@
+---
+id: partial-revolve-arc-runs-wait-on-the-meridian-fold
+kind: issue
+title: revolve: a partial revolve still sweeps one wall per arc of a cocircular run, because one wall would carry a meridian in pieces mass properties do not fold
+status: closed
+opened: 2026-10-02
+priority: P1
+cost: M
+refs: [swept-cocircular-arc-runs-build-one-wall, sweeps-build-one-rim-edge-per-segment-not-per-run, sphere-wedge-arm-does-not-fold-split-meridians-by-lineage]
+closed: 2026-10-06
+pr: 4200
+---
+
+
+Split out of `swept-cocircular-arc-runs-build-one-wall`. Extrude and the
+full revolve build one wall per run of cocircular arcs; the partial
+revolve still builds one wall per arc, on the run's one surface key
+(`crates/sweep/src/swept.rs::CurvedRuns::Split`, passed by
+`revolve/partial.rs::sweep_loop`). What `crates/sweep/README.md`
+("Walls: one per run") says is not yet true of it.
+
+## Why it waits
+
+Built whole, a partial revolve's arc-run wall keeps the station on both
+wedge caps, so its sphere or torus face carries each cap's meridian as
+two or more edges. `validate_geometric` then refuses every such body at
+check 7 (`VolumeUncomputable`), measured over a D of k = 2..4 cocircular
+arcs, both revolve directions, three loop starts:
+
+- sphere wall (the D revolved about its diameter): `NotIsoRectangle {
+  what: "the wedge arm reads a two-edge boundary; a meridian in pieces
+  is not folded on the sphere" }`
+  (`crates/geom-brep/src/props/curved.rs::sphere_wedge_azimuth`);
+- torus wall (the D beside the axis): `NotIsoRectangle { what:
+  "props_rim_level" }`.
+
+The k = 1 bodies, and the same bodies split per arc, validate. Neither
+fold can take these pieces today even with the sphere arm's lineage fold
+(`work/props/sphere-wedge-arm-does-not-fold-split-meridians-by-lineage.md`):
+the run's cap meridians are minted one edge per segment, so they carry
+no split lineage (`fold_torus_meridians` folds by `CarrierId` identity,
+never by stored geometry).
+
+## The row
+
+- PROPS folds a sphere meridian in lineage pieces (the blocker).
+- The partial revolve mints a curved run's wedge-cap meridians so the
+  pieces share lineage — one edge per run, split at its stations — or
+  props gains a structural fold that reads a station chain some other
+  way; then it passes `CurvedRuns::Whole`, and `CurvedRuns` goes.
+- Re-check the torus arm's `props_rim_level` refusal on the same body
+  once the meridians fold; it may be a second blocker.
+- The fixtures that rely on the split then move to hand-cut bodies, as
+  `common::latitude_seam::two_arc_sphere` did for the full revolve:
+  `torax_axial::torax_a_two_arc_lune_re_authors_its_equator_seam_and_reaches_the_props_door`
+  (the seam a station would strike is cut as
+  `common::latitude_seam::latitude_arc` cuts the full revolve's), and
+  the partial rows of `run_walls_built::arc_runs_build_one_wall_each`
+  flip to one wall.
+
+## Closed (FUSE, `fuse/sweep-runs`, 2026-10-06)
+
+Closed by `sweeps-build-one-rim-edge-per-segment-not-per-run`, without
+the fold: a station is no longer a vertex (PR 3881's ruling), so a
+partial revolve collapses each run before it builds and each wedge cap
+carries an arc run as ONE meridian edge. The sphere arm then reads the
+two-edge boundary it serves, and the torus arm's `props_rim_level`
+refusal does not arise. `CurvedRuns` is gone. Measured:
+`run_walls_built::partially_revolved_arc_runs_build_one_wall_each`
+(k = 1..4 arcs, three loop starts, both directions, sphere and torus)
+passes tiers 2 and 3 and meets the closed-form volume.
+`torax_axial`'s two-arc lune row moved: the revolve no longer mints
+the equator seam its split arc used to revolve into, so the row cuts
+it by hand (`common::latitude_seam::latitude_on_partial_wall`) before
+it re-authors it.

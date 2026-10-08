@@ -25,19 +25,29 @@
 // the default half of the units exhibit, against `ring` (millimetres
 // and half-turns) and `diefillet` (millimetres and degrees).
 
+use pncad::document::ExtrudeSide;
+use pncad::prelude::AuthoredNode;
 use std::collections::BTreeMap;
 
 use pncad::document::{
     BooleanOp, CancelToken, ChecksConfig, Datum, Dimension, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Expr, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach,
-    Severity, apply, enforce_checks, evaluate, run_checks,
+    Evaluation, Formula, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId,
+    RefusingReach, Severity, apply, enforce_checks, evaluate, run_checks,
 };
 use pncad::geom_core::Tol;
 
 /// Inserts a node and returns its minted id.
-fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied =
-        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
+fn insert(doc: &mut ProfileDoc, node: AuthoredNode, tol: Tol) -> RecipeNodeId {
+    let applied = apply(
+        doc,
+        &DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
+        tol,
+        &RefusingReach,
+    )
+    .expect("the insert applies");
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }
@@ -45,8 +55,8 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
 /// An extruded square: half-width `h` centered at `(cx, 0)` on the
 /// z = `z0` sketch plane, extruded `dz` up.
 fn slab(doc: &mut ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64, tol: Tol) -> RecipeNodeId {
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let len = |v: f64| Formula::literal(v, Dimension::Length).expect("finite");
+    let scl = |v: f64| Formula::literal(v, Dimension::Scalar).expect("finite");
     let plane = insert(
         doc,
         Node::Datum(Datum::Frame {
@@ -70,7 +80,8 @@ fn slab(doc: &mut ProfileDoc, cx: f64, h: f64, z0: f64, dz: f64, tol: Tol) -> Re
         doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal(dz, Dimension::Length).unwrap(),
+            distance: Formula::literal(dz, Dimension::Length).unwrap(),
+            side: ExtrudeSide::Along,
         },
         tol,
     )
@@ -94,7 +105,7 @@ fn boolean_doc(
             op,
             a,
             b,
-            declare: None,
+            declare: Vec::new(),
         },
         tol,
     );
@@ -138,7 +149,7 @@ pub fn narration(tol: Tol) {
     let cfg = ChecksConfig::default();
     let report = run_checks(&doc, &ev, &cfg, tol).expect("checks run");
     println!("   a two-cube DISJOINT union, checked at the default expectation:");
-    println!("   {}", report);
+    println!("   {}", report.spoken(&doc));
     assert_eq!(report.findings.len(), 1);
 
     // The severity knob changes only what is ACCEPTED, and only at
@@ -151,7 +162,10 @@ pub fn narration(tol: Tol) {
     assert!(enforce_checks(&report, &cfg).is_ok());
     match enforce_checks(&report, &strict) {
         Ok(()) => panic!("Error severity refuses at enforce_checks"),
-        Err(refusal) => println!("   at Severity::Error, enforce_checks refuses: {refusal}"),
+        Err(refusal) => println!(
+            "   at Severity::Error, enforce_checks refuses: {}",
+            refusal.spoken(&doc)
+        ),
     }
 
     // (b) The same document with the disjointness stated as data.
@@ -161,7 +175,7 @@ pub fn narration(tol: Tol) {
     };
     let report = run_checks(&doc, &ev, &acknowledged, tol).expect("checks run");
     println!("   the same document, disjointness ACKNOWLEDGED (expected_components = 2):");
-    println!("   {}", report);
+    println!("   {}", report.spoken(&doc));
     assert!(report.findings.is_empty());
 
     // (c) The void birth: A ∖ B with B strictly inside. Two shells,
@@ -175,6 +189,6 @@ pub fn narration(tol: Tol) {
     );
     let report = run_checks(&doc, &ev, &ChecksConfig::default(), tol).expect("checks run");
     println!("   a subtract with the tool strictly interior (outer shell + void shell):");
-    println!("   {}", report);
+    println!("   {}", report.spoken(&doc));
     assert!(report.findings.is_empty());
 }

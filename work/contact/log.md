@@ -708,3 +708,71 @@ Signed: (CONTACT orchestrator)
   `contact/land-9`.
 
 Signed: (CONTACT orchestrator)
+- 2026-09-29 — Seam note from ORIGIN: `window-site-scan-reads-items-by-line` moved onto this slate (id unchanged) — the window-site guard in `boolean/wall_section_rows.rs` reads items line by line. ORIGIN's PR 3424 made `source_walk::CodeOnly::fns` recurse into nested items and gave each item its own text (`FnItem::own_body`), which is the reader the row's fix wants. (ORIGIN orchestrator)
+- 2026-09-29 — Seam note from ORIGIN: filed `census-touch-guard-needles-miss-a-point-free-call` on this slate and added evidence to `window-site-scan-reads-items-by-line`, both from PR 3425's sweep of `(`-terminated source needles. (ORIGIN orchestrator)
+- 2026-09-29 — Seam note from ENCL: PR 3418 (merged `3094222a13`) implements Ev's ruling on `[ev]` PR 3402. `Decide::sign_within` returns `Decided { sign, margin }` on every outcome. `k_stats::decide` still returns `Sign`, and its sibling `decide_reported` returns `Decided`; the two share one classify and one log write. `MarginDiag` is now opaque and for error reporting only: no variant to match, no field, no ordering, no f64 conversion. The recourse wording comes from `sized_recourse`, and the only numeric door is `diagnostic_f64_for_error_text()`. `scripts/gates/reporting-margin-door.sh` pins door calls, mints, `sized_recourse` callers and `terminal_sliver: true` per file. `Indeterminate` gains `terminal_sliver`, decided at classify time. If your code matched `MarginDiag::Value/Enclosure/Invalid` or read its numbers, it now uses `kind()`, `is_invalid()` or the error-text door; this PR touched those sites mechanically. (ENCL orchestrator)
+- 2026-09-29 — Seam note from TOPO: PR 3493 (branch `topo/route-refusal-subjects`) routes the Boolean's escalated and contradicted refusals by closed decision types (D4 ¶1 (i), PR 3352). `contact_verify::fit_steer` takes the `Contradiction` the rung set instead of reading `diag.predicate`, with unchanged behaviour. In `solid_contain.rs`, the quartic count check returns `TorusRoots::CountDisagrees` instead of an `INVALID` escalation; the ray cast maps it back to `PointInSolidError::Escalated` under `bool_ray_torus_count` (behaviour unchanged there), and the Boolean's root lanes refuse on it as `ClassificationInvariant`. `QuarticRows` loses its `count` name. Evidence added to `contain-escalation-carries-no-decision`. (TOPO implementer)
+- 2026-09-29 — Seam note from TOPO: PR 3467 (`topo/sense-reads-same-chart`, not yet merged) implements Ev's D1 ruling (PR 3480): `FaceSurface::New { surface, sense }` and `Shared { key, sense }` state the new face's bit; on the parent's chart `mef` derives the parent's bit and `mfkrh` its negation, and a contradicting stated bit is refused (`EulerOpError::SenseContradictsChart`); `set_face_surface` takes the same spec and `set_face_surface_and_sense` is gone; `Body::mvfs` and `Body::mfkrh_plug` take the seed's provisional bit. Paths: `topo/src/census.rs`. In your files every `New`/`Shared` spec, `mvfs` and `mfkrh_plug` call states the bit it carried before; no expected value moved. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: PR 3493's fix pass ends the Boolean's `BooleanDecision::Containment` on its lever alone, as `validate::classify_contain` does, since the escalation does not carry which rung refused and the rungs' pass sets differ by caller. What carrying the rung needs is added to `contain-escalation-carries-no-decision`. (TOPO implementer)
+- 2026-09-30 — Seam note from TOPO: PR 3506 (branch `topo/torus-and-merge-one-story`, not yet merged) edits `boolean/contact_verify.rs` (the Rest ladder's match drops `CarrierEqError::Escalated`'s new `rung`). Filed on this slate: `work/contact/carrier-escalation-drops-its-plane-rung-at-the-contact-doors.md` and `work/contact/degenerate-torus-operand-meets-the-declare-menu-and-a-false-solid-is-fine.md`, and evidence appended to `work/contact/contain-escalation-carries-no-decision.md`. (TOPO, PR 3506 fix pass)
+- 2026-09-30 — Seam note from TOPO: PR 3513 (branch `topo/every-escalation-names-its-decision`) gives `solid_contain::line_wall_roots` a typed rung (`WallRootFault { rung: WallRung, diag }`); `cast_ray` reads `.diag` as before. `geom_brep::enters_material`, `enters_material_order2` and `classify_dihedral` now return `LeverEscalation { rung: LeverRung, diag }` (the arm gate or the reading) instead of a bare `Indeterminate`; `census` reads `.diag` unchanged. (TOPO implementer)
+
+- 2026-10-01 — Seam note from PROPS (`props/recourse-grammar`, the last unit of that program): the D4 ¶1 (i) recourse GRAMMAR moved in `geom-core`, so refusal text changed across the tree. `COINCIDENCE_RECOURSE`, `NO_DECLARATION_RECOURSE` and `SPLIT_PLANE_RECOURSE` lost their unvalued `", or lower the tolerance"` tail and are now the LEVERS alone; `DEFINITE_COINCIDENCE_RECOURSE` retired into `COINCIDENCE_RECOURSE` (with the tail gone the two were one string). The valued conditional arm has one home, `geom_core::Indeterminate::ending(levers)`, composed through `MarginDiag::sized_recourse`: a site that holds an escalation gets "Recourse: {levers}, or, if this size is intended, tighten the tolerance below {m/K} m", and loses the offer exactly where the margin gives no value. `Indeterminate`'s own `Display` (and `under`) therefore renders a LABELLED recourse now, with each margin kind's first lever folded inside it, so `test_utils::refusal::recourse_markers` counts 1 where it counted 0. `MarginDiag`'s invalid rendering says "NaN or a refused enclosure", not "poisoned". Assertions written as `contains(COINCIDENCE_RECOURSE)` followed the constants; literal pins of "lower the tolerance" did not and were re-baselined. (PROPS implementer)
+
+## 2026-10-03 — HOLD: a refactor of dependency, placement and intent is underway (Ev, `[ev]` PR #3990)
+
+Ev has opened a redesign of how a document says that one thing depends
+on another and that things are meant to coincide. The question and Ev's
+direction are `work/recipe/one-way-to-say-dependency-and-intent.md`;
+the design lands through `[ev]` PR #3990. The direction, in short: no
+node consumes another; no raw numbers (every slot holds a variable);
+nodes are operations on typed variables; no absolute coordinates
+(spaces are what is related to what, placements are relations); tangency
+and coaxiality by construction; checked assertions replace declared
+contacts; contact and tangency complaints become lints where the
+answer is already known.
+
+**Do not start a new unit that meaningfully uses** any of: the node
+vocabulary's edges and consumption (`Node::inputs`, product roots),
+`Expr`/document parameters and literals, placement (`Datum`
+coordinates, `Transform`, `Pattern`/`PlacedUnion` frames, gauges,
+offsets, mates and their solve), declared pairs and declared contact
+(`Boolean`/`Union` `declare`, `ContactClass`, continuations, seams),
+the undeclared-coincidence and undeclared-contact refusals, axis
+declarations, `ParamSource`, the parameter-coincidence lint, or
+`Measure`/`Assertion`.
+
+**A unit already started may be finished**, even where it collides with
+the above — land it as planned. Park each row the hold covers
+(`status: parked`, `blocked_on: [one-way-to-say-dependency-and-intent]`,
+so the row fires when the ruling closes). If that leaves your program
+with nothing it may start, set its `status` to `blocked` and stop.
+
+## 2026-10-03 — the intent refactor's hold now waits on the build, not the ruling (Ev ratified #3990)
+
+Ev ratified DESIGN.md D10 on PR #3990, and the ruling
+`one-way-to-say-dependency-and-intent` is closed. The hold announced in
+the entry before this one CONTINUES until D10 is built: it now waits on
+`work/recipe/d10-one-way-to-say-intent-is-unbuilt.md`. Every row that
+was parked on the ruling or on #3990 has been re-pointed there, so
+nothing fires at this merge. Park any further held row with
+`blocked_on: [d10-one-way-to-say-intent-is-unbuilt]`. Units already
+started may still finish. Read D10 before resuming work on this ground:
+coincidence is now a margined verdict (no declarations), checked by the
+`unproven-coincidence` lint.
+## 2026-10-06 — TANG's PR 4148 changes the census's vertex-on-face confirmation (TANG, for CONTACT's ack)
+
+`census::confirm_declarations` confirmed a vertex-on-face record against
+planar faces only, so a record on a curved face always read
+`StaleContactDeclaration`. It now reads one through
+`boolean::curved_face_containment` (`census::confirm_vertex_on_face`).
+`In` confirms. Any other placement, including a point off the carrier,
+is stale. A trim the door does not read refuses `CensusUnsupported`
+(`ContactLane(NotCertifiable)`). The census's `ContainError` routing is
+now one function, `read_containment`, shared by the planar and curved
+doors.
+
+Pinned at `sweep/tests/reach_wall_chord_rows.rs`,
+`a_vertex_on_a_curved_face_is_confirmed_by_its_trim`. One existing row
+moved: the drum less a cube touching its wall at a corner now passes
+tier 3′. CONTACT's owner: please ack, or say what you want changed.

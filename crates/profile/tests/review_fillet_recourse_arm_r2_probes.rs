@@ -89,7 +89,7 @@ fn line_arc_3(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
             },
             tol(),
         )
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 /// Two same-winding lobes of radius `r_carrier`, centres `d` apart. The
@@ -111,7 +111,7 @@ fn lobes(r_carrier: f64, d: f64, radius: f64) -> Result<ProfileLoop<f64>, PathEr
         },
         tol(),
     )
-    .map(|c| c.loop_)
+    .map(|c| c.loop_.into_loop())
 }
 
 /// A mixed-winding arc x arc corner of radius 3 with centres 3 apart:
@@ -133,7 +133,7 @@ fn mixed_3(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
         tol(),
     )?
     .line_to(Start, tol())
-    .map(|closed| closed.loop_)
+    .map(|closed| closed.loop_.into_loop())
 }
 
 /// A line x arc corner built from the corner outward: the arc carrier is
@@ -166,7 +166,7 @@ fn corner_out(
             tol(),
         )?
         .line_to(Start, tol())
-        .map(|c| c.loop_)
+        .map(|c| c.loop_.into_loop())
 }
 
 // ---------------------------------------------------------------- rows

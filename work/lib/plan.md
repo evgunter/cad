@@ -148,7 +148,7 @@ Re-scoped 2026-09-20 by LIB's priority-seam cut
 ## Order
 
 **By what the north-star audit is waiting on.** `docs/guide/north-star-audit.md`
-is the measured instrument for this slate — 44 of 50 tour stops
+is the measured instrument for this slate — 43 of 50 tour stops
 authorable today — and the rows here are the doors that would move it.
 
 `no-door-mints-mate-frame-from-face` is parked on

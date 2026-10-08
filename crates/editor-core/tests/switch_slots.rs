@@ -4,34 +4,35 @@
 //! `SlotId::Profile { loop_, step, arg }` address routes `SetParam`/
 //! `SetExpression`/`Doc::expr_at` into the program; the authoring-time
 //! check (VQ9) refuses program-breaking edits typed AT THE DOOR under
-//! the current environment, while `SetDocParam` NEVER refuses for
+//! the current environment, while `DefineVar` NEVER refuses for
 //! downstream profile breakage — that surfaces as the node's typed
 //! evaluation error (V1 class 2). Both directions pinned here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
 
 use editor_core::{
     Alignment, AssertionDir, AxisSense, BooleanOp, CancelToken, CapEnd, ContactClass, ContentPin,
-    Datum, Dimension, DocEdit, DocParam, DocRef, DocumentId, EditError, EvalOptions, Expr,
-    ExprPath, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
-    NodeErrorKind, NodeResult, ParamName, PartSelect, PatternKind, ProfileDoc, ProfilePayload,
-    ProfileProgram, ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, SlotId, SplitHalf, StepArg, TubeWindow, ValuePayload, evaluate,
+    Datum, Dimension, DocEdit, DocRef, DocumentId, EditError, EvalOptions, ExprPath, Formula,
+    Frame, FreeVar, InterfaceRecord, LoopProgram, MateFrame, MatePrimitive, MeasureExpr, Node,
+    NodeErrorKind, NodeResult, PartSelect, PatternKind, Placement, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramRefusal, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, SlotId,
+    SplitHalf, Step, StepArg, TubeWindow, ValuePayload, VarName, evaluate,
 };
 use fixture::{ang, len, scl};
 use geom_core::Tol;
 
-/// Every document below is a frame and then the profile drawn on it,
-/// in that order.
-const PLANE: RecipeNodeId = RecipeNodeId(0);
-const PROFILE: RecipeNodeId = RecipeNodeId(1);
+// Every document below is a frame and then the profile drawn on it,
+// in that order: `doc.ids()[0]` and `doc.ids()[1]`.
 
 fn circle_doc(r: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -40,11 +41,12 @@ fn circle_doc(r: f64) -> ProfileDoc {
         .doc;
     doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
-                plane: PLANE,
+            node: Box::new(Node::Profile(ProfileProgram {
+                plane: doc.ids()[0],
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                 ids: Vec::new(),
-            }),
+            })),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -67,7 +69,7 @@ fn radius_slot() -> SlotId {
 #[test]
 fn profile_nodes_enumerate_program_slots() {
     let doc = circle_doc(0.5);
-    let Some(node) = doc.node(PROFILE) else {
+    let Some(node) = doc.node(doc.ids()[1]) else {
         panic!("profile node");
     };
     let slots = node.slots();
@@ -102,9 +104,10 @@ fn set_param_on_a_program_slot_moves_geometry() {
     let grown = doc
         .apply(
             &DocEdit::SetParam {
-                node: PROFILE,
+                node: doc.ids()[1],
                 slot: radius_slot(),
                 expr: len(0.75),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -121,7 +124,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    let Some(v) = ev.value(PROFILE) else {
+    let Some(v) = ev.value(doc.ids()[1]) else {
         panic!("profile evaluates");
     };
     let ValuePayload::Profile(pv) = &v.payload else {
@@ -142,13 +145,14 @@ fn set_expression_and_expr_at_route_into_programs() {
     let doc = circle_doc(0.5);
     // Replace the radius with (0.5 + 0.25), then re-point its LEFT
     // literal via a sub-path edit.
-    let sum = Expr::add(len(0.5), len(0.25)).unwrap();
+    let sum = Formula::add(len(0.5), len(0.25)).unwrap();
     let doc = doc
         .apply(
             &DocEdit::SetParam {
-                node: PROFILE,
+                node: doc.ids()[1],
                 slot: radius_slot(),
                 expr: sum,
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -156,12 +160,12 @@ fn set_expression_and_expr_at_route_into_programs() {
         .unwrap()
         .doc;
     let path = ExprPath {
-        node: PROFILE,
+        node: doc.ids()[1],
         slot: radius_slot(),
         path: vec![0],
     };
     assert_eq!(
-        doc.expr_at(&path).and_then(Expr::literal_value),
+        doc.expr_at(&path).as_ref().and_then(Formula::literal_value),
         Some(0.5),
         "expr_at descends into the program slot"
     );
@@ -177,9 +181,15 @@ fn set_expression_and_expr_at_route_into_programs() {
         .expect("sub-path edit applies")
         .doc;
     assert_eq!(
-        doc.expr_at(&path).and_then(Expr::literal_value),
+        doc.expr_at(&path).as_ref().and_then(Formula::literal_value),
         Some(0.375)
     );
+}
+
+/// The value a constant formula evaluates to: a written quantity's, or
+/// a bare number's.
+fn value_of(formula: &Formula) -> Option<f64> {
+    editor_core::eval::<f64>(formula, &editor_core::VarEnv::default()).ok()
 }
 
 /// Dimension discipline at the door: a program slot refuses an
@@ -189,9 +199,10 @@ fn program_slots_refuse_wrong_dimensions() {
     let doc = circle_doc(0.5);
     match doc.apply(
         &DocEdit::SetParam {
-            node: PROFILE,
+            node: doc.ids()[1],
             slot: radius_slot(),
             expr: ang(0.5),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -214,15 +225,16 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
     let doc = circle_doc(0.5);
     match doc.apply(
         &DocEdit::SetParam {
-            node: PROFILE,
+            node: doc.ids()[1],
             slot: radius_slot(),
             expr: len(0.0),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
         Err(EditError::ProfileProgramRefused { node, refusal }) => {
-            assert_eq!(node, PROFILE);
+            assert_eq!(node.id(), doc.ids()[1]);
             match *refusal {
                 ProgramRefusal::Geometry {
                     loop_: 0,
@@ -237,17 +249,17 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
     }
 }
 
-/// VQ9 direction two: `SetDocParam` NEVER refuses for downstream
+/// VQ9 direction two: `DefineVar` NEVER refuses for downstream
 /// profile breakage — the broken binding surfaces as the NODE's typed
 /// evaluation error naming (loop, step): V1 class 2, refusing programs
 /// exist at rest.
 #[test]
-fn set_doc_param_never_refuses_for_downstream_profiles() {
+fn define_var_never_refuses_for_downstream_profiles() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
-            &DocEdit::SetDocParam {
-                name: ParamName::new("r"),
-                value: DocParam::continuous(Dimension::Length, 0.5),
+            &DocEdit::DeclareVar {
+                name: VarName::from_static("r"),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.5)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -257,7 +269,8 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -267,14 +280,15 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(ProfileProgram {
-                    plane: PLANE,
+                node: Box::new(Node::Profile(ProfileProgram {
+                    plane: doc.ids()[0],
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
-                        radius: Expr::param(ParamName::new("r"), Dimension::Length),
+                        radius: Formula::named(VarName::from_static("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
-                }),
+                })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -284,14 +298,15 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     // The breaking param edit APPLIES (never refused here)…
     let broken = doc
         .apply(
-            &DocEdit::SetDocParam {
-                name: ParamName::new("r"),
-                value: DocParam::continuous(Dimension::Length, 0.0),
+            &DocEdit::DefineVar {
+                var: VarName::from_static("r").into(),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.0)),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
         )
-        .expect("SetDocParam never refuses for downstream profile breakage (VQ9)")
+        .expect("DefineVar never refuses for downstream profile breakage (VQ9)")
         .doc;
     // …and the refusal surfaces at evaluation, typed, naming the loop.
     let ev = evaluate::<f64>(
@@ -301,7 +316,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
         &EvalOptions::default(),
         Tol::witness(),
     );
-    match ev.nodes.get(&PROFILE) {
+    match ev.nodes.get(&doc.ids()[1]) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             NodeErrorKind::ProfileReplay { loop_: 0, error } => {
                 assert_eq!(error.step, 0, "the circle step names itself");
@@ -324,7 +339,8 @@ fn insert_node_checks_program_dimensions() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -332,7 +348,7 @@ fn insert_node_checks_program_dimensions() {
         .unwrap()
         .doc;
     let bad = ProfileProgram {
-        plane: PLANE,
+        plane: doc.ids()[0],
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), len(0.0)],
             // An Angle where the Radius role demands Length.
@@ -342,7 +358,8 @@ fn insert_node_checks_program_dimensions() {
     };
     match doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Profile(bad),
+            node: Box::new(Node::Profile(bad)),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -394,7 +411,8 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
 
     // (incoming spec, arrival spec, incoming role, arrival role, the
     // arrival argument's authored value, a replacement for it).
-    let rows: Vec<(ProgramArcData, ProgramArcData, StepArg, StepArg, f64, Expr)> = vec![
+    type Arc = ProgramArcData<Formula>;
+    let rows: Vec<(Arc, Arc, StepArg, StepArg, f64, Formula)> = vec![
         (
             sweep(0.25),
             sweep(0.6),
@@ -424,7 +442,8 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::InsertNode {
-                node: fixture::xy_frame(),
+                node: Box::new(fixture::xy_frame()),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -438,8 +457,8 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
             step: 1,
             arg: arrival,
         };
-        let mut program = ProfileProgram {
-            plane: PLANE,
+        let mut program: ProfileNode = Node::Profile(ProfileProgram {
+            plane: doc.ids()[0],
             loops: vec![LoopProgram::Chain(vec![
                 ProgramStep::At([len(0.0), len(0.0)]),
                 ProgramStep::ArcFilletArc {
@@ -449,7 +468,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 },
             ])],
             ids: Vec::new(),
-        };
+        });
 
         // Both roles are enumerated, once each.
         let slots = program.slots();
@@ -467,7 +486,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
         // …and the arrival role addresses the ARRIVAL spec's argument,
         // which is the whole of issue #829.
         assert_eq!(
-            program.expr(fused).and_then(Expr::literal_value),
+            program.expr(fused).and_then(value_of),
             Some(authored),
             "{arrival:?} addresses the arrival spec's argument"
         );
@@ -482,13 +501,13 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                 step: 1,
                 arg: incoming,
             })
-            .and_then(Expr::literal_value);
+            .and_then(value_of);
         *program
             .expr_mut(fused)
             .expect("the arrival role is writable") = replacement.clone();
         assert_eq!(
-            program.expr(fused).and_then(Expr::literal_value),
-            replacement.literal_value()
+            program.expr(fused).and_then(value_of),
+            value_of(&replacement)
         );
         assert_eq!(
             program
@@ -497,7 +516,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                     step: 1,
                     arg: incoming,
                 })
-                .and_then(Expr::literal_value),
+                .and_then(value_of),
             incoming_before,
             "writing the arrival argument moved the incoming one"
         );
@@ -507,7 +526,8 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
         // can exist for these three roles.
         match doc.apply(
             &DocEdit::InsertNode {
-                node: Node::Profile(program),
+                node: Box::new(program),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -552,8 +572,8 @@ test_utils::f6_variants! {
         Pattern,
         Part,
         PlacedUnion,
-        Declare,
         InstantiatePart,
+        Gauge,
         Mate,
         Measure,
         Assertion,
@@ -569,13 +589,13 @@ test_utils::f6_variants! {
     const DATUM_KIND: Datum = [Plane, Axis, Point, AxisInPlane, Frame, FaceFrame];
 }
 
-type ProfileNode = Node<ProfileProgram>;
+type ProfileNode = AuthoredNode;
 
 fn nid(n: u64) -> RecipeNodeId {
-    RecipeNodeId(n)
+    RecipeNodeId::new(0, n)
 }
 
-fn datum_shapes() -> Vec<Datum> {
+fn datum_shapes() -> Vec<Datum<Formula>> {
     vec![
         Datum::Plane {
             origin: [len(0.0), len(0.0), len(0.0)],
@@ -611,7 +631,7 @@ fn datum_shapes() -> Vec<Datum> {
 /// datums, a tube window open and closed, the three pattern kinds, a
 /// part selected two ways, and a placed union with and without its
 /// count.
-fn one_of_every_node_shape() -> Vec<ProfileNode> {
+pub(crate) fn one_of_every_node_shape() -> Vec<ProfileNode> {
     let mut nodes: Vec<ProfileNode> = datum_shapes().into_iter().map(Node::Datum).collect();
     let window = || TubeWindow::Arc {
         t0: ang(0.0),
@@ -622,6 +642,7 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
         Node::Extrude {
             profile: nid(1),
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
         Node::Revolve {
             profile: nid(1),
@@ -652,13 +673,13 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
         },
         Node::Loft {
             profiles: vec![nid(1), nid(2)],
-            v_degree: Expr::count(1),
+            v_degree: Formula::count(1),
         },
         Node::Sweep {
             profile: nid(1),
             path: nid(2),
-            stations: Expr::count(4),
-            v_degree: Expr::count(1),
+            stations: Formula::count(4),
+            v_degree: Formula::count(1),
         },
         Node::Fillet {
             target: nid(1),
@@ -683,17 +704,44 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             op: BooleanOp::Union,
             a: nid(1),
             b: nid(2),
-            declare: None,
+            declare: Vec::new(),
         },
         Node::Union {
             members: vec![nid(1), nid(2)],
-            declare: None,
+            declare: Vec::new(),
         },
+        Node::transform(
+            nid(1),
+            editor_core::Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
+        // A chain: rigid, literal, rigid — the literal takes no slot and
+        // its index is skipped, so the second rigid step is step 2.
         Node::Transform {
             input: nid(1),
-            translation: [len(1.0), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
+            placement: Placement {
+                steps: vec![
+                    Step::Rigid {
+                        translation: [len(1.0), len(0.0), len(0.0)],
+                        axis: [scl(0.0), scl(0.0), scl(1.0)],
+                        angle: ang(0.0),
+                    },
+                    Step::Literal(Frame::translation([0.0, 1.0, 0.0])),
+                    Step::Rigid {
+                        translation: [len(0.0), len(0.0), len(1.0)],
+                        axis: [scl(1.0), scl(0.0), scl(0.0)],
+                        angle: ang(0.5),
+                    },
+                ],
+            },
+        },
+        // A literal alone: no slot at all.
+        Node::Transform {
+            input: nid(1),
+            placement: Placement::literal(&Frame::translation([0.0, 0.0, 2.0])),
         },
     ]);
     for kind in [
@@ -709,12 +757,12 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
     ] {
         nodes.push(Node::Pattern {
             input: nid(1),
-            count: Expr::count(3),
+            count: Formula::count(3),
             kind: kind.clone(),
         });
         nodes.push(Node::PlacedUnion {
             input: nid(1),
-            count: Some(Expr::count(3)),
+            count: Some(Formula::count(3)),
             kind: kind.clone(),
         });
         nodes.push(Node::PlacedUnion {
@@ -726,13 +774,12 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
     nodes.extend([
         Node::Part {
             of: nid(1),
-            select: PartSelect::Instance(Expr::count(0)),
+            select: PartSelect::Instance(Formula::count(0)),
         },
         Node::Part {
             of: nid(1),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
-        Node::Declare { pairs: Vec::new() },
         Node::InstantiatePart {
             doc_ref: DocRef {
                 id: DocumentId::derive("switch-slots-census"),
@@ -741,22 +788,46 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
             interface: InterfaceRecord {
                 crossings: Vec::new(),
             },
+            gauge: None,
+            offset: Some(Placement::from(Step::Rigid {
+                translation: [len(1.0), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            })),
         },
+        Node::gauge(
+            None,
+            Step::Rigid {
+                translation: [len(0.0), len(2.0), len(0.0)],
+                axis: [scl(1.0), scl(0.0), scl(0.0)],
+                angle: ang(0.25),
+            },
+        ),
         Node::Mate {
             a: crate::fixture::head(fixture::fname(nid(1), RoleSeg::Cap(CapEnd::Start))),
             b: crate::fixture::head(fixture::fname(nid(2), RoleSeg::Cap(CapEnd::End))),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: MateFrame {
-                    origin: [0.0; 3],
-                    axis: [0.0, 0.0, 1.0],
-                    reference: [1.0, 0.0, 0.0],
-                },
-                b: MateFrame {
-                    origin: [0.0; 3],
-                    axis: [0.0, 0.0, 1.0],
-                    reference: [1.0, 0.0, 0.0],
-                },
+                a: MateFrame::authored(
+                    [0.0; 3],
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 0.0],
+                    geom_core::Tol::witness(),
+                )
+                .expect("a definite frame"),
+                // A face base whose offset is a literal then a rigid
+                // step: the rigid step's slots carry the side and the
+                // step's own index.
+                b: MateFrame::on_face(
+                    Placement::literal(&Frame::translation([0.0, 0.0, 1.0])).compose(
+                        &Step::Rigid {
+                            translation: [len(0.5), len(0.0), len(0.0)],
+                            axis: [scl(0.0), scl(0.0), scl(1.0)],
+                            angle: ang(0.5),
+                        }
+                        .into(),
+                    ),
+                ),
                 primitive: MatePrimitive::Coaxial,
                 sense: AxisSense::Aligned,
                 clocking: None,
@@ -775,11 +846,10 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
     nodes
 }
 
-/// **`slots()` is `expr()`'s domain, for every node kind** — the
-/// invariant the two matches in `node.rs` keep between them, and the
-/// reason neither door carries a refusal for a slot it cannot read:
-/// `Node::slot_dimension_fault` asserts against it at the site rather
-/// than routing a missing expression to a door as a document's fault.
+/// **`slots()` is `expr()`'s domain, for every node kind, it lists no
+/// slot twice, and each slot reads an expression of the dimension its
+/// address fixes.** A slot listed twice is two rows that `expr` answers
+/// from the first of.
 ///
 /// `profile_nodes_enumerate_program_slots` pins the same thing for one
 /// kind. This row is the whole vocabulary, welded by `NODE_KIND` and
@@ -788,7 +858,14 @@ fn one_of_every_node_shape() -> Vec<ProfileNode> {
 fn every_node_kinds_slots_are_all_readable() {
     let nodes = one_of_every_node_shape();
     for node in &nodes {
-        for slot in node.slots() {
+        let slots = node.slots();
+        let distinct: std::collections::BTreeSet<SlotId> = slots.iter().copied().collect();
+        assert_eq!(
+            distinct.len(),
+            slots.len(),
+            "{node:?} lists a slot twice: {slots:?}"
+        );
+        for slot in slots {
             let Some(expr) = node.expr(slot) else {
                 panic!(
                     "{node:?} names the slot {} and `expr` does not answer for it",
@@ -831,4 +908,164 @@ fn every_node_kinds_slots_are_all_readable() {
             panic!("{report}");
         }
     }
+}
+
+/// **`expr_mut` reaches the field `expr` reads, for every slot of every
+/// node shape.** The edit door writes through `expr_mut` and every
+/// reader reads through `expr`, so a slot the two resolve to different
+/// fields is an edit that lands where no reader looks.
+///
+/// Each slot takes a sentinel through `expr_mut` on a fresh copy of its
+/// node; the copy must read the sentinel back at that slot through
+/// `expr` and read every other slot unchanged. Across the union of
+/// every shape's slots, `expr_mut` answers exactly where `expr` does.
+/// The shapes are `one_of_every_node_shape`'s, which
+/// `every_node_kinds_slots_are_all_readable` welds to the roster.
+#[test]
+fn every_node_kinds_expr_mut_writes_the_field_expr_reads() {
+    let nodes = one_of_every_node_shape();
+    let sentinel = scl(-271.828);
+    let every_slot: std::collections::BTreeSet<SlotId> =
+        nodes.iter().flat_map(ProfileNode::slots).collect();
+    for node in &nodes {
+        let slots = node.slots();
+        for &slot in &slots {
+            let mut written = node.clone();
+            let Some(target) = written.expr_mut(slot) else {
+                panic!(
+                    "{node:?} names the slot {} and `expr_mut` does not answer for it",
+                    slot.label()
+                )
+            };
+            *target = sentinel.clone();
+            assert_eq!(
+                written.expr(slot),
+                Some(&sentinel),
+                "{node:?}: a write to {} through `expr_mut` is not what `expr` reads there",
+                slot.label()
+            );
+            for &other in slots.iter().filter(|&&other| other != slot) {
+                assert_eq!(
+                    written.expr(other),
+                    node.expr(other),
+                    "{node:?}: a write to {} through `expr_mut` moved {}",
+                    slot.label(),
+                    other.label()
+                );
+            }
+        }
+        let mut probe = node.clone();
+        for &slot in &every_slot {
+            assert_eq!(
+                probe.expr_mut(slot).is_some(),
+                node.expr(slot).is_some(),
+                "{node:?}: `expr_mut` and `expr` disagree on whether {} is carried",
+                slot.label()
+            );
+        }
+    }
+}
+
+/// **The mint's preimage is pinned for every node shape**: the id each
+/// shape draws from an empty document's mint. `mint.rs`'s pin freezes
+/// one profile's bytes; a node shape whose serde form moves — a field
+/// renamed, reordered or re-typed, a variant renamed, display units
+/// reaching the bytes — re-mints every id a saved log replays to, and
+/// goes red here on the shape that moved. The shapes are
+/// `one_of_every_node_shape`'s, which
+/// `every_node_kinds_slots_are_all_readable` welds to the roster.
+#[test]
+fn every_node_shapes_mint_is_pinned() {
+    use std::fmt::Write as _;
+    let mut text = String::new();
+    for node in one_of_every_node_shape() {
+        let id = editor_core::test_support::first_node_id(&node, Tol::witness());
+        let kind = test_utils::f6::variant_identifier(&node);
+        writeln!(text, "{kind} {}", id.0).unwrap();
+    }
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/mint_node_ids.txt");
+    if std::env::var_os("PNCAD_BLESS").is_some() {
+        std::fs::write(&path, &text).expect("the golden writes");
+        return;
+    }
+    assert_eq!(
+        text,
+        include_str!("golden/mint_node_ids.txt"),
+        "a node shape's mint preimage moved, and with it every id a saved log replays to. \
+         Read the diff and say in the PR body which shape moved and why (regenerate: \
+         PNCAD_BLESS=1 cargo test -p editor-core --test all every_node_shapes_mint_is_pinned)"
+    );
+}
+
+/// **Every node shape's slot table, pinned: its slots in order, and the
+/// field each one addresses.** The golden is
+/// `tests/golden/slot_tables.txt`: per shape, the node's `Debug` with
+/// slot `#i`'s expression written in the field it lands in, then the
+/// slots in `slots()` order.
+///
+/// Slot order is observable (the first faulting slot is the one
+/// `Node::slot_dimension_fault` and the load re-check report, and the
+/// property panel lists `slots()` in order), and so is the field a slot
+/// addresses. The censuses above cannot see either kind of move when it
+/// keeps every slot readable at its own dimension: two rows of one
+/// dimension trading fields, or two rows trading places. Each slot is
+/// written a distinct tag through `expr_mut` and read back through
+/// `expr`, so the render names the field by what landed in it, whatever
+/// the two fields held before.
+#[test]
+fn every_node_shapes_slot_table_is_pinned() {
+    use std::fmt::Write as _;
+    let mut text = String::new();
+    for node in one_of_every_node_shape() {
+        let node = editor_core::test_support::stored(
+            &mut editor_core::test_support::scratch(geom_core::Tol::witness()),
+            &node,
+        );
+        let slots = node.slots();
+        let tags: Vec<editor_core::VarId> = (0..slots.len())
+            .map(|i| editor_core::VarId::new(0, 1000 + i as u64))
+            .collect();
+        let mut tagged = node.clone();
+        for (&slot, tag) in slots.iter().zip(&tags) {
+            *tagged
+                .expr_mut(slot)
+                .expect("a listed slot answers `expr_mut`") = *tag;
+        }
+        let mut fields = format!("{tagged:?}");
+        for (i, (&slot, tag)) in slots.iter().zip(&tags).enumerate() {
+            assert_eq!(
+                tagged.expr(slot),
+                Some(tag),
+                "{node:?}: {} does not read back the tag written through it",
+                slot.label()
+            );
+            let rendered = format!("{tag:?}");
+            assert_eq!(
+                fields.matches(&rendered).count(),
+                1,
+                "{node:?}: the tag written through {} is not in exactly one field",
+                slot.label()
+            );
+            fields = fields.replace(&rendered, &format!("#{i}"));
+        }
+        writeln!(text, "{fields}").unwrap();
+        for (i, slot) in slots.iter().enumerate() {
+            writeln!(text, "  #{i} {slot:?}").unwrap();
+        }
+    }
+    let path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/slot_tables.txt");
+    if std::env::var_os("PNCAD_BLESS").is_some() {
+        std::fs::write(&path, &text).expect("the golden writes");
+        return;
+    }
+    assert_eq!(
+        text,
+        include_str!("golden/slot_tables.txt"),
+        "a node shape's slot order or slot-to-field mapping moved. Read the diff: slot order \
+         is what fault reports and the property panel read, and a PR body says which move was \
+         meant (regenerate: PNCAD_BLESS=1 cargo test -p editor-core --test all \
+         every_node_shapes_slot_table_is_pinned)"
+    );
 }

@@ -11,15 +11,16 @@ use common::{brick, prism};
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{
-    Body, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, mass_properties,
-    plane_section, split, validate_closed, validate_geometric,
+    Body, SplitError, SplitJoinError, SplitPart, SplitPlane, mass_properties, plane_section, split,
+    validate_closed, validate_geometric,
 };
 
 fn plane_y(c: f64) -> SplitPlane<f64> {
-    SplitPlane {
-        origin: Point3::new(0.0, c, 0.0),
-        normal: Vec3::new(0.0, 1.0, 0.0),
-    }
+    topo::test_support::split_plane(
+        Point3::new(0.0, c, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        geom_core::Tol::witness(),
+    )
 }
 
 fn body_of<T: geom_core::Real>(part: &SplitPart<T>) -> &Body<T> {
@@ -101,7 +102,8 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
         1.0,
         Tol::witness(),
     );
-    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let r = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();
     audit_geometry(body_of(&r.above));
     audit_geometry(body_of(&r.below));
 
@@ -117,7 +119,8 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
         (0.0, 2.0),
     ];
     let fx = prism::<f64>(notched, 1.0, Tol::witness());
-    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let r = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();
     audit_geometry(body_of(&r.above));
     audit_geometry(body_of(&r.below));
 }
@@ -133,7 +136,8 @@ fn tiny_real_sliver_not_wrongly_refused() {
         1.0,
         Tol::witness(),
     );
-    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let operand = topo::test_support::finished("the fixture", fx.body.clone(), Tol::witness());
+    let r = split(&operand, &plane_y(1.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
@@ -145,9 +149,9 @@ fn tiny_real_sliver_not_wrongly_refused() {
         (va - expect).abs() <= 1e-6 * expect,
         "sliver volume {va} vs {expect}"
     );
-    // And the section query agrees: one tiny positive-area polygon.
-    let s = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
-    assert_eq!(s.polygons.len(), 1);
+    // And the section query agrees: one tiny region.
+    let s = plane_section(&operand, &plane_y(1.0), Tol::witness()).unwrap();
+    assert_eq!(s.regions.len(), 1);
 }
 
 /// Target 3b: an in-band section (a wall whose thickness sits inside
@@ -166,7 +170,11 @@ fn in_band_section_escalates_typed_not_misclassified() {
         eprintln!("in-band probe: fixture build refused at ε={eps}");
         return; // build-stage refusal: honest, earlier.
     };
-    match split(&fx.body, &plane_y(1.0), Tol::witness()) {
+    match split(
+        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
+        &plane_y(1.0),
+        Tol::witness(),
+    ) {
         Err(SplitError::Join(SplitJoinError::DegenerateSection { .. })) => {
             panic!("in-band sliver MISCLASSIFIED as zero-area tangency");
         }
@@ -181,18 +189,20 @@ fn in_band_section_escalates_typed_not_misclassified() {
 #[test]
 fn vertex_only_contact_is_typed_empty() {
     let fx = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let fx = topo::test_support::finished("the fx", fx, Tol::witness());
     let s3 = 3.0f64.sqrt();
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        normal: Vec3::new(-1.0 / s3, -1.0 / s3, -1.0 / s3),
-    };
+    let plane = topo::test_support::split_plane(
+        Point3::new(0.0, 0.0, 0.0),
+        Vec3::new(-1.0 / s3, -1.0 / s3, -1.0 / s3),
+        geom_core::Tol::witness(),
+    );
     let r = split(&fx, &plane, Tol::witness()).unwrap();
     assert!(matches!(r.above, SplitPart::Empty));
     let below = body_of(&r.below);
     assert_eq!(validate_closed(below), Ok(()));
     assert_eq!(below.vertices().count(), fx.vertices().count());
     let s = plane_section(&fx, &plane, Tol::witness()).unwrap();
-    assert!(s.polygons.is_empty());
+    assert!(s.regions.is_empty());
     assert!(s.u_ref.is_none());
 }
 
@@ -211,7 +221,12 @@ fn tier3_needs_upgrade_pass_consumers_lack() {
         1.0,
         Tol::witness(),
     );
-    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
+    let r = split(
+        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
+        &plane_y(1.0),
+        Tol::witness(),
+    )
+    .unwrap();
     let above = body_of(&r.above);
     assert_eq!(validate_closed(above), Ok(()), "tier 2 at rest holds");
     assert!(
@@ -225,38 +240,32 @@ fn tier3_needs_upgrade_pass_consumers_lack() {
     );
 }
 
-/// Judgment call (b): the single-solid gate — `split` refuses a
-/// two-solid body typed; `plane_section` (which never reaches the
-/// finish stage) quietly accepts the same operand. Witnessed
-/// inconsistency, for the writeup.
+/// **A two-solid body splits whole**: `split` takes bodies, so both
+/// prisms are cut and each side holds one solid per piece, as
+/// `plane_section` slices both into two regions.
 #[test]
-fn single_solid_gate_split_vs_section() {
+fn a_two_solid_body_splits_whole_like_its_section() {
     let mut body = Body::<f64>::new();
     add_quad_prism(&mut body, 0.0);
     add_quad_prism(&mut body, 10.0);
     assert_eq!(body.solids().count(), 2);
     assert_eq!(validate_closed(&body), Ok(()));
-    let err = split(&body, &plane_y(1.0), Tol::witness()).unwrap_err();
-    assert!(
-        matches!(
-            err,
-            SplitError::Finish(SplitFinishError::NotSingleSolid { count: 2 })
-        ),
-        "got {err:?}"
-    );
-    // plane_section never reaches the finish gate: it quietly slices
-    // BOTH solids (two polygons) — the gate asymmetry, witnessed.
+    common::describe_as_intersections(&mut body, Tol::witness());
+    let body = common::finished("the two prisms", body, Tol::witness());
+    let r = split(&body, &plane_y(1.0), Tol::witness()).expect("both prisms split");
+    for side in [&r.above, &r.below] {
+        let side = side.body().expect("each side holds material");
+        assert_eq!(side.solids().count(), 2, "one solid per piece");
+        assert_eq!(validate_closed(side), Ok(()));
+    }
     let s = plane_section(&body, &plane_y(1.0), Tol::witness()).unwrap();
-    assert_eq!(s.polygons.len(), 2);
+    assert_eq!(s.regions.len(), 2);
 }
 
-/// `plane_section` ergonomics probe: is the (u, v) winding of the
-/// returned polygons DETERMINED (a consumer computing signed areas or
-/// offsets needs an orientation contract)? Executed answer, for the
-/// writeup: whatever this asserts is what consumers can rely on
-/// today; the acceptance suite only ever takes |area|.
+/// `plane_section`'s outlines wind counter-clockwise in `(u, v)`: each
+/// outline's shoelace area over its corners is positive.
 #[test]
-fn plane_section_winding_is_consistent() {
+fn plane_section_outlines_wind_counter_clockwise() {
     let notched = &[
         (0.0, 0.0),
         (8.0, 0.0),
@@ -269,22 +278,24 @@ fn plane_section_winding_is_consistent() {
         (0.0, 2.0),
     ];
     let fx = prism::<f64>(notched, 1.0, Tol::witness());
-    let s = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
-    assert_eq!(s.polygons.len(), 3);
+    let s = plane_section(
+        &topo::test_support::finished("the operand", fx.body.clone(), Tol::witness()),
+        &plane_y(1.0),
+        Tol::witness(),
+    )
+    .unwrap();
+    assert_eq!(s.regions.len(), 3);
     let mut signs = Vec::new();
-    for poly in &s.polygons {
+    for poly in s.regions.iter().map(|r| &r.outline) {
         let mut twice = 0.0;
-        for i in 0..poly.uv.len() {
-            let a = poly.uv[i];
-            let b = poly.uv[(i + 1) % poly.uv.len()];
+        for i in 0..poly.uv().len() {
+            let a = poly.uv()[i];
+            let b = poly.uv()[(i + 1) % poly.uv().len()];
             twice += a.x * b.y - b.x * a.y;
         }
         signs.push(twice.signum());
     }
-    assert!(
-        signs.iter().all(|&s| s == signs[0]),
-        "mixed winding across polygons of one section: {signs:?}"
-    );
+    assert_eq!(signs, [1.0; 3], "every outline counter-clockwise");
 }
 
 /// A 2×2×1 quad prism (x offset by `x0`, spanning y ∈ [0, 2]) added as

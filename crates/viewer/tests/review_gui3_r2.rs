@@ -10,7 +10,7 @@
 //! the subject one thing. The sugar that carries no oracle is shared
 //! from `tests/common`: `ang`, `edited`, `inserted`, `len`,
 //! `rectangle`, `scl`, `tempdir`, `xy_frame`. This file's own slab
-//! dimensions and parameter name stay here, where the expectations
+//! dimensions and variable name stay here, where the expectations
 //! that read them are; the profile's shape is not an oracle here, so
 //! it is drawn with the shared rectangle.
 //!
@@ -30,11 +30,12 @@ test_utils::gated_to![
     "crates/editor-core/src/test_support.rs",
 ];
 
+use pncad::document::ExtrudeSide;
 use std::sync::Arc;
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, EvalOutcome, Expr, Node, ParamName, ProfileProgram,
-    RecipeNodeId, SlotId,
+    Dimension, Doc, DocEdit, EvalOutcome, Formula, FreeVar, Node, ProfileProgram, RecipeNodeId,
+    SlotId, VarName,
 };
 use pncad::geom_core::Tol;
 
@@ -50,8 +51,8 @@ use viewer::{docio, props, tree};
 
 // --- fixtures, authored here rather than borrowed -------------------
 
-fn width_param() -> ParamName {
-    ParamName::new("width")
+fn width_param() -> VarName {
+    VarName::from_static("width")
 }
 
 /// A slab whose extrude distance is a LITERAL and whose transform's
@@ -62,9 +63,9 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("r2-gui3-slab", tol);
     let (doc, _) = edited(
         &doc,
-        DocEdit::SetDocParam {
+        DocEdit::DeclareVar {
             name: width_param(),
-            value: DocParam::continuous(Dimension::Length, 0.005),
+            def: pncad::document::VarDecl::Free(FreeVar::continuous(Dimension::Length, 0.005)),
         },
         tol,
     );
@@ -75,22 +76,25 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(0.006),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
     let (doc, moved) = inserted(
         &doc,
-        Node::Transform {
-            input: extrude,
-            translation: [
-                Expr::mul(Expr::param(width_param(), Dimension::Length), scl(2.0))
-                    .expect("length * scalar is a length"),
-                len(0.0),
-                len(0.0),
-            ],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            extrude,
+            pncad::document::Step::Rigid {
+                translation: [
+                    Formula::mul(Formula::named(width_param(), Dimension::Length), scl(2.0))
+                        .expect("length * scalar is a length"),
+                    len(0.0),
+                    len(0.0),
+                ],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
         tol,
     );
     (doc, extrude, moved)
@@ -369,10 +373,10 @@ fn a_replayed_history_undoes_one_logged_edit_at_a_time() {
             node: extrude,
             slot: SlotId::Distance,
             expr: len(v),
+            fresh: Vec::new(),
         })
         .collect();
-    let mut history = History::replayed(doc, &pncad::document::LoggedEdit::bare_all(&edits), tol)
-        .expect("the log replays");
+    let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
     assert_eq!(history.len(), 4);
     for expected in [0.008_f64, 0.007, 0.006] {
         history.undo().expect("a step back");
@@ -502,9 +506,9 @@ fn a_save_taken_mid_gesture_writes_the_committed_document_not_the_preview() {
 
 /// **The other direction of the text door**: a slot that is a bare
 /// literal accepts a number today, and once an expression is written
-/// into it through `parse_expr` it starts REFUSING numbers with the
+/// into it through `parse_formula` it starts REFUSING numbers with the
 /// affordance. The unit's rows walk driven → expression; this walks
-/// literal → driven → refusal → navigate → parameter edit → the slot
+/// literal → driven → refusal → navigate → variable edit → the slot
 /// follows.
 #[test]
 fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers() {
@@ -534,7 +538,11 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
         "a literal slot takes a number"
     );
 
-    // Write an expression over the document parameter into it.
+    // Write an expression over the document variable into it.
+    let width = session.committed_doc().spoken_var(crate::common::var_of(
+        session.committed_doc(),
+        width_param().as_str(),
+    ));
     let outcome = session.perform(SessionOp::SetSlotExpression {
         node: extrude,
         slot: SlotId::Distance,
@@ -545,7 +553,7 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
     assert_eq!(
         driver(&session),
         SlotDriver::Expression {
-            params: vec![width_param()]
+            variables: vec![width.clone()]
         },
         "the slot is now driven, and says by what"
     );
@@ -567,11 +575,12 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
         Some(Refusal::DrivenByExpression {
             node,
             slot,
-            params,
+            variables,
             current,
+            ..
         }) => {
             assert_eq!((node, slot), (extrude, SlotId::Distance));
-            assert_eq!(params, vec![width_param()]);
+            assert_eq!(variables, vec![width.clone()]);
             assert_eq!(current, Some(SlotValue::Continuous(0.015)));
         }
         other => panic!("expected the driven refusal, got {other:?}"),
@@ -579,11 +588,11 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
     assert_eq!(session.history().len(), states, "a refusal mints nothing");
 
     // And the navigation half closes the loop.
-    session.perform(SessionOp::Select(Selection::Param(width_param())));
+    session.perform(SessionOp::Select(Selection::Variable(width.id())));
     assert!(
         session
-            .perform(SessionOp::SetParam {
-                name: width_param(),
+            .perform(SessionOp::SetVariable {
+                var: width.id(),
                 value: SlotValue::Continuous(0.010),
             })
             .refusal
@@ -592,11 +601,11 @@ fn a_literal_slot_becomes_driven_through_the_text_door_and_then_refuses_numbers(
     assert_eq!(
         distance_of(session.committed_doc(), extrude),
         SlotValue::Continuous(0.030),
-        "the driven slot followed its parameter"
+        "the driven slot followed its variable"
     );
 }
 
-/// A slot driven by arithmetic over NO parameter is still refused —
+/// A slot driven by arithmetic over NO variable is still refused —
 /// the branch-free case the unit's `parametric_plate` fixture (whose
 /// driven slot always references `thickness`) cannot reach. The
 /// affordance then names no navigation target, which is the honest
@@ -609,7 +618,7 @@ fn a_parameterless_expression_is_driven_and_offers_no_navigation_target() {
     let outcome = session.perform(SessionOp::SetSlotExpression {
         node: extrude,
         slot: SlotId::Distance,
-        // No parameter anywhere: pure arithmetic over literals.
+        // No variable anywhere: pure arithmetic over literals.
         text: "0.004 m + 0.003 m".to_owned(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -621,7 +630,7 @@ fn a_parameterless_expression_is_driven_and_offers_no_navigation_target() {
         .expect("the extrude carries a distance");
     assert_eq!(
         row.driver,
-        SlotDriver::Expression { params: vec![] },
+        SlotDriver::Expression { variables: vec![] },
         "arithmetic over literals is driven, with nothing to navigate to"
     );
     assert!(matches!(
@@ -632,7 +641,7 @@ fn a_parameterless_expression_is_driven_and_offers_no_navigation_target() {
                 value: SlotValue::Continuous(0.001),
             })
             .refusal,
-        Some(Refusal::DrivenByExpression { params, .. }) if params.is_empty()
+        Some(Refusal::DrivenByExpression { variables, .. }) if variables.is_empty()
     ));
 }
 
@@ -655,17 +664,20 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
             // A zero extrude distance: well-dimensioned at the edit
             // door, refused by the operation at evaluation.
             distance: len(0.0),
+            side: ExtrudeSide::Along,
         },
         tol,
     );
     let (doc, downstream) = inserted(
         &doc,
-        Node::Transform {
-            input: bad,
-            translation: [len(0.01), len(0.0), len(0.0)],
-            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: ang(0.0),
-        },
+        Node::transform(
+            bad,
+            pncad::document::Step::Rigid {
+                translation: [len(0.01), len(0.0), len(0.0)],
+                axis: [scl(0.0), scl(0.0), scl(1.0)],
+                angle: ang(0.0),
+            },
+        ),
         tol,
     );
 
@@ -675,32 +687,35 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     let rows = session.tree_rows();
     assert!(tree::has_faults(&rows), "the document does not build");
 
-    let failed = rows
-        .iter()
-        .find(|row| row.id == bad)
-        .expect("the failing node has a row");
+    let failed = common::row_of(&rows, bad);
     let expected = match evaluation.result(bad).expect("the node has a result") {
-        pncad::document::NodeResult::Failed(error) => error.to_string(),
+        pncad::document::NodeResult::Failed(error) => {
+            error.spoken(session.committed_doc(), evaluation)
+        }
         other => panic!("expected a failure, got {other:?}"),
     };
     assert_eq!(
         failed.status,
         viewer::tree::RowStatus::Failed {
-            message: expected.clone()
+            message: expected.clone(),
+            carried: Vec::new(),
         },
         "the badge is NodeError's own Display, not a sentence the panel wrote"
     );
 
-    let poisoned = rows
-        .iter()
-        .find(|row| row.id == downstream)
-        .expect("the downstream node has a row");
+    let poisoned = common::row_of(&rows, downstream);
     match &poisoned.status {
         viewer::tree::RowStatus::Poisoned { through, message } => {
             assert_eq!(*through, bad, "the poison names the failed ancestor");
             assert_eq!(
                 message.as_deref(),
-                Some(viewer::tree::downstream_wording(bad).as_str()),
+                Some(
+                    format!(
+                        "upstream failure at Extrude {} — that row carries the cause",
+                        test_utils::refusal::tag(bad.0.digest())
+                    )
+                    .as_str()
+                ),
                 "a poisoned row points at the ancestor's row and recites nothing"
             );
         }
@@ -712,9 +727,10 @@ fn failed_and_poisoned_badges_carry_the_payloads_own_text_and_nothing_else() {
     for row in &rows {
         if let Some(message) = row.status.message() {
             let allowed = match &row.status {
-                viewer::tree::RowStatus::Poisoned { through, .. } => {
-                    viewer::tree::downstream_wording(*through)
-                }
+                viewer::tree::RowStatus::Poisoned { through, .. } => format!(
+                    "upstream failure at {} — that row carries the cause",
+                    session.doc().spoken(*through)
+                ),
                 _ => expected.clone(),
             };
             assert_eq!(
@@ -932,7 +948,11 @@ fn the_panel_models_are_pure_functions_of_the_document_and_the_evaluation() {
         assert_eq!(session.slot_rows(), session.slot_rows());
         assert_eq!(
             session.tree_rows(),
-            tree::rows(session.doc(), session.evaluation()),
+            tree::rows(
+                session.doc(),
+                session.evaluation(),
+                &viewer::parts::PartFiles::default()
+            ),
             "the session's tree is the free function's"
         );
         assert_eq!(

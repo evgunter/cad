@@ -1,7 +1,7 @@
 //! **The void door's `Transfers` posture, stage by stage**, on the
 //! two operands whose one surface carries a same-surface LATITUDE
-//! seam: a drum whose top cap has a collinear profile vertex (one
-//! plane in four faces, a latitude ring between them) and a sphere
+//! seam: a drum whose top cap carries a latitude ring (one plane in
+//! three faces, the ring between them) and a sphere
 //! authored as two cocircular arcs (one sphere in four faces, a seam
 //! at `v = π/4`). Each row pins the stage at which the pipeline's
 //! output first goes wrong. The drum used to go wrong INSIDE
@@ -30,6 +30,7 @@ use super::common::latitude_seam::{
 };
 use super::common::pcurve_rows::rows;
 use super::shell7_common::*;
+use sweep::test_support::finished;
 
 /// **Drum, stage by stage.** The door's cavity re-certifies edge for
 /// edge, and so does its `revert()`: the two half-circles of the
@@ -37,7 +38,7 @@ use super::shell7_common::*;
 /// non-zero `v` channel, and the two edges that refused `ChartResidual`
 /// at sample 1 while the reversal left them unmirrored — carry the
 /// mirrored image now, so the void door, which re-runs the same meter
-/// on the graft, takes the cavity. The plane edges are eight: the six
+/// on the graft, takes the cavity. The plane edges are four: the two
 /// radial lines and the ring's two halves.
 #[test]
 fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
@@ -48,7 +49,7 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
         graft_recertify_failures(&cavity).is_empty(),
         "the cavity re-certifies edge for edge"
     );
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     let failures = graft_recertify_failures(&reverted);
     assert!(
         failures.is_empty(),
@@ -69,13 +70,13 @@ fn drum_reverted_cavity_re_certifies_and_the_void_door_takes_it() {
     assert_eq!(circles, 2, "the two half-circles of the latitude ring");
     assert_eq!(
         on_plane.len(),
-        8,
-        "six radial lines and the ring's two halves"
+        4,
+        "two radial lines and the ring's two halves"
     );
     // The same insertion `shell` runs, by hand: taken.
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
-    topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted), tol())
+    topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted))
         .expect("insert_voids takes the reverted cavity");
     assert_eq!(out.shells().count(), 2, "outer + cavity");
 }
@@ -95,7 +96,7 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
     let t = 0.05;
     let body = two_arc_sphere();
     let cavity = door_cavity(&body, t);
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     assert_eq!(
         topo::validate_geometric(&reverted, tol()),
         Err(vec![topo::ValidationError::NegativeVolume {
@@ -109,7 +110,7 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
     );
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
-    topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted), tol())
+    topo::insert_voids(&mut out, &solids, cavity, &void_evidence(&reverted))
         .expect("the sphere's graft is taken");
     assert_eq!(
         topo::validate_geometric(&out, tol()),
@@ -131,7 +132,7 @@ fn sphere_reverted_cavity_re_certifies_and_the_grafted_loop_is_continuous() {
 fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
     let body = collinear_cap_drum();
     let cavity = door_cavity(&body, 0.05);
-    let reverted = cavity.revert().expect("revert");
+    let reverted = cavity.revert();
     let band = geom_core::Band::linear(tol()).expect("band");
     let mut circles = 0;
     for (ek, e) in reverted.edges() {
@@ -154,7 +155,7 @@ fn drum_reverted_plane_circle_image_is_the_one_a_fresh_derivation_gives() {
             description: geom_brep::EdgeDescriptionSpec::Chart {
                 surface: c.surface,
                 image,
-                seam: c.seam,
+                wrap: c.wrap,
                 declared: None,
             },
             carrier: curve.carrier().clone(),
@@ -207,7 +208,7 @@ fn sphere_grafted_body_is_tier_3_valid_before_and_after_the_closing_mint_which_s
     let mut out = body.clone();
     let solids: Vec<_> = body.solids().map(|(k, _)| k).collect();
     let evidence = void_evidence(&cavity);
-    topo::insert_voids(&mut out, &solids, cavity, &evidence, tol()).expect("the graft is taken");
+    topo::insert_voids(&mut out, &solids, cavity, &evidence).expect("the graft is taken");
     assert_eq!(
         topo::validate_geometric(&out, tol()),
         Ok(()),
@@ -227,7 +228,8 @@ fn sphere_grafted_body_is_tier_3_valid_before_and_after_the_closing_mint_which_s
         props.volume,
         props.volume_pad
     );
-    let shelled = topo::shell(&body, t, tol()).expect("shell runs the closing mint");
+    let shelled = topo::shell(&finished("the operand", body.clone(), tol()), t, tol())
+        .expect("shell runs the closing mint");
     assert!(!rows(&out).is_empty(), "the sphere's faces carry rows");
     assert_eq!(
         rows(&shelled.body),

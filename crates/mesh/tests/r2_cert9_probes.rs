@@ -12,6 +12,7 @@ use mesh::Mesh;
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::test_support::{corners, prism_on};
 use sweep::{Extrusion, extrude};
 
@@ -57,7 +58,14 @@ fn try_mesh_of(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64, delta: f64)
             return None;
         }
     };
-    let body = match extrude(&vp, Extrusion::Distance(h), Tol::witness()) {
+    let body = match extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: h,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    ) {
         Ok(x) => x.body,
         Err(e) => {
             println!("    REFUSED at extrude: {e:?}");

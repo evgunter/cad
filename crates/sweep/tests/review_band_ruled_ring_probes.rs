@@ -1,9 +1,10 @@
 //! Review probes for the ring-cycle ruled cut-off (PR 3243).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tol};
+use geom_core::{Point2, Sign, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
-use sweep::blend::fillet_edges;
+use sweep::ExtrudeSide;
+use sweep::blend::{BlendError, Convexity, fillet_edges};
 use sweep::test_support::rod_creases;
 use sweep::{Extrusion, extrude};
 use topo::{Body, mass_properties, validate_geometric};
@@ -35,6 +36,11 @@ const XS: f64 = 0.8; // slot end
 /// reflex, so the cylinder-plane creases there are CONVEX, and they end
 /// in the caps' rings.
 fn keyhole_block() -> Body<f64> {
+    keyhole_block_with(Vec::new())
+}
+
+/// [`keyhole_block`] with further profile loops (bores) through it.
+fn keyhole_block_with(extra: Vec<ProfileLoop<f64>>) -> Body<f64> {
     let xs0 = (BR * BR - W * W).sqrt();
     let sweep = core::f64::consts::TAU - 2.0 * W.atan2(xs0);
     let ring = bulge_loop(vec![
@@ -43,12 +49,21 @@ fn keyhole_block() -> Body<f64> {
         (Point2::new(XS, -W), 0.0),
         (Point2::new(XS, W), 0.0),
     ]);
-    let p = Profile::new(SketchPlane::xy(), vec![square(1.0), ring])
+    let mut loops = vec![square(1.0), ring];
+    loops.extend(extra);
+    let p = Profile::new(SketchPlane::xy(), loops)
         .validate(tol())
         .expect("the keyholed profile validates");
-    extrude(&p, Extrusion::Distance(1.0), tol())
-        .expect("the keyholed profile extrudes")
-        .body
+    extrude(
+        &p,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol(),
+    )
+    .expect("the keyholed profile extrudes")
+    .body
 }
 
 /// The area the convex band removes at one keyhole junction, per unit
@@ -89,7 +104,7 @@ fn keyhole_cut(r: f64) -> f64 {
 /// so the band REMOVES `A` per unit length at each, `ΔV = −2·A·L`.
 #[test]
 fn a_keyhole_fillets_its_convex_ring_creases_at_the_closed_form() {
-    let body = keyhole_block();
+    let body = sweep::test_support::finished("body", keyhole_block(), tol());
     validate_geometric(&body, tol()).expect("the keyholed block is tier-3 valid");
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the two disc/slot junctions");
@@ -101,5 +116,158 @@ fn a_keyhole_fillets_its_convex_ring_creases_at_the_closed_form() {
         let dv = volume(&out.body) - vol0;
         let want = -2.0 * keyhole_cut(r);
         assert!((dv - want).abs() < 1e-12, "r {r}: ΔV {dv} vs {want}");
+    }
+}
+
+/// **The disc's curvature does not limit a keyhole crease's radius**:
+/// the ball rolls in the material OUTSIDE the hole's wall, its centre at
+/// `BR + r` from the axis, where the wall turns away from it. At
+/// `r = BR` and past it predicate 1 passes, the foot on the slot wall
+/// (`x = √((BR + r)² − (W + r)²)`) lies short of the slot's end `XS`,
+/// and the cap meter reads the plate's side `x = 1` — which runs
+/// through the ball's section and out of it below, clear of the sliver
+/// all the way — point by point, so both creases carve at the closed
+/// form.
+#[test]
+fn a_keyhole_crease_at_the_discs_radius_carves_at_the_closed_form() {
+    let body = sweep::test_support::finished("body", keyhole_block(), tol());
+    let creases = rod_creases(&body);
+    let vol0 = volume(&body);
+    for r in [BR, 1.1 * BR] {
+        let foot = ((BR + r).powi(2) - (W + r).powi(2)).sqrt();
+        assert!(
+            foot < XS,
+            "r {r}: the ball's foot {foot} lies on the slot wall"
+        );
+        let out = fillet_edges(&body, &creases, r, tol())
+            .unwrap_or_else(|e| panic!("r {r}: both convex ring creases carve, got {e}"));
+        validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("r {r}: tier 3, {e:?}"));
+        let dv = volume(&out.body) - vol0;
+        let want = -2.0 * keyhole_cut(r);
+        assert!((dv - want).abs() < 1e-12, "r {r}: ΔV {dv} vs {want}");
+    }
+}
+
+/// A round profile loop: two semicircles about `(x, y)`.
+fn bore(x: f64, y: f64, a: f64) -> ProfileLoop<f64> {
+    bulge_loop(vec![
+        (Point2::new(x + a, y), 1.0),
+        (Point2::new(x - a, y), 1.0),
+    ])
+}
+
+/// **A bore in the sliver a keyhole crease's cut-off removes refuses**,
+/// where the cut-off runs in the cap's keyhole RING and the bore is a
+/// second ring of the same cap. At r = 0.1 the upper junction's ball
+/// centre is `c = (√0.27, 0.3)` and its old vertex `V = (√0.21, 0.2)`,
+/// so the sliver lies within `0.1 ≤ ‖p − c‖ ≤ ‖V − c‖ ≈ 0.1173`; the
+/// bore at `(0.4623, 0.204)` spans `‖p − c‖ ∈ [0.1108, 0.1128]`, wholly
+/// in the material the band removes.
+#[test]
+fn a_bore_in_a_keyhole_creases_removed_sliver_refuses_ring_clearance() {
+    let body = keyhole_block_with(vec![bore(0.4623, 0.204, 0.001)]);
+    validate_geometric(&body, tol()).expect("the bored keyhole block is tier-3 valid");
+    let creases = rod_creases(&body);
+    assert_eq!(creases.len(), 2, "the two disc/slot junctions");
+    match fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &creases,
+        0.1,
+        tol(),
+    )
+    .map_err(|e| {
+        let text = e.error.to_string();
+        (e.error, text)
+    }) {
+        Err((
+            BlendError::RingClearance {
+                face,
+                chain,
+                margin,
+                bounded: false,
+            },
+            text,
+        )) => {
+            assert_eq!(
+                chain,
+                Convexity::Convex,
+                "a cap meter refuses only beside a convex crease"
+            );
+            assert!(
+                text.contains(
+                    "lies in the part of a face the blend cuts away with the material it removes"
+                ),
+                "the sentence says the edge is cut away with the sliver: {text}"
+            );
+            assert_eq!(margin.sign, Sign::Negative, "definite, got {margin}");
+            let f = body
+                .get_face(face)
+                .expect("the refusal names a source face");
+            assert_eq!(
+                f.rings.len(),
+                2,
+                "the face named is a cap: keyhole and bore"
+            );
+        }
+        Err((other, _)) => panic!("expected RingClearance at the cap, got {other:?}"),
+        Ok(_) => {
+            panic!("the carve returned a body keeping the bore on a cap that no longer covers it")
+        }
+    }
+}
+
+/// **A bore clear of both slivers carves at the keyhole's closed form**,
+/// carried through untouched: `ΔV = −2·A·L` as without it.
+#[test]
+fn a_bore_clear_of_a_keyhole_creases_sliver_carves_at_the_closed_form() {
+    let body = keyhole_block_with(vec![bore(-0.75, 0.75, 0.1)]);
+    validate_geometric(&body, tol()).expect("the bored keyhole block is tier-3 valid");
+    let creases = rod_creases(&body);
+    let vol0 = volume(&body);
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&body, tol()),
+        &creases,
+        0.1,
+        tol(),
+    )
+    .unwrap_or_else(|e| panic!("a clear bore carves, got {e}"));
+    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier 3, {e:?}"));
+    let dv = volume(&out.body) - vol0;
+    let want = -2.0 * keyhole_cut(0.1);
+    assert!((dv - want).abs() < 1e-12, "ΔV {dv} vs {want}");
+}
+
+/// **Past the disc's radius the first refusal is the shared support's
+/// screen, not the cap meter**: the creases carve at the closed form up
+/// to `r = 0.5975`, and at `r = 0.6` the disc wall both creases end on
+/// refuses `FaceClearanceUncertified`, the screen that cannot tell the
+/// two setbacks run apart along it (the rocker's wall at the same
+/// radius, `demos/tour/src/rocker.rs`). The cap meter refuses nowhere
+/// on the way.
+#[test]
+fn past_the_discs_radius_a_keyhole_crease_first_meets_the_support_screen() {
+    let body = sweep::test_support::finished("body", keyhole_block(), tol());
+    let creases = rod_creases(&body);
+    let vol0 = volume(&body);
+    let r = 0.5975;
+    let out = fillet_edges(&body, &creases, r, tol())
+        .unwrap_or_else(|e| panic!("r {r}: both convex ring creases carve, got {e}"));
+    let dv = volume(&out.body) - vol0;
+    let want = -2.0 * keyhole_cut(r);
+    assert!((dv - want).abs() < 1e-12, "r {r}: ΔV {dv} vs {want}");
+    match fillet_edges(&body, &creases, 0.6, tol()).map_err(|e| e.error) {
+        Err(BlendError::FaceClearanceUncertified { face, .. }) => {
+            let f = body
+                .get_face(face)
+                .expect("the refusal names a source face");
+            assert!(
+                matches!(
+                    body.get_surface(f.surface),
+                    Some(geom::Surface::Cylinder { radius, .. }) if (*radius - BR).abs() < 1e-12
+                ),
+                "r 0.6: the face named is the disc's wall"
+            );
+        }
+        other => panic!("r 0.6: expected the support screen's refusal, got {other:?}"),
     }
 }

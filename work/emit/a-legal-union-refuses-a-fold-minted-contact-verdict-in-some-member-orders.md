@@ -2,10 +2,12 @@
 id: a-legal-union-refuses-a-fold-minted-contact-verdict-in-some-member-orders
 kind: issue
 title: A legal three-member union refuses as a fold-minted contact verdict (UNION_FOLD_CONTACT_VERDICT) in some member orders and fuses in others
-status: open
+status: closed
 opened: 2026-09-25
 priority: P0
-cost: D
+cost: M
+branch: emit/fold-contact-verdict
+closed: 2026-09-29
 ---
 
 
@@ -64,3 +66,49 @@ accumulation that already holds `s`.
 refusal guards, and the pairwise pre-pass it trusts, are EMIT's
 `union-contact-is-judged-pairwise-before-the-fold` (#3213), so it is
 filed here.
+
+## Root cause (EMIT, 2026-09-29): neither pairwise nor the union's
+
+Neither of the two readings above holds. At `b4e425801a` (the first
+parent of #3377) every refusing order's fold step refused
+`UndeclaredCoincidence` on a pair of faces that are **both operand A**:
+two same-oriented coplanar faces inside the accumulation, e.g.
+`[s,a,big]` step 1, `[(A, 3v1), (A, 4v3)]`. No member pair has such a
+contact. The step that had just joined `a` to an accumulation holding
+`s` glued nothing. The declared y-walls overlap in area, not flush, so
+the step left the two faces as separate rows, and the next boolean's
+census refused them. That is
+`area-overlap-contact-admitted-but-unmerged-refuses-at-the-next-step`,
+which CONTACT-8 carried. `fold_step_refusal` then reported it as a
+fold-minted contact verdict.
+
+CONTACT-8 (#3377) fixed it at the merge: `merge_coplanar_faces` now
+prunes the dangling seam and glues the group. A first-parent bisect
+from #3143's merge to `f207b7e118` puts the change at #3377's merge
+`e056f1affb`. On main no order of any of the three fixtures refuses
+this way. The rows are
+`wire_legal_union_refusals::no_order_of_…_refuses_a_fold_contact`, which
+cover every order of all three fixtures. Each one is red at `b4e425801a`
+on this refusal.
+
+## Closed — fixed by #3377, pinned by PR 3476
+
+The refusal was not a contact that the pairwise judgement missed. The
+step that joined `a` to an accumulation holding `s` left the declared
+y-walls unglued: they overlap in area rather than meeting flush. The
+next boolean's census then refused that same-operand pair, and
+`fold_step_refusal` reported it as fold-minted.
+
+CONTACT-8 (#3377, `merge_coplanar_faces`) glues the group. Three rows in
+`wire_legal_union_refusals.rs` now pin every member order of the three
+fixtures against an outcome table:
+
+- the three-member fixture;
+- the four-member fixture;
+- R1's split fixture plus `big`.
+
+All three rows are red at `b4e425801a`.
+
+The `SeamVertexParentage` orders remain. They belong to
+`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`
+and `two-emitter-refusals-a-legal-declared-union-reaches`.

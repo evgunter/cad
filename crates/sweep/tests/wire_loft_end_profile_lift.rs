@@ -122,7 +122,7 @@ mod interval {
     use sweep::{LoftError, Section, SkinError, loft_body};
 
     fn bits(p: Point3<Interval>) -> Bits {
-        for c in [p.x, p.y, p.z] {
+        for c in p.to_array() {
             assert!(
                 c.lo().to_bits() == c.hi().to_bits(),
                 "a lifted end point is a point enclosure, got [{}, {}]",

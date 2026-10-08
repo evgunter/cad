@@ -15,7 +15,7 @@ pr: 3265
 ## What
 
 CURVED-TORUS PR-2 gave the circle rung a torus arm, so
-`reduce.rs`'s `bool_circle_curved_clearance` now DECIDES on torus
+`reduce.rs`'s `bool_conic_curved_clearance` now DECIDES on torus
 pairs instead of taking the frontier on a `None`. On a COINCIDENT
 pair it decides definitely-**Negative**, and the declared-cover rung
 behind it — which is reached only on a `Zero` — stays out of reach.
@@ -39,7 +39,7 @@ line below the `None` door it used to take — **and which typed
 refusal comes out is eps-dependent**: at `DEFAULT_EPS = 1e-9` and at
 `1e-12` the margin clears the escalation threshold and the rung
 refuses `CurvedPierceUnsupported`; at `1e-6` it sits inside the
-ambiguity band and `bool_circle_curved_clearance` escalates
+ambiguity band and `bool_conic_curved_clearance` escalates
 (`Indeterminate { margin: -4.56e-6, band: { zero: 1e-6, escalate:
 1e-5 } }`). A refusal whose VARIANT moves with the run's eps is a
 second thing wrong with the coincident case, not a separate one: both

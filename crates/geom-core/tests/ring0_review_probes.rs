@@ -25,6 +25,7 @@ test_utils::gated_to![
 
 use geom_core::Bounds;
 use geom_core::Interval;
+use geom_core::interval::certification::Certification;
 use interval_transcendentals::{DInterval, Decoration};
 
 const INF: f64 = f64::INFINITY;
@@ -145,7 +146,7 @@ fn overflow_agrees_on_every_ring_op_including_powi() {
     assert_eq!(d.decoration(), Decoration::Dac);
     // An overflow INSIDE a `powi` chain pairs a zero endpoint with an
     // infinite one at a multiply. A corner reduction that propagated
-    // the resulting NaN would poison here; the backend's `pow_pos`
+    // the resulting NaN would refuse here; the backend's `pow_pos`
     // never forms the product, and the power is the honest unbounded
     // bracket.
     let r = ri(-f64::MAX, -0.0).powi(3);

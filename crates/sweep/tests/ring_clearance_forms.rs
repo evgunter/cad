@@ -62,8 +62,8 @@ fn carve(name: &str, body: &Body<f64>, rims: &[(f64, f64)], r: f64) -> (f64, Bod
         arcs.extend(a);
     }
     let before = mass_properties(body, tol()).unwrap();
-    let out =
-        fillet_edges(body, &arcs, r, tol()).unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
+    let out = fillet_edges(&sweep::test_support::at_rest(body, tol()), &arcs, r, tol())
+        .unwrap_or_else(|e| panic!("{name} carves, got {e:?}"));
     validate_geometric(&out.body, tol())
         .unwrap_or_else(|e| panic!("{name} is tier-3 valid, got {e:?}"));
     let after = mass_properties(&out.body, tol()).unwrap();
@@ -187,7 +187,14 @@ fn the_bosss_two_rims_refuse_together_and_compose_sequentially() {
         let body = repaired(up);
         let mut both = rim_arcs_at(&body, 0.5, 1.0);
         both.extend(rim_arcs_at(&body, 1.0, 1.0));
-        match fillet_edges(&body, &both, 0.1, tol()).map_err(|e| e.error) {
+        match fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &both,
+            0.1,
+            tol(),
+        )
+        .map_err(|e| e.error)
+        {
             Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
                 detail.contains("SEQUENTIAL calls"),
                 "{name}: the mixed ladder/annulus arm and its recourse: {detail}"
@@ -234,7 +241,11 @@ fn refusal_reading(err: BlendError) -> (String, f64) {
     assert_eq!(margin.sign, Sign::Negative, "a definite refusal");
     (
         margin.predicate.to_string(),
-        margin.value().expect("a definite reading"),
+        margin
+            .reading
+            .diagnostic_f64_for_error_text()
+            .value()
+            .expect("a definite reading"),
     )
 }
 
@@ -276,9 +287,14 @@ fn a_ladder_boundary_nested_inside_its_trim_circle_refuses() {
     let body = narrowed(0.55);
     let arcs = rim_arcs_at(&body, 0.5, 1.0);
     let (predicate, read) = refusal_reading(
-        fillet_edges(&body, &arcs, 0.1, tol())
-            .expect_err("a boundary nested inside the trim circle refuses")
-            .error,
+        fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &arcs,
+            0.1,
+            tol(),
+        )
+        .expect_err("a boundary nested inside the trim circle refuses")
+        .error,
     );
     assert_eq!(
         predicate, "fillet3_face_clearance",
@@ -299,7 +315,13 @@ fn a_ladder_boundary_nested_inside_its_trim_circle_refuses() {
         0.6 - ((0.5 + 0.1f64).powi(2) - 0.01).sqrt() > 0.008,
         "and the derived margin there is positive"
     );
-    let out = fillet_edges(&wide, &arcs, 0.1, tol()).expect("the nested trim circle carves");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&wide, tol()),
+        &arcs,
+        0.1,
+        tol(),
+    )
+    .expect("the nested trim circle carves");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
 }
 
@@ -332,9 +354,14 @@ fn a_hostless_annulus_ring_in_the_excised_strip_refuses() {
     let body = domed(0.92);
     let arcs = rim_arcs_at(&body, 1.0, 1.0);
     let (predicate, read) = refusal_reading(
-        fillet_edges(&body, &arcs, 0.1, tol())
-            .expect_err("a ring in the excised strip refuses")
-            .error,
+        fillet_edges(
+            &sweep::test_support::at_rest(&body, tol()),
+            &arcs,
+            0.1,
+            tol(),
+        )
+        .expect_err("a ring in the excised strip refuses")
+        .error,
     );
     assert_eq!(
         predicate, "fillet3_face_clearance",
@@ -353,7 +380,12 @@ fn a_hostless_annulus_ring_in_the_excised_strip_refuses() {
     // The other side of the same zero.
     let wide = domed(0.85);
     let arcs = rim_arcs_at(&wide, 1.0, 1.0);
-    let out = fillet_edges(&wide, &arcs, 0.1, tol())
-        .expect("a ring the trim circle contains carves through");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&wide, tol()),
+        &arcs,
+        0.1,
+        tol(),
+    )
+    .expect("a ring the trim circle contains carves through");
     validate_geometric(&out.body, tol()).expect("tier-3 valid");
 }

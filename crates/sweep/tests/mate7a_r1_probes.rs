@@ -10,12 +10,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::{Point3, Tol, Vec3};
-use sweep::test_support::tube_frame;
+use sweep::test_support::{finished, tube_frame};
 use sweep::{TubeWindow, tube_along_arc};
 use topo::query::{self, SurfaceKindSet};
-use topo::{Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration};
+use topo::{
+    AtRestBody, Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration,
+};
 
 const STEM_TUBE: f64 = 0.060;
 const ARCH_TUBE: f64 = 0.052;
@@ -30,8 +32,8 @@ fn deg(d: f64) -> f64 {
 /// numbers: root at the origin heading +z (in the xz-plane), left turn
 /// of 22 degrees on a 5 m ring — so the ring centre is (-5, 0, 0), the
 /// start radial +x, the axis -y (`tube_arc`'s left-turn sense).
-pub(crate) fn stem() -> Body<f64> {
-    tube_along_arc(
+pub(crate) fn stem() -> AtRestBody<f64> {
+    let stem = tube_along_arc(
         tube_frame(
             Point3::new(-STEM_RING, 0.0, 0.0),
             Vec3::new(0.0, -1.0, 0.0),
@@ -47,7 +49,8 @@ pub(crate) fn stem() -> Body<f64> {
         Tol::witness(),
     )
     .expect("stem builds")
-    .body
+    .body;
+    finished("the stem", stem, Tol::witness())
 }
 
 /// The fork point (the stem's end / the arch's start), its tangent,
@@ -86,9 +89,9 @@ pub(crate) fn arch_frame() -> ArchFrame {
 
 /// The lily's arch, continuing G1 from the stem's end: 170 degrees on
 /// a 1.1 m ring, tube 0.052.
-pub(crate) fn arch() -> Body<f64> {
+pub(crate) fn arch() -> AtRestBody<f64> {
     let f = arch_frame();
-    tube_along_arc(
+    let arch = tube_along_arc(
         tube_frame(
             f.center,
             Vec3::new(0.0, -1.0, 0.0),
@@ -104,7 +107,8 @@ pub(crate) fn arch() -> Body<f64> {
         Tol::witness(),
     )
     .expect("arch builds")
-    .body
+    .body;
+    finished("the arch", arch, Tol::witness())
 }
 
 fn plane_faces(body: &Body<f64>) -> Vec<(FaceKey, Point3<f64>, Vec3<f64>)> {
@@ -354,16 +358,10 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
 /// the PR's own G1 chain fixture, counting definite verdicts per
 /// predicate.
 ///
-/// **RE-MEASURED at the fix pass, and the number moved: 34 → 53.** This
-/// probe was written against the pre-fix routing, which reached the
-/// material arm with no first-order screen in front of it — the MAJOR
-/// defect. Importing the screen that arm is only defined behind costs
-/// one `classify_dihedral` per station, and that call meters two rows
-/// (`dihedral_arm`, `dihedral_wedge`), so nine stations add 18. The
-/// screen is what makes the answer TRUE; 18 rows is what truth costs
-/// here. No baseline is a target to preserve — the number moved and the
-/// question is whether the new behaviour is right, not how to get the
-/// old number back.
+/// The first-order screen costs one `classify_dihedral` per station,
+/// two rows each (`dihedral_arm`, `dihedral_wedge`). The departure read
+/// that tells a seam from a nested touch costs the rim comparison of
+/// each face's boundary arcs and one traversal reading per face.
 ///
 /// The whole current price:
 ///
@@ -371,9 +369,11 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
 /// - **27 material arm** — 9 × (`material_wedge_side`,
 ///   `tangent_second_order`, `material_cusp_side`);
 /// - **6 rim identification** — `rim_circle_radius` ×3,
-///   `rim_circle_center` ×2, `rim_circle_axis_parallel` ×1 (the fix
-///   pass put the two LENGTH data ahead of the angular one, so radius
-///   now leads and short-circuits more pairs);
+///   `rim_circle_center` ×2, `rim_circle_axis_parallel` ×1 (the two
+///   LENGTH data lead, so radius short-circuits most pairs);
+/// - **16 departure read** — the rim comparison of each face's boundary
+///   arcs (`rim_circle_radius` ×8, `rim_circle_center` ×4,
+///   `rim_circle_axis_parallel` ×2) and `seam_rim_traversal` ×2;
 /// - **2 conformal screen** — `carrier_torus_axis_parallel`,
 ///   `carrier_torus_center`.
 ///
@@ -387,7 +387,7 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
 /// meets them, so the same claim on the kissing fixture counts
 /// differently. That is why the PR body reports the price per fixture.
 #[test]
-fn p2_the_g1_chain_price_is_the_measured_53_rows() {
+fn p2_the_g1_chain_price_is_the_measured_69_rows() {
     // The PR's fixtures, verbatim from `mate7a_torus_rest.rs`.
     let seg_a = stem();
     let seg_b = {
@@ -400,7 +400,7 @@ fn p2_the_g1_chain_price_is_the_measured_53_rows() {
         let tangent = Vec3::new(-turn.sin(), 0.0, turn.cos());
         let inward = Vec3::new(-tangent.z, 0.0, tangent.x);
         let center = end + inward * 1.1;
-        tube_along_arc(
+        let seg_b = tube_along_arc(
             tube_frame(
                 center,
                 Vec3::new(0.0, -1.0, 0.0),
@@ -416,7 +416,8 @@ fn p2_the_g1_chain_price_is_the_measured_53_rows() {
             Tol::witness(),
         )
         .expect("segment B builds")
-        .body
+        .body;
+        finished("segment B", seg_b, Tol::witness())
     };
     let mut decls = BooleanDeclarations::none();
     for &fa in &torus_faces(&seg_a) {
@@ -430,11 +431,13 @@ fn p2_the_g1_chain_price_is_the_measured_53_rows() {
     let err = topo::union_with(&seg_a, &seg_b, &decls, Tol::witness())
         .expect_err("the chain refuses at the routing");
     let log = bracket.finish().verdicts;
-    // The variant SPLIT after this probe was written (fix-pass MIN-6):
-    // the pi arm is built, so the seam case no longer borrows a name
-    // that calls its arm unbuilt. Same claim, current spelling.
+    // A `Tangent` claim on the seam is contradicted by the rim routing.
     assert!(
-        matches!(&err, BooleanError::RimSeamNotDeclarable { .. }),
+        matches!(
+            &err,
+            BooleanError::ContactContradicted { margin, .. }
+                if margin.predicate == Some("contact_tangent_rim_seam")
+        ),
         "the chain's rim is the wedge-π seam: {err:?}"
     );
     let count = |name: &str| log.iter().filter(|v| v.predicate == name).count();
@@ -452,10 +455,15 @@ fn p2_the_g1_chain_price_is_the_measured_53_rows() {
         ("tangent_second_order", n),
         ("material_cusp_side", n),
         // Fixture-specific: how many boundary circles this face pair
-        // carries, and the order the scan meets them.
-        ("rim_circle_radius", 3),
-        ("rim_circle_center", 2),
-        ("rim_circle_axis_parallel", 1),
+        // carries, and the order the scan meets them — the rim scan
+        // (3, 2, 1), then the departure read, which compares each
+        // face's boundary arcs with the rim (8, 4, 2).
+        ("rim_circle_radius", 11),
+        ("rim_circle_center", 6),
+        ("rim_circle_axis_parallel", 3),
+        // One traversal reading per face: the wedge-π rim's two faces
+        // leave it on opposite sides, so the steer names the seam.
+        ("seam_rim_traversal", 2),
         ("carrier_torus_axis_parallel", 1),
         ("carrier_torus_center", 1),
     ] {
@@ -552,6 +560,7 @@ fn p4_a_definitely_different_rim_radius_keeps_the_class_refusal() {
     )
     .expect("segment B' builds")
     .body;
+    let seg_b = finished("segment B'", seg_b, Tol::witness());
     let mut decls = BooleanDeclarations::none();
     for &fa in &torus_faces(&seg_a) {
         for &fb in &torus_faces(&seg_b) {
@@ -566,7 +575,7 @@ fn p4_a_definitely_different_rim_radius_keeps_the_class_refusal() {
         matches!(
             err,
             BooleanError::UnsupportedDeclarationClass {
-                class: ContactClass::Tangent
+                class: topo::BooleanCoincidence::TANGENT
             }
         ),
         "different-radius terminal circles are not one rim: {err:?}"

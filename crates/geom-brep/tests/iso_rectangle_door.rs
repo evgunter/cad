@@ -4,12 +4,14 @@
 //! wanting a volume.
 //!
 //! Every row is built as key-free `LoopEdge`s and run through the door
-//! AND through `curved_face`, so the rows state where the two agree
-//! (a rectangle passes both, a notch refuses both by `props_rim_level`,
-//! an oblique sphere section refuses both by the same incidence name)
-//! and the rimless lune, a chart rectangle the door admits on the
-//! shape alone while the flux lane measures it at the width its loop
-//! bounds — two premises, one face.
+//! AND through `curved_face`, so the rows state where the two agree (a
+//! rectangle passes both) and where they part: a notched cylinder wall,
+//! which the door refuses by `props_rim_level` while the cylinder's
+//! chart Green form measures it; an oblique sphere section, which the
+//! door refuses on incidence and the flux lane measures by
+//! Gauss–Bonnet; and the rimless lune, a chart rectangle the door
+//! admits on the shape alone while the flux lane measures it at the
+//! width its loop bounds — two premises, one face.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::point::{p3, v3};
@@ -70,10 +72,12 @@ fn great(u: f64, v0: f64, v1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 }
 
 /// A cylinder rectangle passes the door and measures; the U-shaped
-/// keyway (a notch cut into the top rim) refuses at the door AND at the
-/// flux lane, both by `props_rim_level` — one predicate, two callers.
+/// keyway (a notch cut into the top rim) refuses at the door by
+/// `props_rim_level`, and the flux lane measures it: its chart area is
+/// the `1.5 × 1` rectangle less the `0.5 × 0.4` notch, on the unit
+/// radius about the origin, so area and flux are both `1.3`.
 #[test]
-fn a_keyway_refuses_at_the_door_by_the_same_name_the_flux_lane_uses() {
+fn a_keyway_refuses_at_the_door_and_measures_in_the_flux_lane() {
     let rect = vec![
         rim(0.0, 0.0, 1.5, 0, 1),
         mer(1.5, 0.0, 1.0, 1, 2),
@@ -96,10 +100,9 @@ fn a_keyway_refuses_at_the_door_by_the_same_name_the_flux_lane_uses() {
         what: "props_rim_level",
     });
     assert_eq!(require_iso_rectangle(&cylinder(), &keyway, band()), want);
-    assert_eq!(
-        curved_face(&cylinder(), &keyway, true, band()).map(|_| ()),
-        want
-    );
+    let c = curved_face(&cylinder(), &keyway, true, band()).expect("the keyway measures");
+    assert!((c.area - 1.3).abs() < 1e-15, "area {}", c.area);
+    assert!((c.flux - 1.3).abs() < 1e-15, "flux {}", c.flux);
 }
 
 /// **Two homes, one lune.** A lune between two great circles a
@@ -132,9 +135,13 @@ fn a_rimless_lune_passes_the_door_and_measures() {
 /// nor a great circle. The door classifies it a rim (`n·â` definite)
 /// and refuses its incidence: the circle's axis is not the sphere's.
 /// This is the `walk::iso_side_starts` qualification's face, refused
-/// on rim structure before any walk could collapse it.
+/// on rim structure before any walk could collapse it. The flux lane
+/// measures the same face — the cap the section bounds, split into two
+/// arcs — without a chart, at the cap's area `2πR·h` (`h = R − d`) and
+/// its flux `R·Area + c·A⃗`; with the centre at the origin the flux is
+/// `R·Area`.
 #[test]
-fn an_oblique_sphere_section_is_refused_on_rim_incidence() {
+fn an_oblique_sphere_section_is_refused_by_the_door_and_measured_by_the_flux_lane() {
     let (a, d) = (0.6_f64, 0.3_f64);
     let r = (1.0 - d * d).sqrt();
     let n = v3(a.sin(), 0.0, a.cos());
@@ -152,17 +159,41 @@ fn an_oblique_sphere_section_is_refused_on_rim_incidence() {
             e,
         )
     };
-    // Two arcs of the one oblique circle closing a loop on their own:
-    // the door refuses on the FIRST edge's incidence, so the loop's
-    // closure is not what is under test here.
-    let lens = vec![section(0.0, 3.0, 0, 1), section(3.0, 6.0, 1, 0)];
-    let want = Err(PropsError::NotIsoRectangle {
-        what: "props_rim_axis_parallel",
-    });
-    assert_eq!(require_iso_rectangle(&sphere(), &lens, band()), want);
+    let tau = core::f64::consts::TAU;
+    let cap = vec![section(0.0, 3.0, 0, 1), section(3.0, tau, 1, 0)];
     assert_eq!(
-        curved_face(&sphere(), &lens, true, band()).map(|_| ()),
-        want
+        require_iso_rectangle(&sphere(), &cap, band()),
+        Err(PropsError::NotIsoRectangle {
+            what: "props_rim_axis_parallel",
+        })
+    );
+    let fc = curved_face(&sphere(), &cap, true, band()).expect("the flux lane measures the cap");
+    let area = 2.0 * core::f64::consts::PI * (1.0 - d);
+    assert!((fc.area - area).abs() < 1e-12, "area {} != {area}", fc.area);
+    assert!((fc.flux - area).abs() < 1e-12, "flux {} != {area}", fc.flux);
+    // Traversed the other way round under the same bit, the loop bounds
+    // the complement — the face lies to the left of its traversal — and
+    // the arm measures that.
+    let rev: Vec<_> = cap
+        .iter()
+        .rev()
+        .map(|e| LoopEdge {
+            forward: !e.forward,
+            start: e.end,
+            end: e.start,
+            ..e.clone()
+        })
+        .collect();
+    let fc = curved_face(&sphere(), &rev, true, band()).expect("the complement measures");
+    let big = 4.0 * core::f64::consts::PI - area;
+    assert!((fc.area - big).abs() < 1e-12, "area {} != {big}", fc.area);
+    // A loop whose arcs do not meet is refused, not integrated.
+    let open = vec![section(0.0, 3.0, 0, 1), section(3.0, 6.0, 1, 0)];
+    assert_eq!(
+        curved_face(&sphere(), &open, true, band()).map(|_| ()),
+        Err(PropsError::SphereLoop {
+            what: "props_sphere_loop_closed",
+        })
     );
 }
 
@@ -287,40 +318,49 @@ fn a_meridian_in_pieces_folds_by_lineage_into_the_edge_it_came_from() {
 
 /// **Identity is the whole test: pieces from distinct edges never
 /// fold, however their stored circles compare.** Bit-identical arcs
-/// stamped with two identities, or with none, stay two meridians —
-/// the anchor then reads one piece's span, the far rim is not at an
-/// extreme, and every consumer refuses `props_rim_level` as it does
-/// on any non-rectangle. So does a genuine corner: two arcs on
-/// different minor circles from two edges. Reds under a fold that
-/// keys on anything but the lineage. The stamp itself is the body's
-/// record and is trusted as such — a loop that stamps two circles
-/// with one identity lies the way lying tags lie, and its author owns
-/// that (the `LoopEdge` contract).
+/// stamped with two identities, or with none, stay two meridians at the
+/// shape door — the anchor then reads one piece's span, the far rim is
+/// not at an extreme, and the door refuses `props_rim_level` as it
+/// does on any non-rectangle. Reds under a fold that keys on anything
+/// but the lineage. The stamp itself is the body's record and is
+/// trusted as such — a loop that stamps two circles with one identity
+/// lies the way lying tags lie, and its author owns that (the
+/// `LoopEdge` contract).
+///
+/// The flux lane and the material side need no fold: the torus's chart
+/// Green form reads each piece's own span, so the unfolded rectangle
+/// measures as the control does and encodes its side. A genuine corner
+/// — two arcs on different minor circles from two edges — leaves the
+/// loop open, and both refuse it as that (`props_loop_closed`).
 #[test]
 fn pieces_from_distinct_edges_never_fold() {
     let s = torus();
-    let refuses = |name: &str, loop_: &[LoopEdge<f64>]| {
-        let rim_level = PropsError::NotIsoRectangle {
-            what: "props_rim_level",
-        };
+    let rim_level = PropsError::NotIsoRectangle {
+        what: "props_rim_level",
+    };
+    let ctl = curved_face(&s, &control(), true, band()).expect("the control rectangle");
+    let side = boundary_material_sign(&s, &control(), band()).expect("the control's side");
+    let measures = |name: &str, loop_: &[LoopEdge<f64>]| {
         assert_eq!(
             require_iso_rectangle(&s, loop_, band()),
             Err(rim_level.clone()),
             "{name}: door"
         );
-        assert_eq!(
-            curved_face(&s, loop_, true, band()).map(|_| ()),
-            Err(rim_level.clone()),
-            "{name}: flux lane"
+        let c = curved_face(&s, loop_, true, band())
+            .unwrap_or_else(|e| panic!("{name}: flux lane refused {e:?}"));
+        assert!(
+            (c.flux - ctl.flux).abs() <= 1e-12 * ctl.flux.abs()
+                && (c.area - ctl.area).abs() <= 1e-12 * ctl.area,
+            "{name}: flux lane {c:?} vs the control {ctl:?}"
         );
         assert_eq!(
             boundary_material_sign(&s, loop_, band()),
-            Err(rim_level),
+            Ok(side),
             "{name}: side"
         );
     };
     // The same values, distinct identities on one meridian's pieces.
-    refuses(
+    measures(
         "distinct ids",
         &pieced(Some(1), Some(2))
             .into_iter()
@@ -334,11 +374,28 @@ fn pieces_from_distinct_edges_never_fold() {
             .collect::<Vec<_>>(),
     );
     // No identity at all.
-    refuses("no ids", &pieced(None, None));
+    measures("no ids", &pieced(None, None));
     // A corner: arcs on two minor circles from two edges.
     let mut corner = pieced(Some(1), Some(2));
     corner[2] = tmer(0.5, 0.7, V1, 2, 3, Some(9));
-    refuses("corner", &corner);
+    let open = PropsError::NotIsoRectangle {
+        what: "props_loop_closed",
+    };
+    assert_eq!(
+        require_iso_rectangle(&s, &corner, band()),
+        Err(rim_level),
+        "corner: door"
+    );
+    assert_eq!(
+        curved_face(&s, &corner, true, band()).map(|_| ()),
+        Err(open.clone()),
+        "corner: flux lane"
+    );
+    assert_eq!(
+        boundary_material_sign(&s, &corner, band()),
+        Err(open),
+        "corner: side"
+    );
 }
 
 // ---------------------------------------------------------------------
@@ -470,7 +527,7 @@ fn the_doors_zero_extent_charter_is_exactly_at_zero() {
             assert!(
                 matches!(
                     &door,
-                    Err(PropsError::Escalated { cause })
+                    Err(PropsError::Escalated { cause, .. })
                         if cause.predicate == Some("props_rim_side")
                 ),
                 "extent {dv:.3e}: an in-band extent has no extreme to place a rim at: {door:?}"

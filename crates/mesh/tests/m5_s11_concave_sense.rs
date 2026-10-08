@@ -16,6 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use sweep::ExtrudeSide;
 
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
@@ -54,12 +55,19 @@ fn notched() -> Body<f64> {
         .line_to(profile::Start, Tol::witness())
         .unwrap()
         .loop_;
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+    let vp = Profile::new(SketchPlane::xy(), vec![lp.into_loop()])
         .validate(geom_core::Tol::witness())
         .unwrap();
-    extrude(&vp, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// The hole plate: 4×4×1 with a unit-radius through hole — the hole
@@ -78,9 +86,16 @@ fn hole_plate() -> Body<f64> {
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(geom_core::Tol::witness())
         .unwrap();
-    extrude(&vp, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 #[test]

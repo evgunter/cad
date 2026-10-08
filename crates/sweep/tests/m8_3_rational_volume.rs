@@ -41,6 +41,7 @@ use crate::common::{arc_section, stacked};
 use geom_brep::PropsError;
 use geom_core::Tol;
 use profile::{Profile, SketchPlane};
+use sweep::ExtrudeSide;
 use sweep::loft_body;
 use topo::{MassProperties, MassPropsError};
 
@@ -90,7 +91,7 @@ fn body_posture(row: &str, out: &Result<MassProperties<f64>, MassPropsError>) ->
             EpsPosture::Budget
         }
         Err(MassPropsError::Face {
-            source: PropsError::Escalated { cause },
+            source: PropsError::Escalated { cause, .. },
             ..
         }) => {
             assert_eq!(
@@ -209,8 +210,15 @@ fn tier3_admits_the_rational_wall_body_and_its_volume_brackets_the_extrusion() {
     let prof = Profile::new(SketchPlane::xy(), arc_section(1.0))
         .validate(Tol::witness())
         .expect("the profile validates");
-    let oracle = sweep::extrude::<f64>(&prof, sweep::Extrusion::Distance(2.0), Tol::witness())
-        .expect("extrude");
+    let oracle = sweep::extrude::<f64>(
+        &prof,
+        sweep::Extrusion::Distance {
+            depth: 2.0,
+            side: ExtrudeSide::Along,
+        },
+        Tol::witness(),
+    )
+    .expect("extrude");
     let want =
         topo::mass_properties(&oracle.body, Tol::witness()).expect("analytic mass properties");
     assert_eq!(

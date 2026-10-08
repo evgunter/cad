@@ -7,19 +7,19 @@
 
 use crate::common;
 
-use common::{brick, flush_declarations, prism_z};
+use common::{brick, finished, flush_declarations, prism_z};
 use geom_core::Decide;
 use geom_core::Tol;
 use topo::test_support::arena_counts;
 use topo::{
-    Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, boolean_reduce_declared,
-    validate,
+    AtRestBody, Body, BooleanError, BooleanOp, BooleanReduction, ValidationError, boolean_reduce,
+    boolean_reduce_declared, validate,
 };
 
-fn reduce_ok<T: Decide + geom_core::Bounds>(
+fn reduce_ok<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     op: BooleanOp,
-    a: &Body<T>,
-    b: &Body<T>,
+    a: &AtRestBody<T>,
+    b: &AtRestBody<T>,
 ) -> BooleanReduction<T> {
     let before = (arena_counts(a), arena_counts(b));
     // M4 PR 5: intended flush contacts are DECLARED (the test author's
@@ -47,9 +47,17 @@ fn reduce_ok<T: Decide + geom_core::Bounds>(
 /// null edge + one ring strut in the pierced face (the vtxfacclassify
 /// ring sequence), all correspondence-keyed. Op-independent here (no
 /// Eq. 15.3 row is hit).
-fn two_bricks<T: Decide + geom_core::Bounds>(op: BooleanOp) {
-    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-    let b = brick::<T>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), Tol::witness());
+fn two_bricks<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(op: BooleanOp) {
+    let a = finished(
+        "operand A",
+        brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "operand B",
+        brick::<T>((1.0, 3.0), (1.0, 3.0), (1.0, 3.0), Tol::witness()),
+        Tol::witness(),
+    );
     let red = reduce_ok(op, &a, &b);
     assert_eq!(red.contacts.vv.len(), 0);
     assert_eq!(red.contacts.a_on_b.len(), 3);
@@ -84,9 +92,20 @@ fn two_bricks_all_ops() {
 /// B-bottom edge (Tables II/III rows live), Eq. 15.3's ⁻ row decides
 /// (opposite orientation). Union sees crossings (the stacked bodies
 /// merge through the shared plane); the census is pinned per op.
-fn stacked_bricks<T: Decide + geom_core::Bounds>(op: BooleanOp, expect_pairs_nonzero: bool) {
-    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-    let b = brick::<T>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0), Tol::witness());
+fn stacked_bricks<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    op: BooleanOp,
+    expect_pairs_nonzero: bool,
+) {
+    let a = finished(
+        "operand A",
+        brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "operand B",
+        brick::<T>((0.0, 2.0), (0.0, 2.0), (2.0, 4.0), Tol::witness()),
+        Tol::witness(),
+    );
     let red = reduce_ok(op, &a, &b);
     assert_eq!(red.contacts.vv.len(), 4);
     assert_eq!(red.contacts.a_on_b.len(), 0);
@@ -114,9 +133,17 @@ fn stacked_bricks_full_coplanar_face() {
 /// search finds NO crossing (the cones touch at one point); the
 /// declared v-v contact is the entire result. Near-miss variants: a gap
 /// inside the sliver band escalates typed; a definite gap is clean.
-fn corner_kiss<T: Decide + geom_core::Bounds>() {
-    let a = brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let b = brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
+fn corner_kiss<T: Decide + geom_core::Bounds + topo::AtRestPolicy>() {
+    let a = finished(
+        "operand A",
+        brick::<T>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "operand B",
+        brick::<T>((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
         let red = reduce_ok(op, &a, &b);
         assert_eq!(red.contacts.vv.len(), 1);
@@ -129,11 +156,19 @@ fn corner_kiss<T: Decide + geom_core::Bounds>() {
 fn corner_kiss_touch_and_near_miss() {
     corner_kiss::<f64>();
     let eps = geom_core::Tol::witness().get().eps;
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let a = finished(
+        "operand A",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness()),
+        Tol::witness(),
+    );
     // In-band gap (3ε with K = 10): a genuine sliver — typed
     // escalation, never a silent contact and never a silent miss (F6).
     let g = 1.0 + 3.0 * eps;
-    let b = brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0), Tol::witness());
+    let b = finished(
+        "operand B",
+        brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap_err();
     assert!(
         matches!(
@@ -144,7 +179,11 @@ fn corner_kiss_touch_and_near_miss() {
     );
     // Definite gap (1000ε): clean miss, no contacts at all.
     let g = 1.0 + 1000.0 * eps;
-    let b = brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0), Tol::witness());
+    let b = finished(
+        "operand B",
+        brick::<f64>((g, 2.0), (g, 2.0), (g, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
     let red = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap();
     assert!(red.contacts.vv.is_empty());
     assert!(red.contacts.a_on_b.is_empty());
@@ -155,9 +194,19 @@ fn corner_kiss_touch_and_near_miss() {
 /// an interior point of both (the OnEdge lane splits BOTH edges into a
 /// declared v-v pair). Census hand-traced: two such crossings, plus one
 /// vertex-on-face contact per side in the shared tangent plane z = 2.
-fn skew_edge_cross<T: Decide + geom_core::Bounds>(op: BooleanOp) -> BooleanReduction<T> {
-    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-    let b = brick::<T>((1.5, 3.5), (0.5, 2.5), (2.0, 4.0), Tol::witness());
+fn skew_edge_cross<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    op: BooleanOp,
+) -> BooleanReduction<T> {
+    let a = finished(
+        "operand A",
+        brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "operand B",
+        brick::<T>((1.5, 3.5), (0.5, 2.5), (2.0, 4.0), Tol::witness()),
+        Tol::witness(),
+    );
     let red = reduce_ok(op, &a, &b);
     assert_eq!(red.contacts.vv.len(), 2, "op {op:?}");
     assert_eq!(red.contacts.a_on_b.len(), 1);
@@ -193,8 +242,16 @@ fn skew_edge_cross_all_ops() {
 #[test]
 fn vertex_on_face_tangential_rest() {
     // B's corner (1,1,2) rests on A's top face z=2 interior.
-    let a = brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 2.0), Tol::witness());
-    let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (2.0, 4.0), Tol::witness());
+    let a = finished(
+        "operand A",
+        brick::<f64>((0.0, 3.0), (0.0, 3.0), (0.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "operand B",
+        brick::<f64>((1.0, 2.0), (1.0, 2.0), (2.0, 4.0), Tol::witness()),
+        Tol::witness(),
+    );
     for op in [BooleanOp::Union, BooleanOp::Intersect, BooleanOp::Subtract] {
         let red = reduce_ok(op, &a, &b);
         // All four bottom corners of B rest on A's face.
@@ -217,9 +274,19 @@ fn vertex_on_face_tangential_rest() {
 /// coplanar edge-face pair itself is skipped — the documented catch),
 /// and the shared plane's collinear edge segments put the Tables II/III
 /// edge-edge machinery live at every minted v-v pair.
-fn collinear_overlap<T: Decide + geom_core::Bounds>(op: BooleanOp) -> BooleanReduction<T> {
-    let a = brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
-    let b = brick::<T>((1.0, 3.0), (0.0, 2.0), (2.0, 4.0), Tol::witness());
+fn collinear_overlap<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
+    op: BooleanOp,
+) -> BooleanReduction<T> {
+    let a = finished(
+        "operand A",
+        brick::<T>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness()),
+        Tol::witness(),
+    );
+    let b = finished(
+        "operand B",
+        brick::<T>((1.0, 3.0), (0.0, 2.0), (2.0, 4.0), Tol::witness()),
+        Tol::witness(),
+    );
     reduce_ok(op, &a, &b)
 }
 
@@ -242,45 +309,56 @@ fn collinear_edge_overlap() {
     }
 }
 
-/// F5 gate: a curved operand refuses typed.
+/// A body carrying a null edge (`mev_null`, a body left mid-surgery)
+/// does not finish, so it never reaches the boolean as an operand: the
+/// at-rest gate refuses it by tier 2's two findings on the scaffold,
+/// the strut's new vertex and the null edge itself.
 #[test]
-fn curved_operand_refuses() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+fn null_edge_operand_refuses() {
     let mut b = brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
-    let cube = common::geometric_cube::<f64>(Tol::witness());
-    // A genuinely curved body is not in the prismatic corpus; instead
-    // gate on scaffolding: a mid-surgery operand refuses.
-    let _ = cube;
     let he = b.vertices().next().and_then(|(_, v)| v.emanating).unwrap();
-    b.mev_null(
-        topo::MevSite::Fan { he1: he, he2: he },
-        topo::NewVertexSide::Above,
-    )
-    .unwrap();
-    let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::ScaffoldingOperand { .. }),
-        "{err:?}"
+    let strut = b
+        .mev_null(
+            topo::MevSite::Fan { he1: he, he2: he },
+            topo::NewVertexSide::Above,
+        )
+        .unwrap();
+    let errors = AtRestBody::validate(b, Tol::witness()).unwrap_err();
+    assert_eq!(
+        errors,
+        [
+            ValidationError::ScaffoldingStrutVertex {
+                vertex: strut.vertex
+            },
+            ValidationError::NullEdgeAtRest { edge: strut.edge },
+        ],
+        "the null edge refuses at rest, by tier 2's findings on the strut"
     );
 }
 
-/// F7 gate: a non-maximal operand (declared-coplanar adjacent faces)
-/// refuses typed. Built by splitting a brick face with a real edge
-/// between two same-plane faces (mef through the middle of the top
-/// face with the same plane description).
+/// F7 gate: a non-maximal operand (adjacent faces on one plane, one
+/// surface key) refuses typed, through the public union and the public
+/// reduction, in both operand orders, naming the seam. Built by
+/// splitting a brick's top with a real edge between two faces that
+/// inherit its surface; the seam rests in that surface's chart, which
+/// holds it exactly, so the body is finished (left the split's
+/// scaffold, the at-rest gate refuses it there instead). The delta
+/// review's `d_split_top_sharing_one_surface_key_against_the_finished_gate`.
 #[test]
 fn non_maximal_operand_refuses() {
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let tol = Tol::witness();
+    let a = finished(
+        "the brick",
+        brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol),
+        tol,
+    );
     let p = prism_z::<f64>(
         &[(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
         0.0,
         1.0,
-        Tol::witness(),
+        tol,
     );
     let mut b = p.body;
-    // Split the top face by a chord between the two top rim vertices
-    // above (0,0) and... use mev+mef with FaceSurface::Same to make an
-    // adjacent same-key coplanar pair.
     let top = p.top_face;
     let outer = b.get_face(top).unwrap().outer;
     let topo::LoopBoundary::Cycle { first } = b.get_loop(outer).unwrap().boundary else {
@@ -289,32 +367,77 @@ fn non_maximal_operand_refuses() {
     let cycle = b.loop_cycle(first).unwrap();
     let he1 = cycle[0];
     let he2 = cycle[2];
-    let p0 = *b
-        .get_point(
-            b.get_vertex(b.get_half_edge(he1).unwrap().start)
+    let at = |b: &Body<f64>, he| {
+        *b.get_point(
+            b.get_vertex(b.get_half_edge(he).unwrap().start)
                 .unwrap()
                 .point,
         )
-        .unwrap();
-    let p1 = *b
-        .get_point(
-            b.get_vertex(b.get_half_edge(he2).unwrap().start)
-                .unwrap()
-                .point,
-        )
-        .unwrap();
+        .unwrap()
+    };
+    let (p0, p1) = (at(&b, he1), at(&b, he2));
     b.mef(
         topo::MefSite::Chords { he1, he2 },
         common::line(p0, p1),
         topo::FaceSurface::Inherit,
-        Tol::witness(),
+        tol,
     )
     .unwrap();
-    let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap_err();
-    assert!(
-        matches!(err, BooleanError::NonMaximalFaces { .. }),
-        "{err:?}"
+    let seams = common_plane_seams(&b);
+    let [seam] = seams[..] else {
+        panic!("one seam edge splits the top face: {seams:?}");
+    };
+    let scaffold = AtRestBody::validate(b.clone(), tol).unwrap_err();
+    assert_eq!(
+        scaffold,
+        [ValidationError::ScaffoldAtRest { edge: seam }],
+        "left the split's scaffold, the seam is the at-rest gate's one finding"
     );
+    let chart = b.get_face(top).unwrap().surface;
+    b.set_edge_curve(
+        seam,
+        geom_brep::EdgeCurveSpec::line_between(p0, p1).at_rest_in_chart(chart, false),
+        tol,
+    )
+    .expect("the seam rests in the top's chart");
+    let b = finished("the split top", b, tol);
+    for (x, y, want) in [(&a, &b, topo::Operand::B), (&b, &a, topo::Operand::A)] {
+        for (door, err) in [
+            ("union", topo::union(x, y, tol).map(|_| ()).unwrap_err()),
+            (
+                "boolean_reduce",
+                boolean_reduce(BooleanOp::Union, x, y, tol)
+                    .map(|_| ())
+                    .unwrap_err(),
+            ),
+        ] {
+            assert!(
+                matches!(
+                    err,
+                    BooleanError::NonMaximalFaces { operand, edge }
+                        if operand == want && edge == seam
+                ),
+                "{door}, the split top as {want:?}: {err:?}"
+            );
+        }
+    }
+}
+
+/// The edges separating two faces on one surface key — the seams a
+/// split with an inherited surface leaves — in edge-arena order.
+fn common_plane_seams(b: &Body<f64>) -> Vec<topo::EdgeKey> {
+    let face_of = |he| {
+        b.get_loop(b.get_half_edge(he).unwrap().parent_loop)
+            .unwrap()
+            .face
+    };
+    b.edges()
+        .filter(|(_, e)| {
+            let (fp, fm) = (face_of(e.he_plus), face_of(e.he_minus));
+            fp != fm && b.get_face(fp).unwrap().surface == b.get_face(fm).unwrap().surface
+        })
+        .map(|(edge, _)| edge)
+        .collect()
 }
 
 // ---- Interval lane (the same scenarios at T = Interval). ----

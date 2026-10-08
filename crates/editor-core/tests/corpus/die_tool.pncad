@@ -2,165 +2,258 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
 {
   "snapshot": {
     "id": "e55cffc81a5ad8cfe85239d944a3ae95",
-    "next_id": 9,
-    "next_step": 8,
+    "mint": {
+      "chain": "5578f1877e43d800906974ca9faf6d6e8a15079bc512c8c23455e27b7e182bc8",
+      "log": [
+        {
+          "var": "1:b639d844bab8e826"
+        },
+        {
+          "var": "2:74af9d633a64b77a"
+        },
+        {
+          "var": "3:fb5fef638c30912c"
+        },
+        {
+          "var": "4:ee1d73a8dc8f8ad6"
+        },
+        {
+          "var": "5:f9047724cc168290"
+        },
+        {
+          "var": "6:2fdd1f61b8b90439"
+        },
+        {
+          "var": "7:5cdde09d996c5c61"
+        },
+        {
+          "var": "8:af949e9d2cd2d001"
+        },
+        {
+          "var": "9:135249424cb8e0e7"
+        },
+        {
+          "node": "10:54a0180a83275575"
+        },
+        {
+          "var": "11:7b9b7a031545bc84"
+        },
+        {
+          "var": "12:aa1a1f25549ff844"
+        },
+        {
+          "var": "13:ce0b2c4bfce400e2"
+        },
+        {
+          "var": "14:826a2b7c495117a7"
+        },
+        {
+          "var": "15:74ce4ff170398ca6"
+        },
+        {
+          "var": "16:4b36daafb7685c2b"
+        },
+        {
+          "var": "17:c9a0e5f82154ce3e"
+        },
+        {
+          "var": "18:73bc05541afded5a"
+        },
+        {
+          "var": "19:e51d8c264d945b32"
+        },
+        {
+          "node": "20:d8a099f3b9fb93e6"
+        },
+        {
+          "step": "21:958ec0488201536d"
+        },
+        {
+          "step": "22:bf987ae2315fc4e3"
+        },
+        {
+          "step": "23:772d052fb02f7b5e"
+        },
+        {
+          "step": "24:a99eac6cfba4aecc"
+        },
+        {
+          "step": "25:9e75a6604942385f"
+        },
+        {
+          "var": "26:5cf1574284334ae9"
+        },
+        {
+          "var": "27:bcd2567cb989e9fc"
+        },
+        {
+          "node": "28:2c488f530357dede"
+        },
+        {
+          "var": "29:8bde3a68947a82a5"
+        },
+        {
+          "var": "30:5ad34ecd379fe134"
+        },
+        {
+          "var": "31:f6e76f963e22f5c3"
+        },
+        {
+          "var": "32:14c8a52800867c00"
+        },
+        {
+          "var": "33:8167747914730532"
+        },
+        {
+          "var": "34:8ae1c9edcf99e3eb"
+        },
+        {
+          "var": "35:2388fdf07b06f6f9"
+        },
+        {
+          "var": "36:dcf30a7ab83bc22f"
+        },
+        {
+          "var": "37:8f2960bbf323a4d5"
+        },
+        {
+          "var": "38:707447ae7fecff1a"
+        },
+        {
+          "node": "39:86867bad4727e23a"
+        },
+        {
+          "var": "40:a8b608932e4d1b29"
+        },
+        {
+          "var": "41:24cad56bc8ab627c"
+        },
+        {
+          "var": "42:d614426c74898c78"
+        },
+        {
+          "var": "43:4a5a11cb279190f3"
+        },
+        {
+          "var": "44:f8db282fdb794508"
+        },
+        {
+          "node": "45:6f3c495522b65aed"
+        },
+        {
+          "var": "46:33fc9b5fe055a1df"
+        },
+        {
+          "var": "47:ba303019e42d502d"
+        },
+        {
+          "var": "48:8530ad0c1e36399b"
+        },
+        {
+          "var": "49:1e966c3ccf5e03d2"
+        },
+        {
+          "var": "50:0e9782cb0434025c"
+        },
+        {
+          "var": "51:97debee5e2a82268"
+        },
+        {
+          "node": "52:9e7edb77e60e4ff3"
+        },
+        {
+          "step": "53:933b33e60e5c2c94"
+        },
+        {
+          "step": "54:5b773c3b8527606e"
+        },
+        {
+          "step": "55:aebb2b2d9266c29b"
+        },
+        {
+          "var": "56:6683fb17f4ce1270"
+        },
+        {
+          "var": "57:2938a15575dd5ac7"
+        },
+        {
+          "node": "58:c8fca66111f095c7"
+        },
+        {
+          "var": "59:6873027850ca6f66"
+        },
+        {
+          "var": "60:83fbbcc938967fb5"
+        },
+        {
+          "node": "61:1955f0f4e71422b5"
+        },
+        {
+          "var": "62:b9d234cc9e42fb07"
+        },
+        {
+          "node": "63:5e3e9cebd6963501"
+        },
+        {
+          "var": "64:5578f1877e43d800"
+        }
+      ]
+    },
     "nodes": {
-      "0": {
+      "10:54a0180a83275575": {
         "Datum": {
           "Frame": {
             "origin": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              }
+              "1:b639d844bab8e826",
+              "2:74af9d633a64b77a",
+              "3:fb5fef638c30912c"
             ],
             "u": [
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
+              "4:ee1d73a8dc8f8ad6",
+              "5:f9047724cc168290",
+              "6:2fdd1f61b8b90439"
             ],
             "v": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
+              "7:5cdde09d996c5c61",
+              "8:af949e9d2cd2d001",
+              "9:135249424cb8e0e7"
             ]
           }
         }
       },
-      "1": {
+      "20:d8a099f3b9fb93e6": {
         "Profile": {
-          "plane": 0,
+          "plane": "10:54a0180a83275575",
           "loops": [
             {
               "Chain": [
                 {
                   "At": [
-                    {
-                      "Literal": {
-                        "value": 0.0,
-                        "dim": "Length",
-                        "unit": "m"
-                      }
-                    },
-                    {
-                      "Literal": {
-                        "value": 0.0,
-                        "dim": "Length",
-                        "unit": "m"
-                      }
-                    }
+                    "12:aa1a1f25549ff844",
+                    "13:ce0b2c4bfce400e2"
                   ]
                 },
                 {
                   "LineTo": {
                     "Point": [
-                      {
-                        "Literal": {
-                          "value": 1.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      },
-                      {
-                        "Literal": {
-                          "value": 0.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      }
+                      "14:826a2b7c495117a7",
+                      "15:74ce4ff170398ca6"
                     ]
                   }
                 },
                 {
                   "LineTo": {
                     "Point": [
-                      {
-                        "Literal": {
-                          "value": 1.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      },
-                      {
-                        "Literal": {
-                          "value": 1.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      }
+                      "16:4b36daafb7685c2b",
+                      "17:c9a0e5f82154ce3e"
                     ]
                   }
                 },
                 {
                   "LineTo": {
                     "Point": [
-                      {
-                        "Literal": {
-                          "value": 0.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      },
-                      {
-                        "Literal": {
-                          "value": 1.0,
-                          "dim": "Length",
-                          "unit": "m"
-                        }
-                      }
+                      "18:73bc05541afded5a",
+                      "19:e51d8c264d945b32"
                     ]
                   }
                 },
@@ -172,163 +265,68 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           ],
           "ids": [
             [
-              0,
-              1,
-              2,
-              3,
-              4
+              "21:958ec0488201536d",
+              "22:bf987ae2315fc4e3",
+              "23:772d052fb02f7b5e",
+              "24:a99eac6cfba4aecc",
+              "25:9e75a6604942385f"
             ]
           ]
         }
       },
-      "2": {
+      "28:2c488f530357dede": {
         "Extrude": {
-          "profile": 1,
-          "distance": {
-            "Literal": {
-              "value": 1.0,
-              "dim": "Length",
-              "unit": "m"
-            }
-          }
+          "profile": "20:d8a099f3b9fb93e6",
+          "distance": "27:bcd2567cb989e9fc",
+          "side": "along"
         }
       },
-      "3": {
+      "39:86867bad4727e23a": {
         "Datum": {
           "Frame": {
             "origin": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              }
+              "30:5ad34ecd379fe134",
+              "31:f6e76f963e22f5c3",
+              "32:14c8a52800867c00"
             ],
             "u": [
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
+              "33:8167747914730532",
+              "34:8ae1c9edcf99e3eb",
+              "35:2388fdf07b06f6f9"
             ],
             "v": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
+              "36:dcf30a7ab83bc22f",
+              "37:8f2960bbf323a4d5",
+              "38:707447ae7fecff1a"
             ]
           }
         }
       },
-      "4": {
+      "45:6f3c495522b65aed": {
         "Datum": {
           "AxisInPlane": {
-            "plane": 3,
+            "plane": "39:86867bad4727e23a",
             "origin": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              },
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Length",
-                  "unit": "m"
-                }
-              }
+              "41:24cad56bc8ab627c",
+              "42:d614426c74898c78"
             ],
             "direction": [
-              {
-                "Literal": {
-                  "value": 0.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              },
-              {
-                "Literal": {
-                  "value": 1.0,
-                  "dim": "Scalar",
-                  "unit": ""
-                }
-              }
+              "43:4a5a11cb279190f3",
+              "44:f8db282fdb794508"
             ]
           }
         }
       },
-      "5": {
+      "52:9e7edb77e60e4ff3": {
         "Profile": {
-          "plane": 3,
+          "plane": "39:86867bad4727e23a",
           "loops": [
             {
               "Chain": [
                 {
                   "At": [
-                    {
-                      "Literal": {
-                        "value": 0.0,
-                        "dim": "Length",
-                        "unit": "m"
-                      }
-                    },
-                    {
-                      "Literal": {
-                        "value": -0.09,
-                        "dim": "Length",
-                        "unit": "m"
-                      }
-                    }
+                    "47:ba303019e42d502d",
+                    "48:8530ad0c1e36399b"
                   ]
                 },
                 {
@@ -336,29 +334,11 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
                     "Bulge": {
                       "target": {
                         "Point": [
-                          {
-                            "Literal": {
-                              "value": 0.0,
-                              "dim": "Length",
-                              "unit": "m"
-                            }
-                          },
-                          {
-                            "Literal": {
-                              "value": 0.09,
-                              "dim": "Length",
-                              "unit": "m"
-                            }
-                          }
+                          "49:1e966c3ccf5e03d2",
+                          "50:0e9782cb0434025c"
                         ]
                       },
-                      "b": {
-                        "Literal": {
-                          "value": 1.0,
-                          "dim": "Scalar",
-                          "unit": ""
-                        }
-                      }
+                      "b": "51:97debee5e2a82268"
                     }
                   }
                 },
@@ -370,29 +350,23 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           ],
           "ids": [
             [
-              5,
-              6,
-              7
+              "53:933b33e60e5c2c94",
+              "54:5b773c3b8527606e",
+              "55:aebb2b2d9266c29b"
             ]
           ]
         }
       },
-      "6": {
+      "58:c8fca66111f095c7": {
         "Revolve": {
-          "profile": 5,
-          "axis": 4,
-          "angle": {
-            "Literal": {
-              "value": 6.283185307179586,
-              "dim": "Angle",
-              "unit": "rad"
-            }
-          }
+          "profile": "52:9e7edb77e60e4ff3",
+          "axis": "45:6f3c495522b65aed",
+          "angle": "57:2938a15575dd5ac7"
         }
       },
-      "7": {
+      "61:1955f0f4e71422b5": {
         "PlacedUnion": {
-          "input": 6,
+          "input": "58:c8fca66111f095c7",
           "count": null,
           "kind": {
             "Explicit": [
@@ -544,31 +518,554 @@ id: e55cffc81a5ad8cfe85239d944a3ae95
           }
         }
       },
-      "8": {
+      "63:5e3e9cebd6963501": {
         "Boolean": {
           "op": "Subtract",
-          "a": 2,
-          "b": 7,
-          "declare": null
+          "a": "28:2c488f530357dede",
+          "b": "61:1955f0f4e71422b5",
+          "declare": []
         }
       }
     },
-    "order": [
-      0,
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7,
-      8
-    ],
     "roots": [
-      8
+      "63:5e3e9cebd6963501"
     ],
-    "placements": {},
-    "params": {},
+    "vars": {
+      "1:b639d844bab8e826": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "2:74af9d633a64b77a": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "3:fb5fef638c30912c": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "4:ee1d73a8dc8f8ad6": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 1.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "5:f9047724cc168290": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 0.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "6:2fdd1f61b8b90439": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 0.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "7:5cdde09d996c5c61": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 0.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "8:af949e9d2cd2d001": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 1.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "9:135249424cb8e0e7": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 0.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "11:7b9b7a031545bc84": {
+        "kind": "Frame",
+        "def": {
+          "Output": {
+            "node": "10:54a0180a83275575",
+            "port": 0
+          }
+        }
+      },
+      "12:aa1a1f25549ff844": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "13:ce0b2c4bfce400e2": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "14:826a2b7c495117a7": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 1.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "15:74ce4ff170398ca6": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "16:4b36daafb7685c2b": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 1.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "17:c9a0e5f82154ce3e": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 1.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "18:73bc05541afded5a": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "19:e51d8c264d945b32": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 1.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "26:5cf1574284334ae9": {
+        "kind": "Profile",
+        "def": {
+          "Output": {
+            "node": "20:d8a099f3b9fb93e6",
+            "port": 0
+          }
+        }
+      },
+      "27:bcd2567cb989e9fc": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 1.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "29:8bde3a68947a82a5": {
+        "kind": "Body",
+        "def": {
+          "Output": {
+            "node": "28:2c488f530357dede",
+            "port": 0
+          }
+        }
+      },
+      "30:5ad34ecd379fe134": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "31:f6e76f963e22f5c3": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "32:14c8a52800867c00": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "33:8167747914730532": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 1.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "34:8ae1c9edcf99e3eb": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 0.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "35:2388fdf07b06f6f9": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 0.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "36:dcf30a7ab83bc22f": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 0.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "37:8f2960bbf323a4d5": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 0.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "38:707447ae7fecff1a": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 1.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "40:a8b608932e4d1b29": {
+        "kind": "Frame",
+        "def": {
+          "Output": {
+            "node": "39:86867bad4727e23a",
+            "port": 0
+          }
+        }
+      },
+      "41:24cad56bc8ab627c": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "42:d614426c74898c78": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "43:4a5a11cb279190f3": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 0.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "44:f8db282fdb794508": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 1.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "46:33fc9b5fe055a1df": {
+        "kind": "Axis",
+        "def": {
+          "Output": {
+            "node": "45:6f3c495522b65aed",
+            "port": 0
+          }
+        }
+      },
+      "47:ba303019e42d502d": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "48:8530ad0c1e36399b": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": -0.09,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "49:1e966c3ccf5e03d2": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.0,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "50:0e9782cb0434025c": {
+        "kind": "Length",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Length",
+              "value": 0.09,
+              "display_unit": "m"
+            }
+          }
+        }
+      },
+      "51:97debee5e2a82268": {
+        "kind": "Scalar",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Scalar",
+              "value": 1.0,
+              "display_unit": ""
+            }
+          }
+        }
+      },
+      "56:6683fb17f4ce1270": {
+        "kind": "Profile",
+        "def": {
+          "Output": {
+            "node": "52:9e7edb77e60e4ff3",
+            "port": 0
+          }
+        }
+      },
+      "57:2938a15575dd5ac7": {
+        "kind": "Angle",
+        "def": {
+          "Free": {
+            "Continuous": {
+              "dim": "Angle",
+              "value": 6.283185307179586,
+              "display_unit": "rad"
+            }
+          }
+        }
+      },
+      "59:6873027850ca6f66": {
+        "kind": "Body",
+        "def": {
+          "Output": {
+            "node": "58:c8fca66111f095c7",
+            "port": 0
+          }
+        }
+      },
+      "60:83fbbcc938967fb5": {
+        "kind": "Axis",
+        "def": {
+          "Output": {
+            "node": "58:c8fca66111f095c7",
+            "port": 1
+          }
+        }
+      },
+      "62:b9d234cc9e42fb07": {
+        "kind": "Body",
+        "def": {
+          "Output": {
+            "node": "61:1955f0f4e71422b5",
+            "port": 0
+          }
+        }
+      },
+      "64:5578f1877e43d800": {
+        "kind": "Body",
+        "def": {
+          "Output": {
+            "node": "63:5e3e9cebd6963501",
+            "port": 0
+          }
+        }
+      }
+    },
     "epsilon": 1e-9,
     "witnesses": {},
     "metadata": {},

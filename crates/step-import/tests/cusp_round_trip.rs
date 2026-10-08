@@ -12,6 +12,7 @@
 use geom_core::{Point2, Point3, Tol};
 use profile::{Open, Profile, SketchPlane, Start};
 use step_import::{ImportOptions, StepImport, import_step};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
 
 /// The lune between the internally tangent circles `(0,1) r 1` and
@@ -35,9 +36,16 @@ fn cusp_lune() -> topo::Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lune])
         .validate(tol)
         .expect("the declared cusp validates");
-    extrude(&profile, Extrusion::Distance(1.0), tol)
-        .expect("the cusp lune extrudes")
-        .body
+    extrude(
+        &profile,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("the cusp lune extrudes")
+    .body
 }
 
 /// The endpoints of every edge check 4 marks `Tangent`.

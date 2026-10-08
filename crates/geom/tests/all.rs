@@ -15,7 +15,7 @@
 //! mirroring the crate's two modules — the two halves were separate
 //! crates and their suite names collide (`boxes.rs`,
 //! `span_window_pairing.rs`, `review_m5_pr3_attack*.rs`,
-//! `decoration_ring_coords.rs`). A suite does NOT carry a
+//! `decoration_certified_coords.rs`). A suite does NOT carry a
 //! `mod <helper>;` line of its own: the shared helper trees are declared
 //! once, below, as modules of THIS root, and a suite that wants one says
 //! `use crate::<group>::<helper>;`. One declaration means one parse, one
@@ -73,8 +73,8 @@ mod curves_boxes;
 mod curves_compose;
 #[path = "curves/curvo_oracle.rs"]
 mod curves_curvo_oracle;
-#[path = "curves/decoration_ring_coords.rs"]
-mod curves_decoration_ring_coords;
+#[path = "curves/decoration_certified_coords.rs"]
+mod curves_decoration_certified_coords;
 #[path = "curves/domain_door.rs"]
 mod curves_domain_door;
 #[path = "curves/fit_certify.rs"]
@@ -153,8 +153,8 @@ mod span_bit_identity_ext;
 // ---- surfaces ----
 #[path = "surfaces/boxes.rs"]
 mod surfaces_boxes;
-#[path = "surfaces/decoration_ring_coords.rs"]
-mod surfaces_decoration_ring_coords;
+#[path = "surfaces/decoration_certified_coords.rs"]
+mod surfaces_decoration_certified_coords;
 #[path = "surfaces/m5_pr7_ders3.rs"]
 mod surfaces_m5_pr7_ders3;
 #[path = "surfaces/m5_pr7_surface_projection.rs"]

@@ -27,18 +27,28 @@ use crate::fixture;
 
 use editor_core::analysis::{BoxAxis, ParamBox};
 use editor_core::{
-    Axis3, CancelToken, Datum, Dimension, DocEdit, DocParam, EvalOptions, Expr, Node,
-    NodeErrorKind, NodeResult, ParamName, ProfileDoc, RecipeNodeId, SlotId, evaluate,
+    Axis3, CancelToken, Datum, Dimension, DocEdit, EvalOptions, Formula, FreeVar, Node,
+    NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId, SlotId, VarName, evaluate,
 };
 use geom_core::Tol;
 
-/// The frame is node 0 and the profile drawn on it node 1, in that
-/// insertion order.
-const FRAME: RecipeNodeId = RecipeNodeId(0);
-const PROFILE: RecipeNodeId = RecipeNodeId(1);
+/// The frame, the document's first node.
+fn frame(doc: &ProfileDoc) -> RecipeNodeId {
+    doc.ids()[0]
+}
 
-fn p() -> ParamName {
-    ParamName::new("p")
+/// The profile drawn on it, the second.
+fn profile(doc: &ProfileDoc) -> RecipeNodeId {
+    doc.ids()[1]
+}
+
+fn p() -> VarName {
+    VarName::from_static("p")
+}
+
+/// The probe's one variable in `doc`.
+fn var(doc: &ProfileDoc) -> editor_core::VarId {
+    doc.var_named("p").expect("the probe declares p")
 }
 
 /// The probe's document: `p` a scalar parameter at `nominal`, a frame
@@ -46,13 +56,13 @@ fn p() -> ParamName {
 /// square profile drawn on it. The profile's own program holds no
 /// parameter, so everything that moves in these rows moves through the
 /// frame.
-fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
+fn doc_with(nominal: f64, u_y_of: fn(Formula) -> Formula) -> ProfileDoc {
     let doc = ProfileDoc::empty_derived("eval9_nominal_in_the_key", Tol::witness());
     let doc = doc
         .apply(
-            &DocEdit::SetDocParam {
+            &DocEdit::DeclareVar {
                 name: p(),
-                value: DocParam::continuous(Dimension::Scalar, nominal),
+                def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Scalar, nominal)),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -62,15 +72,16 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
     let doc = doc
         .apply(
             &DocEdit::InsertNode {
-                node: Node::Datum(Datum::Frame {
+                node: Box::new(Node::Datum(Datum::Frame {
                     origin: [fixture::len(0.0), fixture::len(0.0), fixture::len(0.0)],
                     u: [
                         fixture::scl(1.0),
-                        u_y_of(Expr::param(p(), Dimension::Scalar)),
+                        u_y_of(Formula::named(p(), Dimension::Scalar)),
                         fixture::scl(0.0),
                     ],
                     v: [fixture::scl(0.0), fixture::scl(1.0), fixture::scl(0.0)],
-                }),
+                })),
+                fresh: Vec::new(),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -79,7 +90,11 @@ fn doc_with(nominal: f64, u_y_of: fn(Expr) -> Expr) -> ProfileDoc {
         .doc;
     doc.apply(
         &DocEdit::InsertNode {
-            node: Node::Profile(fixture::desc(FRAME, vec![fixture::square(0.0, 0.0, 1.0)])),
+            node: Box::new(Node::Profile(fixture::desc(
+                frame(&doc),
+                vec![fixture::square(0.0, 0.0, 1.0)],
+            ))),
+            fresh: Vec::new(),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -94,9 +109,9 @@ fn doc_at(nominal: f64) -> ProfileDoc {
 }
 
 /// A one-axis box: `p ∈ nominal + [lo, hi]`.
-fn box_of(lo: f64, hi: f64) -> Arc<ParamBox> {
+fn box_of(doc: &ProfileDoc, lo: f64, hi: f64) -> Arc<ParamBox> {
     let mut axes = BTreeMap::new();
-    axes.insert(p(), BoxAxis::Varying { lo, hi });
+    axes.insert(var(doc), BoxAxis::Varying { lo, hi });
     Arc::new(ParamBox::from_axes(axes))
 }
 
@@ -110,26 +125,25 @@ fn boxed(box_: &Arc<ParamBox>) -> EvalOptions {
 /// **The rows that need a widened lane**, whose whole point is that
 /// the interval bits agree while the nominals do not.
 mod over_a_param_box {
-    use super::{FRAME, PROFILE, box_of, boxed, doc_at, p};
+    use super::{box_of, boxed, doc_at, frame, p, profile};
 
     use std::sync::Arc;
 
     use editor_core::analysis::ParamBox;
     use editor_core::{
-        CancelToken, ContentKey, DocEdit, DocParamValue, Evaluation, ProfileDoc, ValuePayload,
-        evaluate,
+        CancelToken, ContentKey, DocEdit, Evaluation, FreeValue, ProfileDoc, ValuePayload, evaluate,
     };
     use geom_core::{Bounds, Interval, Tol};
 
     /// The same document with `p`'s value re-applied — the edit under
-    /// test. `SetDocParamValue` is a value-only edit, so applying the
+    /// test. `SetVarValue` is a value-only edit, so applying the
     /// value the document already carries is a real edit that moves no
     /// nominal.
     fn set_p(doc: &editor_core::ProfileDoc, value: f64) -> ProfileDoc {
         doc.apply(
-            &DocEdit::SetDocParamValue {
-                name: p(),
-                value: DocParamValue::Continuous(value),
+            &DocEdit::SetVarValue {
+                var: p().into(),
+                value: FreeValue::Continuous(value),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -157,23 +171,27 @@ mod over_a_param_box {
     /// Read through the public accessors and compared by bits, which is
     /// stricter than `==` on an interval and is the comparison these rows
     /// mean.
-    fn plane_bits(ev: &Evaluation<Interval>) -> Vec<(u64, u64)> {
-        let ValuePayload::Profile(pv) = &ev.value(PROFILE).expect("the profile evaluates").payload
+    fn plane_bits(doc: &ProfileDoc, ev: &Evaluation<Interval>) -> Vec<(u64, u64)> {
+        let ValuePayload::Profile(pv) = &ev
+            .value(profile(doc))
+            .expect("the profile evaluates")
+            .payload
         else {
             panic!("a profile value");
         };
         let a = pv.validated.plane().placement;
-        let cols = [a.linear.c0, a.linear.c1, a.linear.c2, a.translation];
-        cols.iter()
-            .flat_map(|c| [c.x, c.y, c.z])
+        a.components()
+            .into_iter()
             .map(|v: Interval| (v.lo().to_bits(), v.hi().to_bits()))
             .collect()
     }
 
-    fn keys(ev: &Evaluation<Interval>) -> (ContentKey, ContentKey) {
+    fn keys(doc: &ProfileDoc, ev: &Evaluation<Interval>) -> (ContentKey, ContentKey) {
         (
-            ev.value(FRAME).expect("the frame evaluates").content_key,
-            ev.value(PROFILE)
+            ev.value(frame(doc))
+                .expect("the frame evaluates")
+                .content_key,
+            ev.value(profile(doc))
                 .expect("the profile evaluates")
                 .content_key,
         )
@@ -192,10 +210,10 @@ mod over_a_param_box {
     #[test]
     fn a_nominal_edit_under_a_compensating_box_does_not_hit() {
         let first = doc_at(0.0);
-        let prior = run(&first, None, &box_of(-0.25, 0.25));
+        let prior = run(&first, None, &box_of(&first, -0.25, 0.25));
 
         let edited = set_p(&first, 0.5);
-        let narrow = box_of(-0.75, -0.25);
+        let narrow = box_of(&first, -0.75, -0.25);
         let hit = run(&edited, Some(&prior), &narrow);
         let cold = run(&edited, None, &narrow);
 
@@ -203,15 +221,15 @@ mod over_a_param_box {
         // the x axis at `p = 0` and normalized (1, 0.5, 0) at `p = 0.5` -
         // so the row below is not vacuous.
         assert_ne!(
-            plane_bits(&prior),
-            plane_bits(&cold),
+            plane_bits(&first, &prior),
+            plane_bits(&first, &cold),
             "the two nominals are two planes"
         );
         // The harm: what the second evaluation reports as the
         // profile's placement.
         assert_eq!(
-            plane_bits(&hit),
-            plane_bits(&cold),
+            plane_bits(&first, &hit),
+            plane_bits(&first, &cold),
             "the served profile is placed on the edited nominal's plane"
         );
         // And the mechanism: the nominal is in the key, so nothing of the
@@ -221,33 +239,33 @@ mod over_a_param_box {
             "the edited document recomputes as much with the prior as without it"
         );
         assert_ne!(
-            keys(&prior),
-            keys(&hit),
+            keys(&first, &prior),
+            keys(&first, &hit),
             "the keys must move with the nominal"
         );
     }
 
     /// **The box is a real input, and the nominal did not swallow it.**
-    /// The document is EDITED in both halves — `SetDocParamValue` applying
+    /// The document is EDITED in both halves — `SetVarValue` applying
     /// the value it already carries — so each half is a prior served (or
     /// refused) across a real edit rather than a re-run of one document.
     #[test]
     fn the_box_still_decides_a_hit_at_one_nominal() {
         let doc = doc_at(0.25);
-        let narrow = box_of(-0.1, 0.1);
+        let narrow = box_of(&doc, -0.1, 0.1);
         let prior = run(&doc, None, &narrow);
         let edited = set_p(&doc, 0.25);
 
-        let widened = run(&edited, Some(&prior), &box_of(-0.2, 0.2));
+        let widened = run(&edited, Some(&prior), &box_of(&doc, -0.2, 0.2));
         assert_ne!(
-            keys(&prior),
-            keys(&widened),
+            keys(&doc, &prior),
+            keys(&doc, &widened),
             "a widened box is a different evaluation of the same nominal"
         );
         assert_eq!(widened.reused, 0, "nothing may be served across a box edit");
 
         let again = run(&edited, Some(&prior), &narrow);
-        assert_eq!(keys(&prior), keys(&again));
+        assert_eq!(keys(&doc, &prior), keys(&doc, &again));
         assert_eq!(
             again.recomputed, 0,
             "the same nominal under the same box is the memo's own case"
@@ -269,16 +287,16 @@ mod over_a_param_box {
 #[test]
 fn a_slot_that_refuses_at_the_nominal_refuses_its_node() {
     let doc = doc_with(0.0, |param| {
-        Expr::div(fixture::scl(1.0), param).expect("scalar over scalar")
+        Formula::div(fixture::scl(1.0), param).expect("scalar over scalar")
     });
     let ev = evaluate::<f64>(
         &doc,
         None,
         &CancelToken::new(),
-        &boxed(&box_of(2.0, 2.0)),
+        &boxed(&box_of(&doc, 2.0, 2.0)),
         Tol::witness(),
     );
-    match ev.nodes.get(&FRAME) {
+    match ev.nodes.get(&frame(&doc)) {
         Some(NodeResult::Failed(e)) => match &e.kind {
             NodeErrorKind::Expr { slot, .. } => {
                 assert_eq!(*slot, SlotId::U(Axis3::Y), "the refusing slot is named");
@@ -288,8 +306,8 @@ fn a_slot_that_refuses_at_the_nominal_refuses_its_node() {
         other => panic!("expected the frame to refuse, got {other:?}"),
     }
     assert!(matches!(
-        ev.nodes.get(&PROFILE),
-        Some(NodeResult::Poisoned { through }) if *through == FRAME
+        ev.nodes.get(&profile(&doc)),
+        Some(NodeResult::Poisoned { through }) if *through == frame(&doc)
     ));
 }
 
@@ -300,19 +318,18 @@ fn a_slot_that_refuses_at_the_nominal_refuses_its_node() {
 fn the_probe_document_carries_the_parameter_only_in_the_frame() {
     let doc = doc_at(0.0);
     let mut refs = Vec::new();
-    let Some(Node::Datum(Datum::Frame { u, .. })) = doc.node(FRAME) else {
-        panic!("a frame at node 0");
+    let Some(Node::Datum(Datum::Frame { u, .. })) = doc.node(frame(&doc)) else {
+        panic!("a frame first");
     };
     for e in u {
-        e.param_refs(&mut refs);
+        doc.written(&editor_core::Expr::var(*e, Dimension::Scalar))
+            .var_reads(&mut refs);
     }
-    assert_eq!(refs, vec![(p(), Dimension::Scalar)]);
-    let Some(Node::Profile(program)) = doc.node(PROFILE) else {
-        panic!("a profile at node 1");
+    let var = doc.var_named(p().as_str()).expect("the frame's variable");
+    assert_eq!(refs, vec![(var, Dimension::Scalar)]);
+    let Some(Node::Profile(program)) = doc.node(profile(&doc)) else {
+        panic!("a profile second");
     };
-    assert_eq!(program.plane, FRAME);
-    assert!(
-        !program.references(&p()),
-        "the program must hold no parameter"
-    );
+    assert_eq!(program.plane, frame(&doc));
+    assert!(!program.reads(var), "the program must hold no parameter");
 }

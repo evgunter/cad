@@ -144,6 +144,45 @@ fn a_poisoned_or_collapsed_rate_passes_straight_through() {
     }
 }
 
+/// **A fold keeps the poison.** `SupSpeed::max` and `InfSpeed::min`
+/// fold two regions' rates into one, and a refused region must refuse
+/// the union: either operand NaN answers NaN, which is exactly what the
+/// inherent `f64::max`/`f64::min` get wrong by returning the other
+/// operand. Off the NaN rows the fold answers the larger (smaller)
+/// operand, ties keeping the receiver, so a fold of two certified
+/// rates moves no bits.
+#[test]
+fn a_fold_on_the_rate_type_propagates_a_lone_nan() {
+    let s = sample();
+    for &a in &s {
+        for &b in &s {
+            let sup = SupSpeed::new(a).max(SupSpeed::new(b)).get();
+            let inf = InfSpeed::new(a).min(InfSpeed::new(b)).get();
+            if a.is_nan() || b.is_nan() {
+                assert!(
+                    sup.is_nan(),
+                    "SupSpeed::max({a:e}, {b:e}) = {sup:e}, dropped the NaN"
+                );
+                assert!(
+                    inf.is_nan(),
+                    "InfSpeed::min({a:e}, {b:e}) = {inf:e}, dropped the NaN"
+                );
+            } else {
+                let hi = if a >= b { a } else { b };
+                let lo = if a <= b { a } else { b };
+                assert!(
+                    same_bits(sup, hi),
+                    "SupSpeed::max({a:e}, {b:e}) = {sup:e}, not {hi:e}"
+                );
+                assert!(
+                    same_bits(inf, lo),
+                    "InfSpeed::min({a:e}, {b:e}) = {inf:e}, not {lo:e}"
+                );
+            }
+        }
+    }
+}
+
 /// The certified lane: the doors are the interval product and
 /// quotient, so this row pins the ENCLOSURE property — the answer
 /// contains the real product (quotient) of any point of the span and

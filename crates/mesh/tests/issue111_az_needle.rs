@@ -25,8 +25,9 @@ use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
+use sweep::ExtrudeSide;
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanResult};
+use topo::{AtRestBody, Body, BooleanResult};
 
 /// 880383/327680: A with the counter as a true inner loop (genus 1).
 const ORACLE_COUNTER: f64 = 880_383.0 / 327_680.0;
@@ -80,18 +81,22 @@ fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> Validated
         .expect("profile validation")
 }
 
-fn a_prism(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
+fn a_prism(loops: Vec<ProfileLoop<f64>>) -> AtRestBody<f64> {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, -0.0625)));
-    extrude(
+    let body = extrude(
         &validated(plane, loops),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance {
+            depth: 2.125,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude A")
-    .body
+    .body;
+    topo::test_support::finished("prism A", body, Tol::witness())
 }
 
-fn z_prism() -> Body<f64> {
+fn z_prism() -> AtRestBody<f64> {
     let z_poly = [
         (-0.0625, 0.0),
         (2.5625, 0.0),
@@ -105,18 +110,22 @@ fn z_prism() -> Body<f64> {
         (-0.0625, 0.4375),
     ];
     let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(Point3::new(-0.0625, 0.0, 0.0)));
-    extrude(
+    let body = extrude(
         &validated(plane, vec![lp(&z_poly)]),
-        Extrusion::Distance(2.125),
+        Extrusion::Distance {
+            depth: 2.125,
+            side: ExtrudeSide::Along,
+        },
         Tol::witness(),
     )
     .expect("extrude Z")
-    .body
+    .body;
+    topo::test_support::finished("prism Z", body, Tol::witness())
 }
 
 fn az(loops: Vec<ProfileLoop<f64>>, label: &str) -> Body<f64> {
     match topo::intersect(&a_prism(loops), &z_prism(), Tol::witness()) {
-        Ok(BooleanResult::Body(bb)) => bb.body,
+        Ok(BooleanResult::Body(bb)) => bb.body.into_body(),
         other => panic!("{label}: A×Z intersect did not produce a body ({other:?})"),
     }
 }

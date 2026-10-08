@@ -269,13 +269,13 @@ fn r2_the_rest_door_silently_ignores_its_arguments_on_an_at_rest_spec() {
     };
     let restated = spec.at_rest_in_chart(keys[1], true);
     match restated.description {
-        EdgeDescriptionSpec::Chart { surface, seam, .. } => {
+        EdgeDescriptionSpec::Chart { surface, wrap, .. } => {
             assert_eq!(
                 surface, keys[0],
                 "the door kept the OLD chart and dropped the one it was handed"
             );
             assert!(
-                !seam,
+                !wrap,
                 "the door dropped the seam obligation it was handed, silently"
             );
         }
@@ -424,7 +424,7 @@ fn r2_the_scaffolding_door_certifies_with_no_surface_at_all() {
     let (q0, q1) = (p(0.0, 0.0, 0.0), p(0.0, 0.0, 3.0));
     let edge = EdgeCurve::certify(EdgeCurveSpec::line_between(q0, q1), q0, q1, &lookup, band())
         .expect("scaffolding needs no chart");
-    assert!(matches!(edge.description(), EdgeDescription::Scaffold(_)));
+    assert!(edge.description().is_scaffold());
     assert!(
         matches!(
             edge.authority(),

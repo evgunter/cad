@@ -15,29 +15,31 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError, Evaluation, Node,
-    ParamName, ParseError, ProfileProgram, RecipeNodeId, SlotId, ValuePayload,
+    BooleanOp, BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError,
+    EvalError, Evaluation, HeldNodes, Node, NodeErrorKind, ParseError, ProfileProgram,
+    RecipeNodeId, Said, SlotId, Speaker, SpokenNode, SpokenVar, ValuePayload, VarId, VarName,
+    held_by,
 };
 use pncad::prelude::{Body, StableName, SurfaceKind};
-use pncad::select::{InterrogateError, face_carrier_kind};
+use pncad::select::{FlushFinding, InterrogateError, face_carrier_kind};
 use pncad::workspace::WorkspaceError;
 
-// The recourse this module's `NoSuchParam` arm ends on, read from its
+// The recourse this module's `NoSuchVariable` arm ends on, read from its
 // one home beside the error whose door raises the other half of the
 // pair. A direct edge on the owning crate rather than a new re-export
 // added to `pncad`'s root — the ruling `pncad`'s own crate docs state
 // for a name the facade does not carry, and the same one this crate's
 // `bvh` and `Rgba8` edges cite.
-use editor_core::edit::UNDECLARED_PARAM_RECOURSE;
+use editor_core::edit::UNKNOWN_VAR_RECOURSE;
 
 use crate::combine;
 use crate::display::{AdmissionFault, DisplayFault};
 use crate::docio::DocIoError;
 use crate::frame::Tone;
+use crate::generation::Generation;
 use crate::history::History;
-use crate::props::{self, SlotValue};
-use crate::session::FaceSelection;
-use crate::sketch::Restructure;
+use crate::props::{self, Notation, SlotValue};
+use crate::session::{FaceSelection, SessionOp};
 
 /// The node kind a creation op's seat requires — the payload of
 /// [`Refusal::WrongNodeKind`], so the refusal names what was wanted
@@ -59,7 +61,8 @@ pub enum NodeKindWanted {
     SketchAxis,
     /// A `Node::Datum(Datum::Plane)`.
     Plane,
-    /// A `Node::Datum(Datum::Frame)` — what a profile is drawn on.
+    /// A `Node::Datum(Datum::Frame)` or a `Node::Datum(Datum::FaceFrame)`
+    /// — what a profile is drawn on. Both evaluate to a frame value.
     Frame,
     /// A node whose value is ONE body — the combining seats' kind
     /// ([`combine::denotes_body`] carries the admissible set and why a
@@ -107,22 +110,56 @@ pub enum NodeKindWanted {
 /// would then reject.
 pub fn admits(held: Option<&Node<ProfileProgram>>, wanted: NodeKindWanted) -> bool {
     match wanted {
-        NodeKindWanted::Profile => matches!(held, Some(Node::Profile(_))),
-        NodeKindWanted::Axis => matches!(held, Some(Node::Datum(Datum::Axis { .. }))),
-        NodeKindWanted::SketchAxis => {
-            matches!(held, Some(Node::Datum(Datum::AxisInPlane { .. })))
-        }
-        NodeKindWanted::Plane => matches!(held, Some(Node::Datum(Datum::Plane { .. }))),
-        // Both frame kinds: a profile is drawn on a frame VALUE, and a
-        // derived frame evaluates to the same value an authored one
-        // does.
-        NodeKindWanted::Frame => matches!(
-            held,
-            Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
-        ),
         NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
-        NodeKindWanted::Split => matches!(held, Some(Node::Split { .. })),
-        NodeKindWanted::Instances => matches!(held, Some(Node::Pattern { .. })),
+        NodeKindWanted::Profile
+        | NodeKindWanted::Axis
+        | NodeKindWanted::SketchAxis
+        | NodeKindWanted::Plane
+        | NodeKindWanted::Frame
+        | NodeKindWanted::Split
+        | NodeKindWanted::Instances => held.and_then(seat_kind) == Some(wanted),
+    }
+}
+
+/// **Which non-body kind a node is**, or `None` for a node no
+/// profile, axis, plane, frame, split or instances seat takes — the one classification
+/// [`admits`] reads for every kind but [`NodeKindWanted::Body`], whose
+/// rule is [`combine::denotes_body`]'s.
+fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
+    match node {
+        Node::Profile(_) => Some(NodeKindWanted::Profile),
+        Node::Datum(datum) => match datum {
+            Datum::Axis { .. } => Some(NodeKindWanted::Axis),
+            Datum::AxisInPlane { .. } => Some(NodeKindWanted::SketchAxis),
+            Datum::Plane { .. } => Some(NodeKindWanted::Plane),
+            // Both frame kinds: a profile is drawn on a frame VALUE,
+            // and a derived frame evaluates to the same value an
+            // authored one does.
+            Datum::Frame { .. } | Datum::FaceFrame { .. } => Some(NodeKindWanted::Frame),
+            // No seat asks for a point.
+            Datum::Point { .. } => None,
+        },
+        Node::Split { .. } => Some(NodeKindWanted::Split),
+        Node::Pattern { .. } => Some(NodeKindWanted::Instances),
+        Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Part { .. }
+        | Node::PlacedUnion { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Mate { .. }
+        | Node::Gauge { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => None,
     }
 }
 
@@ -188,77 +225,78 @@ impl Step {
 pub enum Refusal {
     /// The slot is driven by an expression, so a direct numeric edit
     /// is refused — the ratified affordance. The payload is what the
-    /// affordance needs: which parameters drive it (each navigable and
+    /// affordance needs: which variables drive it (each navigable and
     /// editable), and what the slot evaluates to today.
     DrivenByExpression {
         /// The node holding the slot.
         node: RecipeNodeId,
         /// The slot.
         slot: SlotId,
-        /// The document parameters the driving expression reads.
-        params: Vec<ParamName>,
+        /// The variables the driving expression reads, each as the
+        /// document spoke it at the refusal.
+        variables: Vec<SpokenVar>,
         /// The slot's current value, when it has one.
         current: Option<SlotValue>,
+        /// The working notation the affordance reads `current` in —
+        /// the one in force when the edit was refused, since nobody
+        /// wrote that value.
+        notation: Notation,
     },
     /// The node does not exist, or does not carry that slot.
     NoSuchSlot {
-        /// The node named.
-        node: RecipeNodeId,
+        /// The node named, as the document held it at the refusal.
+        node: SpokenNode,
         /// The slot named.
         slot: SlotId,
     },
-    /// No document parameter by that name.
+    /// No document variable with that id.
     ///
     /// A LOOKUP's not-found arm, never a pre-check: the two sites that
     /// raise it need the declaration itself — its dimension to open a
     /// gesture, its value and unit to seed a range probe — and neither
     /// commits an edit, so no door below refuses on their behalf. The
-    /// value door does refuse an undeclared name, and says so in
-    /// editor-core's words ([`EditError::DocParamNotDeclared`], reached
-    /// through [`Self::Edit`]).
+    /// value door does refuse a variable the document does not hold,
+    /// and says so in editor-core's words ([`EditError::UnknownVar`],
+    /// reached through [`Self::Edit`]).
     ///
     /// **One mistake reaches two sentences, and that is decided rather
-    /// than left.** Typing an undeclared name into the value field
-    /// goes to the edit door; dragging its row comes here. The two
-    /// cannot be made one refusal without putting back the pre-check
-    /// the door already refuses — so what is converged is what the
+    /// than left.** Typing into the value field of a variable the
+    /// document no longer holds goes to the edit door; dragging its
+    /// row comes here. The two cannot be made one refusal without
+    /// putting back the pre-check the door already refuses — so what
+    /// is converged is what the
     /// user must DO: this arm renders the same recourse the door
-    /// renders — [`editor_core::edit::UNDECLARED_PARAM_RECOURSE`], its
+    /// renders — [`editor_core::edit::UNKNOWN_VAR_RECOURSE`], its
     /// one home — over the same fact. What stays apart is
     /// the frame, and it has to: the door's sentence is about an edit
     /// that was refused, and a drag has no edit behind it, so a
     /// gesture that borrowed the door's frame would report a
     /// refusal of something nobody attempted.
-    NoSuchParam(ParamName),
-    /// A parameter's value field was given text that is not a number.
+    NoSuchVariable(VarId),
+    /// A value door that reads a FREE variable's value was pointed at a
+    /// defined one: the range probe, which seeds its search from the
+    /// value it would move. A defined variable holds a formula and no
+    /// value of its own, so there is nothing to move; its range is the
+    /// ranges of the variables it reads.
+    VariableIsDefined(SpokenVar),
+    /// An offer was accepted ([`SessionOp::SetSlotVariable`]) of a
+    /// variable that is not on offer at that slot: the offer closed —
+    /// the slot was retyped, dragged, undone — or never named it. An
+    /// offer is made only about a value as it was typed, so the op
+    /// refuses rather than join the slot to a variable chosen against a
+    /// value it no longer holds.
     ///
-    /// **A document parameter holds a number, not an expression** —
-    /// `DocParam::Continuous` holds an `f64` — so there is no
-    /// `SetDocParamExpression` for such text to reach and no partial
-    /// reading of it that would be honest. A slot's field takes the
-    /// expression door here; a parameter's says why it has none, which
-    /// is itself the affordance.
-    ///
-    /// **Raised only for text that PARSED.** Text that did not carries
-    /// [`Self::Parse`], whose sentence names the token and its offset;
-    /// re-wording it at this door would be a second opinion about a
-    /// refusal the parser already made.
-    ParamNotANumber {
-        /// The parameter whose field was typed into.
-        name: ParamName,
-    },
-    /// The CREATE door was asked for a name that is already declared.
-    ///
-    /// `DocEdit::SetDocParam` is create-or-replace and stays so at the
-    /// API; this refusal is the session keeping "create" and
-    /// "replace" distinct ACTS — see [`super::SessionOp::CreateParam`]. The
-    /// payload carries the existing declaration's dimension so the
-    /// offer can name what already stands there.
-    ParamExists {
-        /// The name, as asked for.
-        name: ParamName,
-        /// The dimension the existing declaration carries.
-        dimension: Dimension,
+    /// [`SessionOp::SetSlotVariable`]: crate::session::SessionOp::SetSlotVariable
+    NotOffered(SpokenVar),
+    /// A variable's field was given a constant expression that does
+    /// not evaluate to a value — a non-finite result, or a count past
+    /// its range. Constant text typed as a value is folded here, before
+    /// any door, so the evaluator's refusal is this door's to forward.
+    ConstantRefused {
+        /// The variable whose field was typed into.
+        var: SpokenVar,
+        /// The evaluator's refusal, in its own words.
+        source: EvalError,
     },
     /// The New door was asked for a blank name. The document id is
     /// derived from the name (`DocumentId::derive` — the identity
@@ -272,14 +310,21 @@ pub enum Refusal {
     /// for every seat, so the sentence is spelled once (GAUTH-4/5 add
     /// more seats to the same rule).
     WrongNodeKind {
-        /// The node named.
-        node: RecipeNodeId,
+        /// The node named, as the document held it at the refusal.
+        node: SpokenNode,
         /// The kind the seat requires.
         wanted: NodeKindWanted,
     },
     /// A duplicate could not be placed — its input's landed value is
     /// not one body with a width ([`combine::DuplicateFault`]).
     Duplicate(combine::DuplicateFault),
+    /// The boolean the door evaluated refused a contact nobody
+    /// declared, so it was not committed ([`RefusedBoolean`]): the
+    /// kernel's refusal and the attempt it answered, which is what
+    /// makes the offer to declare it (`frame::declare_offer`).
+    ///
+    /// Boxed for [`Refusal::Edit`]'s reason.
+    Contact(Box<RefusedBoolean>),
     /// `apply` refused the edit — the door's own sentence, forwarded.
     ///
     /// **Layer 3 adds a frame and never a second opinion.** Every
@@ -379,57 +424,110 @@ pub enum Refusal {
         /// asked for.
         id: DocumentId,
     },
-    /// The path editor's program does not have the committed
-    /// profile's shape ([`crate::sketch::program_edits`]'s refusal):
-    /// the document's edit vocabulary writes a program's numbers and
-    /// has no door that changes its verbs, arc forms, targets or loop
-    /// count. The editor locks those controls on a committed node;
-    /// this is the door behind them.
-    ProfileRestructure {
-        /// The profile node.
-        node: RecipeNodeId,
-        /// Where the shapes differ.
-        why: Restructure,
-    },
-    /// The editor's numbers are a valid profile TOGETHER — the whole
-    /// program was checked before any slot was written — and no order
-    /// of the one-slot writes that reach them keeps every intermediate
-    /// program valid: each write re-validates the whole program, and
-    /// every order was searched (`session::accepted_order`, exact up
-    /// to [`super::ORDER_SEARCH_CAP`] writes). The refusal carried is
-    /// the last intermediate state the search met; what the variant
-    /// names is the cost of the whole-program edit the vocabulary
-    /// lacks.
-    ProfileEditOrder {
-        /// The profile node.
-        node: RecipeNodeId,
-        /// The edit door's refusal of the intermediate state.
-        error: Box<EditError>,
-    },
-    /// [`Self::ProfileEditOrder`]'s question left unanswered: the
-    /// edit moves more arguments than the order search covers
-    /// ([`super::ORDER_SEARCH_CAP`]), and writing them in slot order
-    /// passes through a state the door refuses. Another order may
-    /// land; the search for one was not run.
-    ProfileEditOrderCapped {
-        /// The profile node.
-        node: RecipeNodeId,
-        /// How many arguments the edit moves.
-        writes: usize,
-        /// The most the order search covers.
-        cap: usize,
-    },
-    /// The path editor's numbers were loaded from a program the
-    /// document no longer holds (an undo, or an edit from elsewhere,
-    /// landed in between): they are an edit of something that is not
-    /// there any more, and are not written over what is.
+    /// The path editor's program was loaded from one the document no
+    /// longer holds (an undo, or an edit from elsewhere, landed in
+    /// between): it is an edit of something that is not there any
+    /// more, and is not written over what is.
     ProfileEditStale {
-        /// The profile node.
-        node: RecipeNodeId,
+        /// The profile node, as the document held it at the refusal.
+        node: SpokenNode,
     },
 }
 
 impl Refusal {
+    /// **This refusal with every node and variable it names spoken
+    /// again from `doc`** — a later version of the document it was
+    /// raised in, so a label or a name changed since the raise is the
+    /// one it says. The rule
+    /// and why it is sound are [`SpokenNode::respoken`]'s; it is why a
+    /// document an `Open` or a `New` replaced is never `doc` here
+    /// (`frame::batch_refusal`).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        let again = |node: SpokenNode| node.respoken(doc);
+        match self {
+            Self::NoSuchSlot { node, slot } => Self::NoSuchSlot {
+                node: again(node),
+                slot,
+            },
+            Self::WrongNodeKind { node, wanted } => Self::WrongNodeKind {
+                node: again(node),
+                wanted,
+            },
+            Self::ProfileEditStale { node } => Self::ProfileEditStale { node: again(node) },
+            Self::ConstantRefused { var, source } => Self::ConstantRefused {
+                var: var.respoken(doc),
+                source,
+            },
+            Self::VariableIsDefined(var) => Self::VariableIsDefined(var.respoken(doc)),
+            Self::NotOffered(var) => Self::NotOffered(var.respoken(doc)),
+            Self::Duplicate(fault) => Self::Duplicate(fault.respoken(doc)),
+            Self::Contact(refused) => Self::Contact(Box::new(refused.respoken(doc))),
+            Self::Display(fault) => Self::Display(fault.respoken(doc)),
+            Self::SlotUnit(fault) => Self::SlotUnit(fault.respoken(doc)),
+            Self::Edit(error) => Self::Edit(Box::new(error.respoken(doc))),
+            Self::DrivenByExpression {
+                node,
+                slot,
+                variables,
+                current,
+                notation,
+            } => Self::DrivenByExpression {
+                node,
+                slot,
+                variables: variables.iter().map(|var| var.respoken(doc)).collect(),
+                current,
+                notation,
+            },
+            unspoken @ (Self::NoSuchVariable(_)
+            | Self::EmptyName
+            | Self::Dimension(_)
+            | Self::Parse(_)
+            | Self::NoGesture
+            | Self::GestureInFlight
+            | Self::WrongGesture
+            | Self::Io(_)
+            | Self::NothingToDo { .. }
+            | Self::NoDocumentDirectory
+            | Self::Workspace(_)
+            | Self::SelfInstance { .. }) => unspoken,
+        }
+    }
+
+    /// **The parse error, when the refusal is the expression door's
+    /// parse refusal** — the text an author typed did not parse, so
+    /// nothing reached the document and the typed source is still the
+    /// author's. The one reading `frame::creation_offer` and
+    /// `frame::retype_draft` both take.
+    pub fn parse_error(&self) -> Option<&ParseError> {
+        match self {
+            Self::Parse(error) => Some(&**error),
+            Self::DrivenByExpression { .. }
+            | Self::NoSuchSlot { .. }
+            | Self::NoSuchVariable(_)
+            | Self::ConstantRefused { .. }
+            | Self::VariableIsDefined(_)
+            | Self::NotOffered(_)
+            | Self::EmptyName
+            | Self::WrongNodeKind { .. }
+            | Self::Duplicate(_)
+            | Self::Contact(_)
+            | Self::Edit(_)
+            | Self::Dimension(_)
+            | Self::NoGesture
+            | Self::GestureInFlight
+            | Self::WrongGesture
+            | Self::Io(_)
+            | Self::NothingToDo { .. }
+            | Self::Display(_)
+            | Self::SlotUnit(_)
+            | Self::NoDocumentDirectory
+            | Self::Workspace(_)
+            | Self::SelfInstance { .. }
+            | Self::ProfileEditStale { .. } => None,
+        }
+    }
+
     /// How much this refusal has to say, lower being more.
     ///
     /// **A frame performs a BATCH of operations**, and a batch can hold
@@ -449,12 +547,14 @@ impl Refusal {
         match self {
             Self::DrivenByExpression { .. } => 0,
             Self::NoSuchSlot { .. }
-            | Self::NoSuchParam(_)
-            | Self::ParamNotANumber { .. }
-            | Self::ParamExists { .. }
+            | Self::NoSuchVariable(_)
+            | Self::ConstantRefused { .. }
+            | Self::VariableIsDefined(_)
+            | Self::NotOffered(_)
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
             | Self::Duplicate(_)
+            | Self::Contact(_)
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -462,31 +562,18 @@ impl Refusal {
             | Self::NoDocumentDirectory
             | Self::Workspace(_)
             | Self::SelfInstance { .. }
-            | Self::ProfileRestructure { .. }
-            | Self::ProfileEditOrder { .. }
-            | Self::ProfileEditOrderCapped { .. }
             | Self::ProfileEditStale { .. }
             | Self::Io(_) => 1,
-            // The ONE arm whose rank is a per-payload decision, so it
-            // is matched exhaustively rather than defaulted: the
+            // The ONE arm whose rank is a per-payload decision: the
             // three gesture-order faults rank with their document
-            // twins,
-            // and the substantive ones rank with the real failures,
-            // because "this instance is mate-constrained" is a
-            // decision about what the user tried. A fifth
-            // `DisplayFault` reds here until its rank is chosen —
-            // which is the obligation every other arm on this table
-            // gets from `Refusal`'s own variants. `Edit` and
+            // twins, and the substantive ones rank with the real
+            // failures, because "this instance is mate-constrained" is
+            // a decision about what the user tried. `Edit` and
             // `SlotUnit` forward whole vocabularies at one rank each
             // and that IS a default: every condition either raises is
             // a real failure, so no payload of theirs ranks
-            // differently.
-            //
-            // The admission family is walked arm by arm for the same
-            // reason and not folded into one `Admission(_)`: that
-            // spelling would be the default this arm exists to
-            // refuse, one level further down, and a fifth admission
-            // fault would take rank 1 unchosen.
+            // differently. The admission family is walked arm by arm
+            // too, rather than folded into one `Admission(_)`.
             Self::Display(fault) => match fault {
                 DisplayFault::NoFreeMove
                 | DisplayFault::FreeMoveInFlight
@@ -573,7 +660,7 @@ impl Refusal {
     /// still leaves open.
     ///
     /// The name says `new_document` and not `name`: a blank
-    /// *parameter* name is a different question with a different
+    /// *variable* name is a different question with a different
     /// answer — no door refuses one at all
     /// (`work/edit/no-door-refuses-a-blank-parameter-name`) — and a
     /// general name here would be an inviting wrong door for it.
@@ -597,44 +684,100 @@ impl Refusal {
     /// census of call sites that nothing re-derives, and the rule is
     /// what does the work. Two independently-built copies is how the
     /// wording drifts from the decision.
-    pub fn affordance(params: &[ParamName], current: Option<SlotValue>) -> String {
-        let over = if params.is_empty() {
+    ///
+    /// The current value is spelled as the slot's field spells it
+    /// ([`props::computed_text`], in the working `notation` and
+    /// carrying its symbol), so the two never show one number two ways.
+    pub fn affordance(
+        variables: &[SpokenVar],
+        slot: SlotId,
+        current: Option<SlotValue>,
+        notation: Notation,
+    ) -> String {
+        let over = if variables.is_empty() {
             "an expression".to_owned()
         } else {
-            let names: Vec<&str> = params.iter().map(|p| p.0.as_str()).collect();
+            let names: Vec<String> = variables.iter().map(SpokenVar::to_string).collect();
             format!("an expression over {}", names.join(", "))
         };
         match current {
             Some(value) => format!(
                 "driven by {over} (currently {}) — edit the expression?",
-                value.as_f64()
+                props::computed_text(slot.dimension(), value.as_f64(), notation)
             ),
             None => format!("driven by {over} — edit the expression?"),
         }
     }
 
-    /// The already-declared sentence, and its one home. The status
-    /// line renders it through [`Refusal::ParamExists`], and the add-
-    /// parameter form shows the same sentence BEFORE the click — one
-    /// composition, so the pre-click notice and the refusal cannot
-    /// drift apart.
+    /// The already-declared sentence, and its one home: the add-
+    /// variable form's notice BEFORE the click, which offers the
+    /// standing variable's row in place of the Create button. A click
+    /// that reaches the door anyway is refused by the declare itself
+    /// (`EditError::VarNameTaken`, through [`Refusal::Edit`]); the
+    /// notice is an offer the form makes from the document it reads,
+    /// with the standing declaration's dimension, which the door's
+    /// refusal does not carry.
     ///
     /// The dimension is named through its OWN `Display`, which is the
     /// one home of the dimension-in-prose rule (`Dimension`'s impl in
     /// editor-core): a dimension is a quantity KIND, so a sentence a
     /// person reads says the common noun and never the variant
     /// identifier.
-    pub fn exists_wording(name: &ParamName, dimension: Dimension) -> String {
+    pub fn exists_wording(name: &VarName, dimension: Dimension) -> String {
         format!(
-            "parameter {} already exists ({dimension}) — edit it instead?",
-            name.0
+            "variable {} already exists ({dimension}) — edit it instead?",
+            name.as_str()
         )
     }
 
     /// The create-offer sentence, and its one home — shown over the
-    /// add-parameter form when an expression refused on this name.
-    pub fn offer_wording(name: &ParamName) -> String {
-        format!("create parameter {}?", name.0)
+    /// add-variable form when an expression refused on this name.
+    pub fn offer_wording(name: &VarName) -> String {
+        format!("create variable {}?", name.as_str())
+    }
+
+    /// The declare-offer question, and its one home — shown over the
+    /// pairs the offer declares, in the boolean tool.
+    pub fn declare_question(offer: &DeclareOffer) -> String {
+        let contacts = offer.findings.iter().all(|f| f.class.contact().is_some());
+        let what = match (offer.findings.len(), contacts) {
+            (1, true) => "this contact",
+            (_, true) => "these contacts",
+            (1, false) => "this pair",
+            (_, false) => "these pairs",
+        };
+        format!("declare {what} and commit the boolean?")
+    }
+
+    /// The accept-offer question, and its one home — shown under an
+    /// instance row whose pin no longer holds. It names the part by
+    /// its file, as the row does, and says the accept reaches every
+    /// instance of it.
+    pub fn version_question(offer: &VersionOffer) -> String {
+        format!(
+            "accept the updated version of {}, at every instance of it?",
+            offer.part
+        )
+    }
+
+    /// **One pair an offer declares, as the panel names it**: each
+    /// side's operand through the chrome's one spelling of a node, and
+    /// the class the declaration asserts: a contact's class, or a
+    /// continuation (one surface carried on, which is not a contact).
+    /// The line says "a face of" each operand, not which face: saying
+    /// the face in its words is
+    /// `work/doors/face-pick-cannot-name-which-face.md`'s to wire.
+    pub fn declare_pair_wording(doc: &Doc<ProfileProgram>, finding: &FlushFinding) -> String {
+        let (one, other) = &finding.pair;
+        let what = match finding.class.contact() {
+            Some(class) => format!("{} contact", class.name()),
+            None => "a continuation".to_owned(),
+        };
+        format!(
+            "a face of {} against a face of {} — {what}",
+            doc.spoken(one.at),
+            doc.spoken(other.at),
+        )
     }
 }
 
@@ -652,29 +795,38 @@ impl core::fmt::Display for Refusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::DrivenByExpression {
-                params, current, ..
-            } => write!(f, "{}", Self::affordance(params, *current)),
+                slot,
+                variables,
+                current,
+                notation,
+                ..
+            } => write!(
+                f,
+                "{}",
+                Self::affordance(variables, *slot, *current, *notation)
+            ),
             Self::NoSuchSlot { node, slot } => {
-                write!(f, "node {} has no {} slot", node.0, slot.label())
+                write!(f, "{node} has no {} slot", slot.label())
             }
-            Self::NoSuchParam(name) => {
+            Self::NoSuchVariable(var) => {
                 write!(
                     f,
-                    "no document parameter named {} — {UNDECLARED_PARAM_RECOURSE}",
-                    name.0
+                    "variable {var} is not in this document — {UNKNOWN_VAR_RECOURSE}"
                 )
             }
-            Self::ParamNotANumber { name } => {
-                write!(
-                    f,
-                    "parameter {} holds a number, not an expression — write a number, with a \
-                     unit if you want one (50 mm)",
-                    name.0
-                )
+            Self::ConstantRefused { var, source } => {
+                write!(f, "the value typed for {var} does not evaluate: {source}")
             }
-            Self::ParamExists { name, dimension } => {
-                write!(f, "{}", Self::exists_wording(name, *dimension))
-            }
+            Self::VariableIsDefined(var) => write!(
+                f,
+                "{var} is defined by a formula and holds no value of its own to move — \
+                 probe a variable it reads"
+            ),
+            Self::NotOffered(var) => write!(
+                f,
+                "{var} is no longer offered here — type the value again to be offered \
+                 the variables equal to it"
+            ),
             Self::EmptyName => {
                 write!(
                     f,
@@ -682,18 +834,14 @@ impl core::fmt::Display for Refusal {
                 )
             }
             Self::WrongNodeKind { node, wanted } => {
-                write!(
-                    f,
-                    "node {} is not {} in this document",
-                    node.0,
-                    wanted.name()
-                )
+                write!(f, "{node} is not {} in this document", wanted.name())
             }
             // The frame is layer 3's and the sentence is the door's.
             // Nothing is doubled: `EditError`'s arms state the problem
             // and carry no category prefix of their own, so this reads
             // as one sentence rather than as two openings.
             Self::Duplicate(fault) => write!(f, "{fault}"),
+            Self::Contact(refused) => write!(f, "{refused}"),
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
             Self::Parse(error) => write!(f, "the expression did not parse: {error}"),
@@ -714,35 +862,256 @@ impl core::fmt::Display for Refusal {
                 "document {id} is the open document — a document cannot be an instance of \
                  itself; pick another part"
             ),
-            Self::ProfileRestructure { node, why } => {
-                write!(f, "feature {} was not edited: {why}", node.0)
-            }
-            Self::ProfileEditOrder { node, error } => write!(
-                f,
-                "feature {}'s new numbers make a valid profile together, but every order of \
-                 one-argument writes passes through a state the door refuses ({error}); the \
-                 document has no edit that writes a whole program at once",
-                node.0
-            ),
-            Self::ProfileEditOrderCapped { node, writes, cap } => write!(
-                f,
-                "feature {}'s new numbers make a valid profile together, but writing their {writes} \
-                 arguments one at a time in order passes through a state the door refuses, and \
-                 the search for another order was not run: it is capped at {cap} arguments — \
-                 apply the edit in smaller steps",
-                node.0
-            ),
             Self::ProfileEditStale { node } => write!(
                 f,
-                "feature {}'s profile changed since the editor loaded it; its numbers were not \
-                 written — the editor now shows the profile as it is",
-                node.0
+                "{node} changed since the editor loaded it; the editor's program was not \
+                 written — the editor now shows the profile as it is"
             ),
         }
     }
 }
 
 impl core::error::Error for Refusal {}
+
+/// **A boolean the session door evaluated and did not commit, because
+/// it refused a contact nobody declared** — [`Refusal::Contact`]'s
+/// payload, and the one source of the offer to declare that contact.
+///
+/// It holds the attempt — the operation, its two operands, the findings
+/// it already declared, the generation it was judged at — beside the
+/// kernel's refusal as the kernel raised it, so the sentence a person
+/// reads is the kernel's own and the offer declares exactly the pair
+/// that sentence is about.
+#[derive(Debug)]
+pub struct RefusedBoolean {
+    op: BooleanOp,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+    declared: Vec<FlushFinding>,
+    at: Generation,
+    /// Always the kernel's `NodeErrorKind::UndeclaredCoincidence`: the one
+    /// constructor admits nothing else.
+    refused: NodeErrorKind,
+    /// The nodes `refused` names, as the document the boolean was
+    /// judged in held them ([`held_by`]).
+    held: HeldNodes,
+}
+
+impl RefusedBoolean {
+    /// **What the boolean `op` of `a` and `b`, evaluated as `node` in
+    /// `eval` (of `doc`) with `declared` already declared, refused** — `None` when
+    /// the node has no failure of its own ([`crate::tree::own_error`]:
+    /// a poisoned node's cause is an ancestor's, sited at that
+    /// ancestor's operands), or fails for any reason but an undeclared
+    /// contact the node can declare.
+    ///
+    /// A contact between two faces of ONE operand is not one it can:
+    /// the pair boolean resolves a declared pair only across its two
+    /// operands, so declaring it would commit a boolean that refuses
+    /// the declaration instead. That refusal stays the node's own.
+    pub(crate) fn read(
+        doc: &Doc<ProfileProgram>,
+        eval: &Evaluation<f64>,
+        node: RecipeNodeId,
+        attempt: (BooleanOp, [RecipeNodeId; 2]),
+        declared: Vec<FlushFinding>,
+        at: Generation,
+    ) -> Option<Self> {
+        Self::of(
+            doc,
+            &crate::tree::own_error(node, eval)?.kind,
+            attempt,
+            declared,
+            at,
+        )
+    }
+
+    /// [`Self::read`]'s judgement of the node's own error `refused`,
+    /// its nodes said as `doc` holds them.
+    fn of(
+        doc: &Doc<ProfileProgram>,
+        refused: &NodeErrorKind,
+        (op, [a, b]): (BooleanOp, [RecipeNodeId; 2]),
+        declared: Vec<FlushFinding>,
+        at: Generation,
+    ) -> Option<Self> {
+        let NodeErrorKind::UndeclaredCoincidence {
+            finding,
+            merged,
+            diag,
+        } = refused
+        else {
+            return None;
+        };
+        if finding.pair.0.at == finding.pair.1.at {
+            return None;
+        }
+        Some(Self {
+            op,
+            a,
+            b,
+            declared,
+            at,
+            refused: NodeErrorKind::UndeclaredCoincidence {
+                finding: finding.clone(),
+                merged: merged.clone(),
+                diag: *diag,
+            },
+            held: held_by(refused, doc),
+        })
+    }
+
+    /// This refusal with its nodes spoken from `doc`, a later version of
+    /// the document it was judged in ([`Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        Self {
+            held: self.held.respoken(doc),
+            ..self
+        }
+    }
+
+    /// The finding the kernel refused: the pair and the class a
+    /// declaration of it asserts.
+    pub fn finding(&self) -> &FlushFinding {
+        let NodeErrorKind::UndeclaredCoincidence { finding, .. } = &self.refused else {
+            unreachable!("`RefusedBoolean::read` admits only an undeclared contact")
+        };
+        finding
+    }
+
+    /// **Whether the kernel refused a pair the attempt already
+    /// declared** — its own declaration, which no further declaring can
+    /// answer.
+    fn re_raised(&self) -> bool {
+        self.declared.contains(self.finding())
+    }
+
+    /// **The offer this refusal makes**: the same boolean again,
+    /// declaring what the attempt declared and the finding it refused.
+    /// `None` when the finding is one the attempt already declared.
+    pub fn offer(&self) -> Option<DeclareOffer> {
+        (!self.re_raised()).then(|| DeclareOffer {
+            at: self.at,
+            op: self.op,
+            a: self.a,
+            b: self.b,
+            findings: self
+                .declared
+                .iter()
+                .chain([self.finding()])
+                .cloned()
+                .collect(),
+        })
+    }
+}
+
+impl core::fmt::Display for RefusedBoolean {
+    /// The kernel's sentence, whole — it names what refused and why,
+    /// and adds no opening of its own. A pair the attempt already
+    /// declared says so after it: that is the kernel refusing its own
+    /// declaration, which no recourse in the sentence can answer.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", Said(&self.refused, Speaker::held(&self.held)))?;
+        if self.re_raised() {
+            write!(
+                f,
+                " — but that pair is already declared on this boolean. {}",
+                pncad::geom_core::KERNEL_DEFECT_ENDING
+            )?;
+        }
+        Ok(())
+    }
+}
+
+/// **The offer a [`RefusedBoolean`] makes** — a value, so the panel
+/// shows every pair accepting it declares before anything is
+/// committed.
+///
+/// The class of each pair is the finding's, confirmed rather than
+/// chosen: the author accepts the contact the kernel detected, and a
+/// class it did not detect is not on offer.
+#[derive(Clone, Debug, PartialEq)]
+pub struct DeclareOffer {
+    at: Generation,
+    op: BooleanOp,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+    findings: Vec<FlushFinding>,
+}
+
+impl DeclareOffer {
+    /// The button that accepts the offer.
+    pub const ACCEPT_LABEL: &str = "Declare";
+
+    /// The button that drops the offer and declares nothing.
+    pub const DECLINE_LABEL: &str = "Decline";
+
+    /// Every finding accepting the offer declares, in the order the
+    /// refusals reported them.
+    pub fn findings(&self) -> &[FlushFinding] {
+        &self.findings
+    }
+
+    /// **Whether the offer still stands**: the session is at the
+    /// generation the boolean was refused at — no edit, undo or open
+    /// since — and the tool holds the same operation over the same two
+    /// picks. An offer failing either is about a document or a pair of
+    /// operands nobody is looking at.
+    pub fn is_for(
+        &self,
+        now: Generation,
+        op: BooleanOp,
+        a: Option<RecipeNodeId>,
+        b: Option<RecipeNodeId>,
+    ) -> bool {
+        self.at == now && self.op == op && a == Some(self.a) && b == Some(self.b)
+    }
+
+    /// **Accepting the offer**: the boolean again, declaring every
+    /// finding — one action at the session door, so one undo.
+    pub fn accept(&self) -> SessionOp {
+        SessionOp::AddBoolean {
+            op: self.op,
+            a: self.a,
+            b: self.b,
+            declare: self.findings.clone(),
+        }
+    }
+}
+
+/// **The offer an instance whose pin no longer holds makes**: accept
+/// its part's updated version ([`crate::frame::version_offer`] reads
+/// it off the instance's own failure).
+///
+/// It names the part and nothing about versions: the failure line it is
+/// drawn under already names both pins in the store's words, and the
+/// version accepted is the one on disk at the click.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VersionOffer {
+    id: DocumentId,
+    part: String,
+}
+
+impl VersionOffer {
+    /// **The button that accepts the offer**: the name the store's
+    /// recourse gives the edit (`pncad::workspace::PIN_MISMATCH_RECOURSE`,
+    /// "record the \"accept updated version\" edit"), so the sentence on
+    /// the row and the control under it name one act.
+    pub const LABEL: &str = "Accept updated version";
+
+    /// The offer for the part `id`, named by its file `part`.
+    pub(crate) fn new(id: DocumentId, part: String) -> Self {
+        Self { id, part }
+    }
+
+    /// **Accepting the offer**: every reference to the part moved onto
+    /// the store's version, one action at the session door, so one
+    /// undo.
+    pub fn accept(&self) -> SessionOp {
+        SessionOp::AcceptPartVersion { id: self.id }
+    }
+}
 
 /// **"Nothing is picked yet", for a frame on a face — one string, two
 /// readers.**
@@ -771,7 +1140,7 @@ pub const NO_FACE_PICKED: &str = "pick a face in the viewport to read the frame 
 /// evaluator's single-body operand door. This says the same things one
 /// step earlier, so the author learns before the node lands rather
 /// than from a badge on it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FaceFrameFault {
     /// Nothing is picked, or what is picked is not a face. A frame on
     /// a face has no seat to fall back on: the face IS the pick.
@@ -794,8 +1163,9 @@ pub enum FaceFrameFault {
     /// transform of a pattern is body-denoting by kind and several
     /// bodies by value.
     NotOneBody {
-        /// The node whose body the ray met.
-        at: RecipeNodeId,
+        /// The node whose body the ray met, as the landed document
+        /// held it.
+        at: SpokenNode,
     },
     /// The name does not resolve to one face in this evaluation — a
     /// stale pick, a tie, a failed node, or a node this document no
@@ -804,14 +1174,23 @@ pub enum FaceFrameFault {
     /// [`crate::drafts::CommitFault`]'s reason.
     ///
     /// **A pick whose node an undo took away arrives here**, as
-    /// [`InterrogateError::NodeNotEvaluated`] — the door's own word
-    /// for a node id this evaluation has no result for. It is not
+    /// [`InterrogateError::Standing`] carrying
+    /// [`pncad::document::NodeStanding::NotInDocument`] — the standing of
+    /// a node id the evaluated document does not have. It is not
     /// [`Self::NotOneBody`]: "several bodies" is a claim about a value
     /// that exists, and telling an author to project the one they mean
     /// would be advice about a feature that is gone.
     Unresolved {
-        /// The interrogation door's refusal.
+        /// The interrogation door's refusal, read as the feature tree
+        /// reads it ([`crate::tree::interrogation_as_drawn`]).
+        ///
+        /// Its `through` may be a mate, which is not the DAG ancestor
+        /// `NodeStanding` documents
+        /// (`work/wire/kernel-standing-names-a-cluster-refused-node-as-its-own-failure`).
         error: InterrogateError,
+        /// The nodes `error` names, as the landed document held them
+        /// ([`held_by`]).
+        held: HeldNodes,
     },
     /// The face's carrier is not a plane, and a sketch frame wants
     /// one. Names the kind it actually is, because "not a plane" alone
@@ -820,9 +1199,34 @@ pub enum FaceFrameFault {
         /// The carrier kind the tag read answered.
         carrier: SurfaceKind,
     },
+    /// The face resolves, but the picture does not draw it: a later
+    /// feature consumed its body, or its instance is hidden. The
+    /// viewport marks no held face it cannot see
+    /// ([`crate::marks::drawn_patch`]), and a frame is not authored on
+    /// a face nothing on screen is marking.
+    NotDrawn,
 }
 
 impl FaceFrameFault {
+    /// This fault with its nodes spoken from `doc`, a later version of
+    /// the document it was raised in ([`Refusal::respoken`]).
+    #[must_use]
+    pub fn respoken(self, doc: &Doc<ProfileProgram>) -> Self {
+        match self {
+            Self::NotOneBody { at } => Self::NotOneBody {
+                at: at.respoken(doc),
+            },
+            Self::Unresolved { error, held } => Self::Unresolved {
+                error,
+                held: held.respoken(doc),
+            },
+            unspoken @ (Self::NoFace
+            | Self::NotLanded
+            | Self::NotPlanar { .. }
+            | Self::NotDrawn) => unspoken,
+        }
+    }
+
     /// **How loud the datum form draws this fault** — the salience a
     /// surface reads off the value, as
     /// [`crate::session::Standing::tone`] reads it off a selection.
@@ -833,7 +1237,7 @@ impl FaceFrameFault {
     /// they choose again. [`Self::Unresolved`] is that on its own
     /// merits: the form's pick is LATCHED (it outlives the selection,
     /// so the reader can go on clicking elsewhere), and a latched face
-    /// that no longer resolves holds the button until the reader picks
+    /// that no longer resolves withholds the button until the reader picks
     /// a face again, whatever is selected now.
     ///
     /// A seat not yet answerable is [`Tone::Advisory`]: no face picked
@@ -843,9 +1247,10 @@ impl FaceFrameFault {
     pub fn tone(&self) -> Tone {
         match self {
             Self::NoFace | Self::NotLanded => Tone::Advisory,
-            Self::NotOneBody { .. } | Self::Unresolved { .. } | Self::NotPlanar { .. } => {
-                Tone::Actionable
-            }
+            Self::NotOneBody { .. }
+            | Self::Unresolved { .. }
+            | Self::NotPlanar { .. }
+            | Self::NotDrawn => Tone::Actionable,
         }
     }
 }
@@ -859,16 +1264,23 @@ impl core::fmt::Display for FaceFrameFault {
             }
             Self::NotOneBody { at } => write!(
                 f,
-                "feature {}'s value is several bodies, so a face on it names no single body to \
-                 read a frame out of — project the one you mean first",
-                at.0
+                "{at}'s value is several bodies, so a face on it names no single body to read \
+                 a frame out of — project the one you mean first"
             ),
-            Self::Unresolved { error } => write!(f, "that face does not resolve: {error}"),
+            Self::Unresolved { error, held } => write!(
+                f,
+                "that face does not resolve: {}",
+                Said(error, Speaker::held(held))
+            ),
             Self::NotPlanar { carrier } => write!(
                 f,
                 "a sketch frame is read off a PLANAR face, and that one's carrier is a {} — \
                  the kernel's own word for it",
                 carrier.name()
+            ),
+            Self::NotDrawn => f.write_str(
+                "that face is not in the picture — a later feature consumed its body, or it is \
+                 hidden — so pick a face where it is drawn",
             ),
         }
     }
@@ -904,7 +1316,7 @@ pub fn face_frame_seat(
     // the node — an evaluation has no result for a node its document
     // does not have, and the interrogation door says so in its own
     // words.
-    let (_doc, ev) = landed.ok_or(FaceFrameFault::NotLanded)?;
+    let (doc, ev) = landed.ok_or(FaceFrameFault::NotLanded)?;
     // `at` is the node whose BODY the ray met, never the feature that
     // minted the face: the name is read out of that body's own table,
     // and a flat shrunk by a later fillet is a smaller face there than
@@ -924,14 +1336,51 @@ pub fn face_frame_seat(
         .value(at)
         .is_some_and(|value| one_body(&value.payload).is_none())
     {
-        return Err(FaceFrameFault::NotOneBody { at });
+        return Err(FaceFrameFault::NotOneBody { at: doc.spoken(at) });
     }
     // DM1b as a TAG READ, consulting no number: the same comparison
     // the node itself makes at evaluation.
     match face_carrier_kind(ev, at, &face.name) {
         Ok(SurfaceKind::Plane) => Ok((at, face.name.clone())),
         Ok(carrier) => Err(FaceFrameFault::NotPlanar { carrier }),
-        Err(error) => Err(FaceFrameFault::Unresolved { error }),
+        Err(error) => {
+            let error = crate::tree::interrogation_as_drawn(error, ev);
+            let held = held_by(&error, doc);
+            Err(FaceFrameFault::Unresolved { error, held })
+        }
+    }
+}
+
+/// **[`face_frame_seat`], asked of the picture on screen too**: the
+/// seat the add-datum form's button commits, refusing
+/// [`FaceFrameFault::NotDrawn`] for a face that resolves but that the
+/// picture does not draw.
+///
+/// "Drawn" is [`crate::marks::drawn_patch`]'s answer — the one the
+/// held mark lights — so the button and the mark cannot disagree about
+/// a face while there is a picture to ask. With no index for the
+/// picture on screen (`on_screen` is `None`) there is nothing to ask,
+/// and the evaluation's answer stands: the button is let through
+/// rather than withheld while the picture has no index — the same
+/// window in which the selection's own marks light nothing.
+///
+/// # Errors
+///
+/// Every [`face_frame_seat`] refusal first, so a face that is gone is
+/// said as gone; then [`FaceFrameFault::NotDrawn`].
+pub fn face_frame_seat_drawn(
+    landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
+    picked: Option<&FaceSelection>,
+    on_screen: Option<(&crate::pickindex::PickIndex, &crate::display::DisplayView)>,
+) -> Result<(RecipeNodeId, StableName), FaceFrameFault> {
+    let seat = face_frame_seat(landed, picked)?;
+    match (picked, on_screen) {
+        (Some(face), Some((index, display)))
+            if crate::marks::drawn_patch(index, display, face).is_none() =>
+        {
+            Err(FaceFrameFault::NotDrawn)
+        }
+        _ => Ok(seat),
     }
 }
 
@@ -957,6 +1406,143 @@ pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&Body<f64>> {
         ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
             Some(body)
         }
-        _ => None,
+        ValuePayload::Boolean(BooleanValue::Empty)
+        | ValuePayload::Datum(_)
+        | ValuePayload::Profile(_)
+        | ValuePayload::Split { .. }
+        | ValuePayload::Instances(_)
+        | ValuePayload::Mate(_)
+        | ValuePayload::Gauge
+        | ValuePayload::Measure { .. }
+        | ValuePayload::MeasureUnavailable { .. }
+        | ValuePayload::Assertion(_) => None,
+    }
+}
+
+/// **What a boolean's contact refusal offers, judged on the kernel's own
+/// refusal** — the two cases no scene through the session door reaches:
+/// a pair the attempt already declares, and a pair between two faces of
+/// one operand. Each starts from the boss scene's plain union, the real
+/// refusal, and changes the one thing its case is about.
+#[cfg(test)]
+mod refused_boolean {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
+
+    use pncad::document::{BooleanOp, Doc, Node, NodeErrorKind, ProfileProgram, RecipeNodeId};
+    use pncad::geom_core::{KERNEL_DEFECT_ENDING, Tol};
+
+    use super::RefusedBoolean;
+    use crate::generation::Generation;
+    use crate::test_support::{boss_on_block, inserted_and_evaluated};
+
+    /// The boss scene's union refusal as the kernel raised it, handed
+    /// to `with` beside the document the union was evaluated in — its
+    /// evaluation lives only as long as this call.
+    fn with_refusal<R>(
+        with: impl FnOnce(&Doc<ProfileProgram>, &NodeErrorKind, [RecipeNodeId; 2]) -> R,
+    ) -> R {
+        let tol = Tol::witness();
+        let (doc, block, boss) = boss_on_block("refused-boolean", tol);
+        let (judged, eval, union) = inserted_and_evaluated(
+            &doc,
+            Node::Boolean {
+                op: BooleanOp::Union,
+                a: block,
+                b: boss,
+                declare: Vec::new(),
+            },
+            tol,
+        );
+        let kind = &crate::tree::own_error(union, &eval)
+            .expect("the plain union fails on its own")
+            .kind;
+        with(&judged, kind, [block, boss])
+    }
+
+    /// **A pair the attempt already declares is not offered again**: the
+    /// kernel refusing its own declaration is a defect, and the refusal
+    /// says so. Red if the offer repeats the pair, or the sentence does
+    /// not name the defect.
+    #[test]
+    fn a_pair_already_declared_is_refused_as_a_defect_not_offered() {
+        with_refusal(|doc, kind, operands| {
+            let first = RefusedBoolean::of(
+                doc,
+                kind,
+                (BooleanOp::Union, operands),
+                Vec::new(),
+                Generation::FIRST,
+            )
+            .expect("the premise: the plain union's refusal is offerable");
+            assert!(first.offer().is_some(), "the premise: it offers");
+            let again = RefusedBoolean::of(
+                doc,
+                kind,
+                (BooleanOp::Union, operands),
+                vec![first.finding().clone()],
+                Generation::FIRST,
+            )
+            .expect("still a contact refusal");
+            assert_eq!(again.offer(), None, "no offer of a pair already declared");
+            assert!(
+                again.to_string().ends_with(KERNEL_DEFECT_ENDING),
+                "and it says whose defect it is: {again}"
+            );
+        });
+    }
+
+    /// **A contact between two faces of one operand is not offered**: the
+    /// pair boolean resolves a declared pair only across its operands, so
+    /// the refusal stays the node's own. Red if it is offered.
+    #[test]
+    fn a_same_operand_pair_is_not_offered() {
+        with_refusal(|doc, kind, operands| {
+            let NodeErrorKind::UndeclaredCoincidence {
+                finding,
+                merged,
+                diag,
+            } = kind
+            else {
+                panic!("the premise: an undeclared contact, got {kind:?}");
+            };
+            let mut same = (**finding).clone();
+            same.pair.1.at = same.pair.0.at;
+            let one_operand = NodeErrorKind::UndeclaredCoincidence {
+                finding: Box::new(same),
+                merged: merged.clone(),
+                diag: *diag,
+            };
+            assert!(
+                RefusedBoolean::of(
+                    doc,
+                    &one_operand,
+                    (BooleanOp::Union, operands),
+                    Vec::new(),
+                    Generation::FIRST
+                )
+                .is_none(),
+                "a one-operand pair is left to the node's own row"
+            );
+        });
+    }
+}
+
+#[cfg(test)]
+mod version_offer {
+    use super::VersionOffer;
+    use pncad::workspace::PIN_MISMATCH_RECOURSE;
+
+    /// **The accept button and the store's recourse name one act**: the
+    /// label is the edit's name the recourse quotes. Red if either is
+    /// re-worded without the other.
+    #[test]
+    fn the_accept_button_is_the_edit_the_pin_mismatch_recourse_quotes() {
+        let quoted = format!("\"{}\"", VersionOffer::LABEL.to_lowercase());
+        assert!(
+            PIN_MISMATCH_RECOURSE.contains(&quoted),
+            "{quoted} in: {PIN_MISMATCH_RECOURSE}"
+        );
     }
 }

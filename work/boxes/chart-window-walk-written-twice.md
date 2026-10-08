@@ -30,3 +30,30 @@ The unification is a channel parameter with the pole arm gated on the azimuth ch
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## The per-edge extent, too (pcert/chart-box-harmonic-extent, 2026-10-01)
+
+The two walks also spelled each edge's chart EXTENT differently. That
+branch moved `chord_join::chart_azimuth_range` onto
+`geom_brep::Pcurve::harmonic_span_box`, the one home `chart_box` and
+the torus window walk (`boolean::boxes::TorusChartWindow::step`) read.
+`solid_contain::torus_chart_windows` still takes the endpoint hull of
+the linear part alone (`let at = |t| (p0.x + pl.x * t, …)`), dropping
+whatever trigonometric part `bool_torus_chart_affine` classified Zero
+in band. The span box encloses that residue; the unification above
+should read it rather than carry a third spelling.
+
+## Evidence (PR 3985, 2026-10-03)
+
+`chord_join::run_azimuth_window` is gone: PR 3985 (`reach/arc-from-pairing`)
+retired the chord's window selection, so no chord reads a window. The
+split/join copy of the walk survives in `crates/topo/src/chord_join.rs`
+as `face_azimuth_window` / `face_azimuth_images` with its pole rule
+(`split_sphere_window_pole`) and the apex case (`ApexUnlifted`), and its
+readers are now `boolean/solid_contain.rs` (containment), the pcurve
+mint and the ring lane — none of them a chord. Both reviewers of that
+PR flagged the hosting (about 500–770 lines of window walk in a module
+whose chords no longer read it). The unification this item asks for is
+now also a move: one home beside `torus_chart_windows`, out of
+`chord_join.rs`.
+

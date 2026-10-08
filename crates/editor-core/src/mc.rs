@@ -50,14 +50,16 @@ use std::sync::Arc;
 use geom_core::Tol;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox, sample_offset};
-use crate::doc::{Doc, ParamName};
+use crate::doc::Doc;
 use crate::eval::{
-    CancelToken, ContentKey, EvalOptions, Evaluation, NodeResult, ProfileLift, ValuePayload,
-    evaluate,
+    CancelToken, ContentKey, EvalOptions, Evaluation, ProfileLift, ValuePayload, evaluate,
 };
 use crate::measure::AssertionVerdict;
 use crate::node::{Node, RecipeNodeId};
 use crate::program::ProfileProgram;
+use crate::spoken::SpokenNode;
+use crate::spoken::SpokenVar;
+use crate::var::VarId;
 
 /// The shipped sample count — a recorded run dial, not a constant of
 /// nature.
@@ -112,8 +114,8 @@ pub enum McRefusal {
     /// to replay. The node and its rendered error, the driver's own
     /// shape.
     NominalDoesNotBuild {
-        /// The refusing node.
-        node: RecipeNodeId,
+        /// The refusing node, spoken from the run's document.
+        node: SpokenNode,
         /// Its error, rendered.
         cause: String,
     },
@@ -132,9 +134,8 @@ impl core::fmt::Display for McRefusal {
             }
             Self::NominalDoesNotBuild { node, cause } => write!(
                 f,
-                "the document does not build at its nominal (node {}), so there is nothing \
-                 to replay: {cause}",
-                node.0
+                "the document does not build at its nominal ({node}), so there is nothing \
+                 to replay: {cause}"
             ),
         }
     }
@@ -197,6 +198,9 @@ impl McAssertion {
 /// and the count and seed that produced it ride at the top.
 #[derive(Debug, Clone, PartialEq)]
 pub struct McReport {
+    /// The document this was taken of, the one document its human
+    /// form speaks from. Outside the goldening form and its content key.
+    pub document: crate::DocumentId,
     /// How many samples were drawn.
     pub samples: usize,
     /// The seed they were drawn from.
@@ -231,7 +235,7 @@ impl McReport {
                 s,
                 "measure {} mean={:016x} sigma={:016x} min={:016x} max={:016x} measured={} \
                  unmeasured={}",
-                m.node.0,
+                m.node.full(),
                 m.mean.to_bits(),
                 m.sigma.to_bits(),
                 m.min.to_bits(),
@@ -244,7 +248,10 @@ impl McReport {
             let _ = writeln!(
                 s,
                 "assertion {} holds={} violated={} unevaluated={}",
-                a.node.0, a.holds, a.violated, a.unevaluated
+                a.node.full(),
+                a.holds,
+                a.violated,
+                a.unevaluated
             );
         }
         let _ = writeln!(s, "outside_box {:016x}", self.outside_box.to_bits());
@@ -257,13 +264,19 @@ impl McReport {
     }
 
     /// **The human form**, with the advisory label and the dials on
-    /// every line that carries an estimate.
+    /// every line that carries an estimate, each node spoken from `doc`,
+    /// the document the run was drawn from.
     ///
     /// Repeating "advisory (N samples, seed …)" on each line is
     /// deliberate: a reader who copies one line out of a report takes
     /// the label with it, which a single header line does not survive.
-    pub fn render(&self) -> String {
+    ///
+    /// # Panics
+    ///
+    /// When `doc` is not the document the run was drawn from.
+    pub fn render<P>(&self, doc: &Doc<P>) -> String {
         use core::fmt::Write as _;
+        crate::spoken::assert_taken_of("this Monte-Carlo report", self.document, doc);
         let tag = format!(
             "ADVISORY — Monte-Carlo estimate over {} samples, seed {:#018x}",
             self.samples, self.seed
@@ -284,17 +297,21 @@ impl McReport {
             if m.unmeasured == self.samples {
                 let _ = writeln!(
                     s,
-                    "  node {}: UNMEASURED — no sample had an f64 value for this measure, so \
+                    "  {}: UNMEASURED — no sample had an f64 value for this measure, so \
                      this lane has nothing to estimate. Its certified answer is the E6 \
                      driver's per-leaf enclosure (see the leaf histogram).   [{tag}]",
-                    m.node.0
+                    doc.spoken(m.node)
                 );
                 continue;
             }
             let _ = writeln!(
                 s,
-                "  node {}: mean {} σ {} min {} max {}   [{tag}]",
-                m.node.0, m.mean, m.sigma, m.min, m.max
+                "  {}: mean {} σ {} min {} max {}   [{tag}]",
+                doc.spoken(m.node),
+                m.mean,
+                m.sigma,
+                m.min,
+                m.max
             );
             if m.unmeasured > 0 {
                 let _ = writeln!(
@@ -307,8 +324,8 @@ impl McReport {
         for a in &self.assertions {
             let _ = writeln!(
                 s,
-                "  node {}: empirical violation fraction {}   [{tag}]",
-                a.node.0,
+                "  {}: empirical violation fraction {}   [{tag}]",
+                doc.spoken(a.node),
                 match a.violation_fraction() {
                     Some(f) => format!(
                         "{:.4}% ({} of {} decided)",
@@ -357,31 +374,35 @@ pub fn monte_carlo(
     // replay, and finding that out once beats finding it out `samples`
     // times.
     let nominal: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &lane_opts(), tol);
-    if let Some(&node) = nominal
+    if let Some(standing) = nominal
         .order
         .iter()
-        .find(|id| !matches!(nominal.nodes.get(id), Some(NodeResult::Ok(_))))
+        .find_map(|&id| nominal.usable(id).err())
     {
+        let node = standing.node();
         let cause = nominal
             .node_error(node)
-            .map_or_else(|| "not evaluated".to_owned(), |e| e.kind.to_string());
-        return Err(McRefusal::NominalDoesNotBuild { node, cause });
+            .map_or_else(|| standing.to_string(), |e| e.kind_spoken(doc));
+        return Err(McRefusal::NominalDoesNotBuild {
+            node: doc.spoken(node),
+            cause,
+        });
     }
 
     // Every varying parameter must be sampleable BEFORE any sampling
     // happens: a band refuses the whole run, and refusing it here
     // rather than at the first draw keeps the refusal a property of the
     // document instead of a property of which parameter came first.
-    let laws = laws_of(analyzed)?;
-    for (name, dist) in &laws {
-        sample_offset(name, dist, 0.5).map_err(McRefusal::BandHasNoMeasure)?;
+    let laws = laws_of(doc, analyzed)?;
+    for (_, spoken, dist) in &laws {
+        sample_offset(spoken, dist, 0.5).map_err(McRefusal::BandHasNoMeasure)?;
     }
 
     // The sinks, in the document's own node order — which is the order
     // every derived list in this kernel takes, so two runs report their
     // rows in one order and a golden over the report is stable.
     let sinks: Vec<(RecipeNodeId, bool)> = doc
-        .order()
+        .ids()
         .iter()
         .filter_map(|&id| match doc.node(id) {
             Some(Node::Measure { .. }) => Some((id, true)),
@@ -394,7 +415,7 @@ pub fn monte_carlo(
         let mut rng = Rng::for_sample(config.seed, index);
         let mut axes = std::collections::BTreeMap::new();
         let mut outside = false;
-        for (name, dist) in &laws {
+        for (name, spoken, dist) in &laws {
             // `sample_offset` was proved total for these laws above, so
             // a refusal here is a kernel bug rather than a document
             // fault — and it is announced as one rather than silently
@@ -406,19 +427,16 @@ pub fn monte_carlo(
             // sample the sample it is, so a door that re-derived it
             // beside this one would be a second stream the moment
             // either changed.
-            let Ok(offset) = sample_offset(name, dist, rng.unit()) else {
-                unreachable!(
-                    "every law was proved sampleable before the run, yet {} refused",
-                    name.0
-                )
+            let Ok(offset) = sample_offset(spoken, dist, rng.unit()) else {
+                unreachable!("every law was proved sampleable before the run, yet {spoken} refused")
             };
-            if let Some(p) = analyzed.get(name)
+            if let Some(p) = analyzed.get(*name)
                 && (offset < p.offsets.lo || offset > p.offsets.hi)
             {
                 outside = true;
             }
             axes.insert(
-                name.clone(),
+                *name,
                 BoxAxis::Varying {
                     lo: offset,
                     hi: offset,
@@ -431,32 +449,29 @@ pub fn monte_carlo(
         // door a point-scalar replay over a parameter value has, and
         // the MC lane uses it rather than a second binding path.
         let opts = EvalOptions {
-            param_box: Some(Arc::new(ParamBox::from_axes(axes))),
+            param_box: Some(Arc::new(ParamBox::from_axes_in(axes, analyzed.order()))),
             ..lane_opts()
         };
         let ev: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
         let readings = sinks
             .iter()
             .map(|&(id, is_measure)| {
+                // Every standing is one `NoValue` reading: the tally
+                // counts samples with no reading, not why.
+                let payload = ev.value(id).map(|v| &v.payload);
                 if is_measure {
-                    match ev.result(id) {
-                        Some(NodeResult::Ok(v)) => match &v.payload {
-                            ValuePayload::Measure { value, .. } => Reading::Value(*value),
-                            _ => Reading::NoValue,
-                        },
+                    match payload {
+                        Some(ValuePayload::Measure { value, .. }) => Reading::Value(*value),
                         _ => Reading::NoValue,
                     }
                 } else {
-                    match ev.result(id) {
-                        Some(NodeResult::Ok(v)) => match &v.payload {
-                            ValuePayload::Assertion(AssertionVerdict::Holds { .. }) => {
-                                Reading::Holds
-                            }
-                            ValuePayload::Assertion(AssertionVerdict::Violated { .. }) => {
-                                Reading::Violated
-                            }
-                            _ => Reading::NoValue,
-                        },
+                    match payload {
+                        Some(ValuePayload::Assertion(AssertionVerdict::Holds { .. })) => {
+                            Reading::Holds
+                        }
+                        Some(ValuePayload::Assertion(AssertionVerdict::Violated { .. })) => {
+                            Reading::Violated
+                        }
                         _ => Reading::NoValue,
                     }
                 }
@@ -517,6 +532,7 @@ pub fn monte_carlo(
     }
     let outside = samples.iter().filter(|s| s.outside).count();
     Ok(McReport {
+        document: doc.id(),
         samples: samples.len(),
         seed: config.seed,
         measures,
@@ -648,17 +664,20 @@ impl Rng {
 /// One spelling, called by [`monte_carlo`] and by [`sample_offsets`],
 /// because the ORDER is what makes sample `i` the sample it is: two
 /// derivations of this list are two streams as soon as either moves.
-fn laws_of(
-    analyzed: &AnalyzedBox,
-) -> Result<Vec<(ParamName, crate::distribution::Distribution)>, McRefusal> {
+type Law = (VarId, SpokenVar, crate::distribution::Distribution);
+
+fn laws_of(doc: &Doc<ProfileProgram>, analyzed: &AnalyzedBox) -> Result<Vec<Law>, McRefusal> {
     analyzed
         .varying()
-        .map(|(name, p)| {
-            p.distribution.map(|d| (name.clone(), d)).ok_or_else(|| {
-                MeasureUnavailable::BandHasNoMeasure {
-                    param: name.clone(),
-                }
-            })
+        .map(|(id, p)| {
+            // Spoken from the document the run is over, not the box: a
+            // box taken before a rename compares equal after it, and
+            // the refusal says the name the document holds now.
+            let spoken = doc.spoken_var(id);
+            match p.distribution {
+                Some(d) => Ok((id, spoken, d)),
+                None => Err(MeasureUnavailable::BandHasNoMeasure { param: spoken }),
+            }
         })
         .collect::<Result<_, _>>()
         .map_err(McRefusal::BandHasNoMeasure)
@@ -672,7 +691,7 @@ fn laws_of(
 /// document there, tessellate it, draw it — needs the draw itself, and
 /// before this door the only way to one was to re-transcribe
 /// `xorshift64*` and its `[0, 1)` reduction outside this crate. The
-/// offsets are keyed by parameter name and are offsets FROM THE
+/// offsets are keyed by variable and are offsets FROM THE
 /// NOMINAL, the same quantity [`crate::analysis::sample_offset`]
 /// returns and the same one a `ParamBox` axis carries.
 ///
@@ -687,16 +706,18 @@ fn laws_of(
 /// band — the same refusal, for the same reason, that would stop the
 /// whole run.
 pub fn sample_offsets(
+    doc: &Doc<ProfileProgram>,
     analyzed: &AnalyzedBox,
     config: &McConfig,
     index: usize,
-) -> Result<std::collections::BTreeMap<ParamName, f64>, McRefusal> {
-    let laws = laws_of(analyzed)?;
+) -> Result<std::collections::BTreeMap<VarId, f64>, McRefusal> {
+    let laws = laws_of(doc, analyzed)?;
     let mut rng = Rng::for_sample(config.seed, index);
     let mut out = std::collections::BTreeMap::new();
-    for (name, dist) in &laws {
-        let offset = sample_offset(name, dist, rng.unit()).map_err(McRefusal::BandHasNoMeasure)?;
-        out.insert(name.clone(), offset);
+    for (id, spoken, dist) in &laws {
+        let offset =
+            sample_offset(spoken, dist, rng.unit()).map_err(McRefusal::BandHasNoMeasure)?;
+        out.insert(*id, offset);
     }
     Ok(out)
 }

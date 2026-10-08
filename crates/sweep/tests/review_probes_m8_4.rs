@@ -93,7 +93,9 @@ fn flat_bowed_seam(
 /// wall's chart optionally REVERSED in `v` before the description is
 /// attached — same surface point set, opposite `v` orientation.
 /// `None` is the ε-FINE cell, asserted rather than skipped: this seam's
-/// certified between-samples sup is ~6.22e-12 m, so at ε_in = 1e-12 the
+/// certified between-samples sup is ~5.47e-14 m (it was ~6.22e-12 m
+/// before `insert_once_ring` took the convex insertion form, 114x
+/// wider), so below ε_in = 1e-13 the
 /// declare-and-check rung refuses TYPED carrying that number and there
 /// is no chart image to probe at all.
 fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey)> {
@@ -115,8 +117,15 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
             .faces()
             .find(|(_, f)| f.surface == bowed)
             .expect("the bowed wall has a face");
-        body.set_face_surface(fk, FaceSurface::New(flipped))
-            .expect("the bowed wall's face key resolves")
+        // Lifts RechartStrandsDescriptions: the bowed wall's replaced chart is the row's subject.
+        body.set_face_surface_unvouched_for_tests(
+            fk,
+            FaceSurface::New {
+                surface: flipped,
+                sense: true,
+            },
+        )
+        .expect("the bowed wall's face key resolves")
     } else {
         bowed
     };
@@ -136,18 +145,22 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
         let (a, b) = c.params();
         (c.carrier().clone(), a, b)
     };
+    // Lifts RechartStrandsDescriptions: the plane is re-keyed for the seam the row re-describes through the NURBS lane.
     let plane = body
-        .set_face_surface(
+        .set_face_surface_unvouched_for_tests(
             flat_face,
-            FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, -1.0, 0.0),
-                normal: Vec3::new(0.0, -1.0, 0.0),
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
+            FaceSurface::New {
+                surface: Surface::Plane {
+                    origin: Point3::new(0.0, -1.0, 0.0),
+                    normal: Vec3::new(0.0, -1.0, 0.0),
+                    u_ref: Vec3::new(1.0, 0.0, 0.0),
+                },
+                sense: true,
+            },
         )
         .expect("the exactly-planar wall restates as a plane");
     let eps = Tol::witness().get().eps;
-    match body.set_edge_curve_nurbs_lane(
+    match body.set_edge_curve(
         edge,
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
@@ -163,20 +176,22 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
     ) {
         Ok(_) => {
             assert!(
-                eps >= 1e-9,
+                eps >= 1e-13,
                 "the seam's certified sup does not fit a finer ε_in"
             );
         }
         Err(topo::EulerOpError::Certification {
             error:
                 geom_brep::CertifyError::Escalated {
-                    check: geom_brep::CertCheck::PlaneNurbsCertificate,
+                    check: geom_brep::CertCheck::PlaneNurbsHull,
                     cause,
                     ..
                 },
         }) => {
-            assert!(eps < 1e-9, "only the ε-fine cell refuses: {cause:?}");
-            let geom_core::MarginDiag::Value(sup) = cause.margin else {
+            assert!(eps < 1e-13, "only the ε-fine cell refuses: {cause:?}");
+            let geom_core::ErrorTextReading::Value(sup) =
+                cause.margin.diagnostic_f64_for_error_text()
+            else {
                 panic!("the refusal carries the lane's measured bound: {cause:?}");
             };
             assert!(
@@ -193,17 +208,16 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
     Some((body, he_bowed, bowed))
 }
 
-/// **P-E: the direction half of the 4-candidate schedule selects but
-/// can never certify — MEASURED.** On the `v`-reversed chart the same
+/// **P-E: the direction half of the 4-candidate schedule selects, and
+/// the seam class certifies it.** On the `v`-reversed chart the same
 /// carrier traverses the chart's `v` BACKWARD; the pick returns the
-/// geometrically correct negative-slope image, and the seam class then
-/// refuses it (`ResidualExceeded { Envelope }`): its parameter-map
-/// slack is metered against the IDENTITY map `v(t) = t`, and its
-/// control hull against the boundary row's own ordering, so no
-/// backward image fits the certified inventory. The posture for a
-/// v-opposed chart is therefore a typed refusal, never a silent mint —
-/// pinned here as measured; red if either half of that ever changes
-/// silently.
+/// geometrically correct negative-slope image, and the seam class reads
+/// a backward image against the boundary row run back
+/// (`geom_brep::reversed_column`) — its control hull against the row
+/// reversed, its parameter-map slack against `v(t) = a + b − t`. The
+/// carrier IS the reversed chart's column run back, so the certificate
+/// is exact: zero residual, zero envelope. Red if the backward image
+/// stops certifying, or certifies with slack it does not have.
 #[test]
 fn probe_e_reversed_chart_takes_the_backward_candidate() {
     let Some((body, he, bowed)) = seam_on_chart(true) else {
@@ -254,20 +268,14 @@ fn probe_e_reversed_chart_takes_the_backward_candidate() {
         t1,
         &carrier,
         &Surface::Nurbs(Arc::new(chart.clone())),
-        geom_brep::ChartWindow {
-            u_min: chart.knots_u().domain().0,
-            u_max: chart.knots_u().domain().1,
-            v_min: chart.knots_v().domain().0,
-            v_max: chart.knots_v().domain().1,
-        },
         band(),
     );
-    let refusal = verdict
-        .map(|c| format!("{:?}", c.certificate()))
-        .expect_err("MEASURED: no backward image fits the seam class's certified inventory");
-    assert!(
-        format!("{refusal:?}").contains("Envelope"),
-        "the refusal is the envelope's own: {refusal:?}"
+    let cert = verdict.unwrap_or_else(|e| panic!("the backward image certifies: {e:?}"));
+    assert_eq!(
+        format!("{:?}", cert.certificate()),
+        "PcurveCertificate { samples: 9, max_residual: 0.0, envelope: 0.0, statement: \
+         MapResidualIsoHull, ssi: None }",
+        "the carrier is the reversed chart's column run back, exactly"
     );
     println!(
         "P-E @ eps={:e}: u = {}, v slope {}",
@@ -298,7 +306,7 @@ fn probe_f_uncertifiable_pair_refuses_at_attachment() {
         (c.carrier().clone(), a, b)
     };
     let err = body
-        .set_edge_curve_nurbs_lane(
+        .set_edge_curve(
             edge,
             EdgeCurveSpec {
                 description: EdgeDescriptionSpec::Intersection {

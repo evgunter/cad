@@ -11,15 +11,15 @@
 use core::f64::consts::PI;
 
 use crate::common::approx::band;
-use geom_brep::SurfaceKind;
+use geom::SurfaceKind;
 use geom_core::Tol;
 use geom_core::Vec3;
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{ball_poled, cube};
+use sweep::test_support::{ball_poled, cube, finished};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
 use topo::readback::euler_counts;
-use topo::{Body, BooleanDeclarations, EdgeKey};
+use topo::{AtRestBody, Body, BooleanDeclarations, EdgeKey};
 
 /// The die's side, meters.
 const DIE_L: f64 = 1.0;
@@ -100,14 +100,17 @@ fn pip_placements() -> Vec<(Vec3<f64>, Vec3<f64>)> {
     out
 }
 
-fn pip_tool() -> Body<f64> {
+fn pip_tool() -> AtRestBody<f64> {
+    let tol = Tol::witness();
+    let pip =
+        |c: Vec3<f64>, n: Vec3<f64>| finished("a pip ball", ball_poled(PIP_R, c, n, tol), tol);
     let places = pip_placements();
-    let mut tool = ball_poled(PIP_R, places[0].0, places[0].1, Tol::witness());
+    let mut tool = pip(places[0].0, places[0].1);
     for (c, n) in &places[1..] {
         tool = boolean_op_with(
             BooleanOp::Union,
             &tool,
-            &ball_poled(PIP_R, *c, *n, Tol::witness()),
+            &pip(*c, *n),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
             Tol::witness(),
@@ -121,7 +124,7 @@ fn pip_tool() -> Body<f64> {
     tool
 }
 
-fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
+fn subtract(a: &AtRestBody<f64>, b: &AtRestBody<f64>) -> Body<f64> {
     let out = boolean_op_with(
         BooleanOp::Subtract,
         a,
@@ -131,12 +134,12 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
         Tol::witness(),
     )
     .unwrap_or_else(|e| panic!("pip subtraction: {e}"));
-    out.body().expect("a body").body.clone()
+    out.body().expect("a body").body.clone().into_body()
 }
 
 /// The pipped cube and its twelve surviving box edges.
 fn pipped_and_box_edges() -> (Body<f64>, Vec<EdgeKey>) {
-    let cube0 = cube(DIE_L, Tol::witness());
+    let cube0 = finished("the cube", cube(DIE_L, Tol::witness()), Tol::witness());
     let box_edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
     let pipped = subtract(&cube0, &pip_tool());
     let surviving: Vec<_> = box_edges
@@ -254,8 +257,13 @@ fn rim_fillet_extra(big_r: f64, h: f64, r: f64) -> f64 {
 #[test]
 fn the_pipped_cube_fillets_in_place_with_rings_carried() {
     let (pipped, box_edges) = pipped_and_box_edges();
-    let out = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
-        .expect("the surgery fillets the pipped cube");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
+        &box_edges,
+        DIE_R,
+        Tol::witness(),
+    )
+    .expect("the surgery fillets the pipped cube");
     let body = out.body;
     assert_eq!(topo::validate(&body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&body), Ok(()), "tier 2");
@@ -345,13 +353,23 @@ fn the_composed_die_certifies_and_tessellates_watertight() {
 /// in ONE further call.
 fn composed_die() -> Body<f64> {
     let (pipped, box_edges) = pipped_and_box_edges();
-    let blanked = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness())
-        .expect("the box edges fillet in place")
-        .body;
+    let blanked = fillet_edges(
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
+        &box_edges,
+        DIE_R,
+        Tol::witness(),
+    )
+    .expect("the box edges fillet in place")
+    .body;
     let rims = rim_edges(&blanked);
     assert_eq!(rims.len(), 42, "21 rims of two arcs each");
-    let out =
-        fillet_edges(&blanked, &rims, RIM_R, Tol::witness()).expect("the rims fillet to tori");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&blanked, Tol::witness()),
+        &rims,
+        RIM_R,
+        Tol::witness(),
+    )
+    .expect("the rims fillet to tori");
     assert_eq!(out.band_faces.len(), 21, "one torus band per rim");
     out.body
 }
@@ -384,23 +402,34 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     let face = pipped.faces().next().unwrap().0;
     let tol = Tol::witness().get();
     // Definite pass.
-    ring_clearance(face, 0.05, band()).expect("a definite clearance carries the ring");
+    ring_clearance(face, sweep::blend::Convexity::Convex, 0.05, band())
+        .expect("a definite clearance carries the ring");
     // Definite refuse, typed with the margin as payload.
-    let err = ring_clearance(face, -0.05, band()).expect_err("a consumed ring refuses");
+    let err = ring_clearance(face, sweep::blend::Convexity::Convex, -0.05, band())
+        .expect_err("a consumed ring refuses");
     match err {
         sweep::blend::BlendError::RingClearance { margin, .. } => {
             assert_eq!(margin.predicate, "fillet3_ring_clearance");
-            assert!(margin.value().is_some_and(|m| (m - -0.05).abs() < 1e-15));
+            assert!(
+                margin
+                    .reading
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .is_some_and(|m| (m - -0.05).abs() < 1e-15)
+            );
         }
         other => panic!("expected RingClearance, got {other}"),
     }
-    let text = ring_clearance(face, -0.05, band()).unwrap_err().to_string();
+    let text = ring_clearance(face, sweep::blend::Convexity::Convex, -0.05, band())
+        .unwrap_err()
+        .to_string();
     assert!(
         text.contains("ring") && text.contains("reduce the blend size"),
         "refusal names the situation and the recourse: {text}"
     );
     // In band: escalates through the funnel with the SAME recourse.
-    let err = ring_clearance(face, 5.0 * tol.eps, band()).expect_err("in-band escalates");
+    let err = ring_clearance(face, sweep::blend::Convexity::Convex, 5.0 * tol.eps, band())
+        .expect_err("in-band escalates");
     match &err {
         sweep::blend::BlendError::Escalated { source, .. } => {
             assert_eq!(source.predicate, Some("fillet3_ring_clearance"));
@@ -413,33 +442,55 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     );
 }
 
-/// **The surgery front door refuses typed** at its named gaps: a
-/// partially-requested corner (run-outs), and an open plane–sphere
-/// chain (a rim arc alone is not a closed rim).
+/// **The surgery front door refuses typed** at its named gaps: an end
+/// the cut-off does not build (a curved end face, a run-out), and an
+/// open plane–sphere chain (a rim arc alone is not a closed rim, and
+/// the seam vertex it stops at says to request the rim whole). One box
+/// edge of the pipped die, which used to be the run-out witness, is cut
+/// off at its end faces and carves.
 #[test]
 fn the_surgery_front_door_refuses_its_named_gaps() {
     let (pipped, box_edges) = pipped_and_box_edges();
-    // (a) One box edge: its corners' other edges are not requested.
-    let err = fillet_edges(&pipped, &box_edges[..1], DIE_R, Tol::witness())
-        .expect_err("a partially-requested corner is a run-out, not implemented");
+    // (a) An edge ending at a curved end face.
+    let (round, edge) = crate::common::operands::half_round_end();
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&round, Tol::witness()),
+        &[edge],
+        DIE_R,
+        Tol::witness(),
+    )
+    .expect_err("a curved end face is a run-out, not built");
     let text = format!("{err}");
     assert!(
-        text.contains("not implemented") && text.contains("corner"),
+        text.contains("not built") && text.contains("curved end face"),
         "the refusal names the run-out gap: {text}"
     );
+    fillet_edges(
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
+        &box_edges[..1],
+        DIE_R,
+        Tol::witness(),
+    )
+    .expect("one box edge of the pipped die is cut off at its end faces");
     // (b) One rim arc: an OPEN plane–sphere chain terminates at rim
-    // vertices whose third edge is the cap MERIDIAN — a sphere–sphere
-    // support pair no arm covers — so the BATTERY's corner classifier
-    // refuses first, naming the run-out policy that would handle it.
-    // The refusal is one door earlier than the surgery's own front
-    // door, and that is the honest order: verdict before assembly.
+    // vertices whose third edge is the cap's seam MERIDIAN — the
+    // sphere's own chart cut, the plane carrying both arcs — so the
+    // BATTERY's corner classifier refuses first: a chart-seam vertex,
+    // not a corner, whose recourse is the whole rim. The refusal is one
+    // door earlier than the surgery's own front door, and that is the
+    // honest order: verdict before assembly.
     let rims = rim_edges(&pipped);
-    let err = fillet_edges(&pipped, &rims[..1], RIM_R, Tol::witness())
-        .expect_err("an open rim arc has no classifiable termination");
+    let err = fillet_edges(
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
+        &rims[..1],
+        RIM_R,
+        Tol::witness(),
+    )
+    .expect_err("an open rim arc stops at a seam vertex");
     let text = format!("{err}");
     assert!(
-        text.contains("run-out") && text.contains("not implemented"),
-        "the refusal names the run-out gap: {text}"
+        text.contains("chart-seam vertex") && text.contains("request the rim whole"),
+        "the refusal names the seam vertex and the whole rim: {text}"
     );
 }
 
@@ -455,7 +506,13 @@ fn the_shrunk_faces_keep_their_rings_and_senses() {
         .map(|(k, f)| (k, f.rings.len(), f.sense))
         .collect();
     assert_eq!(rings_before.len(), 6, "six pipped faces");
-    let out = fillet_edges(&pipped, &box_edges, DIE_R, Tol::witness()).expect("the surgery");
+    let out = fillet_edges(
+        &sweep::test_support::at_rest(&pipped, Tol::witness()),
+        &box_edges,
+        DIE_R,
+        Tol::witness(),
+    )
+    .expect("the surgery");
     for (k, n, sense) in rings_before {
         let f = out.body.get_face(k).expect("the shrunk face keeps its key");
         assert_eq!(f.rings.len(), n, "ring count carried");

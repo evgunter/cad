@@ -2,29 +2,25 @@
 
 the E12 symbolic identity tier
 
-Re-scoped 2026-09-20 by SYM's priority-seam cut
-(`work/README.md`, Track size). Nothing dispatched.
+Re-scoped 2026-09-20 and again 2026-10-06 by SYM's priority-seam
+cuts (`work/README.md`, Track size).
 
 ## The slate
 
-**25 budget points** of dispatchable work against a ceiling of 30.
+**20 budget points** of dispatchable work against a ceiling of 30,
+after the 2026-10-06 priority-seam cut (Ev, in chat): SYM keeps its P0
+and P1 rows; its P2, P3 and unbanded rows went to RULES
+(`work/rules/`), since TIER stood at 25/30.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P0 | `a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity` | H | A boss on a FaceFrame taken from a revolved body's cap refuses on pcurve_loop_continuity at every symbolic dial, and the tier's rule E makes the freeze population 300x worse without moving the refusal |
-| P0 | `derived-frame-placement-freezes-on-the-symbolic-lane` | H | A profile placed on a derived frame whose AXES carry a widened parameter does not certify on the symbolic lane: the re-normalised stored unit vectors freeze on degree and the identity is not reached (on a purely TRANSLATED derived frame the chain is constant and rule A0 folds it) |
-| P0 | `leaf-frozen-column-is-schedule-dependent-under-the-drive-memo` | D | A leaf receipt's frozen column is schedule-dependent under the drive-scoped plain memo |
-| P0 | `sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` | H | Sym<f64>/Sym<Probe> at a far placement panic in Decide's theorem-vs-numeric debug_assert: the point channel is not a proof |
-| P0 | `the-decision-door-is-opaque-to-the-tier` | H | a frame minted through Real::select_le_zero is opaque to the tier, and SYM-5's tilted derived-boss acceptance row goes red on it |
-| None | `SYM-1` | None | the profile inside the normal form: where the E12 tier's time goes on the M10-3 slab, and what freezes |
-| None | `SYM-2` | None | the tier's file split: the coefficient tower and the polynomial out of sym.rs, the header distributed with them |
-| None | `SYM-3` | None | what stands at a bulge that is not 1: the boss and the D-tab rendered, the parameter bulge's two routes counted |
-| None | `SYM-4` | None | the cost of a form: the polynomial's storage as a sorted vector and the ring's normalisation skipped on the dyadic shape, every decision bit-identical |
-| None | `SYM-5` | None | a stored unit vector does not double the degree: the derived-frame freeze measured and remedied by a rule of the atom algebra |
-| None | `SYM-6` | None | the door's witness moves with the run's eps: Tol threaded to register_equal, the slack relative and floored; the refusal arm split by witness kind and a fixture-scale zero-refusals row |
-| None | `SYM-7` | None | the plain form outlives the leaf: a drive-scoped memo, shared across the drive's workers, with frozen re-defined as distinct-over-the-drive |
-| None | `the-span-identity-is-not-a-theorem-of-the-floats` | None | the arc span identity is a theorem of the reals and not of the floats: an adversarial torus at minor radius 1e18 contradicts it at the witness |
-| None | `the-witness-slack-is-eps-independent` | None | the door's f64 witness is a relative constant, not the run's eps: at a tight eps row it is many band-widths loose |
+| P0 | `a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity` | H | A boss on a FaceFrame taken from a revolved body's cap refuses on pcurve_loop_continuity at every symbolic dial |
+| P0 | `derived-frame-placement-freezes-on-the-symbolic-lane` | H | A profile placed on a derived frame whose AXES carry a widened parameter does not certify on the symbolic lane |
+| P1 | `a-chain-of-three-joints-straddles-dihedral-arm` | D | a chain of three or more joints straddles dihedral_arm on a mapped edge's re-certification |
+| P1 | `a-widened-rotation-angle-refuses-on-the-plain-interval-lane` | D | a widened rotation angle refuses on the plain Interval lane at the first Node::Transform |
+| P1 | `the-chain-demo-detects-no-self-intersection` | H | the chain demo detects no self-intersection (its certified half waits on CLEAR's `symbolic-tier-and-clearance-engine`) |
+
+In flight: `SYM-17` (`a-widened-rotation-angle-refuses-on-the-plain-interval-lane`).
 
 ## SYM-14 — requested by Ev (2026-09-22, P1), MERGED
 
@@ -42,20 +38,20 @@ certified half blocked on CLEAR's `symbolic-tier-and-clearance-engine`).
 
 ## Order
 
-`sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` first: a
-`Sym<f64>`/`Sym<Probe>` at a far placement PANICS in `Decide`'s
-theorem-vs-numeric assert, which is a live crash on ordinary input and
-the only row here that is not a refusal or a freeze.
+The 2026-10-02 triage (`work/sym/log.md`) set the order, and SYM-15
+(#3804) and SYM-16 took its first two rows. What remains:
+1. the rotation-angle readout
+   (`a-widened-rotation-angle-refuses-on-the-plain-interval-lane`);
+2. a re-take of `derived-frame-placement-freezes-on-the-symbolic-lane`
+   on `main`, which may close it;
+3. the arm straddle (`a-chain-of-three-joints-straddles-dihedral-arm`),
+   now that SYM-15 has named the wedge wall in front of it;
+4. the chain's self-intersection, Phase 1 only until CLEAR's engine
+   lands.
 
-Then the two placement-freeze rows together
-(`derived-frame-placement-freezes-on-the-symbolic-lane`,
-`a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity`) —
-both are a profile placed on a frame the tier cannot carry, and a boss
-on a revolved cap is ordinary modelling.
-
-`the-decision-door-is-opaque-to-the-tier` is the fold FRAME is waiting
-on (`work/frame/program.md` names it), so it is owed outward as well
-as inward — take it early and tell FRAME when it lands.
+`a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity` is
+P0 but mostly not the tier's: its refusal is the pcurve loop check, so
+it is offered to that check's owner before SYM takes it.
 
 ## Review posture
 

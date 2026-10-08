@@ -26,11 +26,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
+use sweep::ExtrudeSide;
 
 use crate::common::germ_pair::{cyl, repose, seams_off_the_pinch};
 use geom_brep::RadiusEvidence;
 use geom_core::{Affine3, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
+use sweep::test_support::finished;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError, ParamSource, SurfaceField};
 
@@ -50,7 +52,9 @@ fn declare(body: &mut Body<f64>, token: &ParamSource) {
 
 /// The evidence the germ read, off the door it refused at.
 fn germ_evidence(a: &Body<f64>, b: &Body<f64>) -> RadiusEvidence {
-    match topo::union(a, b, Tol::witness()).expect_err("this family has no join arm") {
+    let a = finished("operand A", a.clone(), Tol::witness());
+    let b = finished("operand B", b.clone(), Tol::witness());
+    match topo::union(&a, &b, Tol::witness()).expect_err("this family has no join arm") {
         BooleanError::GermFrameCylinderPinch { evidence, .. } => evidence,
         other => panic!("expected the germ frame's pinch door, got {other:?}"),
     }
@@ -154,6 +158,8 @@ fn the_records_survive_into_a_boolean_result() {
     .unwrap();
     declare(&mut a, &token);
     declare(&mut b, &token);
+    let a = finished("the first cylinder", a, Tol::witness());
+    let b = finished("the second cylinder", b, Tol::witness());
     let out = topo::union(&a, &b, Tol::witness()).expect("two disjoint solids unite");
     let topo::BooleanResult::Body(bb) = out else {
         panic!("a disjoint union is not empty");
@@ -192,19 +198,25 @@ fn the_records_survive_into_a_boolean_result() {
 /// split plane parallel to the extrusion through the square leaves
 /// that wall a surface only the dropped faces referenced.
 ///
-/// Two channels, two assertions: the field rows this unit added, and
-/// the description-level `GeomSource` row the same sweep now removes
-/// too — a change to the pre-existing channel folded in beside it, so
-/// it gets its own line rather than riding under the field rows'.
+/// One assertion per side table — the field rows, the description's
+/// `GeomSource` row, the axis row — so a sweep that dropped one and
+/// stranded another is named by the line that fails.
 #[test]
-fn the_split_orphan_sweep_drops_both_side_tables() {
+fn the_split_orphan_sweep_drops_every_side_table() {
     let tol = Tol::witness();
     let vp = Profile::new(SketchPlane::xy(), crate::common::chain(1.0))
         .validate(tol)
         .unwrap();
-    let mut body = extrude(&vp, Extrusion::Distance(1.0), tol)
-        .expect("the chain extrudes")
-        .body;
+    let mut body = extrude(
+        &vp,
+        Extrusion::Distance {
+            depth: 1.0,
+            side: ExtrudeSide::Along,
+        },
+        tol,
+    )
+    .expect("the chain extrudes")
+    .body;
     let token = ParamSource::from_lowered(b"the-document's-r");
     // The arc wall: the one cylinder surface the chain's extrusion
     // mints, which sits at x ≈ 2, wholly beyond the split plane.
@@ -225,10 +237,14 @@ fn the_split_orphan_sweep_drops_both_side_tables() {
         .expect("a live cylinder key");
     body.set_surface_source(far_wall, topo::GeomSource::minted(7, 0))
         .expect("a live wall key");
-    let plane = topo::SplitPlane {
-        origin: Point3::new(1.0, 0.0, 0.0),
-        normal: Vec3::new(1.0, 0.0, 0.0),
-    };
+    body.set_surface_axis_source(far_wall, topo::AxisSource::from_lowered(b"the-arc's-axis"))
+        .expect("a cylinder stores an axis");
+    let plane = topo::test_support::split_plane(
+        Point3::new(1.0, 0.0, 0.0),
+        Vec3::new(1.0, 0.0, 0.0),
+        geom_core::Tol::witness(),
+    );
+    let body = sweep::test_support::finished("the body", body, tol);
     let halves = topo::split(&body, &plane, tol).expect("the square splits");
     let near = halves.below.body().expect("the flat side is below");
     assert!(
@@ -243,5 +259,9 @@ fn the_split_orphan_sweep_drops_both_side_tables() {
     assert!(
         near.surface_source(far_wall).is_none(),
         "the GeomSource row outlived the surface the split swept out"
+    );
+    assert!(
+        near.surface_axis_record(far_wall).is_none(),
+        "the axis row outlived the surface the split swept out"
     );
 }

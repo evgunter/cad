@@ -22,12 +22,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
+use editor_core::AuthoredNode;
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
 
-use editor_core::mate::coset::{Coset, FoldStop, Subgroup, intersect, intersect_subgroups};
+use editor_core::mate::coset::{Arm, Coset, FoldStop, Subgroup, intersect, intersect_subgroups};
 use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ContactClass, ContentPin, DocEdit, DocRef, DocumentId,
-    EvalOptions, Lever, MateFault, MateFrame, MatePrimitive, MateReach, Node, ProfileDoc,
-    RecipeNodeId, mate_reach,
+    EvalOptions, Lever, MateFault, MateFrame, MatePrimitive, MateReach, Node, NodeErrorClass,
+    ProfileDoc, RecipeNodeId, mate_reach,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{FIXTURE_MATE_AXIS, at_the_door, insert, len, on_frame, run, solve, square, step};
@@ -38,8 +41,14 @@ use geom_core::{Tol, Tolerance};
 
 // ---- Substrate ----
 
-/// A one-solid part: a unit square extruded 1 tall.
-fn part(label: &str) -> ProfileDoc {
+/// `arm` through the one door a lever is formed by, as a datum term
+/// over parts of no reach.
+fn lever(arm: f64) -> Arm {
+    Arm::of(0.0, arm).expect("a finite arm the format can decide over")
+}
+
+/// A one-solid part: a unit square extruded 1 tall, and its body.
+fn part(label: &str) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = on_frame(
         doc,
@@ -48,33 +57,49 @@ fn part(label: &str) -> ProfileDoc {
         [0.0, 1.0, 0.0],
         vec![square(0.0, 0.0, 0.5)],
     );
-    let (doc, _) = insert(
+    insert(
         doc,
         Node::Extrude {
             profile,
             distance: len(1.0),
+            side: ExtrudeSide::Along,
         },
-    );
-    doc
+    )
 }
 
-/// `n` instances of one part, the options that resolve them, and the
-/// reference the reach is asked through.
+/// `n` instances of one part, the options that resolve them, the
+/// reference the reach is asked through, and the part's body. Only the
+/// first carries an offset — the rest sit where their mates put them —
+/// so the first roots every group the rows' mates make, whichever way
+/// round a mate is authored, and an inverted authored order inverts
+/// the pair the fold reads and nothing else.
 struct Rig {
     doc: ProfileDoc,
     ids: Vec<RecipeNodeId>,
     o: EvalOptions,
     doc_ref: DocRef,
+    body: RecipeNodeId,
 }
 
 fn rig(label: &str, n: usize) -> Rig {
     let mut store = PartStore::new();
-    let doc_ref = store.insert(part(&format!("{label}-part")), Tol::witness());
+    let (doc_ref, body) = store.insert_part(part(&format!("{label}-part")), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
-    for _ in 0..n {
+    for i in 0..n {
         let (next, id) = insert(doc, Node::instantiate_part(doc_ref));
         doc = next;
+        if i > 0 {
+            doc = crate::fixture::step(
+                doc,
+                editor_core::DocEdit::SetOffset {
+                    instance: id,
+                    offset: None,
+                    fresh: Vec::new(),
+                },
+            )
+            .0;
+        }
         ids.push(id);
     }
     Rig {
@@ -82,34 +107,32 @@ fn rig(label: &str, n: usize) -> Rig {
         ids,
         o: with_resolver(store),
         doc_ref,
+        body,
     }
 }
 
-fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference,
-    }
+fn frame(origin: [f64; 3], axis: [f64; 3], reference: [f64; 3]) -> MateFrame<Formula> {
+    MateFrame::authored(origin, axis, reference, geom_core::Tol::witness())
+        .expect("a definite frame")
 }
 
 /// The z-up frame at `o`, referenced along +x.
-fn z_up_at(o: [f64; 3]) -> MateFrame {
+fn z_up_at(o: [f64; 3]) -> MateFrame<Formula> {
     frame(o, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 /// The x-along frame at `o`, referenced along +z.
-fn x_along_at(o: [f64; 3]) -> MateFrame {
+fn x_along_at(o: [f64; 3]) -> MateFrame<Formula> {
     frame(o, [1.0, 0.0, 0.0], [0.0, 0.0, 1.0])
 }
 
 fn al(
     primitive: MatePrimitive,
     sense: AxisSense,
-    a: MateFrame,
-    b: MateFrame,
+    a: MateFrame<Formula>,
+    b: MateFrame<Formula>,
     clocking: Option<f64>,
-) -> Alignment {
+) -> Alignment<Formula> {
     Alignment {
         a,
         b,
@@ -119,23 +142,31 @@ fn al(
     }
 }
 
-/// A rest-class mate over the two instances' start caps.
+/// A rest-class mate over the two instances' start caps, both
+/// instances of the part whose body is `body`.
 fn mate(
+    body: RecipeNodeId,
     a: RecipeNodeId,
     b: RecipeNodeId,
-    alignment: Alignment,
-) -> Node<editor_core::ProfileProgram> {
+    alignment: Alignment<Formula>,
+) -> AuthoredNode {
     Node::Mate {
-        a: fixture::head(in_part(a, CapEnd::Start)),
-        b: fixture::head(in_part(b, CapEnd::Start)),
+        a: fixture::head(in_part(a, body, CapEnd::Start)),
+        b: fixture::head(in_part(b, body, CapEnd::Start)),
         class: ContactClass::Rest,
         alignment,
     }
 }
 
 /// Inserts `node`, unwrapping the id every insert here mints.
-fn add(doc: ProfileDoc, node: Node<editor_core::ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
-    let (doc, id) = step(doc, DocEdit::InsertNode { node });
+fn add(doc: ProfileDoc, node: AuthoredNode) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, id) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
+    );
     (doc, id.expect("the insert minted an id"))
 }
 
@@ -148,17 +179,21 @@ fn reach_of(r: &Rig) -> f64 {
 
 /// The mate's lever as the solve forms it: both parts' reach plus the
 /// datum's own terms.
-fn lever_of(r: &Rig, a: &Alignment) -> f64 {
-    reach_of(r) + reach_of(r) + a.lever_arm()
+fn lever_of(r: &Rig, a: &Alignment<Formula>) -> f64 {
+    reach_of(r)
+        + reach_of(r)
+        + a.lever_arm(
+            fixture::authored(&a.a).origin(),
+            fixture::authored(&a.b).origin(),
+        )
 }
 
 /// The representative `mate_coset` forms for an aligned sense: the
 /// primitive's own displacement ridden onto `a`'s placement, times the
 /// inverse of `b`'s.
-fn representative(a: &Alignment) -> Affine3<f64> {
-    let tol = Tol::witness();
-    let fa = a.a.placement(tol).unwrap();
-    let fb = a.b.placement(tol).unwrap();
+fn representative(a: &Alignment<Formula>) -> Affine3<f64> {
+    let fa = fixture::authored(&a.a).placement();
+    let fb = fixture::authored(&a.b).placement();
     let target = match a.primitive {
         MatePrimitive::PlanarRest { offset } => {
             fa * Affine3::translation(Vec3::new(0.0, 0.0, 1.0) * offset)
@@ -183,8 +218,8 @@ fn bits3(v: Vec3<f64>) -> [u64; 3] {
 /// other way round, and the added mate's fault.
 fn two_mates(
     label: &str,
-    first: Alignment,
-    second: Alignment,
+    first: Alignment<Formula>,
+    second: Alignment<Formula>,
     reversed: bool,
 ) -> (Rig, RecipeNodeId, RecipeNodeId, Option<(Site, MateFault)>) {
     let r = rig(label, 2);
@@ -193,13 +228,13 @@ fn two_mates(
     } else {
         (r.ids[0], r.ids[1])
     };
-    let (doc, held) = add(r.doc, mate(a, b, first));
+    let (doc, held) = add(r.doc, mate(r.body, a, b, first));
     // The second mate meets its own admission at the door and the
     // pair's verdict at the solve: whichever refuses is the fault.
     let (doc, added, fault) = match at_the_door(
         &doc,
         &mate_reach::<f64>(&r.o, Tol::witness()),
-        mate(a, b, second),
+        mate(r.body, a, b, second),
     ) {
         Ok((doc, added)) => {
             let fault = solve(&doc, &r.o, Tol::witness())
@@ -241,8 +276,11 @@ fn residual_of(fault: &MateFault, predicate: &str) -> (f64, f64) {
     };
     assert!(arm > 0.0, "the arm is the mated parts' own extent: {arm}");
     let message = fault.to_string();
+    assert!(
+        !message.contains(predicate),
+        "the predicate's name rides the payload, not the sentence: {message:?}"
+    );
     for want in [
-        &format!("predicate `{predicate}`"),
         &format!("a dimensionless residual of {value}"),
         &format!("on a {arm} m arm"),
         &format!("a deviation of {} m", clash.deviation().unwrap()),
@@ -281,7 +319,8 @@ fn c1_rotation_identity_value_and_arm() {
         x_along_at([0.0, 0.4, 0.0]),
         None,
     );
-    let (r, held, added, fault) = two_mates("msolve8-c1-rot-id", first, second, false);
+    let (r, held, added, fault) =
+        two_mates("msolve8-c1-rot-id", first.clone(), second.clone(), false);
     let (site, fault) = fault.expect("the pair refuses");
     assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_member_rotation_identity");
@@ -329,12 +368,20 @@ fn c1_axis_fixed_value_and_arm() {
         x_along_at([0.0, 0.0, 0.5]),
         None,
     );
-    let (r, _, _, fault) = two_mates("msolve8-c1-axis-fixed", first, second, false);
+    let (r, _, _, fault) = two_mates(
+        "msolve8-c1-axis-fixed",
+        first.clone(),
+        second.clone(),
+        false,
+    );
     let (site, fault) = fault.expect("the pair refuses");
     assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_member_axis_fixed");
     let q = representative(&first).linear * representative(&second).linear.inverse();
-    let n = second.a.axis(Tol::witness()).unwrap().get();
+    let n = fixture::authored(&second.a)
+        .axis(Tol::witness())
+        .unwrap()
+        .get();
     assert_eq!(
         value.to_bits(),
         (q * n - n).norm().to_bits(),
@@ -366,13 +413,13 @@ fn c1_two_axis_reach_value_and_arm() {
         z_up_at([0.0, 0.0, 0.0]),
         None,
     );
-    let (r, _, _, fault) = two_mates("msolve8-c1-reach", first, second, false);
+    let (r, _, _, fault) = two_mates("msolve8-c1-reach", first.clone(), second.clone(), false);
     let (site, fault) = fault.expect("the pair refuses");
     assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_rotation_two_axis_reachable");
     let tol = Tol::witness();
-    let a1 = first.a.axis(tol).unwrap().get();
-    let a2 = second.a.axis(tol).unwrap().get();
+    let a1 = fixture::authored(&first.a).axis(tol).unwrap().get();
+    let a2 = fixture::authored(&second.a).axis(tol).unwrap().get();
     let (q1, q2) = (
         representative(&first).linear,
         representative(&second).linear,
@@ -470,7 +517,7 @@ fn c1_length_none_and_roll_arm() {
         z_up_at([0.0, 0.0, 0.0]),
         Some(0.3),
     );
-    let (r, _, _, fault) = two_mates("msolve8-c1-roll", big, rider, false);
+    let (r, _, _, fault) = two_mates("msolve8-c1-roll", big.clone(), rider.clone(), false);
     let (site, fault) = fault.expect("the rider refuses");
     assert_eq!(
         site,
@@ -507,7 +554,7 @@ fn c1_length_none_and_roll_arm() {
 }
 
 /// **A transported direction never refuses, and the clash it reaches
-/// is levered.** The spanning tree reads the pair from the gauge, so
+/// is levered.** The spanning tree reads the pair from the root, so
 /// a mate authored `(second, first)` is INVERTED before the fold —
 /// its directions transported by the representative's rotation and
 /// re-minted under the band. The three documents above, authored the
@@ -519,7 +566,7 @@ fn c1_length_none_and_roll_arm() {
 /// `axis_fixed` is what measures the disagreement.
 #[test]
 fn the_three_residual_clashes_survive_the_inverted_authored_order() {
-    let rows: [(&str, &str, Alignment, Alignment); 3] = [
+    let rows: [(&str, &str, Alignment<Formula>, Alignment<Formula>); 3] = [
         (
             "msolve8-inverted-rotation-identity",
             "mate_member_rotation_identity",
@@ -596,87 +643,6 @@ fn the_three_residual_clashes_survive_the_inverted_authored_order() {
 
 // ---- A2 / C2: the witness is the column, and one decision at the band's edge ----
 
-/// **The axis witness IS the placement's third column, and the two
-/// doors refuse together.** Over every combination of a 22-value
-/// axis grid (signed units, halves, in-band and sub-band lengths,
-/// underflowing and overflowing magnitudes, the non-finite values),
-/// six references and four origins — 255 552 frames — `axis(tol)` is
-/// `placement(tol).linear.c2` bit for bit where both place, and the
-/// two refuse with one `FrameError` where both refuse. There is no
-/// third case: the doors are one construction, so a frame whose roll
-/// refuses has no axis either, and none places without one.
-#[test]
-fn c2_axis_vs_placement_sweep() {
-    let tol = Tol::witness();
-    let eps = tol.eps();
-    let vals = [
-        0.0,
-        -0.0,
-        1.0,
-        -1.0,
-        0.5,
-        -0.3,
-        1e-3,
-        3.0 * eps,
-        eps,
-        0.5 * eps,
-        -eps,
-        1e-160,
-        1e-200,
-        1e154,
-        1e200,
-        1e308,
-        -1e308,
-        f64::NAN,
-        f64::INFINITY,
-        f64::NEG_INFINITY,
-        f64::MIN_POSITIVE,
-        5e-324,
-    ];
-    let refs = [
-        [1.0, 0.0, 0.0],
-        [0.0, 0.0, 1.0],
-        [0.0, 1.0, 0.0],
-        [1.0, 1.0, 1e-12],
-        [0.0, 0.0, 2.0],
-        [-0.0, 3e-9, 1.0],
-    ];
-    let origins = [
-        [0.0, 0.0, 0.0],
-        [1e6, -1e6, 1e6],
-        [1e-6, 1e15, -1e-300],
-        [-0.0, -0.0, -0.0],
-    ];
-    let (mut both_ok, mut both_err) = (0_usize, 0_usize);
-    for x in vals {
-        for y in vals {
-            for z in vals {
-                for r in refs {
-                    for o in origins {
-                        let f = frame(o, [x, y, z], r);
-                        match (f.placement(tol), f.axis(tol)) {
-                            (Ok(p), Ok(a)) => {
-                                both_ok += 1;
-                                assert_eq!(bits3(p.linear.c2), bits3(a.get()), "{f:?}");
-                            }
-                            (Err(p), Err(a)) => {
-                                both_err += 1;
-                                assert_eq!(p, a, "{f:?}");
-                            }
-                            (Err(e), Ok(_)) => {
-                                panic!("{f:?}: the placement refused but the axis decided: {e:?}")
-                            }
-                            (Ok(_), Err(a)) => panic!("{f:?}: placed without an axis: {a:?}"),
-                        }
-                    }
-                }
-            }
-        }
-    }
-    assert_eq!(both_ok + both_err, 22 * 22 * 22 * 6 * 4);
-    assert!(both_ok > 0 && both_err > 0, "{both_ok} {both_err}");
-}
-
 /// The in-plane perturbation shapes a boundary search tilts a normal
 /// by.
 const SHAPES: [(f64, f64); 6] = [
@@ -748,13 +714,10 @@ fn one_spelling(n1: Vec3<f64>, n2: Vec3<f64>, arm: f64, band: Band) -> &'static 
 /// lengths differ by up to two ulps and straddle the edge; spelled
 /// once they cannot, and no escalation names any other predicate.
 ///
-/// The SUBGROUP half is the subject, because the full coset door adds
-/// a stage this row is not about: for a pair the table calls a line,
-/// two planes this nearly parallel make the translation system
-/// singular and the candidate's membership refuses a non-finite
-/// margin — a refusal that names `mate_member_translation_in_plane`
-/// for a cause that is the conditioning of the system, filed on
-/// MSOLVE's slate as a false-cause refusal of its own.
+/// The full coset door answers the same: the parallel pair keeps its
+/// plane, the line solves (the translation stage divides by the sine
+/// the table decided, so a line the table mints is a pose), and the
+/// escalation is the table's own.
 #[test]
 fn c2_parallel_boundary_direct() {
     let band = Band::linear(Tol::witness()).unwrap();
@@ -784,7 +747,12 @@ fn c2_parallel_boundary_direct() {
                         representative: Affine3::identity(),
                     };
                     let want = one_spelling(n1.get(), n2.get(), arm, band);
-                    let got = match intersect_subgroups(held.subgroup, added.subgroup, band, arm) {
+                    let got = match intersect_subgroups(
+                        held.subgroup,
+                        added.subgroup,
+                        band,
+                        lever(arm),
+                    ) {
                         Ok(Subgroup::Planar { .. }) => "parallel",
                         Ok(Subgroup::Prismatic { direction }) => {
                             let line = n1.get().cross(n2.get()) * arm;
@@ -801,20 +769,23 @@ fn c2_parallel_boundary_direct() {
                         }
                         other => panic!("at s={s:e} arm={arm}: {other:?}"),
                     };
-                    // The full door decides the same split first; what
-                    // it adds past that is the singular translation
-                    // stage named above, and nothing else.
-                    match intersect(held, added, band, arm) {
-                        Ok(_) => {}
-                        Err(FoldStop::Indeterminate(d)) => assert!(
-                            matches!(
-                                d.predicate,
-                                Some("mate_axes_parallel" | "mate_member_translation_in_plane")
-                            ),
-                            "{d:?}"
-                        ),
-                        Err(other) => panic!("at s={s:e} arm={arm}: {other:?}"),
-                    }
+                    let door = match intersect(held, added, band, lever(arm)) {
+                        Ok(Coset {
+                            subgroup: Subgroup::Planar { .. },
+                            ..
+                        }) => "parallel",
+                        Ok(Coset {
+                            subgroup: Subgroup::Prismatic { .. },
+                            ..
+                        }) => "line",
+                        Err(FoldStop::Indeterminate(d))
+                            if d.predicate == Some("mate_axes_parallel") =>
+                        {
+                            "escalates"
+                        }
+                        other => panic!("at s={s:e} arm={arm}: {other:?}"),
+                    };
+                    assert_eq!(door, got, "the full door at s={s:e} arm={arm}");
                     assert_eq!(
                         got,
                         want,
@@ -878,7 +849,12 @@ fn c2_parallel_boundary_through_doors() {
             z_up_at([0.0, 0.0, 0.0]),
             None,
         );
-        let arm = rr + rr + first.lever_arm();
+        let arm = rr
+            + rr
+            + first.lever_arm(
+                fixture::authored(&first.a).origin(),
+                fixture::authored(&first.b).origin(),
+            );
         for raw in raw_n1s {
             let n1 = UnitVec3::new(raw, FIXTURE_MATE_AXIS, band).unwrap().get();
             for &shape in &shapes {
@@ -907,29 +883,37 @@ fn c2_parallel_boundary_through_doors() {
         let first = al(
             MatePrimitive::PlanarRest { offset: 0.0 },
             AxisSense::Aligned,
-            frame([t, 0.0, 0.0], [raw1.x, raw1.y, raw1.z], [0.0, 1.0, 0.0]),
+            frame([t, 0.0, 0.0], raw1.to_array(), [0.0, 1.0, 0.0]),
             z_up_at([0.0, 0.0, 0.0]),
             None,
         );
         let second = al(
             MatePrimitive::PlanarRest { offset: 0.0 },
             AxisSense::Aligned,
-            frame([0.0, 0.0, 0.0], [raw2.x, raw2.y, raw2.z], [0.0, 1.0, 0.0]),
+            frame([0.0, 0.0, 0.0], raw2.to_array(), [0.0, 1.0, 0.0]),
             z_up_at([0.0, 0.0, 0.0]),
             None,
         );
         // The witnesses the doors decide are the search's, and the
         // fold's arm is the one the search used.
-        let w1 = first.a.axis(tol).unwrap().get();
-        let w2 = second.a.axis(tol).unwrap().get();
+        let w1 = fixture::authored(&first.a).axis(tol).unwrap().get();
+        let w2 = fixture::authored(&second.a).axis(tol).unwrap().get();
         assert_eq!(
             bits3(w1),
             bits3(UnitVec3::new(raw1, FIXTURE_MATE_AXIS, band).unwrap().get())
         );
         let r = rig(&format!("msolve8-c2-doors-{i}"), 2);
-        assert_eq!((rr + rr + first.lever_arm()).to_bits(), arm.to_bits());
-        let (doc, _) = add(r.doc, mate(r.ids[0], r.ids[1], first));
-        let (doc, added) = add(doc, mate(r.ids[0], r.ids[1], second));
+        assert_eq!(
+            (rr + rr
+                + first.lever_arm(
+                    fixture::authored(&first.a).origin(),
+                    fixture::authored(&first.b).origin()
+                ))
+            .to_bits(),
+            arm.to_bits()
+        );
+        let (doc, _) = add(r.doc, mate(r.body, r.ids[0], r.ids[1], first));
+        let (doc, added) = add(doc, mate(r.body, r.ids[0], r.ids[1], second));
         let want = one_spelling(w1, w2, arm, band);
         let sine_times_arm = w1.cross(w2).norm() * arm;
         let levered_norm = (w1.cross(w2) * arm).norm();
@@ -962,32 +946,41 @@ fn c2_parallel_boundary_through_doors() {
 /// the representative's rotation and re-minted: the inverted
 /// document's verdict is the direct document's. A frame the ladder
 /// refuses — the `1e-150` axis at every ε, a reference the band
-/// cannot tell from the axis at a coarse one — refuses at the READ
-/// either way, with the same error; every other one solves or is
-/// UNDER both ways, because a proper rotation keeps a witness's
-/// length one within rounding.
+/// cannot tell from the axis at a coarse one — refuses where it is
+/// authored; every other one solves or is UNDER both ways, because a
+/// proper rotation keeps a witness's length one within rounding.
 #[test]
 fn c2_inverted_coset_never_refuses() {
     let tol = Tol::witness();
     let eps = tol.eps();
-    let mut frames = vec![
-        frame([0.0, 0.0, 0.0], [3.0 * eps, 0.0, 1.0], [0.0, 1.0, 0.0]),
-        frame([0.0, 0.0, 0.0], [11.0 * eps, 0.0, 1.0], [0.0, 1.0, 0.0]),
-        frame([1e6, -1e-6, 0.0], [1.0, 1.0, 0.0], [-1.0, 1.0, 2.0]),
-        frame([0.25, -0.5, 0.75], [3.0, -4.0, 12.0], [0.0, 1.0, 0.0]),
-        frame([0.0, 0.0, 0.0], [1e-150, 0.0, 1e-150], [0.0, 1.0, 0.0]),
-        frame([0.0, 0.0, 0.0], [1e150, 0.0, 1e150], [0.0, 1.0, 0.0]),
-        frame([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0 + 1e-7]),
+    let mut vectors = vec![
+        ([0.0, 0.0, 0.0], [3.0 * eps, 0.0, 1.0], [0.0, 1.0, 0.0]),
+        ([0.0, 0.0, 0.0], [11.0 * eps, 0.0, 1.0], [0.0, 1.0, 0.0]),
+        ([1e6, -1e-6, 0.0], [1.0, 1.0, 0.0], [-1.0, 1.0, 2.0]),
+        ([0.25, -0.5, 0.75], [3.0, -4.0, 12.0], [0.0, 1.0, 0.0]),
+        ([0.0, 0.0, 0.0], [1e-150, 0.0, 1e-150], [0.0, 1.0, 0.0]),
+        ([0.0, 0.0, 0.0], [1e150, 0.0, 1e150], [0.0, 1.0, 0.0]),
+        ([0.0, 0.0, 0.0], [1.0, 1.0, 1.0], [1.0, 1.0, 1.0 + 1e-7]),
     ];
     for k in 0..40 {
         let t = f64::from(k) * 0.37 + 0.01;
-        frames.push(frame(
+        vectors.push((
             [t, -t * 0.5, t * t * 0.1],
             [t.cos(), t.sin(), 0.3 * t],
             [-t.sin(), t.cos(), 1.0],
         ));
     }
     let (mut solved, mut refused_at_the_read) = (0_usize, 0_usize);
+    let frames: Vec<MateFrame<Formula>> = vectors
+        .into_iter()
+        .filter_map(|(o, a, r)| {
+            let built = MateFrame::authored(o, a, r, tol).ok();
+            if built.is_none() {
+                refused_at_the_read += 1;
+            }
+            built
+        })
+        .collect();
     for (i, f) in frames.iter().enumerate() {
         for (j, prim) in [
             MatePrimitive::FrameCoincidence,
@@ -1008,7 +1001,12 @@ fn c2_inverted_coset_never_refuses() {
                     match at_the_door(
                         &r.doc,
                         &mate_reach::<f64>(&r.o, tol),
-                        mate(a, b, al(prim, sense, *f, z_up_at([0.2, 0.0, 0.0]), None)),
+                        mate(
+                            r.body,
+                            a,
+                            b,
+                            al(prim, sense, f.clone(), z_up_at([0.2, 0.0, 0.0]), None),
+                        ),
                     ) {
                         Ok((doc, m)) => solve(&doc, &r.o, tol)
                             .fault(m)
@@ -1023,18 +1021,6 @@ fn c2_inverted_coset_never_refuses() {
                         Some((Site::Solve, MateFault::Under { .. })),
                         Some((Site::Solve, MateFault::Under { .. })),
                     ) => {}
-                    (
-                        Some((Site::Door, MateFault::Frame { error: direct, .. })),
-                        Some((
-                            Site::Door,
-                            MateFault::Frame {
-                                error: inverted, ..
-                            },
-                        )),
-                    ) => {
-                        assert_eq!(direct, inverted, "{f:?} {prim:?} {sense:?}");
-                        refused_at_the_read += 1;
-                    }
                     (direct, inverted) => {
                         panic!("{f:?} {prim:?} {sense:?}: direct {direct:?}, inverted {inverted:?}")
                     }
@@ -1042,10 +1028,10 @@ fn c2_inverted_coset_never_refuses() {
             }
         }
     }
-    // Which frames refuse at the read is the band's business and moves
-    // with ε (the `1e-150` axis at every ε; the reference `1e-7` off
-    // its axis once ε reaches it); what is pinned is that inversion
-    // adds nothing to it.
+    // Which frames refuse where they are authored is the band's
+    // business and moves with ε (the `1e-150` axis at every ε; the
+    // reference `1e-7` off its axis once ε reaches it); what is pinned
+    // is that inversion adds nothing to it.
     assert!(solved > 0 && refused_at_the_read > 0);
 }
 
@@ -1068,7 +1054,8 @@ fn band_document(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>) {
         let (next, id) = step(
             doc,
             DocEdit::InsertNode {
-                node: Node::instantiate_part(doc_ref),
+                node: Box::new(Node::instantiate_part(doc_ref)),
+                fresh: Vec::new(),
             },
         );
         doc = next;
@@ -1087,22 +1074,31 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
         Band::linear(tol).is_err(),
         "the band must refuse for this row to measure anything"
     );
+    // `band_document`'s instances pin a reference no store holds, so
+    // there is no part body for the heads to name: any id spells it.
+    let body = RecipeNodeId::new(0, 0);
     let mut refused = 0_usize;
     for (x, y) in [(0, 1), (2, 3)] {
         let err = doc
             .apply(
                 &DocEdit::InsertNode {
-                    node: mate(
+                    node: Box::new(mate(
+                        body,
                         ids[x],
                         ids[y],
+                        // A literal step: no band forms to author
+                        // vectors through.
                         al(
                             MatePrimitive::FrameCoincidence,
                             AxisSense::Aligned,
-                            z_up_at([0.0, 0.0, 0.0]),
-                            z_up_at([0.0, 0.0, 1.0]),
+                            MateFrame::on_part(editor_core::Placement::IDENTITY),
+                            MateFrame::on_part(editor_core::Placement::literal(
+                                &editor_core::Frame::translation([0.0, 0.0, 1.0]),
+                            )),
                             None,
                         ),
-                    ),
+                    )),
+                    fresh: Vec::new(),
                 },
                 tol,
                 &editor_core::RefusingReach,
@@ -1120,17 +1116,17 @@ fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) 
     }
     assert_eq!(refused, 2);
     assert!(
-        doc.order()
+        doc.ids()
             .iter()
             .all(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. }))),
         "the document holds its five instances and nothing else"
     );
     // And the solve of what the document does hold: `Band` reaches
-    // EVERY instance — each its own singleton cluster — and nothing
+    // EVERY instance — each its own singleton group — and nothing
     // else, since no band means no verdict for any of them.
     let poses = solve(doc, &EvalOptions::default(), tol);
     let mut instances = 0_usize;
-    for &id in doc.order() {
+    for id in doc.ids() {
         assert!(
             matches!(poses.fault(id), Some(MateFault::Band { .. })),
             "{id:?}: {:?}",
@@ -1180,6 +1176,7 @@ fn c4_poses_of_another_document_reaches_no_row() {
     let (doc, _) = add(
         r.doc,
         mate(
+            r.body,
             ids[0],
             ids[1],
             al(
@@ -1194,6 +1191,7 @@ fn c4_poses_of_another_document_reaches_no_row() {
     let (doc, _) = add(
         doc,
         mate(
+            r.body,
             ids[2],
             ids[3],
             al(
@@ -1205,9 +1203,24 @@ fn c4_poses_of_another_document_reaches_no_row() {
             ),
         ),
     );
+    // The rig offsets only the first instance; the second group's
+    // root and the lone fifth instance take one back, so every
+    // instance places against its own document.
+    let mut doc = doc;
+    for &id in &[ids[2], ids[4]] {
+        doc = crate::fixture::step(
+            doc,
+            editor_core::DocEdit::SetOffset {
+                instance: id,
+                offset: Some(editor_core::Placement::IDENTITY),
+                fresh: Vec::new(),
+            },
+        )
+        .0;
+    }
     let tol = Tol::witness();
     let poses = solve(&doc, &r.o, tol);
-    for &id in doc.order() {
+    for id in doc.ids() {
         assert!(
             !matches!(
                 poses.fault(id),
@@ -1221,8 +1234,9 @@ fn c4_poses_of_another_document_reaches_no_row() {
     for &id in &ids {
         assert!(
             matches!(
-                poses.placement(&other, id).map_err(|e| *e),
-                Err(MateFault::PosesOfAnotherDocument { .. })
+                poses.placement(&other, id),
+                Err(editor_core::PoseRefusal::Mate(ref f))
+                    if matches!(**f, MateFault::PosesOfAnotherDocument { .. })
             ),
             "{id:?}"
         );
@@ -1232,7 +1246,18 @@ fn c4_poses_of_another_document_reaches_no_row() {
         );
     }
     let ev = run(&doc, &r.o);
-    assert!(!format!("{:?}", ev.nodes).contains("PosesOfAnotherDocument"));
+    for id in doc.ids() {
+        let Some(e) = ev.node_error(id) else {
+            continue;
+        };
+        let classes: Vec<NodeErrorClass> = core::iter::once(e.kind.class())
+            .chain(e.kind.carried_chain().map(|l| l.refusal.kind().class()))
+            .collect();
+        assert!(
+            !classes.contains(&NodeErrorClass::MatePosesOfAnotherDocument),
+            "{id:?} refuses on another document's poses: {e}"
+        );
+    }
 }
 
 // ---- k-stats: the aim is decided twice per mate, not three times ----
@@ -1241,35 +1266,23 @@ fn decided(rec: &Recorded, name: &str) -> usize {
     rec.verdicts.iter().filter(|v| v.predicate == name).count()
 }
 
-/// **The aim is decided ONCE per frame door and twice per mate.**
-/// `frame`, `placement` and `axis` each record `frame_point_at_aim`
-/// once; a solve decides it twice per mate — one per side — and the
-/// roll offset twice, measured as the difference between a one-mate
-/// and a two-mate document on one pair, with the parts' reach warmed
-/// first so their own decisions are excluded.
+/// **The aim is decided ONCE, where the frame is authored, and a
+/// solve decides only each side's composed axis.** The authored door
+/// records `frame_point_at_aim` once; a solve decides no aim and no
+/// roll for an authored side, and re-mints its axis once per side per
+/// mate (`mate_frame_offset_axis`), measured as the difference
+/// between a one-mate and a two-mate document on one pair, with the
+/// parts' reach warmed first so their own decisions are excluded.
 #[test]
 fn kstats_aim_decided_twice_per_mate() {
     let tol = Tol::witness();
-    let f = frame([0.25, -0.5, 0.75], [3.0, -4.0, 12.0], [0.0, 1.0, 0.0]);
-    for (door, count) in [
-        ("frame", {
-            let b = Bracket::open();
-            let _ = f.frame(tol).unwrap();
-            decided(&b.finish(), "frame_point_at_aim")
-        }),
-        ("placement", {
-            let b = Bracket::open();
-            let _ = f.placement(tol).unwrap();
-            decided(&b.finish(), "frame_point_at_aim")
-        }),
-        ("axis", {
-            let b = Bracket::open();
-            let _ = f.axis(tol).unwrap();
-            decided(&b.finish(), "frame_point_at_aim")
-        }),
-    ] {
-        assert_eq!(count, 1, "{door} decides the aim once");
-    }
+    let b = Bracket::open();
+    let _ = frame([0.25, -0.5, 0.75], [3.0, -4.0, 12.0], [0.0, 1.0, 0.0]);
+    assert_eq!(
+        decided(&b.finish(), "frame_point_at_aim"),
+        1,
+        "the authored door decides the aim once"
+    );
     let solve_with = |n: usize| {
         let r = rig(&format!("msolve8-kstats-{n}"), 2);
         let mut doc = r.doc;
@@ -1277,6 +1290,7 @@ fn kstats_aim_decided_twice_per_mate() {
             let (next, _) = add(
                 doc,
                 mate(
+                    r.body,
                     r.ids[0],
                     r.ids[1],
                     al(
@@ -1302,14 +1316,15 @@ fn kstats_aim_decided_twice_per_mate() {
         (
             decided(&rec, "frame_point_at_aim"),
             decided(&rec, "frame_point_at_roll_offset"),
+            decided(&rec, "mate_frame_offset_axis"),
         )
     };
-    let (aim_one, roll_one) = solve_with(1);
-    let (aim_two, roll_two) = solve_with(2);
+    let (aim_one, roll_one, axis_one) = solve_with(1);
+    let (aim_two, roll_two, axis_two) = solve_with(2);
     assert_eq!(
-        (aim_two - aim_one, roll_two - roll_one),
-        (2, 2),
-        "one aim and one roll decision per side per mate"
+        (aim_two - aim_one, roll_two - roll_one, axis_two - axis_one),
+        (0, 0, 2),
+        "no aim and no roll decision for an authored side; one axis per side per mate"
     );
 }
 
@@ -1341,6 +1356,7 @@ fn a_determined_pair_and_a_v_block_keep_their_verdicts_under_the_witness() {
         let (doc, _) = add(
             r.doc,
             mate(
+                r.body,
                 a,
                 b,
                 al(
@@ -1355,6 +1371,7 @@ fn a_determined_pair_and_a_v_block_keep_their_verdicts_under_the_witness() {
         let (doc, rest) = add(
             doc,
             mate(
+                r.body,
                 a,
                 b,
                 al(
@@ -1400,6 +1417,7 @@ fn a_determined_pair_and_a_v_block_keep_their_verdicts_under_the_witness() {
         let (next, _) = add(
             doc,
             mate(
+                r.body,
                 first,
                 second,
                 al(

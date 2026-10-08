@@ -2,10 +2,11 @@
 id: declared-joint-kind-zero-margin-reads-smooth
 kind: issue
 title: profile: a declared joint whose heading margin is Zero at validation is silently recorded smooth, and its guided escalation is not the typed indeterminate its siblings raise
-status: open
+status: parked
 opened: 2026-09-26
 priority: P3
 cost: E
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -32,3 +33,7 @@ Found by PR #3257's delta review (MINOR-1, MINOR-2, and a NOTE).
 - **"One home" overclaims.** `path.rs`'s `seam_arrival_check`
   (`path_seam_arrival_side`) asks the same levered-dot reversal question
   inline, while `junction_reverses`' doc calls itself the one home.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: judge_joints/junction_reverses classify declared tangent_joints (validate.rs) into cusp and Tangent records; stored tangent-joint flags retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

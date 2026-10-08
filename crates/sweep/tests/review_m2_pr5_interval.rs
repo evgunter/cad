@@ -52,9 +52,11 @@ fn survives_interval_dome_two_band_wire() {
     )
     .unwrap();
     assert_tiers(&t.body);
-    assert_eq!(t.body.vertices().count(), 8);
-    assert_eq!(t.body.edges().count(), 14);
-    assert_eq!(t.body.faces().count(), 8);
+    // The two plane discs are built whole: no poles, no meridians, no
+    // π twins.
+    assert_eq!(t.body.vertices().count(), 6);
+    assert_eq!(t.body.edges().count(), 10);
+    assert_eq!(t.body.faces().count(), 6);
     assert_eq!(t.body.surfaces().count(), 4);
 }
 

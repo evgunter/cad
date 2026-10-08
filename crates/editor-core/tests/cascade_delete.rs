@@ -13,21 +13,52 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::len;
-use editor_core::{Doc, DocEdit, EditError, Node, RecipeNodeId, apply, cascade_delete_order};
+use editor_core::ExtrudeSide;
+use editor_core::Formula;
+use editor_core::{
+    Doc, DocEdit, EditError, Node, RecipeNodeId, SpokenNode, apply, cascade_delete_order,
+};
 use geom_core::Tol;
 
 /// The opaque profile payload: this suite never looks inside `P`.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 struct FakeProfile(&'static str);
-impl editor_core::ProfilePayload for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::VarId> for FakeProfile {}
+impl editor_core::SlotPayload<editor_core::Formula> for FakeProfile {}
+impl editor_core::ProfilePayload for FakeProfile {
+    type Authored = Self;
+    fn lower<E>(
+        authored: &Self,
+        _: &mut dyn FnMut(&editor_core::Formula) -> Result<editor_core::VarId, E>,
+    ) -> Result<Self, E> {
+        Ok(authored.clone())
+    }
+    fn authored_with(
+        &self,
+        _: &mut dyn FnMut(editor_core::VarId, editor_core::Dimension) -> editor_core::Formula,
+    ) -> Self {
+        self.clone()
+    }
+    fn drawn_pieces(
+        &self,
+        _env: &editor_core::VarEnv<f64>,
+        _tol: geom_core::Tol,
+    ) -> Result<std::collections::BTreeSet<editor_core::ProfileEdgeRef>, editor_core::ProgramRefusal>
+    {
+        Ok(std::collections::BTreeSet::new())
+    }
+}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;
 
-fn insert(doc: &TDoc, node: Node<FakeProfile>) -> (TDoc, RecipeNodeId) {
+fn insert(doc: &TDoc, node: Node<FakeProfile, Formula>) -> (TDoc, RecipeNodeId) {
     let applied = apply(
         doc,
-        &TEdit::InsertNode { node },
+        &TEdit::InsertNode {
+            node: Box::new(node),
+            fresh: Vec::new(),
+        },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
@@ -42,6 +73,7 @@ fn extrude(doc: &TDoc, profile: RecipeNodeId) -> (TDoc, RecipeNodeId) {
         Node::Extrude {
             profile,
             distance: len(0.01),
+            side: ExtrudeSide::Along,
         },
     )
 }
@@ -89,7 +121,7 @@ fn every_step_of_the_order_is_accepted_by_the_delete_door() {
         .expect("the cone's order never dangles a reference")
         .doc;
     }
-    assert!(doc.order().is_empty(), "the whole cone is gone");
+    assert!(doc.ids().is_empty(), "the whole cone is gone");
 }
 
 /// Deleting the fork's tip takes the tip and nothing else — the
@@ -116,7 +148,7 @@ fn inputs_of_the_target_survive_it() {
 #[test]
 fn an_absent_node_has_an_empty_cascade() {
     let (doc, _) = fork();
-    let absent = RecipeNodeId(9_999);
+    let absent = RecipeNodeId::new(0, 9_999);
     assert!(cascade_delete_order(&doc, absent).is_empty());
     assert_eq!(
         apply(
@@ -126,7 +158,9 @@ fn an_absent_node_has_an_empty_cascade() {
             &editor_core::RefusingReach
         )
         .unwrap_err(),
-        EditError::UnknownNode { id: absent }
+        EditError::UnknownNode {
+            id: SpokenNode::absent(absent)
+        }
     );
 }
 
@@ -146,20 +180,21 @@ fn the_dangle_refusal_states_the_remedy() {
     assert_eq!(
         refusal,
         EditError::DeleteWouldDangle {
-            id: profile,
-            referenced_by: body,
+            id: doc.spoken(profile),
+            referenced_by: doc.spoken(body),
         }
     );
     let sentence = refusal.to_string();
     assert!(
         sentence.contains(&format!(
-            "node {} is still an input to node {}",
-            profile.0, body.0
+            "{} is still an input to {}",
+            doc.spoken(profile),
+            doc.spoken(body)
         )),
         "the direction of the reference is stated: {sentence}"
     );
     assert!(
-        sentence.contains(&format!("delete node {} first", body.0)),
+        sentence.contains(&format!("delete {} first", doc.spoken(body))),
         "and the immediate remedy: {sentence}"
     );
     assert!(

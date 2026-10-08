@@ -35,9 +35,9 @@
 //!
 //! - **the census delta**, exactly three times the annulus band's own
 //!   `(+1 vertex, +2 edges, +1 face)` — two feet minted and the rim
-//!   vertex retired, two seam children and two trim circles minted
-//!   against the rim and the host seam's rim-side piece, two strips
-//!   minted and one merged away;
+//!   vertex retired, a seam child per seam split (a strut on a plane
+//!   side) and two trim circles minted against the rim and the host's
+//!   rim-side piece, two strips minted and one merged away;
 //! - **the band faces exist and are tori**, each storing the radius the
 //!   caller asked for;
 //! - **the mouth band's torus is the CLOSED FORM**, re-derived in this
@@ -91,13 +91,14 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
-use pncad::geom_brep::SurfaceKind;
 use pncad::geom_core::{Point2, Tol, Vec2};
+use pncad::prelude::SurfaceKind;
 use pncad::prelude::{Open, Start, SurfaceKindSet, fillet_edges, query};
-use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
+use pncad::profile::{ArcSweep, Center, ConstructedLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};
 
+use crate::booleans::finished;
 use crate::{SceneBody, Stop, View};
 
 /// The bore's radius: the bud is ANNULAR, which is what makes the full
@@ -145,7 +146,7 @@ const ROLL: f64 = 0.05;
 /// it to share this function would move the K baseline for a
 /// refactoring's sake. The two stay separate until something else asks
 /// for the shape.
-fn meridian(tol: Tol) -> ProfileLoop<f64> {
+fn meridian(tol: Tol) -> ConstructedLoop<f64> {
     Open.at(Point2::new(BORE, 0.0))
         .line_to(Point2::new(GLOBE, 0.0), tol)
         .expect("the base annulus")
@@ -261,15 +262,15 @@ fn band_torus(body: &Body<f64>, face: pncad::topo::FaceKey) -> (f64, f64) {
 pub fn stops(tol: Tol) -> Vec<Stop> {
     // The unfilleted twin, kept alive: every claim below is against
     // THIS body rather than against a remembered number.
-    let sharp = bud(tol);
+    let sharp = finished("sharp", bud(tol), tol);
     assert_eq!(
         (
             sharp.vertices().count(),
             sharp.edges().count(),
             sharp.faces().count(),
         ),
-        (5, 10, 5),
-        "the bud is five walls, five latitude rims and five meridian seams"
+        (5, 8, 5),
+        "the bud is five walls, five latitude rims and the three curved walls' meridian seams"
     );
 
     // The three rims, said BY DESCRIPTION. Two of them the description
@@ -320,22 +321,24 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // door wearing a convenience.
     let first = fillet_edges(&sharp, &[mouth], ROLL, tol)
         .unwrap_or_else(|e| panic!("the bud's sphere-cone mouth rim rolls, got {e:?}"));
+    let first_bands = first.band_faces.len();
+    let first = finished("first.body", first.body, tol);
     let lip2 = rim_between(
-        &first.body,
+        &first,
         SurfaceKind::Cone,
         SurfaceKind::Plane,
         "the lip, re-selected",
     );
-    let bore2 = rims_between(&first.body, SurfaceKind::Cylinder, SurfaceKind::Plane);
+    let bore2 = rims_between(&first, SurfaceKind::Cylinder, SurfaceKind::Plane);
     let base2 = *bore2
         .iter()
         .min_by(|a, b| {
-            rim_station(&first.body, **a)
-                .partial_cmp(&rim_station(&first.body, **b))
+            rim_station(&first, **a)
+                .partial_cmp(&rim_station(&first, **b))
                 .expect("finite stations")
         })
         .expect("two bore rims");
-    let sequential = fillet_edges(&first.body, &[lip2, base2], ROLL, tol).unwrap_or_else(|e| {
+    let sequential = fillet_edges(&first, &[lip2, base2], ROLL, tol).unwrap_or_else(|e| {
         panic!(
             "the lip and the bore's base share no support face, so they roll \
                  TOGETHER on the mouth's result; got {e:?}"
@@ -370,7 +373,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     assert_eq!(
         (v, e, f),
-        (8, 16, 8),
+        (8, 14, 8),
         "three annulus bands, each (+1 vertex, +2 edges, +1 face) over the sharp bud"
     );
 
@@ -378,7 +381,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // requested tube radius. A silhouette that did not move cannot say
     // this; three new revolution walls can only be there or not.
     assert_eq!(rolled.band_faces.len(), 3, "one band per rim, one call");
-    assert_eq!(first.band_faces.len(), 1, "the cross-check's mouth band");
+    assert_eq!(first_bands, 1, "the cross-check's mouth band");
     assert_eq!(
         sequential.band_faces.len(),
         2,
@@ -521,7 +524,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
               carves (#935)",
         delta: DELTA,
         note: Some(format!(
-            "{v} vertices, {e} edges, {f} faces — the sharp bud's 5/10/5 plus exactly \
+            "{v} vertices, {e} edges, {f} faces — the sharp bud's 5/8/5 plus exactly \
              three times the annulus band's own (+1, +2, +1). All three rims roll in \
              ONE call, the mouth and the lip sharing the pucker cone included: the \
              carve re-reads the later rim's seam-piece identities against the \

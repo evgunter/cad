@@ -35,9 +35,7 @@ test_utils::gated_to![
 
 use crate::fixture;
 
-use editor_core::{
-    Dimension, DocEdit, DocParam, MetaValue, Node, ParamName, ProfileDoc, load, save,
-};
+use editor_core::{Dimension, DocEdit, FreeVar, MetaValue, Node, ProfileDoc, VarName, load, save};
 use fixture::{desc, len};
 use geom_core::Tol;
 use proptest::prelude::*;
@@ -53,9 +51,9 @@ fn round_trip(value: f64) -> ProfileDoc {
     };
     doc = push(
         &doc,
-        DocEdit::SetDocParam {
-            name: ParamName::new("p"),
-            value: DocParam::continuous(Dimension::Length, value),
+        DocEdit::DeclareVar {
+            name: VarName::from_static("p"),
+            def: editor_core::VarDecl::Free(FreeVar::continuous(Dimension::Length, value)),
         },
     );
     // **The profile has no raw-float channel any more.** v4's was the
@@ -68,24 +66,31 @@ fn round_trip(value: f64) -> ProfileDoc {
     doc = push(
         &doc,
         DocEdit::InsertNode {
-            node: fixture::frame([value, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-        },
-    );
-    doc = push(
-        &doc,
-        DocEdit::InsertNode {
-            node: Node::Profile(desc(
-                editor_core::RecipeNodeId(0),
-                vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
+            node: Box::new(fixture::frame(
+                [value, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
             )),
+            fresh: Vec::new(),
         },
     );
     doc = push(
         &doc,
         DocEdit::InsertNode {
-            node: Node::Datum(editor_core::Datum::Point {
+            node: Box::new(Node::Profile(desc(
+                doc.ids()[0],
+                vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
+            ))),
+            fresh: Vec::new(),
+        },
+    );
+    doc = push(
+        &doc,
+        DocEdit::InsertNode {
+            node: Box::new(Node::Datum(editor_core::Datum::Point {
                 position: [len(value), len(0.0), len(-0.0)],
-            }),
+            })),
+            fresh: Vec::new(),
         },
     );
     let text = save(&doc, &[], Tol::witness()).expect("save");
@@ -104,42 +109,45 @@ fn assert_bits(label: &str, value: f64, loaded: f64) {
 
 fn check_all_slots(value: f64) {
     let doc = round_trip(value);
-    let Some(DocParam::Continuous { value: p, .. }) = doc.params().get(&ParamName::new("p")) else {
+    let Some(FreeVar::Continuous { value: p, .. }) = doc.free_named("p") else {
         panic!("param lost");
     };
     assert_bits("doc param", value, *p);
     // The frame the profile is drawn on: its origin x carries the
     // value, as a literal `Expr`, so the bits are asserted the way
     // every other expression literal's are.
-    let Some(Node::Datum(editor_core::Datum::Frame { origin, .. })) =
-        doc.node(editor_core::RecipeNodeId(0))
-    else {
+    let Some(Node::Datum(editor_core::Datum::Frame { origin, .. })) = doc.node(doc.ids()[0]) else {
         panic!("frame lost");
     };
     let mut frame_bits = Vec::new();
-    origin[0].literal_bits(&mut frame_bits);
+    doc.written(&editor_core::Expr::var(
+        origin[0],
+        editor_core::Dimension::Length,
+    ))
+    .literal_bits(&mut frame_bits);
     assert_eq!(
         frame_bits,
         vec![value.to_bits()],
         "the frame origin's literal bits"
     );
-    let Some(Node::Profile(prof)) = doc.node(editor_core::RecipeNodeId(1)) else {
+    let Some(Node::Profile(prof)) = doc.node(doc.ids()[1]) else {
         panic!("profile lost");
     };
     assert_eq!(
         prof.plane,
-        editor_core::RecipeNodeId(0),
+        doc.ids()[0],
         "the profile still names its frame across the wire"
     );
-    let Some(Node::Datum(editor_core::Datum::Point { position })) =
-        doc.node(editor_core::RecipeNodeId(2))
-    else {
+    let Some(Node::Datum(editor_core::Datum::Point { position })) = doc.node(doc.ids()[2]) else {
         panic!("datum lost");
     };
     let mut bits = Vec::new();
-    position[0].literal_bits(&mut bits);
+    let written = |var: editor_core::VarId| {
+        doc.written(&editor_core::Expr::var(var, editor_core::Dimension::Length))
+    };
+    written(position[0]).literal_bits(&mut bits);
     assert_eq!(bits, vec![value.to_bits()], "expression literal bits");
-    position[2].literal_bits(&mut bits);
+    written(position[2]).literal_bits(&mut bits);
     assert!(
         bits.contains(&(-0.0f64).to_bits()),
         "-0.0 literal must keep its sign"
@@ -189,9 +197,9 @@ fn epsilon_round_trips_bit_exactly() {
 fn metadata_floats_round_trip_bit_exactly() {
     for v in [-0.0f64, f64::from_bits(1), 0.1, f64::MAX] {
         let mut m = std::collections::BTreeMap::new();
-        m.insert("v".to_owned(), MetaValue::Int(1));
+        m.insert("v".to_owned(), MetaValue::Int(1.into()));
         m.insert("x".to_owned(), MetaValue::Float(v));
-        let value = MetaValue::Map(m);
+        let value = MetaValue::map(m).expect("a shallow value");
         // Bit-eq PartialEq (D7): equality on the canonical tree IS
         // bit equality, so assert_eq pins the bits.
         let json = serde_json::to_string(&value).expect("ser");
