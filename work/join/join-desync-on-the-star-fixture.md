@@ -4,7 +4,7 @@ kind: issue
 title: JoinDesync (every chord arc separates a loose scaffolding pair) on the star fixture in six member orders
 status: closed
 opened: 2026-09-07
-refs: [2073, 2073]
+refs: [2073]
 priority: P0
 cost: H
 branch: join/star-desync

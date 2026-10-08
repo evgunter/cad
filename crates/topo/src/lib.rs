@@ -296,6 +296,7 @@ pub mod test_support {
     // is the only suite that wants the literal, and it restates it on
     // purpose — a guard that reached for the constant the builder uses
     // would be comparing that constant against itself.
+    pub use crate::null::with_ring_root;
     pub use crate::test_support_fixtures::{
         CubeOps, CylFrame, CylKey, FaceGeometry, NullStrutListing, Prism, PrismOps, RingFaceOps,
         StraddleSeat, arc_chain_over_the_jump, assert_every_chord_named_by_both_rules, brick,
@@ -309,10 +310,11 @@ pub mod test_support {
     /// ([`crate::test_support_meeting`]).
     pub mod meeting {
         pub use crate::test_support_meeting::{
-            Hole, MEET, PLATE, Point, Pose, apex_pyramid, arch, at, bearing, corners,
-            corners_disjoint, cycles_of, ell, ell_and_wedges, four_wedges, inner_rows, leaned, mix,
-            nest, nest_polygon, notch, notch_rows, orders, posed_box, posed_boxes, posed_prism,
-            posed_pyramid, poses, shape, three_wedges, two_wedges, wedge, wedges_on_one_side,
+            Hole, MEET, PLATE, Point, Pose, apex_pyramid, arch, arch_cone, at, bearing,
+            branching_cone, comb, corners, corners_disjoint, cycles_of, ell, ell_and_wedges, fin,
+            four_wedges, inner_rows, leaned, mix, near_flat, nest, nest_polygon, notch, notch_rows,
+            orders, posed_box, posed_boxes, posed_crown, posed_prism, posed_pyramid, poses, shape,
+            three_wedges, two_wedges, wedge, wedges_on_one_side,
         };
     }
 

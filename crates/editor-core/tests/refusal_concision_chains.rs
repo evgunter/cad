@@ -3991,7 +3991,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
 
 fn shell() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
-    use topo::{FaceKey, ReplaceFaceError, ShellError as S, ShellKey, SolidKey};
+    use topo::{FaceKey, ReplaceFaceError, ShellError as S, ShellKey};
     let (face, other, shell) = (FaceKey::default(), FaceKey::default(), ShellKey::default());
     let mut rows: Vec<(String, S<f64>)> = replace_face()
         .into_iter()
@@ -4031,18 +4031,6 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 "Roles",
                 S::Roles {
                     error: payloads::zero_volume(shell),
-                },
-            ),
-            (
-                "Pieces",
-                S::Pieces {
-                    error: topo::PieceSortError::Crossing { shell },
-                },
-            ),
-            (
-                "OperandOuterShells",
-                S::OperandOuterShells {
-                    solid: SolidKey::default(),
                 },
             ),
             (

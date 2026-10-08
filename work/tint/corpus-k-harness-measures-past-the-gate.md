@@ -10,7 +10,7 @@ cost: M
 
 
 Found by the REACH lane `reach/lily-leaf-1e12`, sweeping for the shape
-of `work/reach/lily-leaf-b-mass-exhausts-the-quadrature-budget-at-eps-1e-12.md`: a K-sweep harness whose ladder measures a
+of `lily-leaf-b-mass-exhausts-the-quadrature-budget-at-eps-1e-12` (REACH, closed by PR 3976): a K-sweep harness whose ladder measures a
 body through `topo::mass_properties` and panics on any refusal, where
 the kernel's own classification (`SignCertificate::measure`, the one
 home of it) answers a schedule that cannot reach the reporting target

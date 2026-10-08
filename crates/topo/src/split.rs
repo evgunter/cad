@@ -25,7 +25,7 @@
 
 use geom_brep::CertifyError;
 use geom_brep::recourse::{Reading, Refused, RefusedArm, SizedDecision, SizedPass, StoredDefinite};
-use geom_core::{Band, Decide, InfSpeed, Margin, Tol};
+use geom_core::{Band, Decide, InfSpeed, Margin, Point3, Tol};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, EntityId, GeomRef, HalfEdgeKey, VertexKey};
@@ -217,6 +217,37 @@ impl<T: Decide> Body<T> {
     where
         T: crate::props::AtRestPolicy,
     {
+        self.split_edge_minting(edge, t, None, tol)
+    }
+
+    /// [`Self::split_edge`], with the new vertex holding `at`'s own
+    /// bits rather than `carrier(t)`'s: the split lands on a point the
+    /// caller already holds (another vertex's), and the two must read
+    /// one point. Both children certify against `at`, so a point off
+    /// the carrier past the band refuses as any endpoint would.
+    pub(crate) fn split_edge_onto(
+        &mut self,
+        edge: EdgeKey,
+        t: T,
+        at: Point3<T>,
+        tol: Tol,
+    ) -> Result<SplitEdgeCreated, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        self.split_edge_minting(edge, t, Some(at), tol)
+    }
+
+    fn split_edge_minting(
+        &mut self,
+        edge: EdgeKey,
+        t: T,
+        at: Option<Point3<T>>,
+        tol: Tol,
+    ) -> Result<SplitEdgeCreated, EulerOpError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
         #[cfg(debug_assertions)]
         let before = self.arena_counts();
 
@@ -300,7 +331,7 @@ impl<T: Decide> Body<T> {
         let (u, v) = (hp_data.start, hm_data.start);
         let p_u = self.linked_vertex_point(u, EntityId::HalfEdge(hp.key()), "start");
         let p_v = self.linked_vertex_point(v, EntityId::HalfEdge(hm.key()), "start");
-        let p_new = curve.carrier().eval(t);
+        let p_new = at.unwrap_or_else(|| curve.carrier().eval(t));
         // ---- Geometry gate (still no mutation): both children must
         // certify against their own endpoints.
         let (spec1, spec2) = curve.split_specs(t);
