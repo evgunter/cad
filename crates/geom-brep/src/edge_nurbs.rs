@@ -824,28 +824,26 @@ impl core::fmt::Display for AnalyticRung3Refusal {
                 value,
             } => write!(
                 f,
-                "{} measured {value:e} m from the {operand:?} against the run tolerance — the \
+                "{} measured {value:e} m from the {} against the run tolerance — the \
                  carrier leaves that surface between the schedule's samples",
-                limb.name()
-            ),
-            Self::Escalated {
-                operand: Some(operand),
-                limb,
-                cause,
-            } => write!(
-                f,
-                "{} against the {operand:?} escalated: {}",
                 limb.name(),
-                cause.payload()
+                operand.name()
             ),
             Self::Escalated {
-                operand: None,
+                operand,
                 limb,
                 cause,
-            } => write!(f, "{} escalated: {}", limb.name(), cause.payload()),
+            } => {
+                write!(f, "{}", limb.name())?;
+                if let Some(kind) = operand {
+                    write!(f, " against the {}", kind.name())?;
+                }
+                write!(f, " escalated: {}", cause.payload())
+            }
             Self::NoOffsetBound { operand, why } => write!(
                 f,
-                "the carrier's distance from the {operand:?} has no certified bound: {why}"
+                "the carrier's distance from the {} has no certified bound: {why}",
+                operand.name()
             ),
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
