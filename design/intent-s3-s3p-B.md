@@ -230,3 +230,53 @@ read. The D10 sentence I would now propose:
 derive it from their inputs instead (a cap from the path frame, a section from the cutting
 plane's reference). The frame then moves only rounding. File it as a topo issue whichever rule
 Ev picks.
+
+## Round 4
+
+**1. Frames enter only at placement: yes, and nothing needs a blank frame.** A part's
+construction poses are written in the document's own coordinates, and no variable stands for
+them: there is nothing to read, name, delete or count. These coordinates are the kernel's gauge
+inside one document. They are related to nothing outside it, so the part still has no location.
+`InFrame { coords }` means coordinates in the document's coordinates. A pose relative to
+another frame is an `Offset` of that frame, which also removes the `InFrame`/`Offset`
+double spelling I raised in round 1. Consequences:
+- **Several construction spaces in one part: gone.** A document's constructions are one space.
+  Placement is relational, so where a source body sits never matters to its copies, and two
+  unrelated designs belong in two documents.
+- **"A definition's reads lie in one space" survives only for copies.** A definition mixing a
+  construction pose with a pose of an unplaced copy (its own space) refuses.
+- **The world is an undeletable `Frame` defined in the document's coordinates.** Its coordinates
+  default to the identity and are editable (Ev's "one number"). Only placements' mates and
+  export read it, and a door check refuses a construction that reads it. Export =
+  the document's coordinates mapped by the world: today's output by default.
+- **The computing frame (point 2) gets simpler:** see the computing sentence in 3.
+- **Stage 3 C's one-mate `Place`.** The mate reads `OfCopy(copy, F)` for a frame `F` of the
+  source document: the author's own sketch frame, or the frame at the document's origin, which
+  is `InFrame` with coordinates that are anonymous variables. It has a value, so it is not blank.
+  `place(body, at = f)` is sugar that mints that origin frame. It is visible and editable.
+- **A `Transform` within a part** is a copy whose mate equates `OfCopy(copy, F)` with `Offset { F, by }`.
+- **Spaces shrink to two kinds.** The document's (its constructions, the world, every copy placed
+  against either), and the own space of a copy with an empty bundle plus what is placed on it.
+
+**2. What the valueless frame did, and what replaces it.** It did three things: (a) several
+unrelated construction spaces per document, which are lost, and the recourse is a second
+document; (b) a canonical handle for "the copy's own frame", replaced by the defined origin
+frame; (c) inline of an unplaced instance keeping its constructions apart, which now land in the
+host's coordinates, admissible beside the host's constructions though nothing relates them by
+intent. That is the honest cost: inside one document, constructions are related by coordinates.
+None of these is worth a concept, so I drop it.
+
+**3. Proposed text.** No pose is free. `Free` covers scalars and discrete kinds only, so VR3 is
+unchanged and D10's free-variable sentence is right as written.
+- *D10 Variables:* "the poses (…), which are always defined: by coordinates in the document's
+  own, or from other poses".
+- *D10 Spaces:* "A part has no location: its constructions are written in coordinates of its
+  own, which no variable stands for and nothing outside the document reads. A **space** is what
+  is related to one another: a document's constructions are one, and a copy is in the space of
+  what its placement relates it to, or its own while its bundle is empty. The **world** is one
+  undeletable frame, defined in the document's coordinates and read only by placements and
+  export; construction never reads it."
+- *Computing:* "Constructions compute in the document's coordinates; an operation over copies
+  computes in its first listed operand's, as that copy carries them; nothing computes in the
+  world's. A bit moves only under an edit on what the operation reads or how it is ordered; D9
+  makes it the same on every build."
