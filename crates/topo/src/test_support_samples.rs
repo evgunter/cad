@@ -432,6 +432,22 @@ fn certify_errors() -> Vec<CertifyError> {
             sample: 4,
             verdict: zero_verdict(5e-10),
         },
+        // A lever arm or a spline's metered length that is not there:
+        // one a smaller tolerance decides, and one of no length at all.
+        CertifyError::ArmCollapsed {
+            sample: 4,
+            verdict: zero_verdict(0.0),
+        },
+        CertifyError::ArmCollapsed {
+            sample: 4,
+            verdict: zero_verdict(5e-10),
+        },
+        CertifyError::SpanMeterCollapsed {
+            verdict: zero_verdict(0.0),
+        },
+        CertifyError::SpanMeterCollapsed {
+            verdict: negative_verdict(-1e-3),
+        },
         CertifyError::NotSecondOrderSeparated {
             sample: 4,
             verdict: zero_verdict(0.0),
@@ -446,6 +462,16 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::Escalated {
             check: CertCheck::Transversality,
             sample: 4,
+            cause: diag(),
+        },
+        CertifyError::Escalated {
+            check: CertCheck::TransversalityArm,
+            sample: 4,
+            cause: diag(),
+        },
+        CertifyError::Escalated {
+            check: CertCheck::ParamSpanMeter,
+            sample: geom_brep::certify::NOT_A_SAMPLE,
             cause: diag(),
         },
     ];
@@ -1075,6 +1101,10 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::ScaffoldAtRest { edge },
         ValidationError::TangentNotIntrinsic { edge },
         ValidationError::LaminaWedge { edge },
+        ValidationError::NoDihedralArm {
+            edge,
+            verdict: zero_verdict(0.0),
+        },
         ValidationError::LoopRoleInverted {
             face,
             r#loop: loop_,

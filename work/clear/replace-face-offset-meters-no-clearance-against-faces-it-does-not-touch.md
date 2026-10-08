@@ -29,3 +29,14 @@ window #1055; `validate_pseudomanifold`'s census does).
 the door's other callers (`offset_together`, the restate paths) and the
 door itself. Measure first: build the push-through on a plain block and
 read which tier refuses it.
+
+**Evidence from SHELL (PR 4311, 2026-10-08).** `topo::shell` now
+reads every non-adjacent pair of transversal planar faces of one
+solid on the cavity its offset doors built (`moved_walls_cross`,
+`crates/topo/src/shell.rs`): each moved face is cut by the line the
+two moved planes share and the two cuts must not overlap. That read
+takes a body and a partition and nothing shell-specific, so it is a
+candidate planar half of the meter this item asks for on
+`replace_faces_offset` and the public `offset_planes_together` door.
+The latter has the same gap: it validates tier 2 and nothing reads a
+moved face against the faces it does not touch.

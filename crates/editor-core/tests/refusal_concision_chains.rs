@@ -1720,6 +1720,13 @@ fn split() -> Vec<(String, NodeErrorKind)> {
             F::NestingContradiction { hole: face },
         ),
         (
+            "EdgeJoin",
+            F::EdgeJoin {
+                side: topo::PlaneSide::Above,
+                refusal: join_refusal(),
+            },
+        ),
+        (
             "ResultInvalid",
             F::ResultInvalid {
                 side: topo::PlaneSide::Below,
@@ -1801,6 +1808,10 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
 ///   in-band arm, and the same lever and conditional on its definite
 ///   zero arm, which has no margin to quote;
 /// - the span's own lever;
+/// - a collapse gate's own decision (a lever arm, a spline's metered
+///   length), undecided and decided: its lever, with what a vanishing
+///   floor means on a spline meter of no length, and on a poisoned
+///   margin what that may mean;
 /// - a poisoned margin on a sized decision: the lever, and what it may
 ///   mean;
 /// - an exact residual's kernel-defect ending;
@@ -1866,6 +1877,43 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
             escalated(CertCheck::Transversality, MarginDiag::INVALID),
             "Recourse: move the geometry so the surfaces cross at a clearer angle; an unreadable or \
              collapsed margin may indicate a kernel bug worth reporting",
+        ),
+        (
+            "lever arm",
+            escalated(CertCheck::TransversalityArm, in_band),
+            "Recourse: move the geometry so that edge is clearly longer, and its faces curve less \
+             tightly there, or, if this length or the gap its faces open is intended, tighten \
+             the tolerance below 5e-10 m",
+        ),
+        (
+            "no lever arm",
+            CertifyError::ArmCollapsed {
+                sample: 4,
+                verdict: geom_brep::recourse::Refused::Zero(geom_brep::recourse::Classified {
+                    margin: MarginDiag::value(0.0),
+                    band,
+                }),
+            },
+            "Recourse: move the geometry so that edge is clearly longer, and its faces curve less \
+             tightly there; a face curving to a point there, as a cone at its apex, leaves no \
+             angle to measure",
+        ),
+        (
+            "spline meter turns back",
+            CertifyError::SpanMeterCollapsed {
+                verdict: geom_brep::recourse::Refused::Negative {
+                    margin: MarginDiag::value(-1.0),
+                },
+            },
+            "Recourse: move the geometry so this spline edge runs steadily forward, never stalling \
+             or turning back",
+        ),
+        (
+            "spline meter, invalid",
+            escalated(CertCheck::ParamSpanMeter, MarginDiag::INVALID),
+            "Recourse: move the geometry so this spline edge runs steadily forward, never stalling \
+             or turning back; an unreadable or collapsed margin may indicate a kernel bug worth \
+             reporting",
         ),
         (
             "endpoint",
@@ -3984,7 +4032,7 @@ fn mate() -> Vec<(String, NodeErrorKind)> {
 
 fn shell() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
-    use topo::{FaceKey, ReplaceFaceError, ShellError as S, ShellKey, SolidKey};
+    use topo::{FaceKey, ReplaceFaceError, ShellError as S, ShellKey};
     let (face, other, shell) = (FaceKey::default(), FaceKey::default(), ShellKey::default());
     let mut rows: Vec<(String, S<f64>)> = replace_face()
         .into_iter()
@@ -4027,18 +4075,6 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                 },
             ),
             (
-                "Pieces",
-                S::Pieces {
-                    error: topo::PieceSortError::Crossing { shell },
-                },
-            ),
-            (
-                "OperandOuterShells",
-                S::OperandOuterShells {
-                    solid: SolidKey::default(),
-                },
-            ),
-            (
                 "Partition",
                 S::Partition {
                     shell,
@@ -4052,6 +4088,15 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
                     other,
                     gap: 0.001,
                     needed: 0.002,
+                },
+            ),
+            (
+                "OffsetsCross",
+                S::OffsetsCross {
+                    face,
+                    other,
+                    overlap: 0.001,
+                    thickness: 0.002,
                 },
             ),
             ("ChartSenseMixed", S::ChartSenseMixed { face, other }),
@@ -4092,6 +4137,12 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
             ("Escalated", S::Escalated { source: diag() }),
             ("Pcurve", S::Pcurve { source: pcurve() }),
             (
+                "Join",
+                S::Join {
+                    refusal: join_refusal(),
+                },
+            ),
+            (
                 "NotValid",
                 S::NotValid {
                     errors: vec![topo::ValidationError::ShellDisconnected {
@@ -4118,11 +4169,17 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
 /// tolerance, since `split_edge` refuses inside the same band.
 fn join_refused_offset() -> topo::ReplaceFaceError<f64> {
     topo::ReplaceFaceError::Join {
-        refusal: topo::JoinRefusal::Undecided(topo::JoinUndecided {
-            vertex: topo::VertexKey::default(),
-            reading: topo::JoinReading::Regularity(payloads::named("join_regular_point")),
-        }),
+        refusal: join_refusal(),
     }
+}
+
+/// The in-band join reading every door that ends with the join carries
+/// typed (`topo::JoinRefusal`).
+fn join_refusal() -> topo::JoinRefusal {
+    topo::JoinRefusal::Undecided(topo::JoinUndecided {
+        vertex: topo::VertexKey::default(),
+        reading: topo::JoinReading::Regularity(payloads::named("join_regular_point")),
+    })
 }
 
 /// Every `topo::ReplaceFaceError` arm but `Fit` ([`offset_fit_routes`]
