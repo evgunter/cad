@@ -4837,7 +4837,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unsupported_geometry",
             "unsupported_run_out",
         ],
-        delegates: &[],
+        delegates: &["join_refusal_tag"],
     },
     TagEntry {
         function: "boolean_error_tag",
@@ -5341,8 +5341,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "join_refusal_tag",
-        values: &["join_carrier_unsupported", "join_undecided"],
-        delegates: &["boolean_error_tag"],
+        values: &[],
+        delegates: &[
+            "boolean_error_tag",
+            "boolean_error_tag",
+            "boolean_error_tag",
+        ],
     },
     TagEntry {
         function: "label_fault_tag",
@@ -6594,12 +6598,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("instance", 2),
     ("io", 2),
     ("join", 2),
-    // One fact: the edge join's refusal (`topo::JoinRefusal`), spelled
-    // as the boolean spells it whichever door ends with the join
-    // (`join_refusal_tag`), pinned by
-    // `the_edge_joins_refusal_is_spelled_alike_at_every_door`.
-    ("join_carrier_unsupported", 2),
-    ("join_undecided", 2),
     // One rule (A4's frame rule) refused in both directions across the
     // seam: a split's kept mate and an inline's host mate.
     ("mate_frame_crosses", 2),
@@ -6776,11 +6774,13 @@ fn ring_pair_words_are_the_outer_contact_words() {
 }
 
 /// **The edge join's refusal is spelled alike at every door** that ends
-/// with the join: the split's and the shell's (`join_refusal_tag`) say
-/// what the boolean says for the same arm (`boolean_error_tag`).
+/// with the join: the split's, the shell's and the blend's
+/// (`join_refusal_tag`) read the boolean's own words for the same arm
+/// (`boolean_error_tag`, which `join_refusal_tag` delegates to), pinned
+/// here as the words themselves.
 #[test]
 fn the_edge_joins_refusal_is_spelled_alike_at_every_door() {
-    use crate::tags::{boolean_error_tag, join_refusal_tag};
+    use crate::tags::join_refusal_tag;
     use pncad::geom_core::{Band, Indeterminate, MarginDiag};
     use pncad::topo::{BooleanErrorKind, JoinReading, JoinRefusal, JoinUndecided};
     let undecided = JoinRefusal::Undecided(JoinUndecided {
@@ -6799,18 +6799,9 @@ fn the_edge_joins_refusal_is_spelled_alike_at_every_door() {
     let kernel = JoinRefusal::Kernel {
         kind: BooleanErrorKind::Euler,
     };
-    assert_eq!(
-        join_refusal_tag(&undecided),
-        boolean_error_tag(BooleanErrorKind::JoinUndecided)
-    );
-    assert_eq!(
-        join_refusal_tag(&carrier),
-        boolean_error_tag(BooleanErrorKind::JoinCarrierUnsupported)
-    );
-    assert_eq!(
-        join_refusal_tag(&kernel),
-        boolean_error_tag(BooleanErrorKind::Euler)
-    );
+    assert_eq!(join_refusal_tag(&undecided), "join_undecided");
+    assert_eq!(join_refusal_tag(&carrier), "join_carrier_unsupported");
+    assert_eq!(join_refusal_tag(&kernel), "euler");
 }
 
 #[test]

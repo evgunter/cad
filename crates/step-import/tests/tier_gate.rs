@@ -793,7 +793,7 @@ const CORPUS: [(&str, Disposition); 75] = [
     ),
     (
         "../step-export/tests/fixtures/composed_die.step",
-        Pass(1, 1, 89, 195, 129),
+        Pass(1, 1, 89, 174, 108),
     ),
     (
         "../step-export/tests/fixtures/cone.step",

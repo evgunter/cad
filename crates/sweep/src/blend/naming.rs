@@ -26,10 +26,18 @@
 //! A shrunk support is therefore a survivor and needs no row of its
 //! own: the fact that it is the same face is carried by key identity.
 //!
+//! The surgery ends with the join (`Body::join_edges_within`, recorded
+//! in [`BlendNaming::edge_joins`]), which kills cells of either kind: a
+//! join's `vertex` and `gone` edge may be survivors or mints, and leave
+//! the output. Its `kept` edge keeps its key and its channel — a
+//! survivor or a mint as before — and now also covers the edges it
+//! took (`topo::join_covers`).
+//!
 //! [`BlendNaming::dead`] closes the loop: it lists the source keys
 //! the blend RETIRED, so a consumer can check
-//! `output = (source − dead) ⊎ minted` rather than assume it — in BOTH
-//! directions, executed by
+//! `output = (source − dead − joined) ⊎ (minted − joined)`, where
+//! `joined` is the cells the joins killed, rather than assume it — in
+//! BOTH directions, executed by
 //! `m6_5_fillet_naming::every_output_entity_is_a_recorded_mint_or_a_survivor`
 //! and
 //! `verbs_arms1_annulus::every_annulus_output_entity_is_a_recorded_mint_or_a_survivor`.
@@ -236,4 +244,10 @@ pub struct BlendNaming {
 
     /// What the blend retired from the source.
     pub dead: Retired,
+
+    /// The joins the blend ended with (`Body::join_edges_within`, scoped
+    /// to the shells it carved), in the order made. Every row above stays as the surgery wrote it: a join's
+    /// `vertex` and `gone` are then dead, and its `kept` covers what
+    /// `gone` did besides its own (`topo::join_covers`).
+    pub edge_joins: Vec<topo::EdgeJoin>,
 }
