@@ -152,7 +152,22 @@ placements only.
 
 ## Battery
 
-BATTERY_PLACEHOLDER
+All rows were run locally on `0b78a0c35`, the commit before this
+body's own (the body is the only change since), with
+`CARGO_TARGET_DIR` set to this lane's own directory.
+
+| Check | Result |
+|---|---|
+| `cargo fmt --all --check` | ok |
+| topo + sweep, default ε (1e-9) | 5091 run, 5091 passed |
+| topo + sweep, `CAD_TOLERANCE_EPS=1e-6` | 5091 run, 5091 passed |
+| topo + sweep, `CAD_TOLERANCE_EPS=1e-12` | 5091 run, 5090 passed. 1 red: `parallel_cylinder_join::a_tipped_rod_whose_origin_is_stored_far_joins_along_its_rulings`, which is pre-existing and tracked (`work/tint/tipped-rod-join-escalates-at-1e-12.md`); its boolean refuses before the census runs |
+| editor-core, all (slow set included) | 2910 run, 2910 passed |
+| test-utils | 89 run, 89 passed |
+| clippy `--workspace --exclude viewer --all-targets --all-features -D warnings` | ok |
+| clippy `-p pncad-py --features python` | ok |
+| `scripts/gates/*.sh`, payload-rung sweep, `work.py lint`, python lint | ok |
+| Python suite (maturin wheel, unittest) | 950 tests, OK |
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
