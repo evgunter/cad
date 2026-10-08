@@ -7138,9 +7138,10 @@ fn ring_pairs<T: Decide + geom_core::Bounds>(
 /// so a curved face is read as a planar one wherever its chart is
 /// regular: a corner of a smooth face is, to first order, a corner of
 /// its tangent plane. Silent, the residue:
-/// - a face whose normal that door does not give: a cone, whose apex
-///   has none, and a NURBS or `Approx` face; a point off the chart is
-///   check 3's, and a torus outside the ring convention check 1's;
+/// - a face whose normal that door does not give: a cone at its apex,
+///   which has none, and a NURBS or `Approx` face; a point off the
+///   chart is check 3's, and a torus outside the ring convention check
+///   1's;
 /// - a side on a NURBS edge, which has no departure read here;
 /// - two sides leaving along one tangent, and a cusp corner whose own
 ///   two sides do: first order cannot order them, and two coincident

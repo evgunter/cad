@@ -617,7 +617,7 @@ fn corners_nest<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    let read = |v| sectors::orbit_corners(body, operand, v).collect::<Result<Vec<_>, _>>();
+    let read = |v| sectors::orbit_corners(body, operand, v, band).collect::<Result<Vec<_>, _>>();
     let (cu, cw) = (read(u)?, read(w)?);
     for (into, from) in [(&cu, &cw), (&cw, &cu)] {
         // Each orbit half-edge is one corner's own (`end`) bound.
