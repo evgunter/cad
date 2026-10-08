@@ -263,8 +263,8 @@ pub struct LeafHistogram {
     /// The document this was taken of, the one document its human
     /// form speaks from. Outside the goldening form and its content key.
     pub document: crate::DocumentId,
-    /// The measure the rows are about.
-    pub measurement: crate::node::RecipeNodeId,
+    /// The measured value the rows are about.
+    pub measurement: crate::VarId,
     /// One row per certified leaf, in the drive's own leaf order.
     pub rows: Vec<HistogramRow>,
     /// The mass this table does NOT cover: the drive's unresolved
@@ -333,7 +333,7 @@ impl LeafHistogram {
             "ADVISORY leaf-mass histogram of {} — leaf mass against the measure's \
              certified enclosure over that leaf. Not a density: a true output density is v2 \
              (E11.6), and nothing here claims one.",
-            doc.spoken(self.measurement)
+            doc.spoken_var(self.measurement)
         );
         let _ = writeln!(s, "{}", self.basis.sentence(|id| doc.spoken_var(id)));
         for row in &self.rows {
@@ -392,7 +392,7 @@ pub fn leaf_histogram(
     doc: &crate::doc::Doc<crate::program::ProfileProgram>,
     analyzed: &AnalyzedBox,
     verdict: &crate::drive::ParamBoxVerdict,
-    measurement: crate::node::RecipeNodeId,
+    measurement: crate::VarId,
     tol: geom_core::Tol,
 ) -> LeafHistogram {
     let mut rows = Vec::new();

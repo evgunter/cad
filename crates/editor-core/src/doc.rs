@@ -1321,6 +1321,102 @@ impl<P> Doc<P> {
         self.ordered().0
     }
 
+    /// **The observed variables** (D10): every scalar output — a
+    /// measure's, a function of the built geometry — and every
+    /// definition reading one, directly or through another definition.
+    /// Only an assertion reads one ([`crate::EditError::ConstructionReadsObserved`]).
+    pub fn observed(&self) -> std::collections::BTreeSet<VarId> {
+        let mut observed: std::collections::BTreeSet<VarId> = self
+            .vars
+            .iter()
+            .filter(|(_, v)| v.def().output().is_some() && v.kind().dimension().is_some())
+            .map(|(&id, _)| id)
+            .collect();
+        if observed.is_empty() {
+            return observed;
+        }
+        for id in self.definition_order() {
+            let Some(expr) = self.vars.get(&id).and_then(|v| v.def().defined()) else {
+                continue;
+            };
+            let mut reads = Vec::new();
+            expr.var_reads(&mut reads);
+            if reads.iter().any(|(read, _)| observed.contains(read)) {
+                observed.insert(id);
+            }
+        }
+        observed
+    }
+
+    /// **The first slot of `node` reading an observed variable**
+    /// (`observed`, [`Self::observed`]), with the variable, when `node`
+    /// is a construction: every node but an assertion, which is the one
+    /// reader of a measured value (D10). `None` otherwise.
+    pub(crate) fn observed_read(
+        &self,
+        observed: &std::collections::BTreeSet<VarId>,
+        node: &Node<P>,
+    ) -> Option<(crate::SlotId, VarId)>
+    where
+        P: crate::ProfilePayload,
+    {
+        if observed.is_empty() || matches!(node, Node::Assertion { .. }) {
+            return None;
+        }
+        node.rows()
+            .into_iter()
+            .find(|(_, var)| observed.contains(var))
+            .map(|(slot, &var)| (slot, var))
+    }
+
+    /// **The first construction in this document reading an observed
+    /// variable** ([`Self::observed_read`]), in node order: the node,
+    /// the slot and the variable. `None` for a document in which only
+    /// assertions read measured values.
+    pub(crate) fn observed_read_fault(&self) -> Option<(RecipeNodeId, crate::SlotId, VarId)>
+    where
+        P: crate::ProfilePayload,
+    {
+        let observed = self.observed();
+        if observed.is_empty() {
+            return None;
+        }
+        self.nodes.iter().find_map(|(&id, node)| {
+            self.observed_read(&observed, node)
+                .map(|(slot, var)| (id, slot, var))
+        })
+    }
+
+    /// **The scalar outputs `var` reads**, through definitions: `var`
+    /// itself when it is one, else every one its definition's closure
+    /// reads, each once, in first-read order. Empty for a variable that
+    /// is not observed ([`Self::observed`]).
+    pub fn observed_outputs(&self, var: VarId) -> Vec<VarId> {
+        let mut out = Vec::new();
+        let mut seen = std::collections::BTreeSet::new();
+        let mut stack = vec![var];
+        while let Some(at) = stack.pop() {
+            if !seen.insert(at) {
+                continue;
+            }
+            let Some(held) = self.vars.get(&at) else {
+                continue;
+            };
+            if held.def().output().is_some() {
+                if held.kind().dimension().is_some() {
+                    out.push(at);
+                }
+                continue;
+            }
+            if let Some(expr) = held.def().defined() {
+                let mut reads = Vec::new();
+                expr.var_reads(&mut reads);
+                stack.extend(reads.into_iter().rev().map(|(read, _)| read));
+            }
+        }
+        out
+    }
+
     /// [`Self::definition_order`], and how many of its variables
     /// Kahn's algorithm placed: the rest are on a cycle or read one.
     fn ordered(&self) -> (Vec<VarId>, usize) {
@@ -1518,17 +1614,14 @@ impl<P> Doc<P> {
 
     /// **The operations `node` depends on** (D10: reading is the only
     /// dependency): the operations defining the variables its operands
-    /// read ([`Node::operand_rows`]), then the nodes a measure's sited
-    /// references are read at ([`Node::measure_sites`]). In read order,
-    /// each once; a read this document does not resolve contributes
-    /// nothing (an unresolved read is the reader's refusal at
-    /// evaluation, not an edge). Empty for a node this document does
-    /// not hold.
-    ///
-    /// A slot reads free and defined variables, which no operation
-    /// defines; a slot reading an operation's output refuses at
-    /// evaluation ([`crate::EvalError::OutputRead`]), so it adds no
-    /// edge.
+    /// read ([`Node::operand_rows`]), then those defining the measured
+    /// values its expressions read through definitions
+    /// ([`Self::observed_outputs`]: an assertion's value), then the
+    /// nodes a measure's sited references are read at
+    /// ([`Node::measure_sites`]). In read order, each once; a read this
+    /// document does not resolve contributes nothing (an unresolved
+    /// read is the reader's refusal at evaluation, not an edge). Empty
+    /// for a node this document does not hold.
     pub fn upstream(&self, node: RecipeNodeId) -> Vec<RecipeNodeId>
     where
         P: crate::ProfilePayload,
@@ -1544,10 +1637,18 @@ impl<P> Doc<P> {
         P: crate::ProfilePayload,
     {
         let mut out: Vec<RecipeNodeId> = Vec::new();
+        let observed = node
+            .exprs()
+            .into_iter()
+            .flat_map(|&var| self.observed_outputs(var))
+            .filter_map(|var| self.operation_of(var));
         let at = node
             .operand_rows()
             .into_iter()
             .filter_map(|(_, var)| self.operation_of(var))
+            .chain(observed)
+            .collect::<Vec<_>>()
+            .into_iter()
             .chain(node.measure_sites());
         for id in at {
             if !out.contains(&id) {

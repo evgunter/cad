@@ -102,8 +102,6 @@ pub enum OperandSlot {
     Input,
     /// What a part projection picks from.
     Of,
-    /// The measure an assertion bounds.
-    Measure,
     /// The frame a profile is drawn on, or an in-plane axis is written
     /// in.
     Plane,
@@ -128,7 +126,6 @@ impl OperandSlot {
             Self::Member(i) => format!("member {}", u64::from(i) + 1),
             Self::Input => "input".to_owned(),
             Self::Of => "source".to_owned(),
-            Self::Measure => "measure".to_owned(),
             Self::Plane => "plane".to_owned(),
             Self::At => "body".to_owned(),
         }
@@ -146,7 +143,6 @@ impl OperandSlot {
                 OperandKind::Is(VarKind::Body)
             }
             Self::Input | Self::Of => OperandKind::Placeable,
-            Self::Measure => OperandKind::Measured,
         }
     }
 }
@@ -158,28 +154,23 @@ impl core::fmt::Display for OperandSlot {
 }
 
 /// **The kinds an operand field admits.** A seat holds its own kind;
-/// a placer places one body or a list of them, and an assertion bounds
-/// a measured scalar.
+/// a placer places one body or a list of them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum OperandKind {
     /// Exactly this kind.
     Is(VarKind),
     /// A `Body` or a `Bodies`.
     Placeable,
-    /// A scalar an operation defines: a measure's value.
-    Measured,
 }
 
 impl OperandKind {
-    /// Whether `var` may sit here: its kind, and for a measured seat
-    /// that an operation defines it.
+    /// Whether `var` may sit here, by its kind.
     #[must_use]
     pub fn admits(self, var: &crate::Var) -> bool {
         let kind = var.kind();
         match self {
             Self::Is(is) => kind == is,
             Self::Placeable => matches!(kind, VarKind::Body | VarKind::Bodies),
-            Self::Measured => kind.dimension().is_some() && var.def().output().is_some(),
         }
     }
 }
@@ -189,7 +180,6 @@ impl core::fmt::Display for OperandKind {
         match self {
             Self::Is(kind) => write!(f, "{} {kind}", crate::sentence::article(&kind.to_string())),
             Self::Placeable => f.write_str("a body or a list of bodies"),
-            Self::Measured => f.write_str("a measured value"),
         }
     }
 }

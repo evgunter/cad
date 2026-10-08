@@ -1731,8 +1731,8 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::AnonymousVarUnread { .. }
             | EditError::DeleteAnonymousVar { .. }
             | EditError::MeasureMalformed { .. }
-            | EditError::AssertionTarget { .. }
             | EditError::AssertionDimension { .. }
+            | EditError::ConstructionReadsObserved { .. }
             | EditError::ContinuousVarCannotBeCount { .. }
             | EditError::UnknownVar { .. }
             | EditError::VarNameTaken { .. }
@@ -2360,24 +2360,22 @@ fn remap_node(
         // Both halves remap: the NAME through the name door, and the
         // reading SITE through the id door, because a measure's site
         // is an ordinary input edge.
-        Node::Measure { expr, refs } => Node::Measure {
-            expr: expr.clone(),
-            refs: refs
-                .iter()
-                .map(|r| {
-                    Ok(crate::node::SitedRef {
-                        at: id(r.at)?,
-                        name: nm(&r.name)?,
-                    })
+        Node::Measure { primitive } => Node::Measure {
+            primitive: primitive.try_map(|r| {
+                Ok::<_, RemapMiss>(crate::node::SitedRef {
+                    at: id(r.at)?,
+                    name: nm(&r.name)?,
                 })
-                .collect::<Result<_, RemapMiss>>()?,
+            })?,
         },
-        Node::Assertion {
-            measure,
-            bound,
-            dir,
-        } => Node::Assertion {
-            measure: rd(*measure)?,
+        // A value reading a measure's output directly re-points as an
+        // operand does; any other value is a slot variable, carried as
+        // the bound is.
+        Node::Assertion { value, bound, dir } => Node::Assertion {
+            value: match rd(*value) {
+                Err(RemapMiss::Read { .. }) => *value,
+                read => read?,
+            },
             bound: *bound,
             dir: *dir,
         },

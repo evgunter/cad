@@ -1940,35 +1940,35 @@ pub enum EditError {
         /// The reading node.
         node: SpokenNode,
     },
-    /// A [`Node::Measure`]'s expression reads a reference the node does
-    /// not carry ([`crate::MeasureNodeFault`]).
+    /// An authored measurement's primitive reads a reference its
+    /// builder was not handed ([`crate::MeasureNodeFault`],
+    /// [`fn@crate::measure`]). Nothing is applied.
     MeasureMalformed {
-        /// The measure node.
-        node: SpokenNode,
         /// What is wrong with it.
         fault: crate::node::MeasureNodeFault,
     },
-    /// A [`Node::Assertion`] references a node that is not a measure.
-    /// An assertion constrains a measurement; there is nothing else in
-    /// the vocabulary for it to constrain.
-    AssertionTarget {
-        /// The assertion.
-        node: SpokenNode,
-        /// What it references.
-        measure: SpokenNode,
-    },
     /// A [`Node::Assertion`]'s bound is dimensioned differently from
-    /// the measure it constrains — refused at the edit door, so a
-    /// document never carries a comparison of metres with radians.
+    /// the value it bounds — refused at the edit door, so a document
+    /// never carries a comparison of metres with radians.
     AssertionDimension {
         /// The assertion.
         node: SpokenNode,
-        /// The measure it constrains.
-        measure: SpokenNode,
-        /// The measure's dimension.
+        /// The value's dimension.
         measured: Dimension,
         /// The bound's.
         bound: Dimension,
+    },
+    /// **A construction's slot reads an observed variable** (D10): a
+    /// measure's output, or a definition reading one, directly or
+    /// through another definition. Only an assertion reads one; a
+    /// construction reads what was written.
+    ConstructionReadsObserved {
+        /// The reading node.
+        node: SpokenNode,
+        /// The slot that reads it.
+        slot: SlotId,
+        /// The variable the slot reads.
+        var: Box<SpokenVar>,
     },
     /// A `Continuous` free variable defined with `Dimension::Count` —
     /// a count is [`FreeVar::Count`] (an exact integer).
@@ -2895,7 +2895,6 @@ impl EditError {
                 slot: _,
             }
             | Self::PayloadUnknownVarName { node, name: _ }
-            | Self::MeasureMalformed { node, fault: _ }
             | Self::PathOffTree {
                 node,
                 slot: _,
@@ -3034,15 +3033,16 @@ impl EditError {
             Self::AmbiguousOutput { input, slot: _ } | Self::DefinesNothing { input, slot: _ } => {
                 *input = input.respoken(doc);
             }
-            Self::AssertionTarget { node, measure }
-            | Self::AssertionDimension {
+            Self::AssertionDimension {
                 node,
-                measure,
                 measured: _,
                 bound: _,
             } => {
                 *node = node.respoken(doc);
-                *measure = measure.respoken(doc);
+            }
+            Self::ConstructionReadsObserved { node, slot: _, var } => {
+                *node = node.respoken(doc);
+                **var = var.respoken(doc);
             }
             Self::NameStepNeverMinted { name, step: _ }
             | Self::RebindUnknownName { name }
@@ -3128,7 +3128,8 @@ impl EditError {
                 found: _,
             }
             | Self::InvalidTolerance { value: _ }
-            | Self::PlacementAxis { error: _ } => {}
+            | Self::PlacementAxis { error: _ }
+            | Self::MeasureMalformed { fault: _ } => {}
         }
         again
     }
@@ -3409,43 +3410,47 @@ impl EditError {
                 )?;
                 tail.recourse(f, format_args!("{READ_A_HELD_VAR}"))
             }
-            Self::MeasureMalformed { node, fault } => {
-                write!(f, "{node}: {fault}")?;
+            Self::MeasureMalformed { fault } => {
+                write!(f, "{fault}")?;
                 tail.recourse(
                     f,
                     format_args!(
-                        "read only a reference the measure carries, or add the one it reads to \
-                         its reference list"
+                        "read only a reference the measurement is handed, or add the one it reads \
+                         to its reference list"
                     ),
                 )
             }
-            Self::AssertionTarget { node, measure } => {
-                write!(
-                    f,
-                    "{} references {}, which is not a measure — an \
-                     assertion constrains a measurement",
-                    node, measure
-                )?;
-                tail.recourse(f, format_args!("point the assertion at a measure node"))
-            }
             Self::AssertionDimension {
                 node,
-                measure,
                 measured,
                 bound,
             } => {
                 write!(
                     f,
-                    "{} bounds {}, which measures {} {measured}, with {} {bound} expression — an \
-                     assertion compares like with like or not at all",
+                    "{} bounds {} {measured} value with {} {bound} expression — an assertion \
+                     compares like with like or not at all",
                     node,
-                    measure,
                     measured.article(),
                     bound.article(),
                 )?;
                 tail.recourse(
                     f,
                     format_args!("bound it with {} {measured} expression", measured.article()),
+                )
+            }
+            Self::ConstructionReadsObserved { node, slot, var } => {
+                write!(
+                    f,
+                    "{node}'s slot {} reads {var}, a measured value — only an assertion reads a \
+                     measured value; a construction reads what was written",
+                    slot.label()
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!(
+                        "write the value the slot reads, and check it against the measure with an \
+                         assertion"
+                    ),
                 )
             }
             Self::SlotUnknownVarName { name, node, slot } => {
@@ -4960,6 +4965,55 @@ impl<'a, P: Clone + crate::ProfilePayload> Recording<'a, P> {
         Ok(id)
     }
 
+    /// **An authored measurement, inserted** ([`fn@measure`]): one
+    /// [`Node::Measure`] per primitive of `expr`, in its pre-order,
+    /// each over the two of `refs` it indexes; returns the measures and
+    /// `expr`'s arithmetic as a formula over their outputs. Nothing is
+    /// inserted when a primitive indexes past `refs`
+    /// ([`EditError::MeasureMalformed`]).
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::MeasureMalformed`], and the insert door's refusals.
+    pub fn measure(
+        &mut self,
+        expr: &crate::measure::MeasureExpr,
+        refs: &[crate::node::SitedRef],
+    ) -> Result<Measured, EditError> {
+        let primitives = expr.primitives();
+        let mut sited = Vec::with_capacity(primitives.len());
+        for p in &primitives {
+            let resolved = p.try_map(|&index| {
+                usize::try_from(index)
+                    .ok()
+                    .and_then(|i| refs.get(i))
+                    .cloned()
+                    .ok_or(EditError::MeasureMalformed {
+                        fault: crate::node::MeasureNodeFault::RefIndexOutOfRange {
+                            verb: p.verb(),
+                            index,
+                            refs: refs.len(),
+                        },
+                    })
+            })?;
+            sited.push(resolved);
+        }
+        let mut measures = Vec::with_capacity(sited.len());
+        let mut outputs = Vec::with_capacity(sited.len());
+        for primitive in sited {
+            let id = self.insert(Node::Measure { primitive })?;
+            let Some(output) = self.doc().output(id, 0) else {
+                unreachable!("an inserted measure defines its value")
+            };
+            measures.push(id);
+            outputs.push(output);
+        }
+        Ok(Measured {
+            measures,
+            value: expr.formula(&outputs),
+        })
+    }
+
     /// Declare a variable and record the declare — [`Self::apply`] of
     /// its [`DocEdit::DeclareVar`] — answering the id it minted.
     ///
@@ -5332,37 +5386,23 @@ fn check_node_slots<P: crate::ProfilePayload>(
         let reader = Expr::var(var, dim);
         check_reads(doc, &written(before, id, node), ExprSite::Payload, &reader)?;
     }
-    // A measured expression's reference indices, at the edit door as
-    // well as the construction and load doors: `Node::Measure` is a
-    // public variant, so a hand-built value can reach `apply` without
-    // passing `Node::measure`.
-    if let Some(fault) = node.measure_fault() {
-        return Err(EditError::MeasureMalformed {
+    // An assertion's bound against the dimension of its value (E10):
+    // `Node::assertion_bound_fault`, the one home the load door reads it
+    // from too.
+    if let Some(AssertionBoundFault { measured, bound }) = node.assertion_bound_fault(doc) {
+        return Err(EditError::AssertionDimension {
             node: written(before, id, node),
-            fault,
+            measured,
+            bound,
         });
     }
-    // An assertion's bound against the dimension of the measure it
-    // constrains (E10): `Node::assertion_bound_fault`, the one home the
-    // load door reads it from too. The predicate takes the document
-    // because the measured dimension is another node's property; this
-    // is the door's name for its answer.
-    if let Some(fault) = node.assertion_bound_fault(doc) {
-        return Err(match fault {
-            AssertionBoundFault::TargetNotMeasure { measure, .. } => EditError::AssertionTarget {
-                node: written(before, id, node),
-                measure: before.spoken(measure),
-            },
-            AssertionBoundFault::DimensionMismatch {
-                measure,
-                measured,
-                bound,
-            } => EditError::AssertionDimension {
-                node: written(before, id, node),
-                measure: before.spoken(measure),
-                measured,
-                bound,
-            },
+    // A construction reads what was written (D10): no slot of it reads
+    // an observed variable, directly or through a definition.
+    if let Some((slot, var)) = doc.observed_read(&doc.observed(), node) {
+        return Err(EditError::ConstructionReadsObserved {
+            node: written(before, id, node),
+            slot,
+            var: Box::new(doc.spoken_var(var)),
         });
     }
     Ok(())
@@ -5676,6 +5716,66 @@ pub fn regauge_then_mate<P: Clone + crate::ProfilePayload>(
         edits,
         maintenance,
         mate,
+    })
+}
+
+/// **What an authored measurement inserted** ([`Recording::measure`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Measured {
+    /// The measures, one per primitive, in the expression's pre-order.
+    pub measures: Vec<RecipeNodeId>,
+    /// The measurement over their outputs: a lone output's reader for
+    /// a lone primitive. An [`Node::Assertion`]'s `value` takes it, and
+    /// lowering it there defines the arithmetic as that assertion's
+    /// anonymous variable; [`DocEdit::DeclareVar`] names it instead.
+    pub value: Formula,
+}
+
+/// [`fn@measure`]'s outcome: the action applied, and what it inserted.
+#[derive(Debug)]
+pub struct MeasureOutcome<P: crate::ProfilePayload> {
+    /// The document the action produced.
+    pub doc: Doc<P>,
+    /// The edits that produce `doc` from the start, one insert per
+    /// measure.
+    pub edits: Vec<DocEdit<P>>,
+    /// The maintenance they reported.
+    pub maintenance: Vec<Maintenance>,
+    /// The measures and the measurement over them.
+    pub measured: Measured,
+}
+
+/// **An authored measurement, as one action** (E3, D10): a
+/// [`crate::MeasureExpr`]'s arithmetic over primitives indexing `refs`
+/// becomes one [`Node::Measure`] per primitive, each defining one
+/// observed scalar, and a [`Formula`] over their outputs
+/// ([`Recording::measure`]). The edit list is the split's shape: the
+/// edits, and the document they produce.
+///
+/// # Errors
+///
+/// [`EditError::MeasureMalformed`] when a primitive indexes past
+/// `refs`, and the insert door's refusals; the document is untouched.
+pub fn measure<P: Clone + crate::ProfilePayload>(
+    doc: &Doc<P>,
+    expr: &crate::measure::MeasureExpr,
+    refs: &[crate::node::SitedRef],
+    tol: Tol,
+    reach: &dyn MateReach,
+) -> Result<MeasureOutcome<P>, EditError> {
+    let mut action = Recording::start(doc, tol, reach);
+    let measured = action.measure(expr, refs)?;
+    let Recorded {
+        doc,
+        edits,
+        maintenance,
+        ..
+    } = action.finish()?;
+    Ok(MeasureOutcome {
+        doc,
+        edits,
+        maintenance,
+        measured,
     })
 }
 
@@ -6506,6 +6606,15 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     check_var_def(&spoken, &def)?;
                     new.vars.insert(id, Var::written(def));
                     check_definition(new, id)?;
+                    // A definition reading a measured value is observed,
+                    // and so is every construction slot reading it.
+                    if let Some((node, slot, var)) = new.observed_read_fault() {
+                        return Err(EditError::ConstructionReadsObserved {
+                            node: new.spoken(node),
+                            slot,
+                            var: Box::new(new.spoken_var(var)),
+                        });
+                    }
                     EditRecord {
                         minted: None,
                         minted_var: None,

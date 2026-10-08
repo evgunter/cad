@@ -150,6 +150,12 @@ pub struct Evaluation<T: Decide> {
     /// an appearance-only edit re-resolves this field and recomputes
     /// zero nodes.
     pub appearance: AppearanceResolution,
+    /// **Every observed variable's reading** (D10;
+    /// [`crate::Doc::observed`]): what each measure's output and each
+    /// definition over them is worth in this evaluation, at its scalar
+    /// — the values its assertions compared. Empty for a document with
+    /// no measure.
+    pub observed: BTreeMap<crate::VarId, Result<measure::Observed<T>, measure::ObservedRefusal>>,
 }
 
 impl<T: Decide> Evaluation<T> {
@@ -250,6 +256,51 @@ impl<T: Decide> Evaluation<T> {
     /// "the run stopped before it" from "not in this document".
     pub fn result(&self, id: RecipeNodeId) -> Option<&NodeResult<T>> {
         self.nodes.get(&id)
+    }
+
+    /// **An observed variable's reading in this run** ([`Self::observed`]),
+    /// or why there is none, rendered with the node it came from: a
+    /// failed measure's own error spoken from `doc`, a poisoned one's
+    /// failed ancestor's, and otherwise the standing; a definition's
+    /// refusal is the first measure's under `var`. The one ladder every
+    /// reader of a measured value outside an assertion takes, each of
+    /// which has asked that `var` is observed ([`Doc::observed`]).
+    pub(crate) fn reading<P: crate::ProfilePayload>(
+        &self,
+        doc: &Doc<P>,
+        var: crate::VarId,
+    ) -> Result<measure::Observed<T>, (RecipeNodeId, String)>
+    where
+        T: Copy,
+    {
+        let first_measure = || {
+            let Some(node) = doc
+                .observed_outputs(var)
+                .first()
+                .and_then(|out| doc.operation_of(*out))
+            else {
+                unreachable!(
+                    "{var:?} is read as a measured value, and every reader asks that it is one"
+                )
+            };
+            node
+        };
+        match self.observed.get(&var) {
+            Some(Ok(reading)) => Ok(*reading),
+            Some(Err(measure::ObservedRefusal::Measure(standing))) => {
+                Err(self.node_error(standing.node()).map_or_else(
+                    || (standing.node(), standing.to_string()),
+                    |e| (e.node, e.kind_spoken(doc)),
+                ))
+            }
+            Some(Err(measure::ObservedRefusal::Expr(source))) => {
+                Err((first_measure(), source.to_string()))
+            }
+            None => Err((
+                first_measure(),
+                "the run holds no reading of it".to_owned(),
+            )),
+        }
     }
 
     /// The typed root cause behind a node that produced no value:
@@ -443,6 +494,18 @@ pub(crate) fn usable_in<T: Decide>(
         }),
         None => Err(absent()),
     }
+}
+
+/// **An assertion's evaluated payload** ([`crate::node::payload_exprs`]):
+/// its value and its bound, in that order, or the bound alone when the
+/// value reads a measure with no value at this scalar, whose reason is
+/// `unavailable`.
+#[derive(Debug)]
+pub(crate) struct Payload<T> {
+    /// The values, in payload order, the unavailable one left out.
+    pub(crate) values: Vec<T>,
+    /// Why a measured value has no value at this scalar.
+    pub(crate) unavailable: Option<crate::measure::MeasureUnavailableAt>,
 }
 
 /// Whether the evaluation ran to completion (spec D5).
@@ -2138,19 +2201,12 @@ pub enum NodeErrorKind {
     /// The measured expression has no closed form for the carrier pair
     /// it was asked about (E3's honest v1 scope).
     MeasureUnsupported(measure::MeasureUnsupported),
-    /// A `Node::Measure` carries an expression whose primitive reads a
-    /// reference the node does not have. Refused at the construction
-    /// and load doors; this is the evaluation backstop, so a corrupt
-    /// node reaches a typed refusal rather than a panic.
-    MeasureMalformed(crate::node::MeasureNodeFault),
-    /// A node's PAYLOAD expression failed to evaluate — a measured
-    /// expression's value leaf, or an assertion's bound.
+    /// A node's PAYLOAD expression failed to evaluate — an assertion's
+    /// value or its bound.
     ///
     /// The address is the expression's position in `payload_exprs`
-    /// order, because neither carrier has a slot vocabulary to name.
-    /// The rendering says WHICH kind it is: calling an assertion's
-    /// failed bound "value leaf 0 of the measured expression" named a
-    /// thing an assertion does not have.
+    /// order, because an assertion has no slot vocabulary to name. The
+    /// rendering says WHICH one it is.
     PayloadExpr {
         /// Which node kind's payload this is, for the message.
         what: &'static str,
@@ -2842,7 +2898,6 @@ impl crate::spoken::Say for NodeErrorKind {
                 index,
                 source,
             } => write!(f, "{what} {index} failed to evaluate: {source}"),
-            Self::MeasureMalformed(fault) => write!(f, "{fault}"),
             Self::MeasureSelectionKind { verb, found } => write!(
                 f,
                 "`{verb}` measures between two selections — a whole body or one of its faces — \
@@ -3253,8 +3308,8 @@ pub(crate) mod leaf {
     pub(crate) struct LeafRequest {
         /// Read the per-node content keys (the content tie's currency).
         pub keys: bool,
-        /// Read this measure node's value.
-        pub measure: Option<crate::node::RecipeNodeId>,
+        /// Read this observed variable's value.
+        pub measure: Option<crate::VarId>,
         /// Read this assertion node's verdict.
         pub assertion: Option<crate::node::RecipeNodeId>,
     }
@@ -3342,29 +3397,16 @@ pub(crate) mod leaf {
                 .filter_map(|&id| ev.value(id).map(|v| (id, v.content_key)))
                 .collect();
         }
-        if let Some(id) = want.measure {
-            out.measure = Some(match ev.usable(id) {
-                Ok(v) => match &v.payload {
-                    ValuePayload::Measure { value, .. } => {
-                        out.measure_bracket = Some((value.lo(), value.hi()));
-                        Ok(geom_core::CertifiedEnclosure::certified_bracket(*value))
-                    }
-                    ValuePayload::MeasureUnavailable { reason, .. } => {
-                        Err((id, format!("{reason}")))
-                    }
-                    other => Err((
-                        id,
-                        format!(
-                            "node evaluated to {} {} value, not a measure",
-                            crate::sentence::article(other.kind_name()),
-                            other.kind_name()
-                        ),
-                    )),
-                },
-                Err(standing) => Err(ev.node_error(id).map_or_else(
-                    || (id, standing.to_string()),
-                    |e| (e.node, e.kind_spoken(doc)),
-                )),
+        if let Some(var) = want.measure {
+            out.measure = Some(match ev.reading(doc, var) {
+                Ok(super::measure::Observed::Value(value)) => {
+                    out.measure_bracket = Some((value.lo(), value.hi()));
+                    Ok(geom_core::CertifiedEnclosure::certified_bracket(value))
+                }
+                Ok(super::measure::Observed::Unavailable(reason)) => {
+                    Err((super::measure::unavailable_at(doc, var), format!("{reason}")))
+                }
+                Err(refusal) => Err(refusal),
             });
         }
         if let Some(id) = want.assertion {
@@ -4058,6 +4100,7 @@ where
     let resolved_appearance = resolve_appearance(doc, &order, &nodes);
     let unplaced_below = unplaced_below(doc, &order, &nodes);
 
+    let observed = observed_readings(doc, &env, &nodes);
     Evaluation {
         epoch: opts.epoch,
         document: doc.id(),
@@ -4071,7 +4114,24 @@ where
         unplaced_below,
         part_evaluations: parts.evaluations(),
         appearance: resolved_appearance,
+        observed,
     }
+}
+
+/// [`Evaluation::observed`]: every observed variable read over this
+/// run's results, at its kind's dimension.
+fn observed_readings<P, T: Decide>(
+    doc: &Doc<P>,
+    env: &crate::expr::VarEnv<T>,
+    nodes: &BTreeMap<RecipeNodeId, NodeResult<T>>,
+) -> BTreeMap<crate::VarId, Result<measure::Observed<T>, measure::ObservedRefusal>> {
+    doc.observed()
+        .into_iter()
+        .filter_map(|var| {
+            let dim = doc.var(var)?.kind().dimension()?;
+            Some((var, measure::observe(doc, env, nodes, var, dim)))
+        })
+        .collect()
 }
 
 /// [`Evaluation::unplaced_below`]: each instance's carried groups, and
@@ -4221,6 +4281,7 @@ where
         })
         .collect();
     let resolved_appearance = resolve_appearance(doc, &order, &nodes);
+    let observed = observed_readings(doc, &doc.var_env::<T>(), &nodes);
     Evaluation {
         epoch: opts.epoch,
         document: doc.id(),
@@ -4234,6 +4295,7 @@ where
         unplaced_below: BTreeMap::new(),
         part_evaluations: 0,
         appearance: resolved_appearance,
+        observed,
     }
 }
 
@@ -4456,39 +4518,58 @@ where
         _ => None,
     };
 
-    // PAYLOAD EXPRESSIONS (E3/E10): the measurement vocabulary carries
-    // `Expr`s that are not slots — a measured expression's value
-    // leaves, and an assertion's bound. They are still ordinary
-    // document expressions and are evaluated exactly once here, under
-    // the discipline `slots` states and for the same reason: these
-    // values feed BOTH the content key and the op, so a parameter edit
-    // under a bound moves the key rather than serving a stale memo.
-    let payload_values = match node.payload_reads(doc) {
+    // PAYLOAD EXPRESSIONS (E10): an assertion's value and bound are
+    // not slots. They are evaluated exactly once here, under the
+    // discipline `slots` states and for the same reason: these values
+    // feed BOTH the content key and the op, so a parameter edit under a
+    // bound moves the key rather than serving a stale memo. The value
+    // reads what the measures under it computed in this run
+    // (`measure::observe`): it is the one read of a measured value, and
+    // the environment every construction reads holds none.
+    let payload = match node.payload_reads(doc) {
         None => None,
         Some(reads) => {
-            let mut values = Vec::with_capacity(reads.len());
-            for (var, dim) in reads {
-                match crate::expr::eval_var(var, dim, env) {
-                    Ok(v) => values.push(v),
-                    Err(source) => {
-                        let what = match node {
-                            crate::node::Node::Assertion { .. } => "the assertion's bound,",
-                            _ => "value leaf of the measured expression,",
+            let mut payload = Payload {
+                values: Vec::with_capacity(reads.len()),
+                unavailable: None,
+            };
+            for (index, (var, dim)) in reads.into_iter().enumerate() {
+                match measure::observe(doc, env, results, var, dim) {
+                    Ok(measure::Observed::Value(v)) => payload.values.push(v),
+                    Ok(measure::Observed::Unavailable(reason)) => {
+                        payload.unavailable.get_or_insert(reason);
+                    }
+                    Err(measure::ObservedRefusal::Expr(source)) => {
+                        let what = if index == 0 {
+                            "the assertion's value,"
+                        } else {
+                            "the assertion's bound,"
                         };
                         return fail(
                             bracket,
                             NodeErrorKind::PayloadExpr {
                                 what,
-                                index: values.len(),
+                                index,
                                 source,
+                            },
+                        );
+                    }
+                    // Every measure under the value is upstream of this
+                    // node, and a failed one poisoned it above.
+                    Err(measure::ObservedRefusal::Measure(standing)) => {
+                        return fail(
+                            bracket,
+                            NodeErrorKind::MissingInput {
+                                input: standing.node(),
                             },
                         );
                     }
                 }
             }
-            Some(values)
+            Some(payload)
         }
     };
+    let payload_values = payload.as_ref().map(|p| p.values.as_slice());
 
     // The lift's second pass resolves the SAME program at the lane
     // scalar (M10-P PP5). It feeds the content key so a seeded or
@@ -4524,7 +4605,7 @@ where
         &crate::param_source::definitions_of(doc),
         &slot_values,
         &nominal_values,
-        payload_values.as_deref(),
+        payload_values,
         resolved_program.as_deref(),
         lane_program.as_deref(),
         &upstream_keys,
@@ -4604,7 +4685,7 @@ where
         doc,
         results,
         &slot_values,
-        payload_values.as_deref(),
+        payload.as_ref(),
         profile_pre.as_ref(),
         op_env,
         tol,
@@ -4795,11 +4876,14 @@ mod tag {
         /// Keys are process-internal and never persisted, so a bump
         /// costs one whole-memo invalidation and no migration.
         format {
-            /// v9: an extrude writes its side — a channel every
-            /// existing extrude writes into. (v8: a mate frame writes
-            /// its arm word before its payload, and a mate writes the
-            /// parts its face frames resolve against.)
-            VERSION = 9,
+            /// v10: a measure writes one primitive and the place of
+            /// each reference's site among its upstream keys, where it
+            /// wrote a measured expression and the sites' ids; an
+            /// assertion's payload is its value and its bound. (v9: an
+            /// extrude writes its side. v8: a mate frame writes its arm
+            /// word before its payload, and a mate writes the parts its
+            /// face frames resolve against.)
+            VERSION = 10,
         }
         /// The first word of every naming key: the naming-key domain,
         /// which keeps a naming key's stream apart from a content key's.
@@ -4972,18 +5056,6 @@ mod tag {
         /// word for every verb `feed_scalar_join` feeds.
         scalar_join {
             FLOW_EXPR = 43,
-        }
-        /// A measured expression's node kind, one word per AST node.
-        measure_expr {
-            PRIMITIVE = 1,
-            VALUE = 2,
-            NEG = 3,
-            ADD = 4,
-            SUB = 5,
-            MUL = 6,
-            DIV = 7,
-            MIN = 8,
-            MAX = 9,
         }
     }
 }
@@ -5267,9 +5339,9 @@ fn feed_placement_shape(h: &mut KeyHasher, placement: &crate::placement::Placeme
 // The arguments past the node are all INPUTS to the key, which is the
 // one thing a content key is allowed to grow: the environment every
 // same slots at the document's nominal, the lift's lane-resolved
-// program, and the measurement vocabulary's payload-expression values
-// — the same input the slot values are, arriving by a second route
-// because a `MeasureExpr` is not a slot.
+// program, and an assertion's payload-expression values — the same
+// input the slot values are, arriving by a second route because an
+// assertion's value and bound are not slots.
 #[allow(clippy::too_many_arguments)]
 fn content_key<T>(
     node: &crate::node::Node<ProfileProgram>,
@@ -5764,38 +5836,40 @@ where
         } => {
             feed_scalar_join(&mut h, node, defs, open, crate::verbs::shell::SHELL_SLOTS);
         }
-        // A measure's REFERENCES and its measured EXPRESSION are both
-        // recipe payload rather than slots: two measures with the same
-        // tag differ in exactly those. The references feed in argument
-        // order (the order is meaning here, not a click sequence), and
-        // the expression feeds structurally — its shape, its primitive
-        // indices, and its value leaves' literal BITS, so a `-0.0`
-        // bound inside a measured expression is not the same node as a
-        // `0.0` one.
-        Node::Measure { expr, refs } => {
-            h.write_u64(refs.len() as u64);
-            for r in refs {
-                // BOTH halves: the name says which entity, the reading
-                // site says which value its carrier comes out of, and
-                // two measures differing only in the site are two
-                // different measurements (that is the whole point of
-                // the site — one reads placed geometry, the other
-                // authored). The site is a node ID, which content keys
-                // otherwise exclude (D8); it is fed here because it is
-                // RECIPE PAYLOAD selecting a reading, not a Merkle link
-                // to an input — the input's own key is fed separately
-                // through `upstream_keys`.
-                h.write_id(r.at.0);
+        // A measure's PRIMITIVE and its two REFERENCES are recipe
+        // payload rather than slots. The references feed in argument
+        // order (the order is meaning here, not a click sequence): each
+        // name, and where its reading site sits among the node's
+        // upstream keys, which carry the site's content. A site is
+        // never fed by id (D8): two measures differing only in which of
+        // two equal bodies they read are one content and two names,
+        // which the naming key tells apart.
+        Node::Measure { primitive } => {
+            use crate::measure::MeasurePrimitive as P;
+            h.write_tag(match primitive {
+                P::Distance { .. } => 1,
+                P::Angle { .. } => 2,
+                P::Gap { .. } => 3,
+                // APPENDED, never reused: a content-key tag is an
+                // identity, so the day a primitive is retired its tag
+                // retires with it.
+                P::MinClearance { .. } => 4,
+            });
+            let sites = node.measure_sites();
+            for r in primitive.refs() {
+                let Some(site) = sites.iter().position(|&s| s == r.at) else {
+                    unreachable!("a measure's sites are its references' reading nodes")
+                };
+                h.write_u64(site as u64);
                 feed_stable_name(&mut h, &r.name);
             }
-            feed_measure_expr(&mut h, expr);
         }
-        // The DIRECTION is payload. The bound is NOT a slot — it is a
-        // payload expression, and its evaluated value is fed with the
-        // others below; the measure is an input edge, so its own key
-        // carries it.
+        // The DIRECTION is payload. The value and the bound are payload
+        // expressions, whose evaluated values are fed with the others
+        // below; the measures under the value are upstream, so their
+        // own keys carry them.
         Node::Assertion {
-            measure: _,
+            value: _,
             bound: _,
             dir,
         } => h.write_tag(match dir {
@@ -6402,67 +6476,6 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
             crate::mate::FrameBase::Face => tag::mate_frame_base::FACE,
         });
         feed_placement_shape(h, offset);
-    }
-}
-
-/// Feeds a measured expression: one tag per AST node, then each
-/// node's own payload. The vocabulary is `tag::measure_expr` and the
-/// match is EXHAUSTIVE, so a new arithmetic arm cannot default to
-/// hashing like an existing one — the S4 lesson (a step verb's key tag collided
-/// with another's and served the wrong geometry from the memo).
-fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
-    use crate::measure::{MeasureKind as K, MeasurePrimitive as P};
-    let binary = |h: &mut KeyHasher, tag, a: &crate::measure::MeasureExpr, b: &_| {
-        h.write_tag(tag);
-        feed_measure_expr(h, a);
-        feed_measure_expr(h, b);
-    };
-    match expr.kind() {
-        K::Primitive(p) => {
-            h.write_tag(tag::measure_expr::PRIMITIVE);
-            h.write_tag(match p {
-                P::Distance { .. } => 1,
-                P::Angle { .. } => 2,
-                P::Gap { .. } => 3,
-                // APPENDED, never reused: a content-key tag is an
-                // identity, so the day a primitive is retired its tag
-                // retires with it.
-                P::MinClearance { .. } => 4,
-            });
-            for index in p.refs() {
-                h.write_u64(u64::from(index));
-            }
-        }
-        K::Value(var) => {
-            h.write_tag(tag::measure_expr::VALUE);
-            // The value leaf's literal bits — a stored leaf is one
-            // variable and holds none — and the variable it reads, with
-            // the dimension it is read at.
-            h.write_u64(0);
-            h.write_u64(1);
-            h.write_id(var.0);
-            h.write_tag(dimension_tag(expr.dim()));
-        }
-        K::Neg(a) => {
-            h.write_tag(tag::measure_expr::NEG);
-            feed_measure_expr(h, a);
-        }
-        K::Add(a, b) => binary(h, tag::measure_expr::ADD, a, b),
-        K::Sub(a, b) => binary(h, tag::measure_expr::SUB, a, b),
-        K::Mul(a, b) => binary(h, tag::measure_expr::MUL, a, b),
-        K::Div(a, b) => binary(h, tag::measure_expr::DIV, a, b),
-        K::Min(a, b) => binary(h, tag::measure_expr::MIN, a, b),
-        K::Max(a, b) => binary(h, tag::measure_expr::MAX, a, b),
-    }
-}
-
-/// The closed dimension lattice as key tags.
-fn dimension_tag(dim: crate::expr::Dimension) -> u8 {
-    match dim {
-        crate::expr::Dimension::Length => 1,
-        crate::expr::Dimension::Angle => 2,
-        crate::expr::Dimension::Count => 3,
-        crate::expr::Dimension::Scalar => 4,
     }
 }
 
