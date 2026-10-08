@@ -224,7 +224,7 @@ fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![meridian],
             ids: Vec::new(),
         }),

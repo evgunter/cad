@@ -651,7 +651,8 @@ fn the_comparator_catches_a_read_re_pointed_from_one_port_to_another() {
 
 /// **(B, test 4, one shot) Every re-blessed document is the pre-B one
 /// up to ids, with reads in place of inputs** (and a logged `SetParam`'s
-/// formula under `value`, Q1) — its roots element for element and every
+/// formula under `value`, Q1, and a profile's and an in-plane axis's
+/// `plane` field under its one name, `frame`) — its roots element for element and every
 /// other byte, except the tube subgraph, whose
 /// anchor moved from a spine axis to a frame by design (FORK-1b) and
 /// is set aside on both sides.
@@ -676,7 +677,10 @@ fn every_re_blessed_document_is_the_pre_b_one_up_to_ids() {
         let read = |root: &std::path::Path| {
             crate::wire::wire_body(&std::fs::read_to_string(root.join(file)).expect("reads"))
         };
-        let (old, new) = (up_to_ids::set_param_writes_value(&read(&base)), read(&here));
+        let (old, new) = (
+            up_to_ids::plane_field_as_frame(&up_to_ids::set_param_writes_value(&read(&base))),
+            read(&here),
+        );
         // An edit log's reads name outputs its replay mints: the
         // replayed document's table says whose they are.
         let text = std::fs::read_to_string(here.join(file)).expect("reads");
@@ -696,7 +700,8 @@ fn every_re_blessed_document_is_the_pre_b_one_up_to_ids() {
     // the families document, beside this build's.
     let (old, new) = families_pair();
     let new = up_to_ids::reads_as_inputs(&new);
-    up_to_ids::same_up_to_ids(&up_to_ids::split_halves_as_ports(&old), &new)
+    let old = up_to_ids::plane_field_as_frame(&up_to_ids::split_halves_as_ports(&old));
+    up_to_ids::same_up_to_ids(&old, &new)
         .unwrap_or_else(|err| panic!("the families document: {err}"));
     println!("the families document: equal up to ids, reads as inputs");
 }

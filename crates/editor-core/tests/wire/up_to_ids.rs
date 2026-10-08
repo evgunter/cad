@@ -88,6 +88,33 @@ pub fn split_halves_as_ports(doc: &Value) -> Value {
     doc
 }
 
+/// **A pre-B document in the field's one name**: a profile's and an
+/// in-plane axis's `plane` field is `frame` since unit B (the kind the
+/// field reads, its slot, its label and its word), so a document the
+/// base saved compares with its re-blessed twin byte for byte
+/// otherwise — in the snapshot's nodes and in a log's authored ones.
+pub fn plane_field_as_frame(doc: &Value) -> Value {
+    fn rewrite(value: &mut Value) {
+        match value {
+            Value::Object(object) => {
+                for tag in ["Profile", "AxisInPlane"] {
+                    if let Some(Value::Object(fields)) = object.get_mut(tag)
+                        && let Some(frame) = fields.remove("plane")
+                    {
+                        fields.insert("frame".to_owned(), frame);
+                    }
+                }
+                object.values_mut().for_each(rewrite);
+            }
+            Value::Array(items) => items.iter_mut().for_each(rewrite),
+            Value::String(_) | Value::Null | Value::Bool(_) | Value::Number(_) => {}
+        }
+    }
+    let mut doc = doc.clone();
+    rewrite(&mut doc);
+    doc
+}
+
 /// A read of `port` of `node`, as [`reads_as_inputs`] spells it.
 fn port(node: &str, port: u64) -> Value {
     if port == 0 {

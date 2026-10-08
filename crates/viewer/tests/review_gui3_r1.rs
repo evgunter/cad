@@ -51,7 +51,7 @@ fn depth_param() -> VarName {
 /// from the unit suites' square. No row asserts on the shape.
 fn triangle(plane: RecipeNodeId, side: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (side, 0.0), (0.0, side)]).expect("finite corners"),
         ],

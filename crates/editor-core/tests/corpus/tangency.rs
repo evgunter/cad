@@ -65,7 +65,7 @@ pub fn document() -> CorpusDoc {
     ]);
     let fillet_plane = r.insert(xy_frame());
     let fillet_p = r.insert(Node::Profile(ProfileProgram {
-        plane: fillet_plane.into(),
+        frame: fillet_plane.into(),
         loops: vec![filleted],
         ids: Vec::new(),
     }));
@@ -103,7 +103,7 @@ pub fn document() -> CorpusDoc {
     // A parallel plane, so the two bodies never interact.
     let tangent_plane = r.insert(frame([0.0, 0.0, 4.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
     let tangent_p = r.insert(Node::Profile(ProfileProgram {
-        plane: tangent_plane.into(),
+        frame: tangent_plane.into(),
         loops: vec![bracket],
         ids: Vec::new(),
     }));

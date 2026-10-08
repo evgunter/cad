@@ -1208,7 +1208,7 @@ pub(crate) fn cylinder(
     let (doc, disc) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![LoopProgram::circle_split(0.0, 0.0, 0.3, 2, 0.0).unwrap()],
             ids: Vec::new(),
         }),

@@ -992,10 +992,10 @@ pub enum Datum<S: Slot = crate::VarId> {
     /// the ways that are legal.
     AxisInPlane {
         /// The frame this axis lives in ([`crate::OperandSlot::Frame`]),
-        /// read exactly as a profile's plane is: the frame is the
+        /// read exactly as a profile's frame is: the frame is the
         /// meaning of the two coordinate pairs below, so an axis
         /// without it is four numbers about nothing.
-        plane: S::Read,
+        frame: S::Read,
         /// A point on the axis, in the frame's 2-D coordinates —
         /// Length, [`SlotId::Origin`]`(X | Y)`. There is no `Z` slot:
         /// the third coordinate of a point in a plane is not a number
@@ -2972,7 +2972,7 @@ macro_rules! node_rows {
             // X and Y only: the frame supplies the third coordinate,
             // and a slot for it would be a number nobody may set.
             Node::Datum(Datum::AxisInPlane {
-                plane: _,
+                frame: _,
                 origin,
                 direction,
             }) => {
@@ -3425,7 +3425,7 @@ impl<P> Node<P> {
         };
         match self {
             Node::Datum(Datum::AxisInPlane {
-                plane,
+                frame: plane,
                 origin: _,
                 direction: _,
             }) => vec![(O::Frame, *plane)],
@@ -3467,7 +3467,7 @@ impl<P> Node<P> {
             // A measure's references are sited names
             // ([`Node::measure_sites`]), not operands.
             | Node::Measure { expr: _, refs: _ } => Vec::new(),
-            Node::Profile(p) => p.plane_read().map(|r| (O::Frame, r)).into_iter().collect(),
+            Node::Profile(p) => p.frame_read().map(|r| (O::Frame, r)).into_iter().collect(),
             Node::Assertion {
                 measure,
                 bound: _,
@@ -3575,7 +3575,7 @@ impl<P> Node<P> {
         // the writable twin cannot fall behind the reading one.
         match self {
             Node::Datum(Datum::AxisInPlane {
-                plane,
+                frame: plane,
                 origin: _,
                 direction: _,
             }) => vec![(O::Frame, plane)],
@@ -3618,7 +3618,7 @@ impl<P> Node<P> {
             }
             | Node::Measure { expr: _, refs: _ } => Vec::new(),
             Node::Profile(p) => p
-                .plane_read_mut()
+                .frame_read_mut()
                 .map(|r| (O::Frame, r))
                 .into_iter()
                 .collect(),
@@ -4268,11 +4268,11 @@ impl<S: Slot> Datum<S> {
                 v: map_array(v, f)?,
             },
             Datum::AxisInPlane {
-                plane,
+                frame: plane,
                 origin,
                 direction,
             } => Datum::AxisInPlane {
-                plane: read(crate::OperandSlot::Frame, plane)?,
+                frame: read(crate::OperandSlot::Frame, plane)?,
                 origin: map_array(origin, f)?,
                 direction: map_array(direction, f)?,
             },

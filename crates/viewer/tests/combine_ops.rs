@@ -1904,7 +1904,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
     let (next, ring) = common::inserted(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: sketch_frame.into(),
+            frame: sketch_frame.into(),
             loops: vec![LoopProgram::circle(0.05, 0.0, 0.01).expect("finite circle")],
             ids: Vec::new(),
         }),
@@ -1919,7 +1919,7 @@ fn the_body_seat_is_the_operand_doors_body_slot() {
     let (next, sketch_axis) = common::inserted(
         &doc,
         Node::Datum(Datum::AxisInPlane {
-            plane: sketch_frame.into(),
+            frame: sketch_frame.into(),
             origin: [common::len(0.0), common::len(0.0)],
             direction: [common::scl(0.0), common::scl(1.0)],
         }),

@@ -105,7 +105,7 @@ fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
     let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
         ids: Vec::new(),
     }));
@@ -394,7 +394,7 @@ fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     ]);
     let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));

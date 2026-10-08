@@ -98,7 +98,7 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
     let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![meridian()],
         ids: Vec::new(),
     }));
@@ -178,7 +178,7 @@ pub fn capped_document() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let plane = r.insert(frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]));
     let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![capped_meridian()],
         ids: Vec::new(),
     }));

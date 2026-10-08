@@ -108,7 +108,7 @@ pub fn document() -> CorpusDoc {
         LoopProgram::polygon([(0.0, 0.0), (DIE_L, 0.0), (DIE_L, DIE_L), (0.0, DIE_L)]).unwrap();
     let cube_plane = r.insert(xy_frame());
     let cube_p = r.insert(Node::Profile(ProfileProgram {
-        plane: cube_plane.into(),
+        frame: cube_plane.into(),
         loops: vec![square],
         ids: Vec::new(),
     }));
@@ -133,7 +133,7 @@ pub fn document() -> CorpusDoc {
     // It is minted AFTER the frame because it names it.
     let axis = r.insert(axis_in_plane(ball_plane, (0.0, 0.0), (0.0, 1.0)));
     let ball_p = r.insert(Node::Profile(ProfileProgram {
-        plane: ball_plane.into(),
+        frame: ball_plane.into(),
         loops: vec![half_disc],
         ids: Vec::new(),
     }));

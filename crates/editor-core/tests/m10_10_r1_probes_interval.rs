@@ -116,7 +116,7 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
         }),
     ]);
     let seg_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![seg_loop],
         ids: Vec::new(),
     }));
@@ -128,7 +128,7 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
     });
     let bore_centre_y = Formula::mul(plen("chord_half"), scl(0.2)).expect("Length * Scalar");
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(0.0), bore_centre_y],
             radius: plen("bore_r"),

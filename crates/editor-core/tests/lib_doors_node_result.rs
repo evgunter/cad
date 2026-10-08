@@ -24,7 +24,7 @@ use geom_core::Tol;
 /// A square profile `[0,s]²` on `plane`, as a loop program.
 fn square(plane: RecipeNodeId, s: f64) -> AuthoredNode {
     Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             ProgramStep::LineTo(ProgramTarget::Point([len(s), len(0.0)])),

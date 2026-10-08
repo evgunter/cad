@@ -107,7 +107,7 @@ fn circle_on_frame(
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(0.0)],
                 radius,
@@ -174,7 +174,7 @@ fn both_sweeps() -> BothSweeps {
     let square_loop = LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap();
     let frame = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: frame.into(),
+        frame: frame.into(),
         loops: vec![square_loop],
         ids: Vec::new(),
     }));
@@ -187,7 +187,7 @@ fn both_sweeps() -> BothSweeps {
     // its own frame, spun about an axis written in that same frame.
     let rev_frame = r.insert(xy_frame());
     let rev_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: rev_frame.into(),
+        frame: rev_frame.into(),
         loops: vec![LoopProgram::polygon(square(0.0, -2.0, 0.5)).unwrap()],
         ids: Vec::new(),
     }));
@@ -482,7 +482,7 @@ fn a_polygon_profile_attaches_nothing() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap()],
             ids: Vec::new(),
         }),
@@ -526,7 +526,7 @@ fn a_revolved_circle_sources_its_minor_radius_only() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![LoopProgram::Circle {
                 centre: [len(0.0), len(-3.0)],
                 radius: param("r"),
@@ -597,7 +597,7 @@ fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![LoopProgram::Chain(steps)],
             ids: Vec::new(),
         }),
@@ -722,7 +722,7 @@ fn extruded(
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),

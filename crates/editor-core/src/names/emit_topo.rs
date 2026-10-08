@@ -4496,7 +4496,7 @@ mod split_carries_candidates {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: vec![LoopProgram::polygon(pts.iter().copied()).expect("finite")],
                 ids: Vec::new(),
             }),
@@ -4787,7 +4787,7 @@ mod crossings_rank_along_the_line {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: vec![loop_],
                 ids: Vec::new(),
             }),
@@ -5002,7 +5002,7 @@ mod nurbs_crossings_rank_by_parameter {
             let (d, profile) = ins(
                 d,
                 Node::Profile(ProfileProgram {
-                    plane: plane.into(),
+                    frame: plane.into(),
                     loops: vec![LoopProgram::polygon(square).expect("finite")],
                     ids: Vec::new(),
                 }),
@@ -5361,7 +5361,7 @@ mod edge_pieces_of_one_line_tie {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: vec![loop_],
                 ids: Vec::new(),
             }),

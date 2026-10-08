@@ -235,7 +235,7 @@ where
         Node::Profile(program) => Ok(OpOut::plain(
             wire_profile(
                 program,
-                at(O::Frame, program.plane)?,
+                at(O::Frame, program.frame)?,
                 results,
                 profile_pre,
                 env.lane,
@@ -1412,7 +1412,7 @@ fn wire_datum<T: Decide>(
         // Coordinates IN a frame, lifted once here. A 2-D pair lifted
         // through the frame's own axes lies in the frame by
         // construction, so there is no in-plane residual to decide.
-        Datum::AxisInPlane { plane, .. } => {
+        Datum::AxisInPlane { frame: plane, .. } => {
             let f = frame_value(
                 results,
                 super::read_at(doc, crate::OperandSlot::Frame, *plane)?,
@@ -1804,8 +1804,8 @@ fn written_against(
     id: RecipeNodeId,
 ) -> Option<RecipeNodeId> {
     match doc.node(id)? {
-        Node::Profile(p) => doc.operation_of(p.plane),
-        Node::Datum(Datum::AxisInPlane { plane, .. }) => doc.operation_of(*plane),
+        Node::Profile(p) => doc.operation_of(p.frame),
+        Node::Datum(Datum::AxisInPlane { frame: plane, .. }) => doc.operation_of(*plane),
         _ => None,
     }
 }
@@ -4607,7 +4607,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // which crosses to `f64` only where the scalar IS `f64`
     // (`SectionScalar`); anywhere else it refuses typed rather than
     // placing on a fabricated point of the frame's bracket.
-    let frame = super::read_at(doc, crate::OperandSlot::Frame, program.plane)?;
+    let frame = super::read_at(doc, crate::OperandSlot::Frame, program.frame)?;
     let plane = match profile_plane_f64(results, id, frame)? {
         Some(authored) => authored,
         None => {

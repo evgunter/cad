@@ -97,7 +97,7 @@ fn ball_doc() -> (ProfileDoc, RecipeNodeId) {
     let (doc, p) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![corpus::die_pips::half_disc_program()],
             ids: Vec::new(),
         }),

@@ -113,7 +113,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: xy.into(),
+                frame: xy.into(),
                 loops: vec![outer],
                 ids: Vec::new(),
             })),
@@ -139,7 +139,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: xy.into(),
+                    frame: xy.into(),
                     loops: vec![LoopProgram::Circle {
                         centre: [len(cx), len(0.0)],
                         radius: Formula::named(VarName::from_static(HOLE_R), Dimension::Length),
@@ -241,7 +241,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: plane.into(),
+                    frame: plane.into(),
                     loops: vec![square()],
                     ids: Vec::new(),
                 })),
@@ -295,7 +295,7 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
             &doc,
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: xy.into(),
+                    frame: xy.into(),
                     loops: vec![LoopProgram::Circle {
                         centre: [len(0.0), len(0.0)],
                         radius: len(r),
@@ -830,7 +830,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: xy.into(),
+                frame: xy.into(),
                 loops: vec![LoopProgram::Circle {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.2),
@@ -891,7 +891,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
         &doc,
         &DocEdit::InsertNode {
             node: Box::new(Node::Profile(ProfileProgram {
-                plane: xy.into(),
+                frame: xy.into(),
                 loops: vec![LoopProgram::Chain(vec![
                     ProgramStep::At([len(0.0), len(0.0)]),
                     ProgramStep::LineTo(ProgramTarget::Point([len(1.0), len(0.0)])),
@@ -1252,7 +1252,7 @@ fn cusp_extrude_doc(id: &str) -> (ProfileDoc, RecipeNodeId) {
     let (doc, profile) = mint(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![cusp_lune()],
             ids: Vec::new(),
         }),
@@ -1358,7 +1358,7 @@ fn a_cusp_revolve_document_gathers_at_the_product_gate() {
     let (doc, profile) = mint(
         &doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![crescent],
             ids: Vec::new(),
         }),
@@ -1396,7 +1396,7 @@ fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
         let (d, p) = mint(
             &d,
             Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: vec![cusp_lune()],
                 ids: Vec::new(),
             }),

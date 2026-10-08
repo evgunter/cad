@@ -143,7 +143,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: frame.into(),
+            frame: frame.into(),
             loops: vec![
                 LoopProgram::from_recorded(&outline(tol).program)
                     .expect("a literal recording lifts"),

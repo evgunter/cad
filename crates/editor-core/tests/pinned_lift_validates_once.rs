@@ -126,7 +126,7 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
             // own frame value.
             let frame = d
                 .doc
-                .operation_of(program.plane)
+                .operation_of(program.frame)
                 .expect("the plane read is live");
             let plane: SketchPlane<T> = match d.doc.node(frame) {
                 Some(Node::Datum(Datum::Frame { .. })) => {
@@ -140,7 +140,7 @@ fn the_lifted_form_is_the_revalidated_form<T: EvalScalar>(channels: &[Channel<T>
                     let ValuePayload::Datum(DatumValue::Frame(f)) =
                         &ev.value(frame).expect("the frame evaluates").payload
                     else {
-                        panic!("{}: {:?} is a frame", d.name, program.plane);
+                        panic!("{}: {:?} is a frame", d.name, program.frame);
                     };
                     SketchPlane::from_frame(*f)
                 }
@@ -341,7 +341,7 @@ fn a_default_interval_evaluation_of_an_extruded_copied_arc_builds() {
     ]);
     let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![chain],
         ids: Vec::new(),
     }));

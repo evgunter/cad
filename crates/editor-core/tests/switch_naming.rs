@@ -55,7 +55,7 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: xy.into(),
+                    frame: xy.into(),
                     loops: vec![loop_],
                     ids: Vec::new(),
                 })),
@@ -191,7 +191,7 @@ fn circle_radius_edit_keeps_names() {
             .apply(
                 &DocEdit::InsertNode {
                     node: Box::new(Node::Profile(ProfileProgram {
-                        plane: xy.into(),
+                        frame: xy.into(),
                         loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
                         ids: Vec::new(),
                     })),
@@ -337,7 +337,7 @@ fn hole_circle_anchor_recovers_reversal() {
         .apply(
             &DocEdit::InsertNode {
                 node: Box::new(Node::Profile(ProfileProgram {
-                    plane: xy.into(),
+                    frame: xy.into(),
                     loops: vec![outer, hole],
                     ids: Vec::new(),
                 })),

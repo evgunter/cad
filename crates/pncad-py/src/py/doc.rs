@@ -2262,7 +2262,7 @@ impl Node {
             .collect::<PyResult<Vec<_>>>()?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
-                plane,
+                frame: plane,
                 loops: vec![d::LoopProgram::polygon_expr(corners)],
                 ids: Vec::new(),
             }),
@@ -2295,7 +2295,7 @@ impl Node {
         let loops = loops_from_outline(py, outline)?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram {
-                plane,
+                frame: plane,
                 loops,
                 ids: Vec::new(),
             }),
@@ -2581,7 +2581,7 @@ impl Node {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Datum(d::Datum::AxisInPlane {
-                plane: plane.read(),
+                frame: plane.read(),
                 origin: [
                     slot_expr(py, d::SlotId::Origin(d::Axis3::X), &origin.0)?,
                     slot_expr(py, d::SlotId::Origin(d::Axis3::Y), &origin.1)?,

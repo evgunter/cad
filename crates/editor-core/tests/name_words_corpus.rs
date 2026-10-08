@@ -634,7 +634,7 @@ fn documents_outside_the_corpus_read_apart_too() {
         let block = extrude(&mut r, block, 1.0);
         let plane = r.insert(fixture::frame([0.0, 0.0, 0.75], XY.0, XY.1));
         let pin = r.insert(Node::Profile(editor_core::ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![editor_core::LoopProgram::circle(0.5, 0.5, 0.2).expect("a circle")],
             ids: Vec::new(),
         }));
@@ -698,7 +698,7 @@ fn respoken_after_a_dropped_step() {
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![rod_loop(false)],
             ids: Vec::new(),
         }),

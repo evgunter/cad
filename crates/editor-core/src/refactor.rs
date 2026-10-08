@@ -2136,11 +2136,11 @@ fn remap_node(
         // one rung down, where this arm cloned because a profile
         // referenced nothing.
         Node::Datum(crate::Datum::AxisInPlane {
-            plane,
+            frame: plane,
             origin,
             direction,
         }) => Node::Datum(crate::Datum::AxisInPlane {
-            plane: rd(crate::OperandSlot::Frame, *plane)?,
+            frame: rd(crate::OperandSlot::Frame, *plane)?,
             origin: *origin,
             direction: *direction,
         }),
@@ -2170,7 +2170,7 @@ fn remap_node(
         // mints its own, and the names that spell them cross through
         // the step map read off that minting ([`carry`]).
         Node::Profile(p) => Node::Profile(ProfileProgram {
-            plane: rd(crate::OperandSlot::Frame, p.plane)?,
+            frame: rd(crate::OperandSlot::Frame, p.frame)?,
             loops: p.loops.clone(),
             ids: Vec::new(),
         }),

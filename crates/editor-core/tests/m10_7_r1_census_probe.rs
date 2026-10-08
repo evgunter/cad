@@ -56,7 +56,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     let plane = r.insert(xy_frame());
     let pt = |x: Formula, y: Formula| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
     let profile = Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::Chain(vec![
             ProgramStep::At([len(0.0), len(0.0)]),
             pt(Formula::div(w(), scl(2.0)).unwrap(), len(0.0)),

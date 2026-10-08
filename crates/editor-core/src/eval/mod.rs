@@ -4506,7 +4506,7 @@ where
             // (`wire::mint_frame_placement`). The frame is a DAG input
             // of this node, so its value is in hand and a failed
             // frame poisoned this node before the read.
-            let placement = match read_at(doc, crate::OperandSlot::Frame, program.plane)
+            let placement = match read_at(doc, crate::OperandSlot::Frame, program.frame)
                 .and_then(|plane| wire::profile_plane_f64(results, id, plane))
             {
                 Ok(placement) => placement,
@@ -5944,7 +5944,7 @@ where
                 v: _,
             }
             | Datum::AxisInPlane {
-                plane: _,
+                frame: _,
                 origin: _,
                 direction: _,
             },

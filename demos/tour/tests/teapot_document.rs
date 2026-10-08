@@ -134,7 +134,7 @@ fn sharp_lid_in(
     let axis = insert(
         &mut doc,
         Node::Datum(Datum::AxisInPlane {
-            plane: plane.into(),
+            frame: plane.into(),
             origin: [len(0.0), len(0.0)],
             direction: [scl(0.0), scl(1.0)],
         }),
@@ -143,7 +143,7 @@ fn sharp_lid_in(
     let profile = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![lid_meridian(bore)],
             ids: Vec::new(),
         }),

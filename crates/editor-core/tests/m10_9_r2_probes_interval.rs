@@ -137,7 +137,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         ProgramStep::TangentArcTo(ProgramTarget::StartArriving),
     ]);
     let profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![outline],
         ids: Vec::new(),
     }));
@@ -148,7 +148,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         side: ExtrudeSide::Along,
     });
     let bore_profile = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::Circle {
             centre: [len(HALF_L), len(0.0)],
             radius: plen("bore_r"),

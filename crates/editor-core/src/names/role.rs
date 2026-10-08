@@ -1965,7 +1965,7 @@ pub(crate) fn lift<P>(
             seat(*at, Lift::Dropped).into_iter().collect()
         }
         Node::Datum(Datum::AxisInPlane {
-            plane,
+            frame: plane,
             origin: _,
             direction: _,
         }) => seat(*plane, Lift::Dropped).into_iter().collect(),

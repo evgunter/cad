@@ -90,7 +90,7 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
     });
     let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_0.into(),
+        frame: xy_frame_0.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
@@ -124,7 +124,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     });
     let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_1.into(),
+        frame: xy_frame_1.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
@@ -135,7 +135,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
     });
     let xy_frame_2 = r.insert(xy_frame());
     let p2 = r.insert(Node::Profile(ProfileProgram {
-        plane: xy_frame_2.into(),
+        frame: xy_frame_2.into(),
         loops: vec![unit_square()],
         ids: Vec::new(),
     }));
@@ -446,7 +446,7 @@ fn evidence_only_e2e_consumer_walk() {
         });
         let xy_frame_3 = r.insert(xy_frame());
         let p = r.insert(Node::Profile(ProfileProgram {
-            plane: xy_frame_3.into(),
+            frame: xy_frame_3.into(),
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                     .expect("finite plate corners"),

@@ -281,7 +281,7 @@ pub(crate) fn datum_node(spec: DatumSpec) -> AuthoredNode {
             origin,
             direction,
         } => Datum::AxisInPlane {
-            plane: plane.into(),
+            frame: plane.into(),
             origin,
             direction,
         },

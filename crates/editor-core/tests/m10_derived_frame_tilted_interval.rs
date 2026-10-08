@@ -130,7 +130,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
     let w = Formula::named(VarName::from_static("w"), Dimension::Length);
     let neg_w = Formula::neg(w.clone()).expect("a shallow negation");
     let p = r.insert(Node::Profile(ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops: vec![LoopProgram::polygon_expr([
             [neg_w.clone(), len(-0.5)],
             [w.clone(), len(-0.5)],

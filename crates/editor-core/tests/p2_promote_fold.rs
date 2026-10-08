@@ -557,7 +557,7 @@ fn a_gauge_is_read_by_no_operand_and_folds_cleanly() {
         &doc,
         DocEdit::InsertNode {
             node: Box::new(Node::Datum(editor_core::Datum::AxisInPlane {
-                plane: g.into(),
+                frame: g.into(),
                 origin: [fixture::len(0.0), fixture::len(0.0)],
                 direction: [fixture::scl(1.0), fixture::scl(0.0)],
             })),

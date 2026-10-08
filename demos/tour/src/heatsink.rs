@@ -221,7 +221,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let base_p = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: base_plane.into(),
+            frame: base_plane.into(),
             loops: base_loops,
             ids: Vec::new(),
         }),
@@ -244,7 +244,7 @@ fn build_doc(tol: Tol, seat: Seat) -> Recipe {
     let fin_p = insert(
         &mut doc,
         Node::Profile(ProfileProgram {
-            plane: fin_plane.into(),
+            frame: fin_plane.into(),
             loops: fin_loops,
             ids: Vec::new(),
         }),

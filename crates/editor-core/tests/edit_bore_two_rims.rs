@@ -27,7 +27,7 @@ fn disc(doc: ProfileDoc, cx: f64, cy: f64, r: f64, h: f64) -> (ProfileDoc, Recip
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![LoopProgram::circle(cx, cy, r).expect("a finite circle")],
             ids: Vec::new(),
         }),
@@ -155,7 +155,7 @@ fn a_plate_holes_two_rims_fillet_in_one_node() {
     let (doc, profile) = fixture::insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![
                 LoopProgram::polygon(fixture::square(0.0, 0.0, 1.0)).expect("a square"),
                 LoopProgram::circle(0.0, 0.0, 0.3).expect("a finite hole"),

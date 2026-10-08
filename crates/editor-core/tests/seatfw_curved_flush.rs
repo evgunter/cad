@@ -69,7 +69,7 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, peg_profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: peg_plane.into(),
+            frame: peg_plane.into(),
             loops: vec![circle(PEG_R)],
             ids: Vec::new(),
         }),
@@ -89,7 +89,7 @@ fn peg_in_bore(bore_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, block_profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: block_plane.into(),
+            frame: block_plane.into(),
             loops: vec![
                 LoopProgram::polygon(square(0.0, 0.0, 1.0)).expect("finite corners"),
                 circle(bore_r),

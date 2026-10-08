@@ -218,7 +218,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let profile = insert(
         &mut doc,
         Box::new(Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             // Outer first, then the holes: the list IS the hole
             // vocabulary, and nothing else here mentions one.
             loops: vec![circle(RO_MM), circle(RI_MM)],
@@ -232,7 +232,7 @@ fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let axis = insert(
         &mut doc,
         Box::new(Node::Datum(Datum::AxisInPlane {
-            plane: plane.into(),
+            frame: plane.into(),
             origin: [mm(0.0), mm(0.0)],
             direction: [
                 Formula::literal(0.0, Dimension::Scalar).expect("a scalar"),

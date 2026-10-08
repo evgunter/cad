@@ -727,7 +727,7 @@ fn spout_loft(
             insert(
                 doc,
                 Node::Profile(ProfileProgram {
-                    plane: plane.into(),
+                    frame: plane.into(),
                     loops,
                     ids: Vec::new(),
                 }),
@@ -814,7 +814,7 @@ fn revolved(
     let profile = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops: vec![loop_],
             ids: Vec::new(),
         }),
@@ -890,7 +890,7 @@ fn frame_and_axis(doc: &mut Doc<ProfileProgram>, tol: Tol) -> (RecipeNodeId, Rec
     let axis = insert(
         doc,
         Node::Datum(Datum::AxisInPlane {
-            plane: plane.into(),
+            frame: plane.into(),
             origin: [len(0.0), len(0.0)],
             direction: [scl(0.0), scl(1.0)],
         }),

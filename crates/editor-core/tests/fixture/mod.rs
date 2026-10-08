@@ -762,7 +762,7 @@ pub fn wall_row(id: &str, loops: Vec<LoopProgram<Formula>>) -> Swept {
     let (doc, profile) = insert(
         doc,
         Node::Profile(ProfileProgram {
-            plane: plane.into(),
+            frame: plane.into(),
             loops,
             ids: Vec::new(),
         }),
@@ -833,7 +833,7 @@ pub fn desc(plane: RecipeNodeId, loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram<
         .map(|pts| LoopProgram::polygon(pts).expect("finite corners"))
         .collect();
     ProfileProgram {
-        plane: plane.into(),
+        frame: plane.into(),
         loops,
         ids: Vec::new(),
     }
@@ -876,7 +876,7 @@ pub fn on_frame_keeping(
 /// of revolution.
 pub fn axis_in_plane(plane: RecipeNodeId, origin: (f64, f64), dir: (f64, f64)) -> AuthoredNode {
     Node::Datum(Datum::AxisInPlane {
-        plane: plane.into(),
+        frame: plane.into(),
         origin: [len(origin.0), len(origin.1)],
         direction: [scl(dir.0), scl(dir.1)],
     })

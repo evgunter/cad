@@ -134,7 +134,7 @@ fn check_all_slots(value: f64) {
         panic!("profile lost");
     };
     assert_eq!(
-        doc.operation_of(prof.plane),
+        doc.operation_of(prof.frame),
         Some(doc.ids()[0]),
         "the profile still reads its frame across the wire"
     );

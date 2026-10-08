@@ -843,7 +843,7 @@ mod tests {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap();
         let steps = square.authored_steps();
         let node = Node::Profile(ProfileProgram {
-            plane: crate::Operand::Node(RecipeNodeId::new(0, 0)),
+            frame: crate::Operand::Node(RecipeNodeId::new(0, 0)),
             loops: vec![square],
             ids: Vec::new(),
         });

@@ -1037,7 +1037,7 @@ mod tests {
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
-                plane: plane.into(),
+                frame: plane.into(),
                 loops: vec![
                     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap(),
                 ],

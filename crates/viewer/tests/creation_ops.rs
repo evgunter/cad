@@ -539,7 +539,7 @@ fn the_rectangle_template_is_the_centred_polygon() {
     );
     assert_eq!(minted.ids.iter().flatten().count(), 5, "five steps");
     let want = Node::Profile(ProfileProgram {
-        plane: session
+        frame: session
             .committed_doc()
             .output(plane, 0)
             .expect("the frame defines its frame")
@@ -1332,7 +1332,7 @@ fn a_new_xy_plane_inserts_the_frame_and_the_profile_as_one_action() {
         panic!("the second insert is the profile")
     };
     assert_eq!(
-        Some(program.plane),
+        Some(program.frame),
         doc.output(frame, 0),
         "the profile names the node the action actually minted"
     );

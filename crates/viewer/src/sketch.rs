@@ -468,7 +468,7 @@ pub fn is_committed(
         && base.loops.len() == loops.len()
         && *base
             == ProfileProgram {
-                plane: base.plane.clone(),
+                frame: base.frame.clone(),
                 loops: loops.to_vec(),
                 ids: base.ids.clone(),
             }
