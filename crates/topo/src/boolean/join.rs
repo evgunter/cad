@@ -5113,7 +5113,12 @@ mod radical_plane_rows {
         }
         let conic = curve(Some(spec(false)));
         assert!(
-            matches!(ask(&straight, &conic), Err(BooleanError::JoinDesync { .. })),
+            matches!(
+                ask(&straight, &conic),
+                Err(BooleanError::JoinDesync {
+                    what: "a parallel cylinder pair's radical plane cut a wall in a conic"
+                })
+            ),
             "a conic is a desync"
         );
     }
