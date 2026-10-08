@@ -301,6 +301,54 @@ fn a_fillet_the_stored_form_carries_builds_and_validates() {
     }
 }
 
+/// **A shallow arc × arc corner validates wherever its legs stand
+/// apart.** Near the corner the two leg carriers cross at the turn, and
+/// the fillet's chord is all that separates the legs. Each leg's span
+/// reads that crossing in band once the chord is a few Kε, but the
+/// legs' ends lie on each other's carriers and settle the pair. So
+/// every corner the door builds whose legs stand 1.5Kε apart or more
+/// validates, across five radii and seven decades of turn.
+///
+/// Where the door builds such a corner depends on ε: at 1e-6 the
+/// offset-lever gate admits turns whose fillet chord is a few Kε, and
+/// at finer ε it refuses them first, so the run prints how many
+/// corners it read within 10Kε.
+#[test]
+fn a_shallow_arc_x_arc_corner_validates_wherever_its_legs_stand_apart() {
+    let kk = tol().k() * tol().eps();
+    // The item's witness: at 1e-6 the door builds it with its legs
+    // 1.11Kε apart, and the finer rows refuse it at the door.
+    if let Ok(lp) = arc_arc(5e-5, R) {
+        validates(lp, tol()).unwrap_or_else(|e| panic!("theta = 5e-5: validates, got {e}"));
+    }
+    let (mut read, mut near) = (0, 0);
+    for radius in [0.02, 0.05, 0.2, 0.5, 1.0] {
+        for i in 0..=70 {
+            let theta = 10f64.powf(-8.0 + 0.1 * f64::from(i));
+            let Ok(lp) = arc_arc(theta, radius) else {
+                continue;
+            };
+            let apart = lp.vertices()[1].distance(lp.vertices()[2]);
+            if apart < 1.5 * kk {
+                continue;
+            }
+            read += 1;
+            near += usize::from(apart < 10.0 * kk);
+            validates(lp, tol()).unwrap_or_else(|e| {
+                panic!(
+                    "r = {radius}, theta = {theta:e}: legs {:.2}Kε apart validate, got {e}",
+                    apart / kk
+                )
+            });
+        }
+    }
+    assert!(read > 0, "the door builds some arc x arc corner");
+    println!(
+        "eps = {:e}: {read} corners validated, {near} of them with legs within 10Kε",
+        tol().eps()
+    );
+}
+
 /// **The refusal's recourse is followable.** The sentence names two
 /// levers — turn the corner further, or round it with a larger radius —
 /// and both are real: the stored arc's sagitta is `r(1 − cos(θ/2))`, so
@@ -653,8 +701,10 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
 /// authored radius stores it as `|r|` (`shared coverage corpus 13`'s
 /// 1.9999999999999998 is 2.0); no verdict or joint moved.
 const GOLDEN_DEFAULT: u64 = 0x76d3_b8c8_3dc5_745c;
-/// The same at `CAD_TOLERANCE_EPS=1e-6`.
-const GOLDEN_1E6: u64 = 0x9b07_a34e_72f9_1772;
+/// The same at `CAD_TOLERANCE_EPS=1e-6`, where `arc x arc c=0.3
+/// r=0.05` validates: its legs stand ≈ 1.5Kε apart across the carriers'
+/// shallow crossing, which their ends settle.
+const GOLDEN_1E6: u64 = 0x7afe_c8d5_9469_67f5;
 /// The same at `CAD_TOLERANCE_EPS=1e-12`.
 const GOLDEN_1E12: u64 = 0x7625_7377_b8a5_c0f4;
 

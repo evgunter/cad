@@ -1237,9 +1237,10 @@ fn survives_near_tangent_arc_join_classification() {
     // line/arc kinds skip the cosurface share structurally, so this
     // reaches the DIHEDRAL classifier — the trilean must escalate
     // (SliverJoin), never silently pick corner-or-smooth. If profile
-    // validation refuses first (its own tangency band), that is an
-    // equally honest upstream refusal and this test pins whichever
-    // layer speaks.
+    // validation refuses first, that is an equally honest upstream
+    // refusal and this test pins whichever layer speaks: an escalation,
+    // or the joint read tangent (a turn of ~3ε clears its carriers by
+    // ~4.5ε²) and refused as undeclared.
     let delta = 3.0 * eps();
     let bulge = (FRAC_PI_8 - delta / 2.0).tan();
     let lp = bulge_loop(vec![
@@ -1249,11 +1250,9 @@ fn survives_near_tangent_arc_join_classification() {
         (Point2::new(1.0, 0.0), 0.0),
     ]);
     match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
-        Err(e) => {
-            // Upstream tangency/join escalation: loud, typed. Fine.
-            let msg = format!("{e:?}");
-            assert!(msg.contains("Escalated"), "unexpected upstream error {msg}");
-        }
+        Err(profile::ProfileError::Escalated { .. })
+        | Err(profile::ProfileError::UndeclaredTangency { joint: 1, .. }) => {}
+        Err(e) => panic!("unexpected upstream error {e:?}"),
         Ok(vp) => match revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()) {
             Err(RevolveError::SliverJoin { .. }) => {}
             Err(RevolveError::SliverRim { .. }) => {}

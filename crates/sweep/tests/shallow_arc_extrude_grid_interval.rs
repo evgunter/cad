@@ -31,6 +31,12 @@
 //! statement over a box the premise is metered rather than assumed
 //! (`work/pctail/pcurve-envelope-escalates-at-interval-on-a-wide-arc.md`,
 //! reopened).
+//!
+//! At 1e-12 the `off = 1000, l = 0.1, b = 1e-4` cell passes validation:
+//! the arc and its neighbour's crossing is their shared vertex, which
+//! the line's span reads in band at this width, and the segments' ends
+//! settle it. It refuses at the extrude's attachment gate instead
+//! (the start-endpoint residual, `[0, 2.2e-12]`).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Interval, Point2, Real, Tol};
@@ -91,7 +97,7 @@ fn the_shallow_arc_grid_census_is_mains_at_every_eps_row() {
     let want: (usize, usize, usize, usize) = match eps {
         1e-6 => (51, 9, 0, 0),
         1e-9 => (51, 6, 3, 0),
-        1e-12 => (24, 22, 14, 0),
+        1e-12 => (24, 21, 15, 0),
         _ => return,
     };
     let mut got = (0, 0, 0, 0);

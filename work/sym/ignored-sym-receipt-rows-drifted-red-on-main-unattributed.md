@@ -426,6 +426,16 @@ puts it back, numeric 276 → 277 at every ε: a definite miss of the
 foot by either span now leaves the pair's ends to read, so both spans
 are read before the in-band `line_span` escalates. The pad still
 refuses there, between its segments 0 and 1.
+The shallow arc×arc corner P0
+(`work/paths/arc-arc-shallow-corner-legs-escalate-arc-span`) moves
+both documents past validation. A candidate a span reads in band is now
+settled by the segments' ends when the in-band segment's nearer end
+lies on the other carrier, as it does on these two documents. So the bracket replays whole,
+`[623,0,464,806]` → `[1380,48,990,1811]`. The pad reaches its extrude
+and stops at `pcurve_envelope`, `[340,0,277,302]` → `[1196,59,1067,2805]`.
+Both are identical at ε = 1e-6, 1e-9 and 1e-12 (release). Both ceilings
+re-measure unchanged (bracket 7.622e2..7.624e2·ε, over-band `arc_span`;
+pad 2.778e3·ε, over-band `line_span` and `pcurve_envelope`).
 
 ## Closed (SYM-16, PR #4155, 2026-10-06)
 

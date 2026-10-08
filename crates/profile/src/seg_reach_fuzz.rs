@@ -2,14 +2,17 @@
 //! segments are apart**: a counterexample search against an independent
 //! oracle, the closed-form distance between the two segments from their
 //! endpoints, their common normals and their crossings. No pair the
-//! oracle puts within ε may read "no contact". Half the draws are line
-//! × arc and arc × arc pairs whose carriers lie within ε of tangency or
-//! cross at a shallow angle just past the band, each segment reaching a
-//! few times the stretch along which the carriers stay within ε or
-//! sweeping up to 10⁻³ short of a full turn. The other half end a line
-//! or an arc at an edge of the band off another segment's carrier,
-//! leaving it at an angle as small as 10⁻⁶, which is where an in-band
-//! end reading has to escalate rather than read clear.
+//! oracle puts within ε may read "no contact". A third of the draws are
+//! line × arc and arc × arc pairs whose carriers lie within ε of
+//! tangency or cross at a shallow angle just past the band, each
+//! segment reaching a few times the stretch along which the carriers
+//! stay within ε or sweeping up to 10⁻³ short of a full turn. Another
+//! third end a line or an arc at an edge of the band off another
+//! segment's carrier, leaving it at an angle as small as 10⁻⁶, which is
+//! where an in-band end reading has to escalate rather than read clear.
+//! The last third end two segments at an edge of the band either side of their
+//! carriers' crossing, at angles down to 10⁻⁶, where a span reads the
+//! crossing in band and the ends have to settle it.
 //!
 //! In a file of its own so the per-file test gate can skip it without
 //! skipping `seg`'s deterministic pair rows.
@@ -228,14 +231,55 @@ fn kernel<T: Decide>(s1: Shape, s2: Shape, band: Band) -> Read {
     }
 }
 
-/// One draw: a near-tangent or shallow-secant pair ([`near`]), or a
-/// segment ending at the edge of the band off another ([`band_edge`]).
+/// One draw: a near-tangent or shallow-secant pair ([`near`]), a
+/// segment ending at the edge of the band off another ([`band_edge`]),
+/// or two segments ending at the edge of the band either side of their
+/// carriers' crossing ([`crossing`]).
 fn draw(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
-    if rng.unit() < 0.5 {
-        near(rng, eps, k)
-    } else {
-        band_edge(rng, eps, k)
+    match rng.below(3) {
+        0 => near(rng, eps, k),
+        1 => band_edge(rng, eps, k),
+        _ => crossing(rng, eps, k),
     }
+}
+
+/// Two carriers, lines or arcs, crossing at a point at an angle from
+/// 10⁻⁶ to one radian, each segment ending at an edge of the band
+/// ([`edge`]) short of the crossing or past it along its own carrier
+/// and running on from there either way, up to 10⁻³ short of a full
+/// turn. A span reads such a crossing in band, and its stretch,
+/// ε/sin φ, runs from inside the band to past the segment.
+fn crossing(rng: &mut fuzz::Rng, eps: f64, k: f64) -> (Shape, Shape) {
+    let x = (rng.range(-2.0, 2.0), rng.range(-2.0, 2.0));
+    let psi = rng.range(0.0, TAU);
+    let phi = 10f64.powf(rng.range(-6.0, 0.0)) * if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+    let mut through = |heading: f64| {
+        let u = (heading.cos(), heading.sin());
+        let along = edge(rng, eps, k);
+        let back = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+        if rng.unit() < 0.5 {
+            let reach = back * 10f64.powf(rng.range(-2.0, 0.5));
+            let at = |s: f64| (x.0 + s * u.0, x.1 + s * u.1);
+            Shape::Line {
+                a: at(along),
+                b: at(along + reach),
+            }
+        } else {
+            // Turning left (centre on the left, counter-clockwise) or
+            // right; arc length `s` from the crossing turns it s/r.
+            let r = 10f64.powf(rng.range(-1.0, 0.5));
+            let turn = if rng.unit() < 0.5 { -1.0 } else { 1.0 };
+            let c = (x.0 - turn * r * u.1, x.1 + turn * r * u.0);
+            let at_x = (x.1 - c.1).atan2(x.0 - c.0);
+            Shape::Arc {
+                c,
+                r,
+                start: at_x + turn * along / r,
+                sweep: turn * back * sweep_of(rng, 1e-3).abs(),
+            }
+        }
+    };
+    (through(psi), through(psi + phi))
 }
 
 /// A signed sweep: a few times `small` (an arc local to one point), up

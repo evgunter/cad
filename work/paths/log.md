@@ -676,3 +676,12 @@ Signed: (CARVE orchestrator)
   - A candidate that a span definitely misses now leaves the pair's segment ends to read (`seg::end_touches`, new predicate `circle_side`). This applies in the tangent arms and in the secant arms; the widened sweep showed that a shallow crossing has the same hole.
   - D10's hold did not bind.
 
+
+- 2026-10-07 — The tangent-pair silent-miss P0 merged (#4276, `1e873f261`; DR-105, sequential arm, no MAJOR). In both the tangent and the secant arms, a span miss settles no-contact only through the segments' end reads. The internal-tangency foot false refusal is filed (P2).
+- 2026-10-07 — `arc-arc-shallow-corner-legs-escalate-arc-span` (P0, H) is dispatched on `claude/clever-bardeen-4itqb3`. Step one is re-measuring on main, since #4264 and #4276 changed the simplicity pass it escalates in.
+  - D10 check: it is the simplicity pass on leg arcs, not declared joints, so it may start under the hold.
+  - Review tier: dual (H), if code lands.
+- 2026-10-07 — `arc-arc-shallow-corner-legs-escalate-arc-span` (P0) closed on `claude/clever-bardeen-4itqb3`. It still escalated on main after #4264/#4276, and not honestly: the legs stood 1.01–2.02 Kε apart (the fillet's chord), while each span read the carriers' crossing in band.
+  - A candidate read in band now settles on the segments' ends when the in-band segment's nearer end (`nearer_end`, new) lies on the other carrier. Otherwise it still escalates.
+  - Side effect: the sym11 past-the-ceiling row reaches the extrude on the bracket and the pad again, which closes SYM's `the-past-the-ceiling-row-replays-only-validation-on-the-bracket-and-pad`. The row moves to the slow set.
+  - D10's hold did not bind.
