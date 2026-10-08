@@ -1,0 +1,8 @@
+4055c4055
+<                                             cut_ins.push(sphere_pair_cut(
+---
+>                                             if x_is == Operand::A { cut_ins.push(sphere_pair_cut(
+4059c4059
+<                                             ));
+---
+>                                             )); }

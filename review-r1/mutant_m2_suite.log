@@ -1,0 +1,114 @@
+
+running 25 tests
+test m5_s13_pips::a_ball_in_the_wall_boxs_corner_is_certified_separated ... ok
+test m5_s13_pips::a_ball_above_the_cylinders_cap_is_certified_separated ... ok
+test m5_s13_pips::die_pip_subtract_is_green ... ok
+test m5_s13_pips::certified_disjoint_and_contained_shells_keep_their_answers ... ok
+test m5_s13_pips::in_band_extent_escalates_instead_of_answering ... ok
+test m5_s13_pips::a_ball_straddling_a_notched_walls_carrier_builds ... ok
+test m5_s13_pips::die_pip_intersect_is_the_cap_and_additive ... ok
+test m5_s13_pips::trimmed_sphere_group_operand_assembles_with_a_clear_partner ... ok
+test m5_s13_pips::overlapping_sphere_pair_builds_through_the_scan ... ok
+test m5_s13_pips_interval::certified::interval_finding_union_is_bracketed ... ok
+test m5_s13_pips::two_pips_cut_under_the_group_arm ... ok
+test m5_s13_pips_interval::certified::interval_pip_pair_is_bracketed_and_additive ... ok
+test spheres_crossing_off_every_edge::a_ball_poking_a_plane_and_crossing_a_sphere_refuses_typed ... ok
+test spheres_crossing_off_every_edge::a_depth_in_band_of_a_tangency_escalates ... ok
+test spheres_crossing_off_every_edge::a_ball_crossing_both_faces_of_a_lens_builds ... FAILED
+test spheres_crossing_off_every_edge::a_tilted_centre_line_builds ... FAILED
+test spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth ... FAILED
+test spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean ... FAILED
+test spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar ... FAILED
+test verbs_sphsph_opening::a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it ... ok
+test verbs_sphsph_opening::nested_balls_still_answer ... ok
+test verbs_sphsph_opening::seam_crossing_pairs_build ... ok
+test verbs_sphsph_opening::z_offset_pairs_build_through_the_curved_extent_scan ... FAILED
+test spheres_crossing_off_every_edge::two_trimmed_spheres_build ... ok
+test spheres_crossing_off_every_edge::a_ball_near_tangency_builds_at_the_default_band ... ok
+
+failures:
+
+---- spheres_crossing_off_every_edge::a_ball_crossing_both_faces_of_a_lens_builds stdout ----
+
+thread 'spheres_crossing_off_every_edge::a_ball_crossing_both_faces_of_a_lens_builds' (9165) panicked at crates/sweep/tests/spheres_crossing_off_every_edge.rs:80:20:
+a ball across both lens faces, a ∪ b: wanted a body, got Err(FallbackExtentUnsupported { operand: A, face: FaceKey(1v1), what: "the sphere face's boundary meets the cut's meridian inside the section circle" })
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::spheres_crossing_off_every_edge::assert_six_lumps
+   3: all::spheres_crossing_off_every_edge::a_ball_crossing_both_faces_of_a_lens_builds
+   4: <all::spheres_crossing_off_every_edge::a_ball_crossing_both_faces_of_a_lens_builds::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- spheres_crossing_off_every_edge::a_tilted_centre_line_builds stdout ----
+
+thread 'spheres_crossing_off_every_edge::a_tilted_centre_line_builds' (9170) panicked at crates/sweep/tests/spheres_crossing_off_every_edge.rs:80:20:
+Vec3 { x: 0.02, y: 0.01, z: 0.9 }, a ∪ b: wanted a body, got Err(FallbackExtentUnsupported { operand: B, face: FaceKey(1v1), what: "the sphere face's boundary meets the cut's meridian inside the section circle" })
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::spheres_crossing_off_every_edge::assert_six_lumps
+   3: all::spheres_crossing_off_every_edge::against_the_unit_ball
+   4: all::spheres_crossing_off_every_edge::a_tilted_centre_line_builds
+   5: <all::spheres_crossing_off_every_edge::a_tilted_centre_line_builds::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth stdout ----
+
+thread 'spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth' (9167) panicked at crates/sweep/tests/spheres_crossing_off_every_edge.rs:80:20:
+r 0.05, d 0.975, a ∪ b: wanted a body, got Err(FallbackExtentUnsupported { operand: B, face: FaceKey(1v1), what: "the sphere face's boundary meets the cut's meridian inside the section circle" })
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::spheres_crossing_off_every_edge::assert_six_lumps
+   3: all::spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth
+   4: <all::spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean stdout ----
+
+thread 'spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean' (9171) panicked at crates/sweep/tests/spheres_crossing_off_every_edge.rs:80:20:
+plain, a ∪ b: wanted a body, got Err(FallbackExtentUnsupported { operand: B, face: FaceKey(1v1), what: "the sphere face's boundary meets the cut's meridian inside the section circle" })
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::spheres_crossing_off_every_edge::assert_six_lumps
+   3: all::spheres_crossing_off_every_edge::against_the_unit_ball
+   4: all::spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean
+   5: <all::spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar stdout ----
+
+thread 'spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar' (9172) panicked at crates/sweep/tests/spheres_crossing_off_every_edge.rs:197:42:
+Interval a ∪ b: refused FallbackExtentUnsupported { operand: B, face: FaceKey(1v1), what: "the sphere face's boundary meets the cut's meridian inside the section circle" }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar::{closure#1}
+   3: all::spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar
+   4: <all::spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- verbs_sphsph_opening::z_offset_pairs_build_through_the_curved_extent_scan stdout ----
+
+thread 'verbs_sphsph_opening::z_offset_pairs_build_through_the_curved_extent_scan' (9177) panicked at crates/sweep/tests/verbs_sphsph_opening.rs:163:29:
+deep, equal radii: the union builds, got FallbackExtentUnsupported { operand: A, face: FaceKey(1v1), what: "the sphere face's boundary meets the cut's meridian inside the section circle" }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::verbs_sphsph_opening::z_offset_pairs_build_through_the_curved_extent_scan::{closure#0}
+   3: <all::verbs_sphsph_opening::z_offset_pairs_build_through_the_curved_extent_scan::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    spheres_crossing_off_every_edge::a_ball_crossing_both_faces_of_a_lens_builds
+    spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth
+    spheres_crossing_off_every_edge::a_tilted_centre_line_builds
+    spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean
+    spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar
+    verbs_sphsph_opening::z_offset_pairs_build_through_the_curved_extent_scan
+
+test result: FAILED. 19 passed; 6 failed; 0 ignored; 0 measured; 2517 filtered out; finished in 0.69s
+

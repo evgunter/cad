@@ -1,0 +1,165 @@
+
+running 25 tests
+test m5_s13_pips::a_ball_above_the_cylinders_cap_is_certified_separated ... ok
+test m5_s13_pips::a_ball_in_the_wall_boxs_corner_is_certified_separated ... ok
+test m5_s13_pips::a_ball_straddling_a_notched_walls_carrier_builds ... ok
+test m5_s13_pips::die_pip_subtract_is_green ... ok
+test m5_s13_pips::in_band_extent_escalates_instead_of_answering ... ok
+test m5_s13_pips::certified_disjoint_and_contained_shells_keep_their_answers ... ok
+test m5_s13_pips::die_pip_intersect_is_the_cap_and_additive ... ok
+test m5_s13_pips::trimmed_sphere_group_operand_assembles_with_a_clear_partner ... ok
+test m5_s13_pips::two_pips_cut_under_the_group_arm ... ok
+test m5_s13_pips_interval::certified::interval_pip_pair_is_bracketed_and_additive ... ok
+test m5_s13_pips_interval::certified::interval_finding_union_is_bracketed ... ok
+test m5_s13_pips::overlapping_sphere_pair_builds_through_the_scan ... FAILED
+test spheres_crossing_off_every_edge::a_ball_near_tangency_builds_at_the_default_band ... FAILED
+test spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth ... FAILED
+test spheres_crossing_off_every_edge::a_depth_in_band_of_a_tangency_escalates ... ok
+test spheres_crossing_off_every_edge::a_ball_crossing_both_faces_of_a_lens_builds ... FAILED
+test spheres_crossing_off_every_edge::a_ball_poking_a_plane_and_crossing_a_sphere_refuses_typed ... FAILED
+test spheres_crossing_off_every_edge::a_tilted_centre_line_builds ... FAILED
+test verbs_sphsph_opening::a_nested_ball_near_tangency_offers_a_tolerance_only_short_of_it ... ok
+test verbs_sphsph_opening::nested_balls_still_answer ... ok
+test spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar ... FAILED
+test spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean ... FAILED
+test verbs_sphsph_opening::seam_crossing_pairs_build ... ok
+test verbs_sphsph_opening::z_offset_pairs_build_through_the_curved_extent_scan ... FAILED
+test spheres_crossing_off_every_edge::two_trimmed_spheres_build ... FAILED
+
+failures:
+
+---- m5_s13_pips::overlapping_sphere_pair_builds_through_the_scan stdout ----
+
+thread 'm5_s13_pips::overlapping_sphere_pair_builds_through_the_scan' (8320) panicked at crates/sweep/tests/m5_s13_pips.rs:328:56:
+the pair is cut in and joined: ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4v3) } }] }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::result::unwrap_failed
+   3: all::m5_s13_pips::overlapping_sphere_pair_builds_through_the_scan
+   4: <all::m5_s13_pips::overlapping_sphere_pair_builds_through_the_scan::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- spheres_crossing_off_every_edge::a_ball_near_tangency_builds_at_the_default_band stdout ----
+
+thread 'spheres_crossing_off_every_edge::a_ball_near_tangency_builds_at_the_default_band' (8326) panicked at crates/sweep/tests/spheres_crossing_off_every_edge.rs:80:20:
+r 0.05, d 0.9501, b ∪ a: wanted a body, got Err(ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(5v3) } }] })
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::spheres_crossing_off_every_edge::assert_six_lumps
+   3: all::spheres_crossing_off_every_edge::a_ball_near_tangency_builds_at_the_default_band
+   4: <all::spheres_crossing_off_every_edge::a_ball_near_tangency_builds_at_the_default_band::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth stdout ----
+
+thread 'spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth' (8327) panicked at crates/sweep/tests/spheres_crossing_off_every_edge.rs:80:20:
+r 0.05, d 0.952, b ∪ a: wanted a body, got Err(ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(5v3) } }] })
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::spheres_crossing_off_every_edge::assert_six_lumps
+   3: all::spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth
+   4: <all::spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- spheres_crossing_off_every_edge::a_ball_crossing_both_faces_of_a_lens_builds stdout ----
+
+thread 'spheres_crossing_off_every_edge::a_ball_crossing_both_faces_of_a_lens_builds' (8325) panicked at crates/sweep/tests/spheres_crossing_off_every_edge.rs:80:20:
+a ball across both lens faces, b ∪ a: wanted a body, got Err(ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(8v5) } }] })
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::spheres_crossing_off_every_edge::assert_six_lumps
+   3: all::spheres_crossing_off_every_edge::a_ball_crossing_both_faces_of_a_lens_builds
+   4: <all::spheres_crossing_off_every_edge::a_ball_crossing_both_faces_of_a_lens_builds::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- spheres_crossing_off_every_edge::a_ball_poking_a_plane_and_crossing_a_sphere_refuses_typed stdout ----
+
+thread 'spheres_crossing_off_every_edge::a_ball_poking_a_plane_and_crossing_a_sphere_refuses_typed' (8328) panicked at crates/sweep/tests/spheres_crossing_off_every_edge.rs:389:20:
+b ∪ a: wanted the typed refusal, got Ok("a body")
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::spheres_crossing_off_every_edge::a_ball_poking_a_plane_and_crossing_a_sphere_refuses_typed
+   3: <all::spheres_crossing_off_every_edge::a_ball_poking_a_plane_and_crossing_a_sphere_refuses_typed::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- spheres_crossing_off_every_edge::a_tilted_centre_line_builds stdout ----
+
+thread 'spheres_crossing_off_every_edge::a_tilted_centre_line_builds' (8330) panicked at crates/sweep/tests/spheres_crossing_off_every_edge.rs:80:20:
+Vec3 { x: 0.02, y: 0.01, z: 0.9 }, b ∪ a: wanted a body, got Err(ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(5v3) } }] })
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::spheres_crossing_off_every_edge::assert_six_lumps
+   3: all::spheres_crossing_off_every_edge::against_the_unit_ball
+   4: all::spheres_crossing_off_every_edge::a_tilted_centre_line_builds
+   5: <all::spheres_crossing_off_every_edge::a_tilted_centre_line_builds::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar stdout ----
+
+thread 'spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar' (8332) panicked at crates/sweep/tests/spheres_crossing_off_every_edge.rs:197:42:
+Interval a ∪ b: refused Escalated { decision: SelfCheck(RingWinding), diag: Indeterminate { margin: MarginDiag(Enclosure { lo: -0.4711573123570163, hi: 1.4134719370710427, tag: None }), terminal_sliver: false, band: Band { zero: 1e-9, escalate: 1e-8 }, predicate: Some("split_ring_path_in_span") } }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar::{closure#1}
+   3: all::spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar
+   4: <all::spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean stdout ----
+
+thread 'spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean' (8331) panicked at crates/sweep/tests/spheres_crossing_off_every_edge.rs:80:20:
+plain, b ∪ a: wanted a body, got Err(ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(5v3) } }] })
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::spheres_crossing_off_every_edge::assert_six_lumps
+   3: all::spheres_crossing_off_every_edge::against_the_unit_ball
+   4: all::spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean
+   5: <all::spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- verbs_sphsph_opening::z_offset_pairs_build_through_the_curved_extent_scan stdout ----
+
+thread 'verbs_sphsph_opening::z_offset_pairs_build_through_the_curved_extent_scan' (8337) panicked at crates/sweep/tests/verbs_sphsph_opening.rs:163:29:
+shallow, equal radii: the union builds, got ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4v3) } }] }
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::verbs_sphsph_opening::z_offset_pairs_build_through_the_curved_extent_scan::{closure#0}
+   3: <all::verbs_sphsph_opening::z_offset_pairs_build_through_the_curved_extent_scan::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- spheres_crossing_off_every_edge::two_trimmed_spheres_build stdout ----
+
+thread 'spheres_crossing_off_every_edge::two_trimmed_spheres_build' (8333) panicked at crates/sweep/tests/spheres_crossing_off_every_edge.rs:80:20:
+two trimmed balls, a ∪ b: wanted a body, got Err(ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6v7) } }] })
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: all::spheres_crossing_off_every_edge::assert_six_lumps
+   3: all::spheres_crossing_off_every_edge::two_trimmed_spheres_build
+   4: <all::spheres_crossing_off_every_edge::two_trimmed_spheres_build::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    m5_s13_pips::overlapping_sphere_pair_builds_through_the_scan
+    spheres_crossing_off_every_edge::a_ball_crossing_both_faces_of_a_lens_builds
+    spheres_crossing_off_every_edge::a_ball_near_tangency_builds_at_the_default_band
+    spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth
+    spheres_crossing_off_every_edge::a_ball_poking_a_plane_and_crossing_a_sphere_refuses_typed
+    spheres_crossing_off_every_edge::a_tilted_centre_line_builds
+    spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean
+    spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar
+    spheres_crossing_off_every_edge::two_trimmed_spheres_build
+    verbs_sphsph_opening::z_offset_pairs_build_through_the_curved_extent_scan
+
+test result: FAILED. 15 passed; 10 failed; 0 ignored; 0 measured; 2517 filtered out; finished in 0.29s
+

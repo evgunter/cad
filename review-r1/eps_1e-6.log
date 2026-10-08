@@ -1,0 +1,437 @@
+
+running 13 tests
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z30 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=4.237662294 want=4.237662294 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z30 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=4.237662294 want=4.237662294 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z30 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.124564959 want=4.124564959 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z30 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z30 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F4 E6 V4 S1 sph[1,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z30 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z90 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=4.237662294 want=4.237662294 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z90 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=4.237662294 want=4.237662294 | F4 E6 V4 S1 sph[1,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z90 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.124564959 want=4.124564959 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z90 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z90 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=z90 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.000,0.950 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z30 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z30 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z30 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z30 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z30 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z30 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z90 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z90 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z90 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z90 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z90 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=z90 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=0.000,0.300,0.901 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z30 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z30 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z30 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z30 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z30 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z30 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z90 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z90 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z90 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z90 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z90 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=z90 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.048872090 want=0.048872090 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.3 c=-0.415,0.207,0.829 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.064225246 want=0.064225246 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z30 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=5.339202165 want=5.339202165 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z30 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=5.339202165 want=5.339202165 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z30 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=3.902447124 want=3.902447124 | F4 E6 V4 S1 sph[1,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z30 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z30 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z30 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z90 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=5.339202165 want=5.339202165 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z90 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=5.339202165 want=5.339202165 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z90 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=3.902447124 want=3.902447124 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z90 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z90 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=z90 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.000,1.200 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z30 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=5.339202165 want=5.339202165 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z30 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=5.339202165 want=5.339202165 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z30 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=3.902447124 want=3.902447124 | F4 E6 V4 S1 sph[1,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z30 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z30 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z30 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z90 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=5.339202165 want=5.339202165 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z90 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=5.339202165 want=5.339202165 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z90 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=3.902447124 want=3.902447124 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z90 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z90 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=z90 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=0.000,0.379,1.138 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z30 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=5.339202165 want=5.339202165 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z30 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=5.339202165 want=5.339202165 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z30 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=3.902447124 want=3.902447124 | F4 E6 V4 S1 sph[1,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z30 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z30 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z30 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z90 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=5.339202165 want=5.339202165 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z90 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=5.339202165 want=5.339202165 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z90 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=3.902447124 want=3.902447124 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z90 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z90 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=z90 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=1.150411960 want=1.150411960 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=0.7 c=-0.524,0.262,1.047 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.286343080 want=0.286343080 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z30 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=8.017606251 want=8.017606251 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z30 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=8.017606251 want=8.017606251 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z30 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F4 E6 V4 S1 sph[1,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z30 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z30 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z30 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z90 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=8.017606251 want=8.017606251 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z90 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=8.017606251 want=8.017606251 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z90 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z90 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z90 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=z90 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=x45 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=8.017606251 want=8.017606251 | F6 E10 V6 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=x45 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=8.017606251 want=8.017606251 | F6 E10 V6 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=x45 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.000,1.500 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z30 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=8.017606251 want=8.017606251 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z30 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=8.017606251 want=8.017606251 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z30 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F4 E6 V4 S1 sph[1,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z30 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z30 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z30 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z90 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=8.017606251 want=8.017606251 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z90 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=8.017606251 want=8.017606251 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z90 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z90 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z90 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=z90 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE interval plain eps=1e-6 | a∪b | OK SOUND t3=true v=[4.237662294450,4.237662294450] want=4.237662294450
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=0.000,0.474,1.423 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE interval plain eps=1e-6 | b∪a | OK SOUND t3=true v=[4.237662294450,4.237662294450] want=4.237662294450
+R1PROBE interval plain eps=1e-6 | a∖b | OK SOUND t3=true v=[4.124564958920,4.124564958920] want=4.124564958920
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z30 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=8.017606251 want=8.017606251 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z30 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=8.017606251 want=8.017606251 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z30 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F4 E6 V4 S1 sph[1,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE interval plain eps=1e-6 | b∖a | OK SOUND t3=true v=[0.048872089663,0.048872089663] want=0.048872089663
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z30 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z30 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z30 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE interval plain eps=1e-6 | a∩b | OK SOUND t3=true v=[0.064225245866,0.064225245866] want=0.064225245866
+R1PROBE interval plain eps=1e-6 | b∩a | OK SOUND t3=true v=[0.064225245866,0.064225245866] want=0.064225245866
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z90 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=8.017606251 want=8.017606251 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z90 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=8.017606251 want=8.017606251 | F6 E12 V8 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z90 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z90 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z90 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=z90 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=x45 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=x45 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=x45 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=x45 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=x45 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=x45 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F3 E4 V3 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xy60 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xy60 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xy60 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xy60 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xy60 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xy60 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xyz110 | a∪b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xyz110 | b∪a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xyz110 | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE interval z30 eps=1e-6 | a∪b | ERR Join(Escalated { face: FaceKey(1v1), diag: Indeterminate { margin: MarginDiag(Invalid), terminal_sliver: false, band: Band { zero: 1e-6, esc
+R1PROBE interval z30 eps=1e-6 | b∪a | ERR Join(Escalated { face: FaceKey(3v1), diag: Indeterminate { margin: MarginDiag(Invalid), terminal_sliver: false, band: Band { zero: 1e-6, esc
+R1PROBE interval z30 eps=1e-6 | a∖b | ERR Join(Escalated { face: FaceKey(1v1), diag: Indeterminate { margin: MarginDiag(Invalid), terminal_sliver: false, band: Band { zero: 1e-6, esc
+R1PROBE interval z30 eps=1e-6 | b∖a | ERR Join(Escalated { face: FaceKey(3v1), diag: Indeterminate { margin: MarginDiag(Invalid), terminal_sliver: false, band: Band { zero: 1e-6, esc
+R1PROBE interval z30 eps=1e-6 | a∩b | ERR Join(Escalated { face: FaceKey(1v1), diag: Indeterminate { margin: MarginDiag(Invalid), terminal_sliver: false, band: Band { zero: 1e-6, esc
+R1PROBE interval z30 eps=1e-6 | b∩a | ERR Join(Escalated { face: FaceKey(3v1), diag: Indeterminate { margin: MarginDiag(Invalid), terminal_sliver: false, band: Band { zero: 1e-6, esc
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xyz110 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=3.828816047 want=3.828816047 | F3 E5 V4 S1 sph[2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xyz110 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v3), source: NotIsoRectangle { what: "pr
+R1PROBE nonpar r=1 c=-0.655,0.327,1.309 turn=xyz110 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=0.359974158 want=0.359974158 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE-SUMMARY charts_not_parallel bad=0
+test review_sphpair_r1_probes::r1_charts_not_parallel ... ok
+R1PROBE coinc r=1 d=1e-2 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=4.220205870 want=4.220205870 | F6 E10 V6 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=1 d=1e-2 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=4.220205870 want=4.220205870 | F6 E10 V6 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=1 d=1e-2 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=0.031415665 want=0.031415665 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=1 d=1e-2 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.031415665 want=0.031415665 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=1 d=1e-2 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=4.157374540 want=4.157374540 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=1 d=1e-2 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=4.157374540 want=4.157374540 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=1 d=1e-3 | a∪b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-7, None)), band: Band { | 
+R1PROBE coinc r=1 d=1e-3 | b∪a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-7, None)), band: Band { | 
+R1PROBE coinc r=1 d=1e-3 | a∖b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-7, None)), band: Band { | 
+R1PROBE coinc r=1 d=1e-3 | b∖a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-7, None)), band: Band { | 
+R1PROBE coinc r=1 d=1e-3 | a∩b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-7, None)), band: Band { | 
+R1PROBE coinc r=1 d=1e-3 | b∩a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-7, None)), band: Band { | 
+R1PROBE coinc r=1 d=1e-4 | a∪b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-9, None)), band: Band { | 
+R1PROBE coinc r=1 d=1e-4 | b∪a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-9, None)), band: Band { | 
+R1PROBE coinc r=1 d=1e-4 | a∖b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-9, None)), band: Band { | 
+R1PROBE coinc r=1 d=1e-4 | b∖a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-9, None)), band: Band { | 
+R1PROBE coinc r=1 d=1e-4 | a∩b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-9, None)), band: Band { | 
+R1PROBE coinc r=1 d=1e-4 | b∩a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-9, None)), band: Band { | 
+R1PROBE coinc r=1 d=1e-5 | a∪b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=1 d=1e-5 | b∪a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=1 d=1e-5 | a∖b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=1 d=1e-5 | b∖a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=1 d=1e-5 | a∩b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=1 d=1e-5 | b∩a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=1.0000001 d=1e-2 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=4.220206501 want=4.220206501 | F6 E10 V6 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=1.0000001 d=1e-2 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=4.220206501 want=4.220206501 | F6 E10 V6 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=1.0000001 d=1e-2 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=0.031415040 want=0.031415040 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=1.0000001 d=1e-2 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.031416296 want=0.031416296 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=1.0000001 d=1e-2 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=4.157375165 want=4.157375165 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=1.0000001 d=1e-2 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=4.157375165 want=4.157375165 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=1.0000001 d=1e-3 | a∪b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.499999750000025e-7, None)) | 
+R1PROBE coinc r=1.0000001 d=1e-3 | b∪a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-7, None)), band: Band { | 
+R1PROBE coinc r=1.0000001 d=1e-3 | a∖b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.499999750000025e-7, None)) | 
+R1PROBE coinc r=1.0000001 d=1e-3 | b∖a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-7, None)), band: Band { | 
+R1PROBE coinc r=1.0000001 d=1e-3 | a∩b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.499999750000025e-7, None)) | 
+R1PROBE coinc r=1.0000001 d=1e-3 | b∩a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-7, None)), band: Band { | 
+R1PROBE coinc r=1.0000001 d=1e-4 | a∪b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.4999997500000248e-9, None) | 
+R1PROBE coinc r=1.0000001 d=1e-4 | b∪a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-9, None)), band: Band { | 
+R1PROBE coinc r=1.0000001 d=1e-4 | a∖b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.4999997500000248e-9, None) | 
+R1PROBE coinc r=1.0000001 d=1e-4 | b∖a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-9, None)), band: Band { | 
+R1PROBE coinc r=1.0000001 d=1e-4 | a∩b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.4999997500000248e-9, None) | 
+R1PROBE coinc r=1.0000001 d=1e-4 | b∩a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-9, None)), band: Band { | 
+R1PROBE coinc r=1.0000001 d=1e-5 | a∪b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.499999750000025e-11, None) | 
+R1PROBE coinc r=1.0000001 d=1e-5 | b∪a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=1.0000001 d=1e-5 | a∖b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.499999750000025e-11, None) | 
+R1PROBE coinc r=1.0000001 d=1e-5 | b∖a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=1.0000001 d=1e-5 | a∩b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.499999750000025e-11, None) | 
+R1PROBE coinc r=1.0000001 d=1e-5 | b∩a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=0.9999999 d=1e-2 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=4.220205238 want=4.220205238 | F6 E10 V6 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=0.9999999 d=1e-2 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=4.220205238 want=4.220205238 | F6 E10 V6 S1 sph[3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=0.9999999 d=1e-2 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=0.031416290 want=0.031416290 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=0.9999999 d=1e-2 | b∖a | OK SOUND t2=true t3p=true cert=true operand=true v=0.031415033 want=0.031415033 | F4 E6 V4 S1 sph[3,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=0.9999999 d=1e-2 | a∩b | OK SOUND t2=true t3p=true cert=true operand=true v=4.157373915 want=4.157373915 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=0.9999999 d=1e-2 | b∩a | OK SOUND t2=true t3p=true cert=true operand=true v=4.157373915 want=4.157373915 | F2 E1 V1 S1 sph[1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE coinc r=0.9999999 d=1e-3 | a∪b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000002500000257e-7, None) | 
+R1PROBE coinc r=0.9999999 d=1e-3 | b∪a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-7, None)), band: Band { | 
+R1PROBE coinc r=0.9999999 d=1e-3 | a∖b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000002500000257e-7, None) | 
+R1PROBE coinc r=0.9999999 d=1e-3 | b∖a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-7, None)), band: Band { | 
+R1PROBE coinc r=0.9999999 d=1e-3 | a∩b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000002500000257e-7, None) | 
+R1PROBE coinc r=0.9999999 d=1e-3 | b∩a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-7, None)), band: Band { | 
+R1PROBE coinc r=0.9999999 d=1e-4 | a∪b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.500000250000025e-9, None)) | 
+R1PROBE coinc r=0.9999999 d=1e-4 | b∪a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-9, None)), band: Band { | 
+R1PROBE coinc r=0.9999999 d=1e-4 | a∖b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.500000250000025e-9, None)) | 
+R1PROBE coinc r=0.9999999 d=1e-4 | b∖a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-9, None)), band: Band { | 
+R1PROBE coinc r=0.9999999 d=1e-4 | a∩b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.500000250000025e-9, None)) | 
+R1PROBE coinc r=0.9999999 d=1e-4 | b∩a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5e-9, None)), band: Band { | 
+R1PROBE coinc r=0.9999999 d=1e-5 | a∪b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000002500000248e-11, None | 
+R1PROBE coinc r=0.9999999 d=1e-5 | b∪a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=0.9999999 d=1e-5 | a∖b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000002500000248e-11, None | 
+R1PROBE coinc r=0.9999999 d=1e-5 | b∖a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE coinc r=0.9999999 d=1e-5 | a∩b | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000002500000248e-11, None | 
+R1PROBE coinc r=0.9999999 d=1e-5 | b∩a | ERR CurvedSectorSideUnsupported { verdict: Zero(Classified { margin: MarginDiag(Value(2.5000000000000004e-11, None | 
+R1PROBE-SUMMARY near_coincident bad=0
+test review_sphpair_r1_probes::r1_near_coincident ... ok
+R1PROBE interval tilt eps=1e-6 | a∪b | OK SOUND t3=true v=[4.223772638799,4.223772638799] want=4.223772638799
+R1PROBE interval tilt eps=1e-6 | b∪a | OK SOUND t3=true v=[4.223772638799,4.223772638799] want=4.223772638799
+R1PROBE interval tilt eps=1e-6 | a∖b | OK SOUND t3=true v=[4.110675303270,4.110675303270] want=4.110675303270
+R1PROBE interval tilt eps=1e-6 | b∖a | OK SOUND t3=true v=[0.034982434013,0.034982434013] want=0.034982434013
+R1PROBE interval tilt eps=1e-6 | a∩b | OK SOUND t3=true v=[0.078114901516,0.078114901516] want=0.078114901516
+R1PROBE interval tilt eps=1e-6 | b∩a | OK SOUND t3=true v=[0.078114901516,0.078114901516] want=0.078114901516
+R1PROBE-SUMMARY interval bad=0
+test review_sphpair_r1_probes::r1_interval ... ok
+test spheres_crossing_off_every_edge::a_ball_crossing_both_faces_of_a_lens_builds ... ok
+SKIPPED (non-default eps): the near-tangent depths are measured at the default band only
+test spheres_crossing_off_every_edge::a_ball_near_tangency_builds_at_the_default_band ... ok
+R1PROBE three2 +z,-x | a∪b | ERR CurvedPairUnsupported { op: Some(Union), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sphere | 
+R1PROBE three2 +z,-x | b∪a | ERR CurvedPairUnsupported { op: Some(Union), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sphere | 
+R1PROBE three2 +z,-x | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(2 | 
+R1PROBE three2 +z,-x | b∖a | ERR CurvedPairUnsupported { op: Some(Subtract), site: InteriorLoopGuard, operand: A, face: FaceKey(1v1), kind: Sph | 
+R1PROBE three2 +z,-x | a∩b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE three2 +z,-x | b∩a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(3 | 
+R1PROBE three2 +z,-z | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=4.286534384 want=4.286534384 | F6 E10 V6 S1 sph[4,1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 +z,-z | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=4.286534384 want=4.286534384 | F6 E10 V6 S1 sph[1,1,4] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 +z,-z | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.060339713 want=4.060339713 | F10 E18 V10 S1 sph[4,3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 +z,-z | b∖a | OK BAD t2=true t3p=false cert=true operand=true v=0.097744179 want=0.097744179 | F4 E2 V2 S2 sph[1,2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 +z,-z | a∩b | OK BAD t2=true t3p=false cert=true operand=true v=0.128450492 want=0.128450492 | F8 E12 V8 S2 sph[3,3,2] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE three2 +z,-z | b∩a | OK BAD t2=true t3p=false cert=true operand=true v=0.128450492 want=0.128450492 | F8 E12 V8 S2 sph[3,3,2] mesh=ERR UnsupportedCurvedShape { face: FaceKey(4v3), source: NotIsoRectangle { what: "pr
+R1PROBE three2 +z,-z | b∖a t3p detail | [CensusUndecidable { a: Face(FaceKey(1v1)), b: Face(FaceKey(2v3)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(2v3)), b: Face(FaceKey(5v3)), what: "a cu
+R1PROBE three2 +z,-z | a∩b t3p detail | [CensusUndecidable { a: Face(FaceKey(1v3)), b: Face(FaceKey(3v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(2v3)), b: Face(FaceKey(4v1)), what: "a cu
+R1PROBE three2 +z,tilt | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=4.286534384 want=4.286534384 | F6 E10 V6 S1 sph[4,1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 +z,tilt | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=4.286534384 want=4.286534384 | F6 E10 V6 S1 sph[1,4,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 +z,tilt | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.060339713 want=4.060339713 | F10 E20 V12 S1 sph[4,3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 +z,tilt | b∖a | OK BAD t2=true t3p=false cert=true operand=true v=0.097744179 want=0.097744179 | F4 E2 V2 S2 sph[1,2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 +z,tilt | a∩b | OK BAD t2=true t3p=false cert=true operand=true v=0.128450492 want=0.128450492 | F8 E12 V8 S2 sph[3,2,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v3), source: NotIsoRectangle { what: "pr
+R1PROBE three2 +z,tilt | b∩a | OK BAD t2=true t3p=false cert=true operand=true v=0.128450492 want=0.128450492 | F8 E12 V8 S2 sph[3,3,2] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 +z,tilt | b∖a t3p detail | [CensusUndecidable { a: Face(FaceKey(1v1)), b: Face(FaceKey(2v3)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(2v3)), b: Face(FaceKey(12v3)), what: "a c
+R1PROBE three2 +z,tilt | a∩b t3p detail | [CensusUndecidable { a: Face(FaceKey(1v3)), b: Face(FaceKey(3v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(3v1)), what: "a cu
+R1PROBE three2 tilt,tilt2 | a∪b | OK SOUND t2=true t3p=true cert=true operand=true v=4.286534384 want=4.286534384 | F6 E10 V6 S1 sph[4,1,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 tilt,tilt2 | b∪a | OK SOUND t2=true t3p=true cert=true operand=true v=4.286534384 want=4.286534384 | F6 E10 V6 S1 sph[1,4,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 tilt,tilt2 | a∖b | OK SOUND t2=true t3p=true cert=true operand=true v=4.060339713 want=4.060339713 | F10 E22 V14 S1 sph[4,3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 tilt,tilt2 | b∖a | OK BAD t2=true t3p=false cert=true operand=true v=0.097744179 want=0.097744179 | F4 E2 V2 S2 sph[1,2,1] mesh=ERR UnsupportedCurvedShape { face: FaceKey(3v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 tilt,tilt2 | a∩b | OK BAD t2=true t3p=false cert=true operand=true v=0.128450492 want=0.128450492 | F8 E12 V8 S2 sph[2,3,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(2v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 tilt,tilt2 | b∩a | OK BAD t2=true t3p=false cert=true operand=true v=0.128450492 want=0.128450492 | F8 E12 V8 S2 sph[3,2,3] mesh=ERR UnsupportedCurvedShape { face: FaceKey(1v1), source: NotIsoRectangle { what: "pr
+R1PROBE three2 tilt,tilt2 | b∖a t3p detail | [CensusUndecidable { a: Face(FaceKey(3v1)), b: Face(FaceKey(5v3)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(5v3)), b: Face(FaceKey(8v5)), what: "a cu
+R1PROBE three2 tilt,tilt2 | a∩b t3p detail | [CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(5v5)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }, CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(7v5)), what: "a cu
+R1PROBE three2 -x,tilt | a∪b | ERR CurvedPairUnsupported { op: Some(Union), site: InteriorLoopGuard, operand: A, face: FaceKey(2v1), kind: Sphere | 
+R1PROBE three2 -x,tilt | b∪a | ERR CurvedPairUnsupported { op: Some(Union), site: InteriorLoopGuard, operand: A, face: FaceKey(3v1), kind: Sphere | 
+R1PROBE three2 -x,tilt | a∖b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(4 | 
+R1PROBE three2 -x,tilt | b∖a | ERR CurvedPairUnsupported { op: Some(Subtract), site: InteriorLoopGuard, operand: A, face: FaceKey(3v1), kind: Sph | 
+R1PROBE three2 -x,tilt | a∩b | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(6 | 
+R1PROBE three2 -x,tilt | b∩a | ERR ResultInvalid { errors: [VolumeUncomputable { solid: SolidKey(1v1), source: RingOnCurvedFace { face: FaceKey(1 | 
+R1PROBE-SUMMARY three_balls_off_both_seams bad=9
+
+thread 'review_sphpair_r1_probes::r1_three_balls_off_both_seams' (6841) panicked at crates/sweep/tests/review_sphpair_r1_probes.rs:136:5:
+assertion `left == right` failed: three_balls_off_both_seams: 9 wrong bodies
+  left: 9
+ right: 0
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+   1: core::panicking::panic_fmt
+   2: core::panicking::assert_failed_inner
+   3: core::panicking::assert_failed::<usize, usize>
+   4: all::review_sphpair_r1_probes::r1_three_balls_off_both_seams
+   5: <all::review_sphpair_r1_probes::r1_three_balls_off_both_seams::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+test review_sphpair_r1_probes::r1_three_balls_off_both_seams ... FAILED
+test spheres_crossing_off_every_edge::a_ball_poking_a_plane_and_crossing_a_sphere_refuses_typed ... ok
+test spheres_crossing_off_every_edge::a_depth_in_band_of_a_tangency_escalates ... ok
+test spheres_crossing_off_every_edge::a_tilted_centre_line_builds ... ok
+test spheres_crossing_off_every_edge::a_ball_on_the_centre_line_builds_at_every_radius_and_depth ... ok
+test spheres_crossing_off_every_edge::both_witnesses_build_under_every_boolean ... ok
+test spheres_crossing_off_every_edge::two_trimmed_spheres_build ... ok
+test spheres_crossing_off_every_edge::the_plain_witness_builds_at_the_interval_scalar ... ok
+
+failures:
+
+failures:
+    review_sphpair_r1_probes::r1_three_balls_off_both_seams
+
+test result: FAILED. 12 passed; 1 failed; 0 ignored; 0 measured; 2529 filtered out; finished in 7.01s
+

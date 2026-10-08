@@ -1,0 +1,12 @@
+4052c4052
+<                                     Some(Refused::Negative { .. }) => match faces() {
+---
+>                                     Some(verdict @ Refused::Negative { .. }) => match faces() {
+4053a4054,4060
+>                                         Some(_) if group.is_some() => {
+>                                             return Err(BooleanError::SpheresMeet {
+>                                                 operand: x_is,
+>                                                 face,
+>                                                 verdict,
+>                                             });
+>                                         }

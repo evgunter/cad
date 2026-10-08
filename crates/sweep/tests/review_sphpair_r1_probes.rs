@@ -69,7 +69,10 @@ fn shape(body: &topo::Body<f64>) -> String {
             }
         }
     }
-    let per: Vec<String> = spheres.iter().map(|(_, n)| n.to_string()).collect();
+    let per: Vec<String> = spheres
+        .iter()
+        .map(|(k, n)| format!("r{}:{n}", k.3 as f64 / 1e6))
+        .collect();
     format!(
         "F{} E{} V{} S{} sph[{}]",
         body.faces().count(),
@@ -597,4 +600,30 @@ fn r1_tiny_ball_relative_volume() {
         }
     }
     done("tiny_ball_relative_volume", bad);
+}
+
+/// Claim 2: the plain pose built with BOTH balls turned z-poled, so each
+/// seam crosses the circle and the ordinary crossing layer answers,
+/// beside the cut-in build, for the face/edge census.
+#[test]
+fn r1_cut_in_against_both_seams_crossing() {
+    let mut bad = 0;
+    let x = Vec3::new(1.0, 0.0, 0.0);
+    let c = Vec3::new(0.0, 0.0, 0.95);
+    let unit_z = ball_turned(1.0, Vec3::new(0.0, 0.0, 0.0), Some((x, PI / 2.0)));
+    let small_z = ball_turned(0.3, c, Some((x, PI / 2.0)));
+    let unit = ball(1.0, Vec3::new(0.0, 0.0, 0.0));
+    let small = ball(0.3, c);
+    let v = (ballv(1.0), ballv(0.3), lens(1.0, 0.3, 0.95));
+    bad += six("census cut-in", &unit, &small, v.0, v.1, v.2);
+    bad += six("census both-seams", &unit_z, &small_z, v.0, v.1, v.2);
+    // Off-centre in x so the unit ball's latitude circle is crossed by
+    // its seam but not centred on its pole.
+    let c2 = Vec3::new(0.2, 0.0, 0.93);
+    let small_z2 = ball_turned(0.3, c2, Some((x, PI / 2.0)));
+    let small2 = ball(0.3, c2);
+    let v2 = (ballv(1.0), ballv(0.3), lens(1.0, 0.3, c2.norm()));
+    bad += six("census cut-in off", &unit, &small2, v2.0, v2.1, v2.2);
+    bad += six("census both-seams off", &unit_z, &small_z2, v2.0, v2.1, v2.2);
+    done("census", bad);
 }

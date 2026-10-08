@@ -1,0 +1,7 @@
+4211c4211,4214
+<         foot: center + normal * s,
+---
+>         foot: center + normal * s + {
+>             let p = normal.cross(u_ref);
+>             p / p.norm() * (rho * T::from_f64(0.2))
+>         },
