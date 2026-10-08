@@ -1221,3 +1221,14 @@ Signed (JOIN orchestrator).
 - **Readout 3's ruling** waits on Ev's sign-off of the rule-9 wording in PR 4298.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-08: two H units dispatched
+
+- **Ev (chat):** start the H units. There is usage headroom for a good handful.
+- **In flight:**
+  - `a-plane-across-a-one-face-wall-meets-its-wrap-edge-once` (P1 H), branch `join/wrap-edge-section-loop`. A one-site section loop on a wrap edge joins as one chord around the whole conic. Not coincidence, so not held by D10. It unblocks PATHS unit 4 (`circle-lowers-to-one-segment`).
+  - `a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet` (P1 H), branch `join/sphere-pair-whole-circle`. A transverse sphere-pair circle that no edge reaches lands as a ring on both faces. The FLUX ringed-sphere gate may still stop some operations.
+- **Review tier:** both are H, so each gets a concurrent dual (rule 1).
+- **Not yet:** `cylinder-sphere-germ-pair-has-no-join-lane` and `torus-germ-pairs-have-no-section-frame` are `design: true`, so a designer pair weighs them before any implementer. The near-tangent census (P0) still needs its design pass. `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone` stays on D10.
+
+Signed (JOIN orchestrator).
