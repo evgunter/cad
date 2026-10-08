@@ -479,3 +479,27 @@ once its bundle pins it, and until then it is shown and never read. The **world*
 undeletable node, related to the root by one mate and read only by placements and export. The
 kernel computes each operation in a frame chosen for numerics from that operation's reads,
 never the world's."
+
+## Round 7: the base and the world
+
+**Recommendation (likely): keep them apart, and stop calling the base a thing.** The "base" is
+only the fact that a document's first construction reads no frame. The world is the one
+undeletable frame. They meet through one placement mate, created with the first construction
+(coincident with its base frame) and editable: Ev's "one number".
+
+**If they were one thing:** the first construction reads the world, which reverses D10's
+"construction never reads the world". Its raw numbers become export coordinates with no
+placement, against "absolute positional meaning conveyed only via the placement". Editing the
+world then moves nothing, since everything built on it moves too, so shifting the export needs an
+`Offset { world, p }` for the first construction to read: the same number, spelled as
+construction. Position would be said two ways, by construction and by placement.
+
+**Kept apart:** the first body's coordinates mean nothing, and every positional meaning, export
+included, comes from the one mate. A one-part document exports with no authoring step because the
+mate is a default; its only cost is a mate the person did not write, visible and editable.
+Position is said one way, by placement, and the world is read only by placements and export: #4326's
+"one frame among many except that it can't be deleted".
+
+**Relied on:** "construction never reads the world"; "no canonical main space"; "just sets the
+coordinates"; "one number"; "none of those choices depend on the world node". **Bent:** only that
+the default mate is written by the document, not the person.
