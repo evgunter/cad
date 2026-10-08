@@ -693,19 +693,12 @@ fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId,
 
 /// **The first operand read this door refuses**, in document order and
 /// within a node in field order: a read of a variable the mint log
-/// does not hold, a live read of a kind its seat does not admit
-/// ([`crate::SlotKind::admits`], the edit doors' rule), or a part
-/// projection over a split reading the other half. A placer's read
+/// does not hold, or a live read [`crate::Doc::read_fault`] — the edit
+/// doors' rule, stated once — refuses: a kind its seat does not admit,
+/// or a part projection over a split reading the other half. A placer's read
 /// keeping its output's shape is [`Walk::OutputSignature`]'s.
 fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
     snapshot.nodes.iter().find_map(|(&id, node)| {
-        let half = match node {
-            Node::Part {
-                select: crate::PartSelect::SplitHalf(half),
-                ..
-            } => Some(*half),
-            _ => None,
-        };
         node.operand_rows().into_iter().find_map(|(slot, var)| {
             if !snapshot.has_minted_var(var) {
                 return Some(SnapshotError::OperandUnminted {
@@ -714,24 +707,25 @@ fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
                     var: snapshot.spoken_var(var),
                 });
             }
+            // A minted read no live operation defines is a strand the
+            // file keeps (DM7), the reader's refusal at evaluation.
             let held = snapshot.var(var)?;
-            if !slot.kind().admits(held) {
-                return Some(SnapshotError::SlotVarKind {
-                    node: snapshot.spoken(id),
-                    slot: SlotId::Operand(slot),
-                    var: Box::new(snapshot.spoken_var(var)),
-                    found: held.kind(),
-                    expected: slot.kind(),
-                });
-            }
-            let (split, port) = held.def().output()?;
-            (half.is_some_and(|half| u32::from(port) != half.output_body())
-                && matches!(snapshot.node(split), Some(Node::Split { .. })))
-            .then(|| SnapshotError::PartHalfPort {
-                node: snapshot.spoken(id),
-                half: half.unwrap_or(crate::SplitHalf::Above),
-                var: Box::new(snapshot.spoken_var(var)),
-            })
+            Some(
+                match snapshot.read_fault(held, slot.kind(), node.selected_half())? {
+                    crate::doc::ReadFault::Kind { found } => SnapshotError::SlotVarKind {
+                        node: snapshot.spoken(id),
+                        slot: SlotId::Operand(slot),
+                        var: Box::new(snapshot.spoken_var(var)),
+                        found,
+                        expected: slot.kind(),
+                    },
+                    crate::doc::ReadFault::OtherHalf { half } => SnapshotError::PartHalfPort {
+                        node: snapshot.spoken(id),
+                        half,
+                        var: Box::new(snapshot.spoken_var(var)),
+                    },
+                },
+            )
         })
     })
 }
@@ -1275,10 +1269,13 @@ pub enum SnapshotError {
         /// The variable it reads, boxed so the refusal stays a small
         /// `Err`.
         var: Box<SpokenVar>,
-        /// The variable's kind.
+        /// The kind of the variable read.
         found: VarKind,
-        /// What the read there takes: for an expression, the kind of
-        /// the dimension it reads the variable at.
+        /// What the read there takes: at an operand, the slot's kind;
+        /// at an expression, the kind of the dimension its leaf reads
+        /// the variable at — the slot's own at the formula's root, and
+        /// the leaf's inside a function (`sin(w)` at a length slot
+        /// reads `w` as an angle).
         expected: crate::SlotKind,
     },
     /// A node whose PAYLOAD expression — a measured expression's value
@@ -1838,7 +1835,7 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
         // blend's `selection`. A payload has ONE canonical form, held by
         // every door that admits a node, so the question is asked in one
         // place and this door only names the answer.
-        if let Some(fault) = node.input_fault(|var| doc.operation_of(var)) {
+        if let Some(fault) = node.input_fault() {
             return Err(match fault.list_fault() {
                 Err(input) => SnapshotError::DuplicateInput {
                     node: doc.spoken(id),
@@ -1940,7 +1937,11 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     // strands a site or a name it moved out of reach, and that loads.
     // What no edit leaves is a node declaring a name it mints itself.
     for (&id, node) in &doc.nodes {
-        match crate::node::declared_side_fault(node.declared_pairs(), None, |n| n != id) {
+        match crate::node::declared_side_fault(
+            crate::node::declared_sides(node.declared_pairs()),
+            None,
+            |n| n != id,
+        ) {
             None => {}
             Some((_, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
                 unreachable!("the load door judges no declared site")

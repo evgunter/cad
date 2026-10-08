@@ -703,7 +703,14 @@ fn a_sealed_shell_over_a_revolved_ball_is_the_difference_of_two_balls() {
         .find(|&id| matches!(d.doc.node(id), Some(Node::Revolve { .. })))
         .expect("the pip ball");
     let t = 0.01;
-    let (doc, sealed) = fixture::insert(d.doc, Node::shell(ball, fixture::len(t), Vec::new()));
+    let (doc, sealed) = fixture::insert(
+        d.doc,
+        Node::shell(
+            editor_core::Operand::output(ball, 0),
+            fixture::len(t),
+            Vec::new(),
+        ),
+    );
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
     assert!(bad.is_empty(), "shelled ball:\n{}", bad.join("\n"));

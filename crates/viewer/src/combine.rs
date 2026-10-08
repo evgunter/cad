@@ -952,21 +952,28 @@ pub const DUPLICATE_COUNT: i64 = 2;
 /// the value it reads is evaluation's question, asked of authored and
 /// hand-written documents alike.
 pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> AuthoredNode {
-    Node::Part {
-        of: of.into(),
-        select: match select {
-            PartSelectSpec::SplitHalf(half) => PartSelect::SplitHalf(half),
-            PartSelectSpec::Instance(index) => PartSelect::Instance(Formula::count(index)),
+    // A split's half is its port (spec Q5: a split named alone is two
+    // outputs, so the read names which).
+    match select {
+        PartSelectSpec::SplitHalf(half) => Node::Part {
+            of: pncad::document::Operand::output(of, half.port()),
+            select: PartSelect::SplitHalf(half),
+        },
+        PartSelectSpec::Instance(index) => Node::Part {
+            of: of.into(),
+            select: PartSelect::Instance(Formula::count(index)),
         },
     }
 }
 
 /// **Whether a node, named alone, reads as a single body** — the
 /// question every body seat asks, answered by the edit door's own
-/// rule: the read [`Doc::read_of_node`] takes is a `Body` variable.
+/// rule: the read [`Doc::read_of_node`] takes is one a body seat admits
+/// (`SlotKind::admits`, the door's kind check).
 ///
-/// A split's two sides are two bodies, so a node named alone is either
-/// and the read refuses; a pattern's instances are a list of bodies,
+/// A node named alone reads its one output (spec Q5): a split's two
+/// sides, or a revolve's body beside its axis, are several, so the read
+/// refuses and the seat names a port; a pattern's instances are a list of bodies,
 /// and a transform of one is too, read off its operand at minting. A
 /// seat filled with one refuses at the door rather than after the edit
 /// lands. The recipe's way of saying which of several is meant is
@@ -989,5 +996,7 @@ pub fn part_node(of: RecipeNodeId, select: PartSelectSpec) -> AuthoredNode {
 pub fn denotes_body(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     doc.read_of_node(node)
         .and_then(|read| doc.var(read))
-        .is_some_and(|var| var.kind() == pncad::document::VarKind::Body)
+        .is_some_and(|var| {
+            pncad::document::SlotKind::Is(pncad::document::VarKind::Body).admits(var)
+        })
 }

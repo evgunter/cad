@@ -243,8 +243,10 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
         "the dead name does not outrank the foreign site at the door: {dead:?}"
     );
 
-    // The union: sited at member `x`, which `SetMembers` then drops.
-    let (doc, u) = declared_union(doc, &[a, b, x], vec![decl[0].0.clone()]);
+    // The union: sited at member `x`, naming member `c`'s wall (D10: a
+    // pair names what its node reads); `SetMembers` then drops both,
+    // reporting the name out of reach and never refusing it.
+    let (doc, u) = declared_union(doc, &[a, b, x, c], vec![decl[0].0.clone()]);
     let (stranded, _) = step(
         doc,
         DocEdit::SetMembers {

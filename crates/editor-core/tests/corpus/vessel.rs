@@ -108,7 +108,11 @@ pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> Vec<StableName>
         angle: ang(std::f64::consts::TAU),
     });
     let open = open(&r.doc, pot);
-    let vessel = r.insert(Node::shell(pot, len(WALL), open));
+    let vessel = r.insert(Node::shell(
+        editor_core::Operand::output(pot, 0),
+        len(WALL),
+        open,
+    ));
 
     CorpusDoc {
         name: "vessel",
@@ -185,6 +189,10 @@ pub fn capped_document() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     });
     let cap = crate::fixture::piece(&r.doc, pot, 0, SEG_CAP as usize);
     let open = vec![band(pot, cap), editor_core::band_pi(pot, cap)];
-    let shell = r.insert(Node::shell(pot, len(WALL), open));
+    let shell = r.insert(Node::shell(
+        editor_core::Operand::output(pot, 0),
+        len(WALL),
+        open,
+    ));
     (r.doc, shell, pot)
 }

@@ -327,7 +327,7 @@ fn a_pattern_of_a_split_port_is_the_pattern_of_its_half() {
     let (doc, half) = insert(
         doc,
         Node::Part {
-            of: sp.into(),
+            of: editor_core::Operand::output(sp, editor_core::SplitHalf::Above.port()),
             select: editor_core::PartSelect::SplitHalf(editor_core::SplitHalf::Above),
         },
     );

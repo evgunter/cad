@@ -6,8 +6,8 @@
 //! ([`SlotKind`]).
 //!
 //! What a caller writes is an [`Operand`]: a node, which is sugar for
-//! that node's output in the seat (`Operand::Node`), a port spelled out,
-//! or a variable by id or by name. The slot door
+//! that node's one output (`Operand::Node`), a port spelled out, or a
+//! variable by id or by name. The slot door
 //! ([`crate::DocEdit::SetParam`] with a [`crate::SlotValue::Read`])
 //! lowers it to the id the document stores.
 
@@ -19,9 +19,11 @@ use crate::var::{VarId, VarKind};
 /// the read a node stores.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Operand {
-    /// A node, read through its output in this seat: its one output, or
-    /// the one output of the seat's kind. A node with several outputs a
-    /// seat could read refuses ([`crate::EditError::AmbiguousOutput`]).
+    /// A node, read through its one output (spec Q5). A node with
+    /// several outputs — a revolve's body and axis, a split's two halves
+    /// — refuses this spelling whatever the seat
+    /// ([`crate::EditError::AmbiguousOutput`], naming its ports): the
+    /// read names its port ([`Operand::Output`]).
     Node(RecipeNodeId),
     /// Port `port` of `node`'s signature.
     Output {

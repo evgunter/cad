@@ -213,7 +213,7 @@ fn trimmed_and_broken(doc: &Doc<ProfileProgram>, body: RecipeNodeId, tol: Tol) -
     let corner = insert(
         &mut doc,
         Node::Part {
-            of: split.into(),
+            of: pncad::document::Operand::output(split, SplitHalf::Below.port()),
             select: PartSelect::SplitHalf(SplitHalf::Below),
         },
         tol,

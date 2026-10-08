@@ -136,7 +136,10 @@ pub fn document() -> CorpusDoc {
     });
 
     // ---- the whole cutting tool, in ONE node ----
-    let tool = r.insert(Node::placed_union_at(ball, placements()));
+    let tool = r.insert(Node::placed_union_at(
+        editor_core::Operand::output(ball, 0),
+        placements(),
+    ));
     let pipped = r.insert(Node::Boolean {
         op: BooleanOp::Subtract,
         a: cube.into(),

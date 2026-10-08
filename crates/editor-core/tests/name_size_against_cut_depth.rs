@@ -135,7 +135,7 @@ fn split_chain() -> (ProfileDoc, Vec<RecipeNodeId>) {
         let (d, part) = insert(
             d,
             Node::Part {
-                of: split.into(),
+                of: editor_core::Operand::output(split, half.port()),
                 select: PartSelect::SplitHalf(half),
             },
         );

@@ -2429,6 +2429,7 @@ fn node_error_tags_are_the_published_words() {
         SeedPinnedSection => "seed_pinned_section",
         WrongOperand => "wrong_operand",
         UnresolvedRead => "unresolved_read",
+        UnresolvedSite => "unresolved_site",
         EmptyOperand => "empty_operand",
         ProductOperand => "product_operand",
         UnfinishedOperand => "unfinished_operand",
@@ -2973,6 +2974,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::AmbiguousOutput {
             input: sp(2),
             slot: SlotId::Operand(OperandSlot::Section(1)),
+            ports: vec!["above", "below"],
         },
         &["input", "slot", "index"],
     );
@@ -7887,8 +7889,8 @@ fn read_tag_table(source: &str) -> TagTable {
 ///
 /// **What it does NOT prove, which is the more interesting half.** An
 /// inventory pins the VOCABULARY, not the MAPPING. Swap two arms'
-/// literals — `WouldCycle` returns `"delete_would_dangle"` and
-/// `DeleteWouldDangle` returns `"would_cycle"` — and this test is
+/// literals — `WouldCycle` returns `"duplicate_input"` and
+/// `DuplicateInput` returns `"would_cycle"` — and this test is
 /// perfectly green: the set of words the file speaks did not change,
 /// only which refusal says which. That failure is caught by the
 /// CONSTRUCTION pins (`readback_refusal_tags_are_stable` and its

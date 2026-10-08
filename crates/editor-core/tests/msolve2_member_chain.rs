@@ -1383,7 +1383,7 @@ fn a3e_a_part_naming_a_split_half_stops_the_walk() {
     let (doc, part) = insert(
         doc,
         Node::Part {
-            of: pattern.into(),
+            of: editor_core::Operand::output(pattern, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
     );

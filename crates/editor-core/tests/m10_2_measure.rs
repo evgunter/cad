@@ -1512,7 +1512,7 @@ fn a_split_half_of_a_cusp_extrude_gathers() {
     let (doc, above) = mint(
         &doc,
         Node::Part {
-            of: split.into(),
+            of: editor_core::Operand::output(split, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
     );

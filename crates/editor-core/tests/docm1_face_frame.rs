@@ -452,7 +452,9 @@ fn name_of_key(
 
 fn face_frame_node(at: RecipeNodeId, face: StableName, spin: f64) -> AuthoredNode {
     Node::Datum(Datum::FaceFrame {
-        at: at.into(),
+        // Port 0: the body, whether `at` is a revolve (body and axis)
+        // or a node with one output.
+        at: editor_core::Operand::output(at, 0),
         face,
         spin: ang(spin),
     })

@@ -153,7 +153,7 @@ fn corpus() -> ProfileDoc {
     let (doc, _above) = insert(
         doc,
         Node::Part {
-            of: halves.into(),
+            of: editor_core::Operand::output(halves, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
     );

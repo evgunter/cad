@@ -400,7 +400,12 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             index: operand_index(slot),
             ..none
         },
-        EditError::AmbiguousOutput { input, slot } | EditError::DefinesNothing { input, slot } => {
+        EditError::AmbiguousOutput {
+            input,
+            slot,
+            ports: _,
+        }
+        | EditError::DefinesNothing { input, slot } => {
             EditPayload {
                 input: Some(input.id()),
                 slot: Some(slot_id_tag(slot)),

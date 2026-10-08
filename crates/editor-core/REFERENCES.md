@@ -318,16 +318,19 @@ ruled on PR 2677; the pairwise contact rule (#3200, built in PR 3213).*
 `Boolean { a: X, b: X }` and a union or loft list with a repeated member
 are refused. The rule is stated
 once, as a structural validity check on a node's inputs, and called by
-`InsertNode`, by `SetMembers` on the rewritten node, and by the load
+the edit doors' per-node checks — `InsertNode`, and `SetParam` at an
+operand and `SetMembers` on the rewritten node — and by the load
 validator (`persist/check.rs`, `validate_document`) on every node of a
-snapshot, so the three doors share the logic rather than mirror it. Replayed
+snapshot, so the doors share the logic rather than mirror it. Replayed
 edits meet it through `InsertNode`; the load validator is needed because a
 hand-written snapshot never passes an edit door. Refusal:
 `EditError::DuplicateInput { node, input }` at the edit doors, the
 validator's own `SnapshotError` arm at load.
 
-Distinctness is over the operations read, and only those: two outputs of
-one operation are that node reached twice. Two distinct nodes that
+Distinctness is over the variables read, and only those (D10: a read is
+of a variable): two outputs of one operation are two variables, so a
+union of a split's two halves, or a revolve's body patterned about its own
+axis port, is admitted. Two distinct nodes that
 evaluate to one body — two `Part`s selecting one half of a split, or
 `Part(Instance(0))` beside its master — meet DM5, and the boolean answers
 them as it answers any operands whose shells coincide by structure or by
@@ -341,9 +344,11 @@ result.
 A read changes only by an edit that names its new variable in full. An
 operand slot is written by the one slot door every slot has: the formula
 lowers to a read of the slot's kind (`SlotVarKind` otherwise), the read is
-live, and the rewritten node passes the checks the insert door and
-`SetMembers` already make of a node's reads (DM5's distinctness,
-acyclicity over reads). A list operand is the same door with a list. The
+live, and the rewritten node passes every check the insert door makes of
+a node — one function both doors call (`edit.rs`, `check_written_node`:
+DM5's distinctness, an assertion's bound against its measure's
+dimension, the slots' reads, the alignment and frame rules) — and
+acyclicity over reads. A list operand is the same door with a list. The
 write reports, and never refuses, the downstream names it strands, as DM7
 has a removal do; the N5 ladder diagnoses them and `Rebind` repairs them.
 No door picks a survivor: a delete leaves its readers unresolved and typed

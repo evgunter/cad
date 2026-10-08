@@ -854,6 +854,39 @@ fn the_insert_door_and_set_declare_refuse_a_name_or_site_that_is_not_live() {
             "{what}: expected the minted-before refusal, got {refused:?}"
         );
     }
+    // An EARLIER name the union does not read, sited at a member: the
+    // spare block precedes the union and feeds none of its members, so
+    // no member holds its wall. The read relation decides, not the
+    // order (D10), at the insert door and at `SetDeclare` alike.
+    let beside = editor_core::declare_continuation(vec![(
+        SitedRef::new(a, fname(a, wall(&doc, a, 0))),
+        SitedRef::new(b, fname(spare, wall(&doc, spare, 0))),
+    )]);
+    let inserted = doc.apply(
+        &DocEdit::InsertNode {
+            node: Box::new(Node::Union {
+                members: vec![a.into(), b.into()],
+                declare: beside.clone(),
+            }),
+            fresh: Vec::new(),
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    let set = live.apply(
+        &DocEdit::SetDeclare {
+            node: union,
+            pairs: beside,
+        },
+        Tol::witness(),
+        &editor_core::RefusingReach,
+    );
+    for (door, refused) in [("insert", inserted), ("SetDeclare", set)] {
+        assert!(
+            matches!(&refused, Err(EditError::DeclaredNameNotUpstream { name, .. }) if name.name().node == spare),
+            "{door}: a name minted beside the union is out of its reach, got {refused:?}"
+        );
+    }
 }
 
 /// **`SetDeclare` is asked of a live Boolean or Union only**: a node
@@ -1351,6 +1384,12 @@ fn a_pass_through_operand_is_the_site_and_the_minting_node_is_not() {
 
 /// **A name the sited operand does not carry refuses `Vanished`, and
 /// a dead minting node outranks it** — rungs 3 and 1 of N5.
+///
+/// A declaration names only what its node reads (D10), so the name is
+/// the third member's, sited at a member that does not carry it. Once
+/// the member list drops the third member — a re-point that reports the
+/// name out of reach, never refuses it — deleting that block is a
+/// delete nothing reads, and the name's minter is gone.
 #[test]
 fn a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
     let doc = ProfileDoc::empty_derived("rv_r2_rungs", Tol::witness());
@@ -1361,35 +1400,40 @@ fn a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
         SitedRef::new(a, fname(a, wall(&doc, a, 0))),
         SitedRef::new(b, fname(spare, wall(&doc, spare, 0))),
     )]);
-    let (doc, pair) = insert(
+    let (doc, union) = insert(
         doc,
-        Node::Boolean {
-            op: BooleanOp::Union,
-            a: a.into(),
-            b: b.into(),
+        Node::Union {
+            members: vec![a.into(), b.into(), spare.into()],
             declare: decl,
         },
     );
     let ev = run(&doc);
     assert!(
         matches!(
-            failure(&ev, pair),
+            failure(&ev, union),
             Some(NodeErrorKind::DeclareResolve { error, .. })
                 if matches!(**error, ResolveError::Vanished { .. })
         ),
         "expected rung 3, got {:?}",
-        failure(&ev, pair)
+        failure(&ev, union)
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetMembers {
+            node: union,
+            members: vec![a.into(), b.into()],
+        },
     );
     let (doc, _) = step(doc, DocEdit::DeleteNode { id: spare });
     let ev = run(&doc);
     assert!(
         matches!(
-            failure(&ev, pair),
+            failure(&ev, union),
             Some(NodeErrorKind::DeclareResolve { error, .. })
                 if matches!(**error, ResolveError::NodeGone { .. })
         ),
         "expected rung 1, got {:?}",
-        failure(&ev, pair)
+        failure(&ev, union)
     );
 }
 
@@ -1439,7 +1483,9 @@ fn rebind_moves_the_name_and_leaves_the_site() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, spare) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
     let pairs = flush_pairs(&doc, (a, a), (b, b));
-    let (doc, union) = declared_union(doc, &[a, b], pairs);
+    // The spare block is a member, so the name the rebind moves to is
+    // one the union reads (D10) — at a site that does not carry it.
+    let (doc, union) = declared_union(doc, &[a, b, spare], pairs);
     let ev = run(&doc);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let from = fname(a, wall(&doc, a, 0));

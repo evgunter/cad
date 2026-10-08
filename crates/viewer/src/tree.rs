@@ -1177,6 +1177,8 @@ fn repair_named(kind: &NodeErrorKind) -> Option<RecipeNodeId> {
         // An operand reads an output its operation no longer defines:
         // the repair is a re-point at the reading node itself.
         | NodeErrorKind::UnresolvedRead { .. }
+        // A measure's deleted site: the repair is at the measure.
+        | NodeErrorKind::UnresolvedSite { .. }
         | NodeErrorKind::EmptyOperand { .. }
         | NodeErrorKind::ProductOperand { .. }
         | NodeErrorKind::EmptyHalf { .. }

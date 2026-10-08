@@ -120,9 +120,12 @@ class EditError(PncadError):
       `measured`/`bound`). They are dimension words (`length`,
       `angle`, `count`, `scalar`), the same alphabet `Formula.dimension`
       answers in. A slot's kind refusal (`slot_var_kind`) spells them
-      as kinds: `found` the kind read, `expected` the kind its slot
-      takes (`length`, `body`, `profile`, ..., or `placeable`,
-      `measured`).
+      as kinds: `found` the kind of the variable read, `expected` the
+      kind its read takes (`length`, `body`, `profile`, ..., or
+      `placeable`, `measured`) — at an operand the slot's kind, at a
+      formula the leaf's: the slot's own at the root, and the leaf's
+      inside a function (`sin(w)` at a length slot reads `w` as an
+      angle).
     - `slot` is the slot's word; at an operand it is the field's
       (`profile`, `target`, `a`, `member`, ...), with `index` the
       position of a section or a member.
@@ -2799,8 +2802,9 @@ _AngleArg: TypeAlias = Var | Formula | WrittenAngle | Angle
 _ScalarArg: TypeAlias = Var | Formula | float
 _CountArg: TypeAlias = Var | Formula | int
 _Operand: TypeAlias = NodeId | Var
-"""What an operand takes: a node, read at its first output (a node with
-two outputs of one kind, a split, refuses `ambiguous_output`), or a
+"""What an operand takes: a node, read at its one output (a node with
+several, a revolve's body and axis or a split's two halves, refuses
+`ambiguous_output`: read its port with `Doc.output(node, port)`), or a
 variable — an output by `Doc.output`, or a named one. The slot admits
 one kind, and a read of another refuses `slot_var_kind`."""
 

@@ -3250,15 +3250,15 @@ pub(crate) enum DeclaredSideFault {
     /// The side is read at a node that is not one of the carrier's
     /// operands, so the carrier has no table to read its name in.
     SiteNotAnOperand,
-    /// The side's name is minted by the carrier itself, by a node
-    /// downstream of it, or by a node inserted after it that it does
-    /// not read — an entity the carrier's operands cannot hold.
+    /// The side's name is minted by a node the carrier does not read,
+    /// directly or through what it reads — an entity the carrier's
+    /// operands cannot hold.
     NameNotUpstream,
 }
 
-/// **The first side of `pairs` its carrier cannot carry**, and why:
-/// the one rule the insert door, `SetDeclare`, `Rebind` and the load
-/// door ask of a declared pair ([`DeclaredPair`]).
+/// **The first of `sides` its carrier cannot carry**, and why: the one
+/// rule the insert door, `SetDeclare`, `Rebind` and the load door ask of
+/// a declared pair's sides ([`DeclaredPair`], [`declared_sides`]).
 ///
 /// `operands` are the nodes whose outputs the carrier reads, or `None`
 /// where the sites are not this caller's to judge — the load door's,
@@ -3269,19 +3269,24 @@ pub(crate) enum DeclaredSideFault {
 /// rule's to judge: the doors that write a name refuse a dead minter
 /// before they ask this.
 pub(crate) fn declared_side_fault<'p>(
-    pairs: impl IntoIterator<Item = &'p DeclaredPair>,
+    sides: impl IntoIterator<Item = &'p SitedRef>,
     operands: Option<&[RecipeNodeId]>,
     upstream: impl Fn(RecipeNodeId) -> bool,
 ) -> Option<(&'p SitedRef, DeclaredSideFault)> {
-    pairs
-        .into_iter()
-        .flat_map(|((one, two), _)| [one, two])
-        .find_map(|side| {
-            if operands.is_some_and(|operands| !operands.contains(&side.at)) {
-                return Some((side, DeclaredSideFault::SiteNotAnOperand));
-            }
-            (!upstream(side.name.node)).then_some((side, DeclaredSideFault::NameNotUpstream))
-        })
+    sides.into_iter().find_map(|side| {
+        if operands.is_some_and(|operands| !operands.contains(&side.at)) {
+            return Some((side, DeclaredSideFault::SiteNotAnOperand));
+        }
+        (!upstream(side.name.node)).then_some((side, DeclaredSideFault::NameNotUpstream))
+    })
+}
+
+/// The sides of `pairs`, in order: each pair's first side, then its
+/// second.
+pub(crate) fn declared_sides<'p>(
+    pairs: impl IntoIterator<Item = &'p DeclaredPair>,
+) -> impl Iterator<Item = &'p SitedRef> {
+    pairs.into_iter().flat_map(|((one, two), _)| [one, two])
 }
 
 /// Declared pairs that each assert the CONFORMAL class.
@@ -3604,6 +3609,18 @@ impl<P> Node<P> {
         }
     }
 
+    /// **The half a part projection over a split selects**: `None` for
+    /// every other node.
+    pub(crate) fn selected_half(&self) -> Option<crate::SplitHalf> {
+        match self {
+            Node::Part {
+                select: crate::PartSelect::SplitHalf(half),
+                ..
+            } => Some(*half),
+            _ => None,
+        }
+    }
+
     /// **The nodes this node's measure sites are read at**, distinct
     /// and ascending: a measure's references are names read at a node,
     /// and reading is what the measure waits for, so these join its
@@ -3672,14 +3689,15 @@ impl<P> Node<P> {
     /// construction door establishes.
     ///
     /// Structural rules over the node's own content rather than a rule
-    /// per node kind, and ONE definition with three callers:
-    /// `InsertNode`,
-    /// [`crate::DocEdit::SetMembers`] on the rewritten node, and the
-    /// load door's `validate_document`. The two edit doors render it in
+    /// per node kind, and ONE definition with two callers: the edit
+    /// doors' per-node checks (`InsertNode`, and
+    /// [`crate::DocEdit::SetParam`] at an operand and
+    /// [`crate::DocEdit::SetMembers`] on the rewritten node), and the
+    /// load door's `validate_document`. The edit doors render it in
     /// [`crate::EditError`]'s vocabulary and the load door in
     /// `SnapshotError`'s, because a refusal names the door it came
     /// from — but the question is asked in exactly one place, which is
-    /// what stops the three from drifting.
+    /// what stops them from drifting.
     ///
     /// The order is deliberate. The list's floor answers first, so a
     /// one-entry list is reported as short rather than as whatever its
@@ -3693,16 +3711,17 @@ impl<P> Node<P> {
     /// EVERY node kind — not only the union, the list-input kinds and
     /// the boolean. That is wider than DM5's text, and deliberately:
     ///
-    /// - The duplicate clause is over the same input NODE: one node id
-    ///   at two seats of any kind. It is not a claim about the bodies
-    ///   those seats evaluate to. Two distinct nodes that evaluate to
-    ///   one body (two `Part`s of one split half) are admitted, and the
-    ///   boolean answers them (`A ∪ A = A`, `A − A` empty). The one kind
-    ///   that could plausibly want a repeat is
-    ///   [`Node::Measure`], and it does not: its edges come from the
-    ///   measurement's own node set, which DEDUPS before `inputs`
-    ///   returns, so a measurement over one body twice presents one
-    ///   edge here and is untouched by this rule.
+    /// - The duplicate clause is over the same VARIABLE: one variable
+    ///   read at two seats of any kind (D10: a read is of a variable).
+    ///   It is not a claim about the bodies those seats evaluate to,
+    ///   nor about the operations that define them: two outputs of one
+    ///   operation are two variables (a split's two halves in one
+    ///   union, a revolve's body patterned about its own axis), and two
+    ///   reads that evaluate to one body (two `Part`s of one split
+    ///   half) are admitted, the boolean answering them (`A ∪ A = A`,
+    ///   `A − A` empty). A measure's sited references are not reads
+    ///   ([`Node::measure_sites`]), so a measurement over one body
+    ///   twice is untouched by this rule.
     /// - The floor clause only ever fires where [`Node::list_input`]
     ///   answers `Some`, which is [`Node::Union`] and [`Node::Loft`].
     ///   For the loft this is NEW — a one-section loft was accepted
@@ -3719,14 +3738,7 @@ impl<P> Node<P> {
     ///   and there is nothing to generalize. What is general is that
     ///   each is asked HERE, so the form a construction door
     ///   establishes is the form every door admits.
-    ///
-    /// Distinctness is over the operations the reads name
-    /// (`operation_of`; a read it cannot place is its own key): two
-    /// outputs of one operation are one node reached twice.
-    pub fn input_fault(
-        &self,
-        operation_of: impl Fn(VarId) -> Option<RecipeNodeId>,
-    ) -> Option<InputFault>
+    pub fn input_fault(&self) -> Option<InputFault>
     where
         P: crate::ProfilePayload,
     {
@@ -3739,7 +3751,7 @@ impl<P> Node<P> {
         if let Some((_, input)) = self
             .operand_rows()
             .into_iter()
-            .find(|(_, input)| !seen.insert(operation_of(*input).ok_or(*input)))
+            .find(|(_, input)| !seen.insert(*input))
         {
             return Some(InputFault::Duplicate { input });
         }

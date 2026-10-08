@@ -311,7 +311,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
             insert(
                 doc,
                 Node::transform(
-                    ball,
+                    pncad::document::Operand::output(ball, 0),
                     pncad::document::Step::Rigid {
                         translation: p.centre.map(len),
                         axis: p.axis.map(scl),

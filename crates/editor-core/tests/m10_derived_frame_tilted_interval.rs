@@ -696,7 +696,7 @@ fn revolved(r: &mut Recorder, base: RecipeNodeId) -> RecipeNodeId {
         angle: ang(std::f64::consts::PI),
     });
     r.insert(Node::Datum(Datum::FaceFrame {
-        at: rev.into(),
+        at: editor_core::Operand::output(rev, 0),
         face: fixture::fname(rev, RoleSeg::RevolveCap(MeridianEnd::End)),
         spin: ang(0.0),
     }))
