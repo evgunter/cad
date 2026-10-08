@@ -2260,6 +2260,15 @@ FAMILIES: dict[str, str] = {
 #: to transliterate the parser's literal rule by hand.
 NOT_BOUND = {
     # --- different-shape ------------------------------------------
+    # An operation's output signature: Python reads an output by its
+    # port's index (`Doc.output(node, port)`), not by the port record;
+    # a signature refusal crosses as `PersistError.inner_variant`
+    # `output_signature` and its sentence, and the subgroup family is
+    # the value-free name of a `Subgroup.variant` Python already reads.
+    "OutputFault": SHAPE,
+    "OutputPort": SHAPE,
+    "PortKind": SHAPE,
+    "SubgroupFamily": SHAPE,
     "Affine3": SHAPE,
     "Applied": SHAPE,
     "Axis3": SHAPE,
