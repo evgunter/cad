@@ -4540,10 +4540,8 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
         Some(authored) => authored,
         None => {
             let lane_plane = frame_plane_lane(results, frame)?;
-            pinned_plane(&lane_plane).ok_or(NodeErrorKind::DerivedFrameSection {
-                profile: id,
-                frame,
-            })?
+            pinned_plane(&lane_plane)
+                .ok_or(NodeErrorKind::DerivedFrameSection { profile: id, frame })?
         }
     };
     let pre = prepare_profile(Some(plane), &resolved, &program.ids, tol)?;
@@ -4556,10 +4554,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // `Some` by construction: both arms above passed a placement.
     let place = pre
         .placement_f64
-        .ok_or(NodeErrorKind::DerivedFrameSection {
-            profile: id,
-            frame,
-        })?
+        .ok_or(NodeErrorKind::DerivedFrameSection { profile: id, frame })?
         .placement;
     // The REPLAYED loops in program order (LIB-U3), and the canonical
     // positions' names the skin's walls and seams are named by.

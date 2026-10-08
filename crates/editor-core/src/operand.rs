@@ -63,8 +63,8 @@ impl Operand {
 impl core::fmt::Display for Operand {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Node(node) => write!(f, "node {}", node.0),
-            Self::Output { node, port } => write!(f, "port {port} of node {}", node.0),
+            Self::Node(node) => write!(f, "node {node}"),
+            Self::Output { node, port } => write!(f, "port {port} of node {node}"),
             Self::Var(var) => write!(f, "{var}"),
             Self::Name(name) => write!(f, "{name}"),
         }
