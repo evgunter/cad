@@ -7,7 +7,7 @@ opened: 2026-09-25
 priority: P3
 cost: M
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 ## What
@@ -49,3 +49,7 @@ beyond the drive-by that found it (GERM torus doors, from
 ## Home
 
 TANG (`carrier_eq.rs`); `plane_eq.rs` is the planar twin.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the synthetic margins sit on the undeclared-coincidence refusal and ContactContradicted (plane_eq, carrier_eq), which become findings or retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

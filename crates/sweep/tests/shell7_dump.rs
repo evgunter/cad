@@ -112,7 +112,7 @@ fn direct(label: &str, body: &Body<f64>, t: f64) {
     let mut cavity = body.clone();
     let band = Band::linear(tol()).expect("band");
     match topo::offset_charts_together(&mut cavity, &hollow_moves(body, t), band, tol()) {
-        Ok(()) => dump(label, &cavity),
+        Ok(_) => dump(label, &cavity),
         Err(e) => println!("[dump] {label}: direct door Err {e}"),
     }
 }

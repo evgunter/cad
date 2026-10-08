@@ -4,6 +4,7 @@ kind: issue
 title: must_carry_over_edge answers UnderDetermined for an out-of-lane smooth join whose sagitta is in band, which tier 3 refuses SliverDihedral
 status: open
 opened: 2026-10-02
+priority: P3
 ---
 
 ## Finding (FUSE's sweep for the boolean rebuild's second-order fold)

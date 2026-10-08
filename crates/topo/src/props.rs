@@ -966,7 +966,7 @@ pub(crate) enum Certified {
 /// refusal reports: it carries the valued margin a caller can act on,
 /// where the interval's carries an enclosure. A walk holding no lane has
 /// no re-derivation, and its sums decide
-/// (`work/reach/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
+/// (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
 pub(crate) fn certify_role<T: Decide>(
     reading: SignReading<T>,
     interval: impl Fn(bool) -> Option<Result<(SignReading<Interval>, bool), MassPropsError>>,
@@ -2818,7 +2818,7 @@ pub fn classify_shells<T: Decide + geom_core::CertifiedBounds>(
 /// ([`ShellClassifyError::Props`]). A closed-form shell's role is read
 /// off the walk's own sums, so at a rounding scalar a shell whose volume
 /// is below that rounding can read a role the certified door refuses
-/// (`work/reach/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
+/// (`work/tally/lane-free-volume-sign-reads-decide-on-a-rounded-sum`).
 ///
 /// # Errors
 ///

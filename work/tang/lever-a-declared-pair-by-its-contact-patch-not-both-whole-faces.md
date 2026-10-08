@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P2
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -39,3 +39,7 @@ to the boundary points inside it. This changes which faces' extent a
 verdict is read over, so the declared rows (`rest::lever_rows`,
 `contact9_side_codes`' wedge rows) need re-measuring with it. Filed
 from the fix pass of PR 3795 (item 6b).
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the fix site is the declared Rest door (carrier_eq::declared_reading, rest::pair_extent), retired with declared pairs at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

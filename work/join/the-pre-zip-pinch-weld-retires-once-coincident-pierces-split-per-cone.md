@@ -7,7 +7,7 @@ opened: 2026-10-06
 priority: P1
 cost: H
 refs: [a-pinch-no-kept-face-can-cross-refuses, a-hole-weld-cannot-tell-a-figure-eight-hole-from-an-island-face]
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -79,3 +79,7 @@ naming both copies: declared contact, held ground under D10. The per-cone
 minting itself is taken up undeclared by
 `a-vertex-two-crossing-pairs-cut-is-the-in-end-of-one-null-edge-and-the-out-end-of-another`
 (a split per cone at insertion); this row resumes from there when D10 lifts.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the weld cannot retire until the declared union_flush_onto_edge_contact rows' contact records name both copies, which stage 4 rewrites at the one door. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

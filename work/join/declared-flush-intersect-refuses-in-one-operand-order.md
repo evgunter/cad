@@ -2,11 +2,10 @@
 id: declared-flush-intersect-refuses-in-one-operand-order
 kind: issue
 title: A declared flush intersect refuses JoinDesync (every chord arc separates a loose scaffolding pair) in one operand order and builds in the other
-status: parked
+status: open
 opened: 2026-10-02
 priority: P2
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 ## What
@@ -94,3 +93,6 @@ On JOIN-1's branch, `(H∩T)∩C` builds at V = 11/4, and the tour's `silhouette
 
 `Z∩A` builds too, at the exact 38627/14336, and the `az` wall 1 retired for it: `az.rs` checks that order's volume. Both live witnesses now build. I did not re-measure `(H∩C)∩T`, the one nesting left unchecked, so the issue stays open until someone measures it.
 
+## Released from the D10 hold (2026-10-08)
+
+Nothing D10 changes gates this row, so it is open: JOIN-1 built both witnesses; the open step is measuring (H∩C)∩T on main, and the join.rs JoinDesync arm survives D10. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)
