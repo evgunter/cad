@@ -146,7 +146,7 @@ where
         DocEdit::SetParam {
             node: tr,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(2.5),
+            value: len(2.5).into(),
             fresh: Vec::new(),
         },
     );

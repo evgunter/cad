@@ -64,6 +64,13 @@ Re-parked on `the-product-is-an-explicit-list` (INTENT stage 2 PR C,
 `docs/INTENT-STAGE2-SPEC.md` §4): the explicit list keeps the measured part
 whatever reads it, and test 7 is this row's acceptance.
 
+## Stage 5 slicing (2026-10-08)
+
+Stage 5's quieting rule depends on this row's case: an assertion quiets
+an at-rest finding only when its measure reads the placed copies, so a
+measured part must stay placed (`docs/INTENT-STAGE5-SPEC.md` §9). No
+stage-5 work.
+
 ## Closed
 
 By INTENT stage 2 unit C (`the-product-is-an-explicit-list`, branch

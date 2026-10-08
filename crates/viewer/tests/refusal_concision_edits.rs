@@ -206,35 +206,22 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "OperandUnresolved",
             EditError::OperandUnresolved {
                 node: s(5, "Extrude"),
-                slot: pncad::document::OperandSlot::Profile,
+                slot: SlotId::Operand(pncad::document::OperandSlot::Profile),
                 read: pncad::document::Operand::Node(s(3, "Profile").id()),
-            },
-        ),
-        (
-            "OperandVarKind",
-            EditError::OperandVarKind {
-                var: Box::new(pncad::document::SpokenVar::new(
-                    pncad::document::VarId::new(0, tagged(8)),
-                    None,
-                )),
-                node: s(5, "Extrude"),
-                slot: pncad::document::OperandSlot::Profile,
-                found: pncad::document::VarKind::Body,
-                expected: pncad::document::OperandKind::Is(pncad::document::VarKind::Profile),
             },
         ),
         (
             "AmbiguousOutput",
             EditError::AmbiguousOutput {
                 input: s(3, "Split"),
-                slot: pncad::document::OperandSlot::A,
+                slot: SlotId::Operand(pncad::document::OperandSlot::A),
             },
         ),
         (
             "DefinesNothing",
             EditError::DefinesNothing {
                 input: s(3, "Assertion"),
-                slot: pncad::document::OperandSlot::Target,
+                slot: SlotId::Operand(pncad::document::OperandSlot::Target),
             },
         ),
         (
@@ -249,13 +236,6 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             },
         ),
         (
-            "UnknownOperand",
-            EditError::UnknownOperand {
-                node: s(5, "Extrude"),
-                slot: pncad::document::OperandSlot::Tool,
-            },
-        ),
-        (
             "UnknownSlot",
             EditError::UnknownSlot {
                 id: s(5, "Extrude"),
@@ -266,7 +246,7 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
             "SlotDimensionMismatch",
             EditError::SlotDimensionMismatch {
                 slot: SlotId::Distance,
-                expected: Dimension::Length,
+                expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Length),
                 found: Dimension::Angle,
             },
         ),
@@ -296,8 +276,8 @@ fn edit_refusals() -> Vec<(&'static str, EditError)> {
                 var: Box::new(spoken_var()),
                 node: s(5, "Extrude"),
                 slot: SlotId::Distance,
-                declared: pncad::document::VarKind::Angle,
-                referenced: Dimension::Length,
+                found: pncad::document::VarKind::Angle,
+                expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Length),
             },
         ),
         (

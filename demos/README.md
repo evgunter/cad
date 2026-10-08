@@ -104,7 +104,7 @@ study's document never subtracts its holes: it reads the web off the hole
 extrudes. The cut plate places its cut part and has it as its product, but it
 is a live wall: the certified drive certifies no box of it, because its
 subtract volume bound is a tie
-(`work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`).
+(`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`).
 `chain.pncad` places its four bars and five pins, nine copies of two extrudes;
 the check registry reports separation findings over them, because no mate
 declares a joint.

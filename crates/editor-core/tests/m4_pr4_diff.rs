@@ -113,7 +113,7 @@ fn slide_to(s: &Slide, tx: f64) -> ProfileDoc {
         DocEdit::SetParam {
             node: s.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(tx),
+            value: len(tx).into(),
             fresh: Vec::new(),
         },
     );
@@ -240,7 +240,7 @@ fn failure_transitions_surface_as_status_rows() {
         DocEdit::SetParam {
             node: plane,
             slot: SlotId::Normal(editor_core::Axis3::Z),
-            expr: scl(0.0),
+            value: scl(0.0).into(),
             fresh: Vec::new(),
         },
     );

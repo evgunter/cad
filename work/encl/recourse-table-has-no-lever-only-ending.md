@@ -4,6 +4,7 @@ kind: issue
 title: geom_brep::recourse has no lever-only ending or undecided-refusal shape, so each consumer spells both itself
 status: open
 opened: 2026-10-01
+priority: P3
 ---
 
 

@@ -94,7 +94,7 @@ fn assertion(measure: RecipeNodeId, bound: Formula) -> AuthoredNode {
 
 /// **The reference is not a measure — both doors.** The measure slot
 /// reads a measured value, so the edit door refuses the frame's
-/// output by kind (`OperandVarKind`), and the load door names it
+/// output by kind (`SlotVarKind`), and the load door names it
 /// `SnapshotError::AssertionTarget`, because a reader should not have
 /// to decode an absent dimension to learn which of the two assertion
 /// faults happened.
@@ -114,10 +114,10 @@ fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::OperandVarKind {
-            slot: editor_core::OperandSlot::Measure,
+        Err(EditError::SlotVarKind {
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Measure),
             found: editor_core::VarKind::Frame,
-            expected: editor_core::OperandKind::Measured,
+            expected: editor_core::SlotKind::Measured,
             ..
         }) => {}
         other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),
@@ -129,10 +129,10 @@ fn an_assertion_over_a_non_measure_is_refused_at_both_doors() {
     let read = |node| doc.output(node, 0).expect("the node defines a value");
     let corrupt = repoint_measure(&text, id, read(measure), read(frame_node));
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::OperandVarKind {
-            slot: editor_core::OperandSlot::Measure,
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Measure),
             found: editor_core::VarKind::Frame,
-            expected: editor_core::OperandKind::Measured,
+            expected: editor_core::SlotKind::Measured,
             ..
         })) => {}
         other => panic!("a non-measure target must refuse typed at load, got {other:?}"),

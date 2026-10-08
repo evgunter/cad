@@ -329,8 +329,8 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
                 DocEdit::InsertNode { node, .. } if matches!(**node, Node::PlaceInWorld { .. })
             ) || matches!(
                 edit,
-                DocEdit::SetOperand {
-                    slot: pncad::document::OperandSlot::Body,
+                DocEdit::SetParam {
+                    slot: pncad::document::SlotId::Operand(pncad::document::OperandSlot::Body),
                     ..
                 } | DocEdit::DeleteNode { .. }
             ),

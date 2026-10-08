@@ -626,7 +626,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
 /// The expression a node SLOT takes, refused at the door when its
 /// dimension is not the slot's.
 ///
-/// The dimension a slot requires is [`d::SlotId::dimension`] — the
+/// The dimension a slot requires is [`d::SlotId::expr_dimension`] — the
 /// kernel's own table, read rather than restated — and the refusal is
 /// the kernel's own `EditError`, the one `apply` raises for the same
 /// expression in the same slot. So an angle handed to a length slot
@@ -637,7 +637,7 @@ pub(crate) fn slot_expr(
     slot: d::SlotId,
     expr: &super::expr::SlotArg,
 ) -> PyResult<d::Formula> {
-    let expected = slot.dimension();
+    let expected = slot.expr_dimension();
     let formula = expr.formula(py, expected)?;
     let found = formula.dim();
     if found == expected {
@@ -647,7 +647,7 @@ pub(crate) fn slot_expr(
         py,
         &d::EditError::SlotDimensionMismatch {
             slot,
-            expected,
+            expected: slot.kind(),
             found,
         },
     ))
@@ -783,8 +783,8 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
         return Ok(slot);
     }
     Err(pyo3::exceptions::PyValueError::new_err(
-        if word == "profile" {
-            "`profile` addresses one expression inside a profile program, and the rest of \
+        if word == "program" {
+            "`program` addresses one expression inside a profile program, and the rest of \
          that address — a loop index, a step index and which argument — is not carried \
          by the word: a profile's numbers are re-authored, not edited at a slot"
                 .to_owned()
@@ -793,6 +793,11 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
          placement, and the rest of that address — the step index and which component — \
          is an integer the word does not carry, so no slot word here writes at it"
                 .to_owned()
+        } else if word == "section" || word == "member" {
+            format!(
+                "`{word}` addresses one entry of a list a node reads, and its position is not \
+             carried by the word: `DocEdit.set_members` writes the list whole"
+            )
         } else if word == "mate_frame_step" {
             "`mate_frame_step` addresses one expression of a mate side's frame offset, and the \
          rest of that address — the side, the step index and which component — is not \
@@ -823,6 +828,17 @@ pub(crate) fn seam(
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct NodeId(pub(crate) d::RecipeNodeId);
+
+/// **What `DocEdit.set_param` writes**: a node, read through its
+/// output, or anything a slot argument is — a variable, a formula, a
+/// value.
+#[derive(FromPyObject)]
+pub(crate) enum SlotValueArg {
+    /// A node, read through its output in the slot.
+    Node(NodeId),
+    /// A variable, a formula or a value.
+    Slot(super::expr::SlotArg),
+}
 
 /// **An operand as Python writes it**: a node, read at its first output
 /// (a node with two outputs of one kind refuses `ambiguous_output`), or
@@ -4214,25 +4230,41 @@ impl DocEdit {
     /// than quietly crossing the divide the edit vocabulary keeps
     /// unlosable. The `bind_*_param` trio is where they are edited.
     ///
+    /// **An operand is a slot too** (D10, one door): at an operand's
+    /// word — an extrude's `profile`, a boolean's `a`, a transform's
+    /// `input` — the value is a read, a `NodeId` (its output in that
+    /// seat) or a `Var`, and the node reads it from then on. At a
+    /// scalar slot a node is read through its output, as a `Var` is.
+    ///
     /// Refuses typed on `EditError`: `unknown_node`, `unknown_slot`
     /// for a slot this node does not carry (naming the slot it
     /// lacks), `slot_dimension_mismatch` for an expression of the
-    /// wrong dimension (carrying the required and offered pair), and
-    /// `slot_unknown_var_name` / `slot_var_kind` for a
-    /// parameter reference the document does not answer.
+    /// wrong dimension, or any expression at an operand (carrying the
+    /// required and offered pair), and `slot_unknown_var_name` /
+    /// `slot_var_kind` for a read the slot does not take; at an operand
+    /// also `operand_unresolved`, `ambiguous_output`,
+    /// `defines_nothing`, `would_cycle` and `duplicate_input`.
     #[staticmethod]
-    fn set_param(
-        py: Python<'_>,
-        node: &NodeId,
-        slot: &str,
-        expr: super::expr::SlotArg,
-    ) -> PyResult<Self> {
+    fn set_param(py: Python<'_>, node: &NodeId, slot: &str, value: SlotValueArg) -> PyResult<Self> {
         let slot = slot_from_text(slot)?;
+        let value = match (value, slot.dimension()) {
+            (SlotValueArg::Node(node), _) => d::SlotValue::Read(d::Operand::Node(node.0)),
+            (SlotValueArg::Slot(super::expr::SlotArg::Var(var)), None) => {
+                d::SlotValue::Read(d::Operand::Var(var.0))
+            }
+            (SlotValueArg::Slot(arg), Some(dim)) => d::SlotValue::Formula(arg.formula(py, dim)?),
+            // An expression at an operand is the kernel's refusal to
+            // make, with the dimension it was offered: written at its
+            // own dimension, a variable's read at its kind's.
+            (SlotValueArg::Slot(arg), None) => {
+                d::SlotValue::Formula(arg.formula(py, arg.own_dimension())?)
+            }
+        };
         Ok(Self {
             inner: d::DocEdit::SetParam {
                 node: node.0,
                 slot,
-                expr: expr.formula(py, slot.dimension())?,
+                value,
                 fresh: Vec::new(),
             },
         })

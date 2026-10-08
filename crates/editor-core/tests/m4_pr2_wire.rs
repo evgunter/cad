@@ -251,9 +251,9 @@ fn linear_pattern_evaluates_instances_as_data() {
     assert!(
         matches!(
             refusal,
-            editor_core::EditError::OperandVarKind {
+            editor_core::EditError::SlotVarKind {
                 found: editor_core::VarKind::Bodies,
-                expected: editor_core::OperandKind::Is(editor_core::VarKind::Body),
+                expected: editor_core::SlotKind::Is(editor_core::VarKind::Body),
                 ..
             }
         ),

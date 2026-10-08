@@ -246,7 +246,7 @@ fn die_authors_replays_and_diffs() {
             &TEdit::SetParam {
                 node: die.pip_extrude,
                 slot: SlotId::Distance,
-                expr: len(0.003),
+                value: len(0.003).into(),
                 fresh: Vec::new(),
             },
             Tol::witness(),

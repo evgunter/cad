@@ -6,7 +6,7 @@ status: closed
 opened: 2026-10-01
 priority: P0
 cost: M
-refs: [cosurface-disjoint-curved-walls-refuse]
+refs: [3657]
 closed: 2026-10-01
 ---
 
@@ -63,4 +63,4 @@ shipped as a disc beside an annulus. Declared as continuations, the
 discs now merge into the top face (`m9_3_zip`'s ring count went from 2
 to 0). The curved half of the row's last paragraph (a gate arm for
 curved cosurface adjacency) is filed as
-`work/reach/maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip.md`.
+`work/reachhold/maximal-faces-curved-arm-cannot-tell-a-licensed-curved-skip.md`.

@@ -117,12 +117,13 @@ class EditError(PncadError):
       kernel gives them (`expected`/`found`, `declared`/`referenced`,
       `measured`/`bound`). They are dimension words (`length`,
       `angle`, `count`, `scalar`), the same alphabet `Formula.dimension`
-      answers in. An operand refusal (`operand_var_kind`) spells them
+      answers in. A slot's kind refusal (`slot_var_kind`) spells them
       as kinds: `found` the kind read, `expected` the kind its slot
-      admits (`body`, `profile`, ..., or `placeable`, `measured`).
-    - `slot` is an operand's word at an operand refusal (`profile`,
-      `target`, `a`, `member`, ...), with `index` the position of a
-      section or a member.
+      takes (`length`, `body`, `profile`, ..., or `placeable`,
+      `measured`).
+    - `slot` is the slot's word; at an operand it is the field's
+      (`profile`, `target`, `a`, `member`, ...), with `index` the
+      position of a section or a member.
     - `count` is how many entries a short list would have had. It is
       NOT `found`: a count and a dimension are two types, and one
       attribute carries one.
@@ -2814,7 +2815,7 @@ _Operand: TypeAlias = NodeId | Var
 """What an operand takes: a node, read at its first output (a node with
 two outputs of one kind, a split, refuses `ambiguous_output`), or a
 variable — an output by `Doc.output`, or a named one. The slot admits
-one kind, and a read of another refuses `operand_var_kind`."""
+one kind, and a read of another refuses `slot_var_kind`."""
 
 class Formula:
     """A dimension-checked expression — the recipe's arithmetic, as a
@@ -3456,7 +3457,7 @@ class DocEdit:
         for a name not minted before `node`."""
 
     @staticmethod
-    def set_param(node: NodeId, slot: str, expr: _SlotArg) -> DocEdit:
+    def set_param(node: NodeId, slot: str, value: _SlotArg | NodeId) -> DocEdit:
         """Replace a CONTINUOUS slot's expression on a live node — an
         extrude's `distance`, a fillet's `radius`, a revolve's
         `revolve_angle` — after the constructor that minted it.
@@ -3474,11 +3475,20 @@ class DocEdit:
         `stations`) refuse `structural_slot_needs_structural_edit`
         here; the `bind_*_param` trio is where they are edited.
 
+        An operand is a slot too: at an operand's word (`profile`,
+        `target`, `a`, `input`, ...) the value is a read — a `NodeId`,
+        read at its output in that seat, or a `Var` — and the node reads
+        it from then on. A loft's `section` and a union's `member` carry
+        a position the word does not; `set_members` writes those lists
+        whole.
+
         Refuses typed: `unknown_node`, `unknown_slot` naming the slot
-        the node lacks, `slot_dimension_mismatch` carrying the
-        required and offered dimensions, and `slot_unknown_var_name` /
-        `slot_var_kind` for a parameter reference the
-        document does not answer."""
+        the node lacks, `slot_dimension_mismatch` carrying what the
+        slot takes and the offered dimension (an expression at an
+        operand among them), and `slot_unknown_var_name` /
+        `slot_var_kind` for a read the slot does not take; at an
+        operand also `operand_unresolved`, `ambiguous_output`,
+        `defines_nothing`, `would_cycle` and `duplicate_input`."""
 
     @staticmethod
     def set_tolerance(eps: float) -> DocEdit: ...

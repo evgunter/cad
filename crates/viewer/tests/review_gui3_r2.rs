@@ -372,7 +372,7 @@ fn a_replayed_history_undoes_one_logged_edit_at_a_time() {
         .map(|v| DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: len(v),
+            value: len(v).into(),
             fresh: Vec::new(),
         })
         .collect();

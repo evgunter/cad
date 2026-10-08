@@ -161,7 +161,7 @@ fn a_flip_against_a_wall_no_piece_borders_renames_no_piece() {
         DocEdit::SetParam {
             node: f.transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(1.25),
+            value: len(1.25).into(),
             fresh: Vec::new(),
         },
     );
@@ -236,7 +236,7 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
         DocEdit::SetParam {
             node: transform,
             slot: SlotId::Translation(editor_core::Axis3::X),
-            expr: len(0.5),
+            value: len(0.5).into(),
             fresh: Vec::new(),
         },
     );

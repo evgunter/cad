@@ -1434,7 +1434,7 @@ impl core::fmt::Display for InlineError {
                     f,
                     ". {}",
                     Recourse(&format!(
-                        "re-point {reader} at one body (SetOperand), then inline"
+                        "re-point {reader} at one body (SetParam), then inline"
                     ))
                 )
             }
@@ -1770,11 +1770,9 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::StepIdsRefused { .. }
             | EditError::TooFewMembers { .. }
             | EditError::OperandUnresolved { .. }
-            | EditError::OperandVarKind { .. }
             | EditError::AmbiguousOutput { .. }
             | EditError::DefinesNothing { .. }
             | EditError::PartHalfPort { .. }
-            | EditError::UnknownOperand { .. }
             | EditError::UnknownSlot { .. }
             | EditError::SlotDimensionMismatch { .. }
             | EditError::StructuralSlotNeedsStructuralEdit { .. }
@@ -3286,7 +3284,7 @@ pub fn split(
             RemapMiss::Read { slot, var } => SplitError::PartEdit {
                 error: Box::new(EditError::OperandUnresolved {
                     node: doc.spoken(old),
-                    slot,
+                    slot: crate::SlotId::Operand(slot),
                     read: crate::Operand::Var(var),
                 }),
             },
@@ -3519,10 +3517,11 @@ pub fn split(
     for &(node, slot) in &crossing_reads {
         rem_apply(
             &mut remainder,
-            DocEdit::SetOperand {
+            DocEdit::SetParam {
                 node,
-                slot,
-                read: crate::Operand::Var(instance_body),
+                slot: crate::SlotId::Operand(slot),
+                value: crate::SlotValue::Read(crate::Operand::Var(instance_body)),
+                fresh: Vec::new(),
             },
         )?;
     }
@@ -4124,7 +4123,7 @@ pub fn inline(
             RemapMiss::Read { slot, var } => InlineError::Edit {
                 error: Box::new(EditError::OperandUnresolved {
                     node: part.spoken(old),
-                    slot,
+                    slot: crate::SlotId::Operand(slot),
                     read: crate::Operand::Var(var),
                 }),
             },
@@ -4244,20 +4243,22 @@ pub fn inline(
         for &(node, slot) in &readers {
             step(
                 &mut current,
-                DocEdit::SetOperand {
+                DocEdit::SetParam {
                     node,
-                    slot,
-                    read: crate::Operand::Var(heir),
+                    slot: crate::SlotId::Operand(slot),
+                    value: crate::SlotValue::Read(crate::Operand::Var(heir)),
+                    fresh: Vec::new(),
                 },
             )?;
         }
         for &placement in &posed {
             step(
                 &mut current,
-                DocEdit::SetOperand {
+                DocEdit::SetParam {
                     node: placement,
-                    slot: crate::OperandSlot::Body,
-                    read: crate::Operand::Var(heir),
+                    slot: crate::SlotId::Operand(crate::OperandSlot::Body),
+                    value: crate::SlotValue::Read(crate::Operand::Var(heir)),
+                    fresh: Vec::new(),
                 },
             )?;
         }

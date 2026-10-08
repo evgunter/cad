@@ -1104,7 +1104,7 @@ fn row5_e_a_pin_move_that_changes_the_contact_geometry_is_caught_at_rest() {
         DocEdit::SetParam {
             node: body,
             slot: editor_core::SlotId::Distance,
-            expr: len(0.5),
+            value: len(0.5).into(),
             fresh: Vec::new(),
         },
     );

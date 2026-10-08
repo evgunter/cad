@@ -4855,7 +4855,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         self.assertEqual(evaluate(doc).value(family).kind, "instances")
         with self.assertRaises(EditError) as plural_caught:
             doc.insert(Node.boolean(BooleanOp.Union, family, other))
-        self.assertEqual(plural_caught.exception.variant, "operand_var_kind")
+        self.assertEqual(plural_caught.exception.variant, "slot_var_kind")
 
         # ...and a Part of it does not: one instance, one body, one
         # ordinary operand. The middle copy stands at x in [4, 5], and

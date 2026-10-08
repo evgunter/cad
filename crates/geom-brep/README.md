@@ -259,7 +259,7 @@ wall's image, or the door refuses (`SsiError::WindowShortOfWall`), so a
 march ends only at the knot rectangle. The ℝ³ lane still ends an open
 branch at the caller's slab by its boundary search
 (`ssi_branch_open_end`), and the slab is not
-geometry (`work/ssi/ssi-r3-slab-is-not-geometry.md`). Neither candidate
+geometry (`work/ssiedge/ssi-r3-slab-is-not-geometry.md`). Neither candidate
 is trusted, its pairing of crossings included: the certificate decides
 each on the chart lane, so limb 3 proves its tube one arc in the knot
 rectangle, and a cubic to another branch's crossing either leaves the
@@ -290,7 +290,8 @@ may be long and the step is the short quantity, and the refusal is the
 step's (`SsiError::MarchStepInBand`), carrying the Hermite's, its
 levers the bend and the tolerance below which the step clears the
 band. The extent sizes no realized
-step; it is the lever arm's clamp, the seeding floor and the tube
+step; it is the point decisions' clamp, the region decisions' lever,
+the seeding floor and the tube
 ladder's widest rung.
 Exhaustiveness is an in-op obligation (`ssi/exhaust.rs`): every cell of
 the bounded domain is *excluded* (an implicit residual bounded away from
@@ -317,14 +318,21 @@ The op does not return until every branch is found or it refuses; the
 subdivision doubles as the seed generator, so finding never depends on
 luck. Closure of a trace and loop
 topology are named trileans on parameter-space distances. Near-tangential
-configurations refuse toward C7, each candidate by what it reads: a
-marched branch by the transversality decision at every state, `sin θ`
-levered by the smaller of the operands' lever arm (on a wall, its
-chart's) and the extent; a Hermite branch by that decision at its two
-ends, and between them by limb 3's tube, whose clearance is levered by
-the extent alone. The levers differ where a wall's chart bends and its
-surface does not
-(`work/ssi/ssi-transversality-at-a-point-is-spelled-three-ways.md`).
+configurations refuse toward C7, each decision by what it reads. A
+decision at a point reads `sin θ · min(ρ, E)`, its arm from
+`ssi::point_arm`: `E` the extent, and `ρ` the reciprocal of the larger
+principal curvature of either surface there, read on the plane × NURBS
+lane from each chart's first and second fundamental forms
+(`shape_operator`) and on the ℝ³ lane from each implicit form's
+Hessian (`implicit_max_normal_curvature`), a plane's being zero; no
+chart's parameter lines enter it. The point decisions are the march's
+states, a Hermite candidate's two ends and refinement's unsettled chord
+midpoint, which refuse `SsiError::TransversalityBand`, and the at-rest
+per-sample check in `plane_nurbs_limbs`, which refuses
+`PlaneNurbsRefusal::NotTransverse`; each names which of `ρ` and `E`
+its arm was (`PointLever`). A decision over a region (the boundary
+strip, and limb 3's tube on both lanes) reads the certified least
+`sin θ` over it, levered by `E` alone.
 Hoffmann §6.5's tracing through singular points is deliberately not
 adopted. Subdivision is recursive bisection with a linear scan over
 tubes; the C10 tree is not wired in.

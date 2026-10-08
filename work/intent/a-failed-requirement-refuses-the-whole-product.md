@@ -29,6 +29,14 @@ Re-parked on `the-product-is-an-explicit-list` (INTENT stage 2 PR C,
 variables, so a failing check cannot reach it. Stage 5's assertions do not
 change that acceptance.
 
+## Stage 5 slicing (2026-10-08)
+
+Stage 5 (`docs/INTENT-STAGE5-SPEC.md` §9) adds the first at-rest reader
+of an assertion: the quieting rule. It reads only the verdict, and a
+failed or poisoned assertion quiets nothing and refuses nothing, so this
+row's acceptance holds through stage 5 (spec test 10). Nothing here moves
+the row's trigger.
+
 ## Closed
 
 By INTENT stage 2 unit C (`the-product-is-an-explicit-list`, branch

@@ -46,7 +46,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: d.pz_extrude,
             slot: SlotId::Distance,
-            expr: len(0.1875),
+            value: len(0.1875).into(),
             fresh: Vec::new(),
         },
         bump_root: d.pz_extrude,

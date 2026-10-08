@@ -1205,6 +1205,13 @@ Signed (JOIN orchestrator).
 
 Signed (JOIN orchestrator).
 
+## 2026-10-08: Ev ruled on readout 3
+
+- **Ev's ruling (PR 4283).** Continue the protocol unchanged.
+  - The next M-tier miss owes a short FYI readout.
+  - The next full readout comes at twenty M-tier units or at two more M-tier misses.
+- **Where it is recorded.** Rule 9 of `docs/DUAL-REVIEW-PROTOCOL.md`, and a dated note in `docs/DUAL-REVIEW-LOG.md`.
+- **Tracker.** PR 4283 is closed unmerged (rule 10). `the-dual-review-streams-third-readout-is-owed` keeps `needs_ev` until Ev signs off the rule-9 wording.
 ## 2026-10-08: the strut-side unit landed
 
 - **PR 4294 merged** (orchestrator read, single review; CI green after a base merge cleared a network failure in `corrupt input`).
@@ -1212,5 +1219,24 @@ Signed (JOIN orchestrator).
   - Every row that accepted any `JoinDesync` now pins the `what` it expects. The graft door's caller errors are filed as `graft-door-caller-errors-are-join-desync`.
 - `strut-side-follows-facing-is-spelled-three-times` and `rows-pin-join-desync-without-its-what` are closed.
 - **Readout 3's ruling** waits on Ev's sign-off of the rule-9 wording in PR 4298.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-08: two H units dispatched
+
+- **Ev (chat):** start the H units. There is usage headroom for a good handful.
+- **In flight:**
+  - `a-plane-across-a-one-face-wall-meets-its-wrap-edge-once` (P1 H), branch `join/wrap-edge-section-loop`. A one-site section loop on a wrap edge joins as one chord around the whole conic. Not coincidence, so not held by D10. It unblocks PATHS unit 4 (`circle-lowers-to-one-segment`).
+  - `a-sphere-crossing-a-sphere-face-off-every-edge-refuses-spheres-meet` (P1 H), branch `join/sphere-pair-whole-circle`. A transverse sphere-pair circle that no edge reaches lands as a ring on both faces. The FLUX ringed-sphere gate may still stop some operations.
+- **Review tier:** both are H, so each gets a concurrent dual (rule 1).
+- **Designer pair** (Ev, chat: use the whole remaining usage): the join for a section that lies in no plane. That covers `cylinder-sphere-germ-pair-has-no-join-lane`, and through it the skew-cylinder and torus rows. The blinding record is on `analysis/design-fork/nonplanar-section-lane`.
+- **Three more lanes:**
+  - `near-tangent-boolean-results-ship-with-an-escalated-tier-3-census` (P0 H), measurement first, on `join/near-tangent-census-measure`. It reads, per census predicate, whether the undecided pair is a real sliver or a margin too coarse. A design pass follows.
+  - `a-run-holding-another-whole-is-spelled-three-ways-in-insert` and `a-vertex-orbits-position-has-one-comparator-but-no-fixed-origin` (P3 M), as one unit on `join/insert-one-walk-order`: one fixed-origin order on an orbit. Rule-1 arm: byte 19, mod 3 = 1, SEQUENTIAL.
+  - `join1-delta-probes-keep-their-own-outcome` and `vertices-at-misses-an-edge-split-ulps-off-the-pierce-point` (E), as one unit on `join/battery-hygiene`, read by the orchestrator.
+- **Held:**
+  - the `join.rs` E rows (steep-ellipse margin, completed null faces, forced-order lanes, in-band axis offset), until the wrap-edge unit lands, to avoid conflicts;
+  - `a-curved-face-at-a-shared-pinch-vertex-...`, which is a curved-census and containment question;
+  - `the-pre-zip-pinch-weld-retires-once-coincident-pierces-split-per-cone`, on D10.
 
 Signed (JOIN orchestrator).

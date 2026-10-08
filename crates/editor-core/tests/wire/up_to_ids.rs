@@ -65,6 +65,30 @@ pub fn reads_as_inputs(doc: &Value) -> Value {
     reads_as_inputs_by(doc, doc)
 }
 
+/// **A pre-B edit log in the one slot door's spelling** (Q1): every
+/// `SetParam`'s `expr: F` as `value: {"Formula": F}`, the field the
+/// door writes now, so a log the base saved compares with its
+/// re-blessed twin byte for byte otherwise.
+pub fn set_param_writes_value(doc: &Value) -> Value {
+    fn rewrite(value: &mut Value) {
+        match value {
+            Value::Object(object) => {
+                if let Some(Value::Object(edit)) = object.get_mut("SetParam")
+                    && let Some(expr) = edit.remove("expr")
+                {
+                    edit.insert("value".to_owned(), serde_json::json!({ "Formula": expr }));
+                }
+                object.values_mut().for_each(rewrite);
+            }
+            Value::Array(items) => items.iter_mut().for_each(rewrite),
+            Value::String(_) | Value::Null | Value::Bool(_) | Value::Number(_) => {}
+        }
+    }
+    let mut doc = doc.clone();
+    rewrite(&mut doc);
+    doc
+}
+
 /// [`reads_as_inputs`], each output variable's operation read off
 /// `table`'s variable table — the replayed document, for a saved edit
 /// log whose own snapshot holds none.

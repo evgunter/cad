@@ -259,7 +259,7 @@ fn the_tube_slots_carry_their_dimensions_and_labels() {
         ),
         (SlotId::TubeWindowEnd, Dimension::Angle, "tube window end"),
     ] {
-        assert_eq!(slot.dimension(), dim, "{label}");
+        assert_eq!(slot.dimension(), Some(dim), "{label}");
         assert_eq!(slot.label(), label);
         assert!(!slot.is_structural(), "{label} is a continuous parameter");
         assert!(slot.component().is_none(), "{label} is not a vector part");
@@ -745,8 +745,8 @@ fn a_tube_reading_no_frame_refuses_at_the_door() {
         &editor_core::RefusingReach,
     );
     match refused {
-        Err(editor_core::EditError::OperandVarKind {
-            slot: editor_core::OperandSlot::Frame,
+        Err(editor_core::EditError::SlotVarKind {
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Frame),
             found: editor_core::VarKind::Point,
             ..
         }) => {}

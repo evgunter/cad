@@ -158,7 +158,7 @@ fn an_insert_reports_its_outputs_and_a_delete_takes_them_with_its_node() {
         DocEdit::SetParam {
             node,
             slot: SlotId::Distance,
-            expr: len(3.0),
+            value: len(3.0).into(),
             fresh: Vec::new(),
         },
     );
@@ -218,14 +218,19 @@ fn a_formula_reading_a_body_refuses_naming_its_kind() {
     let edit = DocEdit::SetParam {
         node: extrude,
         slot: SlotId::Distance,
-        expr: Formula::named(
+        value: Formula::named(
             VarName::new("plate").expect("a name"),
             editor_core::Dimension::Length,
-        ),
+        )
+        .into(),
         fresh: Vec::new(),
     };
     match doc.apply(&edit, Tol::witness(), &editor_core::RefusingReach) {
-        Err(error @ EditError::SlotVarKind { declared, .. }) => {
+        Err(
+            error @ EditError::SlotVarKind {
+                found: declared, ..
+            },
+        ) => {
             assert_eq!(declared, VarKind::Body);
             assert!(error.to_string().contains("body"), "{error}");
         }
@@ -754,7 +759,8 @@ fn a_slot_reading_an_output_refuses_naming_it() {
         DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: Formula::named(VarName::new("gap").unwrap(), editor_core::Dimension::Length),
+            value: Formula::named(VarName::new("gap").unwrap(), editor_core::Dimension::Length)
+                .into(),
             fresh: Vec::new(),
         },
     );

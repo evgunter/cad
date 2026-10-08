@@ -587,7 +587,7 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
 
     let node = doc.node(frame).expect("live");
     assert_eq!(node.slots(), vec![SlotId::Spin]);
-    assert_eq!(SlotId::Spin.dimension(), Dimension::Angle);
+    assert_eq!(SlotId::Spin.dimension(), Some(Dimension::Angle));
     assert!(!SlotId::Spin.is_structural());
     let set = |expr: Formula| {
         apply(
@@ -595,7 +595,7 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
             &DocEdit::SetParam {
                 node: frame,
                 slot: SlotId::Spin,
-                expr,
+                value: expr.into(),
                 fresh: Vec::new(),
             },
             Tol::witness(),

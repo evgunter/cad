@@ -910,9 +910,9 @@ fn r1_ops_refuse_measurement_operands_typed() {
     assert!(
         matches!(
             &refusal,
-            editor_core::EditError::OperandVarKind {
+            editor_core::EditError::SlotVarKind {
                 found: editor_core::VarKind::Length,
-                expected: editor_core::OperandKind::Placeable,
+                expected: editor_core::SlotKind::Placeable,
                 ..
             }
         ),
@@ -1073,8 +1073,8 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     );
     let corrupt = text.replace(&target, &format!("\"measure\": \"{}\"", read(frame).0));
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::OperandVarKind {
-            expected: editor_core::OperandKind::Measured,
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
+            expected: editor_core::SlotKind::Measured,
             ..
         })) => {}
         other => panic!("a non-measure target must refuse by kind, got {other:?}"),

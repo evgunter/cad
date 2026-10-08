@@ -1121,7 +1121,7 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
     // which its geometry does not confirm: every value that carries the
     // record ships it unconfirmed, and tier 3′ refuses it there; the
     // door gates at tier 3 only (the census is parked,
-    // `work/reach/boolean-door-runs-the-census-over-its-result.md`).
+    // `work/reachhold/boolean-door-runs-the-census-over-its-result.md`).
     // Pinned as it stands
     // (`work/fuse/a-boolean-result-ships-contact-records-its-geometry-no-longer-confirms.md`);
     // red when the record is confirmed or refused where it is fed.

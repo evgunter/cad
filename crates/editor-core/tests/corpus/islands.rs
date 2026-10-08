@@ -109,7 +109,7 @@ pub fn document_105() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: pillar,
             slot: SlotId::Distance,
-            expr: len(1.75),
+            value: len(1.75).into(),
             fresh: Vec::new(),
         },
         bump_root: pillar,
@@ -143,7 +143,7 @@ pub fn document_106_depth1() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: slab,
             slot: SlotId::Distance,
-            expr: len(0.75),
+            value: len(0.75).into(),
             fresh: Vec::new(),
         },
         bump_root: slab,
@@ -188,7 +188,7 @@ pub fn document_106_depth2() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: pillar,
             slot: SlotId::Distance,
-            expr: len(1.75),
+            value: len(1.75).into(),
             fresh: Vec::new(),
         },
         bump_root: pillar,

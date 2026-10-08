@@ -943,7 +943,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
                 step: 0,
                 arg: StepArg::Radius,
             },
-            expr: len(R),
+            value: len(R).into(),
             fresh: Vec::new(),
         },
     );
@@ -1129,7 +1129,7 @@ fn a_chain_arcs_radius_reaches_its_wall_and_its_spelling_moves_the_key() {
                 step: ARC_STEP,
                 arg: StepArg::CarrierRadius,
             },
-            expr: len(R),
+            value: len(R).into(),
             fresh: Vec::new(),
         },
     );

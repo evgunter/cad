@@ -236,7 +236,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetParam {
         node: lone,
         slot: SlotId::Distance,
-        expr: len(0.375),
+        value: len(0.375).into(),
         fresh: Vec::new(),
     });
     // The extrude's structural side: the same block, below its plane.
@@ -351,7 +351,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: moved,
             slot: SlotId::Translation(Axis3::Y),
-            expr: len(5.0),
+            value: len(5.0).into(),
             fresh: Vec::new(),
         },
         bump_root: moved,

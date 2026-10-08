@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-03
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -46,3 +46,7 @@ one of a pinch's two vertices, and the next boolean fuses that vertex,
 e.g. the pinch of that suite resting on a face, with a flush partner
 folded onto it. Then read 3′ on the result. A fix, if one is owed,
 lands where the v-v group rule did.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: asks whether carried declared Rest v-on-f rows survive remap_carried; those declared-contact rows retire at stage 4. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

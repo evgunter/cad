@@ -174,14 +174,14 @@ fn var_kind_tags_are_stable() {
 /// words of its own: the placers' `placeable` and the assertion's
 /// `measured`.
 #[test]
-fn operand_kind_tags_are_stable() {
-    use pncad::document::{OperandKind, VarKind};
+fn slot_kind_tags_are_stable() {
+    use pncad::document::{SlotKind, VarKind};
     assert_eq!(
-        crate::errors::operand_kind_tag(OperandKind::Is(VarKind::Frame)),
+        crate::errors::slot_kind_tag(SlotKind::Is(VarKind::Frame)),
         var_kind_tag(VarKind::Frame)
     );
     assert_eq!(
-        [OperandKind::Placeable, OperandKind::Measured].map(crate::errors::operand_kind_tag),
+        [SlotKind::Placeable, SlotKind::Measured].map(crate::errors::slot_kind_tag),
         ["placeable", "measured"]
     );
 }
@@ -2934,46 +2934,46 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "input"],
     );
     // ---- operands ----
-    use pncad::document::{Operand, OperandKind, OperandSlot, VarKind};
+    use pncad::document::{Operand, OperandSlot, SlotKind, VarKind};
     carries(
         &E::OperandUnresolved {
             node: sp(1),
-            slot: OperandSlot::Profile,
+            slot: SlotId::Operand(OperandSlot::Profile),
             read: Operand::Node(id(2)),
         },
         &["node", "slot"],
     );
     carries(
-        &E::UnknownOperand {
-            node: sp(1),
-            slot: OperandSlot::Member(3),
+        &E::UnknownSlot {
+            id: sp(1),
+            slot: SlotId::Operand(OperandSlot::Member(3)),
         },
         &["node", "slot", "index"],
     );
     carries(
-        &E::OperandVarKind {
+        &E::SlotVarKind {
             var: Box::new(pncad::document::SpokenVar::new(
                 pncad::document::VarId(id(2).0),
                 None,
             )),
             node: sp(1),
-            slot: OperandSlot::Tool,
+            slot: SlotId::Operand(OperandSlot::Tool),
             found: VarKind::Axis,
-            expected: OperandKind::Is(VarKind::Plane),
+            expected: SlotKind::Is(VarKind::Plane),
         },
         &["node", "slot", "expected", "found"],
     );
     carries(
         &E::AmbiguousOutput {
             input: sp(2),
-            slot: OperandSlot::Section(1),
+            slot: SlotId::Operand(OperandSlot::Section(1)),
         },
         &["input", "slot", "index"],
     );
     carries(
         &E::DefinesNothing {
             input: sp(2),
-            slot: OperandSlot::B,
+            slot: SlotId::Operand(OperandSlot::B),
         },
         &["input", "slot"],
     );
@@ -3010,7 +3010,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::SlotDimensionMismatch {
             slot: SlotId::Distance,
-            expected: Dimension::Length,
+            expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Length),
             found: Dimension::Angle,
         },
         &["slot", "expected", "found"],
@@ -3037,11 +3037,11 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "input", "expected", "found"],
     );
 
-    // `expected`/`found` are the DIMENSION pair under every spelling
-    // the kernel gives them, and they are tag words rather than prose.
+    // `expected`/`found` are the slot's kind and the offered DIMENSION,
+    // and they are tag words rather than prose.
     let mismatch = E::SlotDimensionMismatch {
         slot: SlotId::Origin(Axis3::Y),
-        expected: Dimension::Length,
+        expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Length),
         found: Dimension::Count,
     };
     let payload = edit_payload(&mismatch);
@@ -3097,8 +3097,8 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             var: Box::new(spv()),
             node: sp(1),
             slot: SlotId::Count,
-            declared: pncad::document::VarKind::Count,
-            referenced: Dimension::Length,
+            found: pncad::document::VarKind::Count,
+            expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Length),
         },
         &["node", "slot", "param", "expected", "found"],
     );
@@ -4404,25 +4404,33 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
 /// someone has to remember to extend.
 #[test]
 fn every_slot_word_reads_back_to_the_slot_it_names() {
-    let entry = TAG_INVENTORY
-        .iter()
-        .find(|entry| entry.function == "slot_id_tag")
-        .expect("the inventory carries the slot alphabet");
-    for word in entry.values {
+    let words = |function: &str| {
+        TAG_INVENTORY
+            .iter()
+            .find(|entry| entry.function == function)
+            .unwrap_or_else(|| panic!("the inventory carries `{function}`"))
+            .values
+    };
+    // The operands' words are the slot alphabet's too, forwarded from
+    // `operand_slot_tag` (D10: an operand is a slot).
+    for word in words("slot_id_tag").iter().chain(words("operand_slot_tag")) {
         match crate::slot_word::slot_from_word(word) {
             Some(slot) => assert_eq!(
                 crate::tags::slot_id_tag(&slot),
                 *word,
                 "`{word}` reads back as a slot the forward map spells otherwise"
             ),
-            // The three words an address is not completed by: a
-            // profile program's expression is reached by a loop index,
-            // a step index and an argument role, a later placement
-            // step's by a step index and a component, and a mate
-            // offset's by a side, a step index and a component, none
-            // of which the word carries.
+            // The words an address is not completed by: a profile
+            // program's expression is reached by a loop index, a step
+            // index and an argument role, a later placement step's by a
+            // step index and a component, a mate offset's by a side, a
+            // step index and a component, and a list's entry by its
+            // position, none of which the word carries.
             None => assert!(
-                matches!(*word, "profile" | "placement_step" | "mate_frame_step"),
+                matches!(
+                    *word,
+                    "program" | "placement_step" | "mate_frame_step" | "section" | "member"
+                ),
                 "`{word}` is a slot a caller can read off a refusal and cannot write back at"
             ),
         }
@@ -4671,15 +4679,15 @@ fn the_edit_and_snapshot_maps_agree_on_the_var_read_words() {
                 var: Box::new(var()),
                 node: spoken.clone(),
                 slot: SlotId::Radius,
-                declared: pncad::document::VarKind::Length,
-                referenced: Dimension::Angle,
+                found: pncad::document::VarKind::Length,
+                expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Angle),
             },
             SnapshotError::SlotVarKind {
                 node: spoken.clone(),
                 slot: SlotId::Radius,
-                var: var(),
-                declared: pncad::document::VarKind::Length,
-                referenced: Dimension::Angle,
+                var: Box::new(var()),
+                found: pncad::document::VarKind::Length,
+                expected: pncad::document::SlotKind::Is(pncad::document::VarKind::Angle),
             },
         ),
         (
@@ -5124,7 +5132,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_structural_slot",
             "offset_on_non_instance",
             "operand_unresolved",
-            "operand_var_kind",
             "part_half_port",
             "path_off_tree",
             "payload_unknown_var_name",
@@ -5160,7 +5167,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "structural_slot_needs_structural_edit",
             "too_few_members",
             "unknown_node",
-            "unknown_operand",
             "unknown_slot",
             "unknown_var",
             "unresolved_input",
@@ -6107,7 +6113,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "origin_y",
             "origin_z",
             "placement_step",
-            "profile",
+            "program",
             "radius",
             "revolve_angle",
             "rotation_angle",
@@ -6135,7 +6141,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "v_y",
             "v_z",
         ],
-        delegates: &[],
+        delegates: &["operand_slot_tag"],
     },
     TagEntry {
         function: "snapshot_error_tag",
@@ -6162,7 +6168,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "node_not_minted",
             "not_a_gauge",
             "operand_unminted",
-            "operand_var_kind",
             "output_signature",
             "part_half_port",
             "payload_var_kind",
@@ -6658,9 +6663,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("not_an_instance", 3),
     ("null_scaffold_edge", 2),
     ("op", 3),
-    // One fact at the edit and load doors: an operand reads a variable
-    // of a kind its slot does not admit (`OperandKind::admits`).
-    ("operand_var_kind", 2),
     // One fact at the edit and load doors: a part over a split reads
     // the half it does not select.
     ("part_half_port", 2),
@@ -6687,9 +6689,11 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // gauge's kind.
     ("plane", 2),
     ("poisoned", 2),
-    // The profile operand, the profile slot and the profile node's own
-    // evaluation class: one word for the one node kind.
-    ("profile", 3),
+    // The profile operand and the profile node's own evaluation class:
+    // one word for the one node kind. The profile PROGRAM's slot says
+    // `program`, which leaves `profile` to the operand the slot
+    // alphabet forwards.
+    ("profile", 2),
     ("revolve", 2),
     // One fact, as `inside_out_operand`: `topo::Unfinished::Scaffolding`.
     ("scaffolding_operand", 2),
@@ -8343,19 +8347,19 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
         }],
     },
     MintingItem {
-        owner: "operand_kind_tag",
-        literals: 2,
-        held_by: &[Holder::Test {
-            name: "operand_kind_tags_are_stable",
-            holds: "the two words of its own, and a kind's word as `var_kind_tag`'s",
-        }],
-    },
-    MintingItem {
         owner: "reads_as_prose",
         literals: 1,
         held_by: &[Holder::Test {
             name: "the_prose_rule_separates_a_display_from_a_debug_dump",
             holds: "the predicate over both fingerprints",
+        }],
+    },
+    MintingItem {
+        owner: "slot_kind_tag",
+        literals: 2,
+        held_by: &[Holder::Test {
+            name: "slot_kind_tags_are_stable",
+            holds: "the two words of its own, and a kind's word as `var_kind_tag`'s",
         }],
     },
     MintingItem {

@@ -1481,14 +1481,6 @@ FAMILIES: dict[str, str] = {
     # `test_every_gap_entry_names_a_defined_id` reads this map in both
     # directions: no entry may cite a key that is not here, and no key
     # here may go uncited.
-    # The operand slot door's own edit arm: `DocEdit.set_members`
-    # writes a list operand, and no constructor writes a single one.
-    "B-SET-OPERAND": (
-        "`DocEdit::SetOperand`, the slot door for one operand. Closing "
-        "it needs a constructor taking the operand's word (and a "
-        "section's or member's index) and a `NodeId` or `Var` read, and "
-        "a test row per tag it can raise (`work/intent/operands-are-reads.md`)."
-    ),
     "B-DOC-EDITS": (
         "the three `DocEdit` arms no Python constructor builds — an "
         "expression at a path, and the two witness edits. Closing it "
@@ -2269,8 +2261,12 @@ NOT_BOUND = {
     # An operand's address and what it admits: Python names a refused
     # operand by the words `EditError.slot`, `.index` and `.expected`
     # carry, and writes one as a `NodeId` or a `Var` argument.
-    "OperandKind": SHAPE,
+    "SlotKind": SHAPE,
     "OperandSlot": SHAPE,
+    # What the slot door writes: Python hands `DocEdit.set_param` a
+    # formula, a value, a `Var` or a `NodeId`, and the slot's word says
+    # which the kernel lowers it to.
+    "SlotValue": SHAPE,
     "SubgroupFamily": SHAPE,
     # A pose value's subgroup, which the mate solve folds: Python holds
     # no pose value to ask it of.
@@ -3625,11 +3621,9 @@ MEMBERS_BOUND_AS = {
     "EditError::NameStepNeverMinted": "EditError.variant",
     "EditError::TooFewMembers": "EditError.variant",
     "EditError::OperandUnresolved": "EditError.variant",
-    "EditError::OperandVarKind": "EditError.variant",
     "EditError::AmbiguousOutput": "EditError.variant",
     "EditError::DefinesNothing": "EditError.variant",
     "EditError::PartHalfPort": "EditError.variant",
-    "EditError::UnknownOperand": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",
     "EditError::SlotDimensionMismatch": "EditError.variant",
     "EditError::StructuralSlotNeedsStructuralEdit": "EditError.variant",
@@ -4272,7 +4266,6 @@ MEMBERS_NOT_BOUND = {
     # supposed to refuse. Filed as
     # `work/lib/the-expression-path-edit-cannot-refuse-as-prose.md`.
     "DocEdit::SetExpression": f"{GAP}: B-DOC-EDITS no `DocEdit` constructor builds this arm",
-    "DocEdit::SetOperand": f"{GAP}: B-SET-OPERAND no `DocEdit` constructor builds this arm",
     "DocEdit::ReWitness": f"{GAP}: B-DOC-EDITS no `DocEdit` constructor builds this arm",
     "DocEdit::ReWitnessBulk": f"{GAP}: B-DOC-EDITS no `DocEdit` constructor builds this arm",
     # THE APPEARANCE FOUR, and the reason is the FAÇADE's rather than

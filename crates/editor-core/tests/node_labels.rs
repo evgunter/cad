@@ -253,8 +253,8 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
     assert!(plane.is_string(), "the profile carries its plane");
     *plane = serde_json::json!(doc.output(extrude, 0).expect("the extrude's body").0);
     match load(&format!("{header}\n{v}\n"), tol) {
-        Err(PersistError::Snapshot(error @ SnapshotError::OperandVarKind { .. })) => {
-            let SnapshotError::OperandVarKind { node, .. } = &error else {
+        Err(PersistError::Snapshot(error @ SnapshotError::SlotVarKind { .. })) => {
+            let SnapshotError::SlotVarKind { node, .. } = &error else {
                 unreachable!("matched above")
             };
             assert_eq!(node, &doc.spoken(profile), "the refused node");
@@ -265,7 +265,7 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
                 "the sentence speaks the node with its label: {sentence}"
             );
         }
-        other => panic!("a plane reading a body refuses OperandVarKind, got {other:?}"),
+        other => panic!("a plane reading a body refuses SlotVarKind, got {other:?}"),
     }
 }
 
@@ -357,14 +357,15 @@ fn an_edit_refusal_names_each_node_as_the_document_holds_it() {
 
     let wrong = refusal(
         &doc,
-        DocEdit::SetOperand {
+        DocEdit::SetParam {
             node: extrude,
-            slot: editor_core::OperandSlot::Profile,
-            read: extrude.into(),
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Profile),
+            value: editor_core::SlotValue::Read(extrude.into()),
+            fresh: Vec::new(),
         },
     );
-    let EditError::OperandVarKind { node, var, .. } = &wrong else {
-        panic!("an extrude reading its own body refuses OperandVarKind, got {wrong:?}");
+    let EditError::SlotVarKind { node, var, .. } = &wrong else {
+        panic!("an extrude reading its own body refuses SlotVarKind, got {wrong:?}");
     };
     assert_eq!(node.id(), extrude);
     assert_eq!(Some(var.id()), doc.output(extrude, 0));
@@ -1296,10 +1297,11 @@ fn an_edit_refusal_respoken_from_a_later_version_says_its_labels_now() {
 
     let kind = refusal(
         &doc,
-        DocEdit::SetOperand {
+        DocEdit::SetParam {
             node: extrude,
-            slot: editor_core::OperandSlot::Profile,
-            read: frame.into(),
+            slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Profile),
+            value: editor_core::SlotValue::Read(frame.into()),
+            fresh: Vec::new(),
         },
     );
     let twice = refusal(

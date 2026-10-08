@@ -68,7 +68,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: tool,
             slot: SlotId::Origin(editor_core::Axis3::Z),
-            expr: len(0.4375),
+            value: len(0.4375).into(),
             fresh: Vec::new(),
         },
         bump_root: tool,

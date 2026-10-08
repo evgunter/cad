@@ -593,7 +593,7 @@ fn a4_every_refusal_is_typed() {
     assert!(
         matches!(
             &index_of_split,
-            Err(EditError::AmbiguousOutput { input, slot: editor_core::OperandSlot::Of })
+            Err(EditError::AmbiguousOutput { input, slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Of) })
                 if input.id() == split
         ),
         "{index_of_split:?}"
@@ -620,7 +620,7 @@ fn a4_every_refusal_is_typed() {
         &DocEdit::SetParam {
             node: index_of_body,
             slot: SlotId::Instance,
-            expr: Formula::count(1),
+            value: Formula::count(1).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),

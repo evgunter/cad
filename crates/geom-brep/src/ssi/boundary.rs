@@ -298,7 +298,8 @@ pub(crate) struct Pass<'a> {
     pub tol: MarchTol,
     /// The section floor, in metres.
     pub floor: f64,
-    /// The lever arm and the tube ladder's scale, in metres.
+    /// The feature extent, in metres: the lever arm of the pass's
+    /// decisions and the tube ladder's scale.
     pub extent: f64,
     /// The run band.
     pub band: Band,
@@ -494,9 +495,9 @@ impl Pass<'_> {
                 if clears(side, side_of_plane, across) {
                     return Ok(Some(SideClass::Clear { strip }));
                 }
-                // The sine of the angle between the wall and the plane
-                // across the side, levered as the march's transversality
-                // is.
+                // The least sine of the angle between the wall and the
+                // plane across the side over the strip, levered by the
+                // extent alone, as every region decision is.
                 let sine = div_down(inf, speed.get());
                 let margin = Margin::levered(sine, self.extent);
                 if let Some(verdict) = band_verdict("ssi_boundary_strip", margin, self.band) {

@@ -68,7 +68,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: ring,
             slot: SlotId::TubeMajorRadius,
-            expr: len(R_BUMPED),
+            value: len(R_BUMPED).into(),
             fresh: Vec::new(),
         },
         bump_root: ring,

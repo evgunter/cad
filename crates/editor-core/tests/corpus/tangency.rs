@@ -124,7 +124,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: tangent_body,
             slot: SlotId::Distance,
-            expr: len(0.5),
+            value: len(0.5).into(),
             fresh: Vec::new(),
         },
         bump_root: tangent_body,

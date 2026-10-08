@@ -322,7 +322,7 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
         &DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: Formula::named(name.clone(), Dimension::Length),
+            value: Formula::named(name.clone(), Dimension::Length).into(),
             fresh: Vec::new(),
         },
         Tol::witness(),
@@ -360,7 +360,7 @@ fn a_document_broken_in_a_slot_and_in_a_payload_reads_the_slot_refusal() {
 ///
 /// The fixture is an assertion whose bound reads `depth` and whose
 /// target is the EXTRUDE's body — not a measured value, which the
-/// operand walk refuses by kind as `SnapshotError::OperandVarKind` —
+/// operand walk refuses by kind as `SnapshotError::SlotVarKind` —
 /// with `depth` undeclared in the same file. Both faults are real and only one sentence comes back;
 /// this row says which, so moving the payload walk behind the
 /// structural walk changes a diagnosis with a row on it rather than
@@ -402,8 +402,8 @@ fn an_assertion_bound_on_a_non_measure_reads_the_payload_refusal() {
         Tol::witness(),
         &editor_core::RefusingReach,
     ) {
-        Err(EditError::OperandVarKind {
-            expected: editor_core::OperandKind::Measured,
+        Err(EditError::SlotVarKind {
+            expected: editor_core::SlotKind::Measured,
             ..
         }) => {}
         other => panic!("the edit door must refuse an assertion on a non-measure, got {other:?}"),

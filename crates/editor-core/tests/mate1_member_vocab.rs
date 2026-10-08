@@ -499,7 +499,7 @@ fn mates_never_solve_pattern_parameters() {
         DocEdit::SetParam {
             node: pattern,
             slot: editor_core::SlotId::Spacing,
-            expr: len(1.5),
+            value: len(1.5).into(),
             fresh: Vec::new(),
         },
     );

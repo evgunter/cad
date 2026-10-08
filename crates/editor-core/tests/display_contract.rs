@@ -916,7 +916,7 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
     assert_f6(
         &EditError::SlotDimensionMismatch {
             slot: SlotId::Radius,
-            expected: Dimension::Length,
+            expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
             found: Dimension::Angle,
         },
         &["needs a length expression", "got an angle"],
@@ -953,8 +953,8 @@ fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
             )),
             node: held(3, "Extrude"),
             slot: SlotId::Distance,
-            declared: editor_core::VarKind::Scalar,
-            referenced: Dimension::Length,
+            found: editor_core::VarKind::Scalar,
+            expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
         },
         &["is declared scalar", "reads it as length"],
         &dumps,
@@ -1102,7 +1102,7 @@ test_utils::f6_variants! {
     const SNAPSHOT_ERROR: SnapshotError = [
         NodeNotMinted,
         OperandUnminted,
-        OperandVarKind,
+        SlotVarKind,
         PartHalfPort,
         ReadCycle,
         WitnessSite,
@@ -1210,15 +1210,15 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             ],
         ),
         (
-            SnapshotError::OperandVarKind {
+            SnapshotError::SlotVarKind {
                 node: node(),
-                slot: editor_core::OperandSlot::Target,
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Target),
                 var: Box::new(editor_core::SpokenVar::new(
                     editor_core::VarId::new(9, tagged(9)),
                     None,
                 )),
                 found: editor_core::VarKind::Profile,
-                expected: editor_core::OperandKind::Is(editor_core::VarKind::Body),
+                expected: editor_core::SlotKind::Is(editor_core::VarKind::Body),
             },
             vec![
                 "Extrude \"base plate\" (000000000005)'s target reads #9:",
@@ -1439,12 +1439,12 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             SnapshotError::SlotVarKind {
                 node: node(),
                 slot: SlotId::Distance,
-                var: editor_core::SpokenVar::new(
+                var: Box::new(editor_core::SpokenVar::new(
                     editor_core::VarId::new(0, tagged(7)),
                     Some(VarName::from_static("depth")),
-                ),
-                declared: editor_core::VarKind::Angle,
-                referenced: Dimension::Length,
+                )),
+                found: editor_core::VarKind::Angle,
+                expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
             },
             vec!["depth", "as a length", "declared angle"],
         ),
@@ -1722,8 +1722,8 @@ fn the_two_doors_spell_the_var_read_refusals_the_same_way_and_each_reports_its_a
             var: Box::new(var()),
             node: node(),
             slot: SlotId::Radius,
-            declared: editor_core::VarKind::Length,
-            referenced: Dimension::Angle,
+            found: editor_core::VarKind::Length,
+            expected: editor_core::SlotKind::Is(editor_core::VarKind::Angle),
         }),
         arm(&EditError::SlotUnresolvedVar {
             var: var(),
@@ -1749,9 +1749,9 @@ fn the_two_doors_spell_the_var_read_refusals_the_same_way_and_each_reports_its_a
         arm(&SnapshotError::SlotVarKind {
             node: node(),
             slot: SlotId::Radius,
-            var: var(),
-            declared: editor_core::VarKind::Length,
-            referenced: Dimension::Angle,
+            var: Box::new(var()),
+            found: editor_core::VarKind::Length,
+            expected: editor_core::SlotKind::Is(editor_core::VarKind::Angle),
         }),
         arm(&SnapshotError::PayloadVarKind {
             node: node(),
@@ -3014,7 +3014,7 @@ fn a_slot_refusal_addresses_its_slot_in_the_slot_vocabulary() {
         assert_f6(
             &EditError::SlotDimensionMismatch {
                 slot,
-                expected: Dimension::Length,
+                expected: editor_core::SlotKind::Is(editor_core::VarKind::Length),
                 found,
             },
             words,
@@ -3498,9 +3498,9 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
             SnapshotError::SlotVarKind {
                 node: node(),
                 slot: SlotId::Radius,
-                var: spoken.clone(),
-                declared: editor_core::VarKind::Length,
-                referenced: Dimension::Angle,
+                var: Box::new(spoken.clone()),
+                found: editor_core::VarKind::Length,
+                expected: editor_core::SlotKind::Is(editor_core::VarKind::Angle),
             }
             .to_string(),
         ),

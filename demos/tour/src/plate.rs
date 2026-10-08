@@ -161,7 +161,7 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
 /// the holes subtracted from the blank by two `Boolean(Subtract)`s, and
 /// the web read off the cut part's bore walls. Not the study's
 /// document, because the certified drive certifies no box of it
-/// (`work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`,
+/// (`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`,
 /// pinned in [`crate::tolerance`]). It places the cut part, and the
 /// web measure reading that part does not keep it out of the product
 /// (pinned in [`crate::gallery`]).

@@ -83,7 +83,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: bend,
             slot: SlotId::TubeWindowEnd,
-            expr: ang(T1_BUMPED),
+            value: ang(T1_BUMPED).into(),
             fresh: Vec::new(),
         },
         bump_root: bend,

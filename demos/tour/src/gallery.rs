@@ -295,7 +295,7 @@ mod tests {
                     "denotes the study's numbers and not the two-hole plate it is ",
                     "about. The cut spelling places the cut part and that is its ",
                     "product (the_cut_plate_is_its_product); its wall is the certified ",
-                    "drive, which certifies no box of it (work/reach/a-hole-wholly-",
+                    "drive, which certifies no box of it (work/tally/a-hole-wholly-",
                     "inside-its-target-ties-the-subtract-volume-bound.md)",
                 ),
             },

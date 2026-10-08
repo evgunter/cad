@@ -122,7 +122,7 @@ class TestDocumentEditing(unittest.TestCase):
             # An extrude reads a profile, not a body.
             doc.insert(Node.extrude(box, Formula.length_in(1, m)))
         # The refusal carries a stable tag, not prose (§L4).
-        self.assertEqual(caught.exception.variant, "operand_var_kind")
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
         self.assertEqual(doc.node_count, before)
         self.assertTrue(evaluate(doc).succeeded(box))
 
@@ -1644,7 +1644,7 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
         body = doc.insert(Node.extrude(profile, Formula.length_in(1, m)))
         with self.assertRaises(EditError) as caught:
             doc.insert(Node.extrude(body, Formula.length_in(1, m)))
-        self.assertEqual(caught.exception.variant, "operand_var_kind")
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
         self.assertIsNone(caught.exception.inner_variant)
 
     def test_the_edit_arms_that_hold_a_refusal_are_pre_checked_elsewhere(self):
@@ -1960,7 +1960,7 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.insert(Node.extrude(box, Formula.length_in(1, m)))
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "operand_var_kind")
+        self.assertEqual(refusal.variant, "slot_var_kind")
         self.assertEqual(
             (refusal.slot, refusal.found, refusal.expected), ("profile", "body", "profile")
         )
@@ -2041,9 +2041,12 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.bind_count_param(pattern, VarName("len")))
         refusal = caught.exception
+        # The slot's kind refusal is one arm at every slot: `found`
+        # is the kind of the variable read, `expected` what the slot
+        # takes.
         self.assertEqual(refusal.variant, "slot_var_kind")
-        self.assertEqual(refusal.expected, "length")
-        self.assertEqual(refusal.found, "count")
+        self.assertEqual(refusal.expected, "count")
+        self.assertEqual(refusal.found, "length")
         self.assertEqual(
             self.set_of(refusal),
             {"variant", "node", "slot", "param", "expected", "found"},

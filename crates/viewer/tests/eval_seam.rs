@@ -363,7 +363,7 @@ fn the_memo_makes_an_edited_documents_re_evaluation_incremental() {
         &pncad::document::DocEdit::SetParam {
             node: extrude,
             slot: SlotId::Distance,
-            expr: common::len(0.02),
+            value: common::len(0.02).into(),
             fresh: Vec::new(),
         },
         tol,

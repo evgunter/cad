@@ -4,7 +4,7 @@ kind: issue
 title: the offset certificate's Y limb, its M-tilde divisor and the regularity meter's speeds read a vector norm off per-coordinate cell hulls, so a rigid map moves them
 status: open
 opened: 2026-10-01
-priority: P3
+priority: P1
 cost: M
 ---
 

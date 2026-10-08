@@ -149,8 +149,8 @@ fn review_recipe_doors_precede_the_sweep_frontier() {
     assert!(
         matches!(
             &refusal,
-            editor_core::EditError::OperandVarKind {
-                slot: editor_core::OperandSlot::Path,
+            editor_core::EditError::SlotVarKind {
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Path),
                 found: editor_core::VarKind::Point,
                 ..
             }

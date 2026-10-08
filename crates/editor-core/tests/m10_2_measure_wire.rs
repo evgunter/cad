@@ -397,7 +397,7 @@ fn an_assertion_over_a_non_measure_refuses() {
         matches!(
             err,
             EditError::DefinesNothing {
-                slot: editor_core::OperandSlot::Measure,
+                slot: editor_core::SlotId::Operand(editor_core::OperandSlot::Measure),
                 ..
             }
         ),

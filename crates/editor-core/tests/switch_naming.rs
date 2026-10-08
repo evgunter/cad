@@ -227,7 +227,7 @@ fn circle_radius_edit_keeps_names() {
                     step: 0,
                     arg: editor_core::StepArg::Radius,
                 },
-                expr: len(0.75),
+                value: len(0.75).into(),
                 fresh: Vec::new(),
             },
             Tol::witness(),

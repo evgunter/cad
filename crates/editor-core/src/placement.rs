@@ -690,7 +690,7 @@ impl Placement {
         let dims: std::collections::BTreeMap<crate::VarId, crate::Dimension> = self
             .rows()
             .into_iter()
-            .map(|(slot, &var)| (var, slot.dimension()))
+            .map(|(slot, &var)| (var, slot.expr_dimension()))
             .collect();
         let Ok(authored) = self.try_map_slots(&mut |var| {
             let Some(&dim) = dims.get(var) else {

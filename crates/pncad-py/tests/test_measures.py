@@ -672,7 +672,7 @@ class TestTheRefusals(unittest.TestCase):
         doc, node, _ = self.one_face()
         with self.assertRaises(EditError) as caught:
             doc.insert(Node.assertion(node, AssertionDir.AtLeast, doc.parse_formula("1 m")))
-        self.assertEqual(caught.exception.variant, "operand_var_kind")
+        self.assertEqual(caught.exception.variant, "slot_var_kind")
 
     def test_an_assertion_compares_like_with_like_or_not_at_all(self):
         """The bound's dimension is the MEASURE's, and the edit door is

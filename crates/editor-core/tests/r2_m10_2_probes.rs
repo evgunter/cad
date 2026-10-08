@@ -1412,9 +1412,9 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
         *target = serde_json::json!(doc.output(b, 0).expect("a body").0);
     });
     match editor_core::load(&tgt_corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::OperandVarKind {
+        Err(PersistError::Snapshot(SnapshotError::SlotVarKind {
             found: editor_core::VarKind::Body,
-            expected: editor_core::OperandKind::Measured,
+            expected: editor_core::SlotKind::Measured,
             ..
         })) => {}
         other => panic!("an assertion over a non-measure must refuse typed, got {other:?}"),

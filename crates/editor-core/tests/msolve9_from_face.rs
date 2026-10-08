@@ -269,7 +269,7 @@ fn shorten_or_grow(s: &mut Seat, height: f64) {
         DocEdit::SetParam {
             node: s.post_body,
             slot: SlotId::Distance,
-            expr: len(height),
+            value: len(height).into(),
             fresh: Vec::new(),
         },
     );
