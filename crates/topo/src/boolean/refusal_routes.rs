@@ -2902,20 +2902,32 @@ pub(in crate::boolean) mod tests {
         );
         let r = 1.0 + (b.zero() + b.escalate()) / 2.0;
         let p = Point3::new(r * 1.2_f64.cos(), r * 1.2_f64.sin(), 0.5);
-        let diag = match crate::boolean::contain::curved_face_placement(&body, wall, p, b) {
-            Err(crate::boolean::ContainError::Escalated(diag)) => diag,
-            other => panic!("an in-band point off the wall escalates: {other:?}"),
+        let refusal = crate::boolean::contain::curved_face_placement(&body, wall, p, b);
+        let Err(crate::boolean::ContainError::Escalated {
+            decision,
+            escalation,
+            diag,
+        }) = refusal
+        else {
+            panic!("an in-band point off the wall escalates: {refusal:?}");
         };
         assert_eq!(diag.predicate, Some("bool_curved_contain_carrier"));
+        assert_eq!(
+            decision,
+            Some(crate::boolean::ContainDecision::Carrier),
+            "the carrier rung names itself"
+        );
         let text = BooleanError::Escalated {
-            decision: BooleanDecision::Containment,
+            decision: BooleanDecision::Containment {
+                decision,
+                escalation,
+            },
             diag,
         }
         .to_string();
         assert!(
             text.ends_with(
-                "Recourse: move the parts so they meet clearly inside or clearly outside that \
-                 face's boundary"
+                "Recourse: move the point exactly onto the face's surface or clearly off it"
             ) && !text.contains("tolerance below"),
             "{text}"
         );

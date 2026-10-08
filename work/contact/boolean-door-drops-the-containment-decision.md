@@ -2,8 +2,9 @@
 id: boolean-door-drops-the-containment-decision
 kind: issue
 title: topo: the boolean door maps ContainError::Escalated to BooleanError::Escalated and drops its decision
-status: open
+status: closed
 opened: 2026-09-29
+closed: 2026-10-08
 ---
 
 
@@ -32,3 +33,17 @@ Carry the decision on `BooleanError::Escalated` (or a sibling variant
 for containment), and end the containment decisions through
 `ContainError::ending(Reading::Build)`. Keep the menu only where
 the refused side is a declarable coincidence.
+
+## Closed by CONTACT-10
+
+`BooleanDecision::Containment` now carries the walk's decision and how
+its reading stood (`{ decision: Option<ContainDecision>, escalation }`).
+It covers all three wrap sites:
+- `reduce::esc`;
+- the span walk's curved placement;
+- `carrier_touch`'s.
+
+A carried decision ends through `ContainDecision::ending` at a build,
+the one table contfp's and the at-rest renderers read. `None` keeps PR
+3493's lever alone. The point-in-solid door's own escalations are still
+unnamed: `point-in-solid-escalation-carries-no-decision`.

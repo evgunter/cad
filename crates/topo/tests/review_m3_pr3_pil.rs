@@ -231,14 +231,19 @@ fn the_verdict_is_blind_to_the_normals_sign() {
     fn shape(r: &Result<LoopContainment, PointInLoopError>) -> String {
         match r {
             Ok(v) => format!("{v:?}"),
-            Err(PointInLoopError::Escalated { r#loop, diag }) => {
+            Err(PointInLoopError::Escalated {
+                r#loop,
+                decision,
+                escalation,
+                diag,
+            }) => {
                 let kind = match diag.margin.diagnostic_f64_for_error_text() {
                     geom_core::ErrorTextReading::Value(_) => "Value",
                     geom_core::ErrorTextReading::Enclosure { .. } => "Enclosure",
                     geom_core::ErrorTextReading::Invalid => "Invalid",
                 };
                 format!(
-                    "Escalated{loop:?}/{:?}/{:?}/{kind}",
+                    "Escalated{loop:?}/{decision:?}/{escalation:?}/{:?}/{:?}/{kind}",
                     diag.predicate, diag.band
                 )
             }
@@ -448,3 +453,62 @@ fn an_in_band_schedule_arm_takes_the_next_member() {
         );
     }
 }
+
+/// **Each walk site tags its own question.** A point at the band's
+/// midpoint off a square's edge escalates in the pre-pass on `Boundary`.
+/// The 15-gon of `ray_exhausted_is_reachable`, each vertex moved off its
+/// schedule ray's line by the band's midpoint, leaves every ray from the
+/// centre in band, so the walk refuses on `Ray`. Each carries its
+/// margin and ends in its decision's ending: the valued tighten for the
+/// boundary's length, the lever alone for the ray.
+#[test]
+fn each_walk_site_tags_its_decision() {
+    use geom_brep::recourse::Reading;
+    use topo::{Escalation, LoopDecision};
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
+    let m = 0.5 * (band.zero() + band.escalate());
+    let tagged = |profile: &[(f64, f64)], x: f64, y: f64| {
+        let fx = prism::<f64>(profile, 1.0, Tol::witness());
+        let top = fx.body.get_face(fx.top_face).unwrap();
+        match point_in_loop(&fx.body, top.outer, n_z(), Point3::new(x, y, 1.0), band) {
+            Err(e @ PointInLoopError::Escalated { .. }) => e,
+            other => panic!("expected an escalation, got {other:?}"),
+        }
+    };
+    let square = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
+    let off_the_rays: Vec<(f64, f64)> = all_rays_graze_profile()
+        .into_iter()
+        .map(|(x, y)| {
+            let l = (x * x + y * y).sqrt();
+            (x - y / l * m, y + x / l * m)
+        })
+        .collect();
+    for (row, e, want) in [
+        ("edge", tagged(&square, 1.0, m), LoopDecision::Boundary),
+        ("rays", tagged(&off_the_rays, 0.0, 0.0), LoopDecision::Ray),
+    ] {
+        let PointInLoopError::Escalated {
+            decision,
+            escalation,
+            diag,
+            ..
+        } = &e
+        else {
+            unreachable!()
+        };
+        assert_eq!(*decision, want, "{row}");
+        assert_eq!(*escalation, Escalation::Margin, "{row}");
+        assert!(
+            diag.margin.diagnostic_f64_for_error_text().value().is_some(),
+            "{row}: {diag:?}"
+        );
+        let ending = want.ending(Escalation::Margin, diag, Reading::Build);
+        assert!(e.to_string().ends_with(&ending), "{row}: {e}");
+        assert_eq!(
+            ending.contains("tighten the tolerance below"),
+            want == LoopDecision::Boundary,
+            "{row}: {ending}"
+        );
+    }
+}
+

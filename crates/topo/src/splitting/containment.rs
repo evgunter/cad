@@ -2382,6 +2382,63 @@ mod tests {
         ));
     }
 
+    /// **The span rule tags what it can raise**: an elliptic window
+    /// over-wound by less than the band on the smaller lever, and
+    /// definitely on the larger, escalates on its in-band margin — always
+    /// negative, the refused side, so its ending is the lever alone; one
+    /// whose smaller lever reads zero while the larger reads definitely
+    /// negative is a straddle of the two bounds, which also ends in the
+    /// lever alone and carries no unreadable-margin note. Driven through
+    /// `ConicArc::of`; the walk's `carrier_loop` site maps both to
+    /// `LoopDecision::ArcSpan` unchanged.
+    #[test]
+    fn the_span_rule_tags_an_over_wound_margin_and_a_straddle() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let eps = band.zero();
+        let ellipse = geom::Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major: 100.0,
+            minor: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        // Centred at the minor vertex, where the edge's speed is `a`.
+        let over = |dt: f64| {
+            let at = core::f64::consts::FRAC_PI_2;
+            (at - 0.5 * dt, at - 0.5 * dt + core::f64::consts::TAU + dt)
+        };
+        let m = 0.5 * (band.zero() + band.escalate());
+        let lever = format!("Recourse: {}", LoopDecision::ArcSpan.lever());
+        match ConicArc::of(&ellipse, over(m), WALK_ROWS.conic, band) {
+            Err(ConicArcError::Escalated(ReadEscalation {
+                escalation: Escalation::Margin,
+                diag,
+            })) => {
+                let v = diag
+                    .margin
+                    .diagnostic_f64_for_error_text()
+                    .value()
+                    .expect("an in-band margin");
+                assert!(v < 0.0, "over-wound: {v:e}");
+                assert_eq!(
+                    LoopDecision::ArcSpan.ending(Escalation::Margin, &diag, Reading::AtRest),
+                    lever
+                );
+            }
+            _ => panic!("expected an in-band span"),
+        }
+        match ConicArc::of(&ellipse, over(0.5 * eps), WALK_ROWS.conic, band) {
+            Err(ConicArcError::Escalated(ReadEscalation {
+                escalation: Escalation::Straddle,
+                diag,
+            })) => assert_eq!(
+                LoopDecision::ArcSpan.ending(Escalation::Straddle, &diag, Reading::AtRest),
+                lever
+            ),
+            _ => panic!("expected a straddle"),
+        }
+    }
+
     /// **The centre of an ellipse** is `b` from it, exactly the lower
     /// bound there, so it reads `Off` on that bound alone — the Newton
     /// foot, undefined where `∇F` vanishes, is never formed.
@@ -2458,7 +2515,13 @@ mod tests {
         };
         let got = k.hit(Point3::new(a + 20.0 * eps, 0.0, 0.0), WALK_ROWS.conic, band);
         assert!(
-            matches!(&got, Err(d) if d.predicate == Some("point_in_arc_loop_conic_straddle")),
+            matches!(
+                &got,
+                Err(ReadEscalation {
+                    escalation: Escalation::Straddle,
+                    diag,
+                }) if diag.predicate == Some("point_in_arc_loop_conic_straddle")
+            ),
             "{got:?}"
         );
     }
@@ -2497,7 +2560,13 @@ mod tests {
         };
         let got = k.hit(Point3::new(a + 20.0 * eps, 0.0, 0.0), WALK_ROWS.conic, band);
         assert!(
-            matches!(&got, Err(d) if d.predicate == Some("point_in_arc_loop_conic_straddle")),
+            matches!(
+                &got,
+                Err(ReadEscalation {
+                    escalation: Escalation::Straddle,
+                    diag,
+                }) if diag.predicate == Some("point_in_arc_loop_conic_straddle")
+            ),
             "{got:?}"
         );
     }
@@ -2587,7 +2656,7 @@ mod tests {
         assert!(
             matches!(
                 &got,
-                Err(PointInLoopError::Escalated { r#loop, diag })
+                Err(PointInLoopError::Escalated { r#loop, decision: LoopDecision::ArcSpan, diag, .. })
                     if *r#loop == circ.r#loop
                         && diag.predicate == Some("point_in_arc_loop_conic_span")
             ),

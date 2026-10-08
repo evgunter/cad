@@ -10662,10 +10662,26 @@ mod tests {
         // The arms the face door also raises at its top level read as
         // that top-level arm does.
         for (carried, own) in [
-            (S::Escalated { face, diag }, ContainError::Escalated(diag)),
             (
-                S::Loop(L::Escalated { r#loop, diag }),
-                ContainError::Escalated(diag),
+                S::Escalated { face, diag },
+                ContainError::Escalated {
+                    decision: None,
+                    escalation: crate::splitting::Escalation::Margin,
+                    diag,
+                },
+            ),
+            (
+                S::Loop(L::Escalated {
+                    r#loop,
+                    decision: crate::splitting::LoopDecision::Boundary,
+                    escalation: crate::splitting::Escalation::Margin,
+                    diag,
+                }),
+                ContainError::Escalated {
+                    decision: Some(crate::splitting::LoopDecision::Boundary.into()),
+                    escalation: crate::splitting::Escalation::Margin,
+                    diag,
+                },
             ),
             (S::RayExhausted, ContainError::RayExhausted),
             (
@@ -10698,16 +10714,23 @@ mod tests {
             },
             S::Loop(L::Escalated {
                 r#loop,
+                decision: crate::splitting::LoopDecision::Ray,
+                escalation: crate::splitting::Escalation::Margin,
                 diag: poisoned,
             }),
         ] {
-            assert_eq!(read(carried.clone()).1, super::DEFECT, "{carried:?}");
+            assert!(
+                read(carried.clone())
+                    .1
+                    .ends_with(geom_core::UNREADABLE_MARGIN_NOTE),
+                "{carried:?}"
+            );
         }
         // Every ray grazed a point the pre-pass placed off the boundary:
         // nothing about it is close, at either level.
         assert_eq!(
             top(ContainError::RayExhausted),
-            (super::GRAZED.into(), super::MOVE_GEOMETRY)
+            (super::GRAZED.into(), super::MOVE_GEOMETRY.into())
         );
         assert_eq!(read(S::Loop(L::CorruptLoop { r#loop })).1, super::DEFECT);
         // The solid door's own arena claims: defects at rest.
@@ -13250,7 +13273,7 @@ mod tests {
                 // gap — is the predicate that speaks, not a ray's.
                 _ => matches!(
                     verdict,
-                    RingNestingVerdict::Undecided(ContainError::Escalated(ref d))
+                    RingNestingVerdict::Undecided(ContainError::Escalated { diag: ref d, .. })
                         if d.predicate == Some("point_in_arc_loop_conic_on")
                 ),
             };
@@ -13359,7 +13382,7 @@ mod tests {
                 "near the spiric" => matches!(verdict, RingNestingVerdict::Inside),
                 "in the spiric's band" => matches!(
                     verdict,
-                    RingNestingVerdict::Undecided(ContainError::Escalated(ref d))
+                    RingNestingVerdict::Undecided(ContainError::Escalated { diag: ref d, .. })
                         if d.predicate.is_some_and(|p| p.starts_with("point_in_arc_loop_spiric"))
                 ),
                 _ => matches!(
@@ -13376,7 +13399,7 @@ mod tests {
                         ValidationError::RingNestingUndecided {
                             face: at_face,
                             ring,
-                            source: ContainError::Escalated(_),
+                            source: ContainError::Escalated { .. },
                         } if *at_face == face && *ring == lone
                     )),
                     "check 9 reports the unplaced ring: {words:?}"
