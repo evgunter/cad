@@ -1,0 +1,190 @@
+
+running 42 tests
+test boolean::sectors::tests::a_crossing_point_is_read_at_how_well_it_is_located ... ok
+test boolean::sectors::rv_probe_4289::rv_probe_cases ... ok
+test boolean::sectors::tests::a_dart_corner_reads_as_its_polygon_cone ... ok
+test boolean::sectors::tests::a_direction_beside_a_face_reads_the_arcs_crossing_point ... ok
+test boolean::sectors::tests::a_crossing_far_from_a_reference_on_a_plane_is_located ... ok
+test boolean::sectors::tests::a_direction_off_a_short_armed_sector_is_off_it ... ok
+test boolean::sectors::tests::a_direction_on_a_sector_bound_escalates_with_no_declaration_read ... ok
+test boolean::sectors::tests::a_direction_opposite_a_thin_sector_is_not_within_it ... ok
+test boolean::sectors::tests::a_direction_sense_refuses_its_decided_zero_as_its_in_band_arm ... ok
+test boolean::sectors::tests::a_direction_senses_refusal_is_on_the_escalation_log ... ok
+test boolean::sectors::tests::a_flat_three_face_corner_reads_met ... ok
+test boolean::sectors::tests::a_pair_parallel_at_a_short_arm_goes_to_the_ladder_as_a_coincidence ... ok
+test boolean::sectors::tests::a_lever_arm_gate_escalates_as_its_own_decision ... ok
+test boolean::sectors::tests::a_reference_on_a_plane_beside_a_crossing_inside_the_sector_passes_over ... ok
+test boolean::sectors::tests::a_reference_read_in_band_is_passed_over ... ok
+test boolean::sectors::tests::a_plane_through_a_reference_and_a_bound_is_read_at_the_shorter_arm ... ok
+test boolean::sectors::tests::a_tangent_pair_side_escalates_as_the_side_it_reads ... ok
+test boolean::sectors::tests::a_saddle_corner_reads_as_its_polygon_cone ... ok
+test boolean::sectors::tests::an_arc_through_a_link_vertex_passes_over_its_reference ... ok
+test boolean::sectors::tests::a_thin_fin_reads_as_its_polygon_cone ... ok
+test boolean::sectors::tests::an_arcs_side_of_a_bound_is_decided_at_its_least_deviation ... ok
+test boolean::sectors::tests::an_arcs_side_of_a_short_bound_is_read_at_the_bounds_reach ... ok
+test boolean::sectors::tests::an_arcs_side_of_a_bound_is_not_read_off_its_rounding ... ok
+test boolean::sectors::tests::an_in_band_reflex_edge_escalates_rather_than_read_convex ... ok
+test boolean::sectors::tests::an_asymmetric_saddle_reads_as_its_polygon_cone ... ok
+test boolean::sectors::tests::mirror_check_side_codes ... ok
+test boolean::sectors::tests::pair_search_generic_crossing ... ok
+test boolean::sectors::tests::tangent_lump_external_tangency_is_out_both_ways ... ok
+test boolean::sectors::tests::coplanar_overlap_cases ... ok
+test boolean::sectors::tests::tangent_lump_is_three_outcome_honest_on_the_arm ... ok
+test boolean::sectors::tests::tangent_lump_nested_internal_tangency_is_in ... ok
+test boolean::sectors::tests::tangent_lump_refuses_typed_off_the_lane ... ok
+test boolean::sectors::tests::the_charge_resolves_the_slope_against_the_band_at_every_radius ... ok
+test boolean::sectors::tests::the_hole_wall_witness_certifies_its_side_near_the_vertex ... ok
+test boolean::sectors::tests::within_convex_sector ... ok
+test boolean::vtxfac::tests::a_bisector_on_between_one_sided_bounds_refuses ... ok
+test boolean::vtxfac::tests::a_pierced_vertex_is_refused_at_a_second_pierce_and_returned_at_a_pair ... ok
+test boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners ... ok
+test boolean::vtxfac::tests::an_in_band_pierce_germ_line_is_the_sectors_tilt_undecided ... ok
+test boolean::vtxfac::tests::a_bisector_run_after_the_other_run_keeps_its_corner ... ok
+test boolean::sectors::tests::a_direction_beside_a_short_bound_is_read_at_the_bounds_reach ... FAILED
+test boolean::sectors::cone_fuzz::the_polygon_cone_reader_never_contradicts_the_exact_oracle ... FAILED
+
+failures:
+
+---- boolean::sectors::tests::a_direction_beside_a_short_bound_is_read_at_the_bounds_reach stdout ----
+
+thread 'boolean::sectors::tests::a_direction_beside_a_short_bound_is_read_at_the_bounds_reach' (6869) panicked at crates/topo/src/boolean/sectors.rs:3423:21:
+assertion `left == right` failed: the crown at Vec3 { x: 0.9987502653928781, y: 0.04997906939565204, z: 2e-9 }
+  left: [Out]
+ right: [On]
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: core::panicking::assert_failed_inner
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:434:23
+   3: core::panicking::assert_failed::<alloc::vec::Vec<topo::boolean::SideCode>, [topo::boolean::SideCode; 1]>
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:394:5
+   4: topo::boolean::sectors::tests::a_direction_beside_a_short_bound_is_read_at_the_bounds_reach
+             at ./crates/topo/src/boolean/sectors.rs:3423:21
+   5: topo::boolean::sectors::tests::a_direction_beside_a_short_bound_is_read_at_the_bounds_reach::{closure#0}
+             at ./crates/topo/src/boolean/sectors.rs:3161:70
+   6: <topo::boolean::sectors::tests::a_direction_beside_a_short_bound_is_read_at_the_bounds_reach::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   7: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- boolean::sectors::cone_fuzz::the_polygon_cone_reader_never_contradicts_the_exact_oracle stdout ----
+[fuzz] sectors_cone_fuzz: seed=0x76ab7f4733f37150 effort=1 — replay with CAD_FUZZ_SEED=0x76ab7f4733f37150
+[fuzz] sectors_cone_fuzz: 5344 readings, 391 undecided, 90 wrong
+
+thread 'boolean::sectors::cone_fuzz::the_polygon_cone_reader_never_contradicts_the_exact_oracle' (6863) panicked at crates/topo/src/boolean/sectors/cone_fuzz.rs:696:5:
+90 readings contradict the exact oracle or decide in band; reproduce with CAD_FUZZ_SEED=0x76ab7f4733f37150 CAD_FUZZ_EFFORT=1:
+ε 1e-9, cone 1 (6 corners, hollow true), probe 1 [0.9987503103736362, 0.049978170520392946, 4e-10]: cone_side reads Out, exactly Out, flipped by a 4.000e-10 m deviation: decided in band
+ε 1e-9, cone 1 (6 corners, hollow true), probe 1 [0.9987503103736362, 0.049978170520392946, 4e-10]: wedge_classes reads Out, exactly Out, flipped by a 4.000e-10 m deviation: decided in band
+ε 1e-9, cone 1 (6 corners, hollow true), probe 5 [0.4993751551868181, 0.024989085260196473, -1e-9]: cone_side reads Out, exactly Out, flipped by a 1.000e-9 m deviation: decided in band
+ε 1e-9, cone 1 (6 corners, hollow true), probe 5 [0.4993751551868181, 0.024989085260196473, -1e-9]: wedge_classes reads Out, exactly Out, flipped by a 1.000e-9 m deviation: decided in band
+ε 1e-9, cone 1 (6 corners, hollow true), probe 7 [1.9975006207472723, 0.09995634104078589, 2e-10]: cone_side reads Out, exactly Out, flipped by a 2.000e-10 m deviation: decided in band
+ε 1e-9, cone 1 (6 corners, hollow true), probe 7 [1.9975006207472723, 0.09995634104078589, 2e-10]: wedge_classes reads Out, exactly Out, flipped by a 2.000e-10 m deviation: decided in band
+ε 1e-9, cone 5 (6 corners, hollow true), probe 2 [0.4993751551868181, 0.024989085260196473, -1e-9]: cone_side reads In, exactly In, flipped by a 1.000e-9 m deviation: decided in band
+ε 1e-9, cone 5 (6 corners, hollow true), probe 2 [0.4993751551868181, 0.024989085260196473, -1e-9]: wedge_classes reads In, exactly In, flipped by a 1.000e-9 m deviation: decided in band
+ε 1e-9, cone 5 (6 corners, hollow true), probe 9 [0.4993751551868181, 0.024989085260196473, 5e-11]: cone_side reads In, exactly In, flipped by a 6.999e-11 m deviation: decided in band
+ε 1e-9, cone 5 (6 corners, hollow true), probe 9 [0.4993751551868181, 0.024989085260196473, 5e-11]: wedge_classes reads In, exactly In, flipped by a 6.999e-11 m deviation: decided in band
+ε 1e-9, cone 21 (6 corners, hollow true), probe 1 [0.49937514019327706, 0.02498938488528509, 5.000000000000001e-11]: cone_side reads In, exactly In, flipped by a 5.000e-11 m deviation: decided in band
+ε 1e-9, cone 21 (6 corners, hollow true), probe 1 [0.49937514019327706, 0.02498938488528509, 5.000000000000001e-11]: wedge_classes reads In, exactly In, flipped by a 5.000e-11 m deviation: decided in band
+ε 1e-9, cone 21 (6 corners, hollow true), probe 2 [0.4993751551868181, 0.024989085260196473, -1e-9]: cone_side reads In, exactly In, flipped by a 1.000e-9 m deviation: decided in band
+ε 1e-9, cone 21 (6 corners, hollow true), probe 2 [0.4993751551868181, 0.024989085260196473, -1e-9]: wedge_classes reads In, exactly In, flipped by a 1.000e-9 m deviation: decided in band
+ε 1e-9, cone 21 (6 corners, hollow true), probe 4 [1.9975006207472723, 0.09995634104078589, 0.0]: cone_side reads In, exactly In, flipped by a 1.000e-10 m deviation: decided in band
+ε 1e-9, cone 21 (6 corners, hollow true), probe 4 [1.9975006207472723, 0.09995634104078589, 0.0]: wedge_classes reads In, exactly In, flipped by a 1.000e-10 m deviation: decided in band
+ε 1e-9, cone 21 (6 corners, hollow true), probe 5 [1.9975006207472723, 0.09995634104078589, 8e-10]: cone_side reads In, exactly In, flipped by a 8.000e-10 m deviation: decided in band
+ε 1e-9, cone 21 (6 corners, hollow true), probe 5 [1.9975006207472723, 0.09995634104078589, 8e-10]: wedge_classes reads In, exactly In, flipped by a 8.000e-10 m deviation: decided in band
+ε 1e-9, cone 21 (6 corners, hollow true), probe 11 [1.9975005407815603, 0.09995793904125051, 0.0]: cone_side reads In, exactly In, flipped by a 2.000e-11 m deviation: decided in band
+ε 1e-9, cone 21 (6 corners, hollow true), probe 11 [1.9975005407815603, 0.09995793904125051, 0.0]: wedge_classes reads In, exactly In, flipped by a 2.000e-11 m deviation: decided in band
+ε 1e-9, cone 29 (6 corners, hollow false), probe 1 [0.49937513519539006, 0.024989484760312628, 5e-11]: cone_side reads Out, exactly Out, flipped by a 4.990e-10 m deviation: decided in band
+ε 1e-9, cone 29 (6 corners, hollow false), probe 1 [0.49937513519539006, 0.024989484760312628, 5e-11]: wedge_classes reads Out, exactly Out, flipped by a 4.990e-10 m deviation: decided in band
+ε 1e-9, cone 29 (6 corners, hollow false), probe 2 [1.9975005407815603, 0.09995793904125051, 0.0]: cone_side reads Out, exactly Out, flipped by a 4.998e-10 m deviation: decided in band
+ε 1e-9, cone 29 (6 corners, hollow false), probe 2 [1.9975005407815603, 0.09995793904125051, 0.0]: wedge_classes reads Out, exactly Out, flipped by a 4.998e-10 m deviation: decided in band
+ε 1e-9, cone 29 (6 corners, hollow false), probe 3 [0.9987502803865541, 0.04997876977057018, -4.0000000000000007e-10]: cone_side reads Out, exactly Out, flipped by a 6.993e-10 m deviation: decided in band
+ε 1e-9, cone 29 (6 corners, hollow false), probe 3 [0.9987502803865541, 0.04997876977057018, -4.0000000000000007e-10]: wedge_classes reads Out, exactly Out, flipped by a 6.993e-10 m deviation: decided in band
+ε 1e-9, cone 29 (6 corners, hollow false), probe 5 [0.49937513519539006, 0.024989484760312628, 1e-9]: cone_side reads Out, exactly Out, flipped by a 1.000e-9 m deviation: decided in band
+ε 1e-9, cone 29 (6 corners, hollow false), probe 5 [0.49937513519539006, 0.024989484760312628, 1e-9]: wedge_classes reads Out, exactly Out, flipped by a 1.000e-9 m deviation: decided in band
+ε 1e-9, cone 29 (6 corners, hollow false), probe 7 [0.49937514019327706, 0.02498938488528509, 0.0]: cone_side reads Out, exactly Out, flipped by a 6.986e-10 m deviation: decided in band
+ε 1e-9, cone 29 (6 corners, hollow false), probe 7 [0.49937514019327706, 0.02498938488528509, 0.0]: wedge_classes reads Out, exactly Out, flipped by a 6.986e-10 m deviation: decided in band
+ε 1e-9, cone 29 (6 corners, hollow false), probe 10 [1.9975005607731082, 0.09995753954114037, -2.0000000000000003e-10]: cone_side reads Out, exactly Out, flipped by a 6.997e-10 m deviation: decided in band
+ε 1e-9, cone 29 (6 corners, hollow false), probe 10 [1.9975005607731082, 0.09995753954114037, -2.0000000000000003e-10]: wedge_classes reads Out, exactly Out, flipped by a 6.997e-10 m deviation: decided in band
+ε 1e-9, cone 29 (6 corners, hollow false), probe 11 [1.9975005407815603, 0.09995793904125051, 8e-10]: cone_side reads Out, exactly Out, flipped by a 8.000e-10 m deviation: decided in band
+ε 1e-9, cone 29 (6 corners, hollow false), probe 11 [1.9975005407815603, 0.09995793904125051, 8e-10]: wedge_classes reads Out, exactly Out, flipped by a 8.000e-10 m deviation: decided in band
+ε 1e-9, cone 33 (6 corners, hollow false), probe 0 [0.4993751551868181, 0.024989085260196473, -2e-10]: cone_side reads In, exactly In, flipped by a 2.000e-10 m deviation: decided in band
+ε 1e-9, cone 33 (6 corners, hollow false), probe 0 [0.4993751551868181, 0.024989085260196473, -2e-10]: wedge_classes reads In, exactly In, flipped by a 2.000e-10 m deviation: decided in band
+ε 1e-9, cone 33 (6 corners, hollow false), probe 3 [0.4993751551868181, 0.024989085260196473, 2e-10]: cone_side reads In, exactly In, flipped by a 2.000e-10 m deviation: decided in band
+ε 1e-9, cone 33 (6 corners, hollow false), probe 3 [0.4993751551868181, 0.024989085260196473, 2e-10]: wedge_classes reads In, exactly In, flipped by a 2.000e-10 m deviation: decided in band
+ε 1e-9, cone 33 (6 corners, hollow false), probe 4 [0.4993751551868181, 0.024989085260196473, -1e-9]: cone_side reads In, exactly In, flipped by a 1.000e-9 m deviation: decided in band
+ε 1e-9, cone 33 (6 corners, hollow false), probe 4 [0.4993751551868181, 0.024989085260196473, -1e-9]: wedge_classes reads In, exactly In, flipped by a 1.000e-9 m deviation: decided in band
+ε 1e-9, cone 33 (6 corners, hollow false), probe 5 [0.9987503103736362, 0.049978170520392946, 1e-10]: cone_side reads In, exactly In, flipped by a 1.000e-10 m deviation: decided in band
+ε 1e-9, cone 33 (6 corners, hollow false), probe 5 [0.9987503103736362, 0.049978170520392946, 1e-10]: wedge_classes reads In, exactly In, flipped by a 1.000e-10 m deviation: decided in band
+ε 1e-9, cone 33 (6 corners, hollow false), probe 6 [0.4993751551868181, 0.024989085260196473, 2e-10]: cone_side reads In, exactly In, flipped by a 2.000e-10 m deviation: decided in band
+ε 1e-9, cone 33 (6 corners, hollow false), probe 6 [0.4993751551868181, 0.024989085260196473, 2e-10]: wedge_classes reads In, exactly In, flipped by a 2.000e-10 m deviation: decided in band
+ε 1e-9, cone 33 (6 corners, hollow false), probe 9 [1.9975006207472723, 0.09995634104078589, 2e-10]: cone_side reads In, exactly In, flipped by a 2.000e-10 m deviation: decided in band
+ε 1e-9, cone 33 (6 corners, hollow false), probe 9 [1.9975006207472723, 0.09995634104078589, 2e-10]: wedge_classes reads In, exactly In, flipped by a 2.000e-10 m deviation: decided in band
+ε 1e-9, cone 49 (6 corners, hollow false), probe 7 [1.9975006207472723, 0.09995634104078589, 0.0]: cone_side reads In, exactly In, flipped by a 7.000e-11 m deviation: decided in band
+ε 1e-9, cone 49 (6 corners, hollow false), probe 7 [1.9975006207472723, 0.09995634104078589, 0.0]: wedge_classes reads In, exactly In, flipped by a 7.000e-11 m deviation: decided in band
+ε 1e-9, cone 49 (6 corners, hollow false), probe 11 [0.9987503103736362, 0.049978170520392946, -4e-10]: cone_side reads In, exactly In, flipped by a 4.000e-10 m deviation: decided in band
+ε 1e-9, cone 49 (6 corners, hollow false), probe 11 [0.9987503103736362, 0.049978170520392946, -4e-10]: wedge_classes reads In, exactly In, flipped by a 4.000e-10 m deviation: decided in band
+ε 1e-9, cone 53 (6 corners, hollow false), probe 3 [1.9975006207472723, 0.09995634104078589, -2e-10]: cone_side reads Out, exactly Out, flipped by a 2.000e-10 m deviation: decided in band
+ε 1e-9, cone 53 (6 corners, hollow false), probe 3 [1.9975006207472723, 0.09995634104078589, -2e-10]: wedge_classes reads Out, exactly Out, flipped by a 2.000e-10 m deviation: decided in band
+ε 1e-9, cone 57 (6 corners, hollow false), probe 2 [1.9975005107940886, 0.09995853829140824, 0.0]: cone_side reads In, exactly In, flipped by a 2.000e-11 m deviation: decided in band
+ε 1e-9, cone 57 (6 corners, hollow false), probe 2 [1.9975005107940886, 0.09995853829140824, 0.0]: wedge_classes reads In, exactly In, flipped by a 2.000e-11 m deviation: decided in band
+ε 1e-9, cone 57 (6 corners, hollow false), probe 3 [0.49937513519539006, 0.024989484760312628, 0.0]: cone_side reads In, exactly In, flipped by a 4.999e-11 m deviation: decided in band
+ε 1e-9, cone 57 (6 corners, hollow false), probe 3 [0.49937513519539006, 0.024989484760312628, 0.0]: wedge_classes reads In, exactly In, flipped by a 4.999e-11 m deviation: decided in band
+ε 1e-9, cone 57 (6 corners, hollow false), probe 6 [1.9975005407815603, 0.09995793904125051, -8e-10]: cone_side reads In, exactly In, flipped by a 8.000e-10 m deviation: decided in band
+ε 1e-9, cone 57 (6 corners, hollow false), probe 6 [1.9975005407815603, 0.09995793904125051, -8e-10]: wedge_classes reads In, exactly In, flipped by a 8.000e-10 m deviation: decided in band
+ε 1e-9, cone 57 (6 corners, hollow false), probe 7 [1.9975005107940886, 0.09995853829140824, 0.0]: cone_side reads In, exactly In, flipped by a 2.000e-11 m deviation: decided in band
+ε 1e-9, cone 57 (6 corners, hollow false), probe 7 [1.9975005107940886, 0.09995853829140824, 0.0]: wedge_classes reads In, exactly In, flipped by a 2.000e-11 m deviation: decided in band
+ε 1e-9, cone 57 (6 corners, hollow false), probe 8 [0.49937513519539006, 0.024989484760312628, -5e-11]: cone_side reads In, exactly In, flipped by a 5.000e-11 m deviation: decided in band
+ε 1e-9, cone 57 (6 corners, hollow false), probe 8 [0.49937513519539006, 0.024989484760312628, -5e-11]: wedge_classes reads In, exactly In, flipped by a 5.000e-11 m deviation: decided in band
+ε 1e-9, cone 57 (6 corners, hollow false), probe 10 [0.9987502703907801, 0.049978969520625256, 0.0]: cone_side reads In, exactly In, flipped by a 5.000e-11 m deviation: decided in band
+ε 1e-9, cone 57 (6 corners, hollow false), probe 10 [0.9987502703907801, 0.049978969520625256, 0.0]: wedge_classes reads In, exactly In, flipped by a 5.000e-11 m deviation: decided in band
+ε 1e-9, cone 61 (6 corners, hollow false), probe 5 [1.9975005607731082, 0.09995753954114037, 0.0]: cone_side reads In, exactly In, flipped by a 6.997e-10 m deviation: decided in band
+ε 1e-9, cone 61 (6 corners, hollow false), probe 5 [1.9975005607731082, 0.09995753954114037, 0.0]: wedge_classes reads In, exactly In, flipped by a 6.997e-10 m deviation: decided in band
+ε 1e-9, cone 61 (6 corners, hollow false), probe 7 [1.9975005607731082, 0.09995753954114037, 2.0000000000000003e-10]: cone_side reads In, exactly In, flipped by a 6.997e-10 m deviation: decided in band
+ε 1e-9, cone 61 (6 corners, hollow false), probe 7 [1.9975005607731082, 0.09995753954114037, 2.0000000000000003e-10]: wedge_classes reads In, exactly In, flipped by a 6.997e-10 m deviation: decided in band
+ε 1e-9, cone 65 (6 corners, hollow true), probe 5 [1.9975005607731082, 0.09995753954114037, 0.0]: cone_side reads Out, exactly Out, flipped by a 3.998e-10 m deviation: decided in band
+ε 1e-9, cone 65 (6 corners, hollow true), probe 5 [1.9975005607731082, 0.09995753954114037, 0.0]: wedge_classes reads Out, exactly Out, flipped by a 3.998e-10 m deviation: decided in band
+ε 1e-9, cone 65 (6 corners, hollow true), probe 8 [1.9975005607731082, 0.09995753954114037, 8.000000000000001e-10]: cone_side reads Out, exactly Out, flipped by a 8.000e-10 m deviation: decided in band
+ε 1e-9, cone 65 (6 corners, hollow true), probe 8 [1.9975005607731082, 0.09995753954114037, 8.000000000000001e-10]: wedge_classes reads Out, exactly Out, flipped by a 8.000e-10 m deviation: decided in band
+ε 1e-9, cone 65 (6 corners, hollow true), probe 9 [0.4993751551868181, 0.024989085260196473, -1e-9]: cone_side reads Out, exactly Out, flipped by a 1.000e-9 m deviation: decided in band
+ε 1e-9, cone 65 (6 corners, hollow true), probe 9 [0.4993751551868181, 0.024989085260196473, -1e-9]: wedge_classes reads Out, exactly Out, flipped by a 1.000e-9 m deviation: decided in band
+ε 1e-9, cone 69 (6 corners, hollow false), probe 1 [1.9975006207472723, 0.09995634104078589, 2e-10]: cone_side reads Out, exactly Out, flipped by a 6.997e-10 m deviation: decided in band
+ε 1e-9, cone 69 (6 corners, hollow false), probe 1 [1.9975006207472723, 0.09995634104078589, 2e-10]: wedge_classes reads Out, exactly Out, flipped by a 6.997e-10 m deviation: decided in band
+ε 1e-9, cone 69 (6 corners, hollow false), probe 7 [0.9987503103736362, 0.049978170520392946, 4e-10]: cone_side reads Out, exactly Out, flipped by a 6.993e-10 m deviation: decided in band
+ε 1e-9, cone 69 (6 corners, hollow false), probe 7 [0.9987503103736362, 0.049978170520392946, 4e-10]: wedge_classes reads Out, exactly Out, flipped by a 6.993e-10 m deviation: decided in band
+ε 1e-9, cone 69 (6 corners, hollow false), probe 9 [1.9975005607731082, 0.09995753954114037, 2.0000000000000003e-10]: cone_side reads Out, exactly Out, flipped by a 2.000e-10 m deviation: decided in band
+ε 1e-9, cone 69 (6 corners, hollow false), probe 9 [1.9975005607731082, 0.09995753954114037, 2.0000000000000003e-10]: wedge_classes reads Out, exactly Out, flipped by a 2.000e-10 m deviation: decided in band
+ε 1e-9, cone 69 (6 corners, hollow false), probe 10 [0.4993751551868181, 0.024989085260196473, -5e-11]: cone_side reads Out, exactly Out, flipped by a 6.986e-10 m deviation: decided in band
+ε 1e-9, cone 69 (6 corners, hollow false), probe 10 [0.4993751551868181, 0.024989085260196473, -5e-11]: wedge_classes reads Out, exactly Out, flipped by a 6.986e-10 m deviation: decided in band
+ε 1e-9, cone 73 (6 corners, hollow true), probe 0 [0.4993751551868181, 0.024989085260196473, 2e-10]: cone_side reads In, exactly In, flipped by a 6.986e-10 m deviation: decided in band
+ε 1e-9, cone 73 (6 corners, hollow true), probe 0 [0.4993751551868181, 0.024989085260196473, 2e-10]: wedge_classes reads In, exactly In, flipped by a 6.986e-10 m deviation: decided in band
+ε 1e-9, cone 73 (6 corners, hollow true), probe 5 [0.4993751551868181, 0.024989085260196473, -2e-10]: cone_side reads In, exactly In, flipped by a 6.986e-10 m deviation: decided in band
+ε 1e-9, cone 73 (6 corners, hollow true), probe 5 [0.4993751551868181, 0.024989085260196473, -2e-10]: wedge_classes reads In, exactly In, flipped by a 6.986e-10 m deviation: decided in band
+ε 1e-9, cone 73 (6 corners, hollow true), probe 8 [0.4993751551868181, 0.024989085260196473, -2e-10]: cone_side reads In, exactly In, flipped by a 6.986e-10 m deviation: decided in band
+ε 1e-9, cone 73 (6 corners, hollow true), probe 8 [0.4993751551868181, 0.024989085260196473, -2e-10]: wedge_classes reads In, exactly In, flipped by a 6.986e-10 m deviation: decided in band
+ε 1e-9, cone 77 (6 corners, hollow false), probe 1 [1.9975005607731082, 0.09995753954114037, 8.000000000000001e-10]: cone_side reads In, exactly In, flipped by a 9.950e-10 m deviation: decided in band
+ε 1e-9, cone 77 (6 corners, hollow false), probe 1 [1.9975005607731082, 0.09995753954114037, 8.000000000000001e-10]: wedge_classes reads In, exactly In, flipped by a 9.950e-10 m deviation: decided in band
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: the_polygon_cone_reader_never_contradicts_the_exact_oracle
+             at ./crates/topo/src/boolean/sectors/cone_fuzz.rs:696:5
+   3: topo::boolean::sectors::cone_fuzz::the_polygon_cone_reader_never_contradicts_the_exact_oracle::{closure#0}
+             at ./crates/topo/src/boolean/sectors/cone_fuzz.rs:641:64
+   4: <topo::boolean::sectors::cone_fuzz::the_polygon_cone_reader_never_contradicts_the_exact_oracle::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    boolean::sectors::cone_fuzz::the_polygon_cone_reader_never_contradicts_the_exact_oracle
+    boolean::sectors::tests::a_direction_beside_a_short_bound_is_read_at_the_bounds_reach
+
+test result: FAILED. 40 passed; 2 failed; 0 ignored; 0 measured; 1736 filtered out; finished in 1.83s
+

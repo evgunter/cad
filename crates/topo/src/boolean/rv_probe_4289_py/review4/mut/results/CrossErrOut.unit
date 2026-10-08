@@ -1,0 +1,100 @@
+
+running 42 tests
+test boolean::sectors::rv_probe_4289::rv_probe_cases ... ok
+test boolean::sectors::tests::a_dart_corner_reads_as_its_polygon_cone ... ok
+test boolean::sectors::tests::a_crossing_far_from_a_reference_on_a_plane_is_located ... ok
+test boolean::sectors::tests::a_crossing_point_is_read_at_how_well_it_is_located ... ok
+test boolean::sectors::tests::a_direction_beside_a_short_bound_is_read_at_the_bounds_reach ... ok
+test boolean::sectors::tests::a_direction_off_a_short_armed_sector_is_off_it ... ok
+test boolean::sectors::tests::a_direction_opposite_a_thin_sector_is_not_within_it ... ok
+test boolean::sectors::tests::a_direction_sense_refuses_its_decided_zero_as_its_in_band_arm ... ok
+test boolean::sectors::tests::a_direction_senses_refusal_is_on_the_escalation_log ... ok
+test boolean::sectors::tests::a_flat_three_face_corner_reads_met ... ok
+test boolean::sectors::tests::a_direction_on_a_sector_bound_escalates_with_no_declaration_read ... ok
+test boolean::sectors::tests::a_pair_parallel_at_a_short_arm_goes_to_the_ladder_as_a_coincidence ... ok
+test boolean::sectors::tests::a_plane_through_a_reference_and_a_bound_is_read_at_the_shorter_arm ... ok
+test boolean::sectors::tests::a_lever_arm_gate_escalates_as_its_own_decision ... ok
+test boolean::sectors::tests::a_reference_on_a_plane_beside_a_crossing_inside_the_sector_passes_over ... ok
+test boolean::sectors::tests::a_reference_read_in_band_is_passed_over ... ok
+test boolean::sectors::tests::a_saddle_corner_reads_as_its_polygon_cone ... ok
+test boolean::sectors::tests::a_tangent_pair_side_escalates_as_the_side_it_reads ... ok
+test boolean::sectors::tests::a_thin_fin_reads_as_its_polygon_cone ... ok
+test boolean::sectors::tests::an_arc_through_a_link_vertex_passes_over_its_reference ... ok
+test boolean::sectors::tests::an_arcs_side_of_a_bound_is_decided_at_its_least_deviation ... ok
+test boolean::sectors::tests::an_arcs_side_of_a_bound_is_not_read_off_its_rounding ... ok
+test boolean::sectors::tests::an_arcs_side_of_a_short_bound_is_read_at_the_bounds_reach ... ok
+test boolean::sectors::tests::an_asymmetric_saddle_reads_as_its_polygon_cone ... ok
+test boolean::sectors::tests::an_in_band_reflex_edge_escalates_rather_than_read_convex ... ok
+test boolean::sectors::tests::coplanar_overlap_cases ... ok
+test boolean::sectors::tests::mirror_check_side_codes ... ok
+test boolean::sectors::tests::pair_search_generic_crossing ... ok
+test boolean::sectors::tests::tangent_lump_external_tangency_is_out_both_ways ... ok
+test boolean::sectors::tests::tangent_lump_is_three_outcome_honest_on_the_arm ... ok
+test boolean::sectors::tests::tangent_lump_nested_internal_tangency_is_in ... ok
+test boolean::sectors::tests::tangent_lump_refuses_typed_off_the_lane ... ok
+test boolean::sectors::tests::the_charge_resolves_the_slope_against_the_band_at_every_radius ... ok
+test boolean::sectors::tests::the_hole_wall_witness_certifies_its_side_near_the_vertex ... ok
+test boolean::sectors::tests::within_convex_sector ... ok
+test boolean::vtxfac::tests::a_bisector_on_between_one_sided_bounds_refuses ... ok
+test boolean::vtxfac::tests::a_pierced_vertex_is_refused_at_a_second_pierce_and_returned_at_a_pair ... ok
+test boolean::sectors::tests::a_direction_beside_a_face_reads_the_arcs_crossing_point ... FAILED
+test boolean::vtxfac::tests::an_in_band_pierce_germ_line_is_the_sectors_tilt_undecided ... ok
+test boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners ... ok
+test boolean::vtxfac::tests::a_bisector_run_after_the_other_run_keeps_its_corner ... ok
+test boolean::sectors::cone_fuzz::the_polygon_cone_reader_never_contradicts_the_exact_oracle ... FAILED
+
+failures:
+
+---- boolean::sectors::tests::a_direction_beside_a_face_reads_the_arcs_crossing_point stdout ----
+
+thread 'boolean::sectors::tests::a_direction_beside_a_face_reads_the_arcs_crossing_point' (30213) panicked at crates/topo/src/boolean/sectors.rs:2460:22:
+the crossing point in band escalates, got Ok(Some(WedgeRead { met: true, pointed: true, rows: [(HalfEdgeKey(21v1), In)] }))
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: topo::boolean::sectors::tests::a_direction_beside_a_face_reads_the_arcs_crossing_point
+             at ./crates/topo/src/boolean/sectors.rs:2460:22
+   3: topo::boolean::sectors::tests::a_direction_beside_a_face_reads_the_arcs_crossing_point::{closure#0}
+             at ./crates/topo/src/boolean/sectors.rs:2368:65
+   4: <topo::boolean::sectors::tests::a_direction_beside_a_face_reads_the_arcs_crossing_point::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+---- boolean::sectors::cone_fuzz::the_polygon_cone_reader_never_contradicts_the_exact_oracle stdout ----
+[fuzz] sectors_cone_fuzz: seed=0xc6af8599fc3b235a effort=1 — replay with CAD_FUZZ_SEED=0xc6af8599fc3b235a
+[fuzz] sectors_cone_fuzz: 5316 readings, 395 undecided, 6 wrong
+
+thread 'boolean::sectors::cone_fuzz::the_polygon_cone_reader_never_contradicts_the_exact_oracle' (30208) panicked at crates/topo/src/boolean/sectors/cone_fuzz.rs:696:5:
+6 readings contradict the exact oracle or decide in band; reproduce with CAD_FUZZ_SEED=0xc6af8599fc3b235a CAD_FUZZ_EFFORT=1:
+ε 1e-9, cone 12 (6 corners, hollow false), probe 0 [0.5093777556167592, 0.860543027444201, 4.9999999999999945e-8]: cone_side reads Out, exactly In, flipped by a 5.000e-8 m deviation: the oracle contradicts it
+ε 1e-9, cone 12 (6 corners, hollow false), probe 0 [0.5093777556167592, 0.860543027444201, 4.9999999999999945e-8]: wedge_classes reads Out, exactly In, flipped by a 5.000e-8 m deviation: the oracle contradicts it
+ε 1e-9, cone 12 (6 corners, hollow false), probe 6 [0.011520709292852403, 0.4998672556363233, 1.4999999999999992e-8]: cone_side reads Out, exactly In, flipped by a 1.500e-8 m deviation: the oracle contradicts it
+ε 1e-9, cone 12 (6 corners, hollow false), probe 6 [0.011520709292852403, 0.4998672556363233, 1.4999999999999992e-8]: wedge_classes reads Out, exactly In, flipped by a 1.500e-8 m deviation: the oracle contradicts it
+ε 1e-9, cone 12 (6 corners, hollow false), probe 8 [0.8375641494863814, 0.5463389932039943, 1.9999999999999997e-8]: cone_side reads Out, exactly In, flipped by a 2.000e-8 m deviation: the oracle contradicts it
+ε 1e-9, cone 12 (6 corners, hollow false), probe 8 [0.8375641494863814, 0.5463389932039943, 1.9999999999999997e-8]: wedge_classes reads Out, exactly In, flipped by a 2.000e-8 m deviation: the oracle contradicts it
+stack backtrace:
+   0: __rustc::rust_begin_unwind
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/std/src/panicking.rs:689:5
+   1: core::panicking::panic_fmt
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/panicking.rs:80:14
+   2: the_polygon_cone_reader_never_contradicts_the_exact_oracle
+             at ./crates/topo/src/boolean/sectors/cone_fuzz.rs:696:5
+   3: topo::boolean::sectors::cone_fuzz::the_polygon_cone_reader_never_contradicts_the_exact_oracle::{closure#0}
+             at ./crates/topo/src/boolean/sectors/cone_fuzz.rs:641:64
+   4: <topo::boolean::sectors::cone_fuzz::the_polygon_cone_reader_never_contradicts_the_exact_oracle::{closure#0} as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+   5: <fn() -> core::result::Result<(), alloc::string::String> as core::ops::function::FnOnce<()>>::call_once
+             at /rustc/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/library/core/src/ops/function.rs:250:5
+note: Some details are omitted, run with `RUST_BACKTRACE=full` for a verbose backtrace.
+
+
+failures:
+    boolean::sectors::cone_fuzz::the_polygon_cone_reader_never_contradicts_the_exact_oracle
+    boolean::sectors::tests::a_direction_beside_a_face_reads_the_arcs_crossing_point
+
+test result: FAILED. 40 passed; 2 failed; 0 ignored; 0 measured; 1736 filtered out; finished in 2.29s
+

@@ -1,0 +1,80 @@
+case 0 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 1 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 2 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 3 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 4 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 5 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 6 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 7 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 8 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 9 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 10 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 11 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 12 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 13 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 14 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On
+case 15 met=true pointed=true | met=true pointed=true
+p 0 On On
+p 1 On On
+p 2 On On
+p 3 On On

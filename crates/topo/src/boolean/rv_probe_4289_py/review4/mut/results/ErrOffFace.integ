@@ -1,0 +1,18 @@
+   Compiling topo v0.0.0 (/home/user/probe/crates/topo)
+   Compiling mesh v0.0.0 (/home/user/probe/crates/mesh)
+   Compiling step-export v0.0.0 (/home/user/probe/crates/step-export)
+   Compiling stl v0.0.0 (/home/user/probe/crates/stl)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 54.11s
+────────────
+ Nextest run ID 1f95d35c-3731-4a76-9abe-708b46c2790b with nextest profile: default
+    Starting 7 tests across 1 binary (962 tests and 1 binary skipped)
+        PASS [   2.662s] (1/7) topo::all a_vertex_read_by_two_sector_passes::a_vertex_crossing_a_face_it_pairs_on_or_piercing_two_refuses_typed_in_every_op
+        PASS [   4.845s] (2/7) topo::all a_vertex_read_by_two_sector_passes::a_vertex_in_several_pairs_or_beside_nested_partners_reads_each_edge_once
+        PASS [   6.129s] (3/7) topo::all a_vertex_read_by_two_sector_passes::a_touching_vertex_paired_on_the_face_builds_sound_in_every_op
+        PASS [   1.160s] (4/7) topo::all a_vertex_read_by_two_sector_passes::standing_pyramids_folded_onto_the_plate_build_in_every_member_order
+        PASS [   6.759s] (5/7) topo::all a_vertex_read_by_two_sector_passes::five_members_fold_onto_the_plate_in_sampled_member_orders
+        PASS [  37.933s] (6/7) topo::all a_vertex_read_again_classes_every_edge::every_edge_a_vertex_read_again_reads_is_classed_against_the_germ
+        SLOW [> 60.000s] (───) topo::all a_vertex_read_by_two_sector_passes::every_scene_builds_sound_or_refuses_typed_at_every_pose
+        PASS [  69.280s] (7/7) topo::all a_vertex_read_by_two_sector_passes::every_scene_builds_sound_or_refuses_typed_at_every_pose
+────────────
+     Summary [  71.943s] 7 tests run: 7 passed (1 slow), 962 skipped

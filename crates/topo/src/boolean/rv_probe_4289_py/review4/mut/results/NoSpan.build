@@ -1,0 +1,6 @@
+   Compiling topo v0.0.0 (/home/user/probe/crates/topo)
+   Compiling mesh v0.0.0 (/home/user/probe/crates/mesh)
+   Compiling step-export v0.0.0 (/home/user/probe/crates/step-export)
+   Compiling stl v0.0.0 (/home/user/probe/crates/stl)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.19s
+  Executable unittests src/lib.rs (/home/user/tgt2/debug/deps/topo-28cab2914d59b2c5)

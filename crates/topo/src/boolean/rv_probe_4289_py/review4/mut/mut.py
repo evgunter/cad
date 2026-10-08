@@ -27,6 +27,9 @@ M = {
  # in_sector bound term: levered at the bound's reach alone (direction dropped)
  'BndOnly': ("let past = |x: T, l_bound: T| Margin::levered(x, least_lever([(lever, one), (l_bound, one)]));",
              "let past = |x: T, l_bound: T| Margin::levered(x, least_lever([(l_bound, one)]));"),
+ # 398d9382's lever: in_sector's bound term dropped
+ 'BndLever': ("let past = |x: T, l_bound: T| Margin::levered(x, least_lever([(lever, one), (l_bound, one)]));",
+              "let past = |x: T, l_bound: T| Margin::levered(x, least_lever([(lever, one)]));"),
  # arc_side: p's term dropped
  'ArcNoP': ("        (arc.p_arm, d.cross(b).norm()),\n", ""),
 }

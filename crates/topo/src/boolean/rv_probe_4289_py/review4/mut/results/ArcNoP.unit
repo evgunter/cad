@@ -1,0 +1,47 @@
+
+running 42 tests
+test boolean::sectors::rv_probe_4289::rv_probe_cases ... ok
+test boolean::sectors::tests::a_crossing_point_is_read_at_how_well_it_is_located ... ok
+test boolean::sectors::tests::a_direction_beside_a_face_reads_the_arcs_crossing_point ... ok
+test boolean::sectors::tests::a_crossing_far_from_a_reference_on_a_plane_is_located ... ok
+test boolean::sectors::tests::a_dart_corner_reads_as_its_polygon_cone ... ok
+test boolean::sectors::tests::a_direction_beside_a_short_bound_is_read_at_the_bounds_reach ... ok
+test boolean::sectors::tests::a_direction_opposite_a_thin_sector_is_not_within_it ... ok
+test boolean::sectors::tests::a_direction_off_a_short_armed_sector_is_off_it ... ok
+test boolean::sectors::tests::a_direction_sense_refuses_its_decided_zero_as_its_in_band_arm ... ok
+test boolean::sectors::tests::a_direction_on_a_sector_bound_escalates_with_no_declaration_read ... ok
+test boolean::sectors::tests::a_direction_senses_refusal_is_on_the_escalation_log ... ok
+test boolean::sectors::tests::a_flat_three_face_corner_reads_met ... ok
+test boolean::sectors::tests::a_lever_arm_gate_escalates_as_its_own_decision ... ok
+test boolean::sectors::tests::a_pair_parallel_at_a_short_arm_goes_to_the_ladder_as_a_coincidence ... ok
+test boolean::sectors::tests::a_plane_through_a_reference_and_a_bound_is_read_at_the_shorter_arm ... ok
+test boolean::sectors::tests::a_reference_on_a_plane_beside_a_crossing_inside_the_sector_passes_over ... ok
+test boolean::sectors::tests::a_reference_read_in_band_is_passed_over ... ok
+test boolean::sectors::tests::a_saddle_corner_reads_as_its_polygon_cone ... ok
+test boolean::sectors::tests::a_thin_fin_reads_as_its_polygon_cone ... ok
+test boolean::sectors::tests::a_tangent_pair_side_escalates_as_the_side_it_reads ... ok
+test boolean::sectors::tests::an_arcs_side_of_a_bound_is_decided_at_its_least_deviation ... ok
+test boolean::sectors::tests::an_arcs_side_of_a_bound_is_not_read_off_its_rounding ... ok
+test boolean::sectors::tests::an_arc_through_a_link_vertex_passes_over_its_reference ... ok
+test boolean::sectors::tests::an_arcs_side_of_a_short_bound_is_read_at_the_bounds_reach ... ok
+test boolean::sectors::tests::an_asymmetric_saddle_reads_as_its_polygon_cone ... ok
+test boolean::sectors::tests::an_in_band_reflex_edge_escalates_rather_than_read_convex ... ok
+test boolean::sectors::tests::coplanar_overlap_cases ... ok
+test boolean::sectors::tests::pair_search_generic_crossing ... ok
+test boolean::sectors::tests::tangent_lump_external_tangency_is_out_both_ways ... ok
+test boolean::sectors::tests::tangent_lump_is_three_outcome_honest_on_the_arm ... ok
+test boolean::sectors::tests::mirror_check_side_codes ... ok
+test boolean::sectors::tests::tangent_lump_nested_internal_tangency_is_in ... ok
+test boolean::sectors::tests::tangent_lump_refuses_typed_off_the_lane ... ok
+test boolean::sectors::tests::the_hole_wall_witness_certifies_its_side_near_the_vertex ... ok
+test boolean::sectors::tests::within_convex_sector ... ok
+test boolean::vtxfac::tests::a_bisector_on_between_one_sided_bounds_refuses ... ok
+test boolean::vtxfac::tests::a_pierced_vertex_is_refused_at_a_second_pierce_and_returned_at_a_pair ... ok
+test boolean::vtxfac::tests::a_vertex_read_again_layers_its_partners ... ok
+test boolean::sectors::tests::the_charge_resolves_the_slope_against_the_band_at_every_radius ... ok
+test boolean::vtxfac::tests::an_in_band_pierce_germ_line_is_the_sectors_tilt_undecided ... ok
+test boolean::vtxfac::tests::a_bisector_run_after_the_other_run_keeps_its_corner ... ok
+test boolean::sectors::cone_fuzz::the_polygon_cone_reader_never_contradicts_the_exact_oracle ... ok
+
+test result: ok. 42 passed; 0 failed; 0 ignored; 0 measured; 1736 filtered out; finished in 1.76s
+

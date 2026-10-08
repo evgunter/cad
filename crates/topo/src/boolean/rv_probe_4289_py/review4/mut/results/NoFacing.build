@@ -1,0 +1,22 @@
+   Compiling topo v0.0.0 (/home/user/probe/crates/topo)
+warning: unused variable: `middle`
+    --> crates/topo/src/boolean/sectors.rs:1780:9
+     |
+1780 |     let middle = sum.normalize();
+     |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_middle`
+     |
+     = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `facing`
+    --> crates/topo/src/boolean/sectors.rs:1788:9
+     |
+1788 |     let facing = least_lever([(lever, one), (l_start, half), (l_end, half)]);
+     |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_facing`
+
+   Compiling mesh v0.0.0 (/home/user/probe/crates/mesh)
+   Compiling step-export v0.0.0 (/home/user/probe/crates/step-export)
+   Compiling stl v0.0.0 (/home/user/probe/crates/stl)
+warning: `topo` (lib) generated 2 warnings (run `cargo fix --lib -p topo` to apply 2 suggestions)
+warning: `topo` (lib test) generated 2 warnings (2 duplicates)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 23.70s
+  Executable unittests src/lib.rs (/home/user/tgt2/debug/deps/topo-28cab2914d59b2c5)
