@@ -1279,3 +1279,19 @@ TANG's PR 4346 closes `a-pierce-pinch-weld-reads-which-ring-strut-was-minted-fir
 The weld now reads the corner of a vertex that a face passes twice, and
 a pierce copy whose corners no corner of that vertex holds stays apart.
 The every-root row's eight `Ltop asym` lines build `OK SOUND`.
+## 2026-10-08: the walk-order unit landed (DR-110)
+
+- **PR 4317 merged** (M, SEQUENTIAL arm, byte 19).
+  - `walks_before` reads one order from the orbit's entry 0, checked to open a physical sector.
+  - `on_arc` is the one interval reading; `arc_holds` is the one "holds whole" reading, with its tie rule at its definition.
+  - `precedes` and the backward walk are gone.
+  - 0 lines moved over every battery, including three the PR did not run.
+- **Its one review:** APPROVE-WITH-FIXES, 0/1/4.
+  - The case table was re-modelled exhaustively; its one differing input is unreachable by `is_strut`'s definition.
+  - Mutants M1, M3 and M4 are killed; M2 is equivalent.
+  - The fix pass corrected `on_arc`'s doc, made a fan whose ends share one entry fail loud, made `arc_holders`' comparator infallible, and aligned the module header with `run_fan`.
+- `a-run-holding-another-whole-is-spelled-three-ways-in-insert` and `a-vertex-orbits-position-has-one-comparator-but-no-fixed-origin` are closed.
+- **Renumbered:** the two `[ev]` forks' rows are 100 (PR 4313) and 101 (PR 4335), not 90 and 91 as logged above. Rows 90–99 were taken on main and by other open `[ev]` PRs.
+- **In flight:** the dual review of PR 4344 (sphere pair, H) on head bf57b509; PR 4345 (wrap-edge, H) is merging main before its dual.
+
+Signed (JOIN orchestrator).

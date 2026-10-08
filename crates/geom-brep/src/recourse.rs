@@ -146,6 +146,22 @@ impl Refused {
         }
     }
 
+    /// The verdict a gate that passes on a positive sign carries in its
+    /// rejection ([`MarginDiag::rejected_sign`]): the quantity it meters
+    /// is not there, decided zero or negative. `None` where the gate
+    /// could not decide (in band, straddling, poisoned).
+    #[must_use]
+    pub fn rejected(cause: &Indeterminate) -> Option<Self> {
+        let sign = cause.margin.rejected_sign()?;
+        Self::of(
+            Decided {
+                sign,
+                margin: cause.margin,
+            },
+            cause.band,
+        )
+    }
+
     /// The reporting margin the verdict was classified on.
     #[must_use]
     pub fn margin(self) -> MarginDiag {
