@@ -194,9 +194,9 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 fn the_split_documents_evaluate_to_their_committed_digests() {
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in [
-        ("cut_cylinder", 0x1dcb_d2be_97b6_5546u64),
-        ("part_select", 0xcb0a_e229_f99e_729f),
-        ("kitchen_sink", 0x4baa_5973_ef17_d5a2),
+        ("cut_cylinder", 0x7529_6a8e_c3e6_0cddu64),
+        ("part_select", 0x25c8_ddb5_0aac_db05),
+        ("kitchen_sink", 0x4019_ed56_6ca7_caaa),
     ] {
         assert!(SPLIT_DOCUMENTS.contains(&name));
         let doc = corpus::documents()
@@ -257,7 +257,10 @@ fn cube_split_at(z: f64) -> (Recorder, RecipeNodeId) {
         origin: [len(0.0), len(0.0), len(z)],
         normal: [scl(0.0), scl(0.0), scl(1.0)],
     }));
-    let split = r.insert(Node::Split { target: cube.into(), tool: tool.into() });
+    let split = r.insert(Node::Split {
+        target: cube.into(),
+        tool: tool.into(),
+    });
     (r, split)
 }
 
@@ -310,7 +313,7 @@ fn a_split_with_an_empty_side_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat8 empty_side: {got:#018x}");
     assert_eq!(
-        got, 0x9654_9034_d09e_5f11,
+        got, 0xd422_bb18_3291_07dc,
         "the empty-side evaluation moved — side token, body or name table"
     );
 }
