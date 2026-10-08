@@ -996,6 +996,15 @@ impl SplitHalf {
         }
     }
 
+    /// The half's word, which is also the split's output port it is
+    /// ([`crate::Node::outputs`]).
+    pub fn name(self) -> &'static str {
+        match self {
+            SplitHalf::Above => "above",
+            SplitHalf::Below => "below",
+        }
+    }
+
     /// The half that owns output body `index`, if either does — the
     /// inverse of [`SplitHalf::output_body`], DERIVED from it rather
     /// than written a second time.
@@ -1743,14 +1752,14 @@ pub(crate) enum VerbatimEdge<'a> {
     /// [`Node::Transform`](crate::node::Node::Transform). A selection
     /// in effect above it rides through to `input` unchanged.
     Whole {
-        /// The value placed.
-        input: RecipeNodeId,
+        /// The read of the value placed.
+        input: crate::VarId,
     },
     /// The one body of `of` that `select` names, projected: a
     /// [`Node::Part`](crate::node::Node::Part).
     Selected {
-        /// The split or pattern read.
-        of: RecipeNodeId,
+        /// The read of the split half or the pattern.
+        of: crate::VarId,
         /// Which body of it.
         select: &'a crate::node::PartSelect,
     },
@@ -1832,11 +1841,12 @@ pub(crate) enum Lift {
 }
 
 /// **How `node` (the consumer, minted as `consumer`) carries `name`, an
-/// entity of its input `input`**: one [`Lift`] per seat `input` fills,
-/// empty when `input` is not one of `node`'s inputs.
+/// entity of its input `input`**: one [`Lift`] per seat whose read
+/// `defined_by` resolves to `input`, empty when `node` reads none of
+/// `input`'s outputs.
 ///
 /// The match is exhaustive with no wildcard, and every arm names its
-/// variant's fields (as [`crate::node::Node::inputs`] does), so a new
+/// variant's fields (as [`crate::node::Node::operand_rows`] does), so a new
 /// node kind or a new field does not compile until it is classified
 /// here — a seat or not. Every answer is read off the node's kind and
 /// seat alone; no slot is evaluated.
@@ -1858,6 +1868,7 @@ pub(crate) fn lift<P>(
     node: &crate::node::Node<P>,
     input: RecipeNodeId,
     name: &StableName,
+    defined_by: &dyn Fn(crate::VarId) -> Option<RecipeNodeId>,
 ) -> Vec<Lift> {
     use crate::node::{Datum, Node, PatternKind};
     let under = |seg: fn(NameRef) -> RoleSeg| {
@@ -1867,7 +1878,8 @@ pub(crate) fn lift<P>(
             path: vec![seg(NameRef::new(name.clone()))],
         })
     };
-    let seat = |at: RecipeNodeId, how: Lift| (at == input).then_some(how);
+    let reads = |at: crate::VarId| defined_by(at) == Some(input);
+    let seat = |at: crate::VarId, how: Lift| reads(at).then_some(how);
     let placer_axis = |kind: &PatternKind| match kind {
         PatternKind::Circular { axis, step: _ } => seat(*axis, Lift::Dropped),
         PatternKind::Linear {
@@ -1892,8 +1904,8 @@ pub(crate) fn lift<P>(
             declare: _,
         } => members
             .iter()
-            .filter(|&&m| m == input)
-            .map(|&m| Lift::Spelled(super::member_name(consumer, m, name)))
+            .filter(|&&m| reads(m))
+            .map(|_| Lift::Spelled(super::member_name(consumer, input, name)))
             .collect(),
         Node::Boolean {
             op: _,
@@ -1976,25 +1988,24 @@ pub(crate) fn lift<P>(
                 .collect()
         }
         Node::Tube {
-            spine,
-            u_ref: _,
+            frame,
             major_radius: _,
             window: _,
             minor_radius: _,
         }
         | Node::HollowTube {
-            spine,
-            u_ref: _,
+            frame,
             major_radius: _,
             window: _,
             minor_radius: _,
             wall: _,
-        } => seat(*spine, Lift::Dropped).into_iter().collect(),
+        } => seat(*frame, Lift::Dropped).into_iter().collect(),
         Node::Loft {
             profiles,
             v_degree: _,
         } => profiles
-            .contains(&input)
+            .iter()
+            .any(|&p| reads(p))
             .then_some(Lift::Dropped)
             .into_iter()
             .collect(),

@@ -1487,6 +1487,93 @@ impl<P> Doc<P> {
         self.vars.get(&id)
     }
 
+    /// **The operation `var` is an output of**, and its port: `None`
+    /// for a variable this document does not hold, or one no operation
+    /// defines.
+    pub fn defined_by(&self, var: VarId) -> Option<(RecipeNodeId, u8)> {
+        self.vars.get(&var)?.def().output()
+    }
+
+    /// **The operation `var` is an output of** ([`Self::defined_by`]
+    /// without the port): what an operand reading `var` depends on.
+    pub fn operation_of(&self, var: VarId) -> Option<RecipeNodeId> {
+        self.defined_by(var).map(|(node, _)| node)
+    }
+
+    /// **Every variable `node` reads**: its operands in field order
+    /// ([`Node::operand_rows`]), then its slots and payload expressions
+    /// ([`Node::exprs`]). Empty for a node this document does not hold.
+    pub fn reads(&self, node: RecipeNodeId) -> Vec<VarId>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.nodes.get(&node).map_or_else(Vec::new, |node| {
+            node.operand_rows()
+                .into_iter()
+                .map(|(_, var)| var)
+                .chain(node.exprs().into_iter().copied())
+                .collect()
+        })
+    }
+
+    /// **The operations `node` depends on** (D10: reading is the only
+    /// dependency): the operations defining the variables it reads
+    /// ([`Self::reads`]), a definition's reads expanded to the
+    /// operations defining them, and the nodes a measure's sited
+    /// references are read at ([`Node::measure_sites`]). In read order,
+    /// each once; a read this document does not resolve contributes
+    /// nothing (an unresolved read is the reader's refusal at
+    /// evaluation, not an edge). Empty for a node this document does
+    /// not hold.
+    pub fn upstream(&self, node: RecipeNodeId) -> Vec<RecipeNodeId>
+    where
+        P: crate::ProfilePayload,
+    {
+        self.nodes
+            .get(&node)
+            .map_or_else(Vec::new, |n| self.upstream_of(n))
+    }
+
+    /// [`Self::upstream`] of a node read in this document, live or not.
+    pub(crate) fn upstream_of(&self, node: &Node<P>) -> Vec<RecipeNodeId>
+    where
+        P: crate::ProfilePayload,
+    {
+        let mut out: Vec<RecipeNodeId> = Vec::new();
+        let push = |id: RecipeNodeId, out: &mut Vec<RecipeNodeId>| {
+            if !out.contains(&id) {
+                out.push(id);
+            }
+        };
+        for (_, var) in node.operand_rows() {
+            if let Some((at, _)) = self.defined_by(var) {
+                push(at, &mut out);
+            }
+        }
+        for at in node.measure_sites() {
+            push(at, &mut out);
+        }
+        // A slot reads a free or a defined variable; only a definition
+        // reading an output reaches an operation from here.
+        let mut seen = BTreeSet::new();
+        let mut stack: Vec<VarId> = node.exprs().into_iter().copied().collect();
+        while let Some(var) = stack.pop() {
+            if !seen.insert(var) {
+                continue;
+            }
+            match self.vars.get(&var).map(Var::def) {
+                Some(crate::VarDef::Output { node: at, .. }) => push(*at, &mut out),
+                Some(crate::VarDef::Defined(expr)) => {
+                    let mut reads = Vec::new();
+                    expr.var_reads(&mut reads);
+                    stack.extend(reads.into_iter().rev().map(|(read, _)| read));
+                }
+                Some(crate::VarDef::Free(_)) | None => {}
+            }
+        }
+        out
+    }
+
     /// **The variable port `port` of `node` defines**
     /// ([`crate::VarDef::Output`]), if `node` is live and has that port.
     pub fn output(&self, node: RecipeNodeId, port: u8) -> Option<VarId> {
@@ -1535,24 +1622,17 @@ impl<P> Doc<P> {
             .collect()
     }
 
-    /// The kind `kind` decides, `None` where a placer's operand chain
-    /// reaches a node that is not live.
+    /// The kind `kind` decides: a placer's is the shape of the
+    /// variable it reads, `Bodies` over a `Bodies` and `Body` otherwise.
+    /// `None` where a placer reads a variable this document does not
+    /// hold.
     fn port_kind(&self, kind: crate::PortKind) -> Option<crate::VarKind> {
-        let mut at = match kind {
-            crate::PortKind::Of(kind) => return Some(kind),
-            crate::PortKind::PlacedFrom(input) => input,
-        };
-        // A chain of placers ends at a node whose first port's kind is
-        // fixed: the insert door refuses a node reading itself or
-        // anything after it, so the walk is finite.
-        loop {
-            match self.nodes.get(&at)?.outputs().first().map(|port| port.kind) {
-                Some(crate::PortKind::Of(crate::VarKind::Bodies)) => {
-                    return Some(crate::VarKind::Bodies);
-                }
-                Some(crate::PortKind::PlacedFrom(input)) => at = input,
-                Some(crate::PortKind::Of(_)) | None => return Some(crate::VarKind::Body),
-            }
+        match kind {
+            crate::PortKind::Of(kind) => Some(kind),
+            crate::PortKind::PlacedFrom(input) => Some(match self.vars.get(&input)?.kind() {
+                crate::VarKind::Bodies => crate::VarKind::Bodies,
+                _ => crate::VarKind::Body,
+            }),
         }
     }
 

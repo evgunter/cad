@@ -41,7 +41,7 @@ use serde::{Deserialize, Serialize};
 use crate::eval::{CanonicalSegment, LoopAnchor, ProfileNaming};
 use crate::expr::{Dimension, DimensionError, EvalError, UnitSym, VarEnv, eval_var};
 use crate::formula::Formula;
-use crate::node::{RecipeNodeId, SlotId, StepArg, StepId, find_row, row_readers};
+use crate::node::{SlotId, StepArg, StepId, find_row, row_readers};
 use crate::var::VarId;
 use geom_core::Tol;
 
@@ -437,31 +437,14 @@ pub enum LoopProgram<S = crate::VarId> {
 /// (they are invisible to `bit_eq` itself, D7).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct ProfileProgram<S = crate::VarId> {
-    /// The frame node this profile is drawn on — a
-    /// [`crate::Datum::Frame`] or a [`crate::Datum::FaceFrame`], either
-    /// of which lands the same frame value: sketch (0, 0) and the
-    /// directions sketch +x and +y point.
-    ///
-    /// Typed as a plain node reference rather than a frame-only
-    /// newtype for the reason every other operand reference here is:
-    /// what a reference DENOTES is the evaluator's question, answered
-    /// once at the door with a typed refusal, not the recipe
-    /// vocabulary's.
-    ///
-    /// **It reads through a door, not through `u64`'s own
-    /// `Deserialize`.** A document written before the sketch plane
-    /// became a node carries a twelve-float placement OBJECT here, and
-    /// serde's own report for that — `invalid type: map, expected u64`
-    /// — says nothing about which field of which node changed shape,
-    /// which is the whole job of an `Unreadable` refusal. `plane_ref`'s
-    /// visitor names the placement in its `expecting`. `deny_unknown_fields`
-    /// above is not what fires: `plane` is a field this build knows, so
-    /// the refusal is the field type's. No migration, by `persist`'s
-    /// ruling — nothing has shipped and every checked-in document is
-    /// regenerable.
-    #[serde(deserialize_with = "crate::persist::wire::plane_ref")]
-    pub plane: RecipeNodeId,
+#[serde(bound = "")]
+pub struct ProfileProgram<S: crate::expr::Slot = crate::VarId> {
+    /// The frame this profile is drawn on
+    /// ([`crate::OperandSlot::Plane`]): a [`crate::Datum::Frame`]'s or
+    /// a [`crate::Datum::FaceFrame`]'s, either of which lands the same
+    /// frame value: sketch (0, 0) and the directions sketch +x and +y
+    /// point.
+    pub plane: S::Read,
     /// The loop programs.
     pub loops: Vec<LoopProgram<S>>,
     /// **Every authored step's minted id**, per loop and per step in
@@ -538,6 +521,7 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
     fn lower<E>(
         authored: &Self::Authored,
         f: &mut dyn FnMut(&crate::Formula) -> Result<VarId, E>,
+        read: &mut dyn FnMut(crate::OperandSlot, &crate::Operand) -> Result<VarId, E>,
     ) -> Result<Self, E>
     where
         Self: Sized;
@@ -602,19 +586,24 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
     fn mint_step_ids(&mut self, _mint: &mut crate::Mint) -> Result<(), StepIdFault> {
         Ok(())
     }
-    /// **The document node this payload is drawn ON**, if it names one
-    /// — the profile's one DAG edge.
+    /// **The frame this payload is drawn ON**, if it reads one — the
+    /// profile's one operand read ([`crate::OperandSlot::Plane`]).
     ///
     /// It rides the payload trait rather than [`crate::Node::Profile`]
-    /// because that is where the plane already lived: the variant
-    /// stays a one-field tuple, and the payload answers for its own
-    /// content. [`crate::Node::inputs`] reads this, so a payload that
-    /// names a node and does not report it here would be a node the
-    /// evaluator never waits for and the cascade never deletes.
+    /// because that is where the plane lives: the variant stays a
+    /// one-field tuple, and the payload answers for its own content.
+    /// [`crate::Node::operand_rows`] reads this, so a payload that reads
+    /// a frame and does not report it here would be a read the
+    /// evaluator never waits for.
     ///
     /// `None` by default, which is the honest answer for `Doc<P>`'s
     /// slot-free test payloads: they carry no plane at all.
-    fn plane_input(&self) -> Option<crate::RecipeNodeId> {
+    fn plane_read(&self) -> Option<VarId> {
+        None
+    }
+    /// [`ProfilePayload::plane_read`], writable: the read a re-point
+    /// rewrites.
+    fn plane_read_mut(&mut self) -> Option<&mut VarId> {
         None
     }
     /// **Every authored step's piece this program draws** under `env`
@@ -2248,7 +2237,10 @@ impl PartialEq for ProfileProgram {
     }
 }
 
-impl<L: crate::expr::LeafSet> PartialEq for ProfileProgram<crate::expr::ExprTree<L>> {
+impl<L: crate::expr::LeafSet> PartialEq for ProfileProgram<crate::expr::ExprTree<L>>
+where
+    crate::expr::ExprTree<L>: crate::expr::Slot,
+{
     /// BIT equality (struct docs): the frame by node identity,
     /// expressions by [`Expr::bit_eq`], structure structurally.
     fn eq(&self, other: &Self) -> bool {
@@ -2491,7 +2483,7 @@ macro_rules! program_rows {
     }};
 }
 
-impl<S> SlotPayload<S> for ProfileProgram<S> {
+impl<S: crate::expr::Slot> SlotPayload<S> for ProfileProgram<S> {
     row_readers!(program_rows -> (u32, u32, StepArg), S);
 }
 
@@ -2500,15 +2492,16 @@ impl ProfilePayload for ProfileProgram {
     fn lower<E>(
         authored: &Self::Authored,
         f: &mut dyn FnMut(&crate::Formula) -> Result<VarId, E>,
+        read: &mut dyn FnMut(crate::OperandSlot, &crate::Operand) -> Result<VarId, E>,
     ) -> Result<Self, E> {
-        authored.try_map_slots(&mut |slot| f(slot))
+        authored.try_map_slots(&mut |slot| f(slot), &mut |at, plane| read(at, plane))
     }
     fn authored_with(
         &self,
         reader: &mut dyn FnMut(VarId, Dimension) -> crate::Formula,
     ) -> Self::Authored {
         ProfileProgram {
-            plane: self.plane,
+            plane: crate::Operand::Var(self.plane),
             loops: self
                 .loops
                 .iter()
@@ -2528,8 +2521,11 @@ impl ProfilePayload for ProfileProgram {
     ) -> Result<std::collections::BTreeSet<crate::ProfileEdgeRef>, ProgramRefusal> {
         Ok(self.pieces(env, tol)?.edges.into_iter().flatten().collect())
     }
-    fn plane_input(&self) -> Option<crate::RecipeNodeId> {
+    fn plane_read(&self) -> Option<VarId> {
         Some(self.plane)
+    }
+    fn plane_read_mut(&mut self) -> Option<&mut VarId> {
+        Some(&mut self.plane)
     }
     fn loops(&self) -> Option<&[LoopProgram]> {
         Some(&self.loops)
@@ -2711,7 +2707,7 @@ impl<S> LoopProgram<S> {
     }
 }
 
-impl<S> ProfileProgram<S> {
+impl<S: crate::expr::Slot> ProfileProgram<S> {
     /// **Every step of this program kept where it is**: the `ids` of a
     /// [`crate::DocEdit::SetProgram`] that keeps each step in its own
     /// place — per loop, per step, `Some` of the step's id. A reshaping
@@ -2724,18 +2720,19 @@ impl<S> ProfileProgram<S> {
             .collect()
     }
 
-    /// **This program in another slot form**, loop by loop; its plane
-    /// and its step ids kept.
+    /// **This program in another slot form**: its plane through `read`,
+    /// its loops through `f` loop by loop, its step ids kept.
     ///
     /// # Errors
     ///
-    /// `f`'s first.
-    pub fn try_map_slots<S2, E>(
+    /// The first refusal of `read` or `f`.
+    pub fn try_map_slots<S2: crate::expr::Slot, E>(
         &self,
         f: &mut impl FnMut(&S) -> Result<S2, E>,
+        read: &mut impl FnMut(crate::OperandSlot, &S::Read) -> Result<S2::Read, E>,
     ) -> Result<ProfileProgram<S2>, E> {
         Ok(ProfileProgram {
-            plane: self.plane,
+            plane: read(crate::OperandSlot::Plane, &self.plane)?,
             loops: self
                 .loops
                 .iter()

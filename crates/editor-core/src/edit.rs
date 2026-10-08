@@ -96,22 +96,15 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         id: RecipeNodeId,
     },
     /// **Replace a node's whole LIST input** (DM4) — a union's members,
-    /// a loft's sections ([`Node::list_input`]).
+    /// a loft's sections ([`Node::list_input`]): [`DocEdit::SetOperand`]'s
+    /// door on a list slot. The new list is stated in full, so nothing
+    /// is inferred about which of the old entries survived, moved or
+    /// was meant.
     ///
-    /// The one edit that changes a live node's inputs, and it can be
-    /// that because it is unambiguous by construction: the new list is
-    /// stated in full, so nothing is inferred about which of the old
-    /// entries survived, moved or was meant. There is no positional
-    /// spelling and no per-entry edit; DM6 rules that no other rewiring
-    /// edit exists.
-    ///
-    /// Deleting one member is this edit without it plus a plain
-    /// [`DocEdit::DeleteNode`] of the orphaned node, one committed
-    /// action.
-    ///
-    /// Every check [`DocEdit::InsertNode`] makes of a node's inputs is
-    /// made here, of the REWRITTEN node, through the same functions:
-    /// liveness ([`EditError::UnresolvedInput`]), acyclicity
+    /// Every check the insert door makes of a node's reads is made
+    /// here, of the REWRITTEN node, through the same functions: each
+    /// entry's lowering at its seat's kind ([`EditError::UnresolvedInput`],
+    /// [`EditError::OperandVarKind`]), acyclicity
     /// ([`EditError::WouldCycle`]), pairwise distinctness
     /// ([`EditError::DuplicateInput`]) and the list's own floor
     /// ([`EditError::TooFewMembers`]). A node with no list input
@@ -119,8 +112,26 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     SetMembers {
         /// The node whose list is replaced.
         node: RecipeNodeId,
-        /// The whole new list, in order (D9: the order is data).
-        members: Vec<RecipeNodeId>,
+        /// The whole new list, in order (D9: the order is data), each
+        /// entry lowered as [`DocEdit::SetOperand`]'s read is.
+        members: Vec<crate::Operand>,
+    },
+    /// **Write one operand** (DM6, "no edit infers a re-point"): the
+    /// slot door on an operand slot. `read` lowers to a read of the
+    /// slot's kind ([`EditError::OperandVarKind`] otherwise), the read
+    /// is live, and the rewritten node passes the checks the insert
+    /// door makes of a node's reads: DM5's distinctness and acyclicity
+    /// over reads. A placer's operand keeps the shape its output was
+    /// minted with. The write reports, and never refuses, the payload
+    /// names it strands ([`Maintenance::Strand`]); [`DocEdit::Rebind`]
+    /// repairs them. [`DocEdit::SetMembers`] is this door on a list.
+    SetOperand {
+        /// The reading node.
+        node: RecipeNodeId,
+        /// The operand written.
+        slot: crate::OperandSlot,
+        /// What it reads.
+        read: crate::Operand,
     },
     /// **Replace a live Boolean's or Union's whole DECLARED PAIRS**
     /// ([`crate::DeclaredPair`]) — [`DocEdit::SetMembers`]'s shape: the
@@ -587,9 +598,8 @@ pub enum DocEdit<P: crate::ProfilePayload> {
     /// one dependent at the empty chain and no label, and
     /// `fold ∘ promote` is the identity.
     ///
-    /// Refuses a node that is no gauge ([`EditError::FoldOnNonGauge`]),
-    /// a gauge another node reads as an input
-    /// ([`EditError::FoldWouldDangle`]), and a fold that would put both
+    /// Refuses a node that is no gauge ([`EditError::FoldOnNonGauge`])
+    /// and a fold that would put both
     /// instances of a declaring mate on one gauge, so that it would
     /// start placing ([`EditError::FoldWouldStartPlacing`]).
     Fold {
@@ -674,6 +684,7 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             Self::SetProgram { .. } => false,
             Self::DeleteNode { .. }
             | Self::SetMembers { .. }
+            | Self::SetOperand { .. }
             | Self::SetDeclare { .. }
             | Self::Rebind { .. }
             | Self::SetOffset { .. }
@@ -1068,8 +1079,16 @@ fn lower_node<P: crate::ProfilePayload>(
                 .map(|formula| (ExprSite::Payload, formula)),
         )
         .collect();
+    // The operands first, each against the document as it stands: the
+    // slot lowering below mints only anonymous scalars, which no
+    // operand reads.
+    let mut reads = lower_reads(new, node, None, &spoken)?.into_iter();
     lower_value(new, lowering, &rows, |f| {
-        node.try_map_slots(|p, g| P::lower(p, g), &mut |e| f(e))
+        node.try_map_slots(|p, g, r| P::lower(p, g, r), &mut |e| f(e), &mut |_, _| {
+            Ok(reads
+                .next()
+                .unwrap_or_else(|| unreachable!("one read per operand, walked in one order")))
+        })
     })
     .map_err(|unlowered| {
         unlowered.refuse(
@@ -1087,6 +1106,128 @@ fn lower_node<P: crate::ProfilePayload>(
             },
         )
     })
+}
+
+/// **Every operand of an authored node as the door writes it**, in the
+/// walk order of [`Node::try_map_slots`] ([`lower_operand`] each). A
+/// placer re-pointed in place keeps its output's kind: `fixed` is that
+/// kind, which its operand must have.
+fn lower_reads<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    node: &Node<P::Authored, Formula>,
+    fixed: Option<VarKind>,
+    spoken: &impl Fn() -> SpokenNode,
+) -> Result<Vec<VarId>, EditError> {
+    let half = match node {
+        Node::Part {
+            select: crate::PartSelect::SplitHalf(half),
+            ..
+        } => Some(*half),
+        _ => None,
+    };
+    let mut reads = Vec::new();
+    node.try_map_slots(
+        |p, g, r| P::lower(p, g, r),
+        &mut |_| Ok::<_, EditError>(VarId::new(0, 0)),
+        &mut |slot, read| {
+            let expected = match (slot, fixed) {
+                (crate::OperandSlot::Input, Some(kind)) => crate::OperandKind::Is(kind),
+                _ => slot.kind(),
+            };
+            let var = lower_operand(doc, spoken, slot, read, half, expected)?;
+            reads.push(var);
+            Ok(var)
+        },
+    )?;
+    Ok(reads)
+}
+
+/// **One operand as the door writes it** (DM6): the variable `read`
+/// lowers to — a node named alone is its output in this seat, a port
+/// spelled out is that port's, a variable by id or name is itself —
+/// refused unless it is live and of a kind the seat admits
+/// (`expected`). A node named alone is its first output, unless it has
+/// another of that kind ([`EditError::AmbiguousOutput`]); a part
+/// projection's selected half (`half`) names which of a split's two it
+/// reads, and a read of a split's other half refuses.
+fn lower_operand<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    spoken: &impl Fn() -> SpokenNode,
+    slot: crate::OperandSlot,
+    read: &crate::Operand,
+    half: Option<crate::SplitHalf>,
+    expected: crate::OperandKind,
+) -> Result<VarId, EditError> {
+    let unresolved = || EditError::OperandUnresolved {
+        node: spoken(),
+        slot,
+        read: read.clone(),
+    };
+    let var = match read {
+        crate::Operand::Node(id) => {
+            let Some(target) = doc.node(*id) else {
+                return Err(EditError::UnresolvedInput {
+                    input: SpokenNode::absent(*id),
+                });
+            };
+            let outputs = doc.outputs(*id);
+            let port = match (half, target) {
+                (Some(half), Node::Split { .. }) => usize::try_from(half.output_body())
+                    .unwrap_or_else(|_| unreachable!("a split has two ports")),
+                _ => {
+                    let kind = |var: &VarId| doc.var(*var).map(crate::Var::kind);
+                    let Some(first) = outputs.first() else {
+                        return Err(EditError::DefinesNothing {
+                            input: doc.spoken(*id),
+                            slot,
+                        });
+                    };
+                    if outputs[1..].iter().any(|other| kind(other) == kind(first)) {
+                        return Err(EditError::AmbiguousOutput {
+                            input: doc.spoken(*id),
+                            slot,
+                        });
+                    }
+                    0
+                }
+            };
+            *outputs.get(port).ok_or_else(unresolved)?
+        }
+        crate::Operand::Output { node: id, port } => {
+            if doc.node(*id).is_none() {
+                return Err(EditError::UnresolvedInput {
+                    input: SpokenNode::absent(*id),
+                });
+            }
+            doc.output(*id, *port).ok_or_else(unresolved)?
+        }
+        crate::Operand::Var(var) => *var,
+        crate::Operand::Name(name) => doc.var_named(name.as_str()).ok_or_else(unresolved)?,
+    };
+    let Some(held) = doc.var(var) else {
+        return Err(unresolved());
+    };
+    if !expected.admits(held) {
+        return Err(EditError::OperandVarKind {
+            var: Box::new(doc.spoken_var(var)),
+            node: spoken(),
+            slot,
+            found: held.kind(),
+            expected,
+        });
+    }
+    if let Some(half) = half
+        && let Some((split, port)) = held.def().output()
+        && matches!(doc.node(split), Some(Node::Split { .. }))
+        && u32::from(port) != half.output_body()
+    {
+        return Err(EditError::PartHalfPort {
+            node: spoken(),
+            half,
+            var: Box::new(doc.spoken_var(var)),
+        });
+    }
+    Ok(var)
 }
 
 /// **One formula lowered into `doc` as a slot's**, outside any edit:
@@ -1466,11 +1607,74 @@ pub enum EditError {
         /// `ProductError` the same way for the same reason.
         refusal: Box<crate::program::ProgramRefusal>,
     },
-    /// An inserted node's input ref does not resolve to a live node
-    /// (spec D3: `apply` rejects unresolvable refs).
+    /// An operand an edit writes names a node that is not live (spec
+    /// D3: `apply` rejects unresolvable refs).
     UnresolvedInput {
         /// The dangling upstream reference.
         input: SpokenNode,
+    },
+    /// An operand an edit writes reads a variable the document does not
+    /// hold — a deleted one, an id it never minted, a name nothing
+    /// holds — or a port the node's signature lacks (DM6: the read is
+    /// live).
+    OperandUnresolved {
+        /// The reading node.
+        node: SpokenNode,
+        /// The operand.
+        slot: crate::OperandSlot,
+        /// What it reads, as written.
+        read: crate::Operand,
+    },
+    /// An operand an edit writes reads a variable of a kind its seat
+    /// does not admit (DM6: the formula lowers to a read of the slot's
+    /// kind), or a placer's operand re-pointed at the other shape,
+    /// whose output's kind was fixed at minting.
+    OperandVarKind {
+        /// The variable read, boxed so the refusal stays a small `Err`.
+        var: Box<SpokenVar>,
+        /// The reading node.
+        node: SpokenNode,
+        /// The operand.
+        slot: crate::OperandSlot,
+        /// The variable's kind.
+        found: VarKind,
+        /// What the seat admits.
+        expected: crate::OperandKind,
+    },
+    /// An operand names a node by itself, and the node defines several
+    /// outputs the seat could read (a split's two halves): the read
+    /// names its port ([`crate::Operand::Output`]).
+    AmbiguousOutput {
+        /// The node named.
+        input: SpokenNode,
+        /// The operand.
+        slot: crate::OperandSlot,
+    },
+    /// An operand names a node that defines nothing to read: an
+    /// assertion, a mate or a gauge.
+    DefinesNothing {
+        /// The node named.
+        input: SpokenNode,
+        /// The operand.
+        slot: crate::OperandSlot,
+    },
+    /// A part projection over a split reads the split's other half: the
+    /// read and the selection name one half.
+    PartHalfPort {
+        /// The part projection.
+        node: SpokenNode,
+        /// The half it selects.
+        half: crate::SplitHalf,
+        /// The output it reads, boxed so the refusal stays a small `Err`.
+        var: Box<SpokenVar>,
+    },
+    /// A [`DocEdit::SetOperand`] names an operand the node does not
+    /// have.
+    UnknownOperand {
+        /// The node.
+        node: SpokenNode,
+        /// The operand it lacks.
+        slot: crate::OperandSlot,
     },
     /// The recipe graph would contain a cycle (defensive: insertion
     /// referencing only pre-existing nodes cannot cycle, but the
@@ -1596,13 +1800,6 @@ pub enum EditError {
         node: SpokenNode,
         /// How many entries it would have had.
         found: usize,
-    },
-    /// Deleting this node would dangle a live reference to it.
-    DeleteWouldDangle {
-        /// The deletion target.
-        id: SpokenNode,
-        /// A live node still referencing it.
-        referenced_by: SpokenNode,
     },
     /// The node does not carry the named slot.
     UnknownSlot {
@@ -2252,15 +2449,6 @@ pub enum EditError {
         /// The offending target.
         node: SpokenNode,
     },
-    /// A fold of a gauge another node reads as an input (an in-plane
-    /// axis drawn in its frame): the gauge goes as a delete takes it,
-    /// and the reader would dangle.
-    FoldWouldDangle {
-        /// The gauge folded.
-        node: SpokenNode,
-        /// The first node, in document order, that reads it.
-        referenced_by: SpokenNode,
-    },
     /// A fold that would put both instances of `mate`, which declares
     /// today, on one gauge, so it would start placing and move a group
     /// the fold never named.
@@ -2776,17 +2964,32 @@ impl EditError {
                 node,
                 member: input,
             }
-            | Self::FoldWouldStartPlacing { node, mate: input }
-            | Self::FoldWouldDangle {
-                node,
-                referenced_by: input,
-            } => {
+            | Self::FoldWouldStartPlacing { node, mate: input } => {
                 *node = node.respoken(doc);
                 *input = input.respoken(doc);
             }
-            Self::DeleteWouldDangle { id, referenced_by } => {
-                *id = id.respoken(doc);
-                *referenced_by = referenced_by.respoken(doc);
+            Self::OperandUnresolved {
+                node,
+                slot: _,
+                read: _,
+            }
+            | Self::UnknownOperand { node, slot: _ } => *node = node.respoken(doc),
+            Self::OperandVarKind {
+                var,
+                node,
+                slot: _,
+                found: _,
+                expected: _,
+            } => {
+                *node = node.respoken(doc);
+                **var = var.respoken(doc);
+            }
+            Self::PartHalfPort { node, half: _, var } => {
+                *node = node.respoken(doc);
+                **var = var.respoken(doc);
+            }
+            Self::AmbiguousOutput { input, slot: _ } | Self::DefinesNothing { input, slot: _ } => {
+                *input = input.respoken(doc);
             }
             Self::AssertionTarget { node, measure }
             | Self::AssertionDimension {
@@ -3046,15 +3249,58 @@ impl EditError {
                     ),
                 )
             }
-            Self::DeleteWouldDangle { id, referenced_by } => {
-                write!(f, "{id} is still an input to {referenced_by}")?;
+            Self::OperandUnresolved { node, slot, read } => {
+                write!(
+                    f,
+                    "{node}'s {slot} reads {read}, which is not a variable of this document"
+                )?;
                 tail.recourse(
                     f,
-                    format_args!(
-                        "delete {referenced_by} first, or delete {id} together with everything \
-                         downstream of it"
-                    ),
+                    format_args!("read an output of {HELD_NODE}, by its node or its port"),
                 )
+            }
+            Self::OperandVarKind {
+                var,
+                node,
+                slot,
+                found,
+                expected,
+            } => {
+                write!(
+                    f,
+                    "{node}'s {slot} reads {var}, which is {} {found}, where it takes {expected}",
+                    crate::sentence::article(&found.to_string()),
+                )?;
+                tail.recourse(f, format_args!("read {expected} there"))
+            }
+            Self::AmbiguousOutput { input, slot } => {
+                write!(
+                    f,
+                    "{input} defines more than one output its {slot} could read"
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("name the port the {slot} reads (`Operand::Output`)"),
+                )
+            }
+            Self::DefinesNothing { input, slot } => {
+                write!(f, "{input} defines nothing a {slot} could read")?;
+                tail.recourse(f, format_args!("read an operation that defines a value"))
+            }
+            Self::PartHalfPort { node, half, var } => {
+                write!(
+                    f,
+                    "{node} selects the {} half but reads {var}",
+                    half.name()
+                )?;
+                tail.recourse(
+                    f,
+                    format_args!("read the split's {} output", half.name()),
+                )
+            }
+            Self::UnknownOperand { node, slot } => {
+                write!(f, "{node} has no operand {slot}")?;
+                tail.recourse(f, format_args!("aim the edit at an operand the node reads"))
             }
             Self::UnknownSlot { id, slot } => {
                 write!(f, "{id} has no slot {}", slot.label())?;
@@ -3763,23 +4009,6 @@ impl EditError {
                 write!(f, "{} is not a gauge, so there is nothing to fold", node)?;
                 tail.recourse(f, format_args!("fold a gauge"))
             }
-            Self::FoldWouldDangle {
-                node,
-                referenced_by,
-            } => {
-                write!(
-                    f,
-                    "{} reads {} as an input, and the fold takes {} out of the document",
-                    referenced_by, node, node
-                )?;
-                tail.recourse(
-                    f,
-                    format_args!(
-                        "delete {} (and what reads it), then fold {}",
-                        referenced_by, node
-                    ),
-                )
-            }
             Self::FoldWouldStartPlacing { node, mate } => {
                 write!(
                     f,
@@ -4025,6 +4254,22 @@ pub enum Maintenance {
         /// Which of those the edit took.
         took: Took,
     },
+    /// **An operand this edit stranded** (D10; DM7 generalised from
+    /// names to reads): `node` survives and its `slot` reads `var`, an
+    /// output of the operation the edit deleted. The read keeps its id
+    /// and is never re-pointed: evaluation refuses `node` as
+    /// [`crate::NodeErrorKind::UnresolvedRead`] until an edit names a
+    /// new read for the slot ([`DocEdit::SetOperand`],
+    /// [`DocEdit::SetMembers`]) or deletes `node`.
+    StrandedRead {
+        /// The surviving reader.
+        node: SpokenNode,
+        /// The operand that reads the removed output.
+        slot: crate::OperandSlot,
+        /// The output it reads, spoken from the document the edit
+        /// entered.
+        var: SpokenVar,
+    },
     /// **An anonymous variable this edit removed** (VR7): the edit
     /// detached the last expression reading it, and a variable with no
     /// name is one something reads. The mint log keeps its id, so it is
@@ -4081,6 +4326,9 @@ pub enum Took {
     Step,
     /// A step the name names was kept and no longer draws its piece.
     Piece,
+    /// A read was re-pointed, and the node that minted the name is no
+    /// longer upstream of the node that carries it.
+    Reach,
 }
 
 impl Took {
@@ -4102,6 +4350,12 @@ impl Took {
                     Took::Piece => {
                         f.write_str("kept a step it names but no longer draws that piece")
                     }
+                    Took::Reach => write!(
+                        f,
+                        "re-pointed a read, so {}, which minted the name, is no longer upstream \
+                         of it",
+                        self.1.minter()
+                    ),
                 }
             }
         }
@@ -4135,6 +4389,11 @@ impl core::fmt::Display for Maintenance {
             // is still there and what took its referent. A store holds
             // a thing UNDER a key, and the key is a name for the
             // entity `SpokenName`'s Display says.
+            Self::StrandedRead { node, slot, var } => write!(
+                f,
+                "{node}'s {slot} reads {var}, which this edit deleted with its operation, so \
+                 {node} refuses until the {slot} reads a live value"
+            ),
             Self::StrandedAppearance { name, took } => write!(
                 f,
                 "the appearance store holds an attachment under a name for {}; this edit \
@@ -4504,6 +4763,10 @@ pub struct Applied<P> {
 ///   repairs exactly this), strands nothing.
 /// - A [`Maintenance::StrandedAppearance`] survives when the store
 ///   still holds its key.
+/// - A [`Maintenance::StrandedRead`] survives when its reader is live at
+///   the end and its operand still reads the removed output: a later
+///   edit that deleted the reader or re-pointed the operand took it
+///   back.
 /// - A [`Maintenance::OffsetCleared`] survives when the instance is
 ///   live at the end and still carries no offset: a later edit that
 ///   deleted it, or gave it an offset again, took the report back.
@@ -4542,6 +4805,9 @@ impl MaintenanceNet {
                 Maintenance::StrandedAppearance { name, .. } => {
                     end.appearance().contains_key(name.name())
                 }
+                Maintenance::StrandedRead { node, slot, var } => end.node(node.id()).is_some_and(
+                    |reader| reader.operand_rows().contains(&(*slot, var.id())),
+                ),
                 Maintenance::OffsetCleared { instance, .. } => matches!(
                     end.node(instance.id()),
                     Some(Node::InstantiatePart { offset: None, .. })
@@ -5085,7 +5351,10 @@ fn check_node_inputs<P: crate::ProfilePayload>(
     Err(match fault {
         crate::node::InputFault::Duplicate { input } => EditError::DuplicateInput {
             node: subject,
-            input: doc.spoken(input),
+            input: doc.defined_by(input).map_or_else(
+                || unreachable!("an operand the door wrote reads a live output"),
+                |(at, _)| doc.spoken(at),
+            ),
         },
         crate::node::InputFault::TooFew { found } => EditError::TooFewMembers {
             node: subject,
@@ -5150,9 +5419,21 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
     carrier: impl Fn() -> SpokenNode,
     at: Option<RecipeNodeId>,
 ) -> Result<(), EditError> {
-    let operands = node.inputs();
-    match crate::node::declared_side_fault(pairs, Some(&operands), at, |id| {
-        new.nodes.contains_key(&id)
+    // A declared site is a node whose output this node reads.
+    let operands: Vec<RecipeNodeId> = node
+        .operand_rows()
+        .into_iter()
+        .filter_map(|(_, read)| new.defined_by(read).map(|(site, _)| site))
+        .collect();
+    let mut upstream: std::collections::BTreeSet<RecipeNodeId> = operands.iter().copied().collect();
+    for &operand in &operands {
+        upstream.extend(crate::roots::strict_ancestors(new, operand));
+    }
+    if let Some(at) = at {
+        upstream.remove(&at);
+    }
+    match crate::node::declared_side_fault(pairs, Some(&operands), |minter| {
+        !new.nodes.contains_key(&minter) || upstream.contains(&minter)
     }) {
         None => Ok(()),
         Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
@@ -5169,6 +5450,70 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
             })
         }
     }
+}
+
+/// **The slot door's common half on an operand** (DM6: no edit infers
+/// a re-point): `rewritten` is the node `id` with the reads its edit
+/// named in full, each already lowered at its seat's kind
+/// ([`lower_operand`]). It passes the checks the insert door makes of a
+/// node's reads — DM5's distinctness and acyclicity over reads — and
+/// the root list follows the moved reads. The write reports, and never
+/// refuses, the payload names it strands: a name whose minting node is
+/// no longer upstream of the node that carries it
+/// ([`Maintenance::Strand`] with [`Took::Reach`]).
+fn write_reads<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    new: &mut Doc<P>,
+    reported: &mut Vec<Maintenance>,
+    id: RecipeNodeId,
+    rewritten: Node<P>,
+) -> Result<EditRecord, EditError> {
+    check_node_inputs(doc, id, &rewritten)?;
+    new.nodes.insert(id, rewritten);
+    check_acyclic(new)?;
+    crate::roots::on_set_members(new);
+    reported.extend(stranded_by_repoint(doc, new, id));
+    Ok(EditRecord {
+        minted: None,
+        minted_var: None,
+        structural: true,
+        fresh: Vec::new(),
+        outputs: Vec::new(),
+    })
+}
+
+/// **The payload names a re-point of `id`'s reads strands**: for `id`
+/// and every node downstream of it in `new`, each name it carries
+/// whose minting node was upstream of it in `before` and is not in
+/// `new`. In document order, and within a node in
+/// [`Node::payload_names`]' order.
+fn stranded_by_repoint<P: crate::ProfilePayload>(
+    before: &Doc<P>,
+    new: &Doc<P>,
+    id: RecipeNodeId,
+) -> Vec<Maintenance> {
+    let mut rows = Vec::new();
+    for (&carrier, node) in &new.nodes {
+        let names = node.payload_names();
+        if names.is_empty() {
+            continue;
+        }
+        let after = crate::roots::strict_ancestors(new, carrier);
+        if carrier != id && !after.contains(&id) {
+            continue;
+        }
+        let was = crate::roots::strict_ancestors(before, carrier);
+        for name in names {
+            if was.contains(&name.node) && !after.contains(&name.node) {
+                rows.push(Maintenance::Strand {
+                    node: before.spoken(carrier),
+                    name: before.spoken_name(name),
+                    took: Took::Reach,
+                });
+            }
+        }
+    }
+    rows
 }
 
 /// Reject cycles in the recipe DAG (spec D3/D6). Defensive: insertion
@@ -5192,7 +5537,7 @@ fn check_acyclic<P: crate::ProfilePayload>(doc: &Doc<P>) -> Result<(), EditError
         let mut stack = vec![(root, 0usize)];
         color.insert(root, Color::Grey);
         while let Some(&mut (id, ref mut next)) = stack.last_mut() {
-            let inputs = doc.node(id).map(|n| n.inputs()).unwrap_or_default();
+            let inputs = doc.upstream(id);
             if *next >= inputs.len() {
                 color.insert(id, Color::Black);
                 stack.pop();
@@ -5337,29 +5682,20 @@ fn regauges_for<P: Clone + crate::ProfilePayload>(
     Ok(edits)
 }
 
-/// The nodes a cascading delete of `id` must remove, ordered so that
-/// [`DocEdit::DeleteNode`] accepts every one of them in turn:
-/// consumers first, `id` last.
+/// The nodes a cascading delete of `id` must remove — the GUI's
+/// "delete with everything downstream" — ordered consumers first, `id`
+/// last.
 ///
-/// The set is `id` plus everything reachable from it along the
-/// CONSUMER direction of the recipe DAG — the transitive closure of
-/// the same [`Node::inputs`] relation [`EditError::DeleteWouldDangle`]
-/// is stated over, which is why applying this sequence in order never
-/// dangles a reference: every node still live at each step has all of
-/// its inputs still live.
+/// The set is `id` plus everything that reads it, directly or through
+/// other readers: the closure of [`Doc::upstream`] in the consumer
+/// direction, so no node it leaves standing reads one it removes. A
+/// [`DocEdit::DeleteNode`] of a read node is accepted on its own and
+/// leaves its readers unresolved (D10); this is the convenience that
+/// removes them with it. The order is the reverse of the evaluation
+/// schedule's, so each delete in turn removes a node nothing left
+/// standing reads.
 ///
-/// The answer is empty for an id the document does not hold; a caller
-/// that wants the refusal asks [`apply`] for it, so the typed verdict
-/// has one home.
-///
-/// One forward pass suffices because id order ([`Doc::ids`]) is
-/// insertion order and an insertion's inputs must already be live,
-/// making the list topological: a consumer is always seen after every input it
-/// could inherit doom from. **Except** where [`DocEdit::SetMembers`]
-/// gave a union a member minted after it: that union is seen before the
-/// member, so the pass misses it and the first delete refuses
-/// [`EditError::DeleteWouldDangle`]
-/// (`work/doors/a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break.md`).
+/// The answer is empty for an id the document does not hold.
 pub fn cascade_delete_order<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,
@@ -5368,19 +5704,16 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
     if doc.node(id).is_none() {
         return Vec::new();
     }
+    let order = crate::eval::schedule::schedule(doc).order;
     let mut doomed: BTreeSet<RecipeNodeId> = BTreeSet::from([id]);
-    for n in doc.ids() {
-        let doomed_by_input = doc
-            .node(n)
-            .is_some_and(|node| node.inputs().iter().any(|input| doomed.contains(input)));
-        if doomed_by_input {
+    for &n in &order {
+        if doc.upstream(n).iter().any(|input| doomed.contains(input)) {
             doomed.insert(n);
         }
     }
-    doc.ids()
-        .iter()
+    order
+        .into_iter()
         .rev()
-        .copied()
         .filter(|n| doomed.contains(n))
         .collect()
 }
@@ -5605,19 +5938,6 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
             found,
         });
     }
-    // Liveness, and it stays spelled here rather than moving to
-    // a shared home: the rule IS the node map's own lookup, so
-    // the load door's `DanglingInput` walk and this loop share
-    // `contains_key` already and have no predicate between them
-    // to extract. What differs is the subject — one incoming
-    // reference here, every edge a file claims there.
-    for input in node.inputs() {
-        if !new.nodes.contains_key(&input) {
-            return Err(EditError::UnresolvedInput {
-                input: SpokenNode::absent(input),
-            });
-        }
-    }
     check_payload_refs(doc, new, node)?;
     // N1: the node's id is minted from the document's mint
     // chain, extended by the node as the edit states it, and
@@ -5694,7 +6014,7 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     new.nodes.insert(id, node.clone());
     let fresh = lowering.finish(new)?;
     check_acyclic(new)?;
-    crate::roots::on_insert(new, id, &node.inputs());
+    crate::roots::on_insert(new, id, &new.upstream(id));
     // The solve's own per-mate admission (A11 rule 1), asked
     // of the document the mate now stands in — its walks read
     // the operands there — through the reach this door holds:
@@ -5758,12 +6078,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     id: SpokenNode::absent(*id),
                 });
             }
-            *reported = remove_unread(doc, new, *id).map_err(|referenced_by| {
-                EditError::DeleteWouldDangle {
-                    id: doc.spoken(*id),
-                    referenced_by: doc.spoken(referenced_by),
-                }
-            })?;
+            *reported = remove_node(doc, new, *id);
             // A gauge's references are kept, dangling (A11 (2)): the
             // group it unplaced names it as the cause, and a
             // `SetGauge` re-places it.
@@ -5781,48 +6096,61 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     id: SpokenNode::absent(*node),
                 });
             };
-            if current.list_input().is_none() {
-                return Err(EditError::SetMembersOnNonList {
-                    node: doc.spoken(*node),
-                });
-            }
-            // Liveness FIRST, and of the offered list rather than of
-            // the rewritten node, so a dangling entry is named as the
-            // dangling entry it is.
-            for member in members {
-                if !new.nodes.contains_key(member) {
-                    return Err(EditError::UnresolvedInput {
-                        input: SpokenNode::absent(*member),
+            let at = match current {
+                Node::Union { .. } => crate::OperandSlot::Member,
+                Node::Loft { .. } => crate::OperandSlot::Section,
+                _ => {
+                    return Err(EditError::SetMembersOnNonList {
+                        node: doc.spoken(*node),
                     });
                 }
+            };
+            let spoken = || doc.spoken(*node);
+            let mut list = Vec::with_capacity(members.len());
+            for (i, member) in members.iter().enumerate() {
+                let slot = at(u32::try_from(i).unwrap_or(u32::MAX));
+                list.push(lower_operand(new, &spoken, slot, member, None, slot.kind())?);
             }
-            // The rewrite happens, then the rewritten node walks the
-            // insert door's own checks — the same functions, not
-            // mirrors of them, so this edit cannot reach a state
-            // `InsertNode` would have refused.
             let mut rewritten = current.clone();
-            if !rewritten.set_list_input(members.clone()) {
-                return Err(EditError::SetMembersOnNonList {
+            if !rewritten.set_list_input(list) {
+                unreachable!("a union and a loft hold a list")
+            }
+            write_reads(doc, new, reported, *node, rewritten)?
+        }
+        DocEdit::SetOperand { node, slot, read } => {
+            let Some(current) = new.nodes.get(node) else {
+                return Err(EditError::UnknownNode {
+                    id: SpokenNode::absent(*node),
+                });
+            };
+            if !current.operand_rows().iter().any(|(at, _)| at == slot) {
+                return Err(EditError::UnknownOperand {
                     node: doc.spoken(*node),
+                    slot: *slot,
                 });
             }
-            check_node_inputs(doc, *node, &rewritten)?;
-            new.nodes.insert(*node, rewritten);
-            // The DAG's edges moved, so both invariants that ride on
-            // them are re-established rather than assumed: acyclicity
-            // (a member downstream of this node would close a loop —
-            // the one refusal `InsertNode` gets for free and this edit
-            // does not), and the product-root set, which is a function
-            // of the edges.
-            check_acyclic(new)?;
-            crate::roots::on_set_members(new);
-            EditRecord {
-                minted: None,
-                minted_var: None,
-                structural: true,
-                fresh: Vec::new(),
-                outputs: Vec::new(),
+            let half = match current {
+                Node::Part {
+                    select: crate::PartSelect::SplitHalf(half),
+                    ..
+                } => Some(*half),
+                _ => None,
+            };
+            // A placer's output kind was fixed at minting (VR3): its
+            // operand keeps that shape.
+            let expected = match (current, new.output(*node, 0).and_then(|v| new.var(v))) {
+                (Node::Transform { .. }, Some(output)) => crate::OperandKind::Is(output.kind()),
+                _ => slot.kind(),
+            };
+            let spoken = || doc.spoken(*node);
+            let var = lower_operand(new, &spoken, *slot, read, half, expected)?;
+            let mut rewritten = current.clone();
+            for (at, held) in rewritten.operand_rows_mut() {
+                if at == *slot {
+                    *held = var;
+                }
             }
+            write_reads(doc, new, reported, *node, rewritten)?
         }
         DocEdit::SetDeclare { node, pairs } => {
             let mut rewritten = match new.nodes.get(node) {
@@ -6741,12 +7069,7 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                     }),
                 }
             }
-            reported.extend(remove_unread(doc, new, *gauge).map_err(|referenced_by| {
-                EditError::FoldWouldDangle {
-                    node: doc.spoken(*gauge),
-                    referenced_by: doc.spoken(referenced_by),
-                }
-            })?);
+            reported.extend(remove_node(doc, new, *gauge));
             EditRecord {
                 minted: None,
                 minted_var: None,
@@ -6844,43 +7167,59 @@ fn mate_that_would_start_placing<P>(
     })
 }
 
-/// **Take a node no one reads out of the document**, with every piece
-/// of bookkeeping a removal owes — the one home of it, so
-/// [`DocEdit::DeleteNode`] and [`DocEdit::Fold`] cannot drift.
-///
-/// Who reads the node is `roots`' question ([`crate::roots::consumer`]),
-/// the predicate the root set is maintained by, so the refusal and the
-/// re-rooting cannot disagree about what a live consumer is; the
-/// reader is the `Err`. Otherwise the node leaves the node table, the
-/// order, the witness and label stores, and the root list (whose
-/// maintenance re-roots the inputs it orphaned), and the answer is
-/// DM7's report of every surviving reference whose minting node just
-/// left ([`stranded_references`]): a name is not a DAG edge, so the
-/// consumer check never saw one. The mint log keeps the id: ids are
+/// **A node removed** (D10: deleting a variable leaves its readers
+/// unresolved, typed, never re-pointed): it leaves the node table, the
+/// order, the witness and label stores and the root list (whose
+/// maintenance re-roots the inputs it orphaned), and its outputs leave
+/// the variable table. Nothing is refused: the answer is the report of
+/// what it stranded — each operand still reading one of its outputs
+/// ([`Maintenance::StrandedRead`], [`stranded_reads`]), then DM7's
+/// surviving names whose minting node just left
+/// ([`stranded_references`]). The mint log keeps the ids: they are
 /// never reused (D3). `before` is the document the door was handed.
-fn remove_unread<P: crate::ProfilePayload>(
+fn remove_node<P: crate::ProfilePayload>(
     before: &Doc<P>,
     new: &mut Doc<P>,
     id: RecipeNodeId,
-) -> Result<Vec<Maintenance>, RecipeNodeId> {
-    if let Some(referenced_by) = crate::roots::consumer(new, id) {
-        return Err(referenced_by);
-    }
-    let Some(node) = new.nodes.remove(&id) else {
+) -> Vec<Maintenance> {
+    let inputs = new.upstream(id);
+    let outputs = new.outputs(id);
+    if new.nodes.remove(&id).is_none() {
         unreachable!("node {} is removed only while live", id)
-    };
-    let inputs = node.inputs();
-    let reported = stranded_references(before, new, id);
+    }
+    let mut reported = stranded_reads(before, new, &outputs);
+    reported.extend(stranded_references(before, new, id));
     crate::roots::on_delete(new, id, &inputs);
     new.witnesses.remove(&id);
     new.labels.remove(&id);
-    // Its outputs go with it (D10): nothing reads one yet, so nothing
-    // is stranded.
-    for var in new.outputs(id) {
+    for var in outputs {
         new.vars.remove(&var);
         new.var_names.remove(&var);
     }
-    Ok(reported)
+    reported
+}
+
+/// **Every operand of `doc` reading one of `removed`**, in document
+/// order and within a node in field order, as the strand rows a
+/// removal reports, spoken from `before`, which still holds them.
+fn stranded_reads<P: crate::ProfilePayload>(
+    before: &Doc<P>,
+    doc: &Doc<P>,
+    removed: &[VarId],
+) -> Vec<Maintenance> {
+    doc.nodes
+        .iter()
+        .flat_map(|(&node, n)| {
+            n.operand_rows()
+                .into_iter()
+                .filter(|(_, read)| removed.contains(read))
+                .map(move |(slot, var)| Maintenance::StrandedRead {
+                    node: before.spoken(node),
+                    slot,
+                    var: before.spoken_var(var),
+                })
+        })
+        .collect()
 }
 
 /// What a [`DocEdit::Promote`] builds: the gauge's parent and

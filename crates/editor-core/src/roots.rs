@@ -7,7 +7,7 @@
 //! edit:
 //!
 //! - **Coverage** — every live node is an ancestor of, or is, some
-//!   root (ancestry over the nodes' own `inputs()` edges). No silently
+//!   root (ancestry over [`Doc::upstream`], "reads an output of"). No silently
 //!   dead subgraph.
 //! - **Ancestor-freedom** — no root is a strict ancestor of another
 //!   (listing an extrude and its fillet would gather one body's
@@ -123,7 +123,7 @@ impl core::fmt::Display for RootFault {
 impl core::error::Error for RootFault {}
 
 /// The strict ancestors of `from` in ONE document, visited
-/// depth-first over `inputs()` in deterministic order; `visit` sees
+/// depth-first over [`Doc::upstream`] in deterministic order; `visit` sees
 /// each reached node once. The crate's one transitive walk over input
 /// edges — [`strict_ancestors`] is it with nothing to refuse.
 pub(crate) fn walk_strict_ancestors<P: crate::ProfilePayload, E>(
@@ -132,20 +132,18 @@ pub(crate) fn walk_strict_ancestors<P: crate::ProfilePayload, E>(
     seen: &mut std::collections::BTreeSet<RecipeNodeId>,
     mut visit: impl FnMut(RecipeNodeId) -> Result<(), E>,
 ) -> Result<(), E> {
-    let mut stack: Vec<RecipeNodeId> = doc.node(from).map(|n| n.inputs()).unwrap_or_default();
+    let mut stack: Vec<RecipeNodeId> = doc.upstream(from);
     while let Some(id) = stack.pop() {
         if !seen.insert(id) {
             continue;
         }
         visit(id)?;
-        if let Some(node) = doc.node(id) {
-            stack.extend(node.inputs());
-        }
+        stack.extend(doc.upstream(id));
     }
     Ok(())
 }
 
-/// Every node `from` depends on through input edges in `doc`, itself
+/// Every node `from` depends on through its reads in `doc`, itself
 /// excluded — [`walk_strict_ancestors`] collected.
 pub(crate) fn strict_ancestors<P: crate::ProfilePayload>(
     doc: &Doc<P>,
@@ -264,15 +262,17 @@ pub(crate) fn on_set_members<P: crate::ProfilePayload>(doc: &mut Doc<P>) {
 /// The D-3 maintenance for an accepted `DeleteNode`, applied AFTER the
 /// node is gone: deleting a root re-roots the direct inputs that its
 /// departure turned into sinks, in DOCUMENT order, expanding at the
-/// deleted root's list position. Deleting a non-root touches nothing
-/// (and cannot happen through `apply`: a non-root has a live consumer,
-/// which is the dangling refusal).
+/// deleted root's list position. Deleting a node that is read leaves
+/// its readers' reads unresolved (D10), so its readers stay sinks and
+/// the inputs it orphaned join the list as [`on_set_members`] adds
+/// them, at the end.
 pub(crate) fn on_delete<P: crate::ProfilePayload>(
     doc: &mut Doc<P>,
     id: RecipeNodeId,
     inputs: &[RecipeNodeId],
 ) {
     let Some(at) = doc.roots.iter().position(|&r| r == id) else {
+        on_set_members(doc);
         return;
     };
     let orphans: Vec<RecipeNodeId> = doc
@@ -286,7 +286,7 @@ pub(crate) fn on_delete<P: crate::ProfilePayload>(
 }
 
 /// **Who consumes this node** — the first live node whose
-/// [`crate::Node::inputs`] hold `id`, or `None` when nothing does.
+/// [`Doc::upstream`] holds `id`, or `None` when nothing does.
 ///
 /// One home for "who reads this node", the question every door that
 /// cares whether a node may go asks: the root maintainers below ask
@@ -311,7 +311,7 @@ pub(crate) fn consumer<P: crate::ProfilePayload>(
     doc.nodes
         .keys()
         .copied()
-        .find(|&by| by != id && doc.node(by).is_some_and(|n| n.inputs().contains(&id)))
+        .find(|&by| by != id && doc.upstream(by).contains(&id))
 }
 
 /// **Is this node a sink** — is it an input to nothing live?

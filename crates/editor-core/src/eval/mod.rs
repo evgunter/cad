@@ -26,7 +26,7 @@ mod memo;
 pub(crate) mod parts;
 
 pub use parts::PartFault;
-mod schedule;
+pub(crate) mod schedule;
 pub(crate) mod slots;
 mod wire;
 pub(crate) use wire::decision_words;
@@ -961,8 +961,17 @@ pub(crate) fn node_value_kind<P>(doc: &Doc<P>, id: RecipeNodeId) -> Result<&'sta
         let Node::Transform { input, .. } = node else {
             break node;
         };
+        let Some(source) = doc.operation_of(*input) else {
+            return Err(Box::new((
+                at,
+                NodeErrorKind::UnresolvedRead {
+                    slot: crate::OperandSlot::Input,
+                    var: *input,
+                },
+            )));
+        };
         placer = Some(at);
-        at = *input;
+        at = source;
     };
     // The family, and whether a placer takes it.
     let (found, placeable) = match source {
@@ -1426,6 +1435,17 @@ pub enum NodeErrorKind {
     MissingInput {
         /// The dangling id.
         input: RecipeNodeId,
+    },
+    /// **An operand reads a variable no live operation defines** (D10:
+    /// deleting an operation leaves its readers unresolved, typed, never
+    /// re-pointed). The delete reported it
+    /// ([`crate::Maintenance::StrandedRead`]); the repair is an edit
+    /// naming a new read for the slot.
+    UnresolvedRead {
+        /// The operand.
+        slot: crate::OperandSlot,
+        /// The read.
+        var: crate::VarId,
     },
     /// The document's recorded ε disagrees with the process's
     /// committed ambient ε (M4 PR 6 spec D4: one process = one ε —
@@ -2413,6 +2433,11 @@ impl crate::spoken::Say for NodeErrorKind {
             Self::MissingInput { input } => {
                 write!(f, "{} names no live node", by.node_as(*input, "input"))
             }
+            Self::UnresolvedRead { slot, var } => write!(
+                f,
+                "its {slot} reads {var}, which no live operation defines: the operation it \
+                 read was deleted"
+            ),
             Self::ToleranceConflict {
                 document_eps,
                 process_eps,
@@ -4076,7 +4101,7 @@ fn unplaced_below<P: crate::ProfilePayload, T: Decide>(
             usable_in(nodes, id, || NodeStanding::NotEvaluated { node: id })
                 .map(|value| value.carried.unplaced.clone())
                 .unwrap_or_default();
-        for input in node.inputs() {
+        for input in doc.upstream_of(node) {
             for row in out.get(&input).into_iter().flatten() {
                 if !rows.contains(row) {
                     rows.push(row.clone());
@@ -4088,6 +4113,18 @@ fn unplaced_below<P: crate::ProfilePayload, T: Decide>(
         }
     }
     out
+}
+
+/// **The operation an operand reads** — the node whose output `var`
+/// is — or the reader's refusal: a read no live operation defines is
+/// unresolved (D10), typed at `slot`.
+pub(crate) fn read_at<P>(
+    doc: &Doc<P>,
+    slot: crate::OperandSlot,
+    var: crate::VarId,
+) -> Result<RecipeNodeId, NodeErrorKind> {
+    doc.operation_of(var)
+        .ok_or(NodeErrorKind::UnresolvedRead { slot, var })
 }
 
 /// The all-nodes ToleranceConflict refusal (spec D4 door).
@@ -4306,9 +4343,18 @@ where
     // Poison propagation (spec D2, GQ2): first blocking input in the
     // node's deterministic input order; `through` always names a
     // FAILED node (propagated through poisoned intermediaries).
+    // A read no live operation defines is the reader's own refusal
+    // (D10): a deleted operation leaves its readers unresolved.
+    if let Some((slot, var)) = node
+        .operand_rows()
+        .into_iter()
+        .find(|(_, var)| doc.operation_of(*var).is_none())
+    {
+        return fail(bracket, NodeErrorKind::UnresolvedRead { slot, var });
+    }
     let mut upstream_keys: Vec<ContentKey> = Vec::new();
     let mut upstream_naming: Vec<(RecipeNodeId, NamingKey)> = Vec::new();
-    for input in node.inputs() {
+    for input in doc.upstream_of(node) {
         // Every input the document has precedes this node in the
         // order and so has its result: an absent one is not in it.
         match usable_in(results, input, || NodeStanding::NotInDocument {
@@ -4395,7 +4441,9 @@ where
             // (`wire::mint_frame_placement`). The frame is a DAG input
             // of this node, so its value is in hand and a failed
             // frame poisoned this node before the read.
-            let placement = match wire::profile_plane_f64(results, id, program.plane) {
+            let placement = match read_at(doc, crate::OperandSlot::Plane, program.plane)
+                .and_then(|plane| wire::profile_plane_f64(results, id, plane))
+            {
                 Ok(placement) => placement,
                 Err(kind) => return fail(bracket, kind),
             };
@@ -5760,15 +5808,13 @@ where
         // tag for both kinds — the two share this payload exactly as
         // they share the slots it governs.
         Node::Tube {
-            spine: _,
-            u_ref: _,
+            frame: _,
             major_radius: _,
             window,
             minor_radius: _,
         }
         | Node::HollowTube {
-            spine: _,
-            u_ref: _,
+            frame: _,
             major_radius: _,
             window,
             minor_radius: _,

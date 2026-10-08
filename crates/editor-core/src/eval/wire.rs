@@ -214,35 +214,65 @@ where
         + super::SectionScalar
         + crate::mate::SolveScalar,
 {
+    use crate::OperandSlot as O;
+    // An operand reads an output; the op reads the operation's value.
+    // Every read resolves here: an unresolved one refused the node
+    // before its op was reached (`eval::read_at`).
+    let at = |slot, var| super::read_at(doc, slot, var);
+    let all = |slot: fn(u32) -> O, list: &[crate::VarId]| {
+        list.iter()
+            .enumerate()
+            .map(|(i, &var)| at(slot(u32::try_from(i).unwrap_or(u32::MAX)), var))
+            .collect::<Result<Vec<_>, _>>()
+    };
     match node {
         Node::Datum(d) => Ok(OpOut::plain(
             wire_datum(d, doc, results, vals, tol)?,
             names::empty(),
         )),
         Node::Profile(program) => Ok(OpOut::plain(
-            wire_profile(program, results, profile_pre, env.lane, tol)?,
+            wire_profile(
+                program,
+                at(O::Plane, program.plane)?,
+                results,
+                profile_pre,
+                env.lane,
+                tol,
+            )?,
             names::empty(),
         )),
         Node::Extrude { profile, side, .. } => {
-            wire_extrude(id, *profile, *side, doc, results, vals, env, tol)
+            wire_extrude(id, at(O::Profile, *profile)?, *side, doc, results, vals, env, tol)
         }
         Node::Revolve { profile, axis, .. } => {
-            wire_revolve(id, *profile, *axis, doc, results, vals, env, tol)
+            let (profile, axis) = (at(O::Profile, *profile)?, at(O::Axis, *axis)?);
+            wire_revolve(id, profile, axis, doc, results, vals, env, tol)
         }
-        Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, results, vals, env.lane, tol),
+        Node::Loft { profiles, .. } => wire_loft(
+            id,
+            &all(O::Section, profiles)?,
+            doc,
+            results,
+            vals,
+            env.lane,
+            tol,
+        ),
         Node::Sweep { profile, path, .. } => {
-            wire_sweep(*profile, *path, doc, results, vals, env.lane, tol)
+            let (profile, path) = (at(O::Profile, *profile)?, at(O::Path, *path)?);
+            wire_sweep(profile, path, doc, results, vals, env.lane, tol)
         }
-        Node::Tube { spine, window, .. } => wire_tube(id, *spine, window, results, vals, tol),
-        Node::HollowTube { spine, window, .. } => {
-            wire_hollow_tube(id, *spine, window, results, vals, tol)
+        Node::Tube { frame, window, .. } => {
+            wire_tube(id, at(O::Frame, *frame)?, window, results, vals, tol)
+        }
+        Node::HollowTube { frame, window, .. } => {
+            wire_hollow_tube(id, at(O::Frame, *frame)?, window, results, vals, tol)
         }
         Node::Fillet {
             target, selection, ..
         } => wire_blend(
             &crate::verbs::blend::fillet(),
             id,
-            *target,
+            at(O::Target, *target)?,
             selection,
             doc,
             results,
@@ -255,7 +285,7 @@ where
         } => wire_blend(
             &crate::verbs::blend::chamfer(),
             id,
-            *target,
+            at(O::Target, *target)?,
             selection,
             doc,
             results,
@@ -266,7 +296,7 @@ where
         Node::Shell { target, open, .. } => wire_shell(
             &crate::verbs::shell::shell(),
             id,
-            *target,
+            at(O::Target, *target)?,
             open,
             doc,
             results,
@@ -277,8 +307,8 @@ where
         Node::Split { target, tool } => wire_split(
             &crate::verbs::split::split(),
             id,
-            *target,
-            *tool,
+            at(O::Target, *target)?,
+            at(O::Tool, *tool)?,
             results,
             tol,
         ),
@@ -286,8 +316,8 @@ where
             &crate::verbs::boolean::boolean(),
             id,
             *op,
-            *a,
-            *b,
+            at(O::A, *a)?,
+            at(O::B, *b)?,
             declare,
             doc,
             results,
@@ -297,7 +327,7 @@ where
         Node::Union { members, declare } => wire_union(
             &crate::verbs::boolean::boolean(),
             id,
-            members,
+            &all(O::Member, members)?,
             declare,
             doc,
             results,
@@ -305,21 +335,25 @@ where
             tol,
         ),
         Node::Transform { input, placement } => {
-            wire_transform(id, *input, placement, results, vals, tol)
+            wire_transform(id, at(O::Input, *input)?, placement, results, vals, tol)
         }
         Node::Pattern { input, kind, .. } => {
-            wire_pattern(id, *input, kind, &written(doc, id), results, vals, tol)
+            let input = at(O::Input, *input)?;
+            wire_pattern(id, input, kind, doc, &written(doc, id), results, vals, tol)
         }
         // No `id`: the projection mints no description and no name, so
         // nothing it produces is stamped or keyed by this node.
-        Node::Part { of, select } => wire_part(*of, select, results, vals),
+        Node::Part { of, select } => wire_part(at(O::Of, *of)?, select, results, vals),
         // The rule gate, FIRST, through the node's own door (the one
         // `apply` reads): a bad placement list refuses with its own
         // name rather than downstream as a separation or rigidity
         // refusal. Hand-built-document backstop.
         Node::PlacedUnion { input, kind, .. } => match node.placement_rule_fault(tol) {
             Some(fault) => Err(NodeErrorKind::PlacementRule(fault)),
-            None => wire_placed_union(id, *input, kind, &written(doc, id), results, vals, tol),
+            None => {
+                let input = at(O::Input, *input)?;
+                wire_placed_union(id, input, kind, doc, &written(doc, id), results, vals, tol)
+            }
         },
         Node::Measure { expr, refs } => {
             wire_measure(node, expr, refs, payload_values, doc, results, tol)
@@ -333,7 +367,8 @@ where
             // the referenced measure's expression, so the same at every
             // scalar. A reference that is not a measure falls through
             // to `wire_assertion`'s typed `WrongOperand`.
-            let certified = match doc.node(*measure) {
+            let measure = at(O::Measure, *measure)?;
+            let certified = match doc.node(measure) {
                 Some(Node::Measure { expr, .. }) => expr.certified(),
                 _ => crate::measure::Certified::Enclosure,
             };
@@ -342,7 +377,7 @@ where
                 .and_then(|reads| reads.first().map(|&(_, dim)| dim))
                 .unwrap_or_else(|| unreachable!("an assertion reads its bound, {bound}"));
             wire_assertion(
-                *measure,
+                measure,
                 bound_dim,
                 *dir,
                 certified,
@@ -1369,7 +1404,10 @@ fn wire_datum<T: Decide>(
         // through the frame's own axes lies in the frame by
         // construction, so there is no in-plane residual to decide.
         Datum::AxisInPlane { plane, .. } => {
-            let f = frame_value(results, *plane)?;
+            let f = frame_value(
+                results,
+                super::read_at(doc, crate::OperandSlot::Plane, *plane)?,
+            )?;
             let (frame_origin, u, v) = (f.origin(), f.u(), f.v());
             let plane_origin = need_point2(vals, SlotId::Origin)?;
             let plane_dir = need_vec2(vals, SlotId::Direction)?;
@@ -1390,8 +1428,9 @@ fn wire_datum<T: Decide>(
         // stored fact copied out or an N5 resolution; nothing here
         // decides a number.
         Datum::FaceFrame { at, face, .. } => {
-            let body = read_body(results, *at)?;
-            let table = &value_of(results, *at)?.name_table;
+            let at = super::read_at(doc, crate::OperandSlot::At, *at)?;
+            let body = read_body(results, at)?;
+            let table = &value_of(results, at)?.name_table;
             // The fillet's ladder: rung 1 against the document, rungs
             // 2 and 3 against the body's own table.
             let key = named_entity(
@@ -1561,6 +1600,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
 
 fn wire_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
+    frame: RecipeNodeId,
     results: &Results<T>,
     pre: Option<&ProfilePre>,
     lane: LaneEnv<'_, T>,
@@ -1587,13 +1627,13 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
         super::ProfileLift::Pinned => {
             let plane = match &pre.placement_f64 {
                 Some(placement) => placement.map(T::from_f64),
-                None => frame_plane_lane(results, program.plane)?,
+                None => frame_plane_lane(results, frame)?,
             };
             pre.validated_f64.clone().lift_onto(plane)
         }
         super::ProfileLift::Guided => lane_profile::<T>(
             program,
-            frame_plane_lane(results, program.plane)?,
+            frame_plane_lane(results, frame)?,
             lane,
             pre,
             tol,
@@ -1759,8 +1799,8 @@ fn written_against(
     id: RecipeNodeId,
 ) -> Option<RecipeNodeId> {
     match doc.node(id)? {
-        Node::Profile(p) => Some(p.plane),
-        Node::Datum(Datum::AxisInPlane { plane, .. }) => Some(*plane),
+        Node::Profile(p) => doc.operation_of(p.plane),
+        Node::Datum(Datum::AxisInPlane { plane, .. }) => doc.operation_of(*plane),
         _ => None,
     }
 }
@@ -1835,13 +1875,12 @@ fn wire_revolve<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
 }
 
 /// The spine frame and window a tube door takes, resolved from the
-/// node's one datum edge and its slots.
+/// frame the node reads and its slots.
 ///
 /// The RESOLUTION is shared by the two tube arms; each then calls its
-/// own public door. The one thing this layer decides is the FRAME,
-/// minted from the authored reference direction under this layer's
-/// funnel name and role word. The window and wall verdicts stay the
-/// door's own; a check here would be a weaker second opinion.
+/// own public door. This layer decides nothing: the frame is the
+/// frame datum's, and the window and wall verdicts stay the door's
+/// own; a check here would be a weaker second opinion.
 struct TubeArgs<T: geom_core::Real> {
     frame: geom_core::OrthoFrame<T>,
     major_radius: T,
@@ -1850,34 +1889,17 @@ struct TubeArgs<T: geom_core::Real> {
 }
 
 fn tube_args<T: Decide>(
-    spine: RecipeNodeId,
+    frame: RecipeNodeId,
     window: &crate::node::TubeWindow,
     results: &Results<T>,
     vals: &SlotValues<T>,
-    tol: Tol,
 ) -> Result<TubeArgs<T>, NodeErrorKind> {
-    let (origin, dir) = operand(results, spine, super::phrase::DATUM_AXIS, |v| {
-        match &v.payload {
-            ValuePayload::Datum(DatumValue::Axis { origin, dir }) => Some((origin, dir)),
-            _ => None,
-        }
-    })?;
-    // The datum is consumed WHOLE — origin as the spine centre, dir
-    // (already a `UnitVec3`) as the frame's `w` verbatim. `u_ref`
-    // passes through no datum, so the mint decides it here: its
-    // component along the axis is projected out, so an off-perpendicular
-    // `u_ref` names a roll, and one ON the axis line refuses.
+    // The frame is read WHOLE — its origin the spine centre, its
+    // normal the spine axis, its `u` the reference the window's angles
+    // are measured from — as the frame's own door orthonormalized it,
+    // so nothing is decided here.
     Ok(TubeArgs {
-        frame: geom_core::OrthoFrame::from_aim_and_reference(
-            *origin,
-            *dir,
-            need_vec3(vals, SlotId::Direction)?,
-            EVAL_DIRECTION_NORM,
-            band(tol)?,
-        )
-        // The axis is a witness already, so every refusal here is the
-        // reference's residual.
-        .map_err(|e| refusal(e.error, TUBE_REFERENCE_ROLE, EVAL_DIRECTION_NORM))?,
+        frame: frame_value(results, frame)?,
         major_radius: need_scalar(vals, SlotId::TubeMajorRadius)?,
         window: match window {
             crate::node::TubeWindow::Full => sweep::TubeWindow::Full,
@@ -1902,13 +1924,13 @@ fn tube_args<T: Decide>(
 /// section's structural locators ([`tube_pieces`]).
 fn wire_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    spine: RecipeNodeId,
+    frame: RecipeNodeId,
     window: &crate::node::TubeWindow,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let a = tube_args(spine, window, results, vals, tol)?;
+    let a = tube_args(frame, window, results, vals)?;
     let mut built = sweep::tube_along_arc(a.frame, a.major_radius, a.window, a.minor_radius, tol)
         .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
     let table =
@@ -1943,13 +1965,13 @@ fn tube_pieces<T: Decide>(
 /// hole-loop vocabulary.
 fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
-    spine: RecipeNodeId,
+    frame: RecipeNodeId,
     window: &crate::node::TubeWindow,
     results: &Results<T>,
     vals: &SlotValues<T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let a = tube_args(spine, window, results, vals, tol)?;
+    let a = tube_args(frame, window, results, vals)?;
     let wall = need_scalar(vals, SlotId::TubeWall)?;
     let mut built =
         sweep::tube_along_arc_hollow(a.frame, a.major_radius, a.window, a.minor_radius, wall, tol)
@@ -4177,14 +4199,6 @@ pub(crate) const FRAME_Y_ROLE: &str = "datum frame y axis";
 /// The role word a plane datum's normal is normalized under.
 pub(crate) const PLANE_NORMAL_ROLE: &str = "datum plane normal";
 
-/// The role word a tube's REFERENCE DIRECTION is normalized under —
-/// the authored `u_ref` that fixes where the window's angles start.
-/// The role names the RESIDUAL, because that is the length the mint
-/// decides: a long reference lying on the axis line refuses, and "has
-/// zero length" would be false of it.
-pub(crate) const TUBE_REFERENCE_ROLE: &str =
-    "tube reference direction's component perpendicular to the spine axis";
-
 /// The role word a DATUM AXIS's direction is normalized under — one
 /// word on both roads, though the funnel name differs by road (see
 /// [`unit()`]).
@@ -4281,6 +4295,7 @@ fn escalated(predicate: &'static str) -> impl FnOnce(geom_core::Indeterminate) -
 /// refuses as `listed`, the mismatch it is on the caller's node.
 fn stepped_map<T: Decide>(
     kind: &PatternKind,
+    doc: &crate::doc::Doc<ProfileProgram>,
     written: &dyn Fn(SlotId) -> crate::Formula,
     listed: crate::node::CountMismatch,
     i: i64,
@@ -4303,7 +4318,8 @@ fn stepped_map<T: Decide>(
             band(tol)?,
         )?,
         PatternKind::Circular { axis, .. } => {
-            let (origin, dir) = operand(results, *axis, super::phrase::DATUM_AXIS, |v| {
+            let axis = super::read_at(doc, crate::OperandSlot::Axis, *axis)?;
+            let (origin, dir) = operand(results, axis, super::phrase::DATUM_AXIS, |v| {
                 match &v.payload {
                     ValuePayload::Datum(DatumValue::Axis { origin, dir }) => Some((origin, dir)),
                     _ => None,
@@ -4330,10 +4346,12 @@ fn stepped_map<T: Decide>(
 /// ([`names::flat_body_index`], which the name table is keyed by too).
 /// Placement 0 is the master's own bodies verbatim; every master name
 /// wraps `Instance(j)` per placement (A8/N1).
+#[allow(clippy::too_many_arguments)] // the doc resolves the rule's axis
 fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
+    doc: &crate::doc::Doc<ProfileProgram>,
     written: &dyn Fn(SlotId) -> crate::Formula,
     results: &Results<T>,
     vals: &SlotValues<T>,
@@ -4362,6 +4380,7 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     for j in 1..n {
         let map = stepped_map(
             kind,
+            doc,
             written,
             crate::node::CountMismatch::ListedOnPattern,
             j,
@@ -4396,10 +4415,12 @@ fn wire_pattern<T: Decide + topo::AtRestPolicy>(
 ///
 /// Every placement is MAPPED, including index 0: an explicit rule need
 /// not make it the identity.
+#[allow(clippy::too_many_arguments)] // the doc resolves the rule's axis
 fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
+    doc: &crate::doc::Doc<ProfileProgram>,
     written: &dyn Fn(SlotId) -> crate::Formula,
     results: &Results<T>,
     vals: &SlotValues<T>,
@@ -4419,6 +4440,7 @@ fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
                 .map(|i| {
                     stepped_map(
                         kind,
+                        doc,
                         written,
                         crate::node::CountMismatch::ListedWithCount,
                         i,
@@ -4509,13 +4531,14 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // which crosses to `f64` only where the scalar IS `f64`
     // (`SectionScalar`); anywhere else it refuses typed rather than
     // placing on a fabricated point of the frame's bracket.
-    let plane = match profile_plane_f64(results, id, program.plane)? {
+    let frame = super::read_at(doc, crate::OperandSlot::Plane, program.plane)?;
+    let plane = match profile_plane_f64(results, id, frame)? {
         Some(authored) => authored,
         None => {
-            let lane_plane = frame_plane_lane(results, program.plane)?;
+            let lane_plane = frame_plane_lane(results, frame)?;
             pinned_plane(&lane_plane).ok_or(NodeErrorKind::DerivedFrameSection {
                 profile: id,
-                frame: program.plane,
+                frame: frame,
             })?
         }
     };
@@ -4526,7 +4549,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     if lane.lift == super::ProfileLift::Guided {
         lane_profile::<T>(
             program,
-            frame_plane_lane(results, program.plane)?,
+            frame_plane_lane(results, frame)?,
             lane,
             &pre,
             tol,
@@ -4537,7 +4560,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
         .placement_f64
         .ok_or(NodeErrorKind::DerivedFrameSection {
             profile: id,
-            frame: program.plane,
+            frame: frame,
         })?
         .placement;
     // The REPLAYED loops in program order (LIB-U3), and the canonical

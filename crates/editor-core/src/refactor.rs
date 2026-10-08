@@ -256,7 +256,7 @@ fn gauges_first(source: &ProfileDoc, olds: &[RecipeNodeId]) -> Vec<RecipeNodeId>
                 unreachable!("a live gauge reference names a gauge; the doors refuse any other")
             };
             debug_assert!(
-                gauge.inputs().is_empty() && gauge.payload_names().is_empty(),
+                gauge.operand_rows().is_empty() && gauge.payload_names().is_empty(),
                 "a gauge moved ahead reads no node and carries no name"
             );
             visit(source, held, seen, out, g);
@@ -325,6 +325,9 @@ fn carry<E>(
 ) -> Result<(NodeMap, StepMap), E> {
     let olds = gauges_first(source, olds);
     let mut node_map = NodeMap::new();
+    // Each carried operation's outputs, onto the ones its insert
+    // minted at the same ports: what a carried read reads.
+    let mut out_map: BTreeMap<VarId, VarId> = BTreeMap::new();
     let mut step_map = StepMap::new();
     let mut stated = Vec::new();
     for (k, &old) in olds.iter().enumerate() {
@@ -347,7 +350,21 @@ fn carry<E>(
                 .ok_or(RemapMiss::Input(g)),
             _ => Ok(world),
         };
-        let carried = match remap_node(node, &node_map, &step_map, &regauge) {
+        let rd = |var: VarId| match out_map.get(&var) {
+            Some(&carried) => Ok(carried),
+            None => match source.operation_of(var) {
+                Some(input) => Err(RemapMiss::Input(input)),
+                None => Err(RemapMiss::Read {
+                    slot: node
+                        .operand_rows()
+                        .into_iter()
+                        .find_map(|(slot, read)| (read == var).then_some(slot))
+                        .unwrap_or(crate::OperandSlot::Input),
+                    var,
+                }),
+            },
+        };
+        let carried = match remap_node(node, &node_map, &rd, &step_map, &regauge) {
             Ok(carried) => carried,
             Err(RemapMiss::Name { name, missing }) if forward(&missing) => {
                 return Err(edit(EditError::DeclareNamesMissingNode {
@@ -383,6 +400,7 @@ fn carry<E>(
         // A named output crosses with its node: the insert minted the
         // new one at the same port, and the name moves onto it.
         for (output, &minted) in source.outputs(old).into_iter().zip(&record.outputs) {
+            out_map.insert(output, minted);
             if let Some(name) = source.var_name(output) {
                 target
                     .apply(DocEdit::RenameVar {
@@ -1693,7 +1711,12 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::SetExtrudeSideOnNonExtrude { .. }
             | EditError::StepIdsRefused { .. }
             | EditError::TooFewMembers { .. }
-            | EditError::DeleteWouldDangle { .. }
+            | EditError::OperandUnresolved { .. }
+            | EditError::OperandVarKind { .. }
+            | EditError::AmbiguousOutput { .. }
+            | EditError::DefinesNothing { .. }
+            | EditError::PartHalfPort { .. }
+            | EditError::UnknownOperand { .. }
             | EditError::UnknownSlot { .. }
             | EditError::SlotDimensionMismatch { .. }
             | EditError::StructuralSlotNeedsStructuralEdit { .. }
@@ -1764,7 +1787,6 @@ impl core::fmt::Display for ReplayTail<'_> {
             | EditError::PromoteMemberOffset { .. }
             | EditError::FoldOnNonGauge { .. }
             | EditError::FoldWouldStartPlacing { .. }
-            | EditError::FoldWouldDangle { .. }
             | EditError::PlacementRuleMismatch { .. }
             | EditError::EmptyPlacementList { .. }
             | EditError::ImproperPlacement { .. }
@@ -2002,6 +2024,15 @@ fn remap_face(name: &FaceName, map: &NodeMap, steps: &StepMap) -> Result<FaceNam
 enum RemapMiss {
     /// An unmapped DAG input.
     Input(RecipeNodeId),
+    /// An operand whose read no live operation defines: the source
+    /// holds the reader stranded (D10), and a stranded read names an
+    /// id of the source alone.
+    Read {
+        /// The reader's operand.
+        slot: crate::OperandSlot,
+        /// The read.
+        var: VarId,
+    },
     /// A name whose local ids the map lacks, and the FIRST such id.
     /// The two are not redundant: a [`StableName`] embeds other names
     /// in its path, so the id the rewrite stopped at may belong to a
@@ -2024,12 +2055,12 @@ enum RemapMiss {
 /// The first [`RemapMiss`].
 fn remap_rule(
     kind: &PatternKind,
-    id: &impl Fn(RecipeNodeId) -> Result<RecipeNodeId, RemapMiss>,
+    rd: &dyn Fn(VarId) -> Result<VarId, RemapMiss>,
 ) -> Result<PatternKind, RemapMiss> {
     Ok(match kind {
         PatternKind::Linear { .. } | PatternKind::Explicit(_) => kind.clone(),
         PatternKind::Circular { axis, step } => PatternKind::Circular {
-            axis: id(*axis)?,
+            axis: rd(*axis)?,
             step: *step,
         },
     })
@@ -2084,6 +2115,7 @@ fn remap_declared(
 fn remap_node(
     node: &Node<ProfileProgram>,
     map: &NodeMap,
+    rd: &dyn Fn(VarId) -> Result<VarId, RemapMiss>,
     steps: &StepMap,
     regauge: &dyn Fn(Option<RecipeNodeId>) -> Result<Option<RecipeNodeId>, RemapMiss>,
 ) -> Result<Node<ProfileProgram>, RemapMiss> {
@@ -2117,7 +2149,7 @@ fn remap_node(
             origin,
             direction,
         }) => Node::Datum(crate::Datum::AxisInPlane {
-            plane: id(*plane)?,
+            plane: rd(*plane)?,
             origin: *origin,
             direction: *direction,
         }),
@@ -2127,7 +2159,7 @@ fn remap_node(
         // selection.
         Node::Datum(crate::Datum::FaceFrame { at, face, spin }) => {
             Node::Datum(crate::Datum::FaceFrame {
-                at: id(*at)?,
+                at: rd(*at)?,
                 face: nm(face)?,
                 spin: *spin,
             })
@@ -2147,7 +2179,7 @@ fn remap_node(
         // mints its own, and the names that spell them cross through
         // the step map read off that minting ([`carry`]).
         Node::Profile(p) => Node::Profile(ProfileProgram {
-            plane: id(p.plane)?,
+            plane: rd(p.plane)?,
             loops: p.loops.clone(),
             ids: Vec::new(),
         }),
@@ -2156,7 +2188,7 @@ fn remap_node(
             distance,
             side,
         } => Node::Extrude {
-            profile: id(*profile)?,
+            profile: rd(*profile)?,
             distance: *distance,
             side: *side,
         },
@@ -2165,44 +2197,40 @@ fn remap_node(
             axis,
             angle,
         } => Node::Revolve {
-            profile: id(*profile)?,
-            axis: id(*axis)?,
+            profile: rd(*profile)?,
+            axis: rd(*axis)?,
             angle: *angle,
         },
-        // The two tube kinds remap the same way — one spine edge, every
+        // The two tube kinds remap the same way — one frame read, every
         // other field carried — and are written apart rather than
         // through a helper, so which fields each kind has stays
         // readable at the site that has to name them all.
         Node::Tube {
-            spine,
-            u_ref,
+            frame,
             major_radius,
             window,
             minor_radius,
         } => Node::Tube {
-            spine: id(*spine)?,
-            u_ref: *u_ref,
+            frame: rd(*frame)?,
             major_radius: *major_radius,
             window: window.clone(),
             minor_radius: *minor_radius,
         },
         Node::HollowTube {
-            spine,
-            u_ref,
+            frame,
             major_radius,
             window,
             minor_radius,
             wall,
         } => Node::HollowTube {
-            spine: id(*spine)?,
-            u_ref: *u_ref,
+            frame: rd(*frame)?,
             major_radius: *major_radius,
             window: window.clone(),
             minor_radius: *minor_radius,
             wall: *wall,
         },
         Node::Loft { profiles, v_degree } => Node::Loft {
-            profiles: profiles.iter().map(|&p| id(p)).collect::<Result<_, _>>()?,
+            profiles: profiles.iter().map(|&p| rd(p)).collect::<Result<_, _>>()?,
             v_degree: *v_degree,
         },
         Node::Sweep {
@@ -2211,8 +2239,8 @@ fn remap_node(
             stations,
             v_degree,
         } => Node::Sweep {
-            profile: id(*profile)?,
-            path: id(*path)?,
+            profile: rd(*profile)?,
+            path: rd(*path)?,
             stations: *stations,
             v_degree: *v_degree,
         },
@@ -2221,7 +2249,7 @@ fn remap_node(
             radius,
             selection,
         } => Node::fillet(
-            id(*target)?,
+            rd(*target)?,
             *radius,
             selection.iter().map(nm).collect::<Result<_, _>>()?,
         ),
@@ -2230,7 +2258,7 @@ fn remap_node(
             distance,
             selection,
         } => Node::chamfer(
-            id(*target)?,
+            rd(*target)?,
             *distance,
             selection.iter().map(nm).collect::<Result<_, _>>()?,
         ),
@@ -2242,43 +2270,43 @@ fn remap_node(
             thickness,
             open,
         } => Node::shell(
-            id(*target)?,
+            rd(*target)?,
             *thickness,
             open.iter().map(nm).collect::<Result<_, _>>()?,
         ),
         Node::Split { target, tool } => Node::Split {
-            target: id(*target)?,
-            tool: id(*tool)?,
+            target: rd(*target)?,
+            tool: rd(*tool)?,
         },
         Node::Boolean { op, a, b, declare } => Node::Boolean {
             op: *op,
-            a: id(*a)?,
-            b: id(*b)?,
+            a: rd(*a)?,
+            b: rd(*b)?,
             declare: remap_declared(declare, &id, &nm)?,
         },
         Node::Union { members, declare } => Node::Union {
-            members: members.iter().map(|&m| id(m)).collect::<Result<_, _>>()?,
+            members: members.iter().map(|&m| rd(m)).collect::<Result<_, _>>()?,
             declare: remap_declared(declare, &id, &nm)?,
         },
         Node::Transform { input, placement } => Node::Transform {
-            input: id(*input)?,
+            input: rd(*input)?,
             placement: placement.clone(),
         },
         Node::Pattern { input, count, kind } => Node::Pattern {
-            input: id(*input)?,
+            input: rd(*input)?,
             count: *count,
-            kind: remap_rule(kind, &id)?,
+            kind: remap_rule(kind, rd)?,
         },
         // The selector is payload with no id in it (a half, or an
         // index expression); only the edge remaps.
         Node::Part { of, select } => Node::Part {
-            of: id(*of)?,
+            of: rd(*of)?,
             select: select.clone(),
         },
         Node::PlacedUnion { input, count, kind } => Node::PlacedUnion {
-            input: id(*input)?,
+            input: rd(*input)?,
             count: *count,
-            kind: remap_rule(kind, &id)?,
+            kind: remap_rule(kind, rd)?,
         },
         // The reference crosses verbatim (the function's docs say why);
         // the gauge it sits on is the one id it holds, and the door
@@ -2349,7 +2377,7 @@ fn remap_node(
             bound,
             dir,
         } => Node::Assertion {
-            measure: id(*measure)?,
+            measure: rd(*measure)?,
             bound: *bound,
             dir: *dir,
         },
@@ -2723,7 +2751,7 @@ pub fn split(
         let Some(node) = doc.node(consumer) else {
             continue;
         };
-        for input in node.inputs() {
+        for input in doc.upstream_of(node) {
             if cut.contains(&consumer) != cut.contains(&input) {
                 return Err(SplitError::SeveredEdge {
                     consumer: doc.spoken(consumer),
@@ -3199,6 +3227,13 @@ pub fn split(
             RemapMiss::Input(input) => SplitError::PartEdit {
                 error: Box::new(EditError::UnresolvedInput {
                     input: doc.spoken(input),
+                }),
+            },
+            RemapMiss::Read { slot, var } => SplitError::PartEdit {
+                error: Box::new(EditError::OperandUnresolved {
+                    node: doc.spoken(old),
+                    slot,
+                    read: crate::Operand::Var(var),
                 }),
             },
             RemapMiss::Name { name, missing } => SplitError::reaches(doc, old, &name, missing),
@@ -3912,10 +3947,17 @@ pub fn inline(
             },
         ),
         refused,
-        |_, miss| match miss {
+        |old, miss| match miss {
             RemapMiss::Input(input) => InlineError::Edit {
                 error: Box::new(EditError::UnresolvedInput {
                     input: part.spoken(input),
+                }),
+            },
+            RemapMiss::Read { slot, var } => InlineError::Edit {
+                error: Box::new(EditError::OperandUnresolved {
+                    node: part.spoken(old),
+                    slot,
+                    read: crate::Operand::Var(var),
                 }),
             },
             RemapMiss::Name { name, missing } => InlineError::stranded(&part, &name, missing),

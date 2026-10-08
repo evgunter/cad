@@ -214,6 +214,12 @@ pub(crate) enum Walk {
     /// absent, and would erase the order between them, which
     /// [`validate_document`] holds as a contract.
     PayloadRead,
+    /// [`first_operand_read_fault`] over every operand's read (D10): it
+    /// names a minted variable, and a live one of a kind its seat
+    /// admits; a part projection over a split reads its own half. A
+    /// read of an output deleted since is legal — its reader is
+    /// stranded, refused at evaluation. Snapshot only.
+    OperandRead,
     /// [`first_unread_anonymous_var`] over the variable table: a
     /// variable with no name is read by something (VR7). Snapshot only.
     AnonymousVar,
@@ -245,7 +251,7 @@ impl Walk {
     /// Every walk, in the order [`validate_document`] runs them —
     /// which it runs them BY, so this is the order rather than a
     /// description of it.
-    pub(crate) const ORDER: [Walk; 12] = [
+    pub(crate) const ORDER: [Walk; 13] = [
         Walk::NonFinite,
         Walk::Distribution,
         Walk::DisplayUnit,
@@ -255,6 +261,7 @@ impl Walk {
         Walk::DefinitionCycle,
         Walk::SlotRead,
         Walk::PayloadRead,
+        Walk::OperandRead,
         Walk::Program,
         Walk::Snapshot,
         Walk::AnonymousVar,
@@ -309,6 +316,9 @@ impl Walk {
             Walk::PayloadRead => first_payload_read_fault(snapshot).map(|(node, fault)| {
                 read_refusal(snapshot, snapshot.spoken(node), ReadAddress::Payload, fault)
             }),
+            Walk::OperandRead => {
+                first_operand_read_fault(snapshot).map(super::PersistError::Snapshot)
+            }
             Walk::AnonymousVar => first_unread_anonymous_var(snapshot).map(|var| {
                 super::PersistError::Snapshot(SnapshotError::AnonymousVarUnread {
                     var: snapshot.spoken_var(var),
@@ -680,6 +690,51 @@ fn first_slot_read_fault(snapshot: &ProfileDoc) -> Option<(RecipeNodeId, SlotId,
     })
 }
 
+/// **The first operand read this door refuses**, in document order and
+/// within a node in field order: a read of a variable the mint log
+/// does not hold, a live read of a kind its seat does not admit
+/// ([`crate::OperandKind::admits`], the edit doors' rule), or a part
+/// projection over a split reading the other half. A placer's read
+/// keeping its output's shape is [`Walk::OutputSignature`]'s.
+fn first_operand_read_fault(snapshot: &ProfileDoc) -> Option<SnapshotError> {
+    snapshot.nodes.iter().find_map(|(&id, node)| {
+        let half = match node {
+            Node::Part {
+                select: crate::PartSelect::SplitHalf(half),
+                ..
+            } => Some(*half),
+            _ => None,
+        };
+        node.operand_rows().into_iter().find_map(|(slot, var)| {
+            if !snapshot.has_minted_var(var) {
+                return Some(SnapshotError::OperandUnminted {
+                    node: snapshot.spoken(id),
+                    slot,
+                    var: snapshot.spoken_var(var),
+                });
+            }
+            let held = snapshot.var(var)?;
+            if !slot.kind().admits(held) {
+                return Some(SnapshotError::OperandVarKind {
+                    node: snapshot.spoken(id),
+                    slot,
+                    var: Box::new(snapshot.spoken_var(var)),
+                    found: held.kind(),
+                    expected: slot.kind(),
+                });
+            }
+            let (split, port) = held.def().output()?;
+            (half.is_some_and(|half| u32::from(port) != half.output_body())
+                && matches!(snapshot.node(split), Some(Node::Split { .. })))
+            .then(|| SnapshotError::PartHalfPort {
+                node: snapshot.spoken(id),
+                half: half.unwrap_or(crate::SplitHalf::Above),
+                var: Box::new(snapshot.spoken_var(var)),
+            })
+        })
+    })
+}
+
 /// The first PAYLOAD expression with a reader this door refuses, as
 /// `(node, fault)`, by the same predicate.
 ///
@@ -902,6 +957,8 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::SetProgram { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::DeleteNode { .. }
+        // An operand is a read: ids, never a float.
+        | DocEdit::SetOperand { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
         // A side is one of two words.
@@ -1017,51 +1074,60 @@ pub enum SnapshotError {
         /// The step it spells.
         step: crate::node::StepId,
     },
-    /// A Boolean's declared pair is read at a node that is not one of
-    /// its operands — the edit doors' [`crate::EditError::DeclaredSiteNotAnOperand`],
-    /// by the same rule (`node::declared_side_fault`). Asked of a
-    /// Boolean only: its operands never change, so no edit leaves it
-    /// such a pair. A union's member can be dropped by `SetMembers`
-    /// after its pair was written, which is N5's stranded state and
-    /// loads; the evaluation refuses it as a vanished name
-    /// ([`crate::eval::NodeErrorKind::DeclareResolve`]).
-    DeclaredSiteNotAnOperand {
-        /// The Boolean.
-        node: SpokenNode,
-        /// The side's name.
-        name: SpokenName,
-        /// The node the side is read at.
-        site: SpokenNode,
-    },
     /// A Boolean's or a Union's declared name is minted by the node
-    /// itself or by a live node after it in `order` — the edit doors'
-    /// [`crate::EditError::DeclaredNameNotUpstream`], by the same rule.
-    /// No edit leaves a document so: the doors refuse it when the pair
-    /// is written, and `order` only grows at its end.
+    /// itself — the edit doors' [`crate::EditError::DeclaredNameNotUpstream`],
+    /// by the same rule, as far as a stored document is held to it: a
+    /// re-point may move a minter out of reach, which strands the name
+    /// and loads, and no edit makes a node declare its own name.
     DeclaredNameNotUpstream {
         /// The declaring node.
         node: SpokenNode,
         /// The name.
         name: SpokenName,
     },
-    /// A node's input ref does not name a live node.
-    DanglingInput {
-        /// The referring node.
+    /// An operand reads a variable the mint log does not hold — one
+    /// the document never minted. A read of a variable minted and since
+    /// deleted is legal: it is that output's stranded reader (D10),
+    /// refused at evaluation.
+    OperandUnminted {
+        /// The reading node.
         node: SpokenNode,
-        /// The missing input.
-        input: SpokenNode,
+        /// The operand.
+        slot: crate::OperandSlot,
+        /// The read.
+        var: SpokenVar,
     },
-    /// A node's input ref does not precede it in id order (insertion
-    /// order is topological by construction, and ids order as inserted
-    /// — a forward ref means a tampered file, and possibly a cycle).
-    /// **Except** a union [`crate::DocEdit::SetMembers`] gave a member
-    /// minted after it: the edit door accepts that and this refuses its
-    /// save (`work/doors/a-member-set-after-its-union-points-forward-so-save-and-cascade-delete-break.md`).
-    ForwardInput {
-        /// The referring node.
+    /// An operand reads a live variable of a kind its seat does not
+    /// admit — the edit doors' [`crate::EditError::OperandVarKind`], by
+    /// the same rule ([`crate::OperandKind::admits`]).
+    OperandVarKind {
+        /// The reading node.
         node: SpokenNode,
-        /// The forward input.
-        input: SpokenNode,
+        /// The operand.
+        slot: crate::OperandSlot,
+        /// The read, boxed so the refusal stays a small `Err`.
+        var: Box<SpokenVar>,
+        /// The variable's kind.
+        found: crate::VarKind,
+        /// What the seat admits.
+        expected: crate::OperandKind,
+    },
+    /// A part projection over a split reads the split's other half —
+    /// the edit doors' [`crate::EditError::PartHalfPort`].
+    PartHalfPort {
+        /// The part projection.
+        node: SpokenNode,
+        /// The half it selects.
+        half: crate::SplitHalf,
+        /// The output it reads, boxed so the refusal stays a small `Err`.
+        var: Box<SpokenVar>,
+    },
+    /// The nodes' reads close a loop ([`crate::Doc::upstream`]): no edit
+    /// leaves a document so, since every door that writes a read asks
+    /// acyclicity ([`crate::EditError::WouldCycle`]).
+    ReadCycle {
+        /// A node on the loop.
+        at: SpokenNode,
     },
     /// A witness attached to a node that bears no sketch. Its own arm
     /// rather than [`SnapshotError::WitnessOnMissingNode`]: the edit
@@ -1432,24 +1498,39 @@ impl core::fmt::Display for SnapshotError {
                 "{name} spells the profile step id {step}, which the document's mint log \
                  does not hold — the document never minted it",
             ),
-            Self::DeclaredSiteNotAnOperand { node, name, site } => write!(
-                f,
-                "the declaration names {name}, read at {site}, which is not an operand of {node} — no \
-                 edit writes such a pair. {}",
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
-            ),
             Self::DeclaredNameNotUpstream { node, name } => write!(
                 f,
-                "the declaration names {name}, which is not minted before {node} in `order` — no edit writes \
-                 such a pair. {}",
+                "the declaration names {name}, which {node} mints itself — no edit writes such a \
+                 pair. {}",
                 geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
-            Self::DanglingInput { node, input } => {
-                write!(f, "{node} takes input from {input}, which is not live")
-            }
-            Self::ForwardInput { node, input } => write!(
+            // A document written before operands were reads holds a
+            // node id in every operand, which the log holds as a node.
+            Self::OperandUnminted { node, slot, var } => write!(
                 f,
-                "{node} takes input from {input}, which was not inserted before it"
+                "{node}'s {slot} reads {var}, which the document's mint log does not hold as a \
+                 variable — the document never minted it, or was written before an operand \
+                 was a read. {}",
+                crate::sentence::Recourse(super::REGENERATE_RECOURSE)
+            ),
+            Self::OperandVarKind {
+                node,
+                slot,
+                var,
+                found,
+                expected,
+            } => write!(
+                f,
+                "{node}'s {slot} reads {var}, which is {} {found}, where it takes {expected}",
+                crate::sentence::article(&found.to_string()),
+            ),
+            Self::PartHalfPort { node, half, var } => {
+                write!(f, "{node} selects the {} half but reads {var}", half.name())
+            }
+            Self::ReadCycle { at } => write!(
+                f,
+                "the nodes' reads close a loop through {at} — no edit writes one. {}",
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING
             ),
             Self::DuplicateInput { node, input } => {
                 write!(f, "{node}: ")?;
@@ -1704,27 +1785,11 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
     }
     for (&id, node) in &doc.nodes {
         check_id(id)?;
-        for input in node.inputs() {
-            check_id(input)?;
-            // The edit doors' liveness test (`EditError::UnresolvedInput`)
-            // restated, and irreducibly so: the rule IS the node map's
-            // own lookup, so there is no predicate between the two
-            // sites to give a home to — only the same `contains_key`,
-            // asked of a different subject. The edit doors ask it of
-            // ONE incoming reference before it becomes an edge; this
-            // walk asks it of every edge a file already claims.
-            if !doc.nodes.contains_key(&input) {
-                return Err(SnapshotError::DanglingInput {
-                    node: doc.spoken(id),
-                    input: doc.spoken(input),
-                });
-            }
-            if input >= id {
-                return Err(SnapshotError::ForwardInput {
-                    node: doc.spoken(id),
-                    input: doc.spoken(input),
-                });
-            }
+        // A measure's sites are names read at a node, which a delete
+        // strands; what only a file can be wrong about is an id the
+        // document never minted.
+        for at in node.measure_sites() {
+            check_id(at)?;
         }
         // Every node a reference is READ AT that is not also an
         // input (`Node::payload_read_sites` — a mate's two operands):
@@ -1793,7 +1858,9 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
             return Err(match fault.list_fault() {
                 Err(input) => SnapshotError::DuplicateInput {
                     node: doc.spoken(id),
-                    input: doc.spoken(input),
+                    input: doc
+                        .defined_by(input)
+                        .map_or_else(|| SpokenNode::absent(id), |(at, _)| doc.spoken(at)),
                 },
                 Ok(fault) => SnapshotError::InputList {
                     node: doc.spoken(id),
@@ -1876,24 +1943,23 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
             });
         }
     }
+    // Acyclicity over the reads (`Doc::upstream`), which every door
+    // that writes a read asks: `order` is presentation order, since a
+    // re-point may read a node inserted after its reader, so a loop is
+    // the one thing a file can be wrong about here.
+    if let Some(&at) = crate::eval::schedule::schedule(doc).unschedulable.first() {
+        return Err(SnapshotError::ReadCycle { at: doc.spoken(at) });
+    }
     // Every declared pair, by the rule its edit doors ask
-    // (`node::declared_side_fault`): a name minted before its node, and
-    // — for a Boolean, whose operands never change — a site that is one
-    // of its operands. A union's sites are not judged here: a later
-    // `SetMembers` may have stranded one, which loads.
+    // (`node::declared_side_fault`), as far as a stored document can
+    // still be held to it: a re-point (`SetOperand`, `SetMembers`)
+    // strands a site or a name it moved out of reach, and that loads.
+    // What no edit leaves is a node declaring a name it mints itself.
     for (&id, node) in &doc.nodes {
-        let operands = node.inputs();
-        let sites = matches!(node, Node::Boolean { .. }).then_some(operands.as_slice());
-        match crate::node::declared_side_fault(node.declared_pairs(), sites, Some(id), |n| {
-            doc.nodes.contains_key(&n)
-        }) {
+        match crate::node::declared_side_fault(node.declared_pairs(), None, |n| n != id) {
             None => {}
-            Some((side, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
-                return Err(SnapshotError::DeclaredSiteNotAnOperand {
-                    node: doc.spoken(id),
-                    name: doc.spoken_name(&side.name),
-                    site: doc.spoken(side.at),
-                });
+            Some((_, crate::node::DeclaredSideFault::SiteNotAnOperand)) => {
+                unreachable!("the load door judges no declared site")
             }
             Some((side, crate::node::DeclaredSideFault::NameNotUpstream)) => {
                 return Err(SnapshotError::DeclaredNameNotUpstream {
@@ -2106,6 +2172,7 @@ mod tests {
             | Walk::DefinitionCycle
             | Walk::SlotRead
             | Walk::PayloadRead
+            | Walk::OperandRead
             | Walk::AnonymousVar
             | Walk::Snapshot => true,
         }
@@ -2121,10 +2188,11 @@ mod tests {
             StepIds,
             MintLogOrder,
             NameStepNotMinted,
-            DeclaredSiteNotAnOperand,
             DeclaredNameNotUpstream,
-            DanglingInput,
-            ForwardInput,
+            OperandUnminted,
+            OperandVarKind,
+            PartHalfPort,
+            ReadCycle,
             WitnessSite,
             WitnessOnMissingNode,
             LabelOnMissingNode,
@@ -2179,6 +2247,9 @@ mod tests {
                 Walk::SlotRead
             }
             SnapshotError::PayloadVarKind { .. } => Walk::PayloadRead,
+            SnapshotError::OperandUnminted { .. }
+            | SnapshotError::OperandVarKind { .. }
+            | SnapshotError::PartHalfPort { .. } => Walk::OperandRead,
             SnapshotError::AnonymousVarUnread { .. } => Walk::AnonymousVar,
             SnapshotError::DefinitionReadsUnmintedVar { .. }
             | SnapshotError::DefinitionVarKind { .. } => Walk::DefinitionRead,
@@ -2189,10 +2260,8 @@ mod tests {
             SnapshotError::NodeNotMinted { .. }
             | SnapshotError::StepIds { .. }
             | SnapshotError::NameStepNotMinted { .. }
-            | SnapshotError::DeclaredSiteNotAnOperand { .. }
             | SnapshotError::DeclaredNameNotUpstream { .. }
-            | SnapshotError::DanglingInput { .. }
-            | SnapshotError::ForwardInput { .. }
+            | SnapshotError::ReadCycle { .. }
             | SnapshotError::WitnessSite { .. }
             | SnapshotError::WitnessOnMissingNode { .. }
             | SnapshotError::LabelOnMissingNode { .. }
@@ -2259,23 +2328,28 @@ mod tests {
                 name: crate::SpokenName::absent(face()),
                 step: crate::node::StepId::new(0, 9),
             },
-            SnapshotError::DeclaredSiteNotAnOperand {
-                node: node(),
-                name: crate::SpokenName::absent(face()),
-                site: at(9),
-            },
             SnapshotError::DeclaredNameNotUpstream {
                 node: node(),
                 name: crate::SpokenName::absent(face()),
             },
-            SnapshotError::DanglingInput {
+            SnapshotError::OperandUnminted {
                 node: node(),
-                input: at(9),
+                slot: crate::OperandSlot::Target,
+                var: crate::SpokenVar::new(crate::VarId::new(0, 7), None),
             },
-            SnapshotError::ForwardInput {
+            SnapshotError::OperandVarKind {
                 node: node(),
-                input: at(9),
+                slot: crate::OperandSlot::Target,
+                var: Box::new(crate::SpokenVar::new(crate::VarId::new(0, 7), None)),
+                found: crate::VarKind::Profile,
+                expected: crate::OperandKind::Is(crate::VarKind::Body),
             },
+            SnapshotError::PartHalfPort {
+                node: node(),
+                half: crate::SplitHalf::Below,
+                var: Box::new(crate::SpokenVar::new(crate::VarId::new(0, 7), None)),
+            },
+            SnapshotError::ReadCycle { at: at(9) },
             SnapshotError::WitnessSite { node: node() },
             SnapshotError::WitnessOnMissingNode { node: node() },
             SnapshotError::LabelOnMissingNode { node: node() },

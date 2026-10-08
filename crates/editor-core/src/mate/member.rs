@@ -253,7 +253,7 @@ pub(super) fn walk<'r, P>(
                 // and is carried down to the pattern it checks against.
                 Some(VerbatimEdge::Whole { input }) => {
                     chain.push(Placer::Transform(at));
-                    at = input;
+                    at = doc.operation_of(input).ok_or(at)?;
                 }
                 Some(VerbatimEdge::Selected {
                     of,
@@ -266,7 +266,7 @@ pub(super) fn walk<'r, P>(
                     // copy; this node is checked against it per
                     // reference ([`check_reference`]).
                     part = Some(at);
-                    at = of;
+                    at = doc.operation_of(of).ok_or(at)?;
                 }
                 Some(
                     VerbatimEdge::Selected {
@@ -305,7 +305,7 @@ pub(super) fn walk<'r, P>(
                     part: part.take(),
                 });
                 name = of;
-                at = *input;
+                at = doc.operation_of(*input).ok_or(at)?;
             }
             // A union's member: the name must SAY which member, and the
             // walk continues at that member under the name inside the
@@ -316,7 +316,7 @@ pub(super) fn walk<'r, P>(
                 let [RoleSeg::FromMember { member, of }] = name.path.as_slice() else {
                     return Err(at);
                 };
-                if !members.contains(member) {
+                if !members.iter().any(|&m| doc.operation_of(m) == Some(*member)) {
                     return Err(at);
                 }
                 part = None;
@@ -610,7 +610,7 @@ pub(super) fn check_reference<P: crate::ProfilePayload, S>(
             return Err(refused(
                 part,
                 NodeErrorKind::InstanceOutOfRange {
-                    input: *of,
+                    input: doc.operation_of(*of).unwrap_or(part),
                     index: selected,
                     count: bodies as usize,
                 },
@@ -811,8 +811,9 @@ fn pattern_map<P: crate::ProfilePayload, T: Decide>(
             // The operand-KIND question is the pattern's wiring, and
             // its refusal is seated where `axis_datum` says; everything
             // read out of the datum below is the datum's.
-            let datum = axis_datum(doc, node, *axis)?;
-            let at_datum = |kind| Box::new((*axis, kind));
+            let axis = crate::eval::read_at(doc, crate::OperandSlot::Axis, *axis).map_err(here)?;
+            let datum = axis_datum(doc, node, axis)?;
+            let at_datum = |kind| Box::new((axis, kind));
             let dvals = node_slots(datum, env).map_err(at_datum)?;
             SteppedOperands::circular(
                 Point3::origin() + need_vec3(&dvals, SlotId::Origin).map_err(at_datum)?,

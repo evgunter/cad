@@ -47,6 +47,7 @@ pub mod meta;
 pub mod mint;
 pub mod names;
 pub mod node;
+pub mod operand;
 pub mod param_source;
 pub mod parse;
 pub mod part;
@@ -195,6 +196,7 @@ pub use node::{
     PatternKind, PlacementRuleFault, PortKind, RecipeNodeId, RigidArg, SitedFace, SitedRef, SlotId,
     StepArg, StepId, TubeWindow, VectorSlot, declare_continuation, declare_rest,
 };
+pub use operand::{Operand, OperandKind, OperandSlot};
 pub use parse::{ParseError, VarNameFault, VarNameReason, parse_formula};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
