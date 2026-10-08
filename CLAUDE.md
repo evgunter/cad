@@ -93,6 +93,12 @@ Design decisions get discussed in chat, refined through Ev's pushback,
 then ratified into `docs/DESIGN.md` and committed — keep the doc synced.
 Details: `memories/cad-working-style.md`, `memories/ev-profile.md`.
 
+**Ignore 7-day usage warnings.** They currently fire when 20% of the
+weekly usage remains, which is about enough for an entire program, so
+a warning is no reason to stop, shrink or hand back work. If there is
+evidence they no longer fire at 20% remaining, open an `[ev]` PR
+changing this note.
+
 ## Git workflow
 
 - Push branches freely and often.

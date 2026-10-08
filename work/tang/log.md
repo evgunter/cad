@@ -805,6 +805,25 @@ slate `ball-lever-reads-the-3d-distance-not-the-axial-travel`,
 the sweep's siblings went to OFFSET, CLEAVE, CHART, CONTACT, FLUX and
 GERM.
 
+## 2026-10-08 — the pierce ring is a tree of struts (TANG implementer)
+
+A pierce's ring struts hang as the tree of its runs' chords, read off
+one clockwise sort of their germs (`crate::null::ring_tree`): a star
+where one region borders every run, a path or a deeper tree otherwise,
+each child at its parent's far end. The order detector
+(`PierceRunsNested`) is retired, and `zip::split_cones` splits nested
+cones one at a time. `meeting::arch`, the comb, arch and branching
+cones build in every op and pose, from every root. Closes
+`nested-pierce-runs-have-no-ring-order` and
+`a-pierce-whose-run-chords-enclose-one-another-needs-a-tree-ring`.
+
+## 2026-10-08 — the 1e-12 split-row red was the test's truth (TANG implementer)
+
+`the-split-plane-row-serves-coplanar-against-the-truth-band-at-eps-1e-12`,
+filed from PR 4300's CI, closes on PR 4305: the row's own truth could not
+resolve ε 1e-12; an exact `sector_offset` and the Q6 room cap fix the
+test, with no production change.
+
 ## 2026-10-08 — a conic arc's reach over the span it holds (TANG implementer)
 
 A plane or cylinder face's reach reads each conic edge over its span
