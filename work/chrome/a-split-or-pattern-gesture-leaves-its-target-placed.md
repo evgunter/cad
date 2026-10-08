@@ -2,8 +2,9 @@
 id: a-split-or-pattern-gesture-leaves-its-target-placed
 kind: issue
 title: A split or pattern gesture leaves its target placed, so a projected half or copy overlaps it; residue 1's re-point has no one body to re-point to
-status: open
+status: closed
 opened: 2026-10-08
+closed: 2026-10-08
 ---
 
 
@@ -30,3 +31,16 @@ A related call the lane made: deleting a placed feature cascades its
 placement, so the copy leaves the world with no reverse re-point onto
 the feature's input (`story_authoring`'s rook row loses the rook when
 the merlon block is deleted, restated to expect it).
+
+## Closed
+
+Ruled by the INTENT orchestrator (2026-10-08): the literal reading
+stands. Split and Pattern leave the world untouched, and AddPart places
+only what the author asks. The alternative picks members by position
+(`Part{0}`, `Part{1..n}`, stale when a count changes), copies one
+placement's pose into another (relating two placements by equal
+values), and re-points silently, against Ev's 2026-10-03 principles. A
+projected half overlapping its still-placed target is a loud at-rest
+finding, and the author resolves it by removing the target's
+placement. Patterns are being redesigned as index variables (`[ev]`
+#4341), so no pattern-placement gesture is built beyond C's.

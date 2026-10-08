@@ -4,6 +4,7 @@ kind: issue
 title: An instance defines one Body port holding its part's whole world; FORK-1's signature (one Body per world placement, fixed by the pin) is unbuilt
 status: open
 opened: 2026-10-08
+refs: [a-placement-is-the-bundle-of-mates]
 ---
 
 
@@ -33,6 +34,17 @@ What the per-placement signature needs that the spec does not settle:
    evaluation would refuse a count that disagrees with the pin.
 4. **Readers.** B keeps `WrongOperand` for a non-`Part` reader of a
    multi-output node, so only placements could read a port past 0.
+   What a non-`Part` reader of a split's port evaluates to is B's open
+   Q2, and the same question settles a reader of an instance's port.
+
+**Where it is decided: stage 3** (`a-placement-is-the-bundle-of-mates`),
+not stage 2. FORK-S3M, stage 3's placement fork, is choosing the final
+shape. One option is FORK-1's per-placement `Body` ports with a
+`Place` reading a list of shapes of one space. The other is one
+`bodies: Bodies` port whose members are named by the part's placements,
+with `Place` reading one shape. The open `[ev]` PRs #4324 and #4326
+reshape instances further (an instance enters a document only as a
+placement, with no `frame` port). Nothing in stage 2 assumes either.
 
 Split's consumer-ward re-point (`refactor.rs`, the crossing reads
 re-pointed with `SetParam` to the instance's body) and inline's heir

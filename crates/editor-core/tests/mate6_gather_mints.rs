@@ -840,3 +840,66 @@ fn every_unmintable_mate_gets_its_row_in_document_order() {
         other => panic!("expected every refusal raised, got {other:?}"),
     }
 }
+
+/// **The at-rest gate's skip takes only a mate whose member is
+/// unplaced** (F's Q8 rule, landing with the world): two placed
+/// instances and a third nothing places, a mate between the placed two
+/// and one from the second to the unplaced third. The gather mints
+/// exactly the first mate, and the second states nothing (no record,
+/// no refusal), because its member is in no product.
+///
+/// Red if the skip swallows a mate whose members ARE placed (nothing
+/// minted), or stops skipping the unplaced one (two minted, or a
+/// refusal for its unresolved face).
+#[test]
+fn the_gate_skips_a_mate_on_an_unplaced_member_and_mints_the_placed_ones() {
+    let mut store = PartStore::default();
+    let (part, body) = store.insert_part(cube_part("mate6-world-skip-cube"), Tol::witness());
+    let (doc, ids) = row_of("mate6-world-skip-row", part, 2, 4.0);
+    let (doc, unplaced) = insert(doc, Node::instantiate_part(part));
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetOffset {
+            instance: unplaced,
+            offset: Some(editor_core::Placement::literal(&Frame::translation([
+                8.0, 0.0, 0.0,
+            ]))),
+            fresh: Vec::new(),
+        },
+    );
+    let (doc, placed_mate) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(rest_mate(
+                in_part(ids[0], body, CapEnd::End),
+                in_part(ids[1], body, CapEnd::Start),
+                1.0,
+            )),
+            fresh: Vec::new(),
+        },
+    );
+    let (doc, _) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: Box::new(rest_mate(
+                in_part(ids[1], body, CapEnd::End),
+                in_part(unplaced, body, CapEnd::Start),
+                1.0,
+            )),
+            fresh: Vec::new(),
+        },
+    );
+
+    let ev = run(&doc, &with_resolver(store));
+    let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
+    assert_eq!(
+        gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
+        vec![placed_mate.expect("the mate's node")],
+        "the mate between placed members mints, and only it"
+    );
+    assert!(
+        gathered.unminted.is_empty(),
+        "the mate on an unplaced member refuses nothing: {:?}",
+        gathered.unminted
+    );
+}
