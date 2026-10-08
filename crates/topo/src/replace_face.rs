@@ -1530,8 +1530,9 @@ pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy
         .map(|plan| (plan.edge, plan.spec))
         .collect();
     // The edges this call rewrites. A vertex neither of whose edges is
-    // one of them stands as the at-rest operand left it, so these
-    // edges' ends are every vertex the closing join could take.
+    // one of them stands as the operand stated it, and is not this
+    // call's to join, so these edges' ends are every vertex the closing
+    // join reads.
     let written: Vec<EdgeKey> = specs
         .iter()
         .map(|(e, _)| *e)
