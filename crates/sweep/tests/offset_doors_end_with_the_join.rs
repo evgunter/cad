@@ -3,8 +3,10 @@
 //! of a body that holds one joinable vertex (a rim split at its
 //! middle), which the move carries along the rim's moved carrier; only
 //! the join the door ends with takes it: the door returns the join, and
-//! the body it leaves holds no joinable vertex. The planar door refuses
-//! such a body (its corners need three planes), so its row pins that.
+//! the body it leaves holds no joinable vertex. The planar door solves
+//! each MOVED corner from three planes, so it refuses a joinable vertex
+//! on a moved plane; one on an edge whose two planes stay put (distance
+//! 0) it carries unmoved, and the join it ends with takes it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -36,13 +38,11 @@ fn every_chart(body: &Body<f64>, d: f64) -> Vec<ChartMove<f64>> {
         .collect()
 }
 
-/// **The planar door never returns a joinable vertex**: it solves each
-/// corner from the planes meeting there, so a vertex of valence 2 on a
-/// straight edge (two planes) fixes no point and the door refuses the
-/// body that holds one, before anything moves. On every body it
-/// accepts, moving planes keeps each corner's plane set, so the join it
-/// ends with has nothing to take; this row pins the refusal that makes
-/// that so.
+/// **The planar door refuses a joinable vertex it must move**: it
+/// solves each moved corner from the planes meeting there, so a vertex
+/// of valence 2 on a straight edge whose planes both move (two planes)
+/// fixes no point, and the door refuses the body before anything moves.
+/// On a plain brick it reports no join.
 #[test]
 fn offset_planes_together_refuses_a_body_holding_a_joinable_vertex() {
     let tol = Tol::witness();
@@ -144,4 +144,39 @@ fn an_offset_joins_nothing_outside_its_scope() {
         before,
         "the other solid is untouched"
     );
+}
+
+/// **The planar door ends with the join.** A brick with one edge split:
+/// the split edge's two faces stay put (distance 0) and every other face
+/// moves in. The split vertex is no moved corner, so the door carries it
+/// as it stands, and the join it ends with takes it back: one join
+/// reported, none left, and the brick's cells. Red when the door drops
+/// its join.
+#[test]
+fn offset_planes_together_ends_with_the_join() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let mut body = topo::test_support::brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), tol);
+    let e = body.edges().next().unwrap().0;
+    let still: Vec<FaceKey> = {
+        let d = body.get_edge(e).unwrap();
+        [d.he_plus, d.he_minus]
+            .into_iter()
+            .map(|h| body.face_of_half_edge(h).unwrap())
+            .collect()
+    };
+    let v = split_middle(&mut body, e, tol);
+    let moves: Vec<ChartMove<f64>> = body
+        .faces()
+        .map(|(f, _)| ChartMove {
+            faces: vec![f],
+            distance: if still.contains(&f) { 0.0 } else { -0.1 },
+        })
+        .collect();
+    let out = topo::offset_planes_together(&mut body, &moves, band, tol).unwrap();
+    assert_eq!(out.joins.len(), 1, "{:?}", out.joins);
+    assert_eq!(out.joins[0].vertex, v);
+    assert!(topo::joinable_vertices(&body, band).unwrap().is_empty());
+    assert_eq!(body.vertices().count(), 8, "the brick's corners");
+    assert_eq!(body.edges().count(), 12, "the brick's edges");
 }

@@ -953,7 +953,7 @@ mod join_door {
     /// vertex lies on no edge the offset of a face it does not bound
     /// rewrites, so the door's join (`replace_face::staged_join`) does
     /// not reach it: the door reports no join and the vertex stands, as
-    /// the at-rest operand would have left it.
+    /// the operand stated it.
     #[test]
     fn an_offset_door_joins_only_over_what_it_writes() {
         let tol = Tol::witness();
