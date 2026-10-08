@@ -142,3 +142,53 @@ Confidence: a free pose is a valueless `Frame`: **sure**. Per-operation over per
 - **FORK-S3-5:** a part's world must not become the assembly's computing frame. The instance's
   copies are members, and its `frame` port is read only by mates. I assumed this.
 - Ev's verbatim transcript (`5f7a1c71e3`) needs `git fetch --unshallow`.
+
+## Round 2
+
+**1. Per-operation rule: I hold mint order and move towards A's anchor.** Under F's one-space
+bundles, and since spaces rooted at free frames never merge, each space has at most one free
+frame. So the rule becomes: *an operation computes in its space's free frame if its reads reach
+it, otherwise in the frame of the earliest minted copy it reaches; never the world.* This adopts
+A's "a construction computes in its free frame, nothing to choose" without exceptions. It closes
+my gap where a construction on a later free frame could have computed in an earlier copy's
+frame. Mint order rather than operand position decides it for me, for three reasons:
+- **Union as a set.** Under FORK-S4U a union's members are a set folded in mint order, so "the
+  first copy it reads" has no meaning there except mint order.
+- **Same bits for structurally equal operations.** With operand position, `A ∪ B` and `B ∪ A`
+  compute in different frames and their bits differ. D10 calls the two one construction.
+- **A's mixed case.** When a boolean reads a construction and a copy, A's rule needs an extra
+  clause; mine has the free frame outrank the copy.
+Position's one merit is that the person can steer the frame by reordering operands. The frame is
+invisible and moves only bits, so that freedom buys nothing. My earlier argument is not answered
+by A, and A's locality argument holds under both rules. If Ev picked position instead, nothing
+representational changes: one function picks a different member and bits move. The choice is
+reversible either way at bit-move cost only, so it is a minor call for Ev.
+
+**2. D9: I move to A.** D9 says "same build + same inputs → bit-identical outputs", which is
+determinism and not locality. Locality is D10's own promise, a property of each operation, and
+D9 is cited only for determinism. I also adopt A's D6 re-word: "Every free continuous variable's
+value" becomes "Every free scalar's value".
+
+**3. The world: there is no representational difference, but A's door rule needs fixing.**
+- Both reports make the world one free `Frame` marked undeletable. "Never a member" is just my
+  rule's statement that nothing computes in the world, which A also says.
+- A's "no definition may read it" is too strong. A copy's world mate reads `Offset { world, pose
+  }` (spec C's migration of `PlaceInWorld`), and that is a definition reading the world.
+- The rule I propose: *a pose reaching the world is read only by a placement's mates*. That is
+  "construction never reads the world" as one door check over reads.
+
+**4. Points the reports raise separately.**
+- Bundles read one space: we agree. **A definition reaching two free frames refuses at the door:** I adopt it. It is my "reads lie
+  in one space" rule placed at the definition door, with the operation door as the
+  evaluation-time twin.
+- `InFrame` vs `Offset` as one thing spelled twice: still an orchestrator question.
+
+**Proposed D10 text.**
+- *Free variable:* "A variable is **free** — for a scalar or a discrete kind, a value, its
+  written unit (D6) and optionally a distribution; for a `Frame`, nothing: a free frame is a
+  space's own frame, which everything written on it is measured from — or **defined** …"
+- *Poses:* "… the poses (…), of which a `Frame` may be free and every kind may be defined."
+- *Computing frame:* "Nothing computes in the frame of a space. An operation computes in its
+  space's free frame if its reads reach it, else in the frame of the earliest-minted copy they
+  reach, and never in the world's, so a bit moves only under an edit on the path the operation
+  reads; D9 makes that result the same on every build."
