@@ -41,3 +41,24 @@ runs' arcs of their walk (`insert::arc_holders`, the reading `b_runs`
 had). Two spellings remain: walk positions within one plan
 (`arc_holders`), and sector geometry across plans (`holds_whole`, and
 `held_cut` in the reconcile).
+
+## Built (branch `join/insert-one-walk-order`)
+
+"Holds whole" has one reading, `insert::arc_holds(before, outer,
+inner)`. It reports which of `inner`'s ends lie on `outer`'s arc
+(`on_arc`) under one total order, with one tie rule, stated at its
+definition: an end along one of `outer`'s own ends counts inside.
+- `arc_holders` reads it over walk positions (`<`). A plan's positions
+  are distinct, so the tie rule never applies there.
+- `holds_whole` reads it over strut segments' cuts (`walks_before`).
+  It keeps its one-physical-sector gate and its one-arc case (both
+  ends tied), which it settles by the pieces' codes.
+
+`held_cut` asks a different question, whether a run holds one cut. It
+reads the same arc (`on_arc`) and still settles a tie with
+`tied_held`. Neither tie behaviour moved:
+- the former origin readings agree with the fixed one, case by case
+  (the PR body has the table);
+- `holds_whole`'s former test checked only `ilo` against `lo` and `ihi`
+  against `hi`, and the other two comparisons follow from both
+  segments being ordered in one physical sector.
