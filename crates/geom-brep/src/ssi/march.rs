@@ -136,7 +136,7 @@
 //!   lies on a branch the boundary pass already traced from its
 //!   crossings.
 //!   The slab is the caller's box, not geometry
-//!   (`work/ssi/ssi-r3-slab-is-not-geometry.md`).
+//!   (`work/ssiedge/ssi-r3-slab-is-not-geometry.md`).
 
 use geom_core::linalg::svd::Svd;
 use geom_core::{Band, Margin, Point3, Real, Sign, SupSpeed, Vec3};

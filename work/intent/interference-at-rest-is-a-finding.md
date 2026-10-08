@@ -35,3 +35,23 @@ It needs no stage-3 or stage-4 work. It needs stage 2's world copies (C),
 single-primitive measures (D) and selections (E) to state a site.
 
 Design forks open: FORK-S5-1, FORK-S5-2 and FORK-S5-3 (spec §11).
+
+FORK-S5-1, S5-2 and S5-3 were weighed as one fork (FORK-S5Q, fork log
+row 98) and went to Ev in an `[ev]` PR. The converged answer differs
+from the spec's recommendation in three places, and this unit builds
+on it provisionally: `Distance = 0` quiets nothing (only `Gap`, over an
+opposed face pair); an interference is quiet only when every face
+bounding the overlap lies between the carriers of one asserted pair;
+an overlap the kernel cannot intersect is a loud interference that
+nothing quiets, not a could-not-look finding.
+
+After Ev's comments on #4319 (rounds 3 and 4): an interference is quiet
+only when the asserted pair's own faces bound the overlap, so a second
+lug bore on the same carrier needs its own assertion. Every other new
+overlap is loud by default. Regions of one carrier pair are one site.
+Ev's witness point is deferred to a future pointed local `Gap` arm; it
+is not a slot on `Assert`. The exact-cell contact rule (stage 5 C's
+half) needs stage 4 to record a face-on-face planar contact as the face
+pair: the census records planar contact at vertex and edge level, and no
+`Vertex` selection exists, so without that lift a planar contact could
+never be quieted.

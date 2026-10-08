@@ -32,7 +32,7 @@
 //! over its sweep's certified face boxes, and two shells whose boxes are
 //! apart cannot nest and are never probed against each other (`Screen`),
 //! so its pieces side by side cost no probe and record no decision;
-//! `split` and `shell` hand none, and every pair of theirs is probed.
+//! `split` hands none, and every pair of its shells is probed.
 //! A probe reads a ray that crosses nothing off
 //! the shell's role, already decided ([`ShellRead`]), rather than off a
 //! closed-form volume a curved face may not certify.
@@ -117,8 +117,9 @@ pub enum PieceSortError {
 }
 
 // The shell rides in `Debug`; the message names it in words. The sort
-// reads operands as well as results (`shell` sorts the body it is
-// handed), so a shape no verb builds may have been read from a file.
+// can read an operand as well as a result (a split whose plane misses
+// its operand sorts the operand, which at a dual carries no verdict),
+// so a shape no verb builds may have been read from a file.
 // Every arm is one sentence and then its one ending.
 impl core::fmt::Display for PieceSortError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

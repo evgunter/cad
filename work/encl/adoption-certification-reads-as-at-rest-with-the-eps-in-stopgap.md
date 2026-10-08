@@ -32,3 +32,9 @@ Three changes, all following the ruling.
 - Where the definite arm carries no miss value, the door can still compare ε_in with ε.
 
 Re-pin `tier_gate` and remove its `assert_adoption_reading` guard, or replace it with one that holds the new rule.
+
+## The ε_in comparison and the reporting-margin fence (2026-09-29)
+
+Ruled on #3402 (the fence in `real.rs` clause 2) and in force since PR 3418: the reporting margin is for error reporting only. This row's door comparisons (m ≤ ε_in → withhold the tighten offer; a miss within ε_in but beyond ε → the set-ε-to-ε_in stopgap) choose which sentence the import error shows and nothing else. Import, build and refusal outcomes do not change. They therefore fall within the fence's "error reporting" use; no `[ev]` question is needed (confirmed in the orchestrator session, 2026-09-29).
+
+Implement the comparison inside geom-core, beside `sized_recourse`, as a sentence-returning method on the reporting margin, and add it to `reporting-margin-door.sh`'s gated sentence list. The import door never holds the number.

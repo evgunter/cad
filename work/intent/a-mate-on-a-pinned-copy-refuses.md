@@ -21,27 +21,22 @@ Closes `mate-offset-verified-against-the-solve-is-a-constraint-falling-back-to-a
 
 FORK-S3-4 was weighed with FORK-S4-5 as FORK-S3O (fork log row 96) and
 went to Ev in an `[ev]` PR; this unit builds on the answer
-provisionally, and it widens the unit. A mate refuses `Overconstrained`
-when its subgroup contains the fold of the bundle's other mates
-(leave-one-out, so order-independent), or when an equation the other
-mates already fix (codim(held) + codim(added) − codim(result) of them)
-is not proven structural by the coincidence door. The two-peg plate with
-separately typed spacings refuses; its recourse is one `Frame` mate
-between `Through { peg-1 axis, peg-2 centre }` and `Through { hole-1
-axis, hole-2 centre }` plus an `Assert` on the clearance. The table's
-case splits (parallel, perpendicular) are chosen structurally; at a
-degenerate value a structurally generic branch refuses `Degenerate`.
+provisionally. After Ev's comments on #4325, a placement's mates fold in
+order. Each mate is projected onto the residual subgroup the earlier
+ones leave and fixes only that, exactly, by construction, never
+checking what earlier mates fixed. The only refusal is `Overconstrained`:
+a mate that fixes nothing (on a pinned copy no predicate runs). A
+degenerate configuration (a secondary plane parallel to the primary)
+refuses as its construction does, banded like `Meet` (FORK-1b).
 `Contradictory`, its measured clash, `member_of`'s re-measure and
-`trivial_member` retire; nothing in the fold is decided from a value, so
-nothing is recorded. This unit now needs stage 4's merged C+D unit
-(the door's rungs) before it. The migration drops every value-only
-excess mate, naming each: measure the corpus count first. When it lands,
-A11 (1)'s outcomes read: "Mates fold by coset intersection whose
-branches are chosen structurally and whose representative is
-constructed, never checked, to PINNED (`Trivial`), UNDER (the residual
-subgroup named), OVERCONSTRAINED (a mate that fixes nothing new, or
-whose already-fixed equation the door does not prove, named with the
-door's residual as recourse) or DEGENERATE (a structurally generic
-branch at a value where its construction fails). A case split in the
-sliver band escalates `Indeterminate`." Spec test 20 becomes
-`Overconstrained`.
+`trivial_member` retire. The two-peg plate with separately typed
+spacings is admitted: peg 2 fixes the spin, and whether it meets hole 2
+is an at-rest contact the census records and the lint proves or reports
+(`s` against `t`), quieted by an `Assert` like any contact. Nothing
+symbolic runs at the mate door. The migration drops only mates that fix
+nothing, naming each. When it lands, A11 (1) reads: "A placement's mates
+fold in order, each projected onto the residual subgroup the earlier
+ones leave, to DETERMINED or UNDER, or refuse OVERCONSTRAINED (a mate
+that fixes nothing; on a pinned copy no predicate runs); a degenerate
+configuration refuses as its construction does." The GUI shows a
+placement's mates in order (primary, secondary, tertiary).
