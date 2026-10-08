@@ -886,7 +886,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
     })?;
 
     body.close_already_checked();
-    let body = blended;
+    let mut body = blended;
     #[cfg(debug_assertions)]
     debug_assert_eq!(
         topo::validate_closed(&body),
@@ -959,6 +959,8 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
                     edges: _,
                     vertices: _,
                 },
+            // Written below, after these rows are checked.
+            edge_joins: _,
         } = &rec;
         let edge_sources = blends
             .iter()
@@ -1013,6 +1015,22 @@ pub(super) fn blend_surgery<T: Decide + Bounds + topo::AtRestPolicy>(
             );
         }
     }
+    // The join (`docs/DESIGN.md`, maximal edges), over the carved
+    // shells: every other shell is the source's, entity for entity.
+    let carved: BTreeSet<VertexKey> = body
+        .half_edges()
+        .filter(|(k, _)| {
+            body.face_of_half_edge(*k)
+                .and_then(|f| body.get_face(f))
+                .is_some_and(|f| shells.contains(&f.shell))
+        })
+        .map(|(_, h)| h.start)
+        .collect();
+    rec.edge_joins = body
+        .join_edges_within(band, tol, &|v| carved.contains(&v))
+        .map_err(|refusal| BlendError::Join {
+            refusal: topo::JoinRefusal::of(&refusal),
+        })?;
     rec.dead.edges.sort_unstable();
     rec.dead.edges.dedup();
     rec.dead.vertices.sort_unstable();
