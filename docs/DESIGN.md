@@ -1251,8 +1251,8 @@ its lift to a 3-D pose is how it leaves.
 **Operations.** A node is an operation: it reads variables and defines
 the variables its signature states, a fixed list of named, typed ports
 set by its variant (a split defines two bodies; a revolve its body and its axis; an instance of a part
-defines one `Body` variable per copy in the part's world, all in one
-space of the instance's own), possibly none: an assertion defines
+is a placement, defining one `Body` variable per copy in the part's
+world, all of its targets' space), possibly none: an assertion defines
 none, and a mate is a clause of a placement, not an operation. Reading is the only dependency; nothing consumes anything,
 so an operand stays a first-class value after a boolean reads it. The
 product is every copy whose space reaches the world, in placement

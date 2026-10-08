@@ -42,8 +42,8 @@ one body against the world and the rest against it, not a rule). An
 instance defines no `frame` port. Ev chooses between two shapes, and
 this unit builds the recommended one meanwhile: `Place { shapes, mates
 }` reads a list of shapes of one space, and the instance keeps FORK-1's
-one `Body` port per copy in the part's world, all in one space of
-the instance's own; a re-pin that adds a world copy mints a port no
+one `Body` port per copy in the part's world, all of its targets' space (an instance is a
+placement, FORK-S3P); a re-pin that adds a world copy mints a port no
 `Place` reads yet, and the maintenance report names it. The alternative
 is `Place` reading one shape, with the instance defining `bodies:
 Bodies` whose members are named by the part's world placements. Stage 2 C ships
