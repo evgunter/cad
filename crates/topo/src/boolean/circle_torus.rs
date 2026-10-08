@@ -602,6 +602,8 @@ fn parallel_axes_roots<T: Decide>(
 
 #[cfg(test)]
 mod meridian_rows;
+#[cfg(test)]
+mod probe_meridian;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]

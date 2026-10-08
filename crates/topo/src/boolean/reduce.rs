@@ -2087,7 +2087,9 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         band,
                         tol,
                     };
-                    return lying_on(&arc, y, contacts)?.ok_or_else(frontier);
+                    let got = lying_on(&arc, y, contacts)?;
+                    eprintln!("PROBE covered-arm LiesOn x_is={x_is:?} edge={edge_key:?} face={face:?} -> {:?}", got.as_ref().map(|_| "some"));
+                    return got.ok_or_else(frontier);
                 }
             }
             let clearance = if on_carrier {
@@ -2471,10 +2473,12 @@ pub(super) fn curved_face_arm<T: Decide + Bounds + crate::props::AtRestPolicy>(
                         band,
                         tol,
                     };
-                    lying_on(&arc, y, contacts)?.ok_or_else(frontier)
+                    let got = lying_on(&arc, y, contacts)?;
+                    eprintln!("PROBE ZZ-arm LiesOn covered={covered} x_is={x_is:?} edge={edge_key:?} face={face:?} -> {:?}", got.as_ref().map(|_| "some"));
+                    got.ok_or_else(frontier)
                 }
                 SpanVerdict::AtApex => Err(at_apex()),
-                _ => Err(frontier()),
+                v => { eprintln!("PROBE ZZ-arm other covered={covered} x_is={x_is:?} edge={edge_key:?} verdict={}", match v { SpanVerdict::LiesOn => "LiesOn(parents not distinct)", SpanVerdict::Unsettled => "Unsettled", SpanVerdict::Constant => "Constant", _ => "other" }); Err(frontier()) }
             }
         }
         // **A definite surface crossing: the pierce RING lane.** The

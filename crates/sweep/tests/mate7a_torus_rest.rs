@@ -1027,3 +1027,100 @@ fn a_seam_declared_on_the_kissing_torus_pair_is_contradicted() {
         assert_eq!(margin.predicate, Some("seam_senses_aligned"), "{err}");
     }
 }
+
+/// REVIEW PROBE (PR 4343 review, not for merge).
+#[allow(clippy::print_stderr)]
+mod review_probe {
+    use super::*;
+
+    fn tube(center: Point3<f64>, u: Vec3<f64>, ring: f64, deg0: f64, deg1: f64) -> AtRestBody<f64> {
+        let body = tube_along_arc(
+            tube_frame(center, axis(), u, Tol::witness()),
+            ring,
+            TubeWindow::Arc { t0: deg0.to_radians(), t1: deg1.to_radians() },
+            TUBE,
+            Tol::witness(),
+        )
+        .expect("probe tube builds")
+        .body;
+        finished("probe tube", body, Tol::witness())
+    }
+
+    fn say(label: &str, x: &AtRestBody<f64>, y: &AtRestBody<f64>, r: Result<BooleanResult<f64>, BooleanError>) {
+        match r {
+            Ok(_) => eprintln!("PROBE-OUT {label}: Ok"),
+            Err(err) => {
+                let extra = if let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = &err {
+                    let body = if *operand == topo::Operand::A { x } else { y };
+                    let c = body
+                        .get_curve_geom(body.get_edge(*edge).unwrap().curve)
+                        .and_then(|g| g.certified())
+                        .map(|g| g.carrier().clone());
+                    match c {
+                        Some(geom::Curve3::Circle { radius, .. }) => format!(" [circle r={radius}]"),
+                        o => format!(" [{o:?}]"),
+                    }
+                } else {
+                    String::new()
+                };
+                let s = format!("{err:?}");
+                eprintln!("PROBE-OUT {label}: Err {}{extra}", &s[..s.len().min(300)]);
+            }
+        }
+    }
+
+    #[test]
+    #[ignore = "review probe"]
+    fn probe_lily_and_meridian_variants() {
+        let (a, b) = (segment_a(), segment_b());
+        for (name, x, y) in [("A∪B", &a, &b), ("B∪A", &b, &a)] {
+            // as the pinned row
+            let mut decls = wall_declarations(x, y, TUBE, topo::BooleanCoincidence::Seam);
+            decls.coincident_faces.extend(junction_discs(x, y));
+            eprintln!("PROBE-BEGIN lily {name} seam+discs");
+            say(&format!("lily {name} seam+discs"), x, y, topo::union_with(x, y, &decls, Tol::witness()));
+            // discs only
+            let mut decls = crate::mate2_common::continuations(x, y);
+            decls.coincident_faces.extend(junction_discs(x, y));
+            eprintln!("PROBE-BEGIN lily {name} discs");
+            say(&format!("lily {name} discs"), x, y, topo::union_with(x, y, &decls, Tol::witness()));
+            // continuations only
+            let decls = crate::mate2_common::continuations(x, y);
+            eprintln!("PROBE-BEGIN lily {name} continuations");
+            say(&format!("lily {name} continuations"), x, y, topo::union_with(x, y, &decls, Tol::witness()));
+            // nothing
+            eprintln!("PROBE-BEGIN lily {name} none");
+            say(&format!("lily {name} none"), x, y, topo::union_with(x, y, &BooleanDeclarations::default(), Tol::witness()));
+            // tangent walls + discs
+            let mut decls = wall_declarations(x, y, TUBE, ContactClass::Tangent);
+            decls.coincident_faces.extend(junction_discs(x, y));
+            eprintln!("PROBE-BEGIN lily {name} tangent+discs");
+            say(&format!("lily {name} tangent+discs"), x, y, topo::union_with(x, y, &decls, Tol::witness()));
+            // rest walls + discs
+            let mut decls = wall_declarations(x, y, TUBE, ContactClass::Rest);
+            decls.coincident_faces.extend(junction_discs(x, y));
+            eprintln!("PROBE-BEGIN lily {name} rest+discs");
+            say(&format!("lily {name} rest+discs"), x, y, topo::union_with(x, y, &decls, Tol::witness()));
+        }
+        // the same torus, two disjoint elbows: A's ring at 0..22 and 60..82 degrees
+        let c = Point3::new(-RING, 0.0, 0.0);
+        let e0 = tube(c, Vec3::new(1.0, 0.0, 0.0), RING, 0.0, TURN);
+        let e1 = tube(c, Vec3::new(1.0, 0.0, 0.0), RING, 60.0, 60.0 + TURN);
+        for (name, x, y) in [("same-torus e0∪e1", &e0, &e1), ("same-torus e1∪e0", &e1, &e0)] {
+            let decls = crate::mate2_common::continuations(x, y);
+            eprintln!("PROBE-BEGIN {name}");
+            say(name, x, y, topo::union_with(x, y, &decls, Tol::witness()));
+            eprintln!("PROBE-BEGIN {name} diff");
+            say(&format!("{name} diff"), x, y, topo::subtract_with(x, y, &decls, Tol::witness()));
+        }
+        // the off-face meridian: A cut short at 15 degrees, B where it was
+        let a15 = tube(c, Vec3::new(1.0, 0.0, 0.0), RING, 0.0, 15.0);
+        for (name, x, y) in [("offface a15∪B", &a15, &b), ("offface B∪a15", &b, &a15)] {
+            let decls = crate::mate2_common::continuations(x, y);
+            eprintln!("PROBE-BEGIN {name}");
+            say(name, x, y, topo::union_with(x, y, &decls, Tol::witness()));
+        }
+        // a meridian edge of one elbow on the far end of a partner of the same ring
+        // but a different tube centre circle tangent there (a G1 partner continuing past)
+    }
+}
