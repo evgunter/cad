@@ -1915,10 +1915,10 @@ fn contain_at(body: &Body<f64>, face: FaceKey, q: Point3<f64>) -> Option<FaceCon
 /// covers `z < 1` over `[0, w]` and `z < 2` over `[w, 2w]`; the notch
 /// `1 < z < 2` over `[0, w]` has the same hull, so a window read off the
 /// hull answers `In` there. `bool_cone_chart_box` sees the notch (the
-/// polygon's area falls short of its box) and the face door answers
-/// `None`. Narrow (`w = π/8`, the nearest-branch walk's class, wrong on
-/// main too) and wide (`w = 3π/4`, the apex closure's), and one clear of
-/// the apex (the notch cut from a frustum band).
+/// notch's inner sides lie inside its box) and the face door answers
+/// `None`. Narrow (`w = π/8`, the nearest-branch walk's class) and wide
+/// (`w = 3π/4`, the apex closure's), and one clear of the apex (the
+/// notch cut from a frustum band).
 #[test]
 fn an_l_shaped_cone_face_refuses_rather_than_trim_by_its_hull() {
     let o = p(0.0, 0.0, 0.0);
@@ -2377,6 +2377,90 @@ fn a_small_notch_in_a_cone_face_refuses_at_every_size() {
         bad.is_empty(),
         "ε {eps:e}: {} cells answer other than a refusal:\n{}",
         bad.len(),
+        bad.join("\n")
+    );
+}
+
+/// **The smallest notch the builders mint pins the arms' direction.**
+/// A notch `1.5·K·ε` on a side, where each arm is the exact rate: on the
+/// torus at the outer equator (a parallel's radius there is `R + r`, the
+/// major arm itself; a meridian's is `r`), and on the cone at its top
+/// rim (the azimuth arm is that rim's radius; slant is exact). The
+/// notch's inner sides are then `1.5·K·ε` from the box's in metres, past
+/// the band, so the TRIM refuses definitely (`PartialTorusFace`,
+/// `PartialConeFace`). An arm that understated its rate would bring that
+/// margin into the band (an escalation) or under it (a window), and
+/// this row reads either as a failure. The face door at the notch's
+/// centre, `0.75·K·ε` from the face, may escalate on that graze before
+/// it reaches the trim; it must never answer `In`.
+#[test]
+fn the_smallest_notch_refuses_definitely() {
+    use super::super::solid_contain::{PointInSolidError, cone_face_trim, torus_face_windows};
+    let tol = Tol::witness();
+    let s = 1.5 * tol.k() * tol.eps();
+    let mut bad = Vec::new();
+    let mut door_reads =
+        |what: String, got: Result<Option<FaceContainment>, crate::ContainError>| {
+            if matches!(got, Ok(Some(FaceContainment::In))) {
+                bad.push(format!("{what}: the door answers In"));
+            }
+        };
+    let mut trims = Vec::new();
+    for ring in RINGS {
+        let (du, dv) = (s / (ring.0 + ring.1), s / ring.1);
+        let (w, a) = (PI / 2.0, PI / 4.0);
+        let corners = [
+            (0.0, -a),
+            (w, -a),
+            (w, -dv),
+            (w - du, -dv),
+            (w - du, 0.0),
+            (0.0, 0.0),
+        ];
+        let (body, face) = torus_sheet(ring, &corners);
+        door_reads(
+            format!("ring {ring:?}"),
+            door(&body, face, torus_at(ring, (w - 0.5 * du, -0.5 * dv))),
+        );
+        let got = torus_face_windows(&body, face, ring.0, ring.1, band());
+        if !matches!(got, Err(PointInSolidError::PartialTorusFace { .. })) {
+            trims.push(format!("ring {ring:?}: the trim answers {got:?}"));
+        }
+    }
+    let w = PI / 4.0;
+    for (h0, h1) in FRUSTA {
+        let (dh, dt) = (s / 2f64.sqrt(), s / h1);
+        let (body, face) = cone_sheet(
+            cone_at(h0, 0.0),
+            &[
+                Step::Arc(h0, 0.0, w),
+                Step::Line(cone_at(h1 - dh, w)),
+                Step::Arc(h1 - dh, w, w - dt),
+                Step::Line(cone_at(h1, w - dt)),
+                Step::Arc(h1, w - dt, 0.0),
+            ],
+        );
+        door_reads(
+            format!("frustum {h0}..{h1}"),
+            door(&body, face, cone_at(h1 - 0.5 * dh, w - 0.5 * dt)),
+        );
+        let got = cone_face_trim(
+            &body,
+            face,
+            p(0.0, 0.0, 0.0),
+            Vec3::unit_z(),
+            PI / 4.0,
+            band(),
+        );
+        if !matches!(got, Err(PointInSolidError::PartialConeFace { .. })) {
+            trims.push(format!("frustum {h0}..{h1}: the trim answers {got:?}"));
+        }
+    }
+    bad.extend(trims);
+    assert!(
+        bad.is_empty(),
+        "notch {s:e} m at ε {:e}:\n{}",
+        tol.eps(),
         bad.join("\n")
     );
 }

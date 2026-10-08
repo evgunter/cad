@@ -6,8 +6,8 @@
 //! containment is asked. The chart-box check
 //! that refuses such a face at the containment doors is pinned in
 //! `topo`'s `an_l_shaped_torus_face_refuses_rather_than_trim_by_its_hull`;
-//! when this pair is admitted, this row is where the notch
-//! (`point_in_solid` there is `Out`) and the volume (`3π²/8`) are owed.
+//! what this row asserts once the pair is admitted is scheduled by
+//! `work/contact/notched-half-donut-owes-its-notch-and-volume-when-torus-plane-lands.md`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

@@ -183,7 +183,9 @@
 //!   Without this, a no-hit ray on a reverted operand would misreport
 //!   complement material as `Out`.
 
-use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{
+    Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Sign, SupSpeed, Vec3,
+};
 
 use crate::body::Body;
 use crate::chart_groups::ChartGroups;
@@ -1756,10 +1758,10 @@ fn cone_trimmed_window<T: Decide>(
     }
     // The polygon's sides: each image, then the side from the last exit
     // back to the first entry, which is the apex jump when the walk was
-    // closed there (at `v = 0`, on the box's apex side). The arms bound
-    // the metric separation from above: a slant difference is the
-    // distance along a generator, exactly, and an azimuth difference
-    // moves a point at most the largest parallel radius per radian.
+    // closed there (at `v = 0`, on the box's apex side). The rates,
+    // bounded above: slant is metres along a generator, exactly, and an
+    // azimuth moves a point at most the largest parallel radius per
+    // radian.
     let (first, last) = (
         images
             .first()
@@ -1776,8 +1778,8 @@ fn cone_trimmed_window<T: Decide>(
     match chart_polygon_box(
         "bool_cone_chart_box",
         &sides,
-        lever * half_angle.sin(),
-        T::one(),
+        SupSpeed::new(lever * half_angle.sin()),
+        SupSpeed::new(T::one()),
         band,
     )
     .map_err(esc)?
@@ -2257,6 +2259,9 @@ fn torus_chart_windows<T: Decide>(
         return Ok(None);
     };
     let tau = T::tau();
+    // The channels' rates, bounded above: a parallel's radius
+    // `R + r·cos t` is at most `R + r`, and a meridian's is `r`.
+    let arms = (SupSpeed::new(lever), SupSpeed::new(minor_radius));
     // Each boundary edge's chart image, `(entry, exit)` on the branch the
     // walk pinned.
     let mut sides: Vec<((T, T), (T, T))> = Vec::new();
@@ -2317,7 +2322,7 @@ fn torus_chart_windows<T: Decide>(
             exit = (exit.0 + ku, exit.1 + kv);
             // **The walk is continuous**: each entry is the previous
             // exit, so an edge the walk stepped over leaves a gap here.
-            if !torus_chart_meets(face, (pu, pv), entry, (lever, minor_radius), band)? {
+            if !torus_chart_meets(face, (pu, pv), entry, arms, band)? {
                 return Ok(None);
             }
         }
@@ -2329,21 +2334,18 @@ fn torus_chart_windows<T: Decide>(
     // **The walk closes**: the last exit is the first entry on the branch
     // the walk pinned. A walk that lost a branch, or stepped over its
     // first or last edge, does not.
-    if !torus_chart_meets(face, end, start, (lever, minor_radius), band)? {
+    if !torus_chart_meets(face, end, start, arms, band)? {
         return Ok(None);
     }
     // **The window is a BOX, and this is what checks the face is one**
-    // (header). The arms bound the metric separation from above: a
-    // parallel's radius `R + r·cos t` is at most `R + r`, and a minor
-    // angle's arc on the tube is `r·Δt`, at least its chord.
-    chart_polygon_box("bool_torus_chart_box", &sides, lever, minor_radius, band)
+    // (header).
+    chart_polygon_box("bool_torus_chart_box", &sides, arms.0, arms.1, band)
         .map_err(|diag| PointInSolidError::Escalated { face, diag })
 }
 
 /// Do two chart points of one torus walk coincide? Each channel's
-/// difference is decided at its arm (`(major, minor)`: `R + r` and `r`,
-/// each at least the metres a radian of it moves a point), so Zero is a
-/// coincidence in metres.
+/// difference is crossed to metres by an upper bound on its rate, so
+/// Zero is a coincidence in metres.
 ///
 /// # Errors
 ///
@@ -2352,13 +2354,13 @@ fn torus_chart_meets<T: Decide>(
     face: FaceKey,
     a: (T, T),
     b: (T, T),
-    (major, minor): (T, T),
+    (major, minor): (SupSpeed<T>, SupSpeed<T>),
     band: Band,
 ) -> Result<bool, PointInSolidError> {
     for (delta, arm) in [(a.0 - b.0, major), (a.1 - b.1, minor)] {
         if decide(
             "bool_torus_chart_closure",
-            Margin::levered(delta, arm),
+            Margin::metered_sup(delta, arm),
             band,
         )
         .map_err(|diag| PointInSolidError::Escalated { face, diag })?
@@ -2386,9 +2388,9 @@ fn torus_chart_meets<T: Decide>(
 ///
 /// A side's distance from a box side is the larger of its two ends',
 /// crossed to metres by `u_arm` or `v_arm`. The verdict that accepts is
-/// Zero, so each arm must bound the true separation from ABOVE: an arm
-/// that understated it would read a real notch as coincident. Each
-/// caller says why its arms do.
+/// Zero, so each arm is an upper bound on its channel's rate
+/// ([`SupSpeed`]): an arm that understated it would read a real notch as
+/// coincident.
 ///
 /// `Some(box)` when every side lies on a side of the box, `None` when one
 /// definitely does not.
@@ -2401,8 +2403,8 @@ fn torus_chart_meets<T: Decide>(
 fn chart_polygon_box<T: Decide>(
     name: &'static str,
     sides: &[((T, T), (T, T))],
-    u_arm: T,
-    v_arm: T,
+    u_arm: SupSpeed<T>,
+    v_arm: SupSpeed<T>,
     band: Band,
 ) -> Result<Option<((T, T), (T, T))>, Indeterminate> {
     let Some(&(first, _)) = sides.first() else {
@@ -2425,7 +2427,7 @@ fn chart_polygon_box<T: Decide>(
             (far(a.1, b.1, v.0), v_arm),
             (far(a.1, b.1, v.1), v_arm),
         ] {
-            match decide(name, Margin::levered(d, arm), band) {
+            match decide(name, Margin::metered_sup(d, arm), band) {
                 Ok(Sign::Zero) => {
                     on_a_side = true;
                     break;

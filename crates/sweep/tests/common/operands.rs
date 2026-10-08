@@ -362,33 +362,7 @@ pub fn parallelepiped(s: f64) -> Body<f64> {
     sweep::test_support::realized(topo::boolean::BooleanOp::Intersect, &along_y, &along_x, tol)
 }
 
-/// The axis-aligned block `x × y × z`, its `x × y` rectangle extruded
-/// along `z`, at rest.
+/// The axis-aligned block `x × y × z` ([`brick`]), at rest.
 pub fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::AtRestBody<f64> {
-    use geom_core::{Affine3, Mat3, Vec3};
-    use sweep::test_support::finished;
-    let lp = ProfileLoop::polygon([
-        Point2::new(x.0, y.0),
-        Point2::new(x.1, y.0),
-        Point2::new(x.1, y.1),
-        Point2::new(x.0, y.1),
-    ]);
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, z.0) - Point3::origin(),
-    ));
-    let vp = profile::Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("the bar profile validates");
-    let bar = sweep::extrude(
-        &vp,
-        sweep::Extrusion::Distance {
-            depth: z.1 - z.0,
-            side: ExtrudeSide::Along,
-        },
-        Tol::witness(),
-    )
-    .expect("the bar extrudes")
-    .body;
-    finished("the bar", bar, Tol::witness())
+    sweep::test_support::finished("the bar", brick(x, y, z, Tol::witness()), Tol::witness())
 }
