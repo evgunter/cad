@@ -5269,7 +5269,7 @@ mod tests {
                 let p = body.resolve_vertex_point(v, Proven);
                 let w = Vec3::new(p.x, p.y, 0.0).normalize();
                 let chart = w * alpha.cos() - Vec3::new(0.0, 0.0, alpha.sin());
-                let want = if sense { chart } else { -chart };
+                let want = OutwardNormal::from_chart(chart, sense).vec();
                 for he in body.vertex_orbit_linked(v) {
                     match sector_face(&body, Operand::B, v, he, band()) {
                         Ok((f, n)) if f == face => {
@@ -5364,7 +5364,7 @@ mod tests {
     /// (over 2·10⁵ poses the ray's true separation never fell below the
     /// charge's claim), so this row holds the lever against loosening,
     /// not a wrong answer. A short bound takes `ρ − reach`, and a
-    /// plane's lever is its own at every reach.
+    /// sphere's lever is its own at every reach.
     #[test]
     fn a_cone_lever_is_the_bend_nearest_the_axis_within_reach() {
         let b = band();
@@ -5416,15 +5416,16 @@ mod tests {
             SideCode::Out,
             "read at ρ the same side certifies"
         );
-        let plane = geom::Surface::Plane {
-            origin: Point3::origin(),
-            normal: Vec3::new(0.0, 0.0, 1.0),
+        let sphere = geom::Surface::Sphere {
+            center: Point3::origin(),
+            radius: 2.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         assert_eq!(
-            PierceLever::of(&plane, p).within(1e9),
-            NO_CURVATURE::<f64>(),
-            "a plane's lever does not depend on the reach"
+            PierceLever::of(&sphere, p).within(1e9),
+            2.0,
+            "a sphere's lever does not depend on the reach"
         );
     }
 }
