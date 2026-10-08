@@ -263,6 +263,36 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "replace_face_offset",
         "the one-face spelling of `replace_faces_offset`, which it calls",
     ),
+    (
+        "merge_unjoined",
+        "test support: calls `merge_coplanar_faces_unjoined`, which asserts tier 1 through \
+         its surgery scope",
+    ),
+    (
+        "join_edges",
+        "a pipeline of `kev_describing` kills, each asserting the tier-1 postcondition, and \
+         the planar arm's re-description, which writes a curve and no topology",
+    ),
+    (
+        "merge_coplanar_faces_declared",
+        "runs `merge_coplanar_faces_unjoined`, which asserts tier 1 through its surgery \
+         scope, and `join_edges` on a clone, then adopts the clone",
+    ),
+    (
+        "replace_faces_offset",
+        "runs `replace_faces_offset_unjoined` and `join_edges` on a clone \
+         (`ending_with_the_join`), then adopts the clone",
+    ),
+    (
+        "offset_planes_together",
+        "runs `offset_planes_together_unjoined` and `join_edges` on a clone \
+         (`ending_with_the_join`), then adopts the clone",
+    ),
+    (
+        "offset_charts_together",
+        "runs `offset_charts_together_unjoined` and `join_edges` on a clone \
+         (`ending_with_the_join`), then adopts the clone",
+    ),
     // ---- Setters declaring the tier-1 postcondition. ----
     (
         "set_face_surface",
@@ -550,12 +580,19 @@ fn every_public_mutation_path_preserves_tier1() {
     // that erased `sweep_and_close` from every scoped door would move
     // them all to `unlisted` and red — but one that erased
     // `begin_surgery` too would move them to `asserting`/`unlisted`
-    // silently. This names a door the walk must see as scoped.
+    // silently. The merge is the door whose scope composes tens of ring
+    // surgeries; since its public spellings end with the join, the
+    // scope sits one call down, in `merge_coplanar_faces_unjoined`,
+    // which the walk (public doors only) does not visit, so the pin
+    // reads that body's source directly.
+    let merge_src = include_str!("merge_faces.rs");
+    let unjoined = merge_src
+        .split_once("fn merge_coplanar_faces_unjoined")
+        .and_then(|(_, rest)| rest.split_once("\n    }\n"))
+        .map(|(body, _)| body);
     assert!(
-        scoped
-            .iter()
-            .any(|s| s.ends_with("::merge_coplanar_faces_declared")),
-        "`merge_coplanar_faces_declared` no longer reads as opening and closing a surgery \
+        unjoined.is_some_and(|b| b.contains("begin_surgery") && b.contains("sweep_and_close")),
+        "`merge_coplanar_faces_unjoined` no longer reads as opening and closing a surgery \
          scope. Either the door stopped scoping — a finding, it composes tens of ring \
          surgeries — or the source read lost the calls.",
     );

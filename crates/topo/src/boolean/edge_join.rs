@@ -416,57 +416,107 @@ pub fn joinable_vertices<T: Decide>(
     Ok(out)
 }
 
-/// **The output stage's join**: joins every joinable vertex
-/// ([`joinable_vertices`]) of `body`, one at a time in vertex-arena
-/// order until none is left, and writes each join's substitution rows
-/// into `desc` (`w → kept`, `gone → kept`, and where the join leaves a
-/// conventional vertex, that vertex `→ kept`), so the op's one
-/// [`super::ops::carry`] takes every record through its zips, its merge
-/// and its joins together. Runs after the merge and its re-description,
-/// before the records are carried. Returns the joins in the order made,
-/// a later one's `gone` or `kept` possibly an earlier one's `kept`.
+/// Joins every joinable vertex of `body` ([`Body::join_edges`]) and
+/// writes each join's substitution rows into `desc` (`w → kept`,
+/// `gone → kept`, and where the join leaves a conventional vertex, that
+/// vertex `→ kept`), so the op's one [`super::ops::carry`] takes every
+/// record through its zips, its merge and its joins together. Runs
+/// after the merge and its re-description, before the records are
+/// carried.
 ///
 /// # Errors
 ///
-/// [`BooleanError::JoinUndecided`], the kill's own refusal
-/// ([`BooleanError::Euler`]), a carrier the joined edge cannot be
-/// restated on ([`BooleanError::JoinCarrierUnsupported`]), or the
-/// description's.
+/// As [`Body::join_edges`].
 pub(super) fn join_stage<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     desc: &mut Descendants,
     band: Band,
     tol: Tol,
 ) -> Result<Vec<EdgeJoin>, BooleanError> {
-    let mut joined = Vec::new();
-    loop {
-        let pass = Pass::of(body);
-        let mut next = None;
-        for (w, _) in body.vertices() {
-            if let Some(j) = joinable(body, w, &pass, band).map_err(BooleanError::JoinUndecided)? {
-                next = Some((w, j));
-                break;
+    let joined = body.join_edges(band, tol)?;
+    for j in &joined {
+        desc.substitute(Cell::Vertex(j.vertex), Cell::Edge(j.kept));
+        desc.substitute(Cell::Edge(j.gone), Cell::Edge(j.kept));
+        if let Some(v) = j.conventional {
+            desc.substitute(Cell::Vertex(v), Cell::Edge(j.kept));
+        }
+    }
+    Ok(joined)
+}
+
+/// The join's refusal as a door that is not the boolean words it, for
+/// the person at the GUI: what was undecided or unbuilt, with no arena
+/// key, and the one recourse.
+pub(crate) fn join_refusal_sentence(refusal: &BooleanError) -> String {
+    match refusal {
+        BooleanError::JoinUndecided(e) => {
+            let reading = match &e.reading {
+                JoinReading::Regularity(diag) => diag.to_string(),
+                JoinReading::ChartClass(why) => why.to_string(),
+            };
+            format!(
+                "whether two edges meeting at a vertex on one curve are one edge is undecided \
+                 at this tolerance ({reading}). Recourse: if this size is intended, tighten the \
+                 tolerance below it"
+            )
+        }
+        BooleanError::JoinCarrierUnsupported { carrier, .. } => format!(
+            "two edges meet at a vertex on one {} carrier, which the join cannot run an edge \
+             on yet (work/fuse/joining-a-spline-carrier-is-unbuilt); there is no way through \
+             this yet",
+            carrier.name()
+        ),
+        other => other.to_string(),
+    }
+}
+
+impl<T: Decide + crate::props::AtRestPolicy> Body<T> {
+    /// **The join** (`docs/DESIGN.md`, maximal edges): every joinable
+    /// vertex ([`joinable_vertices`]) of the body, one at a time in
+    /// vertex-arena order until none is left, killed and its two edges
+    /// made one. The door every finisher ends with, so no body reaches
+    /// rest holding a vertex the predicate would join
+    /// (`ValidationError::JoinableVertexAtRest`). Returns the joins in
+    /// the order made, a later one's `gone` or `kept` possibly an
+    /// earlier one's `kept`: a door carrying records or names keyed by
+    /// the body's cells reads each join as `vertex → kept`,
+    /// `gone → kept`, and `conventional → kept` where it is set.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError::JoinUndecided`], the kill's own refusal
+    /// ([`BooleanError::Euler`]), a carrier the joined edge cannot be
+    /// restated on ([`BooleanError::JoinCarrierUnsupported`]), or the
+    /// description's.
+    pub fn join_edges(&mut self, band: Band, tol: Tol) -> Result<Vec<EdgeJoin>, BooleanError> {
+        let body = self;
+        let mut joined = Vec::new();
+        loop {
+            let pass = Pass::of(body);
+            let mut next = None;
+            for (w, _) in body.vertices() {
+                if let Some(j) =
+                    joinable(body, w, &pass, band).map_err(BooleanError::JoinUndecided)?
+                {
+                    next = Some((w, j));
+                    break;
+                }
             }
+            let Some((w, join)) = next else {
+                return Ok(joined);
+            };
+            join_one(body, w, &join, band, tol)?;
+            // A closed join's survivor is conventional unless another
+            // edge still ends there (a seam strut on the rim it closed).
+            let conventional =
+                (join.closed && is_conventional_vertex(body, join.far)).then_some(join.far);
+            joined.push(EdgeJoin {
+                vertex: w,
+                gone: join.gone,
+                kept: join.kept,
+                conventional,
+            });
         }
-        let Some((w, join)) = next else {
-            return Ok(joined);
-        };
-        join_one(body, w, &join, band, tol)?;
-        desc.substitute(Cell::Vertex(w), Cell::Edge(join.kept));
-        desc.substitute(Cell::Edge(join.gone), Cell::Edge(join.kept));
-        // A closed join's survivor is conventional unless another edge
-        // still ends there (a seam strut on the rim it closed).
-        let conventional =
-            (join.closed && is_conventional_vertex(body, join.far)).then_some(join.far);
-        if let Some(v) = conventional {
-            desc.substitute(Cell::Vertex(v), Cell::Edge(join.kept));
-        }
-        joined.push(EdgeJoin {
-            vertex: w,
-            gone: join.gone,
-            kept: join.kept,
-            conventional,
-        });
     }
 }
 

@@ -316,6 +316,22 @@ pub mod test_support {
         };
     }
 
+    /// **The merge without the join**, for a fixture that is
+    /// construction state on purpose: a body whose edges carry
+    /// station vertices a row exercises (a split rim, a stationed
+    /// wall), which the public door's join
+    /// ([`Body::merge_coplanar_faces`]) would take away.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::merge_coplanar_faces`].
+    pub fn merge_unjoined<T: crate::AtRestPolicy>(
+        body: &mut Body<T>,
+        tol: geom_core::Tol,
+    ) -> Result<crate::MergeCoplanarOutcome, crate::MergeCoplanarError> {
+        body.merge_coplanar_faces_unjoined(&[], tol)
+    }
+
     /// `body` finished for a door that takes finished bodies (the
     /// boolean's): through the scalar's at-rest gate
     /// ([`crate::AtRestPolicy::gate_at_rest_kept`]).

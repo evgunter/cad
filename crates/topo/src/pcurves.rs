@@ -5199,6 +5199,19 @@ pub(crate) mod staleness_posture {
             ),
             ("mvfs", Neither, "Euler operator"),
             (
+                "merge_unjoined",
+                Maintains,
+                "test support: calls `merge_coplanar_faces_unjoined`, which re-mints the \
+                 staged result before it is adopted",
+            ),
+            (
+                "join_edges",
+                Completes,
+                "a pipeline of `kev_describing` kills, each completing every face a listed \
+             member's halves are on, and the planar arm's re-description of the kept edge, \
+             through `set_edge_curve`'s planner",
+            ),
+            (
                 "mev_null",
                 Neither,
                 "Euler operator minting a NULL edge: scaffolding with no carrier, so no image \

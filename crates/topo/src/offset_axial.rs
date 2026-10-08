@@ -437,6 +437,19 @@ pub fn offset_charts_together<T: Decide + crate::props::AtRestPolicy>(
     band: Band,
     tol: Tol,
 ) -> Result<(), ReplaceFaceError<T>> {
+    crate::replace_face::ending_with_the_join(body, tol, |work| {
+        offset_charts_together_unjoined(work, moves, band, tol)
+    })
+}
+
+/// [`offset_charts_together`] without the join: the shell's cavity
+/// offset, which keys its naming rows by the moved body's cells.
+pub(crate) fn offset_charts_together_unjoined<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    moves: &[ChartMove<T>],
+    band: Band,
+    tol: Tol,
+) -> Result<(), ReplaceFaceError<T>> {
     // ---- Decide: the chart moves are well formed. ----
     //
     // The planar door's own two preconditions, for the same reason: a

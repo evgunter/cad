@@ -612,6 +612,15 @@ pub enum ReplaceFaceError<T: Real> {
         /// The mint's typed refusal.
         source: PcurveMintError,
     },
+    /// The join the public offset doors end with
+    /// ([`Body::join_edges`]) refused on the offset body. The body is
+    /// untouched.
+    Join {
+        /// The join's refusal, by kind ([`crate::BooleanError::kind`]).
+        kind: crate::boolean::BooleanErrorKind,
+        /// The refusal's own sentence.
+        what: String,
+    },
     /// The re-described clone is not tier-2 valid, so it is discarded.
     ResultNotClosed {
         /// The validator's report.
@@ -800,6 +809,12 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "the offset body's edges could not be parametrized on their faces: {source}"
             ),
+            Self::Join { what, .. } => {
+                write!(
+                    f,
+                    "the offset body's joinable vertices could not be joined: {what}"
+                )
+            }
             Self::TogetherChartMixed { .. } => write!(
                 f,
                 "a move names faces that do not lie on one surface, and a move moves one \
@@ -1238,6 +1253,45 @@ pub fn replace_face_offset<T: Decide + crate::props::AtRestPolicy>(
 /// [`ReplaceFaceError`] — [`replace_face_offset`]'s, plus the group
 /// gates.
 pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    d: T,
+    tol: Tol,
+) -> Result<(), ReplaceFaceError<T>> {
+    ending_with_the_join(body, tol, |work| {
+        replace_faces_offset_unjoined(work, faces, d, tol)
+    })
+}
+
+/// **The join every public offset door ends with** (`docs/DESIGN.md`,
+/// maximal edges): `door` runs on a clone, the clone is joined
+/// ([`Body::join_edges`]) and re-minted where a join moved its pcurve
+/// rows, and only then adopted, so a refusal of either leaves `body`
+/// untouched.
+pub(crate) fn ending_with_the_join<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    tol: Tol,
+    door: impl FnOnce(&mut Body<T>) -> Result<(), ReplaceFaceError<T>>,
+) -> Result<(), ReplaceFaceError<T>> {
+    let mut work = body.clone();
+    door(&mut work)?;
+    let band = Band::linear(tol).map_err(|error| ReplaceFaceError::Band { error })?;
+    let joins = work
+        .join_edges(band, tol)
+        .map_err(|refusal| ReplaceFaceError::Join {
+            kind: refusal.kind(),
+            what: crate::boolean::edge_join::join_refusal_sentence(&refusal),
+        })?;
+    if !joins.is_empty() && !work.pcurves.is_empty() {
+        mint_pcurves(&mut work, tol).map_err(|source| ReplaceFaceError::Pcurve { source })?;
+    }
+    body.adopt(work);
+    Ok(())
+}
+
+/// [`replace_faces_offset`] without the join: the shell's cavity
+/// offset, which keys its naming rows by the moved body's cells.
+pub(crate) fn replace_faces_offset_unjoined<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     faces: &[FaceKey],
     d: T,

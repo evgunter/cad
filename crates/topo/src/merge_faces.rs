@@ -128,6 +128,11 @@ pub struct SkippedMerge {
 pub struct MergeCoplanarOutcome {
     /// The merged runs, in group order (first face's arena order).
     pub groups: Vec<MergedGroup>,
+    /// The joins the public doors end with ([`Body::join_edges`]), in
+    /// the order made, on the merged body: each killed `vertex` and
+    /// `gone` edge, and the `kept` edge that holds them. Empty from the
+    /// boolean's own merge, which joins in its output stage.
+    pub joins: Vec<crate::boolean::EdgeJoin>,
     /// Curved groups left unmerged as outside the inventory, with the
     /// refusal that stopped each; a planar group never lands here (it
     /// refuses the call). Non-empty needs no declaration: a curved run
@@ -511,6 +516,16 @@ pub enum MergeCoplanarError {
     Pcurve {
         /// The mint pass's typed refusal.
         source: crate::pcurves::PcurveMintError,
+    },
+    /// The join the public merge door ends with ([`Body::join_edges`])
+    /// refused on the merged body: a reading in the band, a carrier the
+    /// joined edge cannot be run on, or the kill's own refusal. The
+    /// body is untouched, exactly as on every other variant.
+    Join {
+        /// The join's refusal, by kind ([`crate::BooleanError::kind`]).
+        kind: crate::boolean::BooleanErrorKind,
+        /// The refusal's own sentence.
+        what: String,
     },
     /// A kept face's boundary edge could not be re-described against
     /// the two faces the merge left it between.
@@ -967,6 +982,11 @@ impl core::fmt::Display for MergeCoplanarError {
                 f,
                 "merge_coplanar_faces: the staged result's pcurve re-mint refused \
                  ({source}) — the body is untouched"
+            ),
+            Self::Join { what, .. } => write!(
+                f,
+                "merge_coplanar_faces: the join on the merged body refused ({what}) — the body \
+                 is untouched"
             ),
             Self::KeptBoundaryUndescribed {
                 face,
@@ -1620,10 +1640,43 @@ impl<T: Decide> Body<T> {
     /// was — never a partial commit, and the unglued curved adjacency
     /// persists in the cut-carrying form the operands already carried.
     ///
+    /// The door ends with the join ([`Body::join_edges`], recorded in
+    /// [`MergeCoplanarOutcome::joins`]), so the body it leaves has
+    /// maximal faces and maximal edges (`docs/DESIGN.md`, maximal
+    /// edges); a body with nothing to merge is still joined.
+    ///
     /// # Errors
     ///
     /// [`MergeCoplanarError`], the body untouched in every case.
     pub fn merge_coplanar_faces_declared(
+        &mut self,
+        declared: &[(SurfaceKey, SurfaceKey)],
+        tol: Tol,
+    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
+    where
+        T: crate::props::AtRestPolicy,
+    {
+        let mut work = self.clone();
+        let mut outcome = work.merge_coplanar_faces_unjoined(declared, tol)?;
+        let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
+        outcome.joins = work
+            .join_edges(band, tol)
+            .map_err(|refusal| MergeCoplanarError::Join {
+                kind: refusal.kind(),
+                what: crate::boolean::edge_join::join_refusal_sentence(&refusal),
+            })?;
+        if !outcome.joins.is_empty() && !work.pcurves.is_empty() {
+            crate::pcurves::mint_pcurves(&mut work, tol)
+                .map_err(|source| MergeCoplanarError::Pcurve { source })?;
+        }
+        self.adopt(work);
+        Ok(outcome)
+    }
+
+    /// [`Body::merge_coplanar_faces_declared`] without the join: the
+    /// boolean's merge, whose output stage re-describes what it minted
+    /// and joins after (`boolean::ops::finish_output`).
+    pub(crate) fn merge_coplanar_faces_unjoined(
         &mut self,
         declared: &[(SurfaceKey, SurfaceKey)],
         tol: Tol,

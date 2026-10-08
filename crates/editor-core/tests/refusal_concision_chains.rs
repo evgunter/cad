@@ -4330,6 +4330,17 @@ fn replace_face() -> Vec<(String, topo::ReplaceFaceError<f64>)> {
             ),
             ("Pcurve", R::Pcurve { source: pcurve() }),
             (
+                "Join",
+                R::Join {
+                    kind: topo::BooleanErrorKind::JoinUndecided,
+                    what: "whether two edges meeting at a vertex on one curve are one edge is \
+                           undecided at this tolerance (the margin 3e-9 m lies inside the band \
+                           [1e-9, 1e-6] m). Recourse: if this size is intended, tighten the \
+                           tolerance below it"
+                        .to_owned(),
+                },
+            ),
+            (
                 "ResultNotClosed",
                 R::ResultNotClosed {
                     errors: vec![topo::ValidationError::ShellDisconnected {
@@ -4396,13 +4407,14 @@ fn replace_face_arm(error: &topo::ReplaceFaceError<f64>) -> &'static str {
         R::Escalated { .. } => "Escalated",
         R::Op { .. } => "Op",
         R::Pcurve { .. } => "Pcurve",
+        R::Join { .. } => "Join",
         R::ResultNotClosed { .. } => "ResultNotClosed",
     }
 }
 
 /// Every `ReplaceFaceError` variant, in declaration order: the names
 /// [`replace_face_arm`] answers.
-const REPLACE_FACE_ARMS: [&str; 38] = [
+const REPLACE_FACE_ARMS: [&str; 39] = [
     "Band",
     "StaleFace",
     "Offset",
@@ -4440,6 +4452,7 @@ const REPLACE_FACE_ARMS: [&str; 38] = [
     "Escalated",
     "Op",
     "Pcurve",
+    "Join",
     "ResultNotClosed",
 ];
 

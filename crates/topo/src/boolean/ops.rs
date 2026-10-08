@@ -715,12 +715,14 @@ fn boolean_op_recut<T: Decide + Bounds + crate::props::AtRestPolicy>(
     }
     let vertex_merges = desc.vertex_merges()?;
     let declared_pairs = declared_surface_pairs(&body, a, b, decls, &fin.graft);
-    let merged = body
-        .merge_coplanar_faces_declared(&declared_pairs, tol)
-        .map_err(of_merge)?;
-    desc.absorb_merge(&merged);
-    describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
-    let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
+    let (merged, edge_joins) = finish_output(
+        &mut body,
+        &mut desc,
+        &declared_pairs,
+        &seam_edges,
+        band,
+        tol,
+    )?;
     let contacts = carry(
         &body,
         &contacts,
@@ -2155,6 +2157,42 @@ fn bound_holds<'t, 'b, T: Decide>(
             Err(_) => Ok(()),
         };
     }
+}
+
+/// **The boolean's output stage**, the one every result path takes
+/// (`docs/DESIGN.md`, the merge stage): the merge of coplanar faces
+/// over the `declared` surface pairs (none where one operand is absent
+/// from the result), the re-description of the edges the op minted
+/// (`seam_edges`, plus the boundaries of groups the merge skipped), and
+/// the join ([`super::edge_join::join_stage`]), each writing its rows
+/// into the op's one `desc`. The result then has maximal faces and
+/// maximal edges, and its records are carried over `desc` after.
+///
+/// # Errors
+///
+/// The merge's ([`BooleanError::Merge`]), the description's, or the
+/// join's.
+pub(super) fn finish_output<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    desc: &mut Descendants,
+    declared: &[(SurfaceKey, SurfaceKey)],
+    seam_edges: &[EdgeKey],
+    band: Band,
+    tol: Tol,
+) -> Result<
+    (
+        crate::merge_faces::MergeCoplanarOutcome,
+        Vec<super::EdgeJoin>,
+    ),
+    BooleanError,
+> {
+    let merged = body
+        .merge_coplanar_faces_unjoined(declared, tol)
+        .map_err(of_merge)?;
+    desc.absorb_merge(&merged);
+    describe_minted_edges(body, seam_edges, &merged, band, tol)?;
+    let edge_joins = join_stage(body, desc, band, tol)?;
+    Ok((merged, edge_joins))
 }
 
 /// D6 (M3 PR 6a): honest descriptions on boolean-minted edges AT MINT
@@ -4891,13 +4929,9 @@ fn fallback<T: Decide + Bounds + crate::props::AtRestPolicy>(
             };
             let declared_pairs =
                 declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
-            let merged = body
-                .merge_coplanar_faces_declared(&declared_pairs, tol)
-                .map_err(of_merge)?;
             let mut desc = Descendants::default();
-            desc.absorb_merge(&merged);
-            describe_minted_edges(&mut body, &[], &merged, band, tol)?;
-            let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
+            let (merged, edge_joins) =
+                finish_output(&mut body, &mut desc, &declared_pairs, &[], band, tol)?;
             crate::pcurves::mint_pcurves(&mut body, tol)
                 .map_err(|source| BooleanError::Pcurves { source })?;
             let carried = split_lineage(red, decls, band)?;
@@ -4958,11 +4992,8 @@ fn finish_fallback<T: Decide + Bounds + AtRestPolicy>(
     // result. A declared pair that held the absent operand's region
     // through the kept one is `covered`; the surviving operand's
     // CARRIED records still apply.
-    let merged = body.merge_coplanar_faces(tol).map_err(of_merge)?;
     let mut desc = Descendants::default();
-    desc.absorb_merge(&merged);
-    describe_minted_edges(&mut body, &[], &merged, band, tol)?;
-    let edge_joins = join_stage(&mut body, &mut desc, band, tol)?;
+    let (merged, edge_joins) = finish_output(&mut body, &mut desc, &[], &[], band, tol)?;
     crate::pcurves::mint_pcurves(&mut body, tol)
         .map_err(|source| BooleanError::Pcurves { source })?;
     let (a_view, b_view) = match kind {

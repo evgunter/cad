@@ -1299,9 +1299,19 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 // refusals carry a face, a vertex or an edge; the last two are
                 // resolved to a face they touch.
                 let outcome = if door == OffsetDoor::ChartsTogether {
-                    crate::offset_charts_together(&mut cavity, &moves, band, tol)
+                    crate::offset_axial::offset_charts_together_unjoined(
+                        &mut cavity,
+                        &moves,
+                        band,
+                        tol,
+                    )
                 } else {
-                    crate::offset_planes_together(&mut cavity, &moves, band, tol)
+                    crate::offset_together::offset_planes_together_unjoined(
+                        &mut cavity,
+                        &moves,
+                        band,
+                        tol,
+                    )
                 };
                 outcome.map_err(|error| ShellError::Face {
                     face: offending_face(&cavity, &error).unwrap_or(fallback),
@@ -1312,12 +1322,11 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 for group in &mine {
                     let face = group[0];
                     let d = inward(&cavity, face, thickness);
-                    crate::replace_faces_offset(&mut cavity, group, d, tol).map_err(|error| {
-                        ShellError::Face {
+                    crate::replace_face::replace_faces_offset_unjoined(&mut cavity, group, d, tol)
+                        .map_err(|error| ShellError::Face {
                             face,
                             error: Box::new(error),
-                        }
-                    })?;
+                        })?;
                 }
             }
         }
@@ -1573,10 +1582,15 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                         },
                     })
                     .collect();
-                crate::offset_charts_together(&mut out, &moves, band, tol)
+                crate::offset_axial::offset_charts_together_unjoined(&mut out, &moves, band, tol)
             }
             OffsetDoor::PlanesTogether | OffsetDoor::PerChart => {
-                crate::replace_faces_offset(&mut out, lift_charts.of(counterpart_chart), back, tol)
+                crate::replace_face::replace_faces_offset_unjoined(
+                    &mut out,
+                    lift_charts.of(counterpart_chart),
+                    back,
+                    tol,
+                )
             }
         };
         outcome.map_err(|error| ShellError::Lift {

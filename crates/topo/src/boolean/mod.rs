@@ -87,7 +87,7 @@ mod contain;
 mod discard;
 #[cfg(feature = "door-tier3-meter")]
 mod door_meter;
-mod edge_join;
+pub(crate) mod edge_join;
 mod ellipse_torus;
 // The variant roster the sample-coverage row reads (test builds only).
 #[cfg(test)]
