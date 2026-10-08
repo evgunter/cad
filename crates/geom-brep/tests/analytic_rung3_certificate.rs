@@ -393,3 +393,20 @@ fn the_tube_reads_only_the_edges_own_interval_of_the_carrier() {
         );
     }
 }
+
+/// Confirming-review probe 2 (4304): a Steinmetz arc clear of the
+/// crossing, as its OWN carrier (no cut): does the tube certify, or is
+/// the invalid margin pre-existing (not the cut's)?
+#[test]
+fn confirm_probe_steinmetz_stretch_as_its_own_carrier() {
+    let (s1, s2) = (
+        cylinder_about(Vec3::unit_y(), Vec3::unit_x()),
+        cylinder_about(Vec3::unit_x(), Vec3::unit_y()),
+    );
+    for (a, b) in [(-0.1, 0.4), (0.6, -0.2), (-0.2, 0.9)] {
+        let carrier = steinmetz_arc(a, b);
+        let got = certify_over(&carrier, carrier.domain(), s1.clone(), s2.clone());
+        let direct = geom_brep::analytic_rung3(&carrier, carrier.domain(), &s1, &s2, band());
+        eprintln!("CONFIRM-PROBE-2 steinmetz({a},{b}) whole domain: certify_via={got:?} direct={direct:?}");
+    }
+}

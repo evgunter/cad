@@ -2482,6 +2482,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
     // refuses on it (`projected::net_incidence`, the sector check); one
     // outside the interval is not the edge's.
     let lower = |v: geom_core::Interval| if v.is_certified() { v.lo() } else { f64::NAN };
+    let piece_lower = |v: geom_core::Interval| if v.is_certified() { v.lo() } else if std::env::var("MUT").as_deref() == Ok("9") { f64::INFINITY } else { f64::NAN };
     let upper = |v: geom_core::Interval| if v.is_certified() { v.hi() } else { f64::NAN };
     let knots = image.breaks.knots();
     let pieces = (0..image.pieces())
@@ -2497,7 +2498,7 @@ pub(crate) fn projected_hull_lane<T: Decide + geom_core::Bounds + geom_core::Cer
                 _ => f64::INFINITY,
             };
             PieceHull {
-                x_lo: lower(fb.x.0),
+                x_lo: piece_lower(fb.x.0),
                 tube_lo,
             }
         })

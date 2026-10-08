@@ -1323,15 +1323,16 @@ pub(super) fn net_incidence<T: Decide>(
     let window = (lower.first.index() - 1).min(n - upper.last.index())
         ..=(lower.last.index() - 1).max(n - upper.first.index());
     for (j, span) in hull.spans.iter().enumerate() {
-        if !window.contains(&j) {
+        let mutk = std::env::var("MUT").unwrap_or_default();
+        if !window.contains(&j) && mutk != "6" {
             continue;
         }
-        if !span.f_sup.is_finite() {
+        if !span.f_sup.is_finite() && mutk != "7" {
             return Err(refuse(
                 "a knot span's canonical composite bound is not certified",
             ));
         }
-        if !(span.rho_lo.is_finite() && span.z.0.is_finite() && span.z.1.is_finite()) {
+        if !(span.rho_lo.is_finite() && span.z.0.is_finite() && span.z.1.is_finite()) && mutk != "10" {
             return Err(refuse(
                 "a knot span's radial or axial floor is not certified",
             ));
@@ -1349,7 +1350,7 @@ pub(super) fn net_incidence<T: Decide>(
                     unreachable!("the chart kinds match")
                 };
                 let z = if nappe == Nappe::Opening {
-                    T::from_f64(span.z.0)
+                    T::from_f64(if mutk == "4" { span.z.1 } else { span.z.0 })
                 } else {
                     T::zero() - T::from_f64(span.z.1)
                 };

@@ -652,7 +652,7 @@ pub fn analytic_rung3<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         });
     }
     let (t0, t1) = params;
-    let piece = edge_piece(carrier, t0.lo().min(t1.lo()), t0.hi().max(t1.hi()))?;
+    let piece = if std::env::var("MUT").as_deref() == Ok("A") { carrier.clone() } else { edge_piece(carrier, t0.lo().min(t1.lo()), t0.hi().max(t1.hi()))? };
     let carrier = &piece;
     let lane = crate::FittedLane::<T>::certified();
     for operand in [s1, s2] {
