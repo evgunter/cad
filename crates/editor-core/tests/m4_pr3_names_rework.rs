@@ -338,13 +338,40 @@ fn pattern_of_split_output_refuses_typed_never_misnames() {
 }
 
 /// **An edge the split cut and joined back whole keeps its own name.**
-/// A plane tangent to a cylinder along a wall ruling away from its seam
-/// touches each rim at one point, where the split cuts it; the cut
-/// separates nothing, so the split ends by joining each rim back
+/// A plane that touches a unit cylinder (seam at `+x`) without
+/// separating it cuts each rim it touches at one point; the cut
+/// separates nothing, so the split ends by joining each such rim back
 /// (`docs/DESIGN.md`, maximal edges). The landed cylinder's every edge
 /// is named as the operand's own, never as a fragment of itself.
 #[test]
 fn a_graze_split_lands_the_cylinder_under_its_own_edge_names() {
+    // Tangent along the wall ruling at `-x`, which runs through a vertex
+    // of each rim: the cut inserts nothing, so nothing is joined. The
+    // row below is the one that cuts a rim inside an arc.
+    let (landed, operand) = graze_split_edge_names([-1.0, 0.0, 0.0], [-1.0, 0.0, 0.0]);
+    assert_eq!(
+        landed, operand,
+        "the landed cylinder's edges keep the operand's names"
+    );
+}
+
+/// [`a_graze_split_lands_the_cylinder_under_its_own_edge_names`] at a
+/// plane tilted to touch the TOP rim alone, at its point at angle 3π/4,
+/// inside one rim arc: that arc cut and joined back, the other rim
+/// never touched.
+#[test]
+fn a_split_touching_one_rim_at_a_point_keeps_that_rims_name() {
+    let h = std::f64::consts::FRAC_1_SQRT_2;
+    let (landed, operand) = graze_split_edge_names([-h, h, 1.0], [-0.5, 0.5, h]);
+    assert_eq!(landed, operand, "the touched rim keeps the operand's name");
+}
+
+/// The edge names of a unit cylinder (height 1, axis `+z`) split by the
+/// plane through `origin` with normal `normal`, and of the operand.
+fn graze_split_edge_names(
+    origin: [f64; 3],
+    normal: [f64; 3],
+) -> (Vec<Vec<RoleSeg>>, Vec<Vec<RoleSeg>>) {
     use editor_core::{LoopProgram, ProfileProgram};
     let doc = ProfileDoc::empty_derived("m4_pr3_names_rework", Tol::witness());
     let (doc, frame) = insert(doc, fixture::xy_frame());
@@ -367,8 +394,8 @@ fn a_graze_split_lands_the_cylinder_under_its_own_edge_names() {
     let (doc, plane) = insert(
         doc,
         Node::Datum(Datum::Plane {
-            origin: [len(-1.0), len(0.0), len(0.0)],
-            normal: [scl(-1.0), scl(0.0), scl(0.0)],
+            origin: origin.map(len),
+            normal: normal.map(scl),
         }),
     );
     let (doc, sp) = insert(
@@ -391,9 +418,5 @@ fn a_graze_split_lands_the_cylinder_under_its_own_edge_names() {
         out.sort();
         out
     };
-    assert_eq!(
-        edges(sp),
-        edges(cylinder),
-        "the landed cylinder's edges keep the operand's names"
-    );
+    (edges(sp), edges(cylinder))
 }
