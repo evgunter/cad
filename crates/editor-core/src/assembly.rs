@@ -1168,7 +1168,7 @@ impl core::error::Error for AssemblyError {}
 /// so: a document whose mates declare a cross-instance contact
 /// refuses [`AssemblyError::Uncertified`], which a caller must match
 /// separately from the verdicts against their own document.
-pub fn assemble<P, T: Decide + AtRestPolicy>(
+pub fn assemble<P: crate::ProfilePayload, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
@@ -1183,7 +1183,7 @@ pub fn assemble<P, T: Decide + AtRestPolicy>(
         Err(refusal) => {
             if matches!(
                 refusal.kind(),
-                crate::ProductErrorKind::Unplaced | crate::ProductErrorKind::NoBodyRoots
+                crate::ProductErrorKind::Unplaced | crate::ProductErrorKind::EmptyProduct
             ) {
                 gate_spaces(crate::product::own_spaces(doc, evaluation, tol), tol)?;
             }
@@ -1347,7 +1347,7 @@ fn verdict<T: Decide + AtRestPolicy>(product: &Product<T>, tol: Tol) -> Result<(
 /// prefix before its first bad one. The refusals ride back in document
 /// order for [`assemble`] to raise — one implementation of what a mate
 /// declares, and one of what it costs when it cannot.
-pub(crate) fn mint<P, T: Decide>(
+pub(crate) fn mint<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     names: &NameTable,
@@ -1386,7 +1386,10 @@ pub(crate) fn mint<P, T: Decide>(
             resolve_face(doc, evaluation, names, id, MateSide::A, a),
             resolve_face(doc, evaluation, names, id, MateSide::B, b),
         ) {
-            (Ok(face_a), Ok(face_b)) => (face_a, face_b),
+            (Ok(Some(face_a)), Ok(Some(face_b))) => (face_a, face_b),
+            // A member no placement reads is not in the product: the
+            // mate states nothing about it there.
+            (Ok(None), Ok(_)) | (Ok(_), Ok(None)) => continue,
             // The `a` side answers first when both sides refuse: one
             // mate contributes one row, and which side it names is the
             // order the references are written in.
@@ -1437,15 +1440,17 @@ pub(crate) fn mint<P, T: Decide>(
     (minted, unminted)
 }
 
-/// One mate reference → the product face it names, or the typed
-/// refusal. A tie is never broken by picking a side.
+/// One mate reference → the product face it names, `None` where no
+/// world placement reads its operand (the member is not in the
+/// product, so the mate mints nothing there), or the typed refusal. A
+/// tie is never broken by picking a side.
 ///
 /// **The name is read where the mate reads it.** The operand's own
 /// table must spell it, or it refuses [`RefusedRef::Vanished`]. From
 /// there the face is carried up the operand's consumers, each spelling
-/// it as it carries it ([`crate::names::lift`]), to the product's
-/// roots, where the product's table — every root's rows, carried by
-/// the gather — answers with the face. The lift reads the recipe and
+/// it as it carries it ([`crate::names::lift`]), to the world
+/// placements, where the product's table — every copy's rows, carried
+/// by the gather — answers with the face. The lift reads the recipe and
 /// each consumer's evaluated table; it evaluates nothing.
 ///
 /// - **Exactly one product face** reached: that face.
@@ -1460,29 +1465,28 @@ pub(crate) fn mint<P, T: Decide>(
 ///   lost it that way, one that reads it in a seat holding no face of
 ///   it (a datum, a measure, an axis, a split's tool).
 ///
-/// Where the operand is a root, or reaches one through `Part`
-/// selections and split targets alone, the lift is the identity and
-/// the product answers to the name as the mate spells it.
+/// A placement spells its body's face under itself, so the product
+/// answers to the name the placement's copy carries.
 ///
 /// **There is no kind question here.** A head is a [`SitedFace`], so
 /// the name this resolves denotes a face before the lookup runs, and
 /// the only multiplicity left to decide is a tie among faces.
 ///
 /// An operand that is not a live value has no table to answer with,
-/// and the gate never asks it: every live node sits under some root
-/// (A10 coverage), so an operand that failed or was poisoned has a
-/// failed or poisoned root above it, and the gather's first pass
-/// refuses the document (`ProductError::Root`, with the root's
+/// and the gate never asks it: an operand a placement reads that
+/// failed or was poisoned has a failed or poisoned placement above it,
+/// and the gather's first pass refuses the document
+/// (`ProductError::Root`, with the placement's
 /// standing) before any mate is read. Such an operand, and a consumer
 /// with no value, answer as silence here rather than unwrapped.
-fn resolve_face<P, T: Decide>(
+fn resolve_face<P: crate::ProfilePayload, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     names: &NameTable,
     mate: RecipeNodeId,
     side: MateSide,
     reference: &SitedFace,
-) -> Result<FaceKey, MintRefusal> {
+) -> Result<Option<FaceKey>, MintRefusal> {
     let refuse = |why| MintRefusal::Reference {
         mate,
         side,
@@ -1495,6 +1499,13 @@ fn resolve_face<P, T: Decide>(
             .is_some_and(|value| value.name_table.lookup(name).is_some())
     };
     let at = reference.at;
+    let placed = doc
+        .placements()
+        .into_iter()
+        .any(|p| crate::doc::strict_ancestors(doc, p).contains(&at));
+    if !placed {
+        return Ok(None);
+    }
     if !spells(at, &reference.name) {
         return Err(refuse(RefusedRef::Vanished { by: None }));
     }
@@ -1509,7 +1520,7 @@ fn resolve_face<P, T: Decide>(
             continue;
         }
         seen.push((node, name.clone()));
-        if doc.roots().contains(&node) {
+        if matches!(doc.node(node), Some(Node::PlaceInWorld { .. })) {
             let row = names.lookup(&name);
             debug_assert!(
                 row.is_some(),
@@ -1555,7 +1566,7 @@ fn resolve_face<P, T: Decide>(
     faces.dedup();
     let consumed = lost.first().or(dropped.first());
     match (faces.as_slice(), moved.first(), consumed) {
-        ([face], _, _) => Ok(*face),
+        ([face], _, _) => Ok(Some(*face)),
         ([], Some(&by), _) => Err(refuse(RefusedRef::MovedAbove {
             at,
             by,

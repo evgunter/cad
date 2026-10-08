@@ -2297,7 +2297,6 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::ReWitness { .. }
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }
-        | DocEdit::SetRoots { .. }
         | DocEdit::SetOffset { .. }
         | DocEdit::SetGauge { .. }
         | DocEdit::Promote { .. }
@@ -2362,8 +2361,8 @@ fn upstream_nodes(
     node: RecipeNodeId,
     path: &BTreeSet<RecipeNodeId>,
 ) -> BTreeSet<RecipeNodeId> {
-    let mut nodes = crate::roots::strict_ancestors(old, node);
-    nodes.append(&mut crate::roots::strict_ancestors(new, node));
+    let mut nodes = crate::doc::strict_ancestors(old, node);
+    nodes.append(&mut crate::doc::strict_ancestors(new, node));
     nodes.retain(|n| !path.contains(n));
     nodes
 }

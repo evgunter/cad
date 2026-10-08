@@ -819,15 +819,6 @@ pub struct Doc<P> {
     /// input refs, spec D3).
     #[serde(with = "crate::persist::strict::nodes")]
     pub(crate) nodes: BTreeMap<RecipeNodeId, Node<P>>,
-    /// The document's ordered product roots (ASSEMBLY-DESIGN A10,
-    /// ASM-ROOTS D-1): document data, never a DAG node. Two invariants
-    /// hold at rest and after every edit — *coverage* (every node is
-    /// an ancestor of, or is, some root) and *ancestor-freedom* (no
-    /// root is a strict ancestor of another) — which together say the
-    /// root SET is exactly the DAG's sink set; the list adds the
-    /// product's solid ORDER, which is therefore semantic. No
-    /// duplicates; every entry is live.
-    pub(crate) roots: Vec<RecipeNodeId>,
     /// **The variables** (VARIABLES-DESIGN VR1/VR3), by minted id, so in
     /// declaration order. Every key is logged in the mint as
     /// [`crate::Minted::Var`].
@@ -977,7 +968,6 @@ impl<P> Doc<P> {
             id,
             mint: crate::Mint::empty(),
             nodes: BTreeMap::new(),
-            roots: Vec::new(),
             vars: BTreeMap::new(),
             var_names: BTreeMap::new(),
             epsilon: tol.eps(),
@@ -1061,10 +1051,40 @@ impl<P> Doc<P> {
         self.nodes.keys().copied().collect()
     }
 
-    /// The ordered product roots (A10): the gather order of the
-    /// document's product solids.
-    pub fn roots(&self) -> &[RecipeNodeId] {
-        &self.roots
+    /// **The world placements** (A10), in document order: the nodes
+    /// whose copies are the product.
+    pub fn placements(&self) -> Vec<RecipeNodeId> {
+        self.nodes
+            .iter()
+            .filter(|(_, node)| matches!(node, Node::PlaceInWorld { .. }))
+            .map(|(&id, _)| id)
+            .collect()
+    }
+
+    /// **The unplaced bodies** (A10): every live `Body` output no world
+    /// placement reads, a placement's own copy aside, in document
+    /// order. What a door needing a product names when the world is
+    /// empty ([`crate::ProductError::EmptyProduct`]).
+    pub fn unplaced(&self) -> Vec<VarId> {
+        let placed: std::collections::BTreeSet<VarId> = self
+            .nodes
+            .values()
+            .filter_map(|node| match node {
+                Node::PlaceInWorld { body, .. } => Some(*body),
+                _ => None,
+            })
+            .collect();
+        self.nodes
+            .iter()
+            .filter(|(_, node)| !matches!(node, Node::PlaceInWorld { .. }))
+            .flat_map(|(&id, _)| self.outputs(id))
+            .filter(|var| {
+                self.vars
+                    .get(var)
+                    .is_some_and(|v| v.kind() == crate::VarKind::Body)
+                    && !placed.contains(var)
+            })
+            .collect()
     }
 
     /// Number of live nodes.
@@ -2128,7 +2148,6 @@ impl<P: PartialEq + crate::ProfilePayload> Doc<P> {
     pub fn bit_eq(&self, other: &Doc<P>) -> bool {
         self.id == other.id
             && self.mint == other.mint
-            && self.roots == other.roots
             && self.epsilon.to_bits() == other.epsilon.to_bits()
             // Witness bytes are exact data (no float semantics to
             // conflate) — structural equality IS bit equality here.
@@ -2552,5 +2571,40 @@ mod tests {
         let sizes = doc.expansion_nodes(&doc.definition_order());
         assert_eq!(sizes[&VarId::new(0, 2)], 3);
         assert_eq!(sizes[&prev], crate::edit::DEFINITION_NODE_BOUND + 1);
+    }
+}
+
+/// The strict ancestors of `from` in ONE document, visited depth-first
+/// over [`Doc::upstream`] in deterministic order; `visit` sees each
+/// reached node once. The crate's one transitive walk over reads —
+/// [`strict_ancestors`] is it with nothing to refuse.
+pub(crate) fn walk_strict_ancestors<P: crate::ProfilePayload, E>(
+    doc: &Doc<P>,
+    from: RecipeNodeId,
+    seen: &mut std::collections::BTreeSet<RecipeNodeId>,
+    mut visit: impl FnMut(RecipeNodeId) -> Result<(), E>,
+) -> Result<(), E> {
+    let mut stack: Vec<RecipeNodeId> = doc.upstream(from);
+    while let Some(id) = stack.pop() {
+        if !seen.insert(id) {
+            continue;
+        }
+        visit(id)?;
+        stack.extend(doc.upstream(id));
+    }
+    Ok(())
+}
+
+/// Every node `from` depends on through its reads in `doc`, itself
+/// excluded — [`walk_strict_ancestors`] collected.
+pub(crate) fn strict_ancestors<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    from: RecipeNodeId,
+) -> std::collections::BTreeSet<RecipeNodeId> {
+    let mut seen = std::collections::BTreeSet::new();
+    let walked: Result<(), core::convert::Infallible> =
+        walk_strict_ancestors(doc, from, &mut seen, |_| Ok(()));
+    match walked {
+        Ok(()) => seen,
     }
 }

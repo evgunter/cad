@@ -971,7 +971,6 @@ fn edit_non_finite(snapshot: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> Opt
         | DocEdit::SetAppearance { .. }
         | DocEdit::ClearAppearance { .. }
         | DocEdit::ClearAppearanceMeta { .. }
-        | DocEdit::SetRoots { .. }
         | DocEdit::SetOffset { .. }
         // A gauge reference is a node id, and so is what a promote or a
         // fold names.
@@ -1197,10 +1196,6 @@ pub enum SnapshotError {
         /// The recorded value.
         value: f64,
     },
-    /// The product-root list violates an A10 invariant (ASM-ROOTS
-    /// D-2): the same check `apply` runs, so a file can carry no root
-    /// state the edit doors could not have produced.
-    Roots(crate::roots::RootFault),
     /// A gauge reference — an instance's gauge or a gauge's parent —
     /// that names a live node that is not a gauge. The edit doors
     /// refuse it through the same predicate (`doc::gauge_ref_fault`).
@@ -1643,7 +1638,6 @@ impl core::fmt::Display for SnapshotError {
                 f,
                 "the recorded ε {value:e} is not finite and strictly positive"
             ),
-            Self::Roots(fault) => write!(f, "{fault}"),
             Self::NotAGauge { node, gauge } => write!(
                 f,
                 "{node}'s gauge reference names {gauge}, which is not a gauge"
@@ -1998,10 +1992,6 @@ fn validate_snapshot(doc: &ProfileDoc, tol: Tol) -> Result<(), SnapshotError> {
             });
         }
     }
-    // The A10 root invariants (ASM-ROOTS D-2), run AFTER the node
-    // walk so a file with dangling inputs is diagnosed as such rather
-    // than as an incidental coverage failure.
-    crate::roots::check(doc, |id| doc.spoken(id)).map_err(SnapshotError::Roots)?;
     // D7's producer convention, asked of the whole map. The RULE is
     // already shared — `MetaValue::require_versioned` is the one
     // predicate, and `SetAppearanceMeta` calls it too — and what is not
@@ -2212,7 +2202,6 @@ mod tests {
             DefinitionCycle,
             DefinitionTooLarge,
             EpsilonInvalid,
-            Roots,
             NotAGauge,
             GaugeCycle,
             PlacementNonFinite,
@@ -2268,7 +2257,6 @@ mod tests {
             | SnapshotError::WitnessOnMissingNode { .. }
             | SnapshotError::LabelOnMissingNode { .. }
             | SnapshotError::EpsilonInvalid { .. }
-            | SnapshotError::Roots(_)
             | SnapshotError::NotAGauge { .. }
             | SnapshotError::GaugeCycle { .. }
             | SnapshotError::PlacementNonFinite { .. }
@@ -2421,10 +2409,6 @@ mod tests {
                 nodes: 4097,
             },
             SnapshotError::EpsilonInvalid { value: 0.0 },
-            SnapshotError::Roots(crate::roots::RootFault::Ancestor {
-                ancestor: at(1),
-                descendant: at(2),
-            }),
             SnapshotError::NotAGauge {
                 node: node(),
                 gauge: at(2),

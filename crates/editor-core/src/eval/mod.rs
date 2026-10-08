@@ -342,26 +342,26 @@ impl NodeStanding {
     /// The standing of a document ROOT, as a door whose subject is the
     /// document's roots states it under its own stage word: `root`,
     /// then the standing.
-    pub(crate) fn of_root(self) -> RootStanding {
-        RootStanding(self)
+    pub(crate) fn of_placement(self) -> PlacementStanding {
+        PlacementStanding(self)
     }
 }
 
-/// [`NodeStanding::of_root`]'s rendering: the one sentence for a root
-/// with no value.
-pub(crate) struct RootStanding(NodeStanding);
+/// [`NodeStanding::of_placement`]'s rendering: the one sentence for a
+/// placement with no value.
+pub(crate) struct PlacementStanding(NodeStanding);
 
-impl crate::spoken::Say for RootStanding {
+impl crate::spoken::Say for PlacementStanding {
     fn say(
         &self,
         f: &mut core::fmt::Formatter<'_>,
         by: crate::spoken::Speaker<'_>,
     ) -> core::fmt::Result {
-        write!(f, "root {}", crate::spoken::Said(&self.0, by))
+        write!(f, "placement {}", crate::spoken::Said(&self.0, by))
     }
 }
 
-impl core::fmt::Display for RootStanding {
+impl core::fmt::Display for PlacementStanding {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         crate::spoken::Say::say(self, f, crate::spoken::Speaker::TAG)
     }

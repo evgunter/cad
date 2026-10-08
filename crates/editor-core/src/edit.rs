@@ -27,7 +27,6 @@ use crate::node::{
     SlotId, StableName, StepId,
 };
 use crate::placement::{FrameFault, FrameSite};
-use crate::roots::RootFault;
 use crate::spoken::{SpokenName, SpokenNode, SpokenVar};
 use crate::var::{Var, VarDecl, VarDef, VarId, VarKind, VarRef, WrittenDef};
 use crate::witness::{BranchCertification, WitnessDatum};
@@ -37,9 +36,9 @@ use geom_core::Tol;
 /// a document value, every arm plain data, applied by the pure
 /// [`apply`] (spec D2), which answers a new document and leaves its
 /// input untouched. The set has three shapes. Structural edits over
-/// nodes, their slots, the document's roots and where instances sit
+/// nodes, their slots and where instances sit
 /// (`InsertNode`, `DeleteNode`, `SetMembers`, `SetProgram`,
-/// `SetParam`, `SetStructuralParam`, `SetExpression`, `SetRoots`,
+/// `SetParam`, `SetStructuralParam`, `SetExpression`,
 /// `SetOffset`, `SetGauge`, `Promote`, `Fold`, `UpdateReference`). The
 /// variable family: `DeclareVar`, which mints a variable, `DefineVar`,
 /// which replaces its definition, the carry-forward doors, each
@@ -516,16 +515,6 @@ pub enum DocEdit<P: crate::ProfilePayload> {
         /// The metadata key removed.
         key: String,
     },
-    /// Set the document's ordered product roots outright (A10;
-    /// ASM-ROOTS D-3). THE designate/undesignate door: one TOTAL edit
-    /// rather than partial add/remove arms, so the product's solid
-    /// order is always stated rather than inferred from an edit
-    /// sequence. Validator-checked like any other apply, recorded like
-    /// any other edit, and undone by keeping the prior value.
-    SetRoots {
-        /// The new root list, in product order.
-        roots: Vec<RecipeNodeId>,
-    },
     /// Set an instance's offset in its gauge (A11 (2)), or clear it
     /// with `None`. On its group's root the offset places the group;
     /// on any other member it is a statement the solve checks.
@@ -707,7 +696,6 @@ impl<P: crate::ProfilePayload> DocEdit<P> {
             | Self::SetTolerance { .. }
             | Self::SetAppearanceMeta { .. }
             | Self::ClearAppearanceMeta { .. }
-            | Self::SetRoots { .. }
             | Self::SetLabel { .. }
             | Self::UpdateReference { .. } => false,
         }
@@ -2405,12 +2393,6 @@ pub enum EditError {
         /// The colliding metadata key.
         key: String,
     },
-    /// The edit's result would violate a product-root invariant (A10;
-    /// ASM-ROOTS D-2). Reached from `SetRoots` in practice — the
-    /// automatic maintenance keeps every other arm's result legal —
-    /// but checked after EVERY apply, so no door can produce an
-    /// invariant-violating document.
-    Roots(RootFault),
     /// An offset aimed at a node that does not instantiate a part
     /// (A11 (2): an offset places an instance in its gauge, and
     /// nothing else has one).
@@ -3093,7 +3075,6 @@ impl EditError {
                 *node = node.respoken(doc);
                 *held = held.respoken(doc);
             }
-            Self::Roots(fault) => *fault = fault.respoken(doc),
             Self::LabelUnchanged { node: _ }
             | Self::VarNameUnchanged { var: _ }
             | Self::UnknownNode { id: _ }
@@ -3918,30 +3899,6 @@ impl EditError {
                     "the rebind would land two values under metadata {key:?} on {name}"
                 )?;
                 tail.recourse(f, format_args!("{CLEAR_ONE_FIRST}"))
-            }
-            // `RootFault`'s sentence is the load door's too; the repair
-            // is this door's, since only an edit re-lists the roots.
-            Self::Roots(fault) => {
-                write!(f, "{fault}")?;
-                match fault {
-                    RootFault::NotLive { .. } => {
-                        tail.recourse(f, format_args!("list only live nodes as product roots"))
-                    }
-                    RootFault::Duplicate { .. } => {
-                        tail.recourse(f, format_args!("list each product root once"))
-                    }
-                    RootFault::Ancestor { ancestor, .. } => tail.recourse(
-                        f,
-                        format_args!(
-                            "drop {ancestor} from the root list, since its material reaches \
-                             the product through the other"
-                        ),
-                    ),
-                    RootFault::Uncovered { node } => tail.recourse(
-                        f,
-                        format_args!("list {node} or a node built from it as a product root"),
-                    ),
-                }
             }
             Self::OffsetOnNonInstance { node } => {
                 write!(
@@ -5470,8 +5427,8 @@ fn check_declared_sides<'p, P: crate::ProfilePayload>(
     let upstream = |minter: RecipeNodeId| {
         at.is_none_or(|at| {
             minter != at
-                && !crate::roots::strict_ancestors(new, minter).contains(&at)
-                && (minter < at || crate::roots::strict_ancestors(new, at).contains(&minter))
+                && !crate::doc::strict_ancestors(new, minter).contains(&at)
+                && (minter < at || crate::doc::strict_ancestors(new, at).contains(&minter))
         })
     };
     match crate::node::declared_side_fault(pairs, Some(&operands), upstream) {
@@ -5511,7 +5468,6 @@ fn write_reads<P: crate::ProfilePayload>(
     check_node_inputs(doc, id, &rewritten)?;
     new.nodes.insert(id, rewritten);
     check_acyclic(new)?;
-    crate::roots::on_set_members(new);
     reported.extend(stranded_by_repoint(doc, new, id));
     Ok(EditRecord {
         minted: None,
@@ -5538,11 +5494,11 @@ fn stranded_by_repoint<P: crate::ProfilePayload>(
         if names.is_empty() {
             continue;
         }
-        let after = crate::roots::strict_ancestors(new, carrier);
+        let after = crate::doc::strict_ancestors(new, carrier);
         if carrier != id && !after.contains(&id) {
             continue;
         }
-        let was = crate::roots::strict_ancestors(before, carrier);
+        let was = crate::doc::strict_ancestors(before, carrier);
         for name in names {
             if was.contains(&name.node) && !after.contains(&name.node) {
                 rows.push(Maintenance::Strand {
@@ -5859,11 +5815,6 @@ fn door<P: Clone + crate::ProfilePayload, T>(
             distribution: doc.free(var).and_then(FreeVar::distribution).copied(),
         });
     }
-    // The D-2 backstop, on EVERY arm: the maintenance rules make the
-    // invariant-violating states unreachable, and this is what says so
-    // rather than assuming it.
-    crate::roots::check(&new, |id| spoken_before_else_after(doc, &new, id))
-        .map_err(EditError::Roots)?;
     // The placement-rule backstop, on EVERY arm (GROUP-BOOLEAN-DESIGN):
     // "how many placements" has exactly ONE spelling, an explicit rule
     // lists at least one placement, and its frames meet the SAME bar
@@ -6054,7 +6005,6 @@ fn insert_into<P: Clone + crate::ProfilePayload>(
     new.nodes.insert(id, node.clone());
     let fresh = lowering.finish(new)?;
     check_acyclic(new)?;
-    crate::roots::on_insert(new, id, &new.upstream(id));
     // The solve's own per-mate admission (A11 rule 1), asked
     // of the document the mate now stands in — its walks read
     // the operands there — through the reach this door holds:
@@ -6906,19 +6856,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
                 outputs: Vec::new(),
             }
         }
-        DocEdit::SetRoots { roots } => {
-            new.roots.clone_from(roots);
-            // Structural: the root list decides which nodes the
-            // document's product gathers, and in what order — the
-            // product's combinatorial shape, not a continuous value.
-            EditRecord {
-                minted: None,
-                minted_var: None,
-                structural: true,
-                fresh: Vec::new(),
-                outputs: Vec::new(),
-            }
-        }
         DocEdit::SetOffset {
             instance,
             offset,
@@ -7034,10 +6971,6 @@ fn write_edit<P: Clone + crate::ProfilePayload>(
             check_gauge_ref(new, id, parent, || SpokenNode::entering(id, &promoted))?;
             new.mint = mint;
             new.nodes.insert(id, promoted);
-            match new.roots.iter().position(|r| r == instance) {
-                Some(at) => new.roots.insert(at, id),
-                None => new.roots.push(id),
-            }
             for member in &group {
                 let Some(Node::InstantiatePart { gauge, offset, .. }) = new.nodes.get_mut(member)
                 else {
@@ -7216,8 +7149,7 @@ fn mate_that_would_start_placing<P>(
 
 /// **A node removed** (D10: deleting a variable leaves its readers
 /// unresolved, typed, never re-pointed): it leaves the node table, the
-/// order, the witness and label stores and the root list (whose
-/// maintenance re-roots the inputs it orphaned), and its outputs leave
+/// order and the witness and label stores, and its outputs leave
 /// the variable table. Nothing is refused: the answer is the report of
 /// what it stranded — each operand still reading one of its outputs
 /// ([`Maintenance::StrandedRead`], [`stranded_reads`]), then DM7's
@@ -7229,14 +7161,12 @@ fn remove_node<P: crate::ProfilePayload>(
     new: &mut Doc<P>,
     id: RecipeNodeId,
 ) -> Vec<Maintenance> {
-    let inputs = new.upstream(id);
     let outputs = new.outputs(id);
     if new.nodes.remove(&id).is_none() {
         unreachable!("node {} is removed only while live", id)
     }
     let mut reported = stranded_reads(before, new, &outputs);
     reported.extend(stranded_references(before, new, id));
-    crate::roots::on_delete(new, id, &inputs);
     new.witnesses.remove(&id);
     new.labels.remove(&id);
     for var in outputs {
