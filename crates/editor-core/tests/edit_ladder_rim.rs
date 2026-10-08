@@ -472,8 +472,8 @@ fn all_meridians(
 /// diameter away; one carrying the other hole's vertex lands on the
 /// wrong circle entirely.
 ///
-/// **The extent check is not what tells the rims apart** — all four
-/// feet are vertices of the ONE cap face here, and the retraction is
+/// **The extent check is not what tells the rims apart** — both
+/// standing feet are vertices of the ONE cap face here, and the retraction is
 /// what discriminates. What the extent adds is that the foot is a
 /// corner of the host support's own boundary, which is the difference
 /// between a strut that reached the trimline and a point that merely
@@ -487,19 +487,30 @@ fn a_band_foot_is_the_host_support_vertex_retracted_from_its_source_rim_vertex()
     let cap = face_of(t, "the host support", &host_support(block, fillet));
     let extent = face_vertices(body, cap);
     for rim in rims() {
-        for j in 0..2 {
-            let what = format!("hole {}, profile vertex {j}", rim.loop_index);
+        // The blend's closing join (`docs/DESIGN.md`, maximal edges)
+        // takes the host foot the band's slit does not reach, between two
+        // host trimlines of one circle, and its name with it: one of the
+        // rim's two feet stands, and is read whole.
+        let named = |j| {
             let source = cap_vertex(&doc, block, rim, j);
-            let s = point(sbody, vertex_of(src, &what, &source));
-            let foot = vertex_of(
-                t,
-                &what,
-                &minted(
-                    EntityKind::Vertex,
-                    fillet,
-                    RoleSeg::BandFoot(NameRef::new(source)),
-                ),
+            let name = minted(
+                EntityKind::Vertex,
+                fillet,
+                RoleSeg::BandFoot(NameRef::new(source.clone())),
             );
+            t.lookup(&name).is_some().then_some((j, source, name))
+        };
+        let standing: Vec<_> = (0..2).filter_map(named).collect();
+        assert_eq!(
+            standing.len(),
+            1,
+            "hole {}: one host foot stands, the other joined away",
+            rim.loop_index
+        );
+        for (j, source, name) in standing {
+            let what = format!("hole {}, profile vertex {j}", rim.loop_index);
+            let s = point(sbody, vertex_of(src, &what, &source));
+            let foot = vertex_of(t, &what, &name);
             let p = point(body, foot);
             assert_eq!(
                 p.z, s.z,
@@ -828,15 +839,34 @@ fn the_totality_and_the_counts_read_no_argument_at_all() {
         n,
         "one band face rounds each rim"
     );
+    // A trimline is named per (rim arc, support) whether it stands
+    // alone or the blend's closing join (`docs/DESIGN.md`, maximal
+    // edges) made it one edge with the next arc's: then the joined edge
+    // is the set of their names. The host's two trimlines meet at the
+    // host foot the band's slit does not reach, and are joined.
+    let trim_names = t
+        .iter()
+        .flat_map(|(name, _)| match name.path.first() {
+            Some(RoleSeg::Merged(cs)) => cs.iter().map(|c| c.path[0].clone()).collect(),
+            Some(seg) => vec![seg.clone()],
+            None => vec![],
+        })
+        .filter(|s| matches!(s, RoleSeg::BandTrim { .. }))
+        .count();
     assert_eq!(
-        count(t, |s| matches!(s, RoleSeg::BandTrim { .. })),
+        trim_names,
         4 * n,
-        "one trimline per (rim arc, support)"
+        "one trimline name per (rim arc, support)"
+    );
+    assert_eq!(
+        count(t, |s| matches!(s, RoleSeg::Merged(_))),
+        n,
+        "each band's two host trimlines, joined"
     );
     assert_eq!(
         count(t, |s| matches!(s, RoleSeg::BandFoot(_))),
-        2 * n,
-        "one host foot per rim vertex"
+        n,
+        "one host foot per band: the one its slit ends at (the other is joined away)"
     );
     assert_eq!(
         count(t, |s| matches!(s, RoleSeg::BandCross { .. })),
@@ -890,19 +920,17 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source() {
             let what = format!("hole {}, profile vertex {j}", rim.loop_index);
             let v = cap_vertex(&doc, block, rim, j);
             let s = point(sbody, vertex_of(src, &what, &v));
-            let foot = point(
-                body,
-                vertex_of(
-                    t,
-                    &what,
-                    &minted(
-                        EntityKind::Vertex,
-                        fillet,
-                        RoleSeg::BandFoot(NameRef::new(v)),
-                    ),
-                ),
+            // A foot the closing join took is no longer named
+            // (`a_band_foot_is_the_host_support_vertex_retracted_from_its_source_rim_vertex`).
+            let foot_name = minted(
+                EntityKind::Vertex,
+                fillet,
+                RoleSeg::BandFoot(NameRef::new(v)),
             );
-            min = min.min(dist(foot, s));
+            if t.lookup(&foot_name).is_some() {
+                let foot = point(body, vertex_of(t, &what, &foot_name));
+                min = min.min(dist(foot, s));
+            }
             let m = meridian(&doc, block, rim, j);
             let cross = point(
                 body,
@@ -1000,10 +1028,16 @@ fn a_rim_edges_rebind_suggestions_are_its_trims_and_not_its_bands_slit() {
                 2,
                 "{what}, rim edge {s}: its host and mate trimlines, got {got:#?}"
             );
+            // Its host trimline is joined with the other arc's
+            // (`docs/DESIGN.md`, maximal edges), so that suggestion is the
+            // joined edge, whose set lists this edge's trim.
+            let its_trim =
+                |r: &RoleSeg| matches!(r, RoleSeg::BandTrim { edge: e, .. } if **e == edge);
             assert!(
-                roles
-                    .iter()
-                    .all(|r| matches!(r, RoleSeg::BandTrim { edge: e, .. } if **e == edge)),
+                roles.iter().all(|r| match r {
+                    RoleSeg::Merged(cs) => cs.iter().any(|c| its_trim(&c.path[0])),
+                    r => its_trim(r),
+                }),
                 "{what}, rim edge {s}: only the trimlines replacing it, got {got:#?}"
             );
         }

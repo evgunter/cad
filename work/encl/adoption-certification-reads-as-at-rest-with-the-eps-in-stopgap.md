@@ -2,7 +2,8 @@
 id: adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap
 kind: issue
 title: step-import certification refusals read as at rest, with the door's ε_in size decision and the set-ε-to-ε_in stopgap (D4 ¶1, [ev] PR 3380)
-status: review
+status: closed
+closed: 2026-10-08
 priority: P2
 cost: M
 opened: 2026-09-29
@@ -39,3 +40,14 @@ Re-pin `tier_gate` and remove its `assert_adoption_reading` guard, or replace it
 Ruled on #3402 (the fence in `real.rs` clause 2) and in force since PR 3418: the reporting margin is for error reporting only. This row's door comparisons (m ≤ ε_in → withhold the tighten offer; a miss within ε_in but beyond ε → the set-ε-to-ε_in stopgap) choose which sentence the import error shows and nothing else. Import, build and refusal outcomes do not change. They therefore fall within the fence's "error reporting" use; no `[ev]` question is needed (confirmed in the orchestrator session, 2026-09-29).
 
 Implement the comparison inside geom-core, beside `sized_recourse`, as a sentence-returning method on the reporting margin, and add it to `reporting-margin-door.sh`'s gated sentence list. The import door never holds the number.
+
+## Closed
+
+2026-10-08. PR 4331 merged at `fd14a18873`. It had a full review, three fix passes, a REQUEST-CHANGES re-review that withdrew my F3(c) order (D4 ¶1 (i)), and an APPROVE-WITH-FIXES delta review. Hosted CI was green on the merged head.
+
+Follow-ups filed:
+- `work/encl/no-tighten-offer-quotes-a-value-below-the-runs-resolution.md`
+- `work/encl/plane-nurbs-limb-refusal-carries-no-reporting-margin-for-the-import-door.md`
+- `work/encl/refused-arm-sign-certain-carries-no-margin.md`
+- `work/encl/import-door-appends-a-defect-note-to-a-sub-eps-in-zero-span.md`
+- the EXCH row `step-import-placement-pcurve-and-rim-refusals-skip-the-import-doors-reading.md`, widened to cover `TierInvalid`.

@@ -346,8 +346,11 @@ fn plane_sphere_rim(body: &Body<f64>) -> Vec<EdgeKey> {
 
 /// The corpus's contact edges, as the bit-dump corpus's rows carve them.
 /// The count is the corpus's own structure, pinned so a fixture that
-/// silently stops carving cannot empty the census.
-const CORPUS_CONTACT_EDGES: usize = 158;
+/// silently stops carving cannot empty the census. A blend ends with
+/// the join (`docs/DESIGN.md`, maximal edges), so two contact edges on
+/// one carrier meeting at a foot nothing else reaches are one (158
+/// before the join).
+const CORPUS_CONTACT_EDGES: usize = 147;
 
 // ---------------------------------------------------------------
 // The near-osculating family: a rod with a flat, at any radius.
