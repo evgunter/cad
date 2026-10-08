@@ -71,12 +71,12 @@ fn assert_wall_seam(body: &Body<f64>, edge: EdgeKey, context: &str) {
     );
 }
 
-/// The cap rims of the curved loft are the cap and wall's
-/// `Intersection`, and an INWARD cap offset derives them: each rim is
+/// An INWARD cap offset of the curved loft derives its rims: each is
 /// the moved plane's section of its wall — an interior row, minted
-/// exactly — and each corner is the moved plane's root along its
-/// slanted seam, so it slides along the seam rather than along the cap
-/// normal.
+/// exactly, stated as the cap and wall's `Intersection` with the
+/// sketch's record dropped — and each corner is the moved plane's root
+/// along its slanted seam, so it slides along the seam rather than
+/// along the cap normal.
 #[test]
 fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
     let body = twisted_loft(0.3);
@@ -98,16 +98,29 @@ fn the_curved_lofts_cap_moves_its_corners_along_the_slanted_seams() {
     };
     assert_eq!(
         rims(&body),
-        8,
-        "every cap rim of the loft is an Intersection at rest"
+        0,
+        "the loft's cap rims rest as images in the caps' charts"
     );
     let mut moved = body.clone();
     topo::replace_face_offset(&mut moved, cap, -THICKNESS, Tol::witness())
         .expect("the curved loft's cap moves inward");
     assert_eq!(
         rims(&moved),
-        8,
-        "the moved rims are still the cap's sections"
+        4,
+        "the moved cap's rims are its sections of the walls"
+    );
+    let declared = moved
+        .edges()
+        .filter_map(|(_, e)| {
+            moved
+                .get_curve_geom(e.curve)
+                .and_then(topo::CurveGeom::certified)
+        })
+        .filter(|c| c.authority().is_declared())
+        .count();
+    assert_eq!(
+        declared, 4,
+        "only the unmoved cap's rims keep the sketch's record"
     );
     let z = 1.0 - THICKNESS;
     // Each seam ends at a moved corner on the moved plane, and on the
@@ -294,13 +307,13 @@ fn vase() -> Body<f64> {
     .body
 }
 
-/// The vase's walls are rational, so its cap rims keep their declared
-/// image in the cap's chart, and moving the cap tilts that declared
-/// edge against a wall the move does not carry onto itself: the door
-/// refuses it by name rather than re-stating the sketch's record on a
-/// section it does not describe.
+/// The vase's walls are rational, and the moved plane's section of one
+/// is not exact structure as a row (its skinned weights differ along
+/// the stacking by an ulp), so the door marches it. The plane × NURBS
+/// certificate then refuses the marched rim on its rational wall, by
+/// its own limb-2 bound, as the door re-charts the cap.
 #[test]
-fn shelling_the_vase_refuses_its_declared_cap_rim() {
+fn shelling_the_vase_refuses_at_its_rims_certificate() {
     let body = vase();
     let e = topo::shell(
         &finished("the vase", body.clone(), Tol::witness()),
@@ -312,18 +325,27 @@ fn shelling_the_vase_refuses_its_declared_cap_rim() {
         panic!("expected a per-face offset refusal, got {e}");
     };
     assert!(is_cap(&body, *face), "the refusing face is not a cap: {e}");
-    let ReplaceFaceError::DeclaredEdgeTilted { edge } = error.as_ref() else {
-        panic!("expected the declared rim's refusal, got {e}");
+    let ReplaceFaceError::Op {
+        error:
+            topo::EulerOpError::RechartFalsifies {
+                edge,
+                error:
+                    geom_brep::CertifyError::PlaneNurbs(geom_brep::PlaneNurbsRefusal::Limb {
+                        limb: geom_brep::ssi::SsiLimb::HullSup,
+                        value,
+                    }),
+                ..
+            },
+        ..
+    } = error.as_ref()
+    else {
+        panic!("expected the rim certificate's limb-2 refusal, got {e}");
     };
-    let data = body.get_edge(*edge).expect("the rim resolves");
-    let curve = body
-        .get_curve_geom(data.curve)
-        .and_then(topo::CurveGeom::certified)
-        .expect("the rim carries a certified curve");
     assert!(
-        curve.authority().is_declared(),
-        "the refused rim is the sketch's declared one"
+        *value > 1e2 * Tol::witness().eps(),
+        "limb 2 is far past the band, not at its edge: {value}"
     );
+    let data = body.get_edge(*edge).expect("the rim resolves");
     let walls = nurbs_walls(&body);
     assert!(
         [data.he_plus, data.he_minus]

@@ -131,9 +131,9 @@
 //! pose by the arm's own grounds rather than admitting it on the kind
 //! pair's. A served pose whose section the door does not derive, has
 //! no branch near the edge or is a tangency there refuses by the
-//! section's own verdict ([`ReplaceFaceError::EdgeSection`]), and a
-//! sketch-declared edge the move tilts against a distinct neighbour
-//! refuses by name ([`ReplaceFaceError::DeclaredEdgeTilted`]).
+//! section's own verdict ([`ReplaceFaceError::EdgeSection`]), and an
+//! edge still scaffolded that the move tilts against a distinct
+//! neighbour refuses by name ([`ReplaceFaceError::DeclaredEdgeTilted`]).
 //! `Approx × anything` has no arm, so a fitted face's
 //! intrinsically-described boundary is exactly where this door stops.
 //!
@@ -413,14 +413,15 @@ pub enum ReplaceFaceError<T: Real> {
         /// The root's own verdict.
         verdict: crate::offset_derive::CornerVerdict<T>,
     },
-    /// **A declared conventional edge between two distinct surfaces
-    /// that the move tilts.** The edge is a curve a sketch declared on
-    /// one chart, and the held neighbour is not carried onto itself by
-    /// the move, so the moved edge is a section the declaration does
-    /// not describe; re-stating the record on it would claim a
-    /// provenance it does not have.
+    /// **A scaffolded edge between two distinct surfaces that the move
+    /// tilts.** The edge is still under construction — its sketch
+    /// record IS its description — and the held neighbour is not carried
+    /// onto itself by the move, so the moved edge is a section the
+    /// record does not describe and there is no other description to
+    /// state it by. Unreachable at rest, where tier 3's transience
+    /// fence refuses a scaffold.
     DeclaredEdgeTilted {
-        /// The declared edge.
+        /// The scaffolded edge.
         edge: EdgeKey,
     },
     /// **A moved vertex ran past the end of an untouched edge's spline
@@ -763,9 +764,9 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             Self::DeclaredEdgeTilted { .. } => write!(
                 f,
-                "an edge drawn from a sketch lies between the face and a neighbour the offset \
-                 tilts it against, so the moved edge is no longer the curve the sketch drew. \
-                 {NOT_YET_ENDING}"
+                "an edge still under construction lies between the face and a neighbour the \
+                 offset tilts it against, so the moved edge is no longer the curve its sketch \
+                 drew. {NOT_YET_ENDING}"
             ),
             Self::ReanchorPastCarrierEnd { gap, .. } => write!(
                 f,
@@ -2189,9 +2190,9 @@ fn edge_side_keys<T: Real>(
 
 /// **An edge between the moved surface and a held one the move does not
 /// carry onto itself**: their section, nearest the old carrier and
-/// running with it, stated as their `Intersection` with its declaration
-/// dropped — the moved edge is not the curve a sketch drew. Its ends
-/// are its corners', read once those are solved.
+/// running with it, stated as their `Intersection` with any sketch
+/// record beside it dropped — the moved edge is not the curve a sketch
+/// drew. Its ends are its corners', read once those are solved.
 #[allow(clippy::type_complexity)]
 fn derive_edge<T: Decide>(
     (edge, start, end, sides): (EdgeKey, VertexKey, VertexKey, [SurfaceKey; 2]),
@@ -2202,7 +2203,7 @@ fn derive_edge<T: Decide>(
     section_lane: Option<crate::offset_derive::SectionLane<T>>,
 ) -> Result<EdgePlan<T>, ReplaceFaceError<T>> {
     use crate::offset_derive::SectionVerdict;
-    if curve.authority().is_declared() || matches!(description, EdgeDescription::Scaffold(_)) {
+    if matches!(description, EdgeDescription::Scaffold(_)) {
         return Err(ReplaceFaceError::DeclaredEdgeTilted { edge });
     }
     let (kind, other_kind) = (new_surface.kind(), held.kind());

@@ -748,12 +748,9 @@ fn level_row(
             })));
         };
         let v = bisect(&column, origin, normal, root.bracket);
-        return Ok(Some(geom_brep::interior_iso_u(&cross, v).map_err(|_| {
-            SectionVerdict::Unsupported {
-                what: "the wall's weights vary along both parameters, so its row is not \
-                       exact structure",
-            }
-        })));
+        // A row whose weights vary along both parameters is not exact
+        // structure; the march states the section instead.
+        return Ok(geom_brep::interior_iso_u(&cross, v).ok().map(Ok));
     }
     Ok(None)
 }

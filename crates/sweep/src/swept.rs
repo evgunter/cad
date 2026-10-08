@@ -1278,31 +1278,9 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Result<(), EulerOpError> {
     let chart = face_surface_key(body, face);
-    for edge in face_edges(body, face) {
-        let curve_key = body
-            .get_edge(edge)
-            .unwrap_or_else(|| {
-                unreachable!("edge {edge:?} was read off a live half-edge of face {face:?}")
-            })
-            .curve;
-        let scaffolded = body
-            .get_curve_geom(curve_key)
-            .and_then(topo::CurveGeom::certified)
-            // Null scaffolding carries no description at all.
-            .is_some_and(|c| c.description().is_scaffold());
-        if !scaffolded {
-            continue;
-        }
-        body.describe_at_rest(edge, chart, tol)?;
-    }
-    Ok(())
-}
-
-/// The edges of `face`'s loops, in cycle order.
-pub(crate) fn face_edges<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<topo::EdgeKey> {
     let face_data = body
         .get_face(face)
-        .unwrap_or_else(|| unreachable!("face {face:?} is a live face of the body"))
+        .unwrap_or_else(|| unreachable!("face {face:?} resolved just above"))
         .clone();
     let mut edges: Vec<topo::EdgeKey> = Vec::new();
     for lk in core::iter::once(&face_data.outer).chain(&face_data.rings) {
@@ -1328,7 +1306,24 @@ pub(crate) fn face_edges<T: Real>(body: &Body<T>, face: FaceKey) -> Vec<topo::Ed
             );
         }
     }
-    edges
+    for edge in edges {
+        let curve_key = body
+            .get_edge(edge)
+            .unwrap_or_else(|| {
+                unreachable!("edge {edge:?} was read off a live half-edge of face {face:?}")
+            })
+            .curve;
+        let scaffolded = body
+            .get_curve_geom(curve_key)
+            .and_then(topo::CurveGeom::certified)
+            // Null scaffolding carries no description at all.
+            .is_some_and(|c| c.description().is_scaffold());
+        if !scaffolded {
+            continue;
+        }
+        body.describe_at_rest(edge, chart, tol)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
