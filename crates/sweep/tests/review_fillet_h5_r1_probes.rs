@@ -225,11 +225,23 @@ fn r1_two_hostless_rims_of_one_body_compose_in_one_call() {
             .body;
         }
         let seq = mass_properties(&body, tol()).unwrap();
+        // The same body, not the same history: each carve ends with the
+        // join, which keeps the edge of the vertex's first half-edge in
+        // arena order and extends its interval over the other (`join_all`,
+        // `joined_spec`), so one call and a sequence can keep different
+        // pieces of one rim, and the volume integrates over an interval
+        // that differs in its last bits.
         assert_eq!(
-            one.volume.to_bits(),
-            seq.volume.to_bits(),
-            "the one-call result IS the sequential composition, bit for bit \
-             (order {order:?})"
+            topo::readback::euler_counts(&one_call.body),
+            topo::readback::euler_counts(&body),
+            "the one-call result IS the sequential composition, cell for cell (order {order:?})"
+        );
+        assert!(
+            (one.volume - seq.volume).abs() <= 4.0 * f64::EPSILON * one.volume.abs(),
+            "the one-call volume is the sequential one to the summation order \
+             (order {order:?}): {} vs {}",
+            one.volume,
+            seq.volume
         );
     }
 }

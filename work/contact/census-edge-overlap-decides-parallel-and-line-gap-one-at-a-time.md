@@ -2,10 +2,11 @@
 id: census-edge-overlap-decides-parallel-and-line-gap-one-at-a-time
 kind: issue
 title: the census's collinear edge overlap decides the edges' tilt and line gap one at a time, not their sum
-status: open
+status: closed
 opened: 2026-10-07
 priority: P3
 cost: M
+closed: 2026-10-08
 ---
 
 ## What
@@ -28,3 +29,7 @@ section classifiers' `decide_across` (`crates/geom-brep/src/intersect.rs`)
 and `carrier_cyl_reach` (`crates/topo/src/boolean/carrier_eq.rs`) do:
 the zero side on `|datum| + tilt·lever`, a definite side on the datum
 shrunk toward zero by the tilt, the tilt row kept only to route.
+
+## Closed as a duplicate (2026-10-08)
+
+The same lane and the same fix as `the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start`, which carries it.

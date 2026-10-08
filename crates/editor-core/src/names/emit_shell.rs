@@ -166,43 +166,25 @@ pub(crate) fn name_shell<T: geom_core::Real>(
 
     // ---- The joins (`ShellNaming::edge_joins`). ----
     // The shell ends with the join, so an edge it made is named by the
-    // input edges it covers, each read by the rows above: `Inner` of
-    // its source for a cavity twin, the operand's own name for a
-    // survivor. One covered name is the edge's own; several are a
-    // `Merged` set of them. The killed vertex and the absorbed edge are
-    // no longer in the body, so their rows are never consulted.
-    let mut joined: BTreeMap<EntityKey, (RoleSeg, bool)> = BTreeMap::new();
-    for (kept, members) in topo::join_covers(&rec.edge_joins) {
-        if body.get_edge(kept).is_none() {
-            return Err(NamingError::Emission {
-                what: "the shell recorded a join whose kept edge is not in its body",
-            });
-        }
-        let mut names = BTreeSet::new();
-        let mut tied = false;
-        for m in members {
-            let (seg, t) = match minted.get(&EntityKey::Edge(m)) {
-                Some((seg, t)) => (seg.clone(), *t),
-                None => {
-                    let u = up_e(m)?;
-                    (RoleSeg::FromTarget(u.name), u.tied)
+    // input edges it covers (`join_names`), each read by the rows above:
+    // `Inner` of its source for a cavity twin, the operand's own name for
+    // a survivor. The killed vertex and the absorbed edge are no longer
+    // in the body, so their rows are never consulted.
+    let joined = super::join_names::name_joins(node, body, &rec.edge_joins, |m| {
+        Ok(match minted.get(&EntityKey::Edge(m)) {
+            Some((seg, tied)) => super::join_names::Member::Image {
+                seg: seg.clone(),
+                tied: *tied,
+            },
+            None => {
+                let u = up_e(m)?;
+                super::join_names::Member::Image {
+                    seg: RoleSeg::FromTarget(u.name),
+                    tied: u.tied,
                 }
-            };
-            tied |= t;
-            names.insert(name1(EntityKind::Edge, node, seg));
-        }
-        let name = if names.len() == 1 {
-            names.pop_first()
-        } else {
-            Some(super::merged::edge_set(node, names))
-        };
-        let Some([seg]) = name.as_ref().map(|n| n.path.as_slice()) else {
-            return Err(NamingError::Emission {
-                what: "a shell join's name is not one segment",
-            });
-        };
-        joined.insert(EntityKey::Edge(kept), (seg.clone(), tied));
-    }
+            }
+        })
+    })?;
     // The joined names replace whatever the rows gave the kept edge.
     minted.extend(joined);
 
