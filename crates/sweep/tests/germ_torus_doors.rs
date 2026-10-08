@@ -44,7 +44,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::operands::framed_bar;
+use crate::common::operands::{bar, framed_bar};
 use crate::common::revert_ops::subtract_both_orders_and_intersect;
 use crate::revolve_common;
 use sweep::ExtrudeSide;
@@ -445,34 +445,6 @@ fn the_waist_faces_partition_their_band_under_face_containment() {
 // -------------------------------------------------------------------
 // The line × torus crossing, on a donut.
 // -------------------------------------------------------------------
-
-fn bar(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> AtRestBody<f64> {
-    use geom_core::{Affine3, Mat3, Vec3};
-    let lp = ProfileLoop::polygon([
-        Point2::new(x.0, y.0),
-        Point2::new(x.1, y.0),
-        Point2::new(x.1, y.1),
-        Point2::new(x.0, y.1),
-    ]);
-    let plane = profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
-        Point3::new(0.0, 0.0, z.0) - Point3::origin(),
-    ));
-    let vp = profile::Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("the bar profile validates");
-    let bar = sweep::extrude(
-        &vp,
-        sweep::Extrusion::Distance {
-            depth: z.1 - z.0,
-            side: ExtrudeSide::Along,
-        },
-        Tol::witness(),
-    )
-    .expect("the bar extrudes")
-    .body;
-    finished("the bar", bar, Tol::witness())
-}
 
 fn donut() -> AtRestBody<f64> {
     let vp = validated(vec![revolve_common::donut_profile()]);
