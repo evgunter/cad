@@ -1251,16 +1251,23 @@ its lift to a 3-D pose is how it leaves.
 **Operations.** A node is an operation: it reads variables and defines
 the variables its signature states, a fixed list of named, typed ports
 set by its variant (a split defines two bodies; a revolve its body and its axis; an instance of a part
-defines one `Body` variable per world placement of the part, and the
-part's world as a `Frame`, all in one space of the instance's own),
-possibly none: an assertion defines none, and a mate is a clause of a
-placement, not an operation. Reading is the only dependency; nothing consumes anything,
+defines one `Body` variable per body the part's world names, all in
+one space of the instance's own), possibly none: an assertion defines
+none, and a mate is a clause of a placement, not an operation. Reading is the only dependency; nothing consumes anything,
 so an operand stays a first-class value after a boolean reads it. The
-product is the world: every copy whose space reaches the world, in
-placement order. A placement is an operation reading shapes of one
+product is the bodies the world names, in the order named: naming
+defines no copy, the named bodies lie in one space, and one placement
+of its own relates that space to the world. A placement is an operation reading shapes of one
 space and a bundle of mates, and defining a copy of each shape under
-the one rigid motion its mates pin; building or combining shapes places
-nothing, and a shape appears only if a placement names it. A document whose world holds nothing has
+the one rigid motion its mates pin; building, combining or placing
+shapes adds nothing to the product, and a body appears only if the
+world names it. Nothing
+moves a body: a copy is defined by its one placement and never moved
+after, and an operation that would move one (today's `Transform`) is a
+placement. A placement copies a finished body; one profile read
+through several frames is several constructions, not copies. `Pattern`
+is a placement of several copies, one per member of a pose family read
+off geometry. A document whose world names nothing has
 an empty product. A `Face` or `Edge`
 variable, or a set of them, is a selection of a `Body` variable by
 `StableName`: a definition, not a node, stating its body once, and the
@@ -1280,10 +1287,12 @@ relative to others: two placements of a part are two copies, and a mate
 added to a pinned copy refuses as an overconstraint, decided by
 subgroup algebra (A11 (1)) without measuring. A mate places and never
 checks. Each mate equates two poses of one kind, modulo that kind's
-symmetry: a pose of the copied shapes' space with a pose of the space
-the copy lands in. It holds no number of its own, and its sense is a
-construction (`Flip`) on one side; which copy moves is which placement
-reads it, and a pose of another copy is read as that copy carries it. The **world** is one undeletable frame that copies may be
+symmetry: a pose read off the copied shapes' geometry with a pose read
+off geometry of the space the copy joins, never a frame standing for a
+part's coordinates. It holds no number of its own, and its sense is a
+construction (`Flip`) on one side; which copy is defined is which
+placement reads it, and a pose of another copy is read as that copy
+carries it. The **world** is one undeletable frame that copies may be
 related to like a part; export reads its coordinates and nothing else
 does. Construction never reads the world; a document builds in a frame
 of its own. The kernel computes each space in the frame of its earliest

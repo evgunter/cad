@@ -18,9 +18,15 @@ INTENT stage 3, PR B. Spec: `docs/INTENT-STAGE3-SPEC.md` §3.
 Closes `a-clocking-rider-is-levered-unreduced`, `a-face-frame-cannot-turn-its-roll`, `a-face-base-puts-its-reference-on-local-y`, `mate-primitive-unit-variants-load-from-a-null-payload` and `a-mate-frame-axis-is-decided-against-a-length-band`. It subsumes MSOLVE-15 (#3681).
 
 FORK-S3-3 was weighed with FORK-S3-2 and S3-5 as FORK-S3M (fork log row
-97) and went to Ev in an `[ev]` PR; this unit builds on the answer
-provisionally. A mate is `{ on, to }`, two pose variables of one kind,
-and the kind is the primitive. There is no `sense` operand: the sense is
+97, PR 4326), and this unit builds on that answer. A mate is
+`{ on, to }`, two pose variables of one kind, and the kind is the
+primitive. `on` is a pose read off the copied shape's geometry and `to`
+one read off geometry of the space the copy joins (a face frame, a
+carrier's axis or centre, their offsets): there is no `FrameBase::Part`
+and no part frame to read. Today's mates written against a part frame,
+authored vectors and world-gauge offsets are absolute coordinates; the
+migration restates each over geometry where the geometry carries it,
+and otherwise drops it and names it in its report. There is no `sense` operand: the sense is
 `Flip { pose }`, a construction (an involution the door normalises to
 one side), and `Flip` has no `Point` arm. A `Frame` "opposed" becomes an
 explicit `turn/2` in an `Offset`, which retires `opposed()`'s hidden
