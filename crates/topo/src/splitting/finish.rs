@@ -141,6 +141,11 @@ pub struct SplitNaming {
     /// a whole-orbit strut, and the mirrored lane swaps the sides —
     /// so consumers read a key's side from the body that holds it.
     pub vertex_pairs: Vec<(crate::entity::VertexKey, crate::entity::VertexKey)>,
+    /// The joins each side ended with ([`crate::Body::join_edges`]), in
+    /// the order made, with the side whose body they were made on: each
+    /// row's `vertex` and `gone` edge are dead there, and `kept` holds
+    /// them (`docs/DESIGN.md`, maximal edges).
+    pub edge_joins: Vec<(PlaneSide, crate::boolean::EdgeJoin)>,
 }
 
 /// Typed failure of the finish step.
@@ -249,6 +254,16 @@ pub enum SplitFinishError {
         /// The validator's findings.
         errors: Vec<crate::validate::ValidationError>,
     },
+    /// The join a side ends with ([`crate::Body::join_edges`]) refused
+    /// on that side's body.
+    EdgeJoin {
+        /// The side whose join refused.
+        side: PlaneSide,
+        /// The join's refusal, by kind ([`crate::BooleanError::kind`]).
+        kind: crate::boolean::BooleanErrorKind,
+        /// The refusal's own sentence.
+        what: String,
+    },
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -320,6 +335,13 @@ impl core::fmt::Display for SplitFinishError {
                 geom_core::KERNEL_DEFECT_ENDING
             ),
             Self::KnifeEdge(k) => write!(f, "{k}"),
+            Self::EdgeJoin { side, what, .. } => {
+                write!(
+                    f,
+                    "the piece on the {} side of the plane: {what}",
+                    side.word()
+                )
+            }
             Self::ResultInvalid { side, errors } => match errors.as_slice() {
                 [first, ..] => write!(
                     f,
@@ -395,6 +417,7 @@ pub(super) fn split_finish<T: Decide + crate::props::AtRestPolicy>(
                     .ok_or(SplitFinishError::Corrupt)
             })
             .collect::<Result<_, _>>()?,
+        edge_joins: Vec::new(),
     };
 
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;

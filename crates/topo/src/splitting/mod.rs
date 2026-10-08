@@ -976,6 +976,12 @@ fn split_one_solid<T: geom_core::Decide + crate::props::AtRestPolicy>(
                 // consumers resolve pair roles by which body holds
                 // each key, so no swap is needed here.
                 vertex_pairs: naming.vertex_pairs,
+                // Each join on the side the caller sees it on.
+                edge_joins: naming
+                    .edge_joins
+                    .into_iter()
+                    .map(|(s, j)| (s.opposite(), j))
+                    .collect(),
             },
         }),
         Err(_) => split_direct(operand, plane, tol),
@@ -1004,6 +1010,21 @@ fn split_direct<T: geom_core::Decide + crate::props::AtRestPolicy>(
         if let finish::SplitPart::Body(body) = part {
             crate::validate::validate_closed(body)
                 .map_err(|errors| SplitFinishError::ResultInvalid { side, errors })?;
+            // Every finisher ends with the join (`docs/DESIGN.md`,
+            // maximal edges): a vertex the cut left between two edges of
+            // one carrier, the seam strut it held gone, is no corner.
+            let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
+            let joins =
+                body.join_edges(band, tol)
+                    .map_err(|refusal| SplitFinishError::EdgeJoin {
+                        side,
+                        kind: refusal.kind(),
+                        what: crate::boolean::edge_join::join_refusal_sentence(&refusal),
+                    })?;
+            result
+                .naming
+                .edge_joins
+                .extend(joins.into_iter().map(|j| (side, j)));
             crate::pcurves::mint_pcurves(body, tol)?;
         }
     }
