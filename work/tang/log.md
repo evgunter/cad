@@ -848,7 +848,7 @@ REACH.
 ## 2026-10-08 — a line three solids touch along (TANG implementer)
 
 `three-solids-touching-along-one-line-refuse-their-union` closes on PR
-PRNUM. An operand holding a contact line (coincident edges on one ray)
+4346. An operand holding a contact line (coincident edges on one ray)
 meets another solid's edge along it pair by pair under the edge-edge
 rule, and a pierce face welded once already joins the next pierce at
 the corner that holds it. Every order of three and four prisms on one

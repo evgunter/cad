@@ -66,7 +66,7 @@ degenerate operand. It must not lean on a declaration, and it should
 be checked against D10's `unproven-coincidence` door when that is
 built.
 
-## Closed (2026-10-08, TANG, PR PRNUM)
+## Closed (2026-10-08, TANG, PR 4346)
 
 Remeasured on 8fd03fce (after PR 4300): the 18 and 6 topo refusals
 stood as above; the prisms alone through editor-core already built,
