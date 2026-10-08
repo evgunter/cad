@@ -133,3 +133,58 @@ likely. `Separation` retiring: sure. The could-not-look clearance extension: uns
 - **Ergonomics.** Quieting is per site, so the 160-fin heat sink needs an assertion per fin unless a measure can read
   a `Faces` set (D10 allows sets). Not designed here.
 - **Assumption.** Assumption: stage 3's spaces exist, and copies are compared only within one space.
+
+## Round 2
+
+**1. Who reports an at-rest unproven contact: I hold `unproven-coincidence` (lean, likely). This is a choice for Ev.**
+- **What decides it for me: one knob per kind of fault.** An overlap is almost always a defect. A non-structural
+  touch is correct geometry that holds for a fragile reason, which is what the lint already says of a boolean's glue.
+  - A CI caller wants interference at `Error` and value-touching at `Warn`. Under one `AtRest` resident that cannot
+    be said without a per-class knob, and adding one is a second severity axis.
+  - A caller who wants "error on every non-structural coincidence" gets it from one knob only if the lint owns both
+    the boolean glue and the at-rest contact.
+- **B's arguments, answered in part.**
+  - "The lint's at-rest arm depends on the census having run": the census runs inside the product subject, which
+    the registry already gathers lazily. The lint's at-rest arm reads it as `Separation` does today. This is not
+    answered in full: the lint then reads both the evaluation and the subject, and a gather refusal
+    (`ChecksError::Product`) must not cost it its boolean half. That needs the lint split by what it reads, or a
+    run that keeps the subject-less half. That cost is real.
+  - "A could-not-look pair bears on both questions": it bears on the census, not on a coincidence. One `AtRest`
+    finding says that the pair is unknown, and the lint has nothing to restate.
+  - B's shared evidence type gives one name across two residents. That is close to my shape seen from the other
+    side, and it is a reason the two are near.
+- **Reversal cost either way.** Only the report's partition and one knob move, so either can be undone cheaply.
+
+**2. Quieting a could-not-look pair with a positive clearance: I move, and leave it out (sure).** FORK-S5Q makes
+`Gap` over an opposed pair the only quieting measure.
+- A could-not-look finding is about two whole copies. A gap on one opposed pair proves nothing about the rest of
+  them, so there is no measure today that could quiet it.
+- If a whole-pair clearance ever becomes a quieting measure, it is one added arm in `quieted_by`, which is easy to add.
+- **Consistent with S5Q.** An overlap the kernel cannot intersect is a loud interference that cannot be quieted,
+  not a could-not-look finding. I agree, and my report did not say otherwise.
+- **My DS6 wording widens accordingly**, from "a check's own could-not-look finding refuses at `error`" to the
+  following. A finding outside what the document can yet say is loud and refuses at `Error`. That covers:
+  - the census could not look;
+  - the kernel could not intersect the overlap;
+  - no signed `Gap` exists for the carrier pair.
+
+  An `Error` gate certifies; it cannot pass what it could not judge. The caller's recourse is `Warn`. Ev's "blocking
+  is fine if exceptions are declarable" holds where the vocabulary reaches, and this sentence names the frontier
+  instead of hiding it.
+
+**3. Default severity: Warn (likely; I now commit).** The registry's posture is that no default position refuses,
+and `connectedness` defaults to Warn. An `Error` default would make every value-touching assembly fail the first
+script that calls `enforce_checks`. B is right, and nothing in my report argued otherwise.
+
+**D10 sentence, now:** "At rest, contact between copies is an `unproven-coincidence` finding unless it is structural
+(a mate-placed face is), and interference is a finding of its own. Neither refuses, and no outcome of the census is
+silence: a pair it has no lane for is a finding that it could not look." (B's clause, which states the principle
+better than mine.)
+
+**A5 replacement, now:** "**A5 — The at-rest check.** Per space, the census examines every pair of copies the boxes
+cannot prove apart, and decides each one apart, in contact, overlapping or undecided. A contact is recorded at the
+coincidence door. Unless it is structural, the `unproven-coincidence` lint reports it. An overlap is an `AtRest`
+interference finding, localised to the faces bounding it, or loud and unquietable when the intersection refuses. An
+undecided pair is an `AtRest` could-not-look finding. Each finding is quiet under D10's rule or loud. Nothing
+refuses: a caller that wants a gate runs `enforce_checks` at `Error`." Under B's shape the second and third
+sentences become: "an unproven contact is an `AtRest` finding with the lint's evidence".
