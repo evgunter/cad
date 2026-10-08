@@ -39,7 +39,10 @@
 //! caller's own measure of that region from the point it is read at.**
 //! No ball chosen around the consumed region is a lever. An edge's span
 //! ([`Reach::Span`]) is levered by its per-carrier farthest distance
-//! from the pivot that makes that distance least on each axis. The
+//! from the pivot that makes that distance least on each axis; a face's
+//! measures read a conic edge over the span it holds instead
+//! ([`Reach::span_reach_from`]), since a short arc of a large rim
+//! reaches nowhere near its rim's size. The
 //! cylinder pair's caller ([`Reach::Measured`]) hands a length it
 //! measured, and only that pair floors it ([`Reach::lever_between`]).
 //! A plane×cylinder face's caller ([`Reach::Face`]) hands what it

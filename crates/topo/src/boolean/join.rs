@@ -1562,8 +1562,12 @@ pub(super) enum FrameExtent<T> {
         below: T,
         /// How far the face reaches from `at` along the axis.
         above: T,
-        /// The face's farthest distance from `at`.
+        /// The face's farthest distance from `at`, each edge read over
+        /// the span it holds.
         across: T,
+        /// The same with each edge levered round its whole carrier, which
+        /// the germ also reads ([`agreed_section`]).
+        round: T,
     },
 }
 
@@ -1571,10 +1575,14 @@ pub(super) enum FrameExtent<T> {
 /// taken from the reading point `at`. A plane×cylinder pair's section
 /// lies on the wall face, which hands the table its axial range from
 /// `at` ([`face_axial_range`](crate::splitting::rules::face_axial_range),
-/// its curved edges included) and its farthest distance from `at`
-/// ([`face_reach_from`](crate::splitting::rules::face_reach_from)), read
-/// from the rulings' hinge ([`geom_brep::Reach::Face`]). Every other
-/// pair takes the walls' `span`.
+/// its curved edges included) and its farthest distance from `at`, read
+/// from the rulings' hinge ([`geom_brep::Reach::Face`]): each edge over
+/// the span it holds
+/// ([`face_reach_from`](crate::splitting::rules::face_reach_from)) and
+/// round its whole carrier
+/// ([`face_reach_round_from`](crate::splitting::rules::face_reach_round_from)),
+/// which [`agreed_section`] reads together. Every other pair takes the
+/// walls' `span`.
 ///
 /// # Errors
 ///
@@ -1598,10 +1606,12 @@ fn frame_extent<T: Decide>(
     let (below, above) =
         crate::splitting::rules::face_axial_range(body, face, at, axis).map_err(lone)?;
     let across = crate::splitting::rules::face_reach_from(body, face, at).map_err(lone)?;
+    let round = crate::splitting::rules::face_reach_round_from(body, face, at).map_err(lone)?;
     Ok(FrameExtent::Wall {
         below,
         above,
         across,
+        round,
     })
 }
 
@@ -1998,22 +2008,32 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         }
         _ => return Err(FrameError::NoArm),
     };
-    let reach = match extent {
+    let section = match extent {
         FrameExtent::Wall {
             below,
             above,
             across,
-        } => geom_brep::Reach::Face {
-            at,
-            below,
-            above,
-            across,
-        },
-        FrameExtent::Radii | FrameExtent::Span(_) => {
-            geom_brep::Reach::Measured { at, lever: radius }
+            round,
+        } => {
+            let read = |across| {
+                let reach = geom_brep::Reach::Face {
+                    at,
+                    below,
+                    above,
+                    across,
+                };
+                geom_brep::plane_cylinder_section(plane_s, cyl_s, &reach, band)
+            };
+            agreed_section(read(across), read(round), band)
         }
+        FrameExtent::Radii | FrameExtent::Span(_) => geom_brep::plane_cylinder_section(
+            plane_s,
+            cyl_s,
+            &geom_brep::Reach::Measured { at, lever: radius },
+            band,
+        ),
     };
-    match geom_brep::plane_cylinder_section(plane_s, cyl_s, &reach, band) {
+    match section {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
         | Ok(geom_brep::PlaneCylinderSection::TiltedEllipse(geom::Curve3::Ellipse {
             center,
@@ -2030,6 +2050,37 @@ pub(super) fn pair_section_frame_at<T: Decide>(
         Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
         Err(_) => Err(FrameError::Desync(
             "germ pair's section refused at match time",
+        )),
+    }
+}
+
+/// **The germ's plane×cylinder section, served only where the wall's
+/// two measures of its reach across agree** ([`FrameExtent::Wall`]).
+/// The germ is a declared-tangency path, which a shorter lever must not
+/// widen: an escalation under either reading escalates, and two served
+/// readings of different classes escalate under the row whose verdict
+/// they split (`pc_axis_plane_parallel_disagreement` between a conic and
+/// the rulings' lane, `pc_parallel_gap_disagreement` within that lane),
+/// two sound bounds straddling the band.
+fn agreed_section<T: Decide>(
+    span: Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError>,
+    round: Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError>,
+    band: Band,
+) -> Result<geom_brep::PlaneCylinderSection<T>, geom_brep::SectionError> {
+    use geom_brep::PlaneCylinderSection as S;
+    let conic = |s: &S<T>| matches!(s, S::Rim(_) | S::TiltedEllipse(_));
+    match (span, round) {
+        (Err(e), _) | (Ok(_), Err(e)) => Err(e),
+        (Ok(s), Ok(r)) if core::mem::discriminant(&s) == core::mem::discriminant(&r) => Ok(s),
+        (Ok(s), Ok(r)) => Err(geom_brep::SectionError::Escalated(
+            crate::invalid_margin::invalid(
+                band,
+                if conic(&s) == conic(&r) {
+                    "pc_parallel_gap_disagreement"
+                } else {
+                    "pc_axis_plane_parallel_disagreement"
+                },
+            ),
         )),
     }
 }
@@ -3620,13 +3671,15 @@ mod frame_dispatch_tests {
         }
     }
 
-    /// **A short patch on a large wall is levered at its own reach
-    /// across the wall in the germ frame too.** The 1 cm × 10 µm patch of
-    /// a 1 km wall (`chord_join`'s rim-patch row), cut by the plane
-    /// through a corner and the axis tilted by `sin β = k·ε/e`: the patch
-    /// stands within `k·ε` of the corner's ruling, so the frame is never
-    /// a conic's. Levered round the rims' whole turn the turn reads
-    /// definite and names one.
+    /// **The germ escalates where the wall's two measures of its reach
+    /// across disagree, and never names the whole turn's conic.** The
+    /// 1 cm × 10 µm patch of a 1 km wall (`chord_join`'s rim-patch row),
+    /// cut by the plane through a corner and the axis tilted by
+    /// `sin β = k·ε/e`: the patch stands within `k·ε` of the corner's
+    /// ruling. Read over its arcs' spans the turn is Zero (the rulings);
+    /// round the arcs' whole turn it reads definite (a conic). The germ is
+    /// a declared-tangency path, which serves only what both measures
+    /// serve, so it escalates on the split.
     #[test]
     fn a_rim_patchs_turn_is_levered_at_its_arcs_in_the_germ_frame() {
         let (r, e) = (1000.0, 1e-5);
@@ -3643,9 +3696,10 @@ mod frame_dispatch_tests {
             let c = k * Tol::witness().eps() / e;
             let normal = Vec3::new(0.0, (1.0 - c * c).sqrt(), c);
             for (label, got) in plane_frames(&body, face, Point3::new(r, 0.0, 0.0), normal) {
-                assert!(
-                    !matches!(got, Ok(Some(_))),
-                    "k = {k} ({label}): within the band of the corner's ruling, got a conic frame"
+                assert_eq!(
+                    verdict(&got),
+                    "pc_axis_plane_parallel_disagreement",
+                    "k = {k} ({label}): the span's rulings against the whole turn's conic"
                 );
             }
         }

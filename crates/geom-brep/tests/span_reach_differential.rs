@@ -339,6 +339,14 @@ fn span_reach_differential() {
             let (main, _) = reading(true);
             let (head, head_reach) = reading(false);
             let (vm, vh) = (verdict(&main), verdict(&head));
+            // The germ serves only what both measures serve (`topo`'s
+            // `agreed_section`).
+            let vh = match (caller, vm, vh) {
+                ("germ", m, h) if m == h => h,
+                ("germ", "esc", _) | ("germ", _, "esc") => "esc",
+                ("germ", _, _) => "disagree",
+                (_, _, h) => h,
+            };
             let t = tallies.entry(caller).or_default();
             *t.buckets
                 .entry(format!("{truth:<8} {vm:<7} -> {vh}"))
@@ -368,11 +376,11 @@ fn span_reach_differential() {
                 if against(v) {
                     t.against[k] += 1;
                 }
-                if v == "esc" && truth != "band" {
+                if (v == "esc" || v == "disagree") && truth != "band" {
                     t.good_esc[k] += 1;
                 }
             }
-            if vm == "esc" && vh != "esc" {
+            if vm == "esc" && vh != "esc" && vh != "disagree" {
                 t.served_where_main_escalated.push(format!(
                     "{i} r={s:e} du={du:.3e} h={h:.3e} truth={truth} offset={:.3}z -> {vh}{}",
                     offset / z,

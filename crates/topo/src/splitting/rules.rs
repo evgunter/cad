@@ -583,6 +583,23 @@ pub(crate) fn face_reach_from<T: Decide>(
     )
 }
 
+/// [`face_reach_from`] with every edge levered round its whole carrier
+/// ([`geom_brep::Reach::lever_from`]) whatever the face it bounds: the
+/// measure the germ frame reads beside the span's, serving only where
+/// the two agree. The refusal is [`face_extent`]'s.
+pub(crate) fn face_reach_round_from<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    at: Point3<T>,
+) -> Result<T, UnboundedFace> {
+    boundary_reach(
+        body,
+        face,
+        |p| (p - at).norm(),
+        |curve| span_of(curve).lever_from(at),
+    )
+}
+
 /// **How far a face reaches from `at` either way along `axis`** (unit):
 /// `(below, above)`, the farthest `−(x − at)·axis` and `(x − at)·axis`
 /// over `face`'s boundary, each at least zero: its vertices, and each
