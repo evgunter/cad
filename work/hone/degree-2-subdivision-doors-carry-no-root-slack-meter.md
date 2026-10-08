@@ -6,7 +6,7 @@ status: open
 opened: 2026-10-03
 priority: P1
 cost: M
-refs: [line-roots-carry-no-root-slack-meter, ellipse-edge-crossing-a-torus-has-no-root-lane]
+refs: [line-roots-carry-no-root-slack-meter, 3973]
 ---
 
 

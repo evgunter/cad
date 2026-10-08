@@ -7,7 +7,6 @@ opened: 2026-10-08
 priority: P0
 cost: H
 design: true
-needs_ev: true
 ---
 
 INTENT stage 4, PR B. Spec: `docs/INTENT-STAGE4-SPEC.md` §3. Needs nothing from stage 2 or 3; dispatchable now. Design open: FORK-S4-3 (is the record `ContactRecords` or a new type), weighed before build.

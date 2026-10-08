@@ -26,3 +26,14 @@ Owed: an audit of each site (keep the value in `T`, or enter a numerical
 routine's output as one opaque symbol per call), and the re-valuation
 test FORK-S4F names, which detects a laundered quantity whenever the
 re-valued variables move it.
+
+A static gate can narrow the audit but cannot replace the test: whether
+an argument to `from_f64` is computed is semantic. `tools/k-lint` reads
+the sweep's telemetry CSVs, never source, and takes the symbolic tier's
+`symbolic_zero` rows as accepted outcomes no rule samples
+(`tools/k-lint/src/lib.rs` around the outcome-token arms). So it cannot see
+laundering, which would only show there as one more `symbolic_zero` row.
+The precedent for a source gate is `scripts/gates/certification-doors.sh`
+(a token scan of `crates/*/src`). A sibling gate could allowlist today's
+`from_f64(` sites with a reason each, and refuse a new one without one.
+

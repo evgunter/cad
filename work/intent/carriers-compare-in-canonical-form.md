@@ -8,7 +8,6 @@ priority: P0
 cost: H
 design: true
 blocked_on: [coincidences-are-recorded-at-one-door, operands-are-reads, select-defines-face-and-edge-variables]
-needs_ev: true
 ---
 
 INTENT stage 4, PR C. Spec: `docs/INTENT-STAGE4-SPEC.md` §4. Design open: FORK-S4-1 (provenance read from names vs `GeomSource`; N6) and FORK-S4-2 (a stated `CarrierFlow` with a witness vs derived).
