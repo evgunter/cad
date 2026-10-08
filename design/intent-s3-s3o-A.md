@@ -240,3 +240,38 @@ The bundle stays a list of mates, and its order is the authored priority: primar
   - D10 Spaces: keep "a mate added to a pinned copy refuses as an overconstraint, decided by subgroup algebra (A11 (1)) without measuring". Add: "a placement's mates are taken in order, each fixing only what those before it left free; one that fixes nothing refuses, and none checks what another fixed".
   - A11 (1): "several mates on one pair fold by exact coset intersection … to DETERMINED, UNDER or CONTRADICTORY …" becomes "a placement's mates fold in order, each projected onto the residual subgroup, to DETERMINED or UNDER, or refuse OVERCONSTRAINED (a mate that fixes nothing); a degenerate configuration refuses as its construction does".
   - #4325's excess clause is withdrawn.
+
+### Round 3 addendum: what refusing an unproven excess equation buys over the lint
+
+**Nothing, and Ev's reading is right.** Refusing a mate whose excess equation is not structural buys nothing the `unproven-coincidence` lint does not already give. It only looked different because of how the fold treated the excess equation, not because of what the equation is.
+
+- **Under today's fold, and under round 2's B.** An excess equation is decided by value inside the fold. When its margin is definite, it refuses `Contradictory`. That makes it the one coincidence in the system that refuses on a mismatch. A boolean's glue and a contact at rest never refuse: they are recorded and linted.
+- **Under #4325.** The same equation refused at admission unless it was proven. That is the lint's own question, moved onto the edit path. This is also why it pulled the `Sym` replay forward (round 3, item 2).
+- **So it is not a different kind of thing.** The agreement between the second peg and its hole is a contact between two copies like any other. A rule that refuses it is a second spelling of the lint, and a harsher one.
+
+**Making it one more recorded coincidence, with the transitivity hazard answered.**
+
+Under the ordered fold, the excess equation is not decided by the fold at all.
+
+1. Each mate fixes only what the mates before it left free, exactly, by construction. Nothing is measured against what earlier mates fixed.
+2. A secondary face then lands wherever the construction puts it.
+3. If it touches its partner, the at-rest census finds the contact by its margin and records it at the one door, as stage 4 I's `CensusAtRest` row. No `MateFold` decision site is needed.
+4. The door proves it the way #4322 proves everything: it replays the document at `Sym` (the placement construction included) and checks that the census margin is zero as a polynomial. It holds exactly when the excess equation is an identity over the variables, for example when the pegs and the holes read one spacing variable.
+
+There is no rewrite system, so nothing is assumed and nothing false can be derived by transitivity. Round 2's hazard came from treating a mate as an equation the door may rewrite with. The ordered fold makes a mate a construction step, which the replay only evaluates.
+
+**The one place the fold still reads a value is the construction's own degeneracy.** For example, a secondary plane parallel to the primary fixes nothing, so it refuses `Overconstrained`. In the sliver band, a margin refuses as `Meet` does for parallel planes (FORK-1b). Nothing is built on such a decision, so there is nothing to record. On a pinned copy no predicate runs.
+
+**Final state.** A placement is an ordered list of mates that acts as a datum scheme.
+
+- `Overconstrained` is the only placement refusal that the order decides: a mate that fixes nothing.
+- `Contradictory` retires.
+- Every agreement beyond what the mates fix is geometry, recorded by the census and linted, and quieted by an `Assert` like any contact.
+
+**D10, Spaces and placement.** Keep "a mate added to a pinned copy refuses as an overconstraint, decided by subgroup algebra (A11 (1)) without measuring", and add:
+
+> "A placement's mates are taken in order, each fixing only what those before it left free; one that fixes nothing refuses, and none checks what another fixed, so where two copies meet beyond what their mates fix is a contact like any other."
+
+**A11 (1).** The sentence "several mates on one pair fold by exact coset intersection … to DETERMINED, UNDER or CONTRADICTORY, the last refusing with the added mate's measured clash" becomes:
+
+> "A placement's mates fold in order, each projected onto the residual subgroup the earlier ones leave, to DETERMINED or UNDER, or refuse OVERCONSTRAINED (a mate that fixes nothing; on a pinned copy no predicate runs); a degenerate configuration refuses as its construction does."
