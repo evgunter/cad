@@ -2579,7 +2579,7 @@ fn wire_assertion<T: Decide>(
     // A measured value with no value at this scalar is not a failed
     // node, so the assertion answers with E10's third state and the
     // requirement stays visible in a build that cannot check it.
-    if let Some((_, reason)) = payload.unavailable {
+    if let Some(reason) = payload.unavailable {
         return Ok(OpOut::plain(
             ValuePayload::Assertion(crate::measure::AssertionVerdict::Unevaluated {
                 reason: crate::measure::UnevaluatedReason::MeasureUnavailable(reason),

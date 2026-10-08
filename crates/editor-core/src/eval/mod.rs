@@ -517,15 +517,15 @@ pub(crate) fn usable_in<T: Decide>(
 
 /// **An assertion's evaluated payload** ([`crate::node::payload_exprs`]):
 /// its value and its bound, in that order, every expression reading a
-/// measure with no value at this scalar left out and its position kept
-/// in `unavailable`.
+/// measure with no value at this scalar left out, with the first one's
+/// reason in `unavailable`. Which side was left out needs no word in the
+/// key: the node's own reads already key the two sides apart.
 #[derive(Debug)]
 pub(crate) struct Payload<T> {
     /// The values, in payload order, the unavailable ones left out.
     pub(crate) values: Vec<T>,
-    /// The first expression with no value at this scalar: its position
-    /// in payload order, and why.
-    pub(crate) unavailable: Option<(usize, crate::measure::MeasureUnavailableAt)>,
+    /// Why an expression has no value at this scalar.
+    pub(crate) unavailable: Option<crate::measure::MeasureUnavailableAt>,
 }
 
 /// Whether the evaluation ran to completion (spec D5).
@@ -4541,7 +4541,7 @@ where
                 match measure::observe(doc, env, results, var, dim) {
                     Ok(measure::Observed::Value(v)) => payload.values.push(v),
                     Ok(measure::Observed::Unavailable(reason)) => {
-                        payload.unavailable.get_or_insert((index, reason));
+                        payload.unavailable.get_or_insert(reason);
                     }
                     Err(measure::ObservedRefusal::Expr(source)) => {
                         let what = if index == 0 {
@@ -4573,7 +4573,7 @@ where
             Some(payload)
         }
     };
-    let payload_values = payload.as_ref();
+    let payload_values = payload.as_ref().map(|p| p.values.as_slice());
 
     // The lift's second pass resolves the SAME program at the lane
     // scalar (M10-P PP5). It feeds the content key so a seeded or
@@ -5352,7 +5352,7 @@ fn content_key<T>(
     defs: crate::param_source::Definitions<'_, '_>,
     slot_values: &slots::SlotValues<T>,
     nominal_values: &slots::SlotValues<f64>,
-    payload_values: Option<&Payload<T>>,
+    payload_values: Option<&[T]>,
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     lane_program: Option<&[Vec<profile::Step<T>>]>,
     upstream_keys: &[ContentKey],
@@ -6023,19 +6023,11 @@ where
     // extrude's distance does. No nominal rides them, and [`tag::slot`]
     // carries why. Absent (not empty) for every node kind that carries
     // none, so no existing document's key moves by a byte.
-    // An expression with no value at this scalar is left out, and its
-    // position is a word of its own, so a value missing and a bound
-    // missing do not key alike.
-    if let Some(payload) = payload_values {
-        h.write_u64(payload.values.len() as u64);
-        for v in &payload.values {
+    if let Some(values) = payload_values {
+        h.write_u64(values.len() as u64);
+        for v in values {
             v.feed(&mut h);
         }
-        h.write_u64(
-            payload
-                .unavailable
-                .map_or(u64::MAX, |(index, _)| index as u64),
-        );
     }
     // Upstream identity, by CONTENT (never by id — ids are stable
     // labels, content keys are the Merkle links).
