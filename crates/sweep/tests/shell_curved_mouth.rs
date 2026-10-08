@@ -13,7 +13,7 @@
 use crate::common::census::{genus_of, rings_of};
 use crate::common::shell_operands::{
     capped_vessel, cone_tipped_vessel, d_section, dome_sector, domed_vessel, funnel_vessel,
-    hollow_capped_vessel, vessel,
+    hollow_capped_vessel, nearly_domed_vessel, vessel,
 };
 use core::f64::consts::PI;
 use geom_core::Tol;
@@ -374,11 +374,12 @@ fn a_cone_tip_shells_through_its_apex_on_either_nappe() {
 /// **A hemisphere tangent to its wall shells at the tangent circle.**
 /// The cavity's sphere and cylinder, both at `r − t`, are tangent again
 /// at the equator, and the moved corner is that circle: the meridian
-/// solve's double root, decided by the pair's tangency gap rather than
-/// by its two roots. The same body at the tangent bullet's scale takes
-/// the same arm. Each is tier-3 valid, meshes, and its volume is the
-/// closed form; opened through the floor, the cavity runs out through
-/// it.
+/// solve's double root, whose two computed roots tie, standing on
+/// neither side of the pair's foot, which is the corner. The same body
+/// at the tangent bullet's scale, where the pair is too ill-conditioned
+/// to solve at all, takes the same foot. Each is tier-3 valid, meshes,
+/// and its volume is the closed form; opened through the floor, the
+/// cavity runs out through it.
 #[test]
 fn a_tangent_dome_shells_at_its_tangent_circle() {
     let tol = Tol::witness();
@@ -424,6 +425,60 @@ fn a_tangent_dome_shells_at_its_tangent_circle() {
         assert!(
             (props.volume - want).abs() <= 1e-12 * r.powi(3) + props.volume_pad,
             "r = {r}: open volume {} (pad {}), want {want}",
+            props.volume,
+            props.volume_pad
+        );
+    }
+}
+
+/// **A dome short of tangent by `gap` shells at its upper root, at
+/// every gap.** The cap's sphere of radius `r + gap` crosses the wall at
+/// a small angle, and so does the cavity's at `r − t + gap` against the
+/// cavity's wall at `r − t`: two roots `±√((r − t + gap)² − (r − t)²)`
+/// about the sphere's centre station, the upper one the corner. At a gap
+/// inside the band that is still a crossing, not the foot between the
+/// roots, where the moved surfaces are tangent and the edge's crossing
+/// description would not certify; at `1e-12` the roots are too close for
+/// nearness to choose and the old corner's side of the foot does, at
+/// `5e-10` nearness does, and at `2e-8` (a joint the profile no longer
+/// takes as tangent) the pair is plainly transversal. Each is tier-3
+/// valid with the cavity's corner on the upper root, at the closed form.
+#[test]
+fn a_dome_short_of_tangent_shells_at_its_upper_root() {
+    let tol = Tol::witness();
+    let (r, h, t): (f64, f64, f64) = (0.5, 0.6, 0.05);
+    for (gap, declared) in [(1e-12, true), (5e-10, true), (2e-8, false)] {
+        let (body, rho, centre) = nearly_domed_vessel(r, h, gap, declared);
+        let (a, inner) = (r - t, rho - t);
+        let corner = centre + (inner * inner - a * a).sqrt();
+        let outer = PI * r * r * h + cap_volume(rho, rho - (h - centre));
+        let cavity = PI * a * a * (corner - t) + cap_volume(inner, inner - (corner - centre));
+        let hollow = topo::shell(&finished("the operand", body, tol), t, tol)
+            .unwrap_or_else(|e| panic!("gap = {gap:e}: the dome shells, got {e:?}"))
+            .body;
+        assert_eq!(
+            topo::validate_geometric(&hollow, tol),
+            Ok(()),
+            "gap = {gap:e}: tier 3"
+        );
+        // The roots stand `2·(corner − centre)` apart, `1.9e-6` at the
+        // smallest gap; `1e-9` tells the upper root from the foot and the
+        // lower root with room for the cancellation in `inner² − a²`.
+        let near = |p: &geom_core::Point3<f64>| (p.x - a).abs() < 1e-12 && p.z.abs() < 1e-12;
+        let got: Vec<f64> = hollow
+            .vertex_points()
+            .filter(|(_, p)| near(p))
+            .map(|(_, p)| p.y)
+            .collect();
+        assert!(
+            got.iter().any(|y| (y - corner).abs() < 1e-9),
+            "gap = {gap:e}: the cavity's corner is on the upper root {corner}, got {got:?}"
+        );
+        let props = topo::mass_properties(&hollow, tol).expect("props");
+        let want = outer - cavity;
+        assert!(
+            (props.volume - want).abs() <= 1e-12 + props.volume_pad,
+            "gap = {gap:e}: volume {} (pad {}), want {want}",
             props.volume,
             props.volume_pad
         );

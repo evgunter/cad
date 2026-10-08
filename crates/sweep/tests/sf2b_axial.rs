@@ -202,9 +202,7 @@ fn the_drum_still_hollows_on_the_new_branch() {
     );
 }
 
-/// **The door's own boundary, measured rather than presumed.** Both
-/// rows were refusals once, and each retirement is asserted here
-/// rather than deleted:
+/// **Two walls inside the axial door**, each once read as outside it:
 ///
 /// - a **torus** wall is INSIDE the axial kinds. It is a surface of
 ///   revolution about the body's own axis and its meridian is a circle
@@ -217,12 +215,12 @@ fn the_drum_still_hollows_on_the_new_branch() {
 ///   carries the closed forms;
 /// - a **tangent** junction has no transversal corner, and needs none:
 ///   the cavity's sphere and cylinder are tangent again, and the moved
-///   corner is their tangent circle, which the corner solve's tangency
-///   arm takes as the pair's one meeting point. The tangent bullet
+///   corner is their tangent circle, the foot the corner solve takes
+///   where the pair is too ill-conditioned to resolve. The tangent bullet
 ///   hollows to its closed form, a cylinder and a hemisphere less the
 ///   same at `(r − t, h − t)`.
 #[test]
-fn the_axial_door_names_its_own_boundary() {
+fn a_torus_belly_and_a_tangent_bullet_hollow_through_the_axial_door() {
     let tol = Tol::witness();
     let (r, h) = (3.0 / 64.0, 8.0 / 64.0);
 
