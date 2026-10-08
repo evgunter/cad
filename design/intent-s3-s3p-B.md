@@ -462,8 +462,7 @@ numerics from that operation's own reads, never the world's."
 empty bundle is the extreme. It is in its target's space, as a coset rather than a pose. Nothing
 may read it: no boolean, measure, selection, or another copy's mate. Anything reading it is
 unresolved and typed, the stranded-reader rule, and that propagates down every chain of reads.
-The viewer draws it where last shown, as display state no logic reads (Ev: "the location and
-orientation within the viewer is always set by the placement display info and never anything
+The viewer draws it where last shown, as display state no logic reads (Ev: "never anything
 'real'"). Because nothing reads a position the bundle did not fix, nothing becomes
 placing-by-position.
 
