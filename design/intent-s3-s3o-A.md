@@ -114,3 +114,56 @@ Confidence:
   - Migration F drops more corpus mates under S: every value-only excess, not only the non-lowering ones. Measure the count before dispatch.
 - **Defect off the question, not filed.** `coset::table`'s parallel and perpendicular branches are value-decided coincidences that nothing records, against D10 Coincidence. This holds today, whatever this fork decides. It belongs with stage 4 B's emission list, or with stage 3 F. File it if neither spec picks it up.
 - **Unchecked.** I have not checked whether `Sym` proves trig angle identities: `cos(turn/4)` exactly, or the dot product of an extrude's cap and wall being 0 at rung 3. Stage 4 D's mitre measurement is the place to check.
+
+## Round 2
+
+Having read B's report: I move on the table splits (3) and on what "redundant" means (4), and I hold on the mate with excess equations (1), so `Contradictory` (2) still retires.
+
+**1. A mate that lowers the fold and also carries excess equations (the two-peg plate): hold.**
+
+- **Does B's rewrite system escape the transitivity problem? Only with a rule it does not state.**
+  - Peg 2's axis has two forms. It is a pose of its own, which mate 2 rewrites to hole 2. It is also peg 1's axis `+ s`, which mate 1 rewrites to hole 1 `+ s`.
+  - B's claim that "no bundle holds two rules for one carried pose" is true of named poses, not of forms. The door can therefore reach one form two ways, and once it equates them it has proved `t ≡ s`.
+  - B is sound only if every proof routed through a mate inherits that mate's unproven `MateFold` row, so that the proof is conditional on the row. That is a second soundness mechanism, layered on the rewrite.
+- **Is B's state the shape Ev rejected? Yes, in my reading.**
+  - Mate 2 places a rotation and checks a spacing.
+  - A value edit to `s` turns it into a `Contradictory` refusal, so it is a constraint that falls back to an assertion for part of its content.
+  - A boolean never does this: a value edit there changes topology, and nothing refuses.
+- **The two-peg plate still assembles under A.**
+  - With one variable for both spacings, the spacing equation is a structural identity, so mate 2 is admitted.
+  - With two separately typed spacings, mate 2 refuses. The recourse is one `Frame` mate between `Through{peg-1 axis, peg-2 centre}` and `Through{hole-1 axis, hole-2 centre}`, plus an `Assert` on peg 2's clearance.
+- **This is a choice for Ev.**
+  - Option A (refuse unless the spacing is structural): a mate never checks, and the door needs no conditional proofs. The cost is that value-only and imported two-peg plates must be placed through one `Frame` mate.
+  - Option B (admit, decide the spacing by value, record it): mainstream permissiveness. The cost is a mate that checks, plus proofs conditional on `MateFold` rows.
+- **Cost of reversing later.**
+  - From A to B is a relaxation: every admitted document stays valid.
+  - From B to A drops mates on migration.
+  - So A is the cheaper one to start from.
+
+**2. `Contradictory`: it retires under A.** If every admitted excess equation is an identity, two mates' cosets always meet. Under B it stays. The point stands or falls with point 1.
+
+**3. The table's case splits: move to B.**
+
+- Keep the splits as today's decided predicates. Under A's rule, nothing else is needed:
+  - **Value-parallel but not structurally parallel:** the degenerate row's directional excess is not proven, so the mate refuses `Overconstrained`.
+  - **Definite split:** the row's excess must be structural, as for any mate.
+  - **Sliver band:** the decision escalates `Indeterminate`, as every decision does.
+- So `Degenerate` is no longer needed as an outcome.
+- No split needs recording either: a split whose consequent equations hold structurally is proven, and one whose equations do not is refused.
+- **On layering:** B says that A's solve reading the door inverts the layering. It does not cross a crate boundary. The door reads canonical forms of the recipe (`editor-core`'s coincidence module), and an excess equation is an invariant within each part, which rung 2 decides from definitions without any evaluation result.
+
+**4. A fully redundant mate: converged. It refuses, including Ev's "slick" case.**
+
+- I adopt B's leave-one-out test: a mate is redundant when its subgroup contains the fold of the bundle's other mates. Mine ("fixes something new" when added) depended on the order the mates were added.
+- I adopt B's spelling of the copy's frame: there is no `Frame` port, and the frame is known only through the bundle (`Carried`). It is the same claim as my "defined by its bundle".
+- Reversibility: admitting slick mates later is additive.
+
+**The D10 sentence I now propose.**
+
+> "A mate that pins nothing of its copy (its subgroup contains the fold of the bundle's other mates) refuses as an overconstraint, and so does one carrying an equation the other mates already fix that the coincidence door does not prove structural; subgroup algebra counts the equations and the door decides them, so a mate places and never checks. A placed copy's frame is known only through its bundle, which the door reads as equations."
+
+**The A11 (1) outcome list I now propose.**
+
+> "a placement's mates fold by decided coset intersection to DETERMINED (`Trivial`) or UNDER (the residual named), or refuse OVERCONSTRAINED: a mate whose subgroup contains the fold of the rest, nothing measured, or an excess equation the door does not prove, its residual quoted as the recourse. A case split in the sliver band escalates `Indeterminate`."
+
+"Exact" and "measured clash" go, and CONTRADICTORY retires.
