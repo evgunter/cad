@@ -16,7 +16,7 @@ Datum(Point { position: [#0, #1, #2] })
   #0 Origin(X)
   #1 Origin(Y)
   #2 Origin(Z)
-Datum(AxisInPlane { plane: @0, origin: [#0, #1], direction: [#2, #3] })
+Datum(AxisInPlane { frame: @0, origin: [#0, #1], direction: [#2, #3] })
   #0 Origin(X)
   #1 Origin(Y)
   #2 Direction(X)
@@ -35,7 +35,7 @@ Datum(Frame { origin: [#0, #1, #2], u: [#3, #4, #5], v: [#6, #7, #8] })
 Datum(FaceFrame { at: @0, face: StableName { kind: Face, node: RecipeNodeId(MintId { ordinal: 0, digest: 0 }), path: [Cap(Start)] }, spin: #0 })
   #0 Spin
   @0 Operand(At)
-Profile(ProfileProgram { plane: @0, loops: [Chain([At([#0, #1]), LineTo(Point([#2, #3])), LineTo(Point([#4, #5])), LineTo(Point([#6, #7])), LineTo(Start)])], ids: [] })
+Profile(ProfileProgram { frame: @0, loops: [Chain([At([#0, #1]), LineTo(Point([#2, #3])), LineTo(Point([#4, #5])), LineTo(Point([#6, #7])), LineTo(Start)])], ids: [] })
   #0 Profile { loop_: 0, step: 0, arg: PointX }
   #1 Profile { loop_: 0, step: 0, arg: PointY }
   #2 Profile { loop_: 0, step: 1, arg: TargetX }
