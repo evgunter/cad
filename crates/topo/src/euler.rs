@@ -1360,13 +1360,28 @@ impl EulerOpError {
     /// [`Reading::Build`], the operation that built the edge.
     #[must_use]
     pub fn render(&self, reading: Reading) -> String {
+        self.render_with(|error| error.render(reading))
+    }
+
+    /// This refusal's text at the STEP import door: a certification
+    /// refusal's ending read at rest with the file's ε_in words
+    /// ([`CertifyError::render_in_file`]), every other refusal as
+    /// [`EulerOpError::render`] gives it.
+    #[must_use]
+    pub fn render_in_file(&self, file: geom_core::FileCoincidence) -> String {
+        self.render_with(|error| error.render_in_file(file))
+    }
+
+    /// This refusal's text, a certification refusal's rendered by
+    /// `certification`. No other arm reads where it is read.
+    fn render_with(&self, certification: impl Fn(&CertifyError) -> String) -> String {
         match self {
             Self::Certification { error } => {
-                format!("geometry attachment gate: {}", error.render(reading))
+                format!("geometry attachment gate: {}", certification(error))
             }
             Self::RebasedCarrier { edge, error } => format!(
                 "re-based edge {edge:?} would keep a carrier its endpoint left: {}",
-                error.render(reading)
+                certification(error)
             ),
             Self::NurbsLaneUnsupported { edge, scalar } => format!(
                 "{} lies between a plane and a spline face, and its certificate is derived \
@@ -1424,7 +1439,7 @@ impl EulerOpError {
                 "{}: edge {edge:?}'s re-description does not certify on the charts the move \
                  gives it: {}",
                 door.name(),
-                error.render(reading)
+                certification(error)
             ),
             Self::RechartOffBoundary { door, face, on } => format!(
                 "{}: face {face:?}'s boundary does not lie on the plane it moves onto ({on} is \
@@ -5112,6 +5127,7 @@ mod tests {
                     error: geom_brep::CertifyError::ResidualExceeded {
                         check: geom_brep::CertCheck::EndpointStart,
                         sample: 0,
+                        ..
                     },
                 } if edge == b.edge
             ),

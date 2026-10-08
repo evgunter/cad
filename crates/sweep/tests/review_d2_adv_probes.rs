@@ -402,6 +402,7 @@ fn class(e: &BlendError) -> &'static str {
         BlendError::RingClearance { .. } => "RingClearance",
         BlendError::Certify { .. } => "Certify",
         BlendError::Op { .. } => "Op",
+        BlendError::Join { .. } => "Join",
     }
 }
 

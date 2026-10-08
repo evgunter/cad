@@ -68,7 +68,7 @@ use topo::{Body, HalfEdgeKey, LoopKey, MefSite, MekrSite, MevSite, VertexKey};
 use crate::adopt;
 use crate::entities::SolidSpec;
 use crate::error::StepImportError;
-use geom_core::Tol;
+use geom_core::{FileCoincidence, Tol};
 
 /// The absolute offset, along +x, that mints a temporary strut's far
 /// endpoint beside an existing vertex ([`strut_endpoint`]).
@@ -290,6 +290,8 @@ struct Builder<'a> {
     body: &'a mut Body<f64>,
     target: Target,
     solid: &'a SolidSpec,
+    /// The file's ε_in, for the refusals assembly reports.
+    file: FileCoincidence,
     /// `Some(he)` once a use is realized.
     use_he: Vec<Option<HalfEdgeKey>>,
     vstate: BTreeMap<u64, VState>,
@@ -297,10 +299,14 @@ struct Builder<'a> {
 
 impl<'a> Builder<'a> {
     /// Wraps an operator refusal with the entity being assembled.
-    fn op_err(id: u64) -> impl FnOnce(topo::EulerOpError) -> StepImportError {
+    fn op_err(
+        id: u64,
+        file: FileCoincidence,
+    ) -> impl FnOnce(topo::EulerOpError) -> StepImportError {
         move |source| StepImportError::Assembly {
             id,
             source: source.from_driver(),
+            file,
         }
     }
 
@@ -359,7 +365,7 @@ impl<'a> Builder<'a> {
         let created = self
             .body
             .mev_line(site, p_end, tol)
-            .map_err(Self::op_err(edge_id))?;
+            .map_err(Self::op_err(edge_id, self.file))?;
         self.use_he[fwd] = Some(created.he_plus);
         self.use_he[rev] = Some(created.he_minus);
         self.set_built(spec.start, start_key);
@@ -407,7 +413,7 @@ impl<'a> Builder<'a> {
             // fall through to the cross-face demotion below.
             self.body
                 .mfkrh_plug(keep, true)
-                .map_err(Self::op_err(edge_id))?;
+                .map_err(Self::op_err(edge_id, self.file))?;
             return self.make_ring_of(edge_id, keep, dying);
         }
         if dying_is_outer {
@@ -427,11 +433,11 @@ impl<'a> Builder<'a> {
             for ring in rings {
                 self.body
                     .ring_move(ring, keep_face)
-                    .map_err(Self::op_err(edge_id))?;
+                    .map_err(Self::op_err(edge_id, self.file))?;
             }
             self.body
                 .kfmrh(keep_face, dying_face)
-                .map_err(Self::op_err(edge_id))?;
+                .map_err(Self::op_err(edge_id, self.file))?;
         } else {
             let keep_face = self
                 .body
@@ -440,7 +446,7 @@ impl<'a> Builder<'a> {
                 .face;
             self.body
                 .ring_move(dying, keep_face)
-                .map_err(Self::op_err(edge_id))?;
+                .map_err(Self::op_err(edge_id, self.file))?;
         }
         Ok(())
     }
@@ -475,7 +481,7 @@ impl<'a> Builder<'a> {
                 let c = self
                     .body
                     .mef_chord(MefSite::Lone { r#loop }, tol)
-                    .map_err(Self::op_err(edge_id))?;
+                    .map_err(Self::op_err(edge_id, self.file))?;
                 (c.he_plus, c.he_minus, vertex, vertex)
             }
             (
@@ -498,7 +504,7 @@ impl<'a> Builder<'a> {
                         },
                         tol,
                     )
-                    .map_err(Self::op_err(edge_id))?;
+                    .map_err(Self::op_err(edge_id, self.file))?;
                 (c.he_plus, c.he_minus, v1, v2)
             }
             (
@@ -520,7 +526,7 @@ impl<'a> Builder<'a> {
                         },
                         tol,
                     )
-                    .map_err(Self::op_err(edge_id))?;
+                    .map_err(Self::op_err(edge_id, self.file))?;
                 (c.he_plus, c.he_minus, v1, v2)
             }
             (
@@ -542,7 +548,7 @@ impl<'a> Builder<'a> {
                         },
                         tol,
                     )
-                    .map_err(Self::op_err(edge_id))?;
+                    .map_err(Self::op_err(edge_id, self.file))?;
                 (c.he_plus, c.he_minus, v1, v2)
             }
             (VState::Built(v1), VState::Built(v2)) => {
@@ -562,7 +568,7 @@ impl<'a> Builder<'a> {
                         let c = self
                             .body
                             .mef_chord(MefSite::Chords { he1: s_f, he2: s_r }, tol)
-                            .map_err(Self::op_err(edge_id))?;
+                            .map_err(Self::op_err(edge_id, self.file))?;
                         (c.he_plus, c.he_minus, v1, v2)
                     } else {
                         self.make_ring_of(edge_id, lf, lr)?;
@@ -575,7 +581,7 @@ impl<'a> Builder<'a> {
                                 },
                                 tol,
                             )
-                            .map_err(Self::op_err(edge_id))?;
+                            .map_err(Self::op_err(edge_id, self.file))?;
                         (c.he_plus, c.he_minus, v1, v2)
                     }
                 }
@@ -627,7 +633,7 @@ impl<'a> Builder<'a> {
             let c = self
                 .body
                 .mef_chord(MefSite::Chords { he1: s, he2: s }, tol)
-                .map_err(Self::op_err(edge_id))?;
+                .map_err(Self::op_err(edge_id, self.file))?;
             return Ok((c.he_plus, c.he_minus));
         }
         // Strut before `s`, self-loop spliced around it, strut killed.
@@ -641,7 +647,7 @@ impl<'a> Builder<'a> {
         let strut = self
             .body
             .mev_line(MevSite::Fan { he1: s, he2: s }, offset, tol)
-            .map_err(Self::op_err(edge_id))?;
+            .map_err(Self::op_err(edge_id, self.file))?;
         let c = self
             .body
             .mef_chord(
@@ -651,10 +657,10 @@ impl<'a> Builder<'a> {
                 },
                 tol,
             )
-            .map_err(Self::op_err(edge_id))?;
+            .map_err(Self::op_err(edge_id, self.file))?;
         self.body
             .kev(strut.he_plus)
-            .map_err(Self::op_err(edge_id))?;
+            .map_err(Self::op_err(edge_id, self.file))?;
         Ok((c.he_plus, c.he_minus))
     }
 
@@ -675,11 +681,11 @@ impl<'a> Builder<'a> {
             let strut = self
                 .body
                 .mev_line(MevSite::Fan { he1: he, he2: he }, p, tol)
-                .map_err(Self::op_err(edge_id))?;
+                .map_err(Self::op_err(edge_id, self.file))?;
             let kill = self
                 .body
                 .kemr(strut.he_plus, strut.he_minus)
-                .map_err(Self::op_err(edge_id))?;
+                .map_err(Self::op_err(edge_id, self.file))?;
             self.vstate.insert(
                 vertex_id,
                 VState::Lone {
@@ -821,6 +827,7 @@ fn assemble_solid(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     tol: Tol,
+    file: FileCoincidence,
 ) -> Result<(), StepImportError> {
     let target = Target::build(solid)?;
     // Root: the first non-self-loop edge's start vertex (so the seed
@@ -857,6 +864,7 @@ fn assemble_solid(
             .map_err(|source| StepImportError::Assembly {
                 id: solid.id,
                 source: source.from_driver(),
+                file,
             })?;
     let mut vstate = BTreeMap::new();
     for &v in solid.vertices.keys() {
@@ -874,6 +882,7 @@ fn assemble_solid(
         body: &mut *body,
         target,
         solid,
+        file,
         use_he: vec![None; use_count],
         vstate,
     };
@@ -905,7 +914,7 @@ fn assemble_solid(
         })
         .collect::<Result<_, _>>()?;
     let assembled = Assembled { target, use_he };
-    adopt::finish(body, solid, &assembled, tol)
+    adopt::finish(body, solid, &assembled, tol, file)
 }
 
 /// The assembly proper: one `MANIFOLD_SOLID_BREP` into a body of its
@@ -918,7 +927,11 @@ fn assemble_solid(
 /// cannot see a single inside-out solid whose neighbours cancel it.
 /// Nothing assembles two specs into one arena — each instance is
 /// built into a body of its own and the copies are grafted (`lib.rs`).
-pub(crate) fn build_one_solid(solid: &SolidSpec, tol: Tol) -> Result<Body<f64>, StepImportError> {
+pub(crate) fn build_one_solid(
+    solid: &SolidSpec,
+    tol: Tol,
+    file: FileCoincidence,
+) -> Result<Body<f64>, StepImportError> {
     let mut body = Body::new();
     // The import IS a door: it runs the operator sequence a foreign
     // file describes, and D1's whole-body tier-1 postcondition is paid
@@ -927,7 +940,7 @@ pub(crate) fn build_one_solid(solid: &SolidSpec, tol: Tol) -> Result<Body<f64>, 
     // it used to cost one per mint. The guard owns the borrow, so a
     // refusal part-way closes the scope by dropping it.
     let mut door = body.begin_surgery();
-    assemble_solid(&mut door, solid, tol)?;
+    assemble_solid(&mut door, solid, tol, file)?;
     topo::mint_pcurves(&mut door, tol).map_err(|source| StepImportError::Pcurves { source })?;
     door.sweep_and_close();
     Ok(body)
@@ -1124,6 +1137,7 @@ mod tests {
             body: &mut body,
             target: target(),
             solid: &swallowed,
+            file: FileCoincidence::new(1e-6, tol),
             use_he: vec![None, None, Some(s)],
             vstate: BTreeMap::new(),
         }
@@ -1150,6 +1164,7 @@ mod tests {
             body: &mut body,
             target: target(),
             solid: &ordinary,
+            file: FileCoincidence::new(1e-6, tol),
             use_he: vec![None, None, Some(s)],
             vstate: BTreeMap::new(),
         }

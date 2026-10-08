@@ -694,7 +694,9 @@ base's own chart parameters. Meters (`offset_meters.rs`, read off
 floor*, a certified lower bound on `‖S_u × S_v‖` (three assemblies, the
 largest wins: componentwise mignitude, fixed-direction projection, and
 the Gram determinant `EG − F²`), classified by `offset_normal_floor` with
-the patch's faster chart speed as lever, deliberately not `|d|`, since
+the patch's faster chart speed as lever (on an integral patch read from
+the norms of the derived control vectors, D4 ¶2; on a rational one from
+the speed's componentwise enclosure), deliberately not `|d|`, since
 whether the normal degenerates does not depend on `d`; and the
 *collapse headroom*, principal curvatures `[κ_lo, κ_hi]` from the closed
 form of the two fundamental forms, refusing through

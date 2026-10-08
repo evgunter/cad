@@ -8428,7 +8428,7 @@ mod tests {
             predicate: Some("pcurve_azimuth_period"),
             terminal_sliver: false,
         };
-        for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+        for reading in [Reading::Build, Reading::AtRest] {
             assert_eq!(
                 PcurveCertifyError::AzimuthPeriodExceeded.ending(reading),
                 CertifyError::WindingExceeded.ending(reading),
