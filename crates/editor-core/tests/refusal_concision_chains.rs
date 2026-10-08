@@ -1888,7 +1888,8 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                 }),
             },
             "Recourse: move the geometry so that edge is clearly longer, and its faces curve less \
-             tightly there",
+             tightly there; a face curving to a point there, as a cone at its apex, leaves no \
+             angle to measure",
         ),
         (
             "spline meter turns back",
@@ -1897,13 +1898,15 @@ fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static st
                     margin: MarginDiag::value(-1.0),
                 },
             },
-            "Recourse: move the geometry so this spline edge turns through less",
+            "Recourse: move the geometry so this spline edge runs steadily forward, never stalling \
+             or turning back",
         ),
         (
             "spline meter, invalid",
             escalated(CertCheck::ParamSpanMeter, MarginDiag::INVALID),
-            "Recourse: move the geometry so this spline edge turns through less; an unreadable or \
-             collapsed margin may indicate a kernel bug worth reporting",
+            "Recourse: move the geometry so this spline edge runs steadily forward, never stalling \
+             or turning back; an unreadable or collapsed margin may indicate a kernel bug worth \
+             reporting",
         ),
         (
             "endpoint",

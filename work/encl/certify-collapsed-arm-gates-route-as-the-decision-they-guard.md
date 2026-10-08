@@ -82,7 +82,10 @@ below m/K" with `m` the arm, a length. When this row's gate gets its own
 `CertCheck` and size noun, route `TraceDecision::TransversalityArm` the
 same way.
 That routing is done on this row's branch: `TraceDecision::ending`
-ends `TransversalityArm` by `CertCheck::TransversalityArm`.
+ends `TransversalityArm` by `CertCheck::TransversalityArm`. The
+march still reports an arm the gate decided collapsed as an
+`SsiError::Escalated`, "too close to call"; that half is SSIMARCH's,
+`work/ssimarch/ssi-march-reports-a-collapsed-arm-as-too-close-to-call.md`.
 
 ## What main already carried, and what this row adds
 
@@ -94,8 +97,10 @@ dihedral arm as its own decision at every reader
 (`CertCheck::TransversalityArm`, `WedgeCheck::Arm`,
 `geom_brep::DIHEDRAL_ARM`). What stays on this row is the definite arm:
 a collapsed arm is a verdict, not "too close to call", so
-`LeverEscalation::collapsed_arm` hands it back (read before the arm's
-margin is re-quoted at the wedge it meters), and certification and the
+`LeverEscalation::collapsed_arm` hands it back (the gate's verdict,
+minted from the gate's own escalation and kept by
+`LeverEscalation::with_diag` when the arm's margin is re-quoted at the
+reading it meters), and certification and the
 validator report it as `CertifyError::ArmCollapsed` and
 `ValidationError::NoDihedralArm`; and the spline meter's own decision,
 `CertCheck::ParamSpanMeter` / `CertifyError::SpanMeterCollapsed`.

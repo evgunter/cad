@@ -526,7 +526,8 @@ fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
     use geom_brep::keys::SurfaceKey;
     use geom_brep::recourse::Reading;
     use geom_core::spline::KnotVector;
-    const LEVER: &str = "Recourse: move the geometry so this spline edge turns through less";
+    const LEVER: &str = "Recourse: move the geometry so this spline edge runs steadily forward, \
+                         never stalling or turning back";
     let net = |degree: usize, control: &[f64]| {
         let n = control.len();
         let knots = [vec![0.0; degree + 1], vec![1.0; degree + 1]].concat();
@@ -584,8 +585,8 @@ fn a_collapsed_spline_meter_refuses_as_the_meter_decision() {
         assert!(!text.contains("unreadable"), "{name}: {text}");
         let want = if zero {
             format!(
-                "{LEVER}; a vanishing speed floor means the spline stalls or turns back on \
-                 itself, or the floor has reached its limit, worth reporting"
+                "{LEVER}; a vanishing speed floor means the spline stalls or turns back, or that \
+                 the floor has reached its limit, which is worth reporting"
             )
         } else {
             LEVER.to_owned()

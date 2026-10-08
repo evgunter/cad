@@ -256,7 +256,7 @@ impl core::fmt::Display for CertCheck {
             Self::WitnessSurface2 => "the witness point's residual against surface 2",
             Self::WitnessMidpoint => "the witness-midpoint residual",
             Self::Transversality => "the transversality margin",
-            Self::TransversalityArm => "the transversality margin's lever arm length",
+            Self::TransversalityArm => "the edge's length for the angle between its faces",
             Self::TangentPlanes => "the surfaces' tangent planes",
             Self::TangentParallel => "the normal-parallelism defect",
             Self::TangentSecondOrder => "the second-order margin",
@@ -765,13 +765,14 @@ impl CertCheck {
             // refusal of it is the certificate's limit, which the lever
             // reaches, never a stored contradiction.
             Self::ParamSpanMeter => Ending::Sized(SizedDecision {
-                lever: "move the geometry so this spline edge turns through less",
+                lever: "move the geometry so this spline edge runs steadily forward, never \
+                        stalling or turning back",
                 size: "length",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Lever,
                 at_zero: Some(AtZero::same(
-                    "a vanishing speed floor means the spline stalls or turns back on itself, or \
-                     the floor has reached its limit, worth reporting",
+                    "a vanishing speed floor means the spline stalls or turns back, or that the \
+                     floor has reached its limit, which is worth reporting",
                 )),
             }),
             Self::ParamWinding => Ending::Sized(SizedDecision {
@@ -5210,7 +5211,67 @@ mod tests {
             text,
             "at sample 4 the edge is not long enough, for how its faces curve, to measure the \
              angle between them at this tolerance. Recourse: move the geometry so that edge is \
-             clearly longer, and its faces curve less tightly there",
+             clearly longer, and its faces curve less tightly there; a face curving to a point \
+             there, as a cone at its apex, leaves no angle to measure",
+        );
+    }
+
+    /// **An undecided arm stays undecided when the wedge it quotes reads
+    /// zero**: a plane crossing a cylinder of in-band radius along a
+    /// ruling, at an angle whose wedge over that radius is inside the
+    /// zero band but which reads no class at the radius's own tolerance.
+    /// The arm gate cannot decide the radius, and its escalation quotes
+    /// the wedge's decided zero, a tagged rejection of its own, so the
+    /// edge refuses as the arm's undecided escalation, never as
+    /// [`CertifyError::ArmCollapsed`]: the collapse is the gate's
+    /// verdict, never read off the quoted margin.
+    #[test]
+    fn an_in_band_arm_quoting_a_zero_wedge_stays_undecided() {
+        let b = band();
+        let radius = (b.zero() + b.escalate()) / 2.0;
+        let sin = (b.zero() / b.escalate() + b.zero() / radius) / 2.0;
+        let normal = Vec3::new((1.0 - sin * sin).sqrt(), sin, 0.0);
+        let on = Point3::new(radius, 0.0, 0.0);
+        let (keys, lookup) = table(vec![
+            Surface::Cylinder {
+                origin: Point3::origin(),
+                axis: Vec3::unit_z(),
+                radius,
+                u_ref: Vec3::unit_x(),
+            },
+            Surface::Plane {
+                origin: on,
+                normal,
+                u_ref: Vec3::unit_z(),
+            },
+        ]);
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: keys[0],
+                s2: keys[1],
+                witness: on + Vec3::unit_z() * 0.5,
+            },
+            carrier: Curve3::Line {
+                origin: on,
+                dir: Vec3::unit_z(),
+            },
+            param_start: 0.0,
+            param_end: 1.0,
+        };
+        let end = on + Vec3::unit_z();
+        let err = EdgeCurve::certify(spec, on, end, &lookup, b).unwrap_err();
+        let CertifyError::Escalated {
+            check: CertCheck::TransversalityArm,
+            cause,
+            ..
+        } = err
+        else {
+            panic!("the arm escalates undecided: {err:?}");
+        };
+        assert_eq!(
+            (cause.predicate, cause.margin.rejected_sign()),
+            (Some("dihedral_arm_wedge"), Some(Sign::Zero)),
+            "the escalation quotes the wedge's decided zero: {cause:?}"
         );
     }
 
@@ -5241,7 +5302,7 @@ mod tests {
             };
             let arm = render(CertCheck::TransversalityArm);
             assert!(
-                arm.contains("the transversality margin's lever arm")
+                arm.contains("the edge's length for the angle between its faces")
                     && arm.ends_with(&format!(
                         "Recourse: move the geometry so that edge is clearly longer, and its \
                          faces curve less tightly there, or, if this length or the gap its faces \

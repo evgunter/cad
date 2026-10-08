@@ -2664,7 +2664,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, Cow<'static, str>) {
             "it is not long enough, for how its faces curve, to measure the angle between them"
         }
         CertifyError::SpanMeterCollapsed { .. } => {
-            "its spline's certified speed floor gives it no measurable length at this tolerance"
+            "its spline's certified speed floor gives it no measurable length"
         }
         CertifyError::NotSecondOrderSeparated { .. } => {
             "its faces agree to second order, so they do not fix where it runs, which its \
@@ -2766,7 +2766,7 @@ fn certify_undecided(check: CertCheck) -> &'static str {
             "its faces meet too nearly tangentially to decide at this tolerance"
         }
         CertCheck::TransversalityArm => {
-            "it is too short, for how its faces curve, to measure their angle at this tolerance"
+            "whether it is long enough to measure the angle between its faces is too close to call"
         }
         CertCheck::TangentPlanes => {
             "a face's tangent plane is undefined at a point of it, so there is no angle between \
@@ -10939,7 +10939,8 @@ mod tests {
                     }),
                 },
                 "Recourse: move the geometry so that edge is clearly longer, and its faces curve \
-                 less tightly there"
+                 less tightly there; a face curving to a point there, as a cone at its apex, \
+                 leaves no angle to measure"
                     .to_owned(),
             ),
             (
@@ -11183,9 +11184,17 @@ mod tests {
                 && !text.contains("angle is intended");
             assert_eq!(reads_the_arm, want != Reads::Angle, "{row}: {text}");
             assert!(!text.contains("unreadable"), "{row}: {text}");
+            if want == Reads::ArmUndecided {
+                assert!(
+                    text.contains("whether an edge is long enough"),
+                    "{row}: {text}"
+                );
+            }
             if want == Reads::NoArm {
                 assert!(
-                    text.starts_with("an edge is not long enough") && !text.contains("too close"),
+                    text.starts_with("an edge is not long enough")
+                        && !text.contains("too close")
+                        && text.ends_with("as a cone at its apex, leaves no angle to measure"),
                     "{row}: {text}"
                 );
             }

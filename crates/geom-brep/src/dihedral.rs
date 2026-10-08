@@ -92,7 +92,7 @@ use geom_core::k_stats::{Magnitude, NonzeroSign};
 use geom_core::{Band, Decide, Decided, Indeterminate, Margin, Point3, Real, Sign};
 
 use crate::implicit::{curvature_lever_arm, implicit_gradient, implicit_outward_normal};
-use crate::recourse::{SizedDecision, SizedPass, StoredDefinite};
+use crate::recourse::{AtZero, SizedDecision, SizedPass, StoredDefinite};
 
 /// Whether the folded lever arm at a point of an edge is positive: the
 /// length the wedge between the edge's faces is metered over, the
@@ -103,14 +103,17 @@ use crate::recourse::{SizedDecision, SizedPass, StoredDefinite};
 /// the wedge an angle. Its margin is the wedge the arm meters,
 /// `sin θ · arm` (the arm's own where that wedge reads zero at the
 /// tolerance deciding the arm), so the tolerance it offers decides the
-/// arm and the wedge both.
+/// arm and the wedge both. An arm of no length is sound geometry the
+/// metering reaches (a cone's apex), which its zero note says.
 pub const DIHEDRAL_ARM: SizedDecision = SizedDecision {
     lever: "move the geometry so that edge is clearly longer, and its faces curve less tightly \
             there",
     size: "length or the gap its faces open",
     passes: SizedPass::Positive,
     stored: StoredDefinite::Contradiction,
-    at_zero: None,
+    at_zero: Some(AtZero::same(
+        "a face curving to a point there, as a cone at its apex, leaves no angle to measure",
+    )),
 };
 
 /// A definite dihedral classification (the indeterminate outcome is the
@@ -277,13 +280,9 @@ pub(crate) fn wedge_decided<T: Decide>(
     // The collapsed-arm gate (module docs): the wedge margin is only
     // meaningful through a definitely-positive arm.
     decide_positive("dihedral_arm", Margin::of(arm), band).map_err(|gate| {
-        // The arm's own verdict is the gate's, read before the wedge it
-        // meters may stand in for its margin.
-        let collapsed = gate.margin.rejected_sign().is_some();
-        WedgeEscalation::Lever(LeverEscalation {
-            collapsed,
-            ..LeverEscalation::arm(at_wedge(gate, arm, sin_theta, band))
-        })
+        WedgeEscalation::Lever(
+            LeverEscalation::arm(gate).with_diag(at_wedge(gate, arm, sin_theta, band)),
+        )
     })?;
     let margin = Margin::levered(sin_theta, arm);
     // The cause of an invalid margin, read only once the decision has

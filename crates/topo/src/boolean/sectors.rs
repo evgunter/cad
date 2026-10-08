@@ -598,7 +598,7 @@ fn at_departure<T: Decide>(
         Margin::of(departure.abs()),
         band,
     ) {
-        Err(diag) => geom_brep::LeverEscalation { diag, ..escalation },
+        Err(diag) => escalation.with_diag(diag),
         // Unreachable: the departure is no longer than an arm that did
         // not read positive.
         Ok(()) => escalation,

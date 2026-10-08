@@ -152,12 +152,14 @@ impl Refused {
     /// could not decide (in band, straddling, poisoned).
     #[must_use]
     pub fn rejected(cause: &Indeterminate) -> Option<Self> {
-        let (margin, band) = (cause.margin, cause.band);
-        match margin.rejected_sign()? {
-            Sign::Zero => Some(Self::Zero(Classified { margin, band })),
-            Sign::Negative => Some(Self::Negative { margin }),
-            Sign::Positive => None,
-        }
+        let sign = cause.margin.rejected_sign()?;
+        Self::of(
+            Decided {
+                sign,
+                margin: cause.margin,
+            },
+            cause.band,
+        )
     }
 
     /// The reporting margin the verdict was classified on.
