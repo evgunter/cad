@@ -471,9 +471,10 @@ pub enum ShellError<T: Real> {
     /// collision on a pair that faces squarely; this is the pair at an
     /// angle, which has no single gap to report.
     ///
-    /// Conservative in the same direction: a face bounded by a curve
-    /// other than a line is read as at least its chord polygon plus the
-    /// ball holding each such edge, so it may refuse a pair that would
+    /// Lines, circles and ellipses are cut exactly, a conic at its
+    /// roots. Only an edge on another curve (a spiric or a spline) is
+    /// read as its chord plus the ball holding its arc, conservative in
+    /// the same direction as the gate: it may refuse a pair that would
     /// have cleared, never the reverse.
     OffsetsCross {
         /// One of the two planar faces.
@@ -3182,8 +3183,8 @@ fn wall_clearance<T: Decide>(
             // read when that drift is within one wall, OR when the cosine
             // is antiparallel to the band — the window the gate read
             // before the lever, which is the wider one when `t/L` is
-            // below `√(2ε)`. A pair outside both is the tilted residue
-            // (module docs).
+            // below `√(2ε)`. A pair outside both is read on the cavity
+            // by `moved_walls_cross`.
             let lever = gate_measured(
                 "shell_walls_extent",
                 a.reach + b.reach + (b.origin - a.origin).norm(),
@@ -3490,13 +3491,28 @@ fn footprints_may_overlap<T: Decide>(
 /// its boundary. Every boundary vertex is put on one side of `L` by a
 /// decide, Zero counting with the positive side, so an edge ending on
 /// `L` is counted once and a vertex touching `L` is a closed interval
-/// of length zero. An edge whose curve is not a line is read as its
-/// chord, and the chord of `L` through the ball holding the edge's arc
-/// is added to the set: the region between an arc and its chord lies
-/// in that ball, so the set read holds the true one. Crossings are
-/// ordered by decided comparisons, a pair the band cannot order is a
-/// tie; the overlap is then computed in `T` and decided, and an
-/// undecided side or overlap escalates rather than clearing.
+/// of length zero. A line edge crosses at its ends' sides. A circle or
+/// ellipse edge is split where its side of `L` is extreme and each
+/// monotone piece crosses at its own root, so a conic is cut exactly.
+/// Only an edge on another curve (a spiric or a spline) is read as its
+/// chord, with the chord of `L` through the ball holding its arc added
+/// to the set: the region between an arc and its chord lies in that
+/// ball, so the set read holds the true one. Crossings are ordered by
+/// decided comparisons, a pair the band cannot order is a tie; the
+/// overlap is then computed in `T` and decided, and an undecided side
+/// or overlap escalates rather than clearing.
+///
+/// An edge-adjacent pair is not read: its moved planes share the line
+/// of its moved common edge, so its two sets always overlap along that
+/// edge, and a pair that crosses by inverting the edge refuses at the
+/// offset door's interval-forward check (module docs, on where the
+/// loud cases refuse). An adjacent pair crossing away from its common
+/// edge, with the edge itself still forward, is not ruled out here
+/// (`work/shell/tilted-read-skips-edge-adjacent-pairs-that-cross-away-from-their-edge.md`).
+///
+/// On [`shell_open`] the read runs on the closed cavity, before the rim
+/// stage lifts a designated face's counterpart back out, so a crossing
+/// within `t` of the opening is the lift's to refuse, not this gate's.
 fn moved_walls_cross<T: Decide>(
     cavity: &Body<T>,
     partition: &crate::offset_together::Scope,
@@ -3515,7 +3531,7 @@ fn moved_walls_cross<T: Decide>(
             }
             let cross = a.normal.cross(b.normal);
             let lever = gate_measured(
-                "shell_walls_extent",
+                "shell_moved_walls_extent",
                 (a.hi - a.lo).norm() + (b.hi - b.lo).norm() + (b.lo - a.lo).norm(),
                 band,
             )
@@ -3574,8 +3590,9 @@ struct MovedWall<T: Real> {
     solid: SolidKey,
     origin: geom_core::Point3<T>,
     normal: geom_core::Vec3<T>,
-    /// Every boundary edge as its two ends and, for an edge that is not
-    /// a line, the ball holding its arc.
+    /// Every boundary edge as its two ends and its carrier: a line, a
+    /// conic cut at its roots, or, for any other curve, the ball holding
+    /// its arc.
     edges: Vec<BoundaryEdge<T>>,
     vertices: Vec<VertexKey>,
     lo: geom_core::Point3<T>,
@@ -4013,17 +4030,6 @@ mod tests {
     #[allow(clippy::panic)]
     mod footprint_fuzz;
 
-    /// **Nesting on a curved chart is read in the chart, at any width
-    /// short of the period.** Two nested windows on a unit cylinder about
-    /// `z`, each sampled as the loop it is (along its bottom, back along
-    /// its top): the inner spans `0.8·w` and `z ∈ [0.2, 0.8]`, the outer
-    /// `w` and `z ∈ [0, 1]`, about a centre `c`. Over widths from `0.4π`
-    /// to just short of `2π`, about centres that put the windows across
-    /// `u = π` (where the raw azimuth jumps a turn) and away from it, the
-    /// inner is inside and the reverse question answers no. So is a pair
-    /// whose outer reaches further past the inner on one side than the
-    /// other. A run whose first point is on the axis has no `u`, and the
-    /// read declines rather than guessing.
     /// **The tilted read cuts a conic at its roots.** A face's cut of a
     /// line is read edge by edge; a circle or ellipse edge is split at
     /// its side's extremes and each piece crosses at its own root. A
@@ -4130,6 +4136,17 @@ mod tests {
         );
     }
 
+    /// **Nesting on a curved chart is read in the chart, at any width
+    /// short of the period.** Two nested windows on a unit cylinder about
+    /// `z`, each sampled as the loop it is (along its bottom, back along
+    /// its top): the inner spans `0.8·w` and `z ∈ [0.2, 0.8]`, the outer
+    /// `w` and `z ∈ [0, 1]`, about a centre `c`. Over widths from `0.4π`
+    /// to just short of `2π`, about centres that put the windows across
+    /// `u = π` (where the raw azimuth jumps a turn) and away from it, the
+    /// inner is inside and the reverse question answers no. So is a pair
+    /// whose outer reaches further past the inner on one side than the
+    /// other. A run whose first point is on the axis has no `u`, and the
+    /// read declines rather than guessing.
     #[test]
     fn nesting_on_a_cylinder_is_read_in_its_chart() {
         let band = Band::linear(Tol::witness()).unwrap();

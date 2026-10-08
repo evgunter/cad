@@ -571,7 +571,10 @@ fn the_clearance_gate_takes_a_tilted_gap_short_by_its_drift() {
 }
 
 /// `body` shelled at `t` refuses `OffsetsCross`, naming the arm's wall
-/// `x = 3` and its notch wall; returns the reported overlap.
+/// `x = 3` and one of the two walls its moved copy crosses, the notch
+/// wall or the shelf (both cross it along the same line, so which pair
+/// is reported first follows the face arena); returns the reported
+/// overlap.
 fn assert_the_tilted_arm_walls_cross(body: &Body<f64>, t: f64, why: &str) -> f64 {
     let e = topo::shell(
         &finished("the operand", body.clone(), Tol::witness()),
@@ -593,11 +596,17 @@ fn assert_the_tilted_arm_walls_cross(body: &Body<f64>, t: f64, why: &str) -> f64
         Some(geom::Surface::Plane { normal, .. }) => *normal,
         _ => panic!("{f:?} is planar"),
     };
-    let mut xs = [normal(face).x.abs(), normal(other).x.abs()];
-    xs.sort_by(f64::total_cmp);
+    let (wall, crossed) = if normal(face).x.abs() > normal(other).x.abs() {
+        (normal(face), normal(other))
+    } else {
+        (normal(other), normal(face))
+    };
+    let notch = crossed.x.abs() < 1.0 - 1e-9 && crossed.x.abs() > 0.5;
+    let shelf = crossed.y.abs() > 1.0 - 1e-12;
     assert!(
-        xs[1] > 1.0 - 1e-12 && xs[0] < 1.0 - 1e-9 && xs[0] > 0.5,
-        "{why}: the refusal names the wall x = 3 and the notch wall, got |n_x| {xs:?}"
+        wall.x.abs() > 1.0 - 1e-12 && (notch || shelf),
+        "{why}: the refusal names the wall x = 3 and the notch wall or the shelf, \
+         got normals {wall:?} and {crossed:?}"
     );
     overlap
 }
