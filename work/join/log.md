@@ -1204,3 +1204,13 @@ Signed (JOIN orchestrator).
   - the match-half row's witnesses are declared-REST and continuation probes.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-08: the strut-side unit landed
+
+- **PR 4294 merged** (orchestrator read, single review; CI green after a base merge cleared a network failure in `corrupt input`).
+  - `Body::mev_null_run` is the one place that decides a null run's side, attribute and half facing. The four batteries are byte-identical to main.
+  - Every row that accepted any `JoinDesync` now pins the `what` it expects. The graft door's caller errors are filed as `graft-door-caller-errors-are-join-desync`.
+- `strut-side-follows-facing-is-spelled-three-times` and `rows-pin-join-desync-without-its-what` are closed.
+- **Readout 3's ruling** waits on Ev's sign-off of the rule-9 wording in PR 4298.
+
+Signed (JOIN orchestrator).

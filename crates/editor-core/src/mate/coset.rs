@@ -179,31 +179,110 @@ impl PartialEq for Coset<f64> {
     }
 }
 
-impl<T: Real> Subgroup<T> {
-    /// The subgroup's dimension as a manifold, `None` for
-    /// [`Subgroup::Empty`] (which is not a subgroup at all).
-    pub fn dimension(&self) -> Option<u8> {
-        Some(match self {
+/// **A [`Subgroup`]'s family**, without the line or normal that places
+/// it: what a fold's residual is up to its parameters, and what a pose
+/// kind's symmetry is (D10; [`crate::VarKind::symmetry`]): a plane is a
+/// frame known up to the planar group about its normal, an axis up to
+/// the cylindrical group about its line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum SubgroupFamily {
+    /// [`Subgroup::Se3`].
+    Se3,
+    /// [`Subgroup::Planar`].
+    Planar,
+    /// [`Subgroup::Cylindrical`].
+    Cylindrical,
+    /// [`Subgroup::Prismatic`].
+    Prismatic,
+    /// [`Subgroup::Revolute`].
+    Revolute,
+    /// [`Subgroup::Trivial`].
+    Trivial,
+}
+
+impl SubgroupFamily {
+    /// The family's dimension as a manifold.
+    #[must_use]
+    pub fn dimension(self) -> u8 {
+        match self {
             Self::Se3 => 6,
-            Self::Planar { .. } => 3,
-            Self::Cylindrical { .. } => 2,
-            Self::Prismatic { .. } | Self::Revolute { .. } => 1,
+            Self::Planar => 3,
+            Self::Cylindrical => 2,
+            Self::Prismatic | Self::Revolute => 1,
             Self::Trivial => 0,
+        }
+    }
+
+    /// The family's name, for messages and table rows.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Se3 => "SE(3)",
+            Self::Planar => "planar",
+            Self::Cylindrical => "cylindrical",
+            Self::Prismatic => "prismatic",
+            Self::Revolute => "revolute",
+            Self::Trivial => "trivial",
+        }
+    }
+}
+
+/// **A pose value's symmetry** (D10, A11 (1)): the subgroup of rigid
+/// motions the value is a frame known up to, the one a mate on it
+/// folds. A plane forgets in-plane motion about its normal, an axis
+/// slide and spin along its line, and a frame nothing; `None` for a
+/// pose whose subgroup the table does not hold (a point's rotations
+/// about itself).
+///
+/// The mate solve reads each side's symmetry here, so a mate folds the
+/// poses' own subgroups ([`crate::VarKind::symmetry`] names their
+/// families).
+pub trait PoseSymmetry<T: Real> {
+    /// The subgroup, `None` where the table holds none.
+    fn symmetry(&self) -> Option<Subgroup<T>>;
+}
+
+impl<T: Real> PoseSymmetry<T> for topo::query::DatumValue<T> {
+    fn symmetry(&self) -> Option<Subgroup<T>> {
+        use topo::query::DatumValue;
+        match *self {
+            DatumValue::Plane { normal, .. } => Some(Subgroup::Planar { normal }),
+            DatumValue::Axis { origin, dir } | DatumValue::AxisInPlane { origin, dir, .. } => {
+                Some(Subgroup::Cylindrical {
+                    point: origin,
+                    direction: dir,
+                })
+            }
+            DatumValue::Frame(_) => Some(Subgroup::Trivial),
+            DatumValue::Point { .. } => None,
+        }
+    }
+}
+
+impl<T: Real> Subgroup<T> {
+    /// The subgroup's family, `None` for [`Subgroup::Empty`] (which is
+    /// not a subgroup at all).
+    pub fn family(&self) -> Option<SubgroupFamily> {
+        Some(match self {
+            Self::Se3 => SubgroupFamily::Se3,
+            Self::Planar { .. } => SubgroupFamily::Planar,
+            Self::Cylindrical { .. } => SubgroupFamily::Cylindrical,
+            Self::Prismatic { .. } => SubgroupFamily::Prismatic,
+            Self::Revolute { .. } => SubgroupFamily::Revolute,
+            Self::Trivial => SubgroupFamily::Trivial,
             Self::Empty => return None,
         })
     }
 
+    /// The subgroup's dimension as a manifold, `None` for
+    /// [`Subgroup::Empty`].
+    pub fn dimension(&self) -> Option<u8> {
+        self.family().map(SubgroupFamily::dimension)
+    }
+
     /// The subgroup's family name, for messages and table rows.
     pub fn name(&self) -> &'static str {
-        match self {
-            Self::Se3 => "SE(3)",
-            Self::Planar { .. } => "planar",
-            Self::Cylindrical { .. } => "cylindrical",
-            Self::Prismatic { .. } => "prismatic",
-            Self::Revolute { .. } => "revolute",
-            Self::Trivial => "trivial",
-            Self::Empty => "empty",
-        }
+        self.family().map_or("empty", SubgroupFamily::name)
     }
 
     /// Whether this subgroup determines the pose outright.

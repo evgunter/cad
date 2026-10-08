@@ -64,7 +64,7 @@ use geom_brep::EdgeCurve;
 use geom_core::Real;
 
 use crate::body::Body;
-use crate::entity::{EntityId, FaceKey, LoopKey, VertexKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::{EulerOpError, MevCreated, MevSite};
@@ -300,6 +300,67 @@ impl<T: geom_core::Decide> Body<T> {
         );
         Ok(created)
     }
+
+    /// One run's null edge, minted at `site` on the vertex `at` with
+    /// the sense its facing gives (the sense theorem,
+    /// `boolean::join`'s module docs): the half facing the run's start
+    /// germ is UP exactly when the run is above/OUT.
+    ///
+    /// `run_side` is the run's side, which the copy takes when
+    /// `plus_faces_start` (`he_plus`, old → copy, faces the start germ);
+    /// otherwise the copy takes the other side. The mint side, the
+    /// attribute and the halves come from these two inputs alone, so
+    /// the body's scaffold attribute and the caller's record are one
+    /// datum.
+    ///
+    /// # Errors
+    ///
+    /// As [`Body::mev_null`].
+    pub(crate) fn mev_null_run(
+        &mut self,
+        site: MevSite,
+        at: VertexKey,
+        run_side: NewVertexSide,
+        plus_faces_start: bool,
+    ) -> Result<NullRunMint, EulerOpError> {
+        let side = match (run_side, plus_faces_start) {
+            (side, true) => side,
+            (NewVertexSide::Above, false) => NewVertexSide::Below,
+            (NewVertexSide::Below, false) => NewVertexSide::Above,
+        };
+        let created = self.mev_null(site, side)?;
+        let attr = match side {
+            NewVertexSide::Below => NullEdge {
+                below_end: created.vertex,
+                above_end: at,
+            },
+            NewVertexSide::Above => NullEdge {
+                below_end: at,
+                above_end: created.vertex,
+            },
+        };
+        let halves = if plus_faces_start {
+            [created.he_plus, created.he_minus]
+        } else {
+            [created.he_minus, created.he_plus]
+        };
+        Ok(NullRunMint {
+            created,
+            attr,
+            halves,
+        })
+    }
+}
+
+/// What [`Body::mev_null_run`] minted.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct NullRunMint {
+    pub(crate) created: MevCreated,
+    /// The attribute the mint recorded.
+    pub(crate) attr: NullEdge,
+    /// `[start half, end half]`: the halves facing the run's start and
+    /// end germs.
+    pub(crate) halves: [HalfEdgeKey; 2],
 }
 
 // The marker setters make no geometric decision, so they stay at the

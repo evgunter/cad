@@ -273,8 +273,7 @@ fn probe_near_parallel_axis_never_answers_wrong() {
         Err(
             BooleanError::Escalated { .. }
             | BooleanError::FallbackExtentUnsupported { .. }
-            | BooleanError::Join(_)
-            | BooleanError::JoinDesync { .. },
+            | BooleanError::Join(_),
         ) => {}
         Err(other) => panic!("unexpected refusal shape: {other:?}"),
     }

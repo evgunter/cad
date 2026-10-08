@@ -915,9 +915,9 @@ fn run_at<T: editor_core::EvalScalar>(
 /// main and on the branch at all three ε, so no pose, role, fault or
 /// placement moved.
 const MAIN_CORPUS_DIGEST: [(f64, u64); 3] = [
-    (1e-9, 0x76be_7889_78b2_4a63),
-    (1e-6, 0xce5d_7fa0_04ae_bccb),
-    (1e-12, 0x4f11_e7b4_127c_0d12),
+    (1e-9, 0xfb24_d62a_e096_5136),
+    (1e-6, 0x8824_ffdd_71a4_69e0),
+    (1e-12, 0x757d_0758_64d7_c6e2),
 ];
 
 /// **A3, the `f64` fence**: the corpus's solved poses, roles, faults and

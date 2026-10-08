@@ -592,6 +592,8 @@ BOUND_AS = {
     # A variable's identity is Python's `Var`, the handle `Doc.var`
     # and `Doc.vars` answer.
     "VarId": "Var",
+    # A variable's kind crosses as the word `Var.kind` answers.
+    "VarKind": "Var.kind",
     # The authored node is what Python's `Node` holds: every
     # constructor builds one, and the edit door lowers it.
     "AuthoredNode": "Node",
@@ -2260,6 +2262,22 @@ FAMILIES: dict[str, str] = {
 #: to transliterate the parser's literal rule by hand.
 NOT_BOUND = {
     # --- different-shape ------------------------------------------
+    # An operation's output signature: Python reads an output by its
+    # port's index (`Doc.output(node, port)`), not by the port record;
+    # a signature refusal crosses as `PersistError.inner_variant`
+    # `output_signature` and its sentence, and the subgroup family is
+    # the value-free name of a `Subgroup.variant` Python already reads.
+    "OutputFault": SHAPE,
+    "OutputPort": SHAPE,
+    "PortKind": SHAPE,
+    "SubgroupFamily": SHAPE,
+    # A pose value's subgroup, which the mate solve folds: Python holds
+    # no pose value to ask it of.
+    "PoseSymmetry": SHAPE,
+    # The free-or-defined half of `VarDef`, which a declaration writes:
+    # Python declares through `VarDecl`.
+    "WrittenDef": SHAPE,
+    "Uncarried": SHAPE,
     "Affine3": SHAPE,
     "Applied": SHAPE,
     "Axis3": SHAPE,
@@ -2337,7 +2355,6 @@ NOT_BOUND = {
     # message and payload carry.
     "SpokenVar": SHAPE,
     "VarDef": f"{GAP}: B-VAR-ID a variable's minted identity",
-    "VarKind": f"{GAP}: B-VAR-ID a variable's minted identity",
     "VarRef": f"{GAP}: B-VAR-ID a variable's minted identity",
     "node_kind_noun": SHAPE,
     # `FramePlacement::Unreadable`'s payload: which axis the kernel's
@@ -3636,6 +3653,7 @@ MEMBERS_BOUND_AS = {
     "EditError::FreshUnread": "EditError.variant",
     "EditError::VarKindFixed": "EditError.variant",
     "EditError::NotAFreeVar": "EditError.variant",
+    "EditError::VarIsAnOutput": "EditError.variant",
     "EditError::DefinitionCycle": "EditError.variant",
     "EditError::DefinitionTooLarge": "EditError.variant",
     "EditError::DefinitionUnknownVarName": "EditError.variant",
@@ -3698,6 +3716,7 @@ MEMBERS_BOUND_AS = {
     "EditError::PinUnchanged": "EditError.variant",
     "EditError::LabelUnchanged": "EditError.variant",
     "EvalError::UnresolvedVar": "EvalError.variant",
+    "EvalError::OutputRead": "EvalError.variant",
     "EvalError::VarKindMismatch": "EvalError.variant",
     "EvalError::DefinitionRefused": "EvalError.variant",
     "EvalError::CountExprInContinuousEval": "EvalError.variant",
@@ -3721,6 +3740,7 @@ MEMBERS_BOUND_AS = {
     "InlineError::EpsilonSeam": "InlineError.variant",
     "InlineError::PartCarriesMetadata": "InlineError.variant",
     "InlineError::VarNameConflict": "InlineError.variant",
+    "InlineError::InstanceOutputUncarried": "InlineError.variant",
     "InlineError::UnresolvedVarCrossesCut": "InlineError.variant",
     "InlineError::UnplaceableFrame": "InlineError.variant",
     "InlineError::MatePlaced": "InlineError.variant",

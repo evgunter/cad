@@ -909,7 +909,7 @@ pub fn slot_unit(doc: &Doc<ProfileProgram>, node: RecipeNodeId, slot: SlotId) ->
 /// a name either holds (`EditError::VarNameTaken`).
 pub fn named_variable(doc: &Doc<ProfileProgram>, name: &VarName) -> Option<(VarId, Dimension)> {
     let var = doc.var_named(name.as_str())?;
-    Some((var, doc.var(var)?.kind().dimension()))
+    Some((var, doc.var(var)?.kind().dimension()?))
 }
 
 /// One document-level variable, as the panel shows it.
@@ -1160,7 +1160,7 @@ pub fn variable_value(doc: &Doc<ProfileProgram>, var: VarId) -> Option<SlotValue
 
 /// [`variable_value`] against an environment built once for a scan.
 fn value_in(doc: &Doc<ProfileProgram>, env: &VarEnv<f64>, var: VarId) -> Option<SlotValue> {
-    let dimension = doc.var(var)?.kind().dimension();
+    let dimension = doc.var(var)?.kind().dimension()?;
     let expr = Expr::var(var, dimension);
     if dimension == Dimension::Count {
         eval_count(&expr, env).ok().map(SlotValue::Count)
