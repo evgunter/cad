@@ -6,7 +6,7 @@ status: parked
 opened: 2026-10-02
 priority: P3
 cost: M
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -39,3 +39,7 @@ missing fixture cannot hide a wrong answer, only a wrong diagnosis.
 
 A fixture per arm, or a measurement that the reduction refuses every
 shape that would reach one (then the arm is unreachable and goes).
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: shell_witness::on_verdict reads pairs settled by shared source or verified declaration (canonical-form equality at stage 4), and Unpaired is unreachable only because of UndeclaredCoincidence. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

@@ -15,6 +15,15 @@
 //! part: the offset is a statement about the SURFACE, not about which
 //! side of it carries material.
 //!
+//! **So the door takes construction state, not a finished body.** Its
+//! argument is stated against a chart alone, and a door of that kind
+//! takes a [`Body`], tier 2 in and tier 2 out; a door whose argument
+//! means something about material takes an [`crate::AtRestBody`]
+//! (`crates/topo/README.md`, "Shell and offset surgery"). Its result
+//! becomes finished only through [`crate::AtRestBody::validate`]: on an
+//! inside-out body the chart moves as it would on any other, and the
+//! result refuses there as the operand would, `NegativeVolume`.
+//!
 //! # What moves and what does not
 //!
 //! **The neighbours' surfaces are untouched.** Only the named face's
@@ -100,7 +109,7 @@
 //! choice.** The pushforward follows the CONTINUOUS EXTENSION of the
 //! opening nappe's normal field, which is what makes the action a pure
 //! parameter shift; following the per-point normal would split the
-//! double cone. So a `v < 0` face's material moves `−d` along its own
+//! double cone. So a `v < 0` face's surface moves `−d` along its own
 //! chart normal — which is why this door turns the caller's number
 //! before the mint sees it, from the chart's own decided nappe. What it
 //! REFUSES is a chart with no nappe to turn onto: a face whose corners
@@ -629,6 +638,13 @@ pub enum ReplaceFaceError<T: Real> {
         /// The mint's typed refusal.
         source: PcurveMintError,
     },
+    /// The join the public offset doors end with
+    /// ([`Body::join_edges`]) refused on the offset body. The body is
+    /// untouched.
+    Join {
+        /// Why the join refused.
+        refusal: crate::boolean::JoinRefusal,
+    },
     /// The re-described clone is not tier-2 valid, so it is discarded.
     ResultNotClosed {
         /// The validator's report.
@@ -835,6 +851,7 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "the offset body's edges could not be parametrized on their faces: {source}"
             ),
+            Self::Join { refusal } => write!(f, "offsetting the face: {refusal}"),
             Self::TogetherChartMixed { .. } => write!(
                 f,
                 "a move names faces that do not lie on one surface, and a move moves one \
@@ -1236,6 +1253,10 @@ struct EdgePlan<T: Real> {
 /// the whole boundary plan are decided read-only, the mutation runs on
 /// a clone, and the clone is adopted only after it validates.
 ///
+/// The door **ends with the join** (`docs/DESIGN.md`, maximal edges):
+/// the moved body is joined on the clone before it is adopted, and the
+/// joins are returned ([`OffsetOutcome`]).
+///
 /// # Errors
 ///
 /// [`ReplaceFaceError`] — [`ReplaceFaceError::Band`] when the run's
@@ -1248,7 +1269,7 @@ pub fn replace_face_offset<T: Decide + crate::props::AtRestPolicy>(
     face: FaceKey,
     d: T,
     tol: Tol,
-) -> Result<(), ReplaceFaceError<T>> {
+) -> Result<OffsetOutcome, ReplaceFaceError<T>> {
     replace_faces_offset(body, &[face], d, tol)
 }
 
@@ -1277,6 +1298,10 @@ pub fn replace_face_offset<T: Decide + crate::props::AtRestPolicy>(
 /// above) and not a mixture of charts
 /// ([`ReplaceFaceError::GroupChartsDiffer`]).
 ///
+/// The door **ends with the join** (`docs/DESIGN.md`, maximal edges):
+/// the moved body is joined on the clone before it is adopted, and the
+/// joins are returned ([`OffsetOutcome`]).
+///
 /// # Errors
 ///
 /// [`ReplaceFaceError`] — [`replace_face_offset`]'s, plus the group
@@ -1286,7 +1311,54 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     faces: &[FaceKey],
     d: T,
     tol: Tol,
-) -> Result<(), ReplaceFaceError<T>> {
+) -> Result<OffsetOutcome, ReplaceFaceError<T>> {
+    replace_faces_offset_staged(body, faces, d, tol, true).map(|joins| OffsetOutcome { joins })
+}
+
+/// What a public offset door did to the body's topology: the joins it
+/// ended with ([`Body::join_edges`], `docs/DESIGN.md`, maximal edges),
+/// in the order made, each killed `vertex` and `gone` edge held by
+/// `kept`. Empty where the moved body held no joinable vertex.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct OffsetOutcome {
+    /// The joins, in the order made.
+    pub joins: Vec<crate::boolean::EdgeJoin>,
+}
+
+/// The join an offset door ends with where `join` is set, on its staged
+/// body before it is adopted, over the vertices `within` holds: the
+/// door's own scope, so a vertex of an entity the call does not write
+/// is neither joined nor read ([`Body::join_edges_within`]). The
+/// staging is the door's, so a refusal discards the half-joined clone
+/// with it.
+pub(crate) fn staged_join<T: Decide + crate::props::AtRestPolicy>(
+    staged: &mut Body<T>,
+    join: bool,
+    tol: Tol,
+    within: &dyn Fn(crate::VertexKey) -> bool,
+) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
+    if !join {
+        return Ok(Vec::new());
+    }
+    let band = Band::linear(tol).map_err(|error| ReplaceFaceError::Band { error })?;
+    staged
+        .join_edges_within(band, tol, within)
+        .map_err(|refusal| ReplaceFaceError::Join {
+            refusal: crate::boolean::JoinRefusal::of(&refusal),
+        })
+}
+
+/// [`replace_faces_offset`], ending with the join where `join` is set.
+/// Unset, the result is construction state a later step must join: the
+/// shell's cavity and lift offsets, which key their naming rows by the
+/// moved body's cells.
+pub(crate) fn replace_faces_offset_staged<T: Decide + crate::props::AtRestPolicy>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    d: T,
+    tol: Tol,
+    join: bool,
+) -> Result<Vec<crate::boolean::EdgeJoin>, ReplaceFaceError<T>> {
     // The one band every decision below classifies at, derived from the
     // same witness the fit door reads.
     let band = Band::linear(tol).map_err(|error| ReplaceFaceError::Band { error })?;
@@ -1337,10 +1409,10 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     let old_surface = body.face_surface_linked(face, face_data).clone();
     // **The cone's mirror nappe is a consumer obligation, and this is
     // where this door discharges it.** `geom_brep::ConeOffset`'s action
-    // moves material along the OPENING nappe's normal field, so a
-    // mirror-nappe face's material moves `−d` along its own chart
-    // normal; `d` arrives at this door along the FACE's outward
-    // direction, so the two conventions are opposite below the apex and
+    // moves the surface along the OPENING nappe's normal field, so a
+    // mirror-nappe face's surface moves `−d` along its own chart
+    // normal; `d` arrives at this door along the FACE's chart normal,
+    // so the two conventions are opposite below the apex and
     // the number has to be turned over before it reaches the mint. The
     // nappe is decided at its one home, from the face's own corners.
     //
@@ -1499,6 +1571,15 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
         .into_iter()
         .map(|plan| (plan.edge, plan.spec))
         .collect();
+    // The edges this call rewrites. A vertex neither of whose edges is
+    // one of them stands as the operand stated it, and is not this
+    // call's to join, so these edges' ends are every vertex the closing
+    // join reads.
+    let written: Vec<EdgeKey> = specs
+        .iter()
+        .map(|(e, _)| *e)
+        .chain(anchored.iter().map(|(e, _, _)| *e))
+        .collect();
     move_points_then_rechart(&mut work, &groups, vec![chart], &specs, tol)?;
     // A row is stated over its edge's interval, which ends at the
     // edge's vertices, so the move stales every row of an edge that
@@ -1540,9 +1621,15 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     mint_pcurves(&mut work, tol).map_err(|source| ReplaceFaceError::Pcurve { source })?;
     work.sweep_and_close();
     validate_closed(&staged).map_err(|errors| ReplaceFaceError::ResultNotClosed { errors })?;
-
+    let ends: std::collections::BTreeSet<crate::VertexKey> = written
+        .iter()
+        .filter_map(|&e| staged.get_edge(e))
+        .flat_map(|e| [e.he_plus, e.he_minus])
+        .filter_map(|h| staged.get_half_edge(h).map(|h| h.start))
+        .collect();
+    let joins = staged_join(&mut staged, join, tol, &|v| ends.contains(&v))?;
     body.adopt(staged);
-    Ok(())
+    Ok(joins)
 }
 
 /// The offset surface for `old`: the analytic mint, or the fit door's

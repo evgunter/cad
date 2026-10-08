@@ -6,7 +6,8 @@ status: open
 opened: 2026-10-04
 priority: P0
 cost: H
-refs: [boolean-door-adopts-the-finished-body-type, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
+refs: [3987, two-copies-of-a-pierce-carry-edges-that-run-within-the-band]
+branch: join/near-tangent-census-measure
 ---
 
 
@@ -192,3 +193,122 @@ Review r2's near-tangent battery (`r2_pinch_probes nt`), main
 
 The pinch's lumps now meet only at a point, so they become shells of
 their own, and at 1e-8 the gate cannot decide one shell's role.
+
+## Measured (JOIN measurement unit, branch `join/near-tangent-census-measure`)
+
+Main `047d10d5`, release. Everything below comes from two tools.
+- **The probe:** `crates/sweep/examples/near_tangent_census_probe.rs`. It
+  ports `r1_pierce_probes cube`'s near-tangent set and adds the main
+  battery's vee300, asym, w345 and w60 corners. That makes 10 corners × 3
+  edges × 16 turns, ∪ ∩ ∖ in both orders, 2 880 runs per tilt. With
+  `NT_DUMP=1` it dumps every pair the census decided against.
+- **The classifier:** `scripts/oracles/near_tangent_census_classify.py`.
+  It reproduces each census margin bit for bit in f64 and re-reads it at
+  60 digits on the same coordinates. Every escalation matched its pair:
+  1 520/1 520 at ε = 1e-9, 663/663 at the ±3 tilts, 2 877/2 877 at 1e-12,
+  803/803 at 1e-6.
+
+**Population on main.** Main's `near_tangent_battery` gives 70 BAD, all at
+d = 1e-7 (vee300 34, asym 14, w60 12, w345 10). Every one fails tier 3′
+only. It also gives 366 boolean refusals and no `ShellRoleUndecided`.
+
+The probe at ε = 1e-9 (d = ±1e-5 to ±1e-9, 28 800 runs):
+- **818 BAD.** All are at the oracle volume, with t2, the certificate and
+  the operand check passing. 788 fail on `CensusEscalated` alone. 30 add
+  a definite finding: 17 `CensusUndecidable`, 7 `UndeclaredContact` and
+  6 `StaleContactDeclaration`.
+- **34 refuse `ResultInvalid { ShellRoleUndecided }`.** All are ∩ at
+  d = +1e-8: vee300 12, shallow200 8, asym 6, notch307 4, w345 4.
+- **Below 3 bands nothing builds.** At ±2e-9 and ±3e-9 the boolean
+  refuses every run itself (`Escalated`).
+
+**One pose per predicate** (ε = 1e-9; the margin is the census's f64
+value):
+
+| predicate | pose, pair | margin | exact / true distance | class | at fault |
+|---|---|---|---|---|---|
+| ee_span | `notch307 nt e0 a0 d1e-7 pc I`, E18v1×E20v3 | 1.10e-9 | exact span 7.5e-54; the edges meet only at `v`, end to end | b, arithmetic | `ee_cross_spans`: d = eb.p0 − ea.p0 over \|n\|², error ulp·\|d\|/θ |
+| ee_parallel | `vee300 nt e0 a0 d1e-8 cp S`, E34v1×E35v3 | 5.79e-9 | exact; the edges meet only at their shared vertex, end to end | b, proxy | sin θ of the lines × the shorter length |
+| ee_gap | `w345 nt e0 a8 d1e-8 pc I`, E25v1×E33v3 | 1.84e-9 | segments 9.85e-2 apart | b, proxy | the line-to-line gap is read before the spans |
+| ee_overlap | `notch307 nt e0 a3 d1e-8 pc U`, E13v1×E25v5 | 3.22e-9 | segments 2.32e-8 apart | b, proxy | the offset is read at `eb.p0` (filed: collinear-lane row) |
+| ef_residual | `vee300 nt e0 a0 d1e-8 pc U`, E44v1×F20v3 | 5.79e-9 | the end is 0.576 outside the face | b, proxy | the plane is read, not the face's region |
+| ef_cut_gap | `Ltop nt e2 a8 d1e-9 pc U`, E34v1×F10v3 | 2.0e-9 | the vertex is 1.005 past the edge's end | b, proxy | the line gap is read before the span |
+| vf_residual (+ve_line_gap, ef_residual, ee_parallel) | `w345 nt e2 a6 d-3e-8 pc U`, V24v1×F14v1 | 9.55e-9 | the vertex is 9.55e-9 from the face, inside it; an edge 3.7e-8 long | a | the split: an in-band vertex, neither glued nor refused |
+| ShellRoleUndecided | `notch307 nt e0 a3 d1e-8 pc I`, shell 2v5 | V/A 3.05e-9 | the oracle's lump: 7.7e-16 m³, 2.2e-8 thick at its far end, V/A 3.9e-9 | a | the cone split keeps a lump that is in band |
+| (ee_span, beneath) | `notch307 nt e0 a3 d1e-8 pc S`, E24v5×E25v5 | 2.76e-9 | exact span 2e-54; but one face's corner at `v` is 3.6e-8 rad wide, within K·ε for 0.28 | b, with an a beneath | arithmetic over a sliver the split left |
+
+**All escalations by class at ε = 1e-9** (±1e-5 to ±1e-9, plus the ±3
+tilts):
+- `ee_span`: 1 547. b-arith 1 063, b-arith over a real sliver 478,
+  b-proxy 6.
+- `ee_parallel`: 240 b-proxy, 6 a.
+- `ef_residual`: 195 b-proxy, 18 a.
+- `ef_cut_gap`: 157 b-proxy.
+- `ee_gap`: 58 b-proxy, 6 a.
+- `ee_overlap`: 20 b-proxy.
+- The vertex lanes: 12 b-proxy, 12 a.
+
+All 42 class-a escalations are at the one pose family `w345 e2` ±3e-8.
+
+**What follows the tilt** (escalations, by class):
+
+| ε | b-arith (ee_span) | b, proxies | a |
+|---|---|---|---|
+| 1e-9 | d = 3e-7 to 1e-8 (none at ≥ 1e-6 or ≤ 3e-9) | every tilt, 1e-5 to 1e-9 | slivers beneath the arithmetic at 1e-7 to 1e-8; the vertex-on-face at ±3e-8; lumps (SRU) at 3e-8 and 1e-8 |
+| 1e-12 | escalated at 1e-5 to 1e-8 (2 331); **definite false `EdgeEdgeCross`** at 1e-5 to 1e-11 (845, every one at a shared point) | every tilt | slivers beneath at 1e-10 to 1e-11; the vertex-on-face at ±1e-11 (w60); lumps with V/A in band at ±1e-11 |
+| 1e-6 | none (the f64 error is ≪ ε) | 1e-3 to 1e-9 | lumps at 1e-5; at ≤ 1e-7 the tilt is inside the band and the census reads 347 `EdgeFaceOverlap` + 38 `VertexOnFace` undeclared (D10 hold ground; not classified) |
+
+- **b-arith** follows θ, not ε. The f64 error grows as the tilt falls,
+  so it enters the band near d ≈ 1e-7 to 1e-8 at ε = 1e-9, near 1e-5 to
+  1e-7 at 1e-12, and past K·ε below that.
+- **b-proxy** is independent of the tilt. It catches whatever line or
+  plane happens to pass within the band.
+- **a** begins where the sliver's own width d·L falls to a few K·ε: about
+  3e-8 at ε = 1e-9, 1e-11 at 1e-12, and 1e-5 at 1e-6.
+- **The ε = 1e-12 lumps are a different case.** At 1e-8 to 1e-10 the
+  role read refuses on a certified enclosure 1.4e-9 to 5.2e-7 wide around
+  a V/A of about 34 K·ε. That is b (ENCL).
+
+**May a door ship a body its census cannot certify?** The evidence, for
+the design pass:
+- **Every body here is right.** All 818 BAD bodies at ε = 1e-9 have the
+  oracle volume, t2, the certificate and the operand check.
+- **The escalations do not show uncertainty.** None of the 1 520 at the
+  six named predicates is class a as read. Each is the census's f64
+  arithmetic (982) or a line or plane read for a pair definitely apart
+  (538).
+- **The census can be wrong, not just undecided.** The same arithmetic
+  at ε = 1e-12 gives 845 definite false findings. A door gating on
+  tier 3′ would refuse right bodies there with a wrong reason.
+- **Real slivers do occur, and they are what an exact census would
+  miss:**
+  - 305 of the 982 arithmetic escalations at ε = 1e-9 sit on two edges
+    within K·ε for 0.06 to 1.0. An exact census would pass all of them
+    silently.
+  - The vertex-on-face (42 escalations) is escalated correctly.
+  - The lumps are refused correctly, at the gate, typed.
+
+  So a fixed census leaves a residue that is real in-band geometry. That
+  residue is the split's to decide (glue, refuse, or certify as a
+  sliver), not the door's.
+
+**Filed.**
+- CONTACT, one row per class-b predicate:
+  - `the-census-crossing-lane-misplaces-a-shared-points-crossing-on-a-near-collinear-pair`
+  - `the-census-parallel-test-reads-two-edges-through-one-point-end-to-end-as-a-near-parallel-pair`
+  - `the-census-crossing-lane-escalates-a-line-gap-where-the-segments-lie-far-apart`
+  - `the-census-edge-face-lane-escalates-a-plane-residual-at-an-end-far-outside-the-face`
+  - `the-census-edge-face-cut-escalates-a-line-gap-at-a-boundary-vertex-beyond-the-edge`
+  - `ee_overlap` is covered by
+    `the-census-edge-edge-collinear-lane-reads-the-offset-at-the-long-edges-start`
+    (evidence added there).
+- JOIN, one row per class-a stage:
+  - `a-near-tangent-split-leaves-a-face-corner-that-runs-within-the-band`
+    (its two-vertex form is CONTACT's
+    `two-copies-of-a-pierce-carry-edges-that-run-within-the-band`;
+    evidence added there)
+  - `a-near-tangent-intersections-sliver-lump-reads-its-role-in-band-and-refuses`
+  - `a-near-tangent-vertex-lands-within-the-band-of-a-face-and-ships-unrecorded`
+- ENCL: `the-role-reads-certified-volume-enclosure-straddles-zero-on-a-sliver-shell`.
+- CLEAVE: `near-tangent-pierce-poses-reach-three-classification-invariants`
+  (345 runs, outside this row's question).

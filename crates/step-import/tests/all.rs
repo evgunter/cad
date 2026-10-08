@@ -137,6 +137,8 @@ mod roundtrip;
 mod rw2_probes;
 #[path = "s58_iso_rectangle.rs"]
 mod s58_iso_rectangle;
+#[path = "shell_reads_a_chart_worn_both_ways.rs"]
+mod shell_reads_a_chart_worn_both_ways;
 #[path = "spiric_roundtrip.rs"]
 mod spiric_roundtrip;
 #[path = "split_iso_side.rs"]

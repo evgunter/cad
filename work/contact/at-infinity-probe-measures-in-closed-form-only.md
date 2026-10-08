@@ -80,7 +80,7 @@ offset in the face's frame ((0, 0), (0.3, 0.2), (−0.2, −0.3)).
   0.05, each at its closed-form volume; the rest refuse
   `VolumeUncertified`.
 - Arc-bearing glyphs on the section face stop earlier, at the curved
-  pierce arm (`work/reach/non-circle-conic-edge-refuses-against-every-curved-face.md`).
+  pierce arm (`non-circle-conic-edge-refuses-against-every-curved-face` (REACH, closed by PR 3805)).
 
 ## More consumers (JOIN-3's dual review)
 

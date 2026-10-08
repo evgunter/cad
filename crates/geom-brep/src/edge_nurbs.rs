@@ -84,7 +84,7 @@ use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Readable, R
 use crate::certify::{CERT_SAMPLES, CertCheck, recourse, schedule_fraction, schedule_param};
 use crate::recourse::{Reading, Refused, RefusedArm};
 use crate::ssi::{
-    ChartSpeedRefusal, OneArcRefusal, SsiError, SsiLimb, SsiOperand, SsiTube, TubeScale,
+    ChartSpeedRefusal, OneArcRefusal, PointLever, SsiError, SsiLimb, SsiOperand, SsiTube,
     certify_rung3,
 };
 
@@ -139,6 +139,8 @@ pub enum PlaneNurbsRefusal {
     NotTransverse {
         /// The interior sample index.
         sample: u32,
+        /// Which length levered the angle.
+        lever: PointLever,
         /// The verdict on the levered angle, with its reporting margin.
         verdict: Refused,
     },
@@ -380,10 +382,11 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 "the foot-point projection did not converge at schedule sample {sample} \
                  (last distance {last_distance:e} m)"
             ),
-            Self::NotTransverse { sample, .. } => write!(
+            Self::NotTransverse { sample, lever, .. } => write!(
                 f,
                 "the plane and the NURBS wall have coincident tangent planes at interior \
-                 sample {sample}, where the edge's description says they cross"
+                 sample {sample}, their angle levered by {lever}, where the edge's \
+                 description says they cross"
             ),
             Self::TransversalityEscalated { sample, cause } => write!(
                 f,
@@ -545,15 +548,18 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         }
         let jet = wall.ders(T::from_f64(foot.x), T::from_f64(foot.y));
         let sin_theta = normal_angle_sine(normal, jet.du.cross(jet.dv));
-        // Metered at the analytic side's lever arm: a plane's own
-        // curvature arm is infinite, so the honest arm is the
-        // edge's spatial extent — the same meter the analytic
-        // `Intersection` arm hands `classify_dihedral`.
-        let margin = geom_core::Margin::levered(sin_theta, extent);
+        // The point arm, the plane's curvature being zero.
+        let kappa = crate::shape_operator::max_principal_curvature(&jet);
+        let (arm, reach) = crate::ssi::point_arm(kappa, extent);
+        let margin = geom_core::Margin::levered(sin_theta, arm);
         match crate::dihedral::decide_reported("plane_nurbs_transversality", margin, band) {
             Ok(decided) => {
                 if let Some(verdict) = Refused::of(decided, band) {
-                    return Err(PlaneNurbsRefusal::NotTransverse { sample: i, verdict });
+                    return Err(PlaneNurbsRefusal::NotTransverse {
+                        sample: i,
+                        lever: PointLever::of(Bounds::lo(reach)),
+                        verdict,
+                    });
                 }
             }
             Err(cause) => {
@@ -583,7 +589,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         Some(&pcurve),
         &SsiOperand::Analytic(plane),
         &wall_op,
-        TubeScale::uniform(extent),
+        extent,
         band,
     )
     .map_err(refusal)?;

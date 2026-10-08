@@ -30,3 +30,22 @@ with 1 m edges answers.
 
 **The fix's shape.** Read the germ direction's membership at the
 bounds' reaches: the metric twin of the germ-line gate.
+
+**The same lever, seen from the polygon-cone reader** (TANG, PR 4289).
+`sectors::within` levers a direction's angle past each bound at the
+sector's arm, the shorter of its two chords, whichever bound it is
+compared against. By D4 the reading past a bound `u` flips at the least
+move of the points it reads: the direction's far point, at its reach,
+or `u`'s far point, at `u`'s own reach. So its lever is
+`min(direction's reach, L_u)`, per bound.
+- PR 4289's first fix pass levered the polygon-cone reader's own
+  `in_sector` at the direction's reach alone. That dropped the bound's
+  term, and was the defect review 3 found: beside a 1 mm bound it
+  decided a class that a 3e-10 m move of that bound's far point flips.
+- Its third fix pass levers each bound comparison at
+  `min(direction's reach, L_u)` (`sectors::least_lever`).
+- The witness there (seed 1, cone 85, probe 64) passes a 0.5 m bound on
+  a sector whose other chord is 1 cm, so `within`'s arm lever reads it
+  `Zero` where the bound's own reach decides it. `within` itself, and
+  its other callers, are unchanged; the shape above is the same
+  per-bound lever.

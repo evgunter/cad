@@ -44,7 +44,7 @@
 //! the samples double shows as the floor it is, and the step budget's
 //! ending reads the last two ([`stopped_falling`]). Each round's time is
 //! linear in the samples, and only the wall bounds the rounds
-//! (`work/ssi/ssi-refinement-can-spend-hours-on-one-branch-before-the-step-wall.md`).
+//! (`work/ssimarch/ssi-refinement-can-spend-hours-on-one-branch-before-the-step-wall.md`).
 
 use geom::NurbsCurve3;
 use geom_core::linalg::svd::Svd;
@@ -726,7 +726,7 @@ mod tests {
             )
         }
 
-        fn lever_arm(&self, _x: &[f64; 3]) -> f64 {
+        fn max_curvature(&self, _x: &[f64; 3]) -> f64 {
             1.0
         }
     }
@@ -913,7 +913,7 @@ mod tests {
             (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0))
         }
 
-        fn lever_arm(&self, _x: &[f64; 4]) -> f64 {
+        fn max_curvature(&self, _x: &[f64; 4]) -> f64 {
             1.0
         }
     }

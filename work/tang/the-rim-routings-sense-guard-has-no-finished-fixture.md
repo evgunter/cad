@@ -6,8 +6,8 @@ status: parked
 opened: 2026-10-03
 priority: P3
 cost: M
-refs: [boolean-door-adopts-the-finished-body-type]
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+refs: [3987]
+blocked_on: [intent-stage4-is-built]
 ---
 
 
@@ -30,3 +30,7 @@ sense bits with correct outward normals (a torus charted the other way,
 its sense `false`), through `union_with` with the `Tangent` claim, so a
 door reading the first bit twice answers wrong; or a unit row on
 `classify_shared_rim`'s caller inside `topo`.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the guard is on verify_tangent_declaration → classify_shared_rim, the declared-Tangent door stage 4 retires. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

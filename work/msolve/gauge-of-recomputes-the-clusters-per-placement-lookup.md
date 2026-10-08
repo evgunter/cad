@@ -2,11 +2,10 @@
 id: gauge-of-recomputes-the-clusters-per-placement-lookup
 kind: issue
 title: gauge_of recomputes clusters(doc) on every placement lookup, so an evaluation's placement reads cost O(instances²) on any document with a mate
-status: parked
+status: open
 opened: 2026-09-19
 priority: P3
 cost: E
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
 
@@ -42,3 +41,7 @@ placement` can answer from that map and never ask `gauge_of`; the
 (the edit door's re-keying, `edit.rs` `SetPlacement`, once per edit).
 Not taken in MSOLVE-7: it changes what the evaluation reads a
 placement through, outside the unit's fence.
+
+## Released from the D10 hold (2026-10-08)
+
+Nothing D10 changes gates this row, so it is open: stale on main: gauge_of and clusters() are gone and SolvedPoses::placement reads its own root map; re-measure the quadratic now and close the row if it is gone. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

@@ -102,7 +102,7 @@ Every one of them saves and opens, but two do not denote what their scene means.
 holes: it reads the web off the hole extrudes. Cutting them is two live walls:
 the certified drive certifies no box of the cut plate, whose subtract volume
 bound is a tie
-(`work/reach/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`),
+(`work/tally/a-hole-wholly-inside-its-target-ties-the-subtract-volume-bound.md`),
 and a measure over the cut part makes the assertion the document's one root,
 so it has no product to draw
 (`work/recipe/a-measured-part-is-not-a-product-root.md`). `chain.pncad`

@@ -9,7 +9,7 @@ refs: [1353, 1372]
 priority: P1
 cost: H
 design: true
-blocked_on: [d10-one-way-to-say-intent-is-unbuilt]
+blocked_on: [intent-stage4-is-built]
 ---
 
 ## From GitHub issue 1377
@@ -66,3 +66,7 @@ because lint refuses a row parked on a fired trigger; CURVED schedules
 it. Note for the pinch design: the channel carries stored SCALAR
 fields only — axis-flavoured declarations are
 `work/issues/axis-flavoured-declarations-have-no-channel.md`.
+
+## Re-pointed from the D10 hold (2026-10-08)
+
+Waits on `intent-stage4-is-built`, not on the whole program: the equal-radius family is recognised by ParamSource tokens and RadiusEvidence::Declared; stage 4 replaces that with canonical-form identity at the door. (INTENT's re-homing of the parked rows, `work/intent/log.md`.)

@@ -234,7 +234,7 @@ fn the_apex_window_gate_fires_on_both_nappes_at_the_same_reach() {
                          (v [{v_min}, {v_max}], shift {shift})"
                     );
                 }
-                (Ok(()), false) => {}
+                (Ok(_), false) => {}
                 other => panic!(
                     "{what} d={d}: wanted {}, got {other:?}",
                     if expect_window {
