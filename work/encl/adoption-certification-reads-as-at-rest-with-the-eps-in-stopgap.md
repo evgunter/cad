@@ -2,10 +2,11 @@
 id: adoption-certification-reads-as-at-rest-with-the-eps-in-stopgap
 kind: issue
 title: step-import certification refusals read as at rest, with the door's ε_in size decision and the set-ε-to-ε_in stopgap (D4 ¶1, [ev] PR 3380)
-status: open
+status: review
 priority: P2
 cost: M
 opened: 2026-09-29
+pr: 4331
 ---
 
 

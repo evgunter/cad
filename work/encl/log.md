@@ -1317,3 +1317,4 @@ coincidence is now a margined verdict (no declarations), checked by the
     - P2: `offset-fit-on-locus-fold-drops-a-nan-sample` (fail-loud);
     - P3: the rest.
   - Next: bring PR 3431 up to main and give it a full review; dispatch the import follow-through.
+- 2026-10-08 — PR 4331 (the import follow-through) is open; a full review is running. Dispatched the P1 `the-offset-certificate-reads-vector-norms-off-per-coordinate-cell-hulls` on `encl/offset-cert-coefficient-norms`. The PROPS f64-refinement blocker moved to FLUX on PROPS' close and is still open, so the four rows parked on it stay parked. The `loop-boundary-discards.sh --selftest` clean fixture fails on main (reported by the 4331 lane); to be passed to the gate's owner.
