@@ -1500,41 +1500,19 @@ impl<P> Doc<P> {
         self.defined_by(var).map(|(node, _)| node)
     }
 
-    /// **Every variable `node` reads**: its operands in field order
-    /// ([`Node::operand_rows`]), then its slots and payload expressions
-    /// ([`Node::exprs`]). Empty for a node this document does not hold.
-    pub fn reads(&self, node: RecipeNodeId) -> Vec<VarId>
-    where
-        P: crate::ProfilePayload,
-    {
-        self.nodes.get(&node).map_or_else(Vec::new, Self::reads_of)
-    }
-
-    /// [`Self::reads`] of a node read in this document, live or not.
-    fn reads_of(node: &Node<P>) -> Vec<VarId>
-    where
-        P: crate::ProfilePayload,
-    {
-        node.operand_rows()
-            .into_iter()
-            .map(|(_, var)| var)
-            .chain(node.exprs().into_iter().copied())
-            .collect()
-    }
-
     /// **The operations `node` depends on** (D10: reading is the only
-    /// dependency): the operations defining the variables it reads
-    /// ([`Self::reads`]), then the live nodes a measure's sited
-    /// references are read at ([`Node::measure_sites`]). In read order,
-    /// each once; a read this document does not resolve, or a site no
-    /// live node is, contributes nothing (an unresolved read is the
-    /// reader's refusal at evaluation, not an edge). Empty for a node
-    /// this document does not hold.
+    /// dependency): the operations defining the variables its operands
+    /// read ([`Node::operand_rows`]), then the live nodes a measure's
+    /// sited references are read at ([`Node::measure_sites`]). In read
+    /// order, each once; a read this document does not resolve, or a
+    /// site no live node is, contributes nothing (an unresolved read is
+    /// the reader's refusal at evaluation, not an edge). Empty for a
+    /// node this document does not hold.
     ///
     /// A slot reads free and defined variables, which no operation
-    /// defines, so it adds no edge; a slot that reads an operation's
-    /// output depends on it like an operand, though evaluation refuses
-    /// the read ([`crate::EvalError::OutputRead`]).
+    /// defines; a slot reading an operation's output refuses at
+    /// evaluation ([`crate::EvalError::OutputRead`]), so it adds no
+    /// edge.
     pub fn upstream(&self, node: RecipeNodeId) -> Vec<RecipeNodeId>
     where
         P: crate::ProfilePayload,
@@ -1550,9 +1528,10 @@ impl<P> Doc<P> {
         P: crate::ProfilePayload,
     {
         let mut out: Vec<RecipeNodeId> = Vec::new();
-        let at = Self::reads_of(node)
+        let at = node
+            .operand_rows()
             .into_iter()
-            .filter_map(|var| self.operation_of(var))
+            .filter_map(|(_, var)| self.operation_of(var))
             .chain(
                 node.measure_sites()
                     .into_iter()

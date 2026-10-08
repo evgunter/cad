@@ -5650,6 +5650,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "unfinished_operand",
             "unplaced",
             "unresolved_read",
+            "unresolved_site",
             "unschedulable_cycle",
             "verb_arity",
             "witness_bifurcation",
@@ -5734,8 +5735,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "operand_slot_tag",
         values: &[
-            "a", "at", "axis", "b", "frame", "input", "measure", "member", "of", "path", "plane",
-            "profile", "section", "target", "tool",
+            "a", "at", "axis", "b", "frame", "input", "measure", "member", "of", "path", "profile",
+            "section", "target", "tool",
         ],
         delegates: &[],
     },
@@ -6720,9 +6721,6 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // the instance's own row, and why its checked offset went unchecked.
     ("placement_refused", 2),
     ("placement_rule_mismatch", 2),
-    // A coincidence: a profile's sketch-plane operand and a promoted
-    // gauge's kind.
-    ("plane", 2),
     ("poisoned", 2),
     // The profile operand and the profile node's own evaluation class:
     // one word for the one node kind. The profile PROGRAM's slot says

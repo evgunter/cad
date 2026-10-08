@@ -235,7 +235,7 @@ where
         Node::Profile(program) => Ok(OpOut::plain(
             wire_profile(
                 program,
-                at(O::Plane, program.plane)?,
+                at(O::Frame, program.plane)?,
                 results,
                 profile_pre,
                 env.lane,
@@ -1415,7 +1415,7 @@ fn wire_datum<T: Decide>(
         Datum::AxisInPlane { plane, .. } => {
             let f = frame_value(
                 results,
-                super::read_at(doc, crate::OperandSlot::Plane, *plane)?,
+                super::read_at(doc, crate::OperandSlot::Frame, *plane)?,
             )?;
             let (frame_origin, u, v) = (f.origin(), f.u(), f.v());
             let plane_origin = need_point2(vals, SlotId::Origin)?;
@@ -4607,7 +4607,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // which crosses to `f64` only where the scalar IS `f64`
     // (`SectionScalar`); anywhere else it refuses typed rather than
     // placing on a fabricated point of the frame's bracket.
-    let frame = super::read_at(doc, crate::OperandSlot::Plane, program.plane)?;
+    let frame = super::read_at(doc, crate::OperandSlot::Frame, program.plane)?;
     let plane = match profile_plane_f64(results, id, frame)? {
         Some(authored) => authored,
         None => {

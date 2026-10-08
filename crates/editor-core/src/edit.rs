@@ -3308,10 +3308,7 @@ impl EditError {
                     ports.len(),
                     ports.join(", ")
                 )?;
-                tail.recourse(
-                    f,
-                    format_args!("name the port the {slot} reads (`Operand::Output`)"),
-                )
+                tail.recourse(f, format_args!("name the port the {slot} reads"))
             }
             Self::DefinesNothing { input, slot } => {
                 write!(f, "{input} defines nothing a {slot} could read")?;

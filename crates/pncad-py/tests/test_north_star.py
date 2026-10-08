@@ -629,8 +629,8 @@ class TestBracket(unittest.TestCase):
             )
         )
         split = doc.insert(Node.split(bracket, tool))
-        offcuts = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Above)))
-        corner = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Below)))
+        offcuts = doc.insert(Node.part(doc.output(split, 0), PartSelect.split_half(SplitHalf.Above)))
+        corner = doc.insert(Node.part(doc.output(split, 1), PartSelect.split_half(SplitHalf.Below)))
 
         whole = volume_of(doc, bracket)
         off = volume_of(doc, offcuts)
@@ -860,9 +860,11 @@ class TestSnowman(unittest.TestCase):
         axis = y_axis(doc, frame)
         bottom = self.ball(doc, frame, axis, self.R1, 0.0)
         head = self.ball(doc, frame, axis, self.R2, self.D)
-        union = doc.insert(Node.boolean(BooleanOp.Union, bottom, head))
-        bitten = doc.insert(Node.boolean(BooleanOp.Subtract, bottom, head))
-        lens = doc.insert(Node.boolean(BooleanOp.Intersect, bottom, head))
+        # A revolve defines its body and its axis: each read names the body.
+        a, b = doc.output(bottom, 0), doc.output(head, 0)
+        union = doc.insert(Node.boolean(BooleanOp.Union, a, b))
+        bitten = doc.insert(Node.boolean(BooleanOp.Subtract, a, b))
+        lens = doc.insert(Node.boolean(BooleanOp.Intersect, a, b))
         below, above = self.level(doc, 0.0), self.level(doc, self.D)
 
         ev = evaluate(doc)
@@ -1713,7 +1715,7 @@ class DieScene:
                 placed.append(
                     doc.insert(
                         Node.transform(
-                            origin_ball,
+                            doc.output(origin_ball, 0),
                             (
                                 Formula.length_in(c[0], m),
                                 Formula.length_in(c[1], m),
@@ -2673,7 +2675,7 @@ class TestBudfillet(unittest.TestCase):
             [GeomPred.adjacent_kinds(SurfaceKind.Sphere, SurfaceKind.Cone)],
         )
         self.assertEqual(len(mouth), 1, "the description names one rim")
-        first = doc.insert(Node.fillet(sharp, Formula.length_in(self.ROLL, m), mouth))
+        first = doc.insert(Node.fillet(doc.output(sharp, 0), Formula.length_in(self.ROLL, m), mouth))
 
         ev = evaluate(doc)
         lip = ev.select_where(
@@ -3114,8 +3116,8 @@ class TestTeapot(unittest.TestCase):
             "the mouth disc is the meridian's fourth segment in program order",
         )
         mouth = [bands[seg_mouth]]
-        sealed = doc.insert(Node.shell(pot, Formula.length_in(self.WALL, m), []))
-        cup = doc.insert(Node.shell(pot, Formula.length_in(self.WALL, m), mouth))
+        sealed = doc.insert(Node.shell(doc.output(pot, 0), Formula.length_in(self.WALL, m), []))
+        cup = doc.insert(Node.shell(doc.output(pot, 0), Formula.length_in(self.WALL, m), mouth))
 
         # ---- the lid: three rims, by name ----
         lid_profile = doc.insert(Node.profile(self.lid_meridian(), plane=frame))
@@ -3135,7 +3137,7 @@ class TestTeapot(unittest.TestCase):
                 got[1].meters, station, delta=1e-12, msg=f"rim at vertex {v}"
             )
         lid = doc.insert(
-            Node.fillet(sharp, Formula.length_in(self.ROLL, m), [rims[v] for v, _, _ in self.RIMS])
+            Node.fillet(doc.output(sharp, 0), Formula.length_in(self.ROLL, m), [rims[v] for v, _, _ in self.RIMS])
         )
 
         # ---- the spout: built about its own axis, then placed ----
@@ -3236,7 +3238,7 @@ class TestTeapot(unittest.TestCase):
                 ev.face_carrier_kind(pot, name), SurfaceKind.Plane, "no planar pi half"
             )
 
-        node = doc.insert(Node.shell(pot, Formula.length_in(self.WALL, m), [mouth]))
+        node = doc.insert(Node.shell(doc.output(pot, 0), Formula.length_in(self.WALL, m), [mouth]))
         ev = evaluate(doc)
         body = ev.value(node).body()
         body.validate()
@@ -3632,7 +3634,7 @@ class TestTorusvessel(unittest.TestCase):
         )
         frame, axis = teapot_frame_and_axis(doc)
         operand = fully_revolved(doc, frame, axis, meridian)
-        return operand, doc.insert(Node.shell(operand, Formula.length_in(self.WALL, m), []))
+        return operand, doc.insert(Node.shell(doc.output(operand, 0), Formula.length_in(self.WALL, m), []))
 
     def test_a_torus_walled_vessel_hollows_through_the_document(self):
         doc = Doc()

@@ -136,8 +136,8 @@ class TestTheHalfIsTheHalf(unittest.TestCase):
         doc = Doc()
         cube = box(doc)
         split = split_at(doc, cube)
-        above = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Above)))
-        below = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Below)))
+        above = doc.insert(Node.part(doc.output(split, 0), PartSelect.split_half(SplitHalf.Above)))
+        below = doc.insert(Node.part(doc.output(split, 1), PartSelect.split_half(SplitHalf.Below)))
         return doc, split, above, below
 
     def test_each_half_weighs_what_the_split_says_it_weighs(self):
@@ -321,8 +321,8 @@ class TestTheRefusalsAreTyped(unittest.TestCase):
         doc = Doc()
         cube = box(doc)
         split = split_at(doc, cube, z=2.0)
-        above = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Above)))
-        below = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Below)))
+        above = doc.insert(Node.part(doc.output(split, 0), PartSelect.split_half(SplitHalf.Above)))
+        below = doc.insert(Node.part(doc.output(split, 1), PartSelect.split_half(SplitHalf.Below)))
         self.assertEqual(refusal(self, doc, above), "empty_half")
         self.assertTrue(evaluate(doc).succeeded(below))
 
@@ -416,7 +416,7 @@ class TestTheIndexIsStructural(unittest.TestCase):
         doc = Doc()
         doc.apply(DocEdit.declare_var(VarName("which"), FreeVar.count(0)))
         split = split_at(doc, box(doc))
-        above = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Above)))
+        above = doc.insert(Node.part(doc.output(split, 0), PartSelect.split_half(SplitHalf.Above)))
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.bind_instance_param(above, VarName("which")))
         self.assertEqual(caught.exception.variant, "unknown_slot")
@@ -463,7 +463,7 @@ class TestTheReadSide(unittest.TestCase):
         cube = box(doc)
         split = split_at(doc, cube)
         family = pattern_of(doc, cube)
-        half = doc.insert(Node.part(split, PartSelect.split_half(SplitHalf.Below)))
+        half = doc.insert(Node.part(doc.output(split, 1), PartSelect.split_half(SplitHalf.Below)))
         one = doc.insert(Node.part(family, PartSelect.instance(Formula.count(0))))
         self.assertEqual(doc.node_kind(family), "pattern")
         self.assertEqual(doc.node_kind(half), "part")

@@ -313,7 +313,11 @@ fn the_slot_door_re_points_an_operand_and_reports_what_it_strands() {
         vec![(fillet, edge)],
         "the edge `a` minted is out of the fillet's reach, reported"
     );
-    assert_eq!(re_pointed.doc.upstream(fillet), vec![b], "and the read moved");
+    assert_eq!(
+        re_pointed.doc.upstream(fillet),
+        vec![b],
+        "and the read moved"
+    );
 
     // Acyclicity: a union re-pointed at its own reader is a cycle.
     let (doc, union) = insert(
@@ -933,7 +937,7 @@ fn dm5_is_over_the_variables_read() {
 /// circular pattern of a revolve's body, and an instance of a part — so
 /// the one-shot's roots and reads cover each family, a list member
 /// among them. Inserted, never evaluated: what the one-shot compares is
-/// the saved document. `pre_b_families.pncad` is this document as the
+/// the saved document. `pre_b_families.json` is this document as the
 /// base built it, through its own fixtures, before an operand was a
 /// read.
 pub(crate) fn families_document() -> ProfileDoc {
@@ -1060,11 +1064,11 @@ pub(crate) fn families_document() -> ProfileDoc {
     doc
 }
 
-/// `pre_b_families.pncad`, the base's save of [`families_document`],
+/// `pre_b_families.json`, the base's save of [`families_document`],
 /// and this build's save of it, as JSON bodies.
 fn families_pair() -> (serde_json::Value, serde_json::Value) {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/intent_s2_b/pre_b_families.pncad");
+        .join("tests/intent_s2_b/pre_b_families.json");
     let base = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     let text =
         save(&families_document(), &[], Tol::witness()).expect("the families document saves");
@@ -1156,4 +1160,66 @@ fn a_file_reading_an_unminted_variable_refuses_operand_unminted() {
         said.contains(editor_core::REGENERATE_RECOURSE),
         "the sentence carries the regenerate recourse: {said}"
     );
+}
+
+/// **A measure whose site is deleted refuses typed, and its dead site
+/// is no edge** (review A's MINOR-1): the delete of a block a measure
+/// reads names at is accepted, `Doc::upstream` sets the dead site aside
+/// — so no walk over the relation (the roots, the cascade, the mate
+/// solve's components) meets an id no node is — and evaluation refuses
+/// the measure `UnresolvedSite` at that site rather than a missing
+/// input. The stranded document saves and loads as itself.
+#[test]
+fn a_measure_whose_site_is_deleted_refuses_typed_and_keeps_no_dead_edge() {
+    let doc = ProfileDoc::empty_derived("s2b-dead-site", Tol::witness());
+    let (doc, _, a) = block(doc, 0.0);
+    let (doc, _, b) = block(doc, 3.0);
+    let ev = fixture::run(&doc, &editor_core::EvalOptions::default());
+    let face = |node| {
+        editor_core::all_faces(&ev, node)
+            .into_iter()
+            .next()
+            .expect("a block has faces")
+    };
+    let (doc, measure) = insert(
+        doc,
+        Node::measure(
+            editor_core::MeasureExpr::primitive(editor_core::MeasurePrimitive::Distance {
+                a: 0,
+                b: 1,
+            }),
+            vec![
+                editor_core::SitedRef::new(a, face(a)),
+                editor_core::SitedRef::new(b, face(b)),
+            ],
+        )
+        .expect("both indices address a reference"),
+    );
+    assert_eq!(
+        doc.upstream(measure),
+        vec![a, b],
+        "the measure reads at both"
+    );
+    let deleted = applied(&doc, DocEdit::DeleteNode { id: b }).doc;
+    assert_eq!(
+        deleted.upstream(measure),
+        vec![a],
+        "the dead site is no edge"
+    );
+    assert!(
+        !editor_core::cascade_delete_order(&deleted, a).contains(&b),
+        "and no walk meets it"
+    );
+    let ev = fixture::run(&deleted, &editor_core::EvalOptions::default());
+    assert!(
+        matches!(
+            ev.node_error(measure).map(|e| &e.kind),
+            Some(NodeErrorKind::UnresolvedSite { at }) if *at == b
+        ),
+        "{:?}",
+        ev.node_error(measure)
+    );
+    let text = save(&deleted, &[], Tol::witness()).expect("a stranded site saves");
+    let loaded = load(&text, Tol::witness()).expect("and loads");
+    assert!(loaded.doc.bit_eq(&deleted), "as itself");
 }

@@ -261,7 +261,7 @@ fn the_load_door_speaks_the_nodes_of_the_file_it_refuses() {
             let said = format!("Profile \"outline\" ({})", tag(profile.0.digest()));
             let sentence = PersistError::Snapshot(error.clone()).to_string();
             assert!(
-                sentence.contains(&format!("{said}'s plane reads")),
+                sentence.contains(&format!("{said}'s frame reads")),
                 "the sentence speaks the node with its label: {sentence}"
             );
         }

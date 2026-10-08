@@ -21,7 +21,7 @@ Datum(AxisInPlane { plane: @0, origin: [#0, #1], direction: [#2, #3] })
   #1 Origin(Y)
   #2 Direction(X)
   #3 Direction(Y)
-  @0 Operand(Plane)
+  @0 Operand(Frame)
 Datum(Frame { origin: [#0, #1, #2], u: [#3, #4, #5], v: [#6, #7, #8] })
   #0 Origin(X)
   #1 Origin(Y)
@@ -44,7 +44,7 @@ Profile(ProfileProgram { plane: @0, loops: [Chain([At([#0, #1]), LineTo(Point([#
   #5 Profile { loop_: 0, step: 2, arg: TargetY }
   #6 Profile { loop_: 0, step: 3, arg: TargetX }
   #7 Profile { loop_: 0, step: 3, arg: TargetY }
-  @0 Operand(Plane)
+  @0 Operand(Frame)
 Extrude { profile: @0, distance: #0, side: Along }
   #0 Distance
   @0 Operand(Profile)

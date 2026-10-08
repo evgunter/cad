@@ -1082,7 +1082,7 @@ fn deleting_a_referenced_node_leaves_the_measure_refusing() {
     let ev = eval(&deleted);
     let err = failed_kind(&ev, measure);
     assert!(
-        matches!(err, NodeErrorKind::MissingInput { input } if *input == holes[0]),
+        matches!(err, NodeErrorKind::UnresolvedSite { at } if *at == holes[0]),
         "got {err:?}"
     );
 }

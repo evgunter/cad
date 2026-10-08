@@ -295,7 +295,7 @@ fn split_and_break(trimmed: &Trimmed, body: RecipeNodeId, tol: Tol) -> String {
     let offcuts = insert(
         &mut doc,
         Node::Part {
-            of: (*split).into(),
+            of: pncad::document::Operand::output(*split, SplitHalf::Above.port()),
             select: PartSelect::SplitHalf(SplitHalf::Above),
         },
         tol,

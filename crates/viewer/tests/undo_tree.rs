@@ -228,7 +228,9 @@ fn undo_restores_a_reader_a_delete_stranded() {
             &pncad::document::EvalOptions::default(),
             tol,
         );
-        evaluation.node_error(extrude).map(|e| e.kind.clone())
+        evaluation
+            .node_error(extrude)
+            .map(|e| format!("{:?}", e.kind))
     };
     assert_eq!(error_of(&doc), None, "the plate builds");
     let mut history = History::new(doc.clone());
@@ -236,18 +238,29 @@ fn undo_restores_a_reader_a_delete_stranded() {
     let deleted = pncad::document::apply(&doc, &edit, tol, &pncad::document::RefusingReach)
         .expect("a delete with a reader is accepted");
     history.commit(edit, deleted.doc);
+    let stranded = error_of(history.doc()).unwrap_or_default();
     assert!(
-        matches!(
-            error_of(history.doc()),
-            Some(pncad::document::NodeErrorKind::UnresolvedRead { .. })
-        ),
-        "the stranded extrude refuses typed: {:?}",
-        error_of(history.doc())
+        stranded.starts_with("UnresolvedRead"),
+        "the stranded extrude refuses typed: {stranded}"
     );
-    assert!(history.doc().upstream(extrude).is_empty(), "and reads nothing live");
+    assert!(
+        history.doc().upstream(extrude).is_empty(),
+        "and reads nothing live"
+    );
 
     history.undo().expect("the delete undoes");
-    assert!(history.doc().bit_eq(&doc), "undo restores the document bit for bit");
-    assert_eq!(history.doc().upstream(extrude), vec![profile], "the read is back");
-    assert_eq!(error_of(history.doc()), None, "and the extrude builds again");
+    assert!(
+        history.doc().bit_eq(&doc),
+        "undo restores the document bit for bit"
+    );
+    assert_eq!(
+        history.doc().upstream(extrude),
+        vec![profile],
+        "the read is back"
+    );
+    assert_eq!(
+        error_of(history.doc()),
+        None,
+        "and the extrude builds again"
+    );
 }

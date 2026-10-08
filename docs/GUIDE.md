@@ -1286,8 +1286,10 @@ axis = doc.insert(Node.datum_axis_in_plane(frame, (
     Formula.literal(1.0),
 )))
 ball = doc.insert(Node.revolve(doc.insert(Node.profile(half, plane=frame)), axis, Formula.angle_in(2 * math.pi, rad)))
+# A revolve defines two outputs, its body and its axis, so a read of
+# it names which: `doc.output(ball, 0)` is the body.
 pip = doc.insert(
-    Node.transform(ball, (
+    Node.transform(doc.output(ball, 0), (
         Formula.length_in(0.5, m),
         Formula.length_in(0.5, m),
         Formula.length_in(1.0 + R - H, m),
@@ -1661,9 +1663,9 @@ ring = doc.insert(
 def piece(leg):
     return doc.piece(profile, 0, leg.step.leg)
 
-cup = doc.insert(Node.shell(ring, Formula.length_in(T, m), [band(ring, piece(top))]))
+cup = doc.insert(Node.shell(doc.output(ring, 0), Formula.length_in(T, m), [band(ring, piece(top))]))
 rolled = doc.insert(
-    Node.fillet(ring, Formula.length_in(T, m), [band_rim(ring, piece(top)), band_rim(ring, piece(section))])
+    Node.fillet(doc.output(ring, 0), Formula.length_in(T, m), [band_rim(ring, piece(top)), band_rim(ring, piece(section))])
 )
 
 ev = evaluate(doc)

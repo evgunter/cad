@@ -991,7 +991,7 @@ pub enum Datum<S: Slot = crate::VarId> {
     /// always expressible here — and here it is expressible only in
     /// the ways that are legal.
     AxisInPlane {
-        /// The frame this axis lives in ([`crate::OperandSlot::Plane`]),
+        /// The frame this axis lives in ([`crate::OperandSlot::Frame`]),
         /// read exactly as a profile's plane is: the frame is the
         /// meaning of the two coordinate pairs below, so an axis
         /// without it is four numbers about nothing.
@@ -3428,7 +3428,7 @@ impl<P> Node<P> {
                 plane,
                 origin: _,
                 direction: _,
-            }) => vec![(O::Plane, *plane)],
+            }) => vec![(O::Frame, *plane)],
             Node::Datum(Datum::FaceFrame { at, face: _, spin: _ }) => vec![(O::At, *at)],
             Node::Datum(
                 Datum::Plane {
@@ -3467,7 +3467,7 @@ impl<P> Node<P> {
             // A measure's references are sited names
             // ([`Node::measure_sites`]), not operands.
             | Node::Measure { expr: _, refs: _ } => Vec::new(),
-            Node::Profile(p) => p.plane_read().map(|r| (O::Plane, r)).into_iter().collect(),
+            Node::Profile(p) => p.plane_read().map(|r| (O::Frame, r)).into_iter().collect(),
             Node::Assertion {
                 measure,
                 bound: _,
@@ -3570,38 +3570,139 @@ impl<P> Node<P> {
                 .map(|(i, r)| (at(u32::try_from(i).unwrap_or(u32::MAX)), r))
                 .collect()
         }
+        // Every field named, as `operand_rows` names it: a field added
+        // to a node does not compile until it is stated here too, so
+        // the writable twin cannot fall behind the reading one.
         match self {
-            Node::Datum(Datum::AxisInPlane { plane, .. }) => vec![(O::Plane, plane)],
-            Node::Datum(Datum::FaceFrame { at, .. }) => vec![(O::At, at)],
-            Node::Datum(_)
-            | Node::Mate { .. }
-            | Node::InstantiatePart { .. }
-            | Node::Gauge { .. }
-            | Node::Measure { .. } => Vec::new(),
+            Node::Datum(Datum::AxisInPlane {
+                plane,
+                origin: _,
+                direction: _,
+            }) => vec![(O::Frame, plane)],
+            Node::Datum(Datum::FaceFrame {
+                at,
+                face: _,
+                spin: _,
+            }) => vec![(O::At, at)],
+            Node::Datum(
+                Datum::Plane {
+                    origin: _,
+                    normal: _,
+                }
+                | Datum::Axis {
+                    origin: _,
+                    direction: _,
+                }
+                | Datum::Point { position: _ }
+                | Datum::Frame {
+                    origin: _,
+                    u: _,
+                    v: _,
+                },
+            )
+            | Node::Mate {
+                a: _,
+                b: _,
+                class: _,
+                alignment: _,
+            }
+            | Node::InstantiatePart {
+                doc_ref: _,
+                interface: _,
+                gauge: _,
+                offset: _,
+            }
+            | Node::Gauge {
+                parent: _,
+                placement: _,
+            }
+            | Node::Measure { expr: _, refs: _ } => Vec::new(),
             Node::Profile(p) => p
                 .plane_read_mut()
-                .map(|r| (O::Plane, r))
+                .map(|r| (O::Frame, r))
                 .into_iter()
                 .collect(),
-            Node::Assertion { measure, .. } => vec![(O::Measure, measure)],
-            Node::Extrude { profile, .. } => vec![(O::Profile, profile)],
-            Node::Revolve { profile, axis, .. } => vec![(O::Profile, profile), (O::Axis, axis)],
-            Node::Tube { frame, .. } | Node::HollowTube { frame, .. } => vec![(O::Frame, frame)],
-            Node::Loft { profiles, .. } => listed(O::Section, profiles),
-            Node::Sweep { profile, path, .. } => vec![(O::Profile, profile), (O::Path, path)],
-            Node::Fillet { target, .. }
-            | Node::Chamfer { target, .. }
-            | Node::Shell { target, .. } => {
-                vec![(O::Target, target)]
+            Node::Assertion {
+                measure,
+                bound: _,
+                dir: _,
+            } => vec![(O::Measure, measure)],
+            Node::Extrude {
+                profile,
+                distance: _,
+                side: _,
+            } => vec![(O::Profile, profile)],
+            Node::Revolve {
+                profile,
+                axis,
+                angle: _,
+            } => vec![(O::Profile, profile), (O::Axis, axis)],
+            Node::Tube {
+                frame,
+                major_radius: _,
+                window: _,
+                minor_radius: _,
             }
+            | Node::HollowTube {
+                frame,
+                major_radius: _,
+                window: _,
+                minor_radius: _,
+                wall: _,
+            } => vec![(O::Frame, frame)],
+            Node::Loft {
+                profiles,
+                v_degree: _,
+            } => listed(O::Section, profiles),
+            Node::Sweep {
+                profile,
+                path,
+                stations: _,
+                v_degree: _,
+            } => vec![(O::Profile, profile), (O::Path, path)],
+            Node::Fillet {
+                target,
+                radius: _,
+                selection: _,
+            }
+            | Node::Chamfer {
+                target,
+                distance: _,
+                selection: _,
+            }
+            | Node::Shell {
+                target,
+                thickness: _,
+                open: _,
+            } => vec![(O::Target, target)],
             Node::Split { target, tool } => vec![(O::Target, target), (O::Tool, tool)],
-            Node::Boolean { a, b, .. } => vec![(O::A, a), (O::B, b)],
-            Node::Union { members, .. } => listed(O::Member, members),
-            Node::Transform { input, .. } => vec![(O::Input, input)],
-            Node::Part { of, .. } => vec![(O::Of, of)],
-            Node::Pattern { input, kind, .. } | Node::PlacedUnion { input, kind, .. } => {
+            Node::Boolean {
+                op: _,
+                a,
+                b,
+                declare: _,
+            } => vec![(O::A, a), (O::B, b)],
+            Node::Union {
+                members,
+                declare: _,
+            } => listed(O::Member, members),
+            Node::Transform {
+                input,
+                placement: _,
+            } => vec![(O::Input, input)],
+            Node::Part { of, select: _ } => vec![(O::Of, of)],
+            Node::Pattern {
+                input,
+                count: _,
+                kind,
+            }
+            | Node::PlacedUnion {
+                input,
+                count: _,
+                kind,
+            } => {
                 let mut v = vec![(O::Input, input)];
-                if let PatternKind::Circular { axis, .. } = kind {
+                if let PatternKind::Circular { axis, step: _ } = kind {
                     v.push((O::Axis, axis));
                 }
                 v
@@ -4171,7 +4272,7 @@ impl<S: Slot> Datum<S> {
                 origin,
                 direction,
             } => Datum::AxisInPlane {
-                plane: read(crate::OperandSlot::Plane, plane)?,
+                plane: read(crate::OperandSlot::Frame, plane)?,
                 origin: map_array(origin, f)?,
                 direction: map_array(direction, f)?,
             },

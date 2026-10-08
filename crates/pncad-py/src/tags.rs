@@ -570,7 +570,6 @@ pub fn operand_slot_tag(slot: &pncad::document::OperandSlot) -> &'static str {
         S::Input => "input",
         S::Of => "of",
         S::Measure => "measure",
-        S::Plane => "plane",
         S::At => "at",
     }
 }

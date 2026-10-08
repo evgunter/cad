@@ -90,7 +90,10 @@ pub enum OperandSlot {
     Path,
     /// The axis a revolve turns about, or a circular rule's.
     Axis,
-    /// The frame a tube is built in.
+    /// The frame a tube is built in, a profile is drawn on, or an
+    /// in-plane axis is written in: the one operand kind a field of
+    /// each reads, so one slot (its field is `frame` on a tube and
+    /// `plane` on the other two).
     Frame,
     /// The body a blend, a shell or a split reshapes.
     Target,
@@ -108,9 +111,6 @@ pub enum OperandSlot {
     Of,
     /// The measure an assertion bounds.
     Measure,
-    /// The frame a profile is drawn on, or an in-plane axis is written
-    /// in.
-    Plane,
     /// The body a face frame reads its face out of.
     At,
 }
@@ -133,7 +133,6 @@ impl OperandSlot {
             Self::Input => "input".to_owned(),
             Self::Of => "source".to_owned(),
             Self::Measure => "measure".to_owned(),
-            Self::Plane => "plane".to_owned(),
             Self::At => "body".to_owned(),
         }
     }
@@ -144,7 +143,7 @@ impl OperandSlot {
         match self {
             Self::Profile | Self::Section(_) | Self::Path => SlotKind::Is(VarKind::Profile),
             Self::Axis => SlotKind::Is(VarKind::Axis),
-            Self::Frame | Self::Plane => SlotKind::Is(VarKind::Frame),
+            Self::Frame => SlotKind::Is(VarKind::Frame),
             Self::Tool => SlotKind::Is(VarKind::Plane),
             Self::Target | Self::A | Self::B | Self::Member(_) | Self::At => {
                 SlotKind::Is(VarKind::Body)

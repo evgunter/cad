@@ -241,7 +241,11 @@ fn rolled_lid(
 ) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let (mut doc, lid) = sharp_lid(tol);
     let sel: Vec<StableName> = vs.iter().map(|&v| rim(&doc, lid, v, tol)).collect();
-    let rolled = insert(&mut doc, Node::fillet(pncad::document::Operand::output(lid, 0), len(roll), sel), tol);
+    let rolled = insert(
+        &mut doc,
+        Node::fillet(pncad::document::Operand::output(lid, 0), len(roll), sel),
+        tol,
+    );
     (doc, lid, rolled)
 }
 
@@ -362,7 +366,15 @@ fn one_request_builds_the_kernels_body() {
         .iter()
         .flat_map(|&v| rim_arcs(&doc, lid, v, tol))
         .collect();
-    let rolled = insert(&mut doc, Node::fillet(pncad::document::Operand::output(lid, 0), len(ROLL), sel.clone()), tol);
+    let rolled = insert(
+        &mut doc,
+        Node::fillet(
+            pncad::document::Operand::output(lid, 0),
+            len(ROLL),
+            sel.clone(),
+        ),
+        tol,
+    );
     let ev = eval(&doc, tol);
     assert!(
         ev.node_error(rolled).is_none(),
@@ -676,7 +688,11 @@ fn a_split_carries_a_held_slits_band() {
     );
     let (mut doc, lid) = sharp_lid_in(doc, R_VENT, tol);
     let sel = vec![rim(&doc, lid, 1, tol), rim(&doc, lid, 2, tol)];
-    let rolled = insert(&mut doc, Node::fillet(pncad::document::Operand::output(lid, 0), len(ROLL), sel), tol);
+    let rolled = insert(
+        &mut doc,
+        Node::fillet(pncad::document::Operand::output(lid, 0), len(ROLL), sel),
+        tol,
+    );
     let ev = eval(&doc, tol);
     assert!(
         ev.node_error(rolled).is_none(),

@@ -440,7 +440,7 @@ pub enum LoopProgram<S = crate::VarId> {
 #[serde(bound = "")]
 pub struct ProfileProgram<S: crate::expr::Slot = crate::VarId> {
     /// The frame this profile is drawn on
-    /// ([`crate::OperandSlot::Plane`]): a [`crate::Datum::Frame`]'s or
+    /// ([`crate::OperandSlot::Frame`]): a [`crate::Datum::Frame`]'s or
     /// a [`crate::Datum::FaceFrame`]'s, either of which lands the same
     /// frame value: sketch (0, 0) and the directions sketch +x and +y
     /// point.
@@ -587,7 +587,7 @@ pub trait ProfilePayload: serde::Serialize + SlotPayload<VarId> {
         Ok(())
     }
     /// **The frame this payload is drawn ON**, if it reads one — the
-    /// profile's one operand read ([`crate::OperandSlot::Plane`]).
+    /// profile's one operand read ([`crate::OperandSlot::Frame`]).
     ///
     /// It rides the payload trait rather than [`crate::Node::Profile`]
     /// because that is where the plane lives: the variant stays a
@@ -2732,7 +2732,7 @@ impl<S: crate::expr::Slot> ProfileProgram<S> {
         read: &mut impl FnMut(crate::OperandSlot, &S::Read) -> Result<S2::Read, E>,
     ) -> Result<ProfileProgram<S2>, E> {
         Ok(ProfileProgram {
-            plane: read(crate::OperandSlot::Plane, &self.plane)?,
+            plane: read(crate::OperandSlot::Frame, &self.plane)?,
             loops: self
                 .loops
                 .iter()
