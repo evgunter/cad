@@ -438,3 +438,57 @@ it only sets export's coordinates. The kernel computes each operation in a frame
 numerics from that operation's own reads, never the world's."
 
 (S3M is not mine to answer.)
+
+## Round 6: two roots made inexpressible (re-read against `5f7a1c71e3`)
+
+**1. Yes, by four structural rules. Then the two-roots check is an invariant: hitting it is a
+kernel bug.**
+- **(a) Kept, sharpened.** A document holds its one frameless construction in a distinct slot
+  (`Doc::root`), not as an ordinary node with an optional frame. Every other construction's frame
+  slot is required and reads a frame off existing geometry. A second frameless body is unwritable.
+  Where it is wanted, it is another document, instanced. Ev: "copies *are* just placements".
+- **(b) Kept.** An instance is a `Place` of a part document: its copies exist only through a
+  bundle, never as a loose root body.
+- **(c) Kept, with one addition.** The world is read only by bundle mates and export, and the
+  world itself sits in the root's space. It is related to the root by one mate, Ev's "one number"
+  (default: coincident with the root's base frame). In a document with no construction (an
+  assembly), the world is the root. Without this, a copy placed against the world and a local
+  body would be two roots in one document.
+- **(d) New: an under-pinned copy is read by nothing** (point 2). This closes the remaining route
+  to a second root: a copy with an empty bundle, which today has its own space (A11 (2)).
+- **Other routes, closed by these rules or by their doors:**
+  - The façade's datum helpers take a base frame, so `datum_plane(origin, normal)` from nothing
+    no longer exists.
+  - Migration rewrites each absolute datum as an `Offset` of the root's base frame.
+  - STEP import is a document, instanced and placed.
+  - Inline rewrites the inlined part's root to read the frame its copy was pinned at; an
+    under-pinned instance cannot be inlined.
+  - Split makes the taken root-most construction the new document's root, and places the
+    instance by the frame it read.
+
+**2. An under-pinned copy** is a copy whose bundle pins fewer degrees of freedom than it has; an
+empty bundle is the extreme. It is in its target's space, as a coset rather than a pose. Nothing
+may read it: no boolean, measure, selection, or another copy's mate. Anything reading it is
+unresolved and typed, the stranded-reader rule, and that propagates down every chain of reads.
+The viewer draws it where last shown, as display state no logic reads (Ev: "the location and
+orientation within the viewer is always set by the placement display info and never anything
+'real'"). Because nothing reads a position the bundle did not fix, nothing becomes
+placing-by-position. A free-floating sub-assembly is authored in its own document.
+
+**Principles relied on:** parts have no location; a mate "supplies a constraint, and has no
+position it needs to efface"; placement relates "inherently-unplaced parts"; the world "just sets
+the coordinates", as one number; the viewer's location is never real.
+
+**Principles bent:**
+- A11 (2)'s own-space rule (#3441, Ev-ratified) retires. D10 already lists A11 (2) as retiring.
+- Ev's first idea, "view and edit something that will go into a boolean next to the existing
+  part", survives only as display. Editing such a thing as a related group needs its own
+  document.
+
+**3. D10 Spaces:** "A part has no location, and raw coordinates are never related except through
+a placement. A document has one root, its one construction that reads no frame; every other
+construction reads a frame off existing geometry. Each copy is a placement: it is read only
+once its bundle pins it, and until then it is shown and never read. The **world** is one
+undeletable node, related to the root by one mate and read only by placements and export. The
+kernel computes each operation in a frame chosen for numerics from that operation's reads,
+never the world's."
