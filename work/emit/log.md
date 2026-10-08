@@ -2108,3 +2108,15 @@ Filed from the review: K > 2 is unenforced (flux), and N2 states only
 part of the tie rule (emit). The lane also filed a swaying-loft refusal
 (nurbs) and the flush reading's NURBS gap (emit).
 
+## 2026-10-07 — PR 4281: merged sets are flat through FromMember (N3)
+
+A union over a union, or over a pair boolean, published an inner merge as
+one constituent. Merged sets now peel `FromA`, `FromB` and `FromMember`
+in one place. `Parents` and `member_edge` read constituents, and
+`face_descends_from` counts descent from a constituent.
+
+Review caught two things: an overstated PR claim (main never dropped
+declarations silently) and the untested pair-boolean case, which now has
+a row that is red on main. The wrong cascade diagnosis is filed as
+`a-vanished-merged-name-is-diagnosed-a-cascade-through-its-retired-constituent`.
+
