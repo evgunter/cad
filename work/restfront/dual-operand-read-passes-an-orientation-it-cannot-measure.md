@@ -36,9 +36,12 @@ each door at a dual.
   tier 3 refuses (`DescriptionNotAdjacent`, "an edge whose halves bound
   one face is that face's wrap edge"), so it does not finish at `f64`.
   At a dual it passes `gate_unverdicted` and reaches the blend's
-  half-band gate. The finished spelling is
-  `fillet_h5_r2_probes::a_finished_curved_single_face_carrying_both_arcs_refuses_at_the_half_band_gate`
-  (`kef_describing` restating the survivor as the wall's wrap edge).
+  half-band gate. The `kef_describing` spelling (the survivor restated
+  as the wall's wrap edge) no longer finishes at `f64` either: each
+  rim's two arcs meet at the killed meridian's end, which tier 3's
+  check 11 refuses
+  (`fillet_h5_r2_probes::a_curved_single_face_carrying_both_arcs_is_construction_state`).
+  Check 11 is another tier-3 finding `gate_unverdicted` does not read.
 
 Owed: decide what a dual door owes an operand it cannot certify. One
 answer: a sign the dual cannot measure refuses, as tier 3 refuses it,
