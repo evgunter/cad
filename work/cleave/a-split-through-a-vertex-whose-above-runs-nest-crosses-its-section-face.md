@@ -28,9 +28,14 @@ apex that overlap (`meeting::corners_disjoint` fails), in every one of
 | `meeting::comb` | 3, two nested under one | 0.040 | 0.015 | **overlap** (both sides) |
 | `meeting::arch_cone` | 3, one inside another inside a third | 0.050 | 0.030 | **overlap** (both sides) |
 
-The volumes are right and tiers 3 and 3′ do not see a crossed loop
-(RESTFRONT's `tier-3-passes-a-face-whose-loop-crosses-itself-at-a-repeated-vertex`),
-so the split ships an unsound body with no refusal.
+The volumes are right. Tier 3 does see the crossed loop: check 9's
+corner arm returns `ValidationError::PinchCornerCrossed` from
+`validate_geometric` on every crossed side (20 of 20, PR 4300's review).
+The split ships the body with no refusal only because `split` does not
+run tier 3 on its sides (`splitting/mod.rs`, `split`'s doc: a pinch
+side's touching pieces carry contacts it declares nowhere). A cheap
+backstop until the order is read: run the corner check alone on split
+sides, and refuse a side that fails it.
 
 ## The likely cause
 
@@ -40,7 +45,7 @@ order that assumes the runs' germ intervals lie one after another about
 the plane's normal. The above runs are chords of the vertex's link that
 do not cross but can nest. The boolean's pierce ring had the same
 assumption: `boolean/vtxfac.rs` now sorts the runs' germs clockwise
-(`ring_order`) and hangs its struts as the tree that sort gives
+(`germ_order`) and hangs its struts as the tree that sort gives
 (`crate::null::ring_tree`), a star where one region borders every run,
 a path or deeper tree otherwise. The split lane wants the same reading,
 or a typed refusal, rather than a

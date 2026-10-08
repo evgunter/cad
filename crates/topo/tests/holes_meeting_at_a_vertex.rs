@@ -344,13 +344,17 @@ fn every_op(
     ]
 }
 
-/// Whether `q` is inside `body`, `None` on its boundary.
+/// Whether `q` is inside `body`, `None` on its boundary or within the
+/// band of a face's plane.
 fn inside_of(body: &AtRestBody<f64>, q: Point3<f64>) -> Option<bool> {
     let band = geom_core::Band::linear(t()).unwrap();
-    match topo::point_in_solid(body, q, band, t()).unwrap() {
-        topo::SolidContainment::In => Some(true),
-        topo::SolidContainment::Out => Some(false),
-        topo::SolidContainment::OnBoundary => None,
+    match topo::point_in_solid(body, q, band, t()) {
+        Ok(topo::SolidContainment::In) => Some(true),
+        Ok(topo::SolidContainment::Out) => Some(false),
+        Ok(topo::SolidContainment::OnBoundary) | Err(topo::PointInSolidError::Escalated { .. }) => {
+            None
+        }
+        Err(e) => panic!("point in solid at {q:?}: {e:?}"),
     }
 }
 
@@ -410,6 +414,33 @@ fn pyramid_volumes(base: &[[f64; 3]]) -> (f64, f64) {
     (area(&poly) / 6.0, area(&below) / 6.0)
 }
 
+/// Whether `(y, z)` lies inside the polygon `poly` (even-odd).
+fn in_polygon(poly: &[(f64, f64)], (y, z): (f64, f64)) -> bool {
+    let mut inside = false;
+    for i in 0..poly.len() {
+        let ((y0, z0), (y1, z1)) = (poly[i], poly[(i + 1) % poly.len()]);
+        if (z0 > z) != (z1 > z) && y < y0 + (z - z0) / (z1 - z0) * (y1 - y0) {
+            inside = !inside;
+        }
+    }
+    inside
+}
+
+/// **The analytic oracle**, at rest: whether `q` is inside the plate
+/// and inside [`apex_pyramid`] over `base`, read off their closed forms
+/// (a box, and a cone over a polygon in the plane half a unit along +x
+/// from [`MEET`]) rather than any body.
+fn analytic(base: &[[f64; 3]], q: [f64; 3]) -> (bool, bool) {
+    let plate = (0..3).all(|i| PLATE[i].0 < q[i] && q[i] < PLATE[i].1);
+    let d = [0, 1, 2].map(|i| q[i] - MEET[i]);
+    let poly: Vec<(f64, f64)> = base.iter().map(|c| (c[1], c[2])).collect();
+    let cone = d[0] > 0.0 && d[0] <= 0.5 && {
+        let s = d[0] / 0.5;
+        in_polygon(&poly, (d[1] / s, d[2] / s))
+    };
+    (plate, cone)
+}
+
 /// Every op on the plate and `u` at `pose`, both operand orders, builds
 /// sound ([`sound`]): tiers 3 and 3′, `corners_disjoint`, a block across
 /// the meeting point that unions with it, and its volume, from `closed`
@@ -417,8 +448,16 @@ fn pyramid_volumes(base: &[[f64; 3]]) -> (f64, f64) {
 /// the intersection's, against the identities between the ops. At
 /// every probe ([`probes`]) where no body reads its boundary, the result
 /// holds material exactly where the op over the operands' own
-/// containment does.
-fn every_op_sound(label: &str, u: &AtRestBody<f64>, pose: &Pose, closed: Option<(f64, f64)>) {
+/// containment does; and where `u` is the cone over `base` at rest, so
+/// it does at 4000 pseudo-random probes near the apex against the
+/// [`analytic`] oracle.
+fn every_op_sound(
+    label: &str,
+    u: &AtRestBody<f64>,
+    pose: &Pose,
+    closed: Option<(f64, f64)>,
+    base: Option<&[[f64; 3]]>,
+) {
     use topo::intersect;
     let p = posed_box("the plate", PLATE, pose, t());
     let vu = volume(u);
@@ -454,6 +493,30 @@ fn every_op_sound(label: &str, u: &AtRestBody<f64>, pose: &Pose, closed: Option<
             }
         }
         assert!(read > 600, "{label}: {read} probes read");
+        if let (Some(base), "at rest") = (base, pose.label) {
+            // Pseudo-random probes within 0.6 of the apex, denser near it.
+            let mut seed: u64 = 0x9E37_79B9_7F4A_7C15;
+            let mut rnd = || {
+                seed ^= seed << 13;
+                seed ^= seed >> 7;
+                seed ^= seed << 17;
+                (seed >> 11) as f64 / (1u64 << 53) as f64
+            };
+            let (mut read, mut wrong) = (0, 0);
+            for _ in 0..4000 {
+                let rad = 0.6 * rnd().powi(2);
+                let q = [0, 1, 2].map(|i| rad.mul_add(2.0f64.mul_add(rnd(), -1.0), MEET[i]));
+                let (in_p, in_u) = analytic(base, q);
+                if let Some(got) = inside_of(&r.body, Point3::new(q[0], q[1], q[2])) {
+                    read += 1;
+                    wrong += usize::from(got != keep(in_p, in_u));
+                }
+            }
+            assert!(
+                wrong == 0 && read > 3000,
+                "{label}: analytic oracle, {wrong} wrong of {read}"
+            );
+        }
     }
 }
 
@@ -485,7 +548,13 @@ fn a_cone_whose_runs_nest_under_one_builds_in_every_op() {
     for pose in poses() {
         let u = apex_pyramid(&comb(), &pose, t());
         let label = format!("the comb, {}", pose.label);
-        every_op_sound(&label, &u, &pose, Some(pyramid_volumes(&comb())));
+        every_op_sound(
+            &label,
+            &u,
+            &pose,
+            Some(pyramid_volumes(&comb())),
+            Some(&comb()),
+        );
     }
 }
 
@@ -504,6 +573,7 @@ fn runs_one_between_others_build_in_every_op() {
             &arch_union(&pose),
             &pose,
             None,
+            None,
         );
         for (name, base, _) in cones().into_iter().skip(1) {
             let u = apex_pyramid(&base, &pose, t());
@@ -512,6 +582,7 @@ fn runs_one_between_others_build_in_every_op() {
                 &u,
                 &pose,
                 Some(pyramid_volumes(&base)),
+                Some(&base),
             );
         }
     }
@@ -525,17 +596,19 @@ fn every_root_of_the_ring_builds_in_every_op() {
     let rest = Pose::rest();
     let mut scenes = vec![("the arch".to_string(), arch_union(&rest), 3, None)];
     for (name, base, k) in cones() {
-        let closed = Some(pyramid_volumes(&base));
-        scenes.push((name.to_string(), apex_pyramid(&base, &rest, t()), k, closed));
+        let u = apex_pyramid(&base, &rest, t());
+        scenes.push((name.to_string(), u, k, Some(base)));
     }
-    for (name, u, k, closed) in &scenes {
+    for (name, u, k, base) in &scenes {
+        let closed = base.as_deref().map(pyramid_volumes);
         for root in 0..=*k {
             topo::test_support::with_ring_root(root, || {
                 every_op_sound(
                     &format!("{name}, rooted at region {root}"),
                     u,
                     &rest,
-                    *closed,
+                    closed,
+                    None,
                 );
             });
         }

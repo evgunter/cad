@@ -883,13 +883,15 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
                 ]
             })
             .collect();
-        let order = ring_order(&germs, n_pierced.vec(), band)?;
+        let order = germ_order(&germs, n_pierced.vec(), band)?;
         crate::null::ring_tree(&order, crate::null::ring_root()).ok_or(
             BooleanError::ClassificationInvariant {
                 what: "a pierce's runs read as crossing chords about the pierced face's normal",
             },
         )?
     } else {
+        // One run: nothing to order, and either half may face either
+        // germ, so no germ is read; its strut faces its end germ first.
         vec![crate::null::RingStrut {
             run: 0,
             parent: None,
@@ -1129,11 +1131,14 @@ pub(super) fn classify_vertex_on_face<T: Decide + crate::props::AtRestPolicy>(
 
 /// **The germs' order round the ring vertex**: indices into `germs`
 /// (each a direction and its arm), clockwise about the pierced face's
-/// outward `normal` from `germs[0]`. Each comparison is
-/// [`super::insert::strut_order`]'s, levered at the shortest of its three
-/// germs' arms; one it cannot decide refuses, and nothing orders the
-/// germs otherwise.
-fn ring_order<T: Decide>(
+/// outward `normal` from `germs[0]`. Every comparison is
+/// [`super::insert::strut_order`]'s from `germs[0]`, levered at the
+/// shortest of its three germs' arms, and a germ along `germs[0]` has no
+/// place before or after it: its side of `germs[0]` read in band
+/// (`bool_strut_side`, its sense along) refuses as the sectors'
+/// coincidence. Any reading that does not decide refuses; nothing orders
+/// the germs otherwise.
+fn germ_order<T: Decide>(
     germs: &[(Vec3<T>, T)],
     normal: Vec3<T>,
     band: Band,
@@ -1141,6 +1146,17 @@ fn ring_order<T: Decide>(
     let (from, from_arm) = germs[0];
     let mut order = vec![0];
     for (i, &(g, g_arm)) in germs.iter().enumerate().skip(1) {
+        let arm = from_arm.min(g_arm);
+        let side = Margin::levered(g.cross(from).dot(normal), arm);
+        if let Err(diag) = crate::validate::decide_nonzero("bool_strut_side", side, band)
+            && super::sectors::direction_sense(g, from, arm, band)?
+        {
+            return Err(BooleanError::coincidence(
+                Coincide::Sectors,
+                DeclarationRead::Moot,
+                diag,
+            ));
+        }
         let mut at = order.len();
         for (slot, &j) in order.iter().enumerate().skip(1) {
             let (h, h_arm) = germs[j];
@@ -1614,6 +1630,77 @@ mod tests {
             !text.contains(KERNEL_DEFECT_ENDING) && text.contains("tighten the tolerance below"),
             "{text}"
         );
+    }
+
+    /// A germ on the unit circle of `z = 0` at `deg` clockwise about +z,
+    /// with a unit arm.
+    fn germ_at(deg: f64) -> (Vec3<f64>, f64) {
+        let t = -deg.to_radians();
+        (Vec3::new(t.cos(), t.sin(), 0.0), 1.0)
+    }
+
+    /// Whether `r` is the sectors' coincidence escalated, which a
+    /// smaller tolerance decides.
+    fn sectors_coincide(r: &Result<Vec<usize>, BooleanError>) -> bool {
+        matches!(
+            r,
+            Err(BooleanError::Escalated {
+                decision: super::super::BooleanDecision::Coincidence(Coincide::Sectors, _),
+                ..
+            })
+        )
+    }
+
+    /// **A germ along the ring's first germ refuses as the sectors'
+    /// coincidence, as does a pair along each other**, where `d` is in
+    /// band and the germs are ordered where it is decided:
+    /// - a star, two runs side by side, run 1's end `d` before run 0's
+    ///   start (`[0, 1, 2, 3]`, every strut facing its start);
+    /// - a star, run 1 nested under run 0, run 0's end `d` before its
+    ///   own start (`[0, 3, 2, 1]`, every strut facing its end);
+    /// - a path, `meeting::arch`'s germs mirrored, run 1's end `d` before
+    ///   run 0's start (`[0, 1, 2, 5, 4, 3]`: run 1 between the others);
+    /// - two germs neither of them the first, `d` apart: no order of
+    ///   them is read in band.
+    #[test]
+    fn germs_in_band_of_each_other_refuse_as_the_sectors_coincidence() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let n = Vec3::new(0.0, 0.0, 1.0);
+        type Row = (&'static str, fn(f64) -> Vec<f64>, Vec<usize>);
+        let rows: [Row; 4] = [
+            (
+                "side by side",
+                |d| vec![0.0, 90.0, 180.0, 360.0 - d],
+                vec![0, 1, 2, 3],
+            ),
+            (
+                "nested under one",
+                |d| vec![30.0, 30.0 - d, 200.0, 100.0],
+                vec![0, 3, 2, 1],
+            ),
+            (
+                "the arch",
+                |d| vec![30.0, 120.0, 150.0, 30.0 - d, 270.0, 240.0],
+                vec![0, 1, 2, 5, 4, 3],
+            ),
+            (
+                "two apart from the first",
+                |d| vec![0.0, 90.0, 90.0 + d, 200.0],
+                vec![0, 1, 2, 3],
+            ),
+        ];
+        for (what, degs, decided) in rows {
+            let germs = |d: f64| degs(d).into_iter().map(germ_at).collect::<Vec<_>>();
+            assert_eq!(
+                germ_order(&germs(1.0), n, band).ok(),
+                Some(decided),
+                "{what}, 1° apart"
+            );
+            for d in [1e-10, 1e-12] {
+                let r = germ_order(&germs(d), n, band);
+                assert!(sectors_coincide(&r), "{what}, {d}° apart: {r:?}");
+            }
+        }
     }
 
     /// **A bisector run minted after the other run hangs its strut in

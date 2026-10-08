@@ -441,19 +441,14 @@ pub(crate) struct RingStrut {
 /// order: each strut after the one it hangs at, and a node's struts
 /// clockwise. A read of `order` alone, so it adds no predicate.
 ///
-/// The runs are chords of the vertex's link above the face that do not
-/// cross, their germs on the face's circle of directions. The ring is
-/// one loop of null struts at the point, each strut's halves facing its
-/// run's two germs, and its corners lie disjoint about the normal
-/// exactly when the loop passes the germs in clockwise order. That loop
-/// is the walk round a plane tree with one node per region of the link
-/// above the face and one strut per chord, so the tree is forced up to
-/// the node taken as the ring vertex. A walk from a corner with a stack
-/// reads it: a germ opens its run's chord, hung at the far end of the
-/// open chord it lies under or at the root, the half leaving that node
-/// facing it; the run's other germ closes it. Struts at one node face
-/// alike, their germs met in the same turn about the node; struts at
-/// different depths may differ.
+/// The runs are non-crossing chords of the vertex's link above the
+/// face. The loop of struts at the point passes their germs in clockwise
+/// order, so it walks round the plane tree with one node per region
+/// above the face and one strut per chord (forced up to its root). A
+/// stack walk reads it: a germ opens its run's chord at the far end of
+/// the open chord it lies under, or at the root, the half leaving that
+/// node facing it; the run's other germ closes it. Struts at one node
+/// face alike; depths may differ.
 ///
 /// The root is `root` where given (a region, numbered as a walk from
 /// the corner before `order[0]` first enters them), otherwise the
@@ -653,6 +648,191 @@ mod tests {
                 None,
                 "{order:?}: no region k + 1"
             );
+        }
+    }
+
+    /// Whether chords `(a, b)` and `(c, d)` between circle positions
+    /// cross.
+    fn crossing(a: usize, b: usize, c: usize, d: usize) -> bool {
+        let (a, b) = (a.min(b), a.max(b));
+        let inside = |x: usize| a < x && x < b;
+        inside(c) != inside(d)
+    }
+
+    fn permutations(items: Vec<usize>) -> Vec<Vec<usize>> {
+        if items.len() <= 1 {
+            return vec![items];
+        }
+        let mut out = Vec::new();
+        for i in 0..items.len() {
+            let mut rest = items.clone();
+            let x = rest.remove(i);
+            for mut p in permutations(rest) {
+                p.insert(0, x);
+                out.push(p);
+            }
+        }
+        out
+    }
+
+    /// The ring tree of `order` built from its chord diagram's regions
+    /// rather than by a walk: gaps between circle positions in one
+    /// region when no chord separates them; the root the region the
+    /// most chords border, lowest by its first gap from the one before
+    /// `order[0]`; each chord's parent the chord whose far region is its
+    /// near one; its facing the germ the clockwise walk round its near
+    /// region meets first. Sorted by run.
+    fn dual_tree(order: &[usize]) -> Vec<RingStrut> {
+        let m = order.len();
+        let k = m / 2;
+        let mut pos = vec![0; m];
+        for (p, &g) in order.iter().enumerate() {
+            pos[g] = p;
+        }
+        let chord = |r: usize| {
+            (
+                pos[2 * r].min(pos[2 * r + 1]),
+                pos[2 * r].max(pos[2 * r + 1]),
+            )
+        };
+        // Gap `j` lies after position `j`; inside chord (a, b) when a <= j < b.
+        let inside = |j: usize, r: usize| {
+            let (a, b) = chord(r);
+            a <= j && j < b
+        };
+        let gaps: Vec<usize> = std::iter::once(m - 1).chain(0..m - 1).collect();
+        let mut region = vec![usize::MAX; m];
+        let mut regions = 0;
+        for &j in &gaps {
+            if region[j] != usize::MAX {
+                continue;
+            }
+            for &l in &gaps {
+                if (0..k).all(|r| inside(j, r) == inside(l, r)) {
+                    region[l] = regions;
+                }
+            }
+            regions += 1;
+        }
+        let sides = |r: usize| {
+            let (a, b) = chord(r);
+            (region[(a + m - 1) % m], region[a], region[b])
+        };
+        let mut degree = vec![0; regions];
+        for r in 0..k {
+            let (out, inn, _) = sides(r);
+            degree[out] += 1;
+            degree[inn] += 1;
+        }
+        let root = (0..regions)
+            .max_by_key(|&g| (degree[g], std::cmp::Reverse(g)))
+            .unwrap();
+        // Each chord's near (root-side) and far region: the far region of
+        // a chord is reached through it alone, so from the root the near
+        // region is the one nearer the root; read it by the regions'
+        // depth from the root over the chords.
+        let mut depth = vec![usize::MAX; regions];
+        depth[root] = 0;
+        for d in 0..regions {
+            for r in 0..k {
+                let (out, inn, _) = sides(r);
+                for (x, y) in [(out, inn), (inn, out)] {
+                    if depth[x] == d && depth[y] == usize::MAX {
+                        depth[y] = d + 1;
+                    }
+                }
+            }
+        }
+        let near_far = |r: usize| {
+            let (out, inn, _) = sides(r);
+            if depth[out] < depth[inn] {
+                (out, inn)
+            } else {
+                (inn, out)
+            }
+        };
+        let mut tree: Vec<RingStrut> = (0..k)
+            .map(|r| {
+                let (near, _) = near_far(r);
+                let parent = (0..k).find(|&q| near_far(q).1 == near);
+                let (a, b) = chord(r);
+                // The walk round the near region reaches the endpoint
+                // whose gap before it is the near region's.
+                let first = if region[(a + m - 1) % m] == near {
+                    a
+                } else {
+                    b
+                };
+                RingStrut {
+                    run: r,
+                    parent,
+                    plus_faces_start: order[first].is_multiple_of(2),
+                }
+            })
+            .collect();
+        tree.sort_by_key(|s| s.run);
+        tree
+    }
+
+    /// **Every closed meander's ring tree is its chord diagram's dual
+    /// tree** (k ≤ 5, germ 0 first): for every germ order whose runs
+    /// above and below the face are each non-crossing chords and close
+    /// one link, `ring_tree` reads a tree, the same runs, parents and
+    /// facings as [`dual_tree`] builds from the regions, each strut after
+    /// its parent; struts at one node face alike; and the ring is a star
+    /// at exactly two orders per k.
+    #[test]
+    fn every_meanders_ring_tree_is_its_dual_tree() {
+        for k in 2..=5usize {
+            let m = 2 * k;
+            let (mut meanders, mut stars) = (0, 0);
+            for rest in permutations((1..m).collect()) {
+                let mut order = vec![0];
+                order.extend(rest);
+                let mut pos = vec![0; m];
+                for (p, &g) in order.iter().enumerate() {
+                    pos[g] = p;
+                }
+                let above: Vec<_> = (0..k).map(|i| (pos[2 * i], pos[2 * i + 1])).collect();
+                let below: Vec<_> = (0..k)
+                    .map(|i| (pos[2 * i + 1], pos[(2 * i + 2) % m]))
+                    .collect();
+                let apart = |c: &[(usize, usize)]| {
+                    (0..c.len()).all(|i| {
+                        (i + 1..c.len()).all(|j| !crossing(c[i].0, c[i].1, c[j].0, c[j].1))
+                    })
+                };
+                if !(apart(&above) && apart(&below)) {
+                    continue;
+                }
+                meanders += 1;
+                let tree =
+                    ring_tree(&order, None).unwrap_or_else(|| panic!("k={k} {order:?}: no tree"));
+                for (i, s) in tree.iter().enumerate() {
+                    if let Some(p) = s.parent {
+                        assert!(
+                            tree[..i].iter().any(|t| t.run == p),
+                            "k={k} {order:?}: order"
+                        );
+                    }
+                    for t in &tree {
+                        if t.parent == s.parent {
+                            assert_eq!(
+                                t.plus_faces_start, s.plus_faces_start,
+                                "k={k} {order:?}: one node's struts face alike"
+                            );
+                        }
+                    }
+                }
+                let mut sorted = tree.clone();
+                sorted.sort_by_key(|s| s.run);
+                assert_eq!(sorted, dual_tree(&order), "k={k} {order:?}");
+                if tree.iter().all(|s| s.parent.is_none()) {
+                    stars += 1;
+                }
+            }
+            assert!(meanders > 0, "k={k}: no meander");
+            assert_eq!(stars, 2, "k={k}: {meanders} meanders, {stars} stars");
         }
     }
 

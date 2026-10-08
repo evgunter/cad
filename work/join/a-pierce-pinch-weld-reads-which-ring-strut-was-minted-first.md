@@ -58,3 +58,7 @@ So the root does not decide it: the refusal follows the strut minted
 first, run 1's, from the hub as from the leaf. The row asserts that
 refusal on those eight lines, and is this item's flip-back row: they
 must build once it is fixed.
+
+`finish::pinch_site` lies on CLEAVE/HONE ground by `work.py territory`
+(`crates/topo/src/boolean/finish.rs`), though JOIN has owned the pinch
+welds historically.

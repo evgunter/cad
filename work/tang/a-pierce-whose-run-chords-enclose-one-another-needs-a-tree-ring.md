@@ -76,7 +76,7 @@ the loop passes the germs in clockwise order.
 
 ## Closed
 
-`crate::null::ring_tree` reads the tree off `ring_order`'s clockwise
+`crate::null::ring_tree` reads the tree off `germ_order`'s clockwise
 sort with a stack, no predicate of its own: each germ opens its run's
 chord, hung at the far end of the open chord it lies under or at the
 root, the half leaving that node facing it. The root is the region

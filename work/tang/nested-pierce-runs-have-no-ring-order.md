@@ -86,7 +86,7 @@ retires, and a k ≥ 3 row with a bisector run pins the facing.
 ## Closed
 
 `classify_vertex_on_face` sorts all the runs' germs clockwise about the
-pierced face's normal (`ring_order`, the existing `bool_strut_side` and
+pierced face's normal (`germ_order`, the existing `bool_strut_side` and
 `bool_strut_order` decides) and hangs the ring's struts as the tree that
 sort gives (`crate::null::ring_tree`, no predicate of its own). The
 order detector is retired. Runs nested under one hang as a star in an
