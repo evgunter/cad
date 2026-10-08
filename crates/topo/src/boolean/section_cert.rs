@@ -1210,13 +1210,13 @@ fn cone_plane<T: Decide>(
                 Some(Sign::Negative) => -n,
                 _ => return Section::Tangent("section_cone_plane_facing"),
             };
-            let across = facing - cone.a * facing.dot(cone.a);
+            let (across, width) = square_to(facing, cone.a);
             let r = match sign(
                 "section_cone_plane_meridian",
-                Margin::levered(across.norm(), lever),
+                Margin::levered(width, lever),
                 band,
             ) {
-                Some(Sign::Positive) => across / across.norm(),
+                Some(Sign::Positive) => across / width,
                 Some(Sign::Zero) => cone.u_ref,
                 _ => return Section::Tangent("section_cone_plane_meridian"),
             };
@@ -1261,9 +1261,9 @@ fn cone_sphere<T: Decide>(cone: &Cone<T>, cs: Point3<T>, rho: T, band: Band) -> 
         Ok([out]) => out,
         Err(tan) => return tan.into(),
     };
-    let across = delta - cone.a * delta.dot(cone.a);
-    let r = match sign("section_cone_sphere_axis", Margin::of(across.norm()), band) {
-        Some(Sign::Positive) => across / across.norm(),
+    let (across, offset) = square_to(delta, cone.a);
+    let r = match sign("section_cone_sphere_axis", Margin::of(offset), band) {
+        Some(Sign::Positive) => across / offset,
         Some(Sign::Zero) => cone.u_ref,
         _ => return Section::Tangent("section_cone_sphere_axis"),
     };
@@ -1391,7 +1391,7 @@ fn cylinder_cylinder<T: Decide>(
         Some(Sign::Zero) => {
             let at = pivot(o2, d2, reach);
             let w = at - o1;
-            let offset = (w - d1 * w.dot(d1)).norm();
+            let (_, offset) = square_to(w, d1);
             return match sign(
                 "section_cylinder_pair_coincident",
                 Margin::of(offset + (r1 - r2).abs()),

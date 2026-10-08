@@ -4106,6 +4106,18 @@ pub fn sweep_split_admitting_cones(
     b_operand: &Body<f64>,
     tol: Tol,
 ) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace), BooleanError> {
+    let (a, b, ab, ba, _) = sweep_admitting_cones(a_operand, b_operand, tol)?;
+    Ok((a, b, ab, ba))
+}
+
+/// [`sweep_split_admitting_cones`], with the contacts the sweep recorded.
+#[cfg(feature = "sweep-testing")]
+#[allow(clippy::type_complexity)] // the split operands, their traces, the contacts
+fn sweep_admitting_cones(
+    a_operand: &Body<f64>,
+    b_operand: &Body<f64>,
+    tol: Tol,
+) -> Result<(Body<f64>, Body<f64>, SweepTrace, SweepTrace, ContactRecords), BooleanError> {
     let band = Band::linear(tol)?;
     let declared = DeclaredPairs::default();
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band, |s| {
@@ -4129,16 +4141,17 @@ pub fn sweep_split_admitting_cones(
         [Some(&mut ab), Some(&mut ba)],
         tol,
     )?;
-    Ok((a, b, ab, ba))
+    Ok((a, b, ab, ba, acc.finish()))
 }
 
 /// **The section certificate on the crossings path past the cone
-/// refusal**: [`sweep_split_admitting_cones`]'s events, read per face
-/// pair (an event on an edge is one on each face it bounds, against the
-/// face it met), and every in-scope pair of `a` × `b` certified with
-/// them, as `(A face, B face, outcome)` spelled by `Debug`. The verdict
-/// rows' reading of a cone pair the crossing layer has seen, until the
-/// roster admits the cone; `sweep-testing` only.
+/// refusal**: the sweep of [`sweep_split_admitting_cones`], its contacts
+/// read into face-pair events by the reduction's own reading
+/// (`ops::contact_face_pairs`, before any null edge exists), and every
+/// in-scope pair of `a` × `b` certified with them, as
+/// `(A face, B face, outcome)` spelled by `Debug`. The crossings path's
+/// certificate on a cone pair, until the roster admits the cone;
+/// `sweep-testing` only.
 ///
 /// # Errors
 ///
@@ -4150,29 +4163,8 @@ pub fn section_report_admitting_cones(
     b: &Body<f64>,
     tol: Tol,
 ) -> Result<Vec<(FaceKey, FaceKey, String)>, BooleanError> {
-    let (sa, sb, ab, ba) = sweep_split_admitting_cones(a, b, tol)?;
-    let faces_of = |split: &Body<f64>, e: EdgeKey| -> Vec<FaceKey> {
-        let Some(edge) = split.get_edge(e) else {
-            return Vec::new();
-        };
-        [edge.he_plus, edge.he_minus]
-            .into_iter()
-            .filter_map(|h| split.get_half_edge(h))
-            .filter_map(|h| split.get_loop(h.parent_loop))
-            .map(|l| l.face)
-            .collect()
-    };
-    let mut events = std::collections::BTreeSet::new();
-    for &(e, fb) in &ab.accepted {
-        for fa in faces_of(&sa, e) {
-            events.insert((fa, fb));
-        }
-    }
-    for &(e, fa) in &ba.accepted {
-        for fb in faces_of(&sb, e) {
-            events.insert((fa, fb));
-        }
-    }
+    let (sa, sb, _, _, contacts) = sweep_admitting_cones(a, b, tol)?;
+    let events = ops::contact_face_pairs(&sa, &sb, &contacts, &[]);
     Ok(ops::section_pairs(
         a,
         b,

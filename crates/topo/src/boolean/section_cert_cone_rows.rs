@@ -626,3 +626,118 @@ fn a_parabola_on_a_seamless_band_refuses_undecided() {
         "{verdicts:?}"
     );
 }
+
+// -------------------------------------------------------------------
+// A ball's centre near a tilted axis: the frame square to the axis
+// -------------------------------------------------------------------
+
+/// The cone `(apex, axis, α)` with a seam square to its axis.
+fn cone_about(apex: Point3<f64>, axis: Vec3<f64>, alpha: f64) -> Surface<f64> {
+    let axis = axis.normalize();
+    Surface::Cone {
+        apex,
+        axis,
+        half_angle: alpha,
+        u_ref: axis.orthonormal_basis().0,
+    }
+}
+
+/// **A ball in a skewed conical seat is one null loop, not apart.** A
+/// frustum's carrier (`α = π/4`, axis tilted off every coordinate) and a
+/// ball whose centre stands `~1e-7` of `|δ|` off that axis, its radius
+/// between the two extreme generators' distances: the ball meets the
+/// face's nappe in one null loop. Read with the centre's axis offset as
+/// `δ − a(a·δ)`, the axial rounding tilts the meridian frame by about
+/// `ε|δ|/|δ⊥|`, so `w±` are no longer generators and the arm answered
+/// `none()` — W0 on a real loop inside both faces. The mutant is that
+/// naive projection: red.
+#[test]
+fn a_ball_in_a_skewed_conical_seat_is_one_null_loop() {
+    let cone = cone_about(
+        p(-1.6440949543903838, -6.217566870446869, -18.93776158875356),
+        v(
+            -0.08220474771951919,
+            -0.31087834352234345,
+            -0.9468880794376779,
+        ),
+        FRAC_PI_4,
+    );
+    let ball = sphere(
+        p(
+            -4.455892895057587e-7,
+            -4.105641720292945e-8,
+            5.2163615926691535e-8,
+        ),
+        14.14213533816754,
+    );
+    let s = both(&cone, &ball);
+    assert_eq!(shape(&s), shape_of(1, true, false, false, false));
+    on_both(witness(&s), &cone, &ball);
+}
+
+/// **Near-axis balls at scale, every nappe class.** A cone `300 m` from
+/// the origin on a tilted axis, a ball centred `300 m` up it and
+/// `3e-5 m` off it, of radius between, beyond or short of the two
+/// extreme generators' distances `|e·cos α ∓ h·sin α|`: one null loop,
+/// two essential curves, nothing, each witnessed on both carriers. The
+/// naive projection misreads them: red.
+#[test]
+fn near_axis_balls_at_scale_every_nappe_class() {
+    let (alpha, h, e) = (0.6f64, 300.0, 3e-5);
+    let axis = v(0.3, -0.5, 0.81).normalize();
+    let (b1, b2) = axis.orthonormal_basis();
+    let across = (b1 * 0.6 + b2 * 0.8).normalize();
+    let apex = p(120.0, -45.0, 210.0);
+    let cone = cone_about(apex, axis, alpha);
+    let centre = apex + axis * h + across * e;
+    let (s, c) = alpha.sin_cos();
+    let (near, far) = ((h * s - e * c).abs(), (h * s + e * c).abs());
+    let gap = 0.5 * (far - near);
+    for (rho, want) in [
+        (near + gap, shape_of(1, true, false, false, false)),
+        (far + gap, shape_of(2, false, true, false, false)),
+        (near - gap, shape_of(0, false, false, false, false)),
+    ] {
+        let ball = sphere(centre, rho);
+        let sec = both(&cone, &ball);
+        assert_eq!(shape(&sec), want, "ρ {rho}");
+        let Section::Components { parts, .. } = &sec else {
+            unreachable!()
+        };
+        for c in parts {
+            let w = c.witness.expect("a witness");
+            for surf in [&cone, &ball] {
+                let r = geom_brep::implicit_residual(surf, w);
+                assert!(r.abs() < 1e-9, "ρ {rho}: the witness {w:?} is {r} off");
+            }
+        }
+    }
+}
+
+/// **A witness off a plane face's carrier places nowhere.** The plane
+/// door (`contfp`) places a point's projection, so a point `1 cm` above
+/// a brick's top, over its interior, would read `In`; the carrier is
+/// decided first and the point has no verdict. On the carrier it is
+/// `In`. The mutant dropping the carrier check places it `In`: red.
+#[test]
+fn a_witness_off_a_plane_carrier_has_no_verdict() {
+    let b = brick::<f64>((-1.0, 1.0), (-1.0, 1.0), (0.0, 0.5), Tol::witness());
+    let top = b
+        .faces()
+        .find(|(_, f)| {
+            matches!(
+                b.get_surface(f.surface),
+                Some(Surface::Plane { origin, normal, .. })
+                    if normal.z > 0.5 && (origin.z - 0.5).abs() < 1e-12
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the brick's top");
+    let surface = b
+        .get_surface(b.get_face(top).unwrap().surface)
+        .unwrap()
+        .clone();
+    let at = |q| ops::place_witness(&b, top, &surface, q, band());
+    assert_eq!(at(p(0.2, 0.3, 0.5)), IN);
+    assert_eq!(at(p(0.2, 0.3, 0.51)), None);
+}
