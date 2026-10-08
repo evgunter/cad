@@ -1257,3 +1257,35 @@ Signed (JOIN orchestrator).
   - walk order (M, PR 4317), under its sequential review.
 
 Signed (JOIN orchestrator).
+
+## 2026-10-08: battery hygiene landed; the w345 vertex is composed
+
+- **PR 4334 merged** (E, orchestrator read).
+  - `join1_delta_probes` uses the shared judge, with a Richardson oracle to 1e-7.
+  - `Body::split_edge_onto` keeps an existing vertex's bits where an edge split lands on it, so the 324 edge-placement lines read one vertex per cone.
+  - Pierce, pinch and corner batteries are byte-identical; 36 `rc_wide` lines moved only in margin digits.
+  - `join1-delta-probes-keep-their-own-outcome` and `vertices-at-misses-an-edge-split-ulps-off-the-pierce-point` are closed.
+- **PR 4338 merged** (the w345 unit stopped at its case (b)).
+  - Every split reading on the four poses was definite.
+  - The 9.55e-9 vertex-face gap is a pierce 3.69e-8 along a 345° edge, against the same operand's 0° face across the 15° corner: a composed pair no reading compares.
+  - So the door gate, not a split fix, catches it. `[ev]` PR 4335's row and body now say so.
+  - The row is parked on 4335. The unit drew byte 71 (SEQUENTIAL) but built nothing, so no DR row.
+
+Signed (JOIN orchestrator).
+
+## 2026-10-08: the walk-order unit landed (DR-110)
+
+- **PR 4317 merged** (M, SEQUENTIAL arm, byte 19).
+  - `walks_before` reads one order from the orbit's entry 0, checked to open a physical sector.
+  - `on_arc` is the one interval reading; `arc_holds` is the one "holds whole" reading, with its tie rule at its definition.
+  - `precedes` and the backward walk are gone.
+  - 0 lines moved over every battery, including three the PR did not run.
+- **Its one review:** APPROVE-WITH-FIXES, 0/1/4.
+  - The case table was re-modelled exhaustively; its one differing input is unreachable by `is_strut`'s definition.
+  - Mutants M1, M3 and M4 are killed; M2 is equivalent.
+  - The fix pass corrected `on_arc`'s doc, made a fan whose ends share one entry fail loud, made `arc_holders`' comparator infallible, and aligned the module header with `run_fan`.
+- `a-run-holding-another-whole-is-spelled-three-ways-in-insert` and `a-vertex-orbits-position-has-one-comparator-but-no-fixed-origin` are closed.
+- **Renumbered:** the two `[ev]` forks' rows are 100 (PR 4313) and 101 (PR 4335), not 90 and 91 as logged above. Rows 90–99 were taken on main and by other open `[ev]` PRs.
+- **In flight:** the dual review of PR 4344 (sphere pair, H) on head bf57b509; PR 4345 (wrap-edge, H) is merging main before its dual.
+
+Signed (JOIN orchestrator).
