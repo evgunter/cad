@@ -208,8 +208,8 @@
 //!   Where the face's boundary crosses the edge away from any vertex,
 //!   the crossing is a bound too: the overlap lane cuts the edge there
 //!   ([`boundary_crossings`]), and the bound is the edge-edge lane's
-//!   `EdgeEdgeCross` event, backed by exactly that lane's rung
-//!   ([`ee_cross_backed`]). Where the crossing boundary edge is a conic
+//!   `EdgeEdgeCross` event, backed as that lane backs it (an op's
+//!   edge-edge record, or [`ee_cross_backed`]). Where the crossing boundary edge is a conic
 //!   arc no census lane examines the crossing as an event, so no rung
 //!   backs that bound and the cell is an `UndeclaredContact`. With a
 //!   cut at every place the boundary meets the edge, each cell lies
@@ -1700,8 +1700,9 @@ fn any_boundary_vertex_at<T: Decide>(
 /// siblings, no stronger.
 ///
 /// Where a boundary edge of `f` crosses the edge at the bound, the
-/// event is that `EdgeEdgeCross`, and it takes that lane's rung
-/// ([`ee_cross_backed`]); a conic boundary edge's crossing has no rung.
+/// event is that `EdgeEdgeCross`, and it takes that lane's backing: an
+/// op's edge-edge record, or the crossing rung ([`ee_cross_backed`]). A
+/// conic boundary edge's crossing has neither.
 ///
 /// Where the EDGE holds a vertex at the bound, the event is that vertex
 /// against `f`: v-on-f-declared on `f`, v-v-declared with a coincident
@@ -1741,12 +1742,13 @@ fn ef_bound_backed<T: Decide>(
     let q = e.p0 + e.dir * cut.s;
     match cut.at {
         CutAt::Crossing(g) => {
-            return geo.edges.iter().find(|x| x.key == g).is_some_and(|g| {
-                matches!(
-                    ee_cross_backed(body, geo, declared, e, g, q, band, region, errors),
-                    CrossingBacking::Backed
-                )
-            });
+            return declared.ee_recorded(e.key, g)
+                || geo.edges.iter().find(|x| x.key == g).is_some_and(|g| {
+                    matches!(
+                        ee_cross_backed(body, geo, declared, e, g, q, band, region, errors),
+                        CrossingBacking::Backed
+                    )
+                });
         }
         CutAt::ConicCrossing => return false,
         CutAt::Vertex => {}
