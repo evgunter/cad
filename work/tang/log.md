@@ -707,6 +707,38 @@ each result's material and classes at `MEET` checked against
 `point_in_solid`. Filed on CONTACT:
 `a-solid-touching-itself-at-a-vertex-reads-its-star-from-the-vertex-alone`.
 
+2026-10-07 — `a-ring-on-a-cone-or-torus-face-has-no-island-winding`
+narrowed to the torus. The sphere and cone ring lanes now share one
+chart-free reading (`crates/topo/src/ring_path.rs`): a path parity
+from an outer-loop point to the closing chord's midpoint, with the
+arrival side giving the lean. The path is a great-circle arc on a
+sphere, and a ruling plus a parallel on a cone, clear of the apex.
+Re-homing reads the same paths (`chord_join::path_ring_side`). No op
+reaches a cone ring yet: GERM's cone gate comes first. So the cone rows
+are a cone sheet in `topo` (`chord_join::cone_ring_rows`) held to
+plane-inequality oracles, plus the sweep's crossings
+(`a_ring_on_a_cone_face`).
+
+2026-10-07 — PR 4246's fix pass (FULL review, APPROVE-WITH-FIXES, 1 MAJOR).
+The review's scan found no wrong body, winding or side. Its MAJOR was
+that a sphere pair that builds on main refused, because one path's
+in-band reading aborted the op. Now a path or reference whose reading
+escalates says nothing: the first decided path is the reading, and
+the op escalates only when no path decides. The meets-plane margin
+is now the half-chord, linear in the graze angle; either change alone
+restores the pair. The review's sphere-island and cone-grid fixtures
+are rows now. Across the review's 10,254 probe ops, the outcomes
+match main's again.
+
+2026-10-07 — PR 4246's second fix pass (second FULL review,
+REQUEST-CHANGES, 1 MAJOR). The meets-plane margin is the gap
+`rρ − |D|` again: it is the deviation that flips the meeting, and the
+half-chord had decided wrong parities at a smooth vertex grazed within
+rounding. The escalation fallback alone carries the graze the
+half-chord was meant to. Every ring reader now goes through one
+first-decided reading, the plane's `ring_side` and the cylinder's
+`chart_ring_side` included, so an escalated vertex or path asks the
+next and escalates only when none decides.
 ## 2026-10-07 — measured levers reach the consumed region (TANG implementer)
 
 chord_join's cylinder lane and the germ frame's plane×cylinder pair
@@ -751,6 +783,38 @@ PR 4289's first FULL review (REQUEST-CHANGES, MAJOR 1). The fix pass:
 - **Filed:** `great-arc-parity-is-read-twice-with-two-degeneracy-rules`
   (P3).
 
+2026-10-07 — PR 4246's third fix pass (third review, interim
+REQUEST-CHANGES, 1 MAJOR). A root at a smooth vertex under a graze is
+decided by its in-span readings, and those were levered by arc length,
+so a carrier moved by rounding could slide the root past the vertex.
+Each in-span reading is now levered by the slope the piece crosses the
+other's plane at, so its margin is the displacement that moves the
+root past the span's end. The sphere's reader on main had the same
+lever. The cone's segment and ruling arms never graze, because their
+slopes are bounded below, so the lever there is for shape.
+
+2026-10-07 — PR 4246's third fix pass, the final report's addendum. A
+cone path's turns now lie on the parallel the next piece runs round, so
+the pieces meet exactly; at the carrier's ratio they were open by a
+vertex's offset from the carrier, up to the band. The reader's
+first-decided walk states its premise: a ring does not cross the run.
+That is check 9's premise, assumed on Ellipse, Spiric and NURBS edges,
+and RESTFRONT's item now names this reader as sharing it. At ε 1e-3 the
+slope lever escalates two poses' winding that main decided by arc
+length, inside the root's own error.
+
+2026-10-08 — PR 4246's fourth fix pass (fourth review,
+APPROVE-WITH-FIXES, no MAJOR). The third pass's "the cone's segment
+and ruling arms never graze" was wrong. A parallel crosses a ruling at
+slope `cos α`, which vanishes on a near-flat cone. A ruling crosses a
+near-parabolic section at slope `sin η`. The per-arm rows now sweep
+those cells over ε, scale, offset and jitter, and kill the arc-length
+and per-metre mutants the old rows let through. A crossing any reading
+decides out of span is now passed over, though another escalates. That
+took the two poses that newly escalated at ε 1e-3 back to main's
+outcomes. The class sweep found the same shape in FLUX's props sphere
+side and in CLEAVE's line-wall and carrier-cross span readings, filed
+on each.
 ## 2026-10-07 — position and tilt as one sum (TANG implementer)
 
 The section classifiers decide a served verdict's position datum and

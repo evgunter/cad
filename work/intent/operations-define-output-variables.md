@@ -2,12 +2,10 @@
 id: operations-define-output-variables
 kind: issue
 title: D10 stage 2 PR A: an operation defines variables — VarDef::Output { node, port }, the reference kinds, outputs minted at insert without moving a node id, the OutputSignature load walk
-status: parked
+status: open
 opened: 2026-10-07
 priority: P0
 cost: M
-design: true
-blocked_on: [4222]
 refs: [d10-one-way-to-say-intent-is-unbuilt]
 ---
 
@@ -18,8 +16,6 @@ reference kinds FORK-1 settles. Outputs are minted at `InsertNode` from the inse
 own chain step (Q6), so no node id moves, and the `OutputSignature` load walk checks
 them. Nothing reads them yet.
 
-`design: true`: FORK-1 (the output signature of an operation) is open and blocks this row.
-Parked on stage 1's last unit.
 
 ## FORK-1 pending (2026-10-07, #4222)
 
@@ -29,3 +25,7 @@ FORK-1 is with Ev on #4222 (`operations-state-their-outputs`). The recommendatio
 - an instance defines one `Body` per world placement of its part.
 
 Spec §1 and §2 follow it, pending the ruling.
+
+## FORK-1, FORK-1b and FORK-3 ruled (2026-10-08, PR 4222)
+
+Ev approved FORK-1's shape and FORK-1b's pose order. For this unit: the kinds gain the shapes (`Body`, `Bodies`, `Profile`) and the selections (`Face`, `Edge`, `Faces`, `Edges`) but no `AxisInPlane`; both axis datums define an `Axis`; `Revolve` defines `body` and `axis` from the start (its axis port reads the axis it is given until the line moves onto the node); a pose kind names its symmetry as the mates' `Subgroup` (A11 (1)). Stage 1 has finished, so nothing else blocks this row.

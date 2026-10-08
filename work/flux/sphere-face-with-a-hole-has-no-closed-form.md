@@ -46,7 +46,7 @@ classification.
 ## Evidence (2026-10-07, TANG `tang/sphere-ring-island-winding`)
 
 The sphere ring lane winds its island on main now
-(`chord_join::sphere_island_winding`), so every pose below builds ∩ in
+(`chord_join::path_island_winding`), so every pose below builds ∩ in
 both member orders and box ∖ ball at the slice integral, and the ball's
 side of ∪ (both orders) and ball ∖ box refuse here. The rows pin this
 refusal and go red when the lane lands:
