@@ -814,7 +814,7 @@ fn the_load_door_reads_every_slots_variable() {
             (
                 point,
                 SlotId::Origin(editor_core::Axis3::Y),
-                Dimension::Count,
+                editor_core::VarKind::Count,
                 Dimension::Length
             )
         ),
@@ -861,7 +861,12 @@ fn the_load_door_reads_every_slots_variable() {
             ..
         })) => assert_eq!(
             (node.id(), slot, declared, referenced),
-            (pattern, SlotId::Count, Dimension::Length, Dimension::Count)
+            (
+                pattern,
+                SlotId::Count,
+                editor_core::VarKind::Length,
+                Dimension::Count
+            )
         ),
         other => panic!("a count slot reading a length refuses, got {other:?}"),
     }

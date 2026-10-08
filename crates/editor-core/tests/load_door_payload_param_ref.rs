@@ -212,7 +212,7 @@ fn a_measure_expression_reading_a_parameter_at_the_wrong_dimension_refuses_to_lo
             assert_eq!((node.id(), var.id()), (measure, id_of(&doc, &name)));
             assert_eq!(
                 (declared, referenced),
-                (Dimension::Angle, Dimension::Length)
+                (editor_core::VarKind::Angle, Dimension::Length)
             );
         }
         other => panic!("the load door must refuse the broken pairing, got {other:?}"),
