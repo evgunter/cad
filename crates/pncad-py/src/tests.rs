@@ -4882,7 +4882,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "pairing_mismatch",
             "pcurves",
             "pieces",
-            "pierce_runs_nested",
             "pinch_cones_on_separate_keys",
             "point_in_face_refused",
             "point_split_carrier_unsupported",
@@ -6016,10 +6015,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "open_face_stale",
             "open_faces_disconnect",
             "open_faces_exhaust_shell",
-            "operand_outer_shells",
             "partition",
             "pcurve",
-            "pieces",
             "rim",
             "roles",
             "thickness",
@@ -6620,10 +6617,10 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("payload_var_kind", 2),
     ("pcurve", 6),
     ("pcurves", 3),
-    // One fact for the boolean, the shell and the split: the result sort
+    // One fact for the boolean and the split: the result sort
     // (`topo::PieceSortError`) could not read a shell's piece, carried
     // whole by each verb. The profile program's word is a coincidence.
-    ("pieces", 4),
+    ("pieces", 3),
     // One fact: a placement on an instance's frame did not evaluate —
     // the instance's own row, and why its checked offset went unchecked.
     ("placement_refused", 2),

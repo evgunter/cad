@@ -117,6 +117,8 @@ mod offc_r1_probes;
 mod offd2_r1_probes;
 #[path = "offd_r1_probes.rs"]
 mod offd_r1_probes;
+#[path = "offset_axial_door_reads_charts_not_material.rs"]
+mod offset_axial_door_reads_charts_not_material;
 #[path = "offset_doors_end_with_the_join.rs"]
 mod offset_doors_end_with_the_join;
 #[path = "offset_restates_a_neighbour_chart_rim.rs"]
