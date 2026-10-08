@@ -4223,9 +4223,9 @@ mod tests {
     }
 
     /// **A short patch on a large wall is levered at its own reach
-    /// across the wall, not its rims' whole turn.** A 1 cm × 10 µm patch
-    /// of a 1 km wall, bounded by two rim arcs and two rulings, read at a
-    /// corner and cut by the plane through that corner and the axis
+    /// across the wall, not its rims' whole turn.** A `1e5·ε × 1e3·ε`
+    /// patch (100 µm × 1 µm at ε = 1e-9) of a 1 km wall, bounded by two rim
+    /// arcs and two rulings, read at a corner and cut by the plane through that corner and the axis
     /// tilted by `sin β = k·zero/e` about the radial: the patch stands
     /// within `k·zero` of the corner's ruling, so the section over it is
     /// that ruling, never a conic. Levered round the rims' whole turn
@@ -4233,13 +4233,14 @@ mod tests {
     #[test]
     fn a_rim_patchs_turn_is_levered_at_its_arcs_not_their_whole_turn() {
         let band = geom_core::Band::linear(Tol::witness()).expect("a linear band");
-        let (r, e) = (1000.0, 1e-5);
+        let eps = Tol::witness().eps();
+        let (r, e, w) = (1000.0, 1e3 * eps, 1e5 * eps);
         let mut body = crate::Body::<f64>::new();
         let face = crate::test_support_fixtures::cyl_wall_sheet(
             &mut body,
             crate::test_support_fixtures::CylFrame::canonical(r),
             None,
-            (0.0, 1e-2 / r),
+            (0.0, w / r),
             (0.0, e),
             Tol::witness(),
         );
