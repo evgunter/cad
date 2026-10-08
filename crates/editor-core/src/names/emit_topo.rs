@@ -376,20 +376,13 @@ fn split_joined_readings<T: Decide>(
             }
             [_] => {} // a piece: the fragment pass names it
             several if several.iter().all(|&r| whole(r)) => {
-                let mut tied = false;
                 let mut names = Vec::with_capacity(several.len());
                 for &r in several {
                     let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(r)))?;
-                    tied |= up.tied;
-                    names.push((*up.name).clone());
+                    names.push(((*up.name).clone(), up.tied));
                 }
-                out.insert(
-                    kept,
-                    Joined::Set {
-                        name: merged::edge_set(node, names),
-                        tied,
-                    },
-                );
+                let (name, tied) = super::join_names::joined_name(node, names);
+                out.insert(kept, Joined::Set { name, tied });
             }
             _ => {
                 return Err(bug(

@@ -1689,9 +1689,10 @@ pub enum BlendError {
         /// The operator's typed refusal.
         source: topo::EulerOpError,
     },
-    /// **The join the blend ends with refused** (`Body::join_edges`,
-    /// `docs/DESIGN.md`, maximal edges), typed and keyless; it words
-    /// its own recourse.
+    /// **The join the blend ends with refused**
+    /// (`Body::join_edges_within`, scoped to the shells the surgery
+    /// carved; `docs/DESIGN.md`, maximal edges), typed and keyless; it
+    /// words its own recourse.
     Join {
         /// Why the join refused.
         refusal: topo::JoinRefusal,

@@ -25,9 +25,11 @@
 //! # The provenance channels, and the totality that closes them
 //!
 //! An output entity is either a recorded mint or a survivor keeping
-//! its source arena key ([`BlendNaming`]'s module docs). Survivors
-//! take [`RoleSeg::FromTarget`] of their upstream name; mints take
-//! their role. Anything that is neither — a key minted without a
+//! its source arena key ([`BlendNaming`]'s module docs), less the cells
+//! the closing join killed. Survivors take [`RoleSeg::FromTarget`] of
+//! their upstream name; mints take their role; a join's kept edge, a
+//! survivor or a mint by its key, takes the name of the input edges its
+//! cover lies along (`join_names`), which replaces its row's. Anything that is neither — a key minted without a
 //! record — has no upstream name and surfaces as
 //! [`NamingError::MissingUpstream`], loudly, rather than being guessed
 //! around. The final [`check_total`] closes the other direction.
@@ -263,62 +265,30 @@ pub(super) fn name_blend<T: geom_core::Real>(
 
     // ---- The joins (`BlendNaming::edge_joins`). ----
     // The blend ends with the join, so an edge it made is named by the
-    // edges its cover lies along (`topo::join_covers`), each read by the
-    // rows above: trims of input edges on one support (`TrimEdge`), rim
-    // trims on one support (`BandTrim`), or surviving input edges
-    // (`FromTarget`). One covered name is the edge's own; several of one
-    // kind are the flat `Merged` set of them. A cover with an edge the
-    // blend minted outright (an arc, a mitre, a band cut or slit), or of
-    // mixed kinds, has no input-cell reading and refuses.
-    let mut joined: BTreeMap<EntityKey, (RoleSeg, bool)> = BTreeMap::new();
-    for (kept, members) in topo::join_covers(&rec.edge_joins) {
-        if body.get_edge(kept).is_none() {
-            return Err(NamingError::Emission {
-                what: "the blend recorded a join whose kept edge is not in its body",
-            });
-        }
-        let mut names = BTreeSet::new();
-        let mut kinds = BTreeSet::new();
-        let mut tied = false;
-        for m in members {
-            let (seg, t) = match minted.get(&EntityKey::Edge(m)) {
-                Some((seg, t)) => (seg.clone(), *t),
-                None => {
-                    let u = up_e(m)?;
-                    (RoleSeg::FromTarget(u.name), u.tied)
+    // input edges its cover lies along (`join_names`), each read by the
+    // rows above: a trimline of an input edge on one support (`TrimEdge`),
+    // a rim trim on one support (`BandTrim`), or a surviving input edge
+    // (`FromTarget`). An edge the blend minted outright (an end arc, a
+    // mitre, a band's slit, a remnant) reads no input edge, and a cover
+    // holding one refuses.
+    let joined = super::join_names::name_joins(node, body, &rec.edge_joins, |m| {
+        Ok(match minted.get(&EntityKey::Edge(m)) {
+            Some((seg @ (RoleSeg::TrimEdge { .. } | RoleSeg::BandTrim { .. }), tied)) => {
+                super::join_names::Member::Image {
+                    seg: seg.clone(),
+                    tied: *tied,
                 }
-            };
-            kinds.insert(match &seg {
-                RoleSeg::TrimEdge { .. } => "trim",
-                RoleSeg::BandTrim { .. } => "rim trim",
-                RoleSeg::FromTarget(_) => "survivor",
-                _ => {
-                    return Err(NamingError::Emission {
-                        what: "the blend joined an edge it minted outright, which no input \
-                               cell reads",
-                    });
+            }
+            Some(_) => super::join_names::Member::Outright,
+            None => {
+                let u = up_e(m)?;
+                super::join_names::Member::Image {
+                    seg: RoleSeg::FromTarget(u.name),
+                    tied: u.tied,
                 }
-            });
-            tied |= t;
-            names.insert(name1(EntityKind::Edge, node, seg));
-        }
-        if kinds.len() > 1 {
-            return Err(NamingError::Emission {
-                what: "the blend joined edges of different kinds, which no input cell reads",
-            });
-        }
-        let name = if names.len() == 1 {
-            names.pop_first()
-        } else {
-            Some(super::merged::edge_set(node, names))
-        };
-        let Some([seg]) = name.as_ref().map(|n| n.path.as_slice()) else {
-            return Err(NamingError::Emission {
-                what: "a blend join's name is not one segment",
-            });
-        };
-        joined.insert(EntityKey::Edge(kept), (seg.clone(), tied));
-    }
+            }
+        })
+    })?;
     // The joined names replace whatever the rows gave the kept edge.
     minted.extend(joined);
 
@@ -474,13 +444,16 @@ mod tie_tests {
         );
     }
 
-    /// **A join over edges of different kinds refuses**: a trimline and
-    /// a surviving input edge are images of different cells, so no one
-    /// reading covers both. No blend run reaches it either, so the row
-    /// plants the record: a join of a trim the surgery minted with an
-    /// edge it carried.
+    /// **A join over a trimline and a survivor names their flat set**:
+    /// each is the image of one input edge — the trimline of the edge it
+    /// parallels on its support, the survivor of itself — so the joined
+    /// edge spans several input edges and is the `Merged` set of their
+    /// images, kinds mixed as they come. No blend run makes this join
+    /// (the joins it makes are trims, rim trims or survivors among
+    /// themselves), so the row plants the record: a join of a trim the
+    /// surgery minted with an edge it carried.
     #[test]
-    fn a_join_over_a_trim_and_a_survivor_refuses() {
+    fn a_join_over_a_trim_and_a_survivor_names_their_set() {
         let (body, table) = cube();
         let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
         let v = body.vertices().next().unwrap().0;
@@ -501,14 +474,24 @@ mod tie_tests {
             &table,
             &body,
             &rec,
-        );
-        assert!(
-            matches!(
-                named,
-                Err(NamingError::Emission { what }) if what.contains("different kinds")
-            ),
-            "the stop case refuses typed"
-        );
+        )
+        .expect("a mixed set is a reading");
+        let name = named
+            .name_of(&ent(0, EntityKey::Edge(edges[2])))
+            .expect("the kept edge is named");
+        let [RoleSeg::Merged(cs)] = name.path.as_slice() else {
+            panic!("the joined edge is a set: {name:?}");
+        };
+        let kinds: Vec<_> = cs
+            .iter()
+            .map(|c| match c.path.as_slice() {
+                [RoleSeg::TrimEdge { .. }] => "trim",
+                [RoleSeg::FromTarget(_)] => "survivor",
+                other => panic!("an image of one input edge: {other:?}"),
+            })
+            .collect();
+        assert_eq!(kinds.len(), 2, "the trimline and the survivor: {name:?}");
+        assert!(kinds.contains(&"trim") && kinds.contains(&"survivor"));
     }
 
     /// Rebuilds `table` with `a` and `b` TIED under `a`'s name — the
